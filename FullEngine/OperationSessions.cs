@@ -73,7 +73,7 @@ internal sealed class OperationJob {
     string progress = "Starting analysis…";
     double? fraction;
     object frames, outputs;
-    sealed record InputRecord(string Title, object Value);
+    sealed record InputRecord(string Title, object Value, string Name = null, string Kind = null, string Mode = null);
     readonly List<InputRecord> history = new();
     public OperationJob(string id, Operation operation) { Id = id; Operation = operation; }
     public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, values = outputs, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray() }; }
@@ -90,7 +90,7 @@ internal sealed class OperationJob {
         });
         Check(); return value;
     }
-    public void Record(string title, object value) { lock (sync) history.Add(new InputRecord(title, value)); }
+    public void Record(string title, object value, string name = null, string kind = null, string mode = null) { lock (sync) history.Add(new InputRecord(title, value, name, kind, mode)); }
     public void Answer(int requestedToken, JsonElement value) {
         lock (sync) {
             Check(); if (state != "input" || token != requestedToken || answer.HasValue) throw new Exception("That input step has already changed. Use the current form.");
@@ -196,7 +196,7 @@ internal sealed class OperationHost : ITemplateHost {
                     }
                 }
                 HostParameters.Commit(p, filled, context);
-                job.Record(descriptor["prompt"] as string, input);
+                job.Record(descriptor["prompt"] as string, input, p.Name, descriptor["kind"] as string, descriptor.TryGetValue("mode", out var acquisitionMode) ? acquisitionMode as string : null);
                 return filled;
             } catch (ArgumentException ex) { error = ex.Message; }
         }

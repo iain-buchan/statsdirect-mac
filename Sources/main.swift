@@ -13,6 +13,7 @@ final class Document {
     var access: URL
     var initialURL: URL?
     var rPane: RPane?
+    var rScriptPlan: RScriptPlan?
     var gridDirty = false
     var gridVersion = 0
     var workbookID: String?
@@ -157,6 +158,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         for title in ["Data", "Analysis", "Graphics"] { populateOperationMenu(menu(title)) }
         let rMenu = menu("R")
         add(rMenu, "New R Session", #selector(newRTab), "")
+        add(rMenu, "Continue Report in R", #selector(continueActiveReportInR))
+        rMenu.addItem(.separator())
         add(rMenu, "Run Script", #selector(runRScript), "\r")
         add(rMenu, "Stop / Reset Session", #selector(stopRSession))
         add(rMenu, "Save Script…", #selector(saveRScript))
@@ -183,6 +186,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(forward) { return active?.web.canGoForward == true }
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
         if [#selector(saveActiveExcel), #selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
+        if menuItem.action == #selector(continueActiveReportInR) { menuItem.title = active?.rScriptPlan?.hasRecipe == false ? "Open Report Data in R" : "Continue Report in R"; return active?.rScriptPlan != nil }
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
         if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
         if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
@@ -257,6 +261,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @discardableResult
     func newDocument(kind: String, title: String, url: URL? = nil, html: String? = nil, access: URL? = nil) -> Document {
         let doc = Document(kind: kind, title: title, access: access ?? root)
+        if kind == "report" && url == nil { doc.web.configuration.userContentController.add(self, name: "statsDirectReport") }
         if kind == "grid" { doc.web.configuration.userContentController.add(self, name: "statsDirectGrid") }
         if kind == "operation" { doc.web.configuration.userContentController.add(self, name: "statsDirectOperation") }
         if kind == "analysis" { doc.web.configuration.userContentController.add(self, name: "statsDirectAnalysis") }
@@ -342,6 +347,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func remove(_ doc: Document) {
         if let id = doc.workbookID { workbookRequest(["action": "close", "id": id]) { _ in } }
+        doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectReport")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectGrid")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectAnalysis")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectOperation")

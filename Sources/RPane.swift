@@ -22,10 +22,10 @@ final class RPane: NSObject, NSTextViewDelegate {
     var hasUnsavedChanges: Bool { editor.string != savedScript }
     var isRunning: Bool { busy }
 
-    override init() {
+    init(script: String = "") {
         super.init()
-        editor.string = ""
-        savedScript = editor.string
+        editor.string = script
+        savedScript = ""
         editor.delegate = self
         editor.isRichText = false; editor.isAutomaticQuoteSubstitutionEnabled = false
         editor.isAutomaticDashSubstitutionEnabled = false; editor.isAutomaticTextReplacementEnabled = false

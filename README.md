@@ -76,6 +76,18 @@ Choose **R → New R Session** or **File → New R Session** (⌘R) to start a s
 
 R-created files are retained in `~/Library/Application Support/StatsDirect Viewer/R Sessions/<session-id>`, shown in the console. This first version provides a script editor and text output; it does not embed an R graphics device or support interactive console input such as `readline()`. The R tab is separate from the calculation engine's R-operation integration. R is installed separately and is not bundled with this app.
 
+## Continue a completed analysis in R
+
+Completed analysis reports include **Continue in R**, also available as **R → Continue Report in R**. Clicking it opens an independent R tab with a generated script and runs it once. The editor remains editable; use Run Script to rerun it or Save Script to keep a standalone `.R` file. Generated scripts are treated as unsaved until saved.
+
+The script contains the completed run's recorded inputs, normalized confidence levels, parameter choices, original scalar results and any output tables. It does not reread the live worksheet, so editing or closing the source form cannot change an earlier report's R analysis. Named `data_frames`, `parameters`, `original_results`, `input_history` and `result_tables` objects remain available for exploration. R must be installed; no R packages are installed automatically.
+
+There are currently 38 method mappings, all using base R: paired/single/unpaired t tests (including summary-statistic forms), sign and single-proportion binomial tests, Poisson rate intervals, Pearson/G/Fisher contingency tests, McNemar, Spearman/Kendall, Wilcoxon/Mann–Whitney/Smirnov/Kruskal, one-way ANOVA, simple linear regression, variance ratio, core univariate summaries, Shapiro–Wilk and eight distribution calculators. Paired t retains the selected confidence level and optional agreement analysis, including a vector PDF plot in the R session directory. The existing StatsDirect report retains its SVG chart.
+
+**R script coverage** describes each mapping's scope. Main statistical equivalents do not imply identical output for every supplementary estimate: exact-test conventions, ties, continuity corrections, centiles and simulation streams can differ. Trend/risk extensions and some supplementary outputs are not reproduced. Unmapped functions instead display **Open data and settings in R**, with an explicit starter-script notice; these include their captured data and results but do not claim an equivalent calculation. The scripts and scope notes are in `Content/R/recipes` and `Content/R/analysis-recipes.json`.
+
+The mappings follow the [R stats reference](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/00Index.html), including its [t-test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html) and [rank-test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/wilcox.test.html) conventions. The statistical engine remains unchanged; the host's input history now records stable parameter names, kinds and acquisition modes alongside the original answers.
+
 ## Engine
 
 The app now embeds the **full StatsDirect 5.0.5 headless calculation build**, replacing the earlier extracted paired routine. It loads 284 operation definitions. The paired menu action runs the original `TPaired` definition through `TemplateProcessor` and displays HTML from the original report renderer. Calculations and C#/VB scripts run in the same process as the Mac window, using a bundled .NET runtime.

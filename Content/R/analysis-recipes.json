@@ -1,0 +1,154 @@
+{
+  "TPaired": {
+    "file": "paired.R",
+    "detail": "Paired t test, matched missing-value handling, selected confidence level and optional agreement plot (vector PDF)."
+  },
+  "TSingle": {
+    "file": "t-tests.R",
+    "detail": "Student t test; the independent-samples script reports both pooled-variance and Welch results."
+  },
+  "TUnpaired": {
+    "file": "t-tests.R",
+    "detail": "Student t test; the independent-samples script reports both pooled-variance and Welch results."
+  },
+  "TSingleSummary": {
+    "file": "t-summary.R",
+    "detail": "Student t statistics and confidence intervals from the recorded summary inputs; both pooled and Welch for two groups."
+  },
+  "TUnpairedSummary": {
+    "file": "t-summary.R",
+    "detail": "Student t statistics and confidence intervals from the recorded summary inputs; both pooled and Welch for two groups."
+  },
+  "ExactSign": {
+    "file": "binomial.R",
+    "detail": "Exact binomial test and confidence interval. Additional mid-P, approximation and two-sided conventions can differ."
+  },
+  "PropSingle": {
+    "file": "binomial.R",
+    "detail": "Exact binomial test and confidence interval. Additional mid-P, approximation and two-sided conventions can differ."
+  },
+  "RatePoissonCI": {
+    "file": "poisson.R",
+    "detail": "Exact Poisson rate estimate and confidence interval."
+  },
+  "Chi2by2": {
+    "file": "contingency.R",
+    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  },
+  "ExactFisher": {
+    "file": "contingency.R",
+    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  },
+  "ExactFisherX": {
+    "file": "contingency.R",
+    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  },
+  "ExactORCML": {
+    "file": "contingency.R",
+    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  },
+  "ExactFisherRbyC": {
+    "file": "contingency.R",
+    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  },
+  "ExactChiRbyC": {
+    "file": "contingency.R",
+    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  },
+  "ExactChiRbyCScreen": {
+    "file": "contingency.R",
+    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  },
+  "ExactMcNamar": {
+    "file": "mcnemar.R",
+    "detail": "McNemar tests with and without continuity correction and exact discordant-pair binomial test."
+  },
+  "ExactMcNamarChi": {
+    "file": "mcnemar.R",
+    "detail": "McNemar tests with and without continuity correction and exact discordant-pair binomial test."
+  },
+  "Spearman": {
+    "file": "correlation.R",
+    "detail": "Rank correlation. R exact/asymptotic calculations and treatment of ties can give different P values."
+  },
+  "Kendall": {
+    "file": "correlation.R",
+    "detail": "Rank correlation. R exact/asymptotic calculations and treatment of ties can give different P values."
+  },
+  "Wilcoxon": {
+    "file": "rank-tests.R",
+    "detail": "Corresponding base-R rank/distribution test. Exact algorithms, ties and continuity corrections may differ."
+  },
+  "MannWhitney": {
+    "file": "rank-tests.R",
+    "detail": "Corresponding base-R rank/distribution test. Exact algorithms, ties and continuity corrections may differ."
+  },
+  "Smirnov": {
+    "file": "rank-tests.R",
+    "detail": "Corresponding base-R rank/distribution test. Exact algorithms, ties and continuity corrections may differ."
+  },
+  "Kruskal": {
+    "file": "rank-tests.R",
+    "detail": "Corresponding base-R rank/distribution test. Exact algorithms, ties and continuity corrections may differ."
+  },
+  "OneWay": {
+    "file": "one-way.R",
+    "detail": "One-way ANOVA main test. Supplementary comparisons are left for explicit selection in R."
+  },
+  "SimpleLinearRegression": {
+    "file": "linear.R",
+    "detail": "Simple linear regression, coefficient confidence intervals and an editable lm model."
+  },
+  "VarianceRatio": {
+    "file": "variance.R",
+    "detail": "F variance-ratio test, placing the larger variance in the numerator as StatsDirect does."
+  },
+  "UnivariateSummary": {
+    "file": "summary.R",
+    "detail": "Core descriptive statistics and mean confidence intervals. R type-7 quantiles are explicit; additional StatsDirect summaries are not reproduced."
+  },
+  "QuickSummary": {
+    "file": "summary.R",
+    "detail": "Core descriptive statistics and mean confidence intervals. R type-7 quantiles are explicit; additional StatsDirect summaries are not reproduced."
+  },
+  "UnivariateSummaryToWorksheetOnly": {
+    "file": "summary.R",
+    "detail": "Core descriptive statistics and mean confidence intervals. R type-7 quantiles are explicit; additional StatsDirect summaries are not reproduced."
+  },
+  "Normality": {
+    "file": "normality.R",
+    "detail": "Shapiro-Wilk test. Other normality diagnostics in the report are not reproduced; R accepts 3 to 5000 observations."
+  },
+  "DistributionNormal": {
+    "file": "distribution.R",
+    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  },
+  "DistributionT": {
+    "file": "distribution.R",
+    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  },
+  "DistributionF": {
+    "file": "distribution.R",
+    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  },
+  "DistributionChiSquare": {
+    "file": "distribution.R",
+    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  },
+  "DistributionQ": {
+    "file": "distribution.R",
+    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  },
+  "DistributionNonCentralT": {
+    "file": "distribution.R",
+    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  },
+  "DistributionBinomial": {
+    "file": "distribution.R",
+    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  },
+  "DistributionPoisson": {
+    "file": "distribution.R",
+    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  }
+}

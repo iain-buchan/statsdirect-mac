@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+python3 FullEngine/import_upstream.py --check
 : "${DOTNET_BIN:?Set DOTNET_BIN to the .NET 10 SDK executable}"
 "$DOTNET_BIN" publish FullEngine/StatsDirect.Headless.csproj -c Release -r osx-arm64 --self-contained false -o FullEngine/publish --nologo
 clang++ -std=c++17 -dynamiclib -arch arm64 FullEngine/TextMetrics.cpp -o FullEngine/publish/libStatsDirectText.dylib -framework CoreText -framework CoreFoundation

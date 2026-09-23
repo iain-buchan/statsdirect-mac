@@ -1,4 +1,0 @@
-<report>
-<p><pval>Kappa simulated exact @{p:pval} (@{pc:round2}% CI: @{ll:roundu} to @{ul:roundu}@warn) on @k Monte Carlo samples (seed: @seed)</pval><br />
-<pval>Weighted kappa simulated exact @{pw:pval} (@{pc:round2}% CI: @{llw:roundu} to @{ulw:roundu}@warnw) on @k Monte Carlo samples (seed: @seed)</pval></p>
-</report>

@@ -1,7 +1,0 @@
-<report>
-<title>Multiple regression - best sub-set</title>
-<p>Selected variables: <block name="selected" separator=", ">@label</block></p>
-<p>F = @{f:roundu}<br />
-R&#xb2; = @{r2:roundu}<br />
-Mallows' Cp = @{cp:roundu}</p>
-</report>

@@ -1,0 +1,4 @@
+[submodule "statsdirect"]
+	path = FullEngine/Upstream
+	url = https://github.com/iain-buchan/statsdirect.git
+	branch = main

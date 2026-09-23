@@ -1,6 +1,0 @@
-<report>
-<table>
-<tr><th>Variable</th><block name="pc"><th>PC@pc</th></block></tr>
-<block name="var"><tr><td><subtotal>@lab</subtotal></td><block name="res"><td>@{res:roundu}</td></block></tr></block>
-</table>
-</report>

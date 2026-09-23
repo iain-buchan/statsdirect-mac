@@ -1,9 +1,0 @@
-<report>
-<title>Multiple linear regression - prediction</title>
-<table>
-<block name="x"><tr><td>@xtitle</td><td>=</td><td>@{x:roundu}</td></tr></block>
-</table>
-<p>@ytitle = @{y:roundu}@msg</p>
-<p><ci>@{ci_pc:round1}% Confidence interval = @{ci_from:roundu} to @{ci_to:roundu}</ci></p>
-<p><ci>@{pred_pc:round1}% Prediction interval = @{pred_from:roundu} to @{pred_to:roundu}</ci></p>
-</report>

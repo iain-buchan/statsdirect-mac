@@ -1,5 +1,0 @@
-<report>
-<table>
-<tr><td>@t1 = @v1</td><td>@t2 = @{v2:roundu}</td></tr>
-</table>
-</report>

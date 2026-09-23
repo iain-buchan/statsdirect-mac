@@ -1,5 +1,0 @@
-<report>
-<block name="chart">
-<p>@{chart:chart}</p>
-</block>
-</report>

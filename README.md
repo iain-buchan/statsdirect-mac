@@ -1,4 +1,6 @@
-# StatsDirect Mac viewer prototype
+# StatsDirect for Mac
+
+Native macOS prototype in [iain-buchan/statsdirect-mac](https://github.com/iain-buchan/statsdirect-mac), using the calculation engine from [iain-buchan/statsdirect](https://github.com/iain-buchan/statsdirect). The engine repository's primary branch is **main**. `FullEngine/Upstream` is a Git submodule pinned to a tested commit; builds compile that source directly. Mac hosting and rendering adaptations remain in this repository. Engine updates are explicit and do not happen automatically during a build.
 
 Open **StatsDirect Viewer.app**. It starts with one blank worksheet. **File → New Worksheet** (⌘N) creates another independent document; **File → Open…** (⌘O) accepts Excel, CSV, R data and HTML reports. Choose a function from **Analysis** to open its first input step immediately. Results open in separate report tabs, preserving earlier results.
 
@@ -102,6 +104,18 @@ The Windows Data, Analysis and Graphics menus are populated. The general host su
 
 ## Build
 
-Run `./build.sh` on an Apple Silicon Mac with Xcode command line tools, Python 3 and .NET 10 SDK installed. Set `DOTNET` to the SDK executable if necessary. The script also recognizes the SDK downloaded in this workspace's `work/dotnet` directory. Build caches are kept outside the deliverable by default.
+Clone this repository with its engine:
+
+```sh
+git clone --recurse-submodules https://github.com/iain-buchan/statsdirect-mac.git
+cd statsdirect-mac
+./build.sh
+```
+
+For an existing clone, run `git submodule update --init --recursive` first. Downloading a GitHub source ZIP does not include the engine submodule.
+
+Run `./build.sh` on an Apple Silicon Mac with Xcode command line tools, Python 3 and .NET 10 SDK installed. Set `DOTNET` to the SDK executable if necessary. Build caches default to the ignored `.build` directory; set `STATSDIRECT_BUILD_WORK` to use another location. The generated `.app`, runtime, caches and compiler outputs are excluded from Git. The prebuilt offline grid and help are included; Node.js/pnpm is needed only when rebuilding the grid.
+
+See [Updating the calculation engine](FullEngine/README.md#updating-the-calculation-engine) for the controlled update procedure. The Git submodule link and `FullEngine/upstream-manifest.json` identify the exact engine revision used by this Mac version.
 
 To refresh the menu and its help mapping, run `python3 import_analysis.py /path/to/statsdirect /path/to/statisticalhelp`. To refresh help, run `python3 import_help.py /path/to/statisticalhelp`. Engine refresh instructions are in FullEngine/README.md. Source revisions and hashes are recorded in the provenance manifests. No changes have been pushed to either upstream repository.

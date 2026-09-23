@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 APP="$PWD/StatsDirect Viewer.app"
-BUILD_WORK="${STATSDIRECT_BUILD_WORK:-$PWD/../../work/viewer-build}"
+BUILD_WORK="${STATSDIRECT_BUILD_WORK:-$PWD/.build}"
 mkdir -p "$BUILD_WORK"
 BUILD_WORK="$(cd "$BUILD_WORK" && pwd -P)"
 DOTNET_BIN="${DOTNET:-$(command -v dotnet || true)}"
@@ -12,7 +12,7 @@ if [[ -z "$DOTNET_BIN" ]]; then
   exit 1
 fi
 export DOTNET_CLI_HOME="$BUILD_WORK/dotnet-home"
-export NUGET_PACKAGES="${NUGET_PACKAGES:-$PWD/../../work/nuget}"
+export NUGET_PACKAGES="${NUGET_PACKAGES:-$BUILD_WORK/nuget}"
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_GENERATE_ASPNET_CERTIFICATE=false
 DOTNET_BIN="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$DOTNET_BIN")"

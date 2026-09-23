@@ -1,7 +1,0 @@
-<report>
-<p>@type matrix:</p>
-<table>
-<tr><th></th><block name="lab1"><th><subtotal>@lab</subtotal></th></block></tr>
-<block name="lab2"><tr><td><subtotal>@lab</subtotal></td><block name="res"><td>@{res:roundu}</td></block></tr></block>
-</table>
-</report>

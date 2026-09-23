@@ -1,6 +1,0 @@
-<report>
-<table>
-<tr><th>Row</th><block name="pc"><th>PCS@pc</th></block></tr>
-<block name="row"><tr><td><subtotal>@row</subtotal></td><block name="res"><td>@{res:roundu}</td></block></tr></block>
-</table>
-</report>

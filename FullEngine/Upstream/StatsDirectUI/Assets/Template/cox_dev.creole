@@ -1,9 +1,0 @@
-<report>
-<title>Cox regression - model analysis</title>
-
-<p>Log likelihood with no covariates = @{ll0:roundu}</p>
-
-<p>Log likelihood with all model covariates = @{ll:roundu}</p>
-
-<p>Deviance (likelihood ratio) chi-square = @{x2:roundu}   df = @df   <pval>@{p:pval}</pval></p>
-</report>

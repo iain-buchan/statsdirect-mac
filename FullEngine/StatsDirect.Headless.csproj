@@ -3,9 +3,14 @@
     <TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType>
     <AssemblyName>StatsDirect.Headless</AssemblyName><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems><GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <EnableDefaultAntlrItems>false</EnableDefaultAntlrItems>
     <SourceRoot>Upstream/StatsDirectUI</SourceRoot>
     <NoWarn>CA1416;CS3021</NoWarn>
   </PropertyGroup>
+  <Target Name="RequireEngineSubmodule" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(SourceRoot)/UI/OperationTestHost.cs')" Text="Engine source is missing. Run: git submodule update --init --recursive" />
+  </Target>
   <ItemGroup>
     <Compile Include="$(SourceRoot)/Builtins/**/*.cs" Exclude="$(SourceRoot)/Builtins/ImportExport.cs;$(SourceRoot)/Builtins/Nonparametric.cs" />
     <Compile Include="$(SourceRoot)/Numerics/**/*.cs;$(SourceRoot)/Data/**/*.cs;$(SourceRoot)/Templates/**/*.cs;$(SourceRoot)/Utilities/**/*.cs;$(SourceRoot)/Creole/**/*.cs;$(SourceRoot)/Expressions/**/*.cs;$(SourceRoot)/CsvParser/**/*.cs;$(SourceRoot)/Configuration/**/*.cs" />

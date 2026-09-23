@@ -1,6 +1,0 @@
-<report>
-<title>Multiple linear regression - XXi (hat) matrix</title>
-<table>
-<block name="xxi"><tr><block name="col"><td>@{x:roundu}</td></block></tr></block>
-</table>
-</report>

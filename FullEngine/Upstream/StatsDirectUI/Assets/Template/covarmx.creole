@@ -1,6 +1,0 @@
-<report>
-<title>Multiple linear regression - variance-covariance matrix</title>
-<table>
-<block name="covar"><tr><block name="col"><td>@{x:roundu}</td></block></tr></block>
-</table>
-</report>

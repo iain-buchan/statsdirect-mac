@@ -2,7 +2,17 @@
 
 Open **StatsDirect Viewer.app**. Choose **Analysis → Parametric methods → Paired t test — PEFR example** (⌘T), or click **Run paired t test**. Each run creates a new report tab. Edit the nine paired observations in the data tab and run again to produce a separate report. Earlier reports retain their original results and input snapshots.
 
+The window frame has explicit **Close**, **Minimise**, **Resize / Restore** and **Move** controls. Drag Move to reposition the window; Resize / Restore toggles the window size, and the native edges support custom resizing.
+
 Reports and help occupy separate tabs in one native Mac window. The Help library contains 400 topics from the supplied statisticalhelp repository, including the worked paired t example. Help links open within help tabs. The Window menu lists open documents; ⌘W closes the selected tab. Printing and PDF export use WebKit.
+
+## R tabs
+
+Choose **File → New R Tab** or **R → New R Tab** (⌘R). Each tab starts a separate persistent session using the R installation on this Mac. Edit the script and click **Run script**, or press **⌘Return**. The initial script runs the paired t-test example in base R. The console displays output, warnings and errors; variables remain available between runs.
+
+**Stop / Reset** terminates that session and clears its variables. The next run starts a new session. **Save script…** (⌘S when the R tab is selected) saves an `.R` file. Closing a tab or quitting warns about unsaved edits or running scripts. Session objects are not restored after closing.
+
+R-created files are retained in `~/Library/Application Support/StatsDirect Viewer/R Sessions/<session-id>`, shown in the console. This first version provides a script editor and text output; it does not embed an R graphics device or support interactive console input such as `readline()`. The R tab is separate from the calculation engine's R-operation integration. R is installed separately and is not bundled with this app.
 
 ## Engine
 
@@ -14,7 +24,7 @@ See [FullEngine/README.md](FullEngine/README.md) for provenance and exact platfo
 
 ## Scope
 
-The visible analysis menu currently runs the paired t test only. The complete numerical source is built, but only the two populated upstream operation tests and the paired viewer path have been exercised. Chart rendering, Windows file dialogs, external R integration and RTF/Office export still need Mac host work. This is an ad-hoc signed local prototype, not a notarized distribution.
+The visible analysis menu currently runs the paired t test only. The complete numerical source is built, but only the two populated upstream operation tests and the paired viewer path have been exercised. Chart rendering, Windows file dialogs, the engine’s R-operation integration and RTF/Office export still need Mac host work. This is an ad-hoc signed local prototype, not a notarized distribution.
 
 ## Build
 

@@ -24,6 +24,7 @@ final class Document {
     var title: String
     var access: URL
     var initialURL: URL?
+    var rPane: RPane?
     init(kind: String, title: String, access: URL) {
         self.kind = kind; self.title = title; self.access = access
         let config = WKWebViewConfiguration()
@@ -36,15 +37,19 @@ final class Document {
 }
 
 @MainActor
-final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, NSTabViewDelegate, NSMenuItemValidation {
+final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, NSTabViewDelegate, NSMenuItemValidation, NSWindowDelegate {
     var window: NSWindow!
+    var frameControls: WindowFrameControls!
+    var closeApproved = false
     var tabs: NSTabView!
     var status: NSTextField!
     var runButton: NSButton!
+    var exportButton: NSButton!
     var documents: [Document] = []
     var windowsMenu: NSMenu!
     var running = false
     var reportNumber = 0
+    var rNumber = 0
     var libraryHandle: UnsafeMutableRawPointer?
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
     var active: Document? { documents.first { $0.item === tabs.selectedTabViewItem } }
@@ -52,6 +57,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func applicationDidFinishLaunching(_ notification: Notification) {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 850), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "StatsDirect · Mac prototype"
+        window.delegate = self
+        frameControls = WindowFrameControls(window: window)
         window.minSize = NSSize(width: 850, height: 520)
         let container = NSView(); window.contentView = container
         let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 10
@@ -59,6 +66,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             let button = NSButton(title: label, target: self, action: selector)
             button.bezelStyle = .rounded
             if selector == #selector(runPaired) { runButton = button }
+            if selector == #selector(savePDF) { exportButton = button }
             bar.addArrangedSubview(button)
         }
         tabs = NSTabView(); tabs.tabViewType = .topTabsBezelBorder; tabs.delegate = self
@@ -90,6 +98,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let app = menu("StatsDirect")
         add(app, "Quit StatsDirect", #selector(NSApplication.terminate(_:)), "q", target: NSApp)
         let file = menu("File")
+        add(file, "New R Tab", #selector(newRTab), "r")
         add(file, "PEFR example data", #selector(showData), "1")
         add(file, "Open HTML in New Tab…", #selector(openFile), "o")
         add(file, "Save PDF…", #selector(savePDF), "s")
@@ -103,6 +112,11 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let parametric = NSMenu(title: "Parametric methods")
         let group = NSMenuItem(title: "Parametric methods", action: nil, keyEquivalent: ""); group.submenu = parametric; analysis.addItem(group)
         add(parametric, "Paired t test — PEFR example", #selector(runPaired), "t")
+        let rMenu = menu("R")
+        add(rMenu, "New R Tab", #selector(newRTab), "")
+        add(rMenu, "Run Script", #selector(runRScript), "\r")
+        add(rMenu, "Stop / Reset Session", #selector(stopRSession))
+        add(rMenu, "Save Script…", #selector(saveRScript))
         let help = menu("Help")
         add(help, "Help Library", #selector(helpLibrary), "2")
         add(help, "Paired Student t Test", #selector(pairedHelp), "?")
@@ -111,6 +125,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
+        if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
+        if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "r" }
+        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : "Save PDF…"; return active != nil }
         if menuItem.action == #selector(runPaired) { return !running && example != nil }
         if [#selector(closeTab), #selector(printPage), #selector(savePDF)].contains(menuItem.action) { return active != nil }
         return true
@@ -138,6 +156,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         window.title = "\(active?.title ?? "StatsDirect") · Mac prototype"
+        exportButton?.title = active?.kind == "r" ? "Save script…" : "Save PDF…"
         status.stringValue = running ? "Running paired t test…" : "\(documents.count) open documents · \(active?.kind.capitalized ?? "Ready")"
         if windowsMenu != nil { updateWindowMenu() }
     }
@@ -176,15 +195,31 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         """
         newDocument(kind: "data", title: "Data · PEFR example", html: page("PEFR example", body))
     }
+    @objc func newRTab() {
+        rNumber += 1
+        let number = rNumber
+        let doc = newDocument(kind: "r", title: "R · Session \(number)")
+        let pane = RPane(before: example?.before ?? [], after: example?.after ?? [])
+        doc.rPane = pane; doc.item.view = pane.view
+    }
+    @objc func runRScript() { active?.rPane?.runScript() }
+    @objc func stopRSession() { active?.rPane?.stopSession() }
+    @objc func saveRScript() { active?.rPane?.saveScript() }
     @objc func closeTab() {
         guard let doc = active else { return }
-        if doc.kind == "data" {
+        if let pane = doc.rPane, pane.hasUnsavedChanges || pane.isRunning {
+            let alert = NSAlert(); alert.messageText = "Close this R session?"
+            alert.informativeText = "Unsaved script edits and R variables will be discarded. Any running script will stop."
+            alert.addButton(withTitle: "Close R Tab"); alert.addButton(withTitle: "Cancel")
+            alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
+        } else if doc.kind == "data" {
             let alert = NSAlert(); alert.messageText = "Close the example data?"; alert.informativeText = "Any edits to the example data will be discarded. Your reports remain open."
             alert.addButton(withTitle: "Close Data"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else { remove(doc) }
     }
     func remove(_ doc: Document) {
+        doc.rPane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }; tabs.removeTabViewItem(doc.item)
         updateWindowMenu(); status.stringValue = "\(documents.count) open documents"
     }
@@ -277,12 +312,14 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>\(title)</title><style>\(css)</style></head><body>\(body)</body></html>"
     }
     @objc func printPage() {
+        guard active?.kind != "r" else { return }
         guard let web = active?.web else { return }
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
         info.topMargin = 36; info.bottomMargin = 36; info.leftMargin = 36; info.rightMargin = 36
         web.printOperation(with: info).runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
     @objc func savePDF() {
+        if let pane = active?.rPane { pane.saveScript(); return }
         guard let doc = active else { return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.pdf]; panel.nameFieldStringValue = "\(doc.title).pdf"
         panel.beginSheetModal(for: window) { response in
@@ -332,6 +369,22 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             }
         }
     }
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        let allowed = applicationShouldTerminate(NSApp) == .terminateNow
+        closeApproved = allowed
+        return allowed
+    }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if closeApproved { return .terminateNow }
+        if documents.contains(where: { $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true }) {
+            let alert = NSAlert(); alert.messageText = "Quit with open R scripts?"
+            alert.informativeText = "Unsaved R script edits and session variables will be lost. Running scripts will stop."
+            alert.addButton(withTitle: "Quit"); alert.addButton(withTitle: "Cancel")
+            if alert.runModal() != .alertFirstButtonReturn { return .terminateCancel }
+        }
+        return .terminateNow
+    }
+    func applicationWillTerminate(_ notification: Notification) { for doc in documents { doc.rPane?.shutdown() } }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 MainActor.assumeIsolated {

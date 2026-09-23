@@ -18,7 +18,7 @@ The host-facing C functions are intentionally small; they are not a replacement 
 - `Settings.cs`: original defaults, a local window-state enum instead of WinForms, and no engine-side persistence. Preferences belong to the host.
 - `PlatformHost.cs`: registry/preferences initialization and an opaque window token. Windows file-picker builtins fail explicitly until supplied by the Mac host.
 - `SvgCanvas.cs`: original SVG canvas with Windows text measurement replaced by an explicit unsupported-platform exception. Full chart rendering is **not yet ported**. Other chart code still contains System.Drawing dependencies; the original HTML renderer reports chart failures in the report.
-- `RController.cs`: the Windows install dialog is replaced by an explicit exception. Windows R discovery and EMF chart import remain unported; external R scripts are not supported on Mac yet.
+- `RController.cs`: the Windows install dialog is replaced by an explicit exception. Windows R discovery and EMF chart import remain unported; the engine’s R-operation bridge is not supported on Mac yet (the native shell now has an independent R script tab).
 - Windows EMF canvas and RTF report renderers are excluded. The RTF image converter remains compiled for existing type dependencies, but its Windows image path is not supported on Mac.
 - `ViewerHost.cs` supplies only the parameter/output capabilities needed by this viewer. Other operations may require further host implementations even though their calculations compile.
 - `Exports.cs` resolves engine types for dynamically compiled scripts when .NET is embedded in the native host.

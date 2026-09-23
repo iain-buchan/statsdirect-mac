@@ -1,0 +1,6 @@
+<report>
+<title>Probit analysis - interpolation</title>
+
+<p>Proportional response = @{resp:roundu}   @mort<br />
+Value for X (@x_lab) = @{x:roundu}</p>
+</report>

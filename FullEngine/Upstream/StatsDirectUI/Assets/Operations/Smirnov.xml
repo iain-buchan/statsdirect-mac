@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Smirnov</name>
+  <friendly-name lang="en-GB">Smirnov two-sample test</friendly-name>
+  <help chm-id="1233" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select DATA</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>2</min-columns>
+          <max-columns>2</max-columns>
+          <ask-for-group-id>true</ask-for-group-id>
+        </frame>
+      </parameters>
+		<builtin function-name="rptSmirnov" />
+    <report type="application/x-statsdirect-creole" filename="smirnov.creole" />
+	</steps>
+</operation>

@@ -1,0 +1,27 @@
+<report>
+<title>Simple linear regression</title>
+
+<p><b>Equation: </b>@ytitle = @{slope:roundu} @xtitle @lnk @{abs_yintercept:roundu}</p>
+
+<block name="se">
+<p>Standard Error of slope = @{slope_err:roundu}<br />
+<ci>@{se_pc:round2}% CI for population value of slope = @{se_from:roundu} to @{se_to:roundu}</ci></p>
+
+<p>Correlation coefficient (r) = @{se_r:roundu} (r<sub>2</sub> = @{se_r2:roundu})</p>
+
+<block name="ci">
+<p><ci>@{ci_pc:round1}% CI for r (Fisher's z transformed) = @{ci_from:roundu} to @{ci_to:roundu}</ci></p>
+
+<p>t with @df DF = @{tdf:roundu}<br />
+<pval>Two sided @{p:pval}</pval><br />
+Power @pwr</p>
+
+<p>@sig</p>
+</block>
+</block>
+<block name="notcalc">
+<p><warn>SE and CI for slope not calculated when r = 1 or -1</warn><br />
+<subtotal>Correlation coefficient (r) = @{r:roundu}</subtotal><br />
+<warn>CI and t for correlation not calculated when r = 1 or -1</warn></p>
+</block>
+</report>

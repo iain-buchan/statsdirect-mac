@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>TimeSeriesSummary</name>
+	<friendly-name lang="en-GB">Time Series Summary</friendly-name>
+  <help chm-id="1399" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>times</name>
+          <prompt>Select Data for Times of Observation</prompt>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+            <validator><name>NonNegative</name></validator>
+          </validators>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <ask-for-group-id>false</ask-for-group-id>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>observations</name>
+          <prompt>Select Data for Observations</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <same-length-as>times</same-length-as>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <ask-for-group-id>false</ask-for-group-id>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>subjectIds</name>
+          <prompt>Select Subject/Participant Identifier</prompt>
+          <mode>CategoryReplaceMissing</mode>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+          </validators>
+          <same-length-as>times</same-length-as>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <ask-for-group-id>false</ask-for-group-id>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>groups</name>
+          <prompt>Select Groups (skip if only one group)</prompt>
+          <cancel-skips-parameter>Skip</cancel-skips-parameter>
+          <same-length-as>times</same-length-as>
+          <mode>CategoryReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <ask-for-group-id>false</ask-for-group-id>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+      </parameters>
+    <script language="CSharp"><![CDATA[
+    bool hasZeroTime = false;
+    foreach (double v in (parameters["times"].AsDataFrame.Variables[0] as DoubleVariable).Data)
+      if (v == 0)
+      {
+        hasZeroTime = true;
+        break;
+      }
+    ParameterBag outputParameters = new ParameterBag();
+    outputParameters.AddOutput("hasZeroTime", hasZeroTime);
+    return outputParameters;
+    ]]></script>
+    <test>
+      <condition>=!(parameters["hasZeroTime"].AsBoolean)</condition>
+      <iftrue>
+          <parameters>
+            <boolean>
+              <name>addZeroObservationAtZeroTime</name>
+              <prompt>Treat observation value at time zero as zero?</prompt>
+            </boolean>
+          </parameters>
+      </iftrue>
+    </test>
+      <parameters>
+        <confidence-interval>
+          <name>ci</name>
+        </confidence-interval>
+        <boolean>
+          <name>doExactP</name>
+          <prompt>Bootstrap confidence intervals?</prompt>
+          <must-request>true</must-request>
+          <lifetime>SessionForThisOperation</lifetime>
+          <default-value>true</default-value>
+        </boolean>
+        <integer>
+          <name>iterations</name>
+          <prompt>Iterations</prompt>
+          <acquire-if-true>=parameters.ContainsKey("doExactP") &amp;&amp; parameters["doExactP"].AsBoolean</acquire-if-true>
+          <must-request>true</must-request>
+          <lifetime>SessionForThisOperation</lifetime>
+          <minimum-value>1</minimum-value>
+          <default-value>100000</default-value>
+        </integer>
+        <integer>
+          <name>seed</name>
+          <prompt>Seed</prompt>
+          <acquire-if-true>=parameters.ContainsKey("doExactP") &amp;&amp; parameters["doExactP"].AsBoolean</acquire-if-true>
+          <must-request>true</must-request>
+          <force-default>true</force-default>
+          <default-value>=Base.DefaultSeed()</default-value>
+        </integer>
+      </parameters>
+    <builtin function-name="rptTimeSeriesSummary"/>
+    <report type="application/x-statsdirect-creole">
+      <![CDATA[
+<report>
+<title>Time series summary</title>
+<block name="group">
+<subtitle>Group: @groupName</subtitle>
+<table>
+<tr><th>Time</th><th>Observations</th><th>Mean</th><th>SD</th><th>SE</th><th>Median</th><th>IQR</th></tr>
+<block name="time">
+<tr><td>@time</td><td>@observations</td><td>@{mean:roundx}</td><td>@{sd:roundx}</td><td>@{se:roundx}</td><td>@{median:roundx}</td><td>@{iqr:roundx}</td></tr>
+</block>
+</table>
+
+<table>
+<tr><th>Subject ID</th><th>Baseline</th><th>Min. observation</th><th>Max. observation</th><th>Time to max.</th><th>Slope to max.</th><th>AUC</th></tr>
+<block name="subject">
+<tr><td>@subjectId</td><td>@{baseline:roundx}</td><td>@{min:roundx}</td><td>@{max:roundx}</td><td>@{timeToMax:roundx}</td><td>@{slopeToMax:roundx}</td><td>@{auc:roundx}</td></tr>
+</block>
+</table>
+
+<p>Subjects: @subjects<br />
+Total (mean per time point) observations: @totalObservations (@{meanObservationsPerTimePoint:roundx})<br />
+Mean (SD) area under curve (AUC): @{aucMean:roundx} (@{aucSd:roundx})<br />
+SE of mean AUC: @{aucSe:roundx}<br />
+<ci>@ciOutput% t-interval for mean AUC: @{aucTLcl:roundx} to @{aucTUcl:roundx}</ci></p>
+<block name="bootstrap">
+<p><ci>@ciOutput% bootstrap-t interval for mean AUC (@completedIterations iterations, seed @seed): @{aucTLclBoot:roundx} to @{aucTUclBoot:roundx}</ci></p>
+</block>
+<p><ci>@ciOutput% z-interval for mean AUC: @{aucZLcl:roundx} to @{aucZUcl:roundx}</ci><br />
+Median (IQR) area under curve: @{medianAuc:roundx} (@{iqrAuc:roundx})<br />
+Median (IQR) time to maximum: @{medianTimeToMax:roundx} (@{iqrTimeToMax:roundx})<br />
+Median (IQR) slope to maximum: @{medianSlopeToMax:roundx} (@{iqrSlopeToMax:roundx})<br />
+Mean (SD) slope to maximum: @{meanSlopeToMax:roundx} (@{meanSlopeToMaxSD:roundx})</p>
+
+<p>@{chart:chart}</p>
+</block>
+<subtitle>AUC distribution</subtitle>
+
+<p>@{aucNormalChart:chart}<br />
+R-square for AUC vs. normal scores: @{rSquareNormal:roundx}<br />
+@{aucLogNormalChart:chart}<br />
+R-square for log(AUC) vs. normal scores: @{rSquareLogNormal:roundx}</p>
+<block name="groupComparison">
+<subtitle>Group comparison: @group1Title vs. @group2Title</subtitle>
+
+<p>Welch t (SE of difference): @{t:roundx} (@{se:roundx})<br />
+DF (Satterthwaite): @{df:roundx}<br />
+<pval>Two sided @{p2:pval}</pval><br />
+<ci>AUC difference (@ciOutput% CI): @{aucDifference:roundx} (@{aucDifferenceLcl:roundx} to @{aucDifferenceUcl:roundx})</ci></p>
+<block name="bootstrap">
+<p>Bootstrapped with @iterations iterations, seed @seed<br />
+<pval>Two sided bootstrap @{pBootstrap:pval}</pval><br />
+<ci>@ciOutput% bootstrap-t interval: @{tBootstrapLcl:roundx} to @{tBootstrapUcl:roundx}</ci></p>
+</block>
+</block>
+<p>@{meanAucChart:chart}</p>
+</report>
+]]>
+    </report>
+  </steps>
+</operation>

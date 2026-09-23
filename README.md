@@ -1,62 +1,23 @@
-# StatsDirect for Mac — tabbed prototype 0.2
+# StatsDirect Mac viewer prototype
 
-Open **StatsDirect Viewer.app**. Choose **Analysis → Parametric methods → Paired t test — PEFR example** (⌘T), or click **Run paired t test**. A new report tab is calculated from the nine before/after pairs in the example data tab.
+Open **StatsDirect Viewer.app**. Choose **Analysis → Parametric methods → Paired t test — PEFR example** (⌘T), or click **Run paired t test**. Each run creates a new report tab. Edit the nine paired observations in the data tab and run again to produce a separate report. Earlier reports retain their original results and input snapshots.
 
-## Working with documents
+Reports and help occupy separate tabs in one native Mac window. The Help library contains 400 topics from the supplied statisticalhelp repository, including the worked paired t example. Help links open within help tabs. The Window menu lists open documents; ⌘W closes the selected tab. Printing and PDF export use WebKit.
 
-- Data, reports and help occupy separate native tabs in one Mac window.
-- Each run creates a new report. Existing reports retain their original results and input values.
-- Edit the PEFR data cells and run again to compare results. Blank values are excluded as incomplete pairs.
-- **Method help**, or the method link in a report, opens a separate help tab without replacing the report.
-- **Help library** provides an index of 400 topics; original published help includes its own navigation and R-code sections.
-- **Window** lists open documents. Use ⌘⇧] / ⌘⇧[ to move between tabs, and ⌘W or **Close tab** to close the selected document.
-- **Open HTML in New Tab…** opens a saved HTML report alongside existing documents.
-- **Save PDF** captures the selected document; **Print** provides paper sizes and paginated PDF output.
+## Engine
 
-## Calculation implementation
+The app now embeds the **full StatsDirect 5.0.5 headless calculation build**, replacing the earlier extracted paired routine. It loads 284 operation definitions. The paired menu action runs the original `TPaired` definition through `TemplateProcessor` and displays HTML from the original report renderer. Calculations and C#/VB scripts run in the same process as the Mac window, using a bundled .NET runtime.
 
-This is a real calculation, not a saved report. The app loads an Apple Silicon native shared library compiled from C# using .NET 10 NativeAOT. It runs in the same process as the Swift/AppKit/WKWebView host. No .NET installation is needed to run the built app.
+The shell is Swift/AppKit with WKWebView. This establishes a native Mac prototype and reusable HTML content; it is not yet the proposed Avalonia shell or a completed replacement for the Windows application.
 
-The paired-test `RptTPaired` method and its `Univariate` helper are extracted verbatim from StatsDirect 5.0.5. Their numerical dependencies and formatting source files are copied unchanged. A small parameter/data host supplies the inputs; a C-compatible entry point returns numerical results to Swift. The report presentation is new HTML; the full existing report renderer and operation-definition host are not ported in this version.
+See [FullEngine/README.md](FullEngine/README.md) for provenance and exact platform adaptations, and [Tests/verification.md](Tests/verification.md) for verification.
 
-Upstream engine repository: https://github.com/iain-buchan/statsdirect
+## Scope
 
-Pinned engine commit: `c56f888bd95604f9d656e90ad0236493a96f2ae7`.
+The visible analysis menu currently runs the paired t test only. The complete numerical source is built, but only the two populated upstream operation tests and the paired viewer path have been exercised. Chart rendering, Windows file dialogs, external R integration and RTF/Office export still need Mac host work. This is an ad-hoc signed local prototype, not a notarized distribution.
 
-`Engine/upstream-manifest.json` records the source hashes. `Engine/Upstream/TPaired.xml` retains the upstream example and expected results; `m_paired.creole` is retained as the reference report template. The wrapper invokes the operation with agreement analysis off; the unrelated chart path deliberately throws if invoked.
+## Build
 
-The wrapper rejects insufficient pairs, non-finite/constant differences and invalid confidence levels explicitly. Missing input pairs are removed together. This prototype fixes confidence at 95% and supports the nine-row example editor only.
+Run `./build.sh` on an Apple Silicon Mac with Xcode command line tools, Python 3 and .NET 10 SDK installed. Set `DOTNET` to the SDK executable if necessary. The script also recognizes the SDK downloaded in this workspace's `work/dotnet` directory. Build caches are kept outside the deliverable by default.
 
-## Help source
-
-Authoritative repository: https://github.com/iain-buchan/statisticalhelp
-
-Pinned help commit: `ae360074b18cbe2374317cada1e500c0fdb7d21c`.
-
-`Content/` in that repository is editable MadCap Flare source; `Docs/` is generated HTML, copied into this app with assets intact (build logs excluded). Flare was not rerun on this Mac. Editorial updates belong in the help source and should be published before refreshing the bundle.
-
-Refresh from a local checkout using `python3 import_help.py /path/to/statisticalhelp`, then rebuild. The report fixture this importer produces is retained for reference; live paired-test reports are generated by the app.
-
-## Build and numerical tests
-
-Requires Apple Command Line Tools and the .NET 10 SDK. Run `./build.sh`. Set `DOTNET=/path/to/dotnet` if needed. The build also detects the SDK downloaded to this task's work/dotnet directory. NuGet dependencies are restored from the normal configured sources.
-
-The build publishes a native C# library, runs `Tests/test_engine.py` against that exact library, compiles the Swift host and ad-hoc signs the app. Only source/content is tracked in Git; native binaries and build caches are excluded.
-
-Numerical verification compares all ten numerical outputs and formatted power against the upstream TPaired operation fixture, with relative tolerance 1e-11 and absolute tolerance 1e-12. Additional checks cover swapped pairs, rescaled units, pairwise missing values, edited data and invalid/degenerate inputs.
-
-Expected default result: n = 9; mean difference = 56.111111111111114; SD = 34.1739829564994; t = 4.9257744860354; df = 8; two-sided P = 0.0011555730513523055; 95% CI = 29.842662439749674 to 82.37955978247255.
-
-## Current limits
-
-- A Swift/AppKit feasibility host; it is not the proposed Avalonia shell. The HTML and C# calculation code can be reused in that later shell.
-- One extracted calculation is connected. The complete StatsDirect engine, dynamic prompts, spreadsheet, session persistence and general analysis workflow are not yet included.
-- Data edits and open documents are held in memory and are not restored after quitting. Export reports to PDF before quitting if you want to retain them.
-- Optional agreement analysis/charts are not implemented. Do not interpret this prototype as full Windows behaviour parity.
-- Apple Silicon, macOS 14 or later; tested on this Mac. Ad-hoc signed for local use, not Developer ID signed/notarized for distribution.
-- Copy uses WebKit's standard selection handling. Pasting tables/charts into Office has not been validated.
-- The original help still describes Windows menus/features. MHT/MHTML import is not supported.
-
-MIT notices for StatsDirect and StatisticalHelp are retained alongside this file. Bundled third-party assets retain their notices.
-
-See `Tests/verification.md` for the numerical and native-app checks performed on this build.
+To refresh help, run `python3 import_help.py /path/to/statisticalhelp`. Engine refresh instructions are in FullEngine/README.md. Source revisions and hashes are recorded in the provenance manifests. No changes have been pushed to either upstream repository.

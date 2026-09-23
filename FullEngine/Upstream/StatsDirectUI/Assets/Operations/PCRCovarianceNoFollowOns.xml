@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>PCRCovarianceNoFollowOns</name>
+  <friendly-name lang="en-GB">Principal components analysis: covariance</friendly-name>
+  <help chm-id="1280" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select DATA</prompt>
+          <ask-for-group-id>false</ask-for-group-id>
+          <same-length>true</same-length>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>2</min-columns>
+          <max-columns>200</max-columns>
+        </frame>
+        <!-- CI added for cronbach-->
+        <confidence-interval>
+          <name>ci</name>
+        </confidence-interval>
+        <boolean>
+          <name>correctForReversal</name>
+          <prompt>Correct for possible scale reversal?</prompt>
+          <default-value>true</default-value>
+        </boolean>
+      </parameters>
+		<builtin function-name="rptPrincipalComponentsRegressionCovariance" />
+    <report type="application/x-statsdirect-creole" filename="princ.creole" />
+    <!-- Defect ID #217: Do Cronbach immediately after PCR and disable other follow-on functions -->
+    <builtin function-name="rptCronbach" />
+    <report type="application/x-statsdirect-creole" filename="cronbach.creole" />
+  </steps>
+</operation>

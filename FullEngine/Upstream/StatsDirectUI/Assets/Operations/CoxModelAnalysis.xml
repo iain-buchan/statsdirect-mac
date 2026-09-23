@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>CoxModelAnalysis</name>
+	<friendly-name lang="en-GB">Model analysis</friendly-name>
+  <prerequisite-operation>CoxRegression</prerequisite-operation>
+  <steps>
+		<builtin function-name="rptCoxModelAnalysis" />
+    <report type="application/x-statsdirect-creole" filename="cox_dev.creole" />
+	</steps>
+</operation>

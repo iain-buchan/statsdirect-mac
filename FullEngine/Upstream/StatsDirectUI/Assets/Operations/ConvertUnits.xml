@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ConvertUnits</name>
+  <friendly-name lang="en-GB">Convert units</friendly-name>
+  <help chm-id="1062" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select data for conversion</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1024</max-columns>
+        </frame>
+        <option>
+          <name>conversion</name>
+          <prompt>Convert from and to which units</prompt>
+          <format-type>Dropdown</format-type>
+          <options>
+            <!-- Value should hold a formula suitable for StatsDirect's formula evaluation with X as the cell value, a vertical bar (|), and the output unit as it should appear in the output -->
+            <option value="X*76|CM of Mercury (0&#176;C)">Atmospheres to CM of Mercury (0&#176;C)</option>
+            <option value="X*29.921|Inches of Mercury (32&#176;F)">Atmospheres to Inches of Mercury (32&#176;F)</option>
+            <option value="X*2116.32|Pounds/sq ft">Atmospheres to Pounds/sq ft</option>
+            <option value="X*14.696|Pounds/sq ft">Atmospheres to Pounds/sq ft</option>
+            <option value="X*42|Gallon (US)">Barrels, oil to Gallon (US)</option>
+            <option value="X*0.159|Meter&#179;">Barrels (API) to Meter&#179;</option>
+            <option value="X*1055|Joule">BTU (15.56&#176;C) to Joule</option>
+            <option value="X*0.0236|Horsepower">BTU/Minute to Horsepower</option>
+            <option value="X*4.19|Joule">Calories (mean) to Joule</option>
+            <option value="X*0.3937|Inches">Centimetres to Inches</option>
+            <option value="X*0.061|Cubic inches">Cubic centimetres to Cubic inches</option>
+            <option value="X*0.00022|Gallons (British)">Cubic Centimetres to Gallons (British)</option>
+            <option value="X*0.00026|Gallons (US)">Cubic Centimetres to Gallons (US)</option>
+            <option value="X*0.037|Cubic Yards (US)">Cubic Feet to Cubic Yards (US)</option>
+            <option value="X*6.2288|Gallons (British)">Cubic Feet to Gallons (British)</option>
+            <option value="X*7.4805|Gallons (US)">Cubic Feet to Gallons (US)</option>
+            <option value="X*28.3162|Litres">Cubic Feet to Litres</option>
+            <option value="X*16.3872|Cubic Cm">Cubic Inches to Cubic Cm</option>
+            <option value="X*35.314|Cubic Feet">Cubic Meters to Cubic Feet</option>
+            <option value="X*219.969|Gallons (British)">Cubic Meters to Gallons (British)</option>
+            <option value="X*264.173|Gallons (US)">Cubic Meters to Gallons (US)</option>
+            <option value="(X-32)/1.8|Degrees (C)">Degrees (F) to Degrees (C)</option>
+            <option value="(X*1.8)+32|Degrees (F)">Degrees (C) to Degrees (F)</option>
+            <option value="X*0.3048|Meters">Feet to Meters</option>
+            <option value="X*0.8826|Inches of Mercury (32&#176;F)">Feet of Water (39.2&#176;F) to Inches of Mercury (32&#176;F)</option>
+            <option value="X*62.427|Pounds/sq ft">Feet of Water (39.2&#176;F) to Pounds/sq ft</option>
+            <option value="X*0.0183|Kilometres/hour">Feet/minute to Kilometres/hour</option>
+            <option value="X*0.005|Meters/second">Feet/minute to Meters/second</option>
+            <option value="X*0.1605|Cubic Ft">Gallons (British) to Cubic Ft</option>
+            <option value="X*1.2009|Gallons(US)">Gallons (British) to Gallons(US)</option>
+            <option value="X*4.5459|Litres">Gallons (British) to Litres</option>
+            <option value="X*0.1337|Cubic Ft">Gallons (US) to Cubic Ft</option>
+            <option value="X*0.8327|Gallons(British)">Gallons (US) to Gallons(British)</option>
+            <option value="X*3.7853|Litres">Gallons (US) to Litres</option>
+            <option value="X*0.03527|Ounces">Grams to Ounces</option>
+            <option value="X*1.014|Cheval-Vapeur">Horsepower to Cheval-Vapeur</option>
+            <option value="X*745.7|Watts">Horsepower to Watts</option>
+            <option value="X*2.54|Centimetres">Inches to Centimetres</option>
+            <option value="X*0.0334|Atmospheres">Inches of Mercury (32&#176;F) to Atmospheres</option>
+            <option value="X*2.2046|Pounds">Kilograms to Pounds</option>
+            <option value="X*3280|Feet">Kilometres to Feet</option>
+            <option value="X*0.6213|Miles">Kilometres to Miles</option>
+            <option value="X*56.884|BTU/Minute">Kilowatts to BTU/Minute</option>
+            <option value="X*0.0353|Cubic Feet">Litres to Cubic Feet</option>
+            <option value="X*0.2199|Gallons (British)">Litres to Gallons (British)</option>
+            <option value="X*0.2641|Gallons (US)">Litres to Gallons (US)</option>
+            <option value="X*3.2808|Feet">Meters to Feet</option>
+            <option value="X*5280|Feet">Miles to Feet</option>
+            <option value="X*1.6093|Kilometres">Miles to Kilometres</option>
+            <option value="X*320|Rods">Miles to Rods</option>
+            <option value="X*6080|Feet">Miles (nautical) to Feet</option>
+            <option value="X*0.035|Ounces (Fluid-British)">Millilitres to Ounces (Fluid-British)</option>
+            <option value="X*0.0338|Ounces (Fluid-US)">Millilitres to Ounces (Fluid-US)</option>
+            <option value="X*0.039|Inches">Millimetres to Inches</option>
+            <option value="X*28.3495|Grams">Ounces to Grams</option>
+            <option value="X*28.413|Cubic centimetres">Ounces (British) to Cubic centimetres</option>
+            <option value="X*29.5737|Cubic centimetres">Ounces (US) to Cubic centimetres</option>
+            <option value="X*453.5924|Grams">Pounds to Grams</option>
+            <option value="X*0.000472|Atmospheres">Pounds/sq ft to Atmospheres</option>
+            <option value="X*0.068|Atmospheres">Pounds/sq in to Atmospheres</option>
+            <option value="X*2.036|Inches of Mercury (32&#176;F)">Pounds/sq in to Inches of Mercury (32&#176;F)</option>
+            <option value="X*1136.521|Cubic centimetres">Quarts (British) to Cubic centimetres</option>
+            <option value="X*946.3586|Cubic centimetres">Quarts (US) to Cubic centimetres</option>
+            <option value="X*1016.047|Kilograms">Tons (long) to Kilograms</option>
+            <option value="X*2240|Pounds">Tons (long) to Pounds</option>
+            <option value="X*1.016|Tons (metric)">Tons (long) to Tons (metric)</option>
+            <option value="X*1.12|Tons (short)">Tons (long) to Tons (short)</option>
+            <option value="X*91.44|Centimetres">Yards to Centimetres</option>
+          </options>
+        </option>
+      </parameters>
+    <builtin function-name="shtConvertUnits"/>
+    <output-frame frame-name="output" />
+  </steps>
+</operation>

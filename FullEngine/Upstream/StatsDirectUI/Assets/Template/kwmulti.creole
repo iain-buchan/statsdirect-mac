@@ -1,0 +1,22 @@
+<report>
+<title>Kruskal-Wallis: all pairwise comparisons (Dwass-Steel-Critchlow-Fligner)</title>
+<p>Critical q (range) = @{q:roundu}</p>
+
+<block name="dwass">
+<table>
+<tr><td>@t1 vs. @t2</td><td><ci>@diff</ci></td></tr>
+<tr><td>(|@{wx:roundu}| > @{qval:roundu})</td><td><pval>@{p:pval}</pval></td></tr>
+</table>
+</block>
+<br />
+
+<p>Kruskal-Wallis: all pairwise comparisons (Conover-Iman)<br />
+Critical t (@{df:round0} df) = @{t:roundu}</p>
+
+<block name="conover">
+<table>
+<tr><td>@t1 and @t2</td><td><ci>@diff</ci></td></tr>
+<tr><td>(@{stata:roundu} > @{statb:roundu})</td><td><pval>@{p:pval}</pval></td></tr>
+</table>
+</block>
+</report>

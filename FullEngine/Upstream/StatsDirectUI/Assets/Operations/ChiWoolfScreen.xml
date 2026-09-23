@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ChiWoolfScreen</name>
+  <friendly-name lang="en-GB">Chi-square 2-by-2-by-k Woolf test</friendly-name>
+  <help chm-id="1056" />
+  <steps>
+      <parameters>
+        <double-2-by-2-by-k>
+          <name>data</name>
+          <prompt/>
+          <min-columns>2</min-columns>
+          <max-columns>2</max-columns>
+          <same-length>true</same-length>
+          <mode>NumericReplaceMissing</mode>
+          <must-request>true</must-request>
+          <can-select>false</can-select>
+        </double-2-by-2-by-k>
+        <confidence-interval>
+          <name>cco</name>
+          <must-request>true</must-request>
+        </confidence-interval>
+        <boolean>
+          <name>show_intermediates</name>
+          <prompt>Show intermediates</prompt>
+          <must-request>true</must-request>
+          <column>2</column>
+        </boolean>
+      </parameters>
+  	<builtin function-name="rptChiWoolf" />
+    <report type="application/x-statsdirect-creole" filename="woolf.creole" />
+  </steps>
+  <suggested-operations>
+    <suggested-operation>ChiWoolfScreen</suggested-operation>
+  </suggested-operations>
+</operation>

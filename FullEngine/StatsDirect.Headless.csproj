@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType>
+    <AssemblyName>StatsDirect.Headless</AssemblyName><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems><GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <SourceRoot>Upstream/StatsDirectUI</SourceRoot>
+    <NoWarn>CA1416;CS3021</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(SourceRoot)/Builtins/**/*.cs" Exclude="$(SourceRoot)/Builtins/ImportExport.cs;$(SourceRoot)/Builtins/Nonparametric.cs" />
+    <Compile Include="$(SourceRoot)/Numerics/**/*.cs;$(SourceRoot)/Data/**/*.cs;$(SourceRoot)/Templates/**/*.cs;$(SourceRoot)/Utilities/**/*.cs;$(SourceRoot)/Creole/**/*.cs;$(SourceRoot)/Expressions/**/*.cs;$(SourceRoot)/CsvParser/**/*.cs;$(SourceRoot)/Configuration/**/*.cs" />
+    <Compile Include="$(SourceRoot)/TemplateProcessing/**/*.cs" Exclude="$(SourceRoot)/TemplateProcessing/*Rtf*.cs" />
+    <Compile Include="$(SourceRoot)/Charting/**/*.cs" Exclude="$(SourceRoot)/Charting/Emf*.cs;$(SourceRoot)/Charting/SvgCanvas.cs" />
+    <Compile Include="$(SourceRoot)/UI/OperationTestHost.cs;$(SourceRoot)/UI/Pane.cs;$(SourceRoot)/UI/PaneAndPosition.cs;$(SourceRoot)/UI/ChartOptionsParameter.cs;$(SourceRoot)/UI/FillableParameter.cs" />
+    <Compile Include="*.cs;Generated/**/*.cs" /><Compile Include="$(SourceRoot)/../Layout/**/*.cs" Exclude="$(SourceRoot)/../Layout/Properties/**/*.cs;$(SourceRoot)/../Layout/obj/**/*.cs" /><Compile Include="$(SourceRoot)/R/**/*.cs;$(SourceRoot)/UI/OperationsTester.cs;$(SourceRoot)/TemplateProcessing/RtfImageConverter.cs" Exclude="$(SourceRoot)/R/RController.cs" />
+    <PackageReference Include="Antlr4.Runtime" Version="4.6.6" />
+    <PackageReference Include="Antlr4" Version="4.6.6" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" Version="5.9.0" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <Antlr4 Include="$(SourceRoot)/Creole/*.g4" CustomToolNamespace="StatsDirect.Creole" Generator="MSBuild:Compile" Listener="true" Visitor="true" /><Antlr4 Include="$(SourceRoot)/Expressions/*.g4" CustomToolNamespace="StatsDirect.Expressions" Generator="MSBuild:Compile" Listener="true" Visitor="true" />
+    <Antlr4 Include="$(SourceRoot)/CsvParser/*.g4" CustomToolNamespace="StatsDirect.CsvParser" Generator="MSBuild:Compile" Listener="true" Visitor="true" /><Antlr4 Include="$(SourceRoot)/R/*.g4" CustomToolNamespace="StatsDirect.R" Generator="MSBuild:Compile" Listener="true" Visitor="true" /><Content Include="$(SourceRoot)/Assets/Operations/**"><Link>Operations/%(RecursiveDir)%(Filename)%(Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+<Content Include="$(SourceRoot)/Assets/UserOperations/**"><Link>UserOperations/%(RecursiveDir)%(Filename)%(Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+<Content Include="$(SourceRoot)/Assets/Template/**"><Link>Template/%(RecursiveDir)%(Filename)%(Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+  </ItemGroup>
+</Project>

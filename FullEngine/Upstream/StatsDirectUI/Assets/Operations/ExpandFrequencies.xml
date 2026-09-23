@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ExpandFrequencies</name>
+	<friendly-name lang="en-GB">Expand</friendly-name>
+  <help chm-id="1398" />
+  <steps>
+      <parameters>
+        <option>
+          <name>mode</name>
+          <prompt>What type of summary data do you want to expand?</prompt>
+          <options>
+            <option value="categories-counts">Categories and counts</option>
+            <option value="categories-counts-covariates">Categories, counts and covariates</option>
+            <option value="responders-nonresps-covariates">Responders, non-responders and covariates</option>
+            <option value="responders-totals-covariates">Responders, totals and covariates</option>
+            <option value="resprops-totals-covariates">Response proportions, totals and covariates</option>
+          </options>
+          <default-value>categories-counts</default-value>
+        </option>
+        <frame>
+          <name>categories</name>
+          <prompt>Select categories / unique observations</prompt>
+          <acquire-if-true>=parameters["mode"].AsString.Contains("categories")</acquire-if-true>
+          <clear-selection-first>true</clear-selection-first>
+          <mode>Text</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+          </validators>
+        </frame>
+        <frame>
+          <name>counts</name>
+          <prompt>Select counts for categories</prompt>
+          <acquire-if-true>=parameters["mode"].AsString.Contains("counts")</acquire-if-true>
+          <clear-selection-first>true</clear-selection-first>
+          <same-length-as>categories</same-length-as>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+            <validator><name>NonNegative</name></validator>
+          </validators>
+        </frame>
+        <frame>
+          <name>responders</name>
+          <prompt>Select numbers responding</prompt>
+          <acquire-if-true>=parameters["mode"].AsString.Contains("responders")</acquire-if-true>
+          <clear-selection-first>true</clear-selection-first>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <same-length-as>categories</same-length-as>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+            <validator><name>NonNegative</name></validator>
+          </validators>
+        </frame>
+        <frame>
+          <name>resprops</name>
+          <prompt>Select proportions responding</prompt>
+          <acquire-if-true>=parameters["mode"].AsString.Contains("resprops")</acquire-if-true>
+          <clear-selection-first>true</clear-selection-first>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+            <validator><name>ZeroToOneInclusive</name></validator>
+          </validators>
+        </frame>
+        <frame>
+          <name>nonresps</name>
+          <prompt>Select numbers not responding</prompt>
+          <acquire-if-true>=parameters["mode"].AsString.Contains("nonresps")</acquire-if-true>
+          <clear-selection-first>true</clear-selection-first>
+          <same-length-as>responders</same-length-as>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+            <validator><name>NonNegative</name></validator>
+          </validators>
+        </frame>
+        <frame>
+          <name>totals</name>
+          <prompt>Select total numbers studied / denominators</prompt>
+          <acquire-if-true>=parameters["mode"].AsString.Contains("totals")</acquire-if-true>
+          <clear-selection-first>true</clear-selection-first>
+          <same-length-as>responders</same-length-as>
+          <same-length-as>resprops</same-length-as>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+            <validator><name>NonNegative</name></validator>
+          </validators>
+        </frame>
+        <frame>
+          <name>covariates</name>
+          <prompt>Select covariates</prompt>
+          <acquire-if-true>=parameters["mode"].AsString.Contains("covariates")</acquire-if-true>
+          <clear-selection-first>true</clear-selection-first>
+          <same-length-as>categories</same-length-as>
+          <same-length-as>responders</same-length-as>
+          <same-length-as>resprops</same-length-as>
+          <mode>Variant</mode>
+          <min-columns>1</min-columns>
+          <max-columns>9999</max-columns>
+        </frame>
+      </parameters>
+    <builtin function-name="shtExpand" />
+    <output-frame frame-name="output" />
+	</steps>
+</operation>

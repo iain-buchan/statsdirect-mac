@@ -1,0 +1,3 @@
+<report>
+<p><pval>Simulated exact @{p:pval} (@{pc:round2}% CI: @{ll:roundu} to @{ul:roundu}@warn) on @k Monte Carlo samples (seed: @seed)</pval></p>
+</report>

@@ -1,0 +1,50 @@
+<report>
+<title>Odds ratio meta-analysis</title>
+
+<table>
+<tr><th>Stratum</th><th colspan="5">Table (exposed +ve, control +ve, exposed -ve, control -ve)</th></tr>
+<block name="inputs"><tr><td>@st</td><td>@a</td><td>@b</td><td>@c</td><td>@d</td><td>@lb</td></tr></block>
+</table>
+
+<table>
+<tr><th>Stratum</th><th>Odds ratio</th><th colspan="3"><ci>@{pc:round2}% CI (@method)</ci></th></tr>
+<block name="or"><tr><td>@st</td><td>@{or:roundu}</td><td><ci>@{lci:roundu}</ci></td><td><ci>@{uci:roundu}</ci></td><td>@lb</td></tr></block>
+</table>
+
+<table>
+<tr><th>Stratum</th><th>Standardized effect</th><th>Variance</th><th colspan="3">% Weights (fixed, random)</th></tr>
+<block name="or"><tr><td>@st</td><td>@{yi:roundu}</td><td>@{vi:roundu}</td><td>@{wt:roundu}</td><td>@{dwt:roundu}</td><td>@lb</td></tr></block>
+</table>
+
+<subtitle>Fixed effects (Mantel-Haenszel, @meth)</subtitle>
+<p>Pooled odds ratio = @{odds:roundu} (<ci>@{pc:round2}% CI = @{from:roundu} to @{to:roundu}</ci>)<br />
+Chi<sup>2</sup> (test odds ratio differs from 1) = @{chi_mantel:roundu}  <pval>@{chi_p:pval}</pval></p>
+
+<block name="cml">
+<subtitle>Fixed effects (conditional maximum likelihood)</subtitle>
+<p>Pooled odds ratio = @{eor:roundu}<br />
+<ci>Exact Fisher @{pc:round2}% CI = @{llf:roundu} to @{ulf:roundu}</ci><br />
+<pval>Exact Fisher one sided @{p1f:pval}, two sided @{p2f:pval}</pval><br />
+<ci>Exact mid-P @{pc:round2}% CI = @{llm:roundu} to @{ulm:roundu}</ci><br />
+<pval>Exact mid-P one sided @{p1m:pval}, two sided @{p2m:pval}</pval></p>
+
+</block>
+<subtitle>Non-combinability of studies</subtitle>
+<p>Breslow-Day = @{bd:roundu}  (df = @df)  <pval>@{xp:pval}</pval><br />
+Cochran Q = @{qc:roundu}  (df = @df_cochran)  <pval>@{xp_cochran:pval}</pval><br />
+Moment-based estimate of between studies variance = @{tausq:roundu}<br />
+I<sub>2</sub> (inconsistency) = @{isq:round1}% (<ci>@{pc1:round1}% CI = @{llisq:round1}% to @{ulisq:round1}%</ci>)</p>
+
+<subtitle>Random effects (DerSimonian-Laird)</subtitle>
+<p>Pooled odds ratio = @{dsor:roundu} (<ci>@{pc:round2}% CI = @{dsll:roundu} to @{dsul:roundu}</ci>)<br />
+Chi<sup>2</sup> (test odds ratio differs from 1) = @{dsx2:roundu}  (df = @df_ds)  <pval>@{xp_ds:pval}</pval></p>
+
+<block name="egger">
+<subtitle>Bias indicators</subtitle>
+<p>Begg-Mazumdar: Kendall's @{tau:roundu}@{warnTooFewStrata}  <pval>@{p2:pval}</pval><br />
+Egger: bias = @{a:roundu} (<ci>@{pc_egger:round2}% CI = @{cl:roundu} to @{cu:roundu}</ci>)  <pval>@{p:pval}</pval></p>
+</block>
+<block name="harbord">
+<p>Harbord-Egger: bias = @{a:roundu} (<ci>@{pc_harbord:round2}% CI = @{cl:roundu} to @{cu:roundu}</ci>)  <pval>@{p:pval}</pval></p>
+</block>
+</report>

@@ -1,0 +1,8 @@
+<report>
+  <block name="group"><p>Group @ggrp mean = @{gmean:roundu}  (n = @gn)</p></block>
+<p>Grand mean = @{g_mean:roundu}  (n = @g_n)</p>
+
+<table>
+<block name="subgroup"><tr><td>Group @sggrp</td><td>(subgroup @sgsub_grp)</td><td>@sgtitle mean = @{sgmean:roundu}</td></tr></block>
+</table>
+</report>

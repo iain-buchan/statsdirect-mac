@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>MannWhitney</name>
+  <friendly-name lang="en-GB">Mann-Whitney U (two-sample Wilcoxon) test</friendly-name>
+  <help chm-id="1227" />
+  <steps>
+      <parameters>
+        <confidence-interval>
+          <name>gamma</name>
+        </confidence-interval>
+        <frame>
+          <name>data</name>
+          <prompt>Select DATA</prompt>
+          <mode>NumericSkipMissing</mode>
+          <min-columns>2</min-columns>
+          <max-columns>2</max-columns>
+          <ask-for-group-id>true</ask-for-group-id>
+        </frame>
+      </parameters>
+	<builtin function-name="rptMannWhitney" />
+  <report type="application/x-statsdirect-creole" filename="mannwhit.creole" />
+	</steps>
+</operation>

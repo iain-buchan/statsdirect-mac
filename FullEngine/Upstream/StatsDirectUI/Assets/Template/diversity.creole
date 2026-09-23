@@ -1,0 +1,29 @@
+<report>
+<title>Diversity</title>
+<block name="var">
+<subtitle>Analysis for @ti:</subtitle>
+
+<p>Total number of counts = @n  <warn>@msg</warn><br />
+Number of classes observed (richness) = @s</p>
+
+<p><b>Estimated total number of classes = @stotal</b><br />
+Standard error (large sample) = @{se-largeSample:roundu}<br />
+<ci>Log-normal (Chao) @{pc:round2}% CI = @from-largeSample to @to-largeSample</ci></p>
+
+<p><b>Simpson D<sub>s</sub> (Hurlburt PIE) = @{simpson:roundu}  </b>(dominance <i>l</i> = @{dom:roundu}, <i>d<sub>s</sub></i> = @{ds:roundu})<br />
+Standard error (large sample) = @{se-simpson-largeSample:roundu}<br />
+Standard error (small sample) = @{ses-simpson:roundu}<br />
+<ci>Normal (large sample) @{pc:round2}% CI = @{from-simpson-largeSample:roundu} to @{to-simpson-largeSample:roundu}</ci><br />
+Re-samples = @boots, bias = @{bias-simpson:roundu}, standard error (bootstrap) = @{se-simpson-bootstrap:roundu}<br />
+<ci>Normal (bootstrap) @{pc:round2}% CI = @{from-simpson-bootstrap:roundu} to @{to-simpson-bootstrap:roundu}</ci><br />
+<ci>Centred bootstrap-t @{pc:round2}% CI = @{from-simpson-bootstrap-t:roundu} to @{to-simpson-bootstrap-t:roundu}</ci></p>
+
+<p><b>Shannon H' (base e) = @{shannon:roundu}</b><br />
+Standard error (large sample) = @{se-shannon-largeSample:roundu}<br />
+Standard error (small sample) = @{ses-shannon:roundu}<br />
+<ci>Normal (large sample) @{pc:round2}% CI = @{from-shannon-largeSample:roundu} to @{to-shannon-largeSample:roundu}</ci><br />
+Re-samples = @boots, bias = @{bias-shannon:roundu}, standard error (bootstrap) = @{se-shannon-bootstrap:roundu}<br />
+<ci>Normal (bootstrap) @{pc:round2}% CI = @{from-shannon-bootstrap:roundu} to @{to-shannon-bootstrap:roundu}</ci><br />
+<ci>Centred bootstrap-t @{pc:round2}% CI = @{from-shannon-bootstrap-t:roundu} to @{to-shannon-bootstrap-t:roundu}</ci></p>
+</block>
+</report>

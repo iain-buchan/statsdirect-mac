@@ -1,0 +1,14 @@
+<report>
+<title>Linearized Estimates</title>
+
+<p>Model : @modelDescription<br />
+Method: unweighted least squares<br />
+For @lab_y vs @lab_x</p>
+
+<p>A = @{a:roundu}<br />
+B = @{b:roundu}</p>
+
+<p>Correlation coefficient (r) = @{r:roundu}    (r<sup>2</sup> = @{r2:roundu})</p>
+
+<p>Standard error of estimate  = @{ste:roundu}</p>
+</report>

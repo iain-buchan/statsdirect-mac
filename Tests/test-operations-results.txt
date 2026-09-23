@@ -1,0 +1,4 @@
+Operations: 284; tests passed: 2, failed: 0, skipped: 1
+PASS  TPaired[1]  (15 outputs checked)
+PASS  ExactSign[1]  (11 outputs checked)
+SKIP  ExactSign[2]  (empty test)

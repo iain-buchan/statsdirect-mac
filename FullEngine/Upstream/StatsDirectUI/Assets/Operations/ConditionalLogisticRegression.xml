@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ConditionalLogisticRegression</name>
+  <friendly-name lang="en-GB">Conditional (matched pairs) logistic regression</friendly-name>
+  <help chm-id="1270" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>stratum</name>
+          <prompt>select data for STRATUM (MATCH GROUP) indicator</prompt>
+          <mode>CategoryReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>case-control</name>
+          <prompt>select data for CASE {1} or CONTROL {0} INDICATOR</prompt>
+          <validators>
+            <validator><name>Boolean</name></validator>
+          </validators>
+          <same-length-as>stratum</same-length-as>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>predictors</name>
+          <prompt>Select data for PREDICTORS</prompt>
+          <same-length-as>stratum</same-length-as>
+          <mode>NumericCodingTextToDummies</mode>
+          <min-columns>1</min-columns>
+          <max-columns>200</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <confidence-interval>
+          <name>gamma</name>
+        </confidence-interval>
+        <boolean>
+          <name>show-counts</name>
+          <prompt>Display case-control counts</prompt>
+          <default-value>false</default-value>
+        </boolean>
+        <option>
+          <name>accuracy</name>
+          <prompt>Precision of estimates</prompt>
+          <default-value>="0.0000001"</default-value>
+          <format-type>Dropdown</format-type>
+          <options>
+            <option value="0.000000000001">0.000000000001</option>
+            <option value="0.00000000001">0.00000000001</option>
+            <option value="0.0000000001">0.0000000001</option>
+            <option value="0.000000001">0.000000001</option>
+            <option value="0.00000001">0.00000001</option>
+            <option value="0.0000001">0.0000001</option>
+            <option value="0.000001">0.000001</option>
+            <option value="0.00001">0.00001</option>
+            <option value="0.0001">0.0001</option>
+            <option value="0.001">0.001</option>
+          </options>
+        </option>
+      </parameters>
+		<builtin function-name="rptConditionalLogisticRegression" />
+    <report type="application/x-statsdirect-creole" filename="clogit.creole" />
+	</steps>
+</operation>

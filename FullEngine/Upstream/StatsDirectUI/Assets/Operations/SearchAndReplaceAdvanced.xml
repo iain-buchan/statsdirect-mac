@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>SearchAndReplaceAdvanced</name>
+  <friendly-name lang="en-GB">Search and replace (Advanced)</friendly-name>
+  <help chm-id="1085" />
+  <steps>
+    <parameters>
+      <option>
+        <name>search-type</name>
+        <prompt>Find</prompt>
+        <prompt-precedes-parameter>true</prompt-precedes-parameter>
+        <lifetime>SessionForThisOperation</lifetime>
+        <must-request>true</must-request>
+        <format-type>Dropdown</format-type>
+        <options>
+          <option value="numeric">Numeric values</option>
+          <option value="text">Text</option>
+        </options>
+      </option>
+      <option>
+        <column>2</column>
+        <name>search-rule</name>
+        <lifetime>SessionForThisOperation</lifetime>
+        <must-request>true</must-request>
+        <format-type>Dropdown</format-type>
+        <options>
+          <option value="equal">=</option>
+          <option value="gt">&gt;</option>
+          <option value="lt">&lt;</option>
+          <option value="ge">&gt;=</option>
+          <option value="le">&lt;=</option>
+          <option value="ne">&lt;&gt;</option>
+          <option value="blank">is blank</option>
+          <option value="match">matching expression</option>
+        </options>
+      </option>
+      <string>
+        <column>3</column>
+        <name>search-expression</name>
+        <lifetime>SessionForThisOperation</lifetime>
+        <must-request>true</must-request>
+        <acquire-if-true>=parameters.ContainsKey("search-rule") &amp;&amp; null != parameters["search-rule"] &amp;&amp; !("blank".Equals(parameters["search-rule"].AsString))</acquire-if-true>
+        <validators>
+          <validator>
+            <name>Expression</name>
+            <test-if-true>=parameters.ContainsKey("search-rule") &amp;&amp; null != parameters["search-rule"] &amp;&amp; !("blank".Equals(parameters["search-rule"].AsString))</test-if-true>
+          </validator>
+        </validators>
+        <validation-fail-message>Please enter a valid search expression</validation-fail-message>
+      </string>
+      <!-- Ideally we'd provide a way of comparing case-sensitive or case-insensitive. However, this reaches a long way down the expression renderer due to the way string comparisons work - so we're not.
+      <boolean>
+        <column>4</column>
+        <name>ignore-case</name>
+        <prompt>Ignore case</prompt>
+        <lifetime>SessionForThisOperation</lifetime>
+        <acquire-if-true>=parameters.ContainsKey("search-type") &amp;&amp; null != parameters["search-type"] &amp;&amp; null != parameters["search-type"].AsString &amp;&amp; parameters["search-type"].AsString.StartsWith("text")</acquire-if-true>
+        <must-request>true</must-request>
+        <default-value>true</default-value>
+      </boolean>
+      -->
+      <option>
+        <name>action</name>
+        <prompt>Action</prompt>
+        <prompt-precedes-parameter>true</prompt-precedes-parameter>
+        <lifetime>SessionForThisOperation</lifetime>
+        <must-request>true</must-request>
+        <format-type>Dropdown</format-type>
+        <options>
+          <option value="count">Count</option>
+          <option value="delete-cells">Delete cells</option>
+          <option value="delete-rows">Delete rows</option>
+          <option value="replace-value">Replace with value:</option>
+          <option value="replace-expression">Replace with expression:</option>
+        </options>
+      </option>
+      <string>
+        <column>3</column>
+        <name>replace-expression</name>
+        <lifetime>SessionForThisOperation</lifetime>
+        <acquire-if-true>=parameters.ContainsKey("action") &amp;&amp; null != parameters["action"] &amp;&amp; null != parameters["action"].AsString &amp;&amp; parameters["action"].AsString.StartsWith("replace")</acquire-if-true>
+        <must-request>true</must-request>
+        <validators>
+          <validator><name>Expression</name></validator>
+        </validators>
+        <validation-fail-message>Please enter a valid replace expression</validation-fail-message>
+      </string>
+    </parameters>
+    <test>
+      <condition>=parameters["search-type"].AsString.StartsWith("numeric") &amp;&amp; !("blank".Equals(parameters["search-rule"].AsString))</condition>
+      <iftrue>
+        <parameters>
+          <frame>
+            <name>data</name>
+            <prompt>Select the cells within which you want to search</prompt>
+            <clear-selection-first>false</clear-selection-first>
+            <must-request>true</must-request>
+            <mode>NumericReplaceMissing</mode>
+            <min-columns>1</min-columns>
+            <max-columns>1024</max-columns>
+          </frame>
+        </parameters>
+      </iftrue>
+      <iffalse>
+        <parameters>
+          <frame>
+            <name>data</name>
+            <prompt>Select the cells within which you want to search</prompt>
+            <clear-selection-first>false</clear-selection-first>
+            <must-request>true</must-request>
+            <mode>TextNoTitles</mode>
+            <min-columns>1</min-columns>
+            <max-columns>1024</max-columns>
+          </frame>
+        </parameters>
+      </iffalse>
+    </test>
+    <builtin function-name="shtFindAndReplaceAdvanced"/>
+    <test>
+      <condition>="count".Equals(parameters["action"].AsString)</condition>
+      <iftrue>
+        <script language="C#">
+          <![CDATA[
+            StatsDirect.UI.OperationHacks.ShowInformation(parameters["matches"].AsInt32.ToString() + " cells match your search");
+            return new ParameterBag();
+          ]]>
+        </script>
+      </iftrue>
+      <iffalse>
+        <output-frame frame-name="output" keep-selection="true" default-placement="ReplaceSelection"/>
+      </iffalse>
+    </test>
+  </steps>
+  <suggested-operations>
+    <suggested-operation>SearchAndReplaceAdvanced</suggested-operation>
+  </suggested-operations>
+</operation>

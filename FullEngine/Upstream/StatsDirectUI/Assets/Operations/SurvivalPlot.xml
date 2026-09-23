@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>SurvivalPlot</name>
+  <friendly-name lang="en-GB">Survival plot</friendly-name>
+  <help chm-id="1135" />
+  <steps>
+      <parameters>
+        <integer>
+          <name>group-count</name>
+          <prompt>How many groups? (Max 10)</prompt>
+          <minimum-value>1</minimum-value>
+          <default-value>1</default-value>
+          <maximum-value>10</maximum-value>
+        </integer>
+      </parameters>
+		<iteration>
+			<lower-bound>1</lower-bound>
+			<upper-bound-parameter>group-count</upper-bound-parameter>
+      <loop-variable-name>group-index</loop-variable-name>
+      <steps>
+          <parameters>
+            <frame>
+              <name>xdatNew</name>
+              <prompt>="Select data for times of group " + parameters["group-index"].AsInt32</prompt>
+              <must-request>true</must-request>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>xdat</append-to-frame>
+            </frame>
+            <frame>
+              <name>cdatNew</name>
+              <prompt>="Select data for censorship/death/event of group " + parameters["group-index"].AsInt32</prompt>
+              <must-request>true</must-request>
+              <same-length-as>xdatNew</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>cdat</append-to-frame>
+            </frame>
+            <frame>
+              <name>ydatNew</name>
+              <prompt>="Select data for survival proportion (S) of group " + parameters["group-index"].AsInt32</prompt>
+              <must-request>true</must-request>
+              <same-length-as>xdatNew</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>ydat</append-to-frame>
+            </frame>
+            <frame>
+              <name>ydatlNew</name>
+              <prompt>="Select data for lower confidence limit of S of group " + parameters["group-index"].AsInt32</prompt>
+              <must-request>true</must-request>
+              <cancel-skips-parameter>Skip</cancel-skips-parameter>
+              <same-length-as>xdatNew</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>ydatl</append-to-frame>
+            </frame>
+            <frame>
+              <name>ydatuNew</name>
+              <prompt>="Select data for upper confidence limit of S of group " + parameters["group-index"].AsInt32</prompt>
+              <cancel-skips-parameter>Skip</cancel-skips-parameter>
+              <requires-parameter>ydatlNew</requires-parameter>
+              <must-request>true</must-request>
+              <same-length-as>xdatNew</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <!-- TODO: If more than one series is present, and the user enters CIs for earlier ones but cancels for later ones, this will still be requested. -->
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>ydatu</append-to-frame>
+            </frame>
+          </parameters>
+			</steps>
+		</iteration>
+		<chart>
+			<chart-name>chart</chart-name>
+			<chart-type>Survival</chart-type>
+		</chart>
+    <report type="application/x-statsdirect-creole" filename="chartonly.creole" />
+	</steps>
+</operation>

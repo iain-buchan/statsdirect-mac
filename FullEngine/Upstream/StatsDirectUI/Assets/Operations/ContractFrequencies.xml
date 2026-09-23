@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ContractFrequencies</name>
+	<friendly-name lang="en-GB">Contract</friendly-name>
+  <help chm-id="1397" />
+  <steps>
+      <parameters>
+        <option>
+          <name>type</name>
+          <prompt>What type of individual data do you want to contract?</prompt>
+          <options>
+            <option value="categories">Categories</option>
+            <option value="categories-covariates">Categories and covariates</option>
+            <option value="response-covariates">Response (1 = yes; 0 = no) and covariates</option>
+          </options>
+          <default-value>categories</default-value>
+        </option>
+        <option>
+          <name>group</name>
+          <prompt>How do you want to group binary categories marked as 0/1?</prompt>
+          <acquire-if-true>=parameters.ContainsKey("type") &amp;&amp; null != parameters["type"] &amp;&amp; parameters["type"].AsString.Contains("response")</acquire-if-true>
+          <options>
+            <option value="totals-responders">Totals and responders (1)</option>
+            <option value="responders-nonresps">Responders (1) and non-responders (0)</option>
+            <option value="resprops-totals">Proportions responding and totals</option>
+            <!-- <option value="categories">Plain categories</option> -->
+          </options>
+          <default-value>totals-responders</default-value>
+        </option>
+        <frame>
+          <name>categories</name>
+          <prompt>Select observations</prompt>
+          <acquire-if-true>=parameters.ContainsKey("type") &amp;&amp; null != parameters["type"] &amp;&amp; parameters["type"].AsString.Contains("categories")</acquire-if-true>
+          <mode>CategoryReplaceMissing</mode>
+          <clear-selection-first>true</clear-selection-first>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+          </validators>
+        </frame>
+        <frame>
+          <name>responses</name>
+          <prompt>Select responses</prompt>
+          <acquire-if-true>=parameters.ContainsKey("type") &amp;&amp; null != parameters["type"] &amp;&amp; parameters["type"].AsString.Contains("response")</acquire-if-true>
+          <mode>NumericReplaceMissing</mode>
+          <clear-selection-first>true</clear-selection-first>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <same-length-as>categories</same-length-as>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+            <validator><name>Boolean</name></validator>
+          </validators>
+          <validation-fail-message>Response data must be 0 or 1 only, with no missing data.</validation-fail-message>
+        </frame>
+        <frame>
+          <name>covariates</name>
+          <prompt>Select covariates</prompt>
+          <acquire-if-true>=parameters["type"].AsString.Contains("covariates")</acquire-if-true>
+          <clear-selection-first>true</clear-selection-first>
+          <same-length-as>categories</same-length-as>
+          <same-length-as>responses</same-length-as>
+          <mode>Variant</mode>
+          <min-columns>1</min-columns>
+          <max-columns>9999</max-columns>
+        </frame>
+      </parameters>
+    <builtin function-name="shtContract" />
+    <output-frame frame-name="output" />
+	</steps>
+</operation>

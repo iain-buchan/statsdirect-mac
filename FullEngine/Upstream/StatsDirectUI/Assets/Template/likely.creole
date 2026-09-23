@@ -1,0 +1,7 @@
+<report>
+<title>Likelihood ratios</title>
+<table>
+<tr><th>Result</th><th>+ Feature</th><th>- Feature</th><th>Likelihood Ratio</th><th><ci>@{pc:round2}% CI (Koopman)</ci></th></tr>
+<block name="row"><tr><td>@result</td><td>@plusfeature</td><td>@minusfeature</td><td>@{likely:roundu}</td><td><ci>@{from:roundu} to @{to:roundu}</ci></td></tr></block>
+</table>
+</report>

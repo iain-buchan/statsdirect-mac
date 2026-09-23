@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>LogisticRegressionPrediction</name>
+	<friendly-name lang="en-GB">Prediction</friendly-name>
+  <prerequisite-operation>LogisticRegression</prerequisite-operation>
+  <steps>
+      <parameters>
+        <edit-grid>
+          <name>candidatePredictors</name>
+          <key-variable>Name</key-variable>
+          <value-variable>Value</value-variable>
+          <source>candidatePredictors</source>
+          <must-request>true</must-request>
+        </edit-grid>
+        <confidence-interval>
+          <name>gamma</name>
+        </confidence-interval>
+      </parameters>
+		<builtin function-name="rptLogisticRegressionPrediction" />
+    <report type="application/x-statsdirect-creole">
+      <![CDATA[<report>
+<title>Logistic regression - prediction</title>
+<block name="predictors"><p>@xtitle = @{x:roundu}</p></block>
+
+<p>Response proportion = @{y:roundu}@msg</p>
+
+<p><ci>@{pc:round2}% Confidence interval = @{from:roundu} to @{to:roundu}</ci></p>
+</report>]]>
+    </report>
+  </steps>
+</operation>

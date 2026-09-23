@@ -1,0 +1,7 @@
+<report>
+<title>Cox regression - baseline survival and hazard estimates</title>
+<table>
+<tr><th>Time</th><th>Survival probability</th><th>Cumulative hazard</th><th>Hazard ratio</th></tr>
+<block name="time"><tr><td>@{time:roundu}</td><td>@{sur:roundu}</td><td>@{haz:roundu}</td><td>@{hr:roundu}</td></tr></block>
+</table>
+</report>

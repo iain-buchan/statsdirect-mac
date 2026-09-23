@@ -1,0 +1,15 @@
+<report>
+<title>Simple regression - intervals for mean Y</title>
+
+<p>@xtitle = @{var_x:roundu}<br />
+@ytitle = @{var_y:roundu}</p>
+
+<p>Confidence interval:<br />
+SE for @ytitle = @{ci_y:roundu}<br />
+@{pci:round1}% confidence interval = @{fromi:roundu} to @{toi:roundu}</p>
+
+
+<p><ci>Prediction interval:</ci><br />
+S pred = @{s_pred:roundu}<br />
+<ci>@{pcp:round1}% prediction interval = @{fromp:roundu} to @{top:roundu}</ci></p>
+</report>

@@ -1,0 +1,22 @@
+<report>
+<title>Probit analysis - further statistics</title>
+
+<p>Iterations = @itr</p>
+
+<p>Sxx = @{sxx:roundu}<br />
+Sxy = @{sxy:roundu}<br />
+Syy = @{syy:roundu}</p>
+
+<p>Variance of B = @{var_b:roundu}<br />
+Standard error of B @het = @{seb:roundu}</p>
+<block name="natural">
+
+<p>Estimated natural response rate (C) = @{c:roundu}<br />
+Standard error of B @het_c = @{seb_c:roundu}</p>
+</block>
+
+<table>
+<tr><th>Index</th><th>Subjects</th><th>Responses</th><th>Expected</th><th>Deviation</th></tr>
+<block name="obs"><tr><td>@obs</td><td>@{sub:roundu}</td><td>@{res:roundu}</td><td>@{exp:roundu}</td><td>@{dev:roundu}</td></tr></block>
+</table>
+</report>

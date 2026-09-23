@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+  <name>UniversalRCompare</name>
+  <friendly-name lang="en-GB">Comparison of two R agreement measures</friendly-name>
+  <help chm-id="1004" />
+  <steps>
+    <parameters>
+      <double>
+        <name>r1_in</name>
+        <prompt>Agreement statistic R for the first group of judges</prompt>
+        <must-request>true</must-request>
+        <minimum-value>-1</minimum-value>
+        <maximum-value>1</maximum-value>
+      </double>
+      <double>
+        <name>r2_in</name>
+        <prompt>Agreement statistic R for the second (independent) group of judges</prompt>
+        <must-request>true</must-request>
+        <minimum-value>-1</minimum-value>
+        <maximum-value>1</maximum-value>
+      </double>
+      <double>
+        <name>mu1_in</name>
+        <prompt>Mean delta value for the first group</prompt>
+        <must-request>true</must-request>
+      </double>
+      <double>
+        <name>mu2_in</name>
+        <prompt>Mean delta value for the second group</prompt>
+        <must-request>true</must-request>
+      </double>
+      <double>
+        <name>var1_in</name>
+        <prompt>Variance of delta value for the first group</prompt>
+        <must-request>true</must-request>
+        <minimum-value>0</minimum-value>
+      </double>
+      <double>
+        <name>var2_in</name>
+        <prompt>Variance of delta value for the second group</prompt>
+        <must-request>true</must-request>
+        <minimum-value>0</minimum-value>
+      </double>
+      <double>
+        <name>gam1_in</name>
+        <prompt>Skewness of delta value for the first group</prompt>
+        <must-request>true</must-request>
+      </double>
+      <double>
+        <name>gam2_in</name>
+        <prompt>Skewness of delta value for the second group</prompt>
+        <must-request>true</must-request>
+      </double>
+      <confidence-interval>
+        <name>gamma</name>
+      </confidence-interval>
+    </parameters>
+    <builtin function-name="rptUniversalRCompare" />
+    <report type="application/x-statsdirect-creole" filename="universal_r_compare.creole" />
+  </steps>
+  <suggested-operations>
+    <suggested-operation>UniversalRCompare</suggested-operation>
+  </suggested-operations>
+</operation>

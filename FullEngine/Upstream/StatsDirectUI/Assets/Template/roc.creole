@@ -1,0 +1,35 @@
+<report>
+<title>ROC Curve Analysis</title>
+<p>@{chart:chart}</p>
+
+<block name="datasets">
+<p>Data set: @ti</p>
+
+<p>Area under ROC curve by extended trapezoidal rule = @{auc:roundu}</p>
+
+<p>Wilcoxon estimate of area under ROC curve = @{theta:roundu}<br />
+DeLong standard error = @{se:roundu}:  <ci>@{pc:round2}% CI = @{ll:roundu} to @{ul:roundu}</ci></p>
+
+<p>Optimum cut-off point selected = @{cut:roundu}</p>
+
+<table>
+<tr><td><ci>Table at cut-off:</ci></td><td>a</td><td>b</td></tr>
+<tr><td></td><td>@a</td><td>@b</td></tr>
+<tr><td></td><td></td><td></td></tr>
+<tr><td></td><td>c</td><td>d</td></tr>
+<tr><td></td><td>@c</td><td>@d</td></tr>
+</table>
+
+<p><b>Predictive value of +ve test </b>(post-test likelihood of disease)<br />
+@{likely:roundu} <ci>(@{likely_from:roundu} to @{likely_to:roundu}@likely_warn)</ci>, @{likely_pc:round2}% <ci>(@{likely_from_pc:round2}% to @{likely_to_pc:round2}%)</ci>,  {change = @likely_change%}</p>
+
+<p><b>Predictive values of -ve test</b><br />
+(post-test likelihood of no disease)<br />
+@{likely_negative:roundu} <ci>(@{likely_negative_from:roundu} to @{likely_negative_to:roundu}@likely_negative_warn)</ci>, @{likely_negative_pc:round2}% <ci>(@{likely_negative_from_pc:round2}% to @{likely_negative_to_pc:round2}%)</ci>,  {change = @{likely_negative_change:round2}%}<br />
+(post-test disease likelihood despite -ve test)<br />
+@{likely_despite:roundu} <ci>(@{likely_despite_from:roundu} to @{likely_despite_to:roundu}@likely_despite_warn)</ci>, @{likely_despite_pc:round2}% <ci>(@{likely_despite_from_pc:round2}% to @{likely_despite_to_pc:round2}%)</ci>, {change = @likely_despite_change%}</p>
+
+<p>sensitivity (@{senspc:round2}% CI) = @{sens:roundu}  (@{sensll:roundu} to @{sensul:roundu}@senswarn)<br />
+<ci>specificity (@{specpc:round2}% CI) = @{spec:roundu}  (@{specll:roundu} to @{specul:roundu}@specwarn)</ci></p>
+</block>
+</report>

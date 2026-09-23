@@ -1,0 +1,25 @@
+<report>
+<title>Cuzick's trend test</title>
+
+<p>Groups = @groups<br />
+Observations = @obs<br />
+Order: @order</p>
+
+<table>
+<tr><td>Ez = @{ez:roundu}</td><td>Var(z) = @{varz:roundu}</td></tr>
+<tr><td>T = @{t:roundu}</td><td>ET = @{et:roundu}</td><td>Var(T) = @{vart:roundu}</td></tr>
+<tr><td>z = @{z:roundu}</td></tr>
+</table>
+
+<p><pval>One sided @{p_1:pval}</pval><br />
+<pval>Two sided @{p_2:pval}</pval></p>
+<block name="ties">
+
+<p>Corrected for ties:<br />
+Var(T) = @{varttie:roundu}<br />
+z = @{ztie:roundu}</p>
+
+<p><pval>One sided @{p_1tie:pval}</pval><br />
+<pval>Two sided @{p_2tie:pval}</pval></p>
+</block>
+</report>

@@ -1,0 +1,1 @@
+StatsDirect.UI.OperationsTester.TestAll();

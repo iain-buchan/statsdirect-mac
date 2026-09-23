@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Cuzick</name>
+  <friendly-name lang="en-GB">Cuzick's test for trend</friendly-name>
+  <help chm-id="1221" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select data for trend test</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>2</min-columns>
+          <max-columns>200</max-columns>
+          <ask-for-group-id>true</ask-for-group-id>
+          <clear-selection-first>false</clear-selection-first>
+        </frame>
+      </parameters>
+    <script language="CSharp">
+  <![CDATA[
+DataFrame data = parameters["data"].AsDataFrame;
+int l = data.VariableCount;
+DataFrame scoresFrame = new DataFrame();
+DoubleVariable scores = new DoubleVariable(l, "Scores");
+scoresFrame.Variables.Add(scores);
+for (int i = 0; i < l; i++)
+    scores.Data[i] = i + 1;
+ParameterBag outputParameters = new ParameterBag();
+outputParameters.AddInput("scores", scoresFrame);
+return outputParameters;
+    ]]></script>
+      <parameters>
+        <frame>
+          <name>scores</name>
+          <prompt>Enter scores</prompt>
+          <must-request>true</must-request>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+            <validator><name>Positive</name></validator>
+          </validators>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <can-select>false</can-select>
+        </frame>
+      </parameters>
+		<builtin function-name="rptCuzick" />
+    <report type="application/x-statsdirect-creole" filename="cuzick.creole" />
+	</steps>
+</operation>

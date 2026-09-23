@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ExactChiRbyC</name>
+  <friendly-name lang="en-GB">R-by-c contingency table tests</friendly-name>
+  <help chm-id="1055" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select an area of data for chi-square analysis</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <same-length>true</same-length>
+          <min-columns>2</min-columns>
+          <max-columns>200</max-columns>
+          <ask-for-group-id>false</ask-for-group-id>
+        </frame>
+        <confidence-interval>
+          <name>cco</name>
+        </confidence-interval>
+        <boolean>
+          <name>doExact</name>
+          <prompt>Try Fisher-Freeman-Halton exact test</prompt>
+          <must-request>true</must-request>
+          <lifetime>SessionForThisOperation</lifetime>
+          <default-value>false</default-value>
+        </boolean>
+        <boolean>
+          <name>show_pc</name>
+          <prompt>Show percentages</prompt>
+          <must-request>true</must-request>
+          <lifetime>SessionForThisOperation</lifetime>
+          <default-value>true</default-value>
+        </boolean>
+        <boolean>
+          <name>xp</name>
+          <prompt>Show expected counts</prompt>
+          <must-request>true</must-request>
+          <lifetime>SessionForThisOperation</lifetime>
+          <default-value>false</default-value>
+        </boolean>
+        <boolean>
+          <name>cs</name>
+          <prompt>Show cell chi-square</prompt>
+          <must-request>true</must-request>
+          <lifetime>SessionForThisOperation</lifetime>
+          <default-value>false</default-value>
+        </boolean>
+        <boolean>
+          <name>xs</name>
+          <prompt>Show trend scores</prompt>
+          <must-request>true</must-request>
+          <lifetime>SessionForThisOperation</lifetime>
+          <default-value>false</default-value>
+        </boolean>
+        <boolean>
+          <name>specify_scores</name>
+          <prompt>Specify trend scores</prompt>
+          <must-request>true</must-request>
+          <lifetime>SessionForThisOperation</lifetime>
+          <default-value>false</default-value>
+        </boolean>
+        <boolean>
+          <name>doMonteCarlo</name>
+          <prompt>Simulate exact P for chi-square</prompt>
+          <must-request>true</must-request>
+          <lifetime>SessionForThisOperation</lifetime>
+          <column>2</column>
+          <default-value>false</default-value>
+        </boolean>
+        <integer>
+          <name>iterations</name>
+          <prompt>Iterations</prompt>
+          <acquire-if-true>=parameters.ContainsKey("doMonteCarlo") &amp;&amp; parameters["doMonteCarlo"].AsBoolean</acquire-if-true>
+          <column>2</column>
+          <must-request>true</must-request>
+          <minimum-value>1</minimum-value>
+          <default-value>1000000</default-value>
+        </integer>
+        <integer>
+          <name>seed</name>
+          <prompt>Seed</prompt>
+          <acquire-if-true>=parameters.ContainsKey("doMonteCarlo") &amp;&amp; parameters["doMonteCarlo"].AsBoolean</acquire-if-true>
+          <column>2</column>
+          <must-request>true</must-request>
+          <force-default>true</force-default>
+          <default-value>=Base.DefaultSeed()</default-value>
+        </integer>
+        <confidence-interval>
+          <name>ci</name>
+          <acquire-if-true>=parameters.ContainsKey("doMonteCarlo") &amp;&amp; parameters["doMonteCarlo"].AsBoolean</acquire-if-true>
+          <column>2</column>
+          <must-request>true</must-request>
+          <default-value>0.99</default-value>
+          <can-default>false</can-default>
+          <can-use-standard>false</can-use-standard>
+        </confidence-interval>
+      </parameters>
+  	<builtin function-name="rptChiRbyC" />
+    <report type="application/x-statsdirect-creole" filename="chirxc.creole" />
+  </steps>
+</operation>

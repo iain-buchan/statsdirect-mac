@@ -1,0 +1,24 @@
+<report>
+<title>Multiple linear regression - influential data</title>
+<table>
+<tr><th>Index</th><th>Y</th><th>Fitted Y</th><th>Std. Dev. Y fit</th><th>Residual</th></tr>
+<block name="yfit"><tr><td>@index</td><td>@{y:roundu}</td><td>@{fit_y:roundu}</td><td>@{std_err:roundu}</td><td>@{res:roundu}</td></tr></block>
+</table>
+
+<table>
+<tr><th colspan="2">Index</th><th colspan="2">Studentized</th><th colspan="2">Leverage</th><th>Cook's Distance</th></tr>
+<block name="studentised"><tr><td>@index</td><td><b>@index_star</b></td><td>@{stu:roundu}</td><td><b>@stu_star</b></td><td>@{hi:roundu}</td><td><b>@hi_star</b></td><td>@{cook:roundu}</td></tr></block>
+</table>
+
+<table>
+<tr><th colspan="2">Index</th><th colspan="2">Jackknife</th><th>DFIT</th></tr>
+<block name="jackknife"><tr><td>@index</td><td><b>@index_star</b></td><td>@{jack:roundu}</td><td><warn>@jack_star</warn></td><td>@{dfit:roundu}</td></tr></block>
+</table>
+
+<p><u>Critical levels for unusual observations (marked *)</u><br />
+Leverage > @{zhi:roundu}  [min(3p/n,.99)]<br />
+Cook's Distance > @{zcook:roundu}  [f(a,p,n-p)]<br />
+Studentized residual > &#xb1; @{zstu:roundu}  [t(a,n-p)]<br />
+Jackknife residual > &#xb1; @{zjack:roundu}  [t(a,n-p-1)]<br />
+DFIT > &#xb1; @{zdfit:roundu}  [(2*sqr(p/n)]</p>
+</report>

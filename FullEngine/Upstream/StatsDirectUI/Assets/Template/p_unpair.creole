@@ -1,0 +1,22 @@
+<report>
+<title>Two independent proportions</title>
+<p>Total 1 = @{n_1:round1},  response 1 = @{r_1:round1}<br />
+Proportion 1 = @{prop_1:roundu}<br />
+Total 2 = @{n_2:round1},  response 2 = @{r_2:round1}<br />
+Proportion 2 = @{prop_2:roundu}</p>
+
+<p>Proportion difference = @{prop_diff:roundu}</p>
+
+<p><ci>Approximate (Miettinen) @{ci:round2}% confidence interval = @{from:roundu} to @{to:roundu}</ci></p>
+<block name="exact2">
+
+<p><pval>Exact two sided (mid) @{mp:pval}</pval></p>
+</block>
+
+<p>Standard error of proportion difference = @{se:roundu}<br />
+Standard normal deviate (z) = @{z:roundu}</p>
+<block name="approx2">
+<p><pval>Approximate two sided @{z:zvalp2}</pval><br />
+<pval>Approximate one sided @{z:zvalp1}</pval></p>
+</block>
+</report>

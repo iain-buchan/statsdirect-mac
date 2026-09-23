@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>LinePlot</name>
+  <friendly-name lang="en-GB">Line plot</friendly-name>
+  <help chm-id="1131" />
+  <steps>
+      <parameters>
+        <integer>
+          <name>n</name>
+          <prompt>Enter the number of series to plot</prompt>
+          <minimum-value>1</minimum-value>
+          <maximum-value>9</maximum-value>
+          <default-value>1</default-value>
+        </integer>
+      </parameters>
+    <iteration>
+      <lower-bound>1</lower-bound>
+      <upper-bound-parameter>n</upper-bound-parameter>
+      <loop-variable-name>i</loop-variable-name>
+      <steps>
+          <parameters>
+            <frame>
+              <name>Ynew</name>
+              <prompt>="Select data for Y axis: SERIES " + parameters["i"].AsInt32.ToString()</prompt>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>Y</append-to-frame>
+              <must-request>true</must-request>
+            </frame>
+            <frame>
+              <name>Xnew</name>
+              <prompt>="Select data for X axis: SERIES " + parameters["i"].AsInt32.ToString()</prompt>
+              <mode>NumericReplaceMissing</mode>
+              <same-length-as>Ynew</same-length-as>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>X</append-to-frame>
+              <must-request>true</must-request>
+            </frame>
+          </parameters>
+      </steps>
+    </iteration>
+		<chart>
+			<x-series-data>X</x-series-data>
+			<y-series-data>Y</y-series-data>
+			<chart-name>chart</chart-name>
+			<chart-type>LineXY</chart-type>
+			<box-axes>false</box-axes>
+		</chart>
+    <report type="application/x-statsdirect-creole" filename="chartonly.creole" />
+	</steps>
+</operation>

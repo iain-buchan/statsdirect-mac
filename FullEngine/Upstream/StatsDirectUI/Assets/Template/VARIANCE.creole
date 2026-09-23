@@ -1,0 +1,13 @@
+<report>
+<title>Variance ratio/F test</title>
+<table>
+<tr><th>Variable Name</th><th>DF (n-1)</th><th>Variance</th></tr>
+<tr><td>@title_0</td><td>@df_0</td><td>@{var_0:roundu}</td></tr>
+<tr><td>@title_1</td><td>@df_1</td><td>@{var_1:roundu}</td></tr>
+</table>
+
+<p>F = @{f:roundu}</p>
+
+<p>Upper side @{p_1:pval}<br />
+Two sided @{p_2:pval}</p>
+</report>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Cronbach</name>
+	<friendly-name lang="en-GB">Cronbach's alpha for deletions</friendly-name>
+  <prerequisite-operation>PCRCorrelation</prerequisite-operation>
+  <prerequisite-operation>PCRCovariance</prerequisite-operation>
+  <steps>
+      <parameters>
+        <confidence-interval>
+          <name>ci</name>
+        </confidence-interval>
+        <frame>
+          <name>data</name>
+          <prompt>Select DATA</prompt>
+          <ask-for-group-id>false</ask-for-group-id>
+          <same-length>true</same-length>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>2</min-columns>
+          <max-columns>200</max-columns>
+        </frame>
+      </parameters>
+		<builtin function-name="rptCronbach" />
+    <report type="application/x-statsdirect-creole" filename="cronbach.creole" />
+  </steps>
+</operation>

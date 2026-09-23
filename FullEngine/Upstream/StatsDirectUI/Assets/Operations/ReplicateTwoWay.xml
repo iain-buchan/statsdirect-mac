@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ReplicateTwoWay</name>
+	<friendly-name lang="en-GB">Two-way ANOVA with repeated observations</friendly-name>
+  <help chm-id="1015" />
+  <steps>
+      <parameters>
+        <frame2d>
+          <name>data2d</name>
+          <sub-prompt>Select block/row identifier</sub-prompt>
+          <same-length>true</same-length>
+          <mode>BlockThenGroup</mode>
+          <min-columns>2</min-columns>
+          <max-columns>100</max-columns>
+        </frame2d>
+      </parameters>
+		<builtin function-name="rptTwoMulti" />
+    <report type="application/x-statsdirect-creole" filename="twomulti.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>Bonferroni</suggested-operation>
+    <suggested-operation>Tukey</suggested-operation>
+    <suggested-operation>Scheffe</suggested-operation>
+    <suggested-operation>NewmanKeuls</suggested-operation>
+    <suggested-operation>Dunnett</suggested-operation>
+  </suggested-operations>
+</operation>

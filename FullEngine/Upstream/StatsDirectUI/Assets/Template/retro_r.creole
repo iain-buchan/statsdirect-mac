@@ -1,0 +1,29 @@
+<report>
+<title>Risk analysis (retrospective)</title>
+<table>
+<tr><th></th><td colspan="2"><subtotal>Characteristic factor:</subtotal></td></tr>
+<tr><td><subtotal>Outcome:</subtotal></td><td>Present</td><td>Absent</td></tr>
+<tr><td>Positive</td><td>@aa</td><td>@bb</td></tr>
+<tr><td>Negative</td><td>@cc</td><td>@dd</td></tr>
+</table>
+
+<p>Observed odds ratio = @{odds:roundu}<br />
+Approximate power @pwr</p>
+<block name="power">
+
+<p><ci>Approximate (Woolf, logit) @{ci:roundu}% confidence interval = @{ci_1:roundu}  to  @{ci_2:roundu} </ci></p>
+
+</block>
+<p>Conditional maximum likelihood estimates:<br />
+Conditional estimate of odds ratio = @{eor:roundu}<br />
+<ci>Exact Fisher @{pc:round2}% confidence interval = @{llf:roundu}  to  @{ulf:roundu}</ci><br />
+<pval>Exact Fisher one sided @{p1f:pval}, two sided @{p2f:pval}</pval><br />
+<ci>Exact mid-P @{pc:round2}% confidence interval = @{llm:roundu}  to  @{ulm:roundu}</ci><br />
+<pval>Exact mid-P one sided @{p1m:pval}, two sided @{p2m:pval}</pval></p>
+
+<block name="risk">
+<p>Population exposure % = @{pe:roundu}@pe_note<br />
+Population attributable risk % = @{par:roundu}<br />
+<ci>Approximate @{pc:round2}% confidence interval = @{from:roundu}  to  @{to:roundu}</ci></p>
+</block>
+</report>

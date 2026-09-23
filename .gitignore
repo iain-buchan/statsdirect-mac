@@ -4,3 +4,7 @@ Engine/bin/
 Engine/obj/
 Engine/publish/
 __pycache__/
+FullEngine/bin/
+FullEngine/obj/
+FullEngine/publish/
+Tests/bridge-driver

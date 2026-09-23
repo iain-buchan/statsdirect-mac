@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>AnalysisOptions</name>
+  <friendly-name lang="en-GB">Analysis options</friendly-name>
+  <help chm-id="1137" />
+  <steps>
+      <parameters>
+        <boolean>
+          <name>use-default-ci</name>
+          <prompt>Use a default confidence interval (CI)</prompt>
+          <default-value>=host.Preferences.CanDefaultConfidenceInterval</default-value>
+        </boolean>
+        <option>
+          <name>default-ci</name>
+          <default-value>=(host.Preferences.DefaultConfidenceInterval * 100).ToString()</default-value>
+          <options>
+            <option value="95">95% CI</option>
+            <option value="99">99% CI</option>
+            <option value="90">90% CI</option>
+            <option value="85">85% CI</option>
+            <option value="80">80% CI</option>
+          </options>
+        </option>
+        <boolean>
+          <name>selectGroupsByIdentifier</name>
+          <prompt>Select data by group identifier</prompt>
+          <default-value>=host.Preferences.SelectGroupsByIdentifier</default-value>
+        </boolean>
+        <option>
+          <name>decp</name>
+          <prompt>Decimal places for statistics</prompt>
+          <default-value>=host.Preferences.DisplayDecimalPlaces.ToString()</default-value>
+          <format-type>Dropdown</format-type>
+          <options>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+          </options>
+        </option>
+        <option>
+          <name>pdecp</name>
+          <prompt>Decimal places for P values</prompt>
+          <default-value>=host.Preferences.PDecimalPlaces.ToString()</default-value>
+          <format-type>Dropdown</format-type>
+          <options>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+          </options>
+        </option>
+        <boolean>
+          <name>use-scientific-notation-for-small-p-values</name>
+          <prompt>Use scientific notation for small P values</prompt>
+          <default-value>=host.Preferences.UseScientificNotationForSmallPValues</default-value>
+        </boolean>
+      </parameters>
+  	<builtin function-name="setAnalysisOptions" />
+	</steps>
+</operation>

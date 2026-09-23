@@ -1,0 +1,28 @@
+<report>
+<title>Incidence rate comparison</title>
+<table>
+<tr><td></td><td><subtotal>Exposure:</subtotal></td><td></td><td></td></tr>
+<tr><td><subtotal>Outcome:</subtotal></td><td>Exposed</td><td>Non-exposed</td><td>Total</td></tr>
+<tr><td>Cases</td><td>@a_out</td><td>@b_out</td><td>@m</td></tr>
+<tr><td>Person-time</td><td>@pt1_out</td><td>@pt2_out</td><td>@pt</td></tr>
+</table>
+
+<p>Exposed incidence rate = @{ir1:roundu}<br />
+Non-exposed incidence rate = @{ir2:roundu}</p>
+
+<p>Rate difference = @{ird:roundu}<br />
+<ci>approximate @{pc:round2}% confidence interval = @{ird_from:roundu} to  @{ird_to:roundu}</ci></p>
+
+<p>chi-square = @{xmh:roundu}  <pval>@{p:pval}</pval></p>
+
+<p>Rate ratio = @{irr:roundu}</p>
+<block name="exact">
+<p><ci>exact @{pc:round2}% confidence interval = @{irr_from:roundu} to  @{irr_to:roundu}</ci></p>
+
+<p>Conditional maximum likelihood estimate of rate ratio = @{eor:roundu}<br />
+<ci>Exact Fisher @{pc:round2}% confidence interval = @{llf:roundu} to  @{ulf:roundu}</ci><br />
+<pval>Exact Fisher one sided @{p1f:pval}, two sided @{p2f:pval}</pval><br />
+<ci>Exact mid-P @{pc:round2}% confidence interval = @{llm:roundu} to  @{ulm:roundu}</ci><br />
+<pval>Exact mid-P one sided @{p1m:pval}, two sided @{p2m:pval}</pval></p>
+</block>
+</report>

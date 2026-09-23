@@ -1,0 +1,13 @@
+<report>
+<title>Multiple linear regression</title>
+  
+<block name="warn"><p>WARNING: @warn</p><br /></block>
+
+<block name="row">
+<table>
+<block name="col"><tr><td>@label</td><td>b@b = @{val_b:roundu}</td><td><block name="r">r = @{rp:roundu}</block></td><td>t = @{t:roundu}</td><td><pval>@{p:pval}</pval></td></tr></block>
+</table>
+
+<p>@y = <block name="z" separator=" ">@extraSign@{z:roundu}@title</block></p>
+</block>
+</report>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Bonferroni</name>
+	<friendly-name lang="en-GB">Bonferroni comparisons</friendly-name>
+  <prerequisite-operation>OneWay</prerequisite-operation>
+  <prerequisite-operation>ReplicateTwoWay</prerequisite-operation>
+  <prerequisite-operation>TwoWay</prerequisite-operation>
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select DATA</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>2</min-columns>
+          <max-columns>200</max-columns>
+          <ask-for-group-id>true</ask-for-group-id>
+        </frame>
+        <confidence-interval>
+          <name>gamma</name>
+        </confidence-interval>
+        <pick-variables>
+          <name>variables</name>
+          <must-request>true</must-request>
+          <parameter-name>data</parameter-name>
+          <minimum-variables>2</minimum-variables>
+          <maximum-variables>2</maximum-variables>
+          <preselect-variables>true</preselect-variables>
+        </pick-variables>
+        <integer>
+          <name>comparisons</name>
+          <prompt>Number of comparisons</prompt>
+          <must-request>true</must-request>
+          <lifetime>SessionForThisOperation</lifetime>
+          <minimum-value>1</minimum-value>
+          <default-value>1</default-value>
+        </integer>
+      </parameters>
+		<builtin function-name="rptBonferroni" />
+    <report type="application/x-statsdirect-creole" filename="bonferr.creole" />
+	</steps>
+</operation>

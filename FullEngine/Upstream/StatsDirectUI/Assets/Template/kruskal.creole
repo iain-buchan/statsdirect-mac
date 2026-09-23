@@ -1,0 +1,28 @@
+<report>
+<title>Kruskal-Wallis test</title>
+
+<p>Variables: @tlist</p>
+
+<p>Mean rank: @rlist</p>
+
+<p>Groups = @grps<br />
+df = @df<br />
+Total observations = @tot_obs</p>
+<block name="fault">
+
+<p>Fault in calculation</p>
+</block>
+
+<p>T = @{t:roundu}<br />
+<pval>@{p:pval}</pval></p>
+<block name="ties">
+
+<p>Adjusted for ties:</p>
+
+<p>T = @{t_ties:roundu}<br />
+<pval>@{p_ties:pval}</pval></p>
+</block>
+<block name="message">
+<p>@msg</p>
+</block>
+</report>

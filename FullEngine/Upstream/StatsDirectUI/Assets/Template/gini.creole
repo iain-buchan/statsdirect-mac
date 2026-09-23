@@ -1,0 +1,23 @@
+<report>
+<title>Gini coefficient of inequality</title>
+<block name="data">
+<subtitle>Analysis for @ti:</subtitle>
+
+<p>Positive non-zero observations = @n  <warn>@msg</warn><br />
+Variance coefficient = @{cv:roundu}</p>
+
+<p>Re-samples = @boots<br />
+Bias = @{bias:roundu}<br />
+Standard error (bootstrap) = @{se:roundu}</p>
+
+<p>Gini coefficient = @{gini:roundu}<br />
+<ci>Percentile @{pc:round2}% CI = @{from:roundu} to @{to:roundu}</ci><br />
+<ci>BCa @{pc:round2}% CI = @{BCafrom:roundu} to @{BCato:roundu}</ci></p>
+
+<p>Unbiased estimator of population Gini coefficient = @{gini-unbiased:roundu}<br />
+<ci>Percentile @{pc:round2}% CI = @{from-unbiased:roundu} to @{to-unbiased:roundu}</ci><br />
+<ci>BCa @{pc:round2}% CI = @{BCafrom-unbiased:roundu} to @{BCato-unbiased:roundu}</ci></p>
+</block>
+
+<p>@{chart:chart}</p>
+</report>

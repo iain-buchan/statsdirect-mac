@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Ranv</name>
+	<friendly-name lang="en-GB">Analysis of variance from regression</friendly-name>
+  <prerequisite-operation>LinearizedEstimates</prerequisite-operation>
+  <prerequisite-operation>SimpleLinearRegression</prerequisite-operation>
+  <steps>
+      <parameters>
+        <confidence-interval>
+          <name>gamma</name>
+        </confidence-interval>
+        <!--
+        <frame>
+          <name>y</name>
+          <prompt>Select data for OUTCOME (Y axis)</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>x</name>
+          <prompt>Select data for PREDICTOR (X axis)</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <same-length-as>y</same-length-as>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        -->
+      </parameters>
+		<builtin function-name="rptRanv" />
+    <report type="application/x-statsdirect-creole" filename="simanal.creole" />
+	</steps>
+</operation>

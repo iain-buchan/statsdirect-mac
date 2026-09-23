@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+  <name>MetaSummary</name>
+  <friendly-name lang="en-GB">Meta-analyses from summary statistics</friendly-name>
+  <help chm-id="1172" />
+  <steps>
+    <parameters>
+      <confidence-interval>
+        <name>gamma</name>
+      </confidence-interval>
+      <option>
+        <name>type</name>
+        <prompt>Select type of summary statistic</prompt>
+        <options>
+          <option value="oddsRatio">Odds Ratio</option>
+          <option value="relativeRisk">Relative Risk</option>
+          <option value="riskDifference">Risk Difference</option>
+          <option value="otherRatio">Other Ratio</option>
+          <option value="otherDifference">Other Difference</option>
+        </options>
+        <default-value>oddsRatio</default-value>
+      </option>
+      <option>
+        <name>use_ci</name>
+        <prompt>Select input data type</prompt>
+        <options>
+          <option value="true">Confidence Interval</option>
+          <option value="false">Standard Error</option>
+        </options>
+        <default-value>="true"</default-value>
+      </option>
+    </parameters>
+    <script language="CSharp">
+      <![CDATA[
+				string t = parameters["type"].AsString;
+				ParameterBag outputParameters = new ParameterBag();
+				if ("oddsRatio".Equals(t))
+				{
+                			outputParameters["use_ratio"] = FilledParameterFactory.Input(true);
+                			outputParameters["stat_in"] = FilledParameterFactory.Input("Odds Ratio");
+                			outputParameters["statx"] = FilledParameterFactory.Input("differs from 1");
+				}
+				else if ("relativeRisk".Equals(t))
+				{
+                			outputParameters["use_ratio"] = FilledParameterFactory.Input(true);
+                			outputParameters["stat_in"] = FilledParameterFactory.Input("Relative Risk");
+                			outputParameters["statx"] = FilledParameterFactory.Input("differs from 1");
+				}
+				else if ("riskDifference".Equals(t))
+				{
+                			outputParameters["use_ratio"] = FilledParameterFactory.Input(false);
+                			outputParameters["stat_in"] = FilledParameterFactory.Input("Risk Difference");
+                			outputParameters["statx"] = FilledParameterFactory.Input("differs from 0");
+				}
+				else if ("otherRatio".Equals(t))
+				{
+                			outputParameters["use_ratio"] = FilledParameterFactory.Input(true);
+                			outputParameters["stat_in"] = FilledParameterFactory.Input("* Ratio");
+                			outputParameters["statx"] = FilledParameterFactory.Input("differs from 1");
+				}
+				else if ("otherDifference".Equals(t))
+				{
+                			outputParameters["use_ratio"] = FilledParameterFactory.Input(false);
+                			outputParameters["stat_in"] = FilledParameterFactory.Input("* Difference");
+                			outputParameters["statx"] = FilledParameterFactory.Input("differs from 0");
+				}
+				else
+					throw new ArgumentOutOfRangeException();
+				return outputParameters;
+		]]>
+    </script>
+    <test>
+      <condition>=parameters["use_ratio"].AsBoolean</condition>
+      <iftrue>
+        <parameters>
+          <frame>
+            <name>y</name>
+            <prompt>="Select SUMMARY STATISTIC (" + parameters["stat_in"].AsString.ToLower(CultureInfo.CurrentCulture) + ")"</prompt>
+            <validators>
+              <validator><name>Positive</name></validator>
+            </validators>
+            <mode>NumericReplaceMissing</mode>
+            <min-columns>1</min-columns>
+            <max-columns>1</max-columns>
+            <clear-selection-first>true</clear-selection-first>
+          </frame>
+        </parameters>
+      </iftrue>
+      <iffalse>
+        <parameters>
+          <frame>
+            <name>y</name>
+            <prompt>="Select SUMMARY STATISTIC (" + parameters["stat_in"].AsString.ToLower(CultureInfo.CurrentCulture) + ")"</prompt>
+            <mode>NumericReplaceMissing</mode>
+            <min-columns>1</min-columns>
+            <max-columns>1</max-columns>
+            <clear-selection-first>true</clear-selection-first>
+          </frame>
+        </parameters>
+      </iffalse>
+    </test>
+    <test>
+      <condition>="true".Equals(parameters["use_ci"].AsString)</condition>
+      <iftrue>
+        <parameters>
+          <frame>
+            <name>ll_y</name>
+            <prompt>="Select LOWER CONFIDENCE LIMIT for " + parameters["stat_in"].AsString.ToLower(CultureInfo.CurrentCulture)</prompt>
+            <mode>NumericReplaceMissing</mode>
+            <same-length-as>y</same-length-as>
+            <min-columns>1</min-columns>
+            <max-columns>1</max-columns>
+            <clear-selection-first>true</clear-selection-first>
+          </frame>
+        </parameters>
+        <test>
+          <condition>=parameters["use_ratio"].AsBoolean</condition>
+          <iftrue>
+            <parameters>
+              <frame>
+                <name>ul_y</name>
+                <prompt>="Select UPPER CONFIDENCE LIMIT for " + parameters["stat_in"].AsString.ToLower(CultureInfo.CurrentCulture)</prompt>
+                <mode>NumericReplaceMissing</mode>
+                <same-length-as>y</same-length-as>
+                <min-columns>1</min-columns>
+                <max-columns>1</max-columns>
+                <clear-selection-first>true</clear-selection-first>
+              </frame>
+            </parameters>
+          </iftrue>
+          <iffalse>
+            <parameters>
+              <frame>
+                <name>ul_y</name>
+                <prompt>="Select UPPER CONFIDENCE LIMIT for " + parameters["stat_in"].AsString.ToLower(CultureInfo.CurrentCulture)</prompt>
+                <validators>
+                  <validator><name>NoMissingData</name></validator>
+                </validators>
+                <mode>NumericReplaceMissing</mode>
+                <same-length-as>y</same-length-as>
+                <min-columns>1</min-columns>
+                <max-columns>1</max-columns>
+                <clear-selection-first>true</clear-selection-first>
+              </frame>
+            </parameters>
+          </iffalse>
+        </test>
+      </iftrue>
+      <iffalse>
+        <parameters>
+          <frame>
+            <name>se_y</name>
+            <prompt>="Select STANDARD ERROR for " + (parameters["use_ratio"].AsBoolean ? "LOG " : string.Empty) + parameters["stat_in"].AsString.ToLower(CultureInfo.CurrentCulture)</prompt>
+            <mode>NumericReplaceMissing</mode>
+            <same-length-as>y</same-length-as>
+            <min-columns>1</min-columns>
+            <max-columns>1</max-columns>
+            <clear-selection-first>true</clear-selection-first>
+          </frame>
+        </parameters>
+      </iffalse>
+    </test>
+    <parameters>
+      <frame>
+        <name>studies</name>
+        <prompt>Select study names [Default for default]</prompt>
+        <cancel-skips-parameter>Default</cancel-skips-parameter>
+        <same-length-as>y</same-length-as>
+        <mode>Text</mode>
+        <min-columns>1</min-columns>
+        <max-columns>1</max-columns>
+        <clear-selection-first>true</clear-selection-first>
+      </frame>
+    </parameters>
+    <builtin function-name="rptMetaSummary" />
+    <report type="application/x-statsdirect-creole" filename="genmeta.creole" />
+    <report type="application/x-statsdirect-creole" filename="charts.creole" />
+  </steps>
+</operation>

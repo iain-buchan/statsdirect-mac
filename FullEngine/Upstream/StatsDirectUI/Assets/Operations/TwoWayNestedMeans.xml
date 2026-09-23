@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+  <name>TwoWayNestedMeans</name>
+  <friendly-name lang="en-GB">Treatment &amp; subgroup means</friendly-name>
+  <prerequisite-operation>TwoWayNested</prerequisite-operation>
+  <steps>
+    <parameters>
+      <frame2d>
+        <name>data2d</name>
+        <prompt></prompt>
+        <sub-prompt></sub-prompt>
+        <same-length>true</same-length>
+        <mode>GroupThenBlock</mode>
+        <min-columns>2</min-columns>
+        <max-columns>10</max-columns>
+      </frame2d>
+    </parameters>
+    <builtin function-name="rptNestMeans" />
+    <report type="application/x-statsdirect-creole" filename="nestmean.creole" />
+  </steps>
+</operation>

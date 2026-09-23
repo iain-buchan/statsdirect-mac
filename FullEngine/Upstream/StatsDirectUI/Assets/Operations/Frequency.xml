@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Frequency</name>
+  <friendly-name lang="en-GB">Frequency (counts) analysis</friendly-name>
+  <help chm-id="1044" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select data for FREQUENCY ANALYSIS</prompt>
+          <mode>CategoryReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>200</max-columns>
+          <ask-for-group-id>true</ask-for-group-id>
+        </frame>
+        <option>
+          <name>sortBy</name>
+          <prompt>Sort the results by</prompt>
+          <prompt-precedes-parameter>true</prompt-precedes-parameter>
+          <format-type>Dropdown</format-type>
+          <options>
+            <option value="value">Value</option>
+            <option value="frequency">Frequency</option>
+          </options>
+          <default-value>value</default-value>
+        </option>
+        <option>
+          <name>sortOrder</name>
+          <prompt>Order</prompt>
+          <prompt-precedes-parameter>true</prompt-precedes-parameter>
+          <format-type>Dropdown</format-type>
+          <options>
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </options>
+          <default-value>asc</default-value>
+        </option>
+      </parameters>
+		<builtin function-name="rptFrequency" />
+    <report type="application/x-statsdirect-creole" filename="freq.creole" />
+	</steps>
+</operation>

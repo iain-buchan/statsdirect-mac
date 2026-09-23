@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Effect</name>
+  <friendly-name lang="en-GB">Effect size meta-analysis</friendly-name>
+  <help chm-id="1160" />
+  <steps>
+      <parameters>
+        <confidence-interval>
+          <name>gamma</name>
+        </confidence-interval>
+        <option>
+          <name>type</name>
+          <prompt>Which type of effect size meta-analysis?</prompt>
+          <options>
+            <option value="d">Standardized effect size (d) from mean, n and sd</option>
+            <option value="g">Standardized effect size (d) from g and n</option>
+            <option value="m">Weighted mean difference from mean, n and sd</option>
+          </options>
+          <default-value>d</default-value>
+        </option>
+        <frame>
+          <name>en</name>
+          <prompt>Select SIZES of EXPERIMENTAL/TREATED groups</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+      </parameters>
+		<test>
+			<condition>=!("g".Equals(parameters["type"].AsString))</condition>
+			<iftrue>
+          <parameters>
+            <frame>
+              <name>em</name>
+              <prompt>Select MEANS of EXPERIMENTAL/TREATED groups</prompt>
+              <same-length-as>En</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+            </frame>
+            <frame>
+              <name>es</name>
+              <prompt>Select STANDARD DEVIATIONS of EXPERIMENTAL/TREATED groups</prompt>
+              <same-length-as>En</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+            </frame>
+          </parameters>
+			</iftrue>
+		</test>
+      <parameters>
+        <frame>
+          <name>cn</name>
+          <prompt>Select SIZES of CONTROL groups</prompt>
+          <same-length-as>En</same-length-as>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+      </parameters>
+		<test>
+			<condition>="g".Equals(parameters["type"].AsString)</condition>
+			<iftrue>
+          <parameters>
+            <frame>
+              <name>g</name>
+              <prompt>Select EFFECT SIZE ESTIMATES (g)</prompt>
+              <mode>NumericReplaceMissing</mode>
+              <same-length-as>En</same-length-as>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+            </frame>
+          </parameters>
+			</iftrue>
+			<iffalse>
+          <parameters>
+            <frame>
+              <name>cm</name>
+              <prompt>Select MEANS of CONTROL groups</prompt>
+              <same-length-as>En</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+            </frame>
+            <frame>
+              <name>cs</name>
+              <prompt>Select STANDARD DEVIATIONS of CONTROL groups</prompt>
+              <same-length-as>En</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+            </frame>
+          </parameters>
+			</iffalse>
+		</test>
+      <parameters>
+        <frame>
+          <name>strata</name>
+          <prompt>Select group/trial NAMES [Default for default]</prompt>
+          <cancel-skips-parameter>Default</cancel-skips-parameter>
+          <same-length-as>En</same-length-as>
+          <mode>Text</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+      </parameters>
+		<builtin function-name="rptEffect" />
+		<test>
+			<condition>="m".Equals(parameters["type"].AsString)</condition>
+			<iftrue>
+        <report type="application/x-statsdirect-creole" filename="effectwm.creole" />
+			</iftrue>
+			<iffalse>
+        <report type="application/x-statsdirect-creole" filename="effect.creole" />
+			</iffalse>
+		</test>
+    <report type="application/x-statsdirect-creole" filename="charts.creole" />
+	</steps>
+</operation>

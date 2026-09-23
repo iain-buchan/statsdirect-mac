@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>PoissonRegressionModel</name>
+	<friendly-name lang="en-GB">Model analysis</friendly-name>
+  <prerequisite-operation>PoissonRegression</prerequisite-operation>
+  <steps>
+		<builtin function-name="rptPoissonRegressionModel" />
+    <report type="application/x-statsdirect-creole">
+      <![CDATA[<report>
+<title>Poisson regression - model analysis</title>
+
+<p>Accuracy = @{acc:roundu}<br />
+Log likelihood with all covariates = @{ll:roundu}</p>
+
+<p>Deviance with all covariates = @{dev:roundu}   df = @idf   rank = @rank<br />
+Akaike information criterion = @{aka:roundu}<br />
+Schwarz information criterion = @{sch:roundu}</p>
+
+<p>Deviance with no covariates = @{devx:roundu}<br />
+Deviance (likelihood ratio, G&#xb2;) = @{x2dev:roundu}   df = @x2df   <pval>@{x2p:pval}</pval><br />
+Pseudo (McFadden) R-square = @{r2:roundu}<br />
+Pseudo (likelihood ratio index) R-square = @{r2i:roundu}</p>
+
+<p>Pearson goodness of fit = @{x2_pearson:roundu}   df = @idf   <pval>@{p_pearson:pval}</pval><br />
+Deviance goodness of fit = @{dev_gf:roundu}   df = @idf   <pval>@{p_dev:pval}</pval></p>
+
+<p>Over-dispersion scale parameter = @{sp:roundu}<br />
+Scaled G&#xb2; = @{x2dev_scaled:roundu}   df = @x2df   <pval>@{x2p_scaled:pval}</pval><br />
+Scaled Pearson goodness of fit = @{x2_scaled:roundu}   df = @idf   <pval>@{p_p_scaled:pval}</pval><br />
+Scaled Deviance goodness of fit = @{dev_scaled:roundu}   df = @idf   <pval>@{p_dev_scaled:pval}</pval></p>
+
+<table>
+<tr><th>Parameter</th><th>Coefficient</th><th>Standard Error</th></tr>
+<block name="unscaled"><tr><td>@par</td><td>@{coef:roundu}</td><td>@{err:roundu}</td></tr></block>
+</table>
+
+<table>
+<tr><th>Parameter</th><th>Scaled Standard Error</th><th>Scaled Wald z</th><th></th></tr>
+<block name="scaled"><tr><td>@par</td><td>@{err:roundu}</td><td>@{z:roundu}</td><td><pval>@{p:pval}</pval></td></tr></block>
+</table>
+</report>]]>
+    </report>
+  </steps>
+</operation>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Chi2byNWithoutTrend</name>
+  <friendly-name lang="en-GB">Chi-square 2-by-k independence test</friendly-name>
+  <help chm-id="1049" />
+  <steps>
+      <parameters>
+        <special>
+          <name>data</name>
+          <must-request>true</must-request>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+            <validator><name>TwoColumns</name></validator>
+            <validator><name>NonNegative</name></validator>
+            <validator><name>PositiveRows</name></validator>
+          </validators>
+          <type>chi-2-column</type>
+        </special>
+      </parameters>
+  	<builtin function-name="rptChi2byNWithoutTrend" />
+    <report type="application/x-statsdirect-creole" filename="chi2xc.creole" />
+  </steps>
+  <custom-validators>
+    <custom-validator name="TwoColumns" language="CSharp">
+      return (parameters[parameter.Name].IsDataFrame &amp;&amp; parameters[parameter.Name].AsDataFrame.VariableCount == 2) ? null : "Values should be entered in both columns";
+    </custom-validator>
+  </custom-validators>
+  <suggested-operations>
+    <suggested-operation>Chi2byNWithoutTrend</suggested-operation>
+  </suggested-operations>
+</operation>

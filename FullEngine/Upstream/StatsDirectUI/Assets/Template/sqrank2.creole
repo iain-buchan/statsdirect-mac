@@ -1,0 +1,7 @@
+<report>
+<title>Squared ranks approximate equality of variance test (2 sample)</title>
+
+<p>z = @{z:roundu}<br />
+<ci>Two tailed @{p2:pval}</ci><br />
+<ci>One tailed @{p1:pval}</ci></p>
+</report>

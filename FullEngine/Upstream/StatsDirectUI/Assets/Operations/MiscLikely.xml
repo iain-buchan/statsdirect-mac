@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>MiscLikely</name>
+  <friendly-name lang="en-GB">Likelihood ratios</friendly-name>
+  <help chm-id="1216" />
+  <steps>
+      <parameters>
+        <special>
+          <name>data</name>
+          <must-request>true</must-request>
+          <validators>
+            <validator><name>NoMissingData</name></validator>
+            <validator><name>NonNegative</name></validator>
+          </validators>
+          <type>likelihood</type>
+        </special>
+        <confidence-interval>
+          <name>z1</name>
+          <must-request>true</must-request>
+        </confidence-interval>
+      </parameters>
+  	<builtin function-name="rptMiscLikely" />
+    <report type="application/x-statsdirect-creole" filename="likely.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>MiscLikely</suggested-operation>
+  </suggested-operations>
+</operation>

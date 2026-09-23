@@ -1,0 +1,24 @@
+<report>
+<title>Fisher's exact test</title>
+
+<p><b>Input table:</b></p>
+<table>
+<tr><td>@tab_a1</td><td>@tab_b1</td></tr>
+<tr><td>@tab_a2</td><td>@tab_b2</td></tr>
+</table>
+
+<p><b>Arranged table and totals:</b></p>
+<table>
+<tr><td>@tab3_a1</td><td>@tab3_b1</td><td><subtotal>@tab3_c1</subtotal></td></tr>
+<tr><td>@tab3_a2</td><td>@tab3_b2</td><td><subtotal>@tab3_c2</subtotal></td></tr>
+<tr><td><subtotal>@tab3_a3</subtotal></td><td><subtotal>@tab3_b3</subtotal></td><td><grandtotal>@tab3_c3</grandtotal></td></tr>
+</table>
+
+<p>Expectation of A = @{exp_a:roundu}</p>
+
+<p><pval>One sided @tail_1 @{p_1:pval}   (doubled one sided @{p_1d:pval})</pval><br />
+<pval>Two sided @tail_2 @{p_2:pval}</pval></p>
+
+<p><pval>One sided mid-@{mid_p:pval}</pval><br />
+<pval>Two sided mid-@{mid_p_2:pval}</pval></p>
+</report>

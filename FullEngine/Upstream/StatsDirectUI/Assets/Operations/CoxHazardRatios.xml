@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>CoxHazardRatios</name>
+	<friendly-name lang="en-GB">Hazard ratios</friendly-name>
+  <prerequisite-operation>CoxRegression</prerequisite-operation>
+  <steps>
+      <parameters>
+        <confidence-interval>
+          <name>gamma</name>
+        </confidence-interval>
+      </parameters>
+		<builtin function-name="rptCoxHazardRatios" />
+    <report type="application/x-statsdirect-creole" filename="cox_det.creole" />
+	</steps>
+</operation>

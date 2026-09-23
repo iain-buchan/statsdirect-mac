@@ -1,0 +1,14 @@
+<report>
+<title>Odds ratio analysis</title>
+
+<p>Odds Ratio = @{odds:roundu}</p>
+
+<p>Using the Woolf (logit) approximation:<br />
+<ci>Approximate @{woolf_ci:roundu}% confidence interval = @{woolf_ci_1:roundu} to @{woolf_ci_2:roundu}</ci></p>
+
+<p>Using conditional likelihood estimation:<br />
+<ci>Fisher exact @ci% confidence interval = @{llf:roundu} to @{ulf:roundu}</ci><br />
+<pval>Exact Fisher one sided @{p1f:pval}, two sided @{p2f:pval}</pval><br />
+<ci>mid-P exact @ci% confidence interval = @{llm:roundu} to @{ulm:roundu}</ci><br />
+<pval>Exact mid-P one sided @{p1m:pval}, two sided @{p2m:pval}</pval></p>
+</report>

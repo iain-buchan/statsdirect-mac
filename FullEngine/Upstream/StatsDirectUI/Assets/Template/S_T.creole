@@ -1,0 +1,21 @@
+<report>
+<title>Sample size for @tt Student t test</title>
+
+<block name="sample_size_warn"><p><warn>Estimate of sample size is greater than StatsDirect can display: a very large but lower value is given</warn></p></block>
+
+<p>Alpha = @{alpha:roundu}<br />
+Power = @{power:roundu}<br />
+Difference @mean = @{delta:roundu}<br />
+Standard deviation = @{sd:roundu}
+</p>
+<block name="controls"><p>Controls per experimental subject @con_per</p></block>
+
+<p>Estimated minimum sample size = @size <block name="pairs">pairs</block><block name="subjects"> experimental subjects and @con_tot controls.</block></p>
+
+<p>Degrees of freedom = @df</p>
+<block name="assumptions">
+
+<p>NB:Assumptions of this calculation may cause over estimation of sample size when power is low.<br />
+However, true power associated with @cases cases will be no less than @no_less and no greater than @no_greater.</p>
+</block>
+</report>

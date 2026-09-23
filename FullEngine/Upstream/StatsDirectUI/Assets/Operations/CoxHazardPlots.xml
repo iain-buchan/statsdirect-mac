@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>CoxHazardPlots</name>
+	<friendly-name lang="en-GB">Survival and hazard plots</friendly-name>
+  <prerequisite-operation>CoxRegression</prerequisite-operation>
+  <steps>
+      <parameters>
+        <boolean>
+          <name>use-tics</name>
+          <prompt>Use tics for censored times</prompt>
+          <must-request>true</must-request>
+          <default-value>true</default-value>
+        </boolean>
+        <boolean>
+          <name>use-markers</name>
+          <prompt>Use markers for all observed times</prompt>
+          <must-request>true</must-request>
+          <default-value>true</default-value>
+        </boolean>
+        <pick-from-list>
+          <name>group</name>
+          <prompt>Split by</prompt>
+          <must-request>true</must-request>
+          <source>subgroups</source>
+        </pick-from-list>
+      </parameters>
+		<builtin function-name="rptCoxHazardPlots" />
+    <report type="application/x-statsdirect-creole" filename="charts.creole" />
+	</steps>
+</operation>

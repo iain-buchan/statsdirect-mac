@@ -1,0 +1,15 @@
+<report>
+<title>Indirectly Standardized Rates and SMR</title>
+<table>
+<tr><th>Reference rate</th><th>Observed person-time</th><th>Expected deaths</th><th></th></tr>
+<block name="groups"><tr><td>@{group:roundu}</td><td>@observed</td><td>@{expected:roundu}</td><td>@lb</td></tr></block>
+<tr><td></td><td></td><td>Total = @total</td><td></td></tr>
+</table>
+
+<p>Standardized Mortality Ratio (SMR) = @{ratio:roundu}<br />
+<b>SMR (*100 as integer) = @{smr:round0}</b><br />
+<ci>Exact @{pc:round2}% confidence interval = @{from:roundu} to @{to:roundu} (@from100 to @to100)</ci></p>
+
+<p><pval>Probability of observing @qty or more deaths by chance @{p_hi:pval}</pval><br />
+<pval>Probability of observing @qty or fewer deaths by chance @{p_lo:pval}</pval></p>
+</report>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>LatinSquare</name>
+	<friendly-name lang="en-GB">Latin square analysis</friendly-name>
+  <help chm-id="1008" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>observations</name>
+          <prompt>Select OBSERVATIONS</prompt>
+          <validators>
+            <validator><name>Square</name></validator>
+            <validator><name>NoMissingData</name></validator>
+          </validators>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>column</name>
+          <prompt>Select COLUMN CLASSIFIER: Factor 1</prompt>
+          <validators>
+            <validator><name>SquareBins</name></validator>
+            <validator><name>NoMissingData</name></validator>
+          </validators>
+          <mode>NumericReplaceMissing</mode>
+          <same-length-as>observations</same-length-as>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>row</name>
+          <prompt>Select ROW CLASSIFIER: Factor 2</prompt>
+          <validators>
+            <validator><name>SquareBins</name></validator>
+            <validator><name>NoMissingData</name></validator>
+          </validators>
+          <mode>NumericReplaceMissing</mode>
+          <same-length-as>observations</same-length-as>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>treatment</name>
+          <prompt>Select TREATMENT/LATIN/RANDOMISED CLASSIFIER: Factor 3</prompt>
+          <validators>
+            <validator><name>SquareBins</name></validator>
+            <validator><name>NoMissingData</name></validator>
+          </validators>
+          <mode>NumericReplaceMissing</mode>
+          <same-length-as>observations</same-length-as>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+      </parameters>
+		<builtin function-name="rptLatin" />
+    <report type="application/x-statsdirect-creole" filename="latin.creole" />
+	</steps>
+</operation>

@@ -1,0 +1,9 @@
+<report>
+<title>Polynomial regression - Interpolation</title>
+<block name="table"><p>@lab = @{res:roundu}</p></block>
+
+<p>@y_lab = @{y_res:roundu}</p>
+
+<p><ci>@{pc:round2}% Confidence interval = @{from_conf:roundu} to @{to_conf:roundu}</ci><br />
+<ci>@{pc:round2}% Prediction interval = @{from_pred:roundu} to @{to_pred:roundu}</ci></p>
+</report>

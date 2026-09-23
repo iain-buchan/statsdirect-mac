@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+  <name>ZSingle</name>
+  <friendly-name lang="en-GB">Single sample z(normal distribution) test</friendly-name>
+  <help chm-id="1245" />
+  <steps>
+    <parameters>
+      <confidence-interval>
+        <name>gamma</name>
+      </confidence-interval>
+      <frame>
+        <name>data</name>
+        <prompt>Select DATA</prompt>
+        <mode>NumericReplaceMissing</mode>
+        <min-columns>1</min-columns>
+        <max-columns>1</max-columns>
+        <ask-for-group-id>false</ask-for-group-id>
+      </frame>
+      <double>
+        <name>popmean</name>
+        <prompt>Enter population mean</prompt>
+        <default-value>0</default-value>
+      </double>
+      <double>
+        <name>popsd</name>
+        <prompt>Enter population standard deviation (leave blank if not known)</prompt>
+        <cancel-skips-parameter>true</cancel-skips-parameter>
+        <minimum-value>0</minimum-value>
+      </double>
+    </parameters>
+    <builtin function-name="rptZSingle" />
+    <report type="application/x-statsdirect-creole" filename="z_norm1.creole" />
+  </steps>
+</operation>

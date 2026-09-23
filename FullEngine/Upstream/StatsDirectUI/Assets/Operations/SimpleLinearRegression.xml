@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>SimpleLinearRegression</name>
+  <friendly-name lang="en-GB">Simple linear regression and correlation</friendly-name>
+  <help chm-id="1286" />
+  <steps>
+      <parameters>
+        <confidence-interval>
+          <name>gamma</name>
+        </confidence-interval>
+        <frame>
+          <name>y</name>
+          <prompt>Select data for OUTCOME (Y axis)</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>x</name>
+          <prompt>Select data for PREDICTOR (X axis)</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <same-length-as>y</same-length-as>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+      </parameters>
+		<builtin function-name="rptSimpleLinearRegression" />
+    <report type="application/x-statsdirect-creole" filename="simple.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>InterpolateXY</suggested-operation>
+    <suggested-operation>InterpolateYX</suggested-operation>
+    <suggested-operation>Ranv</suggested-operation>
+    <suggested-operation>PlotSimpleLinearRegression</suggested-operation>
+    <suggested-operation>PlotResidualsSimple</suggested-operation>
+    <suggested-operation>CiMeanY</suggested-operation>
+    <suggested-operation>PlotSeCi</suggested-operation>
+    <suggested-operation>PlotPredictionInterval</suggested-operation>
+    <suggested-operation>SimpleLinearRegressionCI</suggested-operation>
+  </suggested-operations>
+</operation>

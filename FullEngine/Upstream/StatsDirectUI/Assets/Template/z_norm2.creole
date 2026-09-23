@@ -1,0 +1,23 @@
+<report>
+<title>Normal distribution (z) test - two independent samples</title>
+<block name="sample">
+<table>
+<tr><td>Sample name:</td><td>@name</td></tr>
+<tr><td>Mean = </td><td>@{mean:roundu}</td></tr>
+<tr><td>Variance =</td><td>@{var:roundu}</td></tr>
+<tr><td>Size =</td><td>@size</td></tr>
+</table>
+</block>
+<p>Combined standard error = @{error:roundu}</p>
+
+<p><ci>@{pc:round2}% confidence interval for difference between means = @{from:roundu} to @{to:roundu}</ci></p>
+
+<p>Standard normal deviate (z) = @{z:roundu}</p>
+
+<p><pval>One sided @{p_1:pval}</pval><br />
+<pval>Two sided @{p_2:pval}</pval></p>
+<block name="warn">
+
+<p><warn>WARNING: numbers too small for this test consider using a Student t test instead</warn></p>
+</block>
+</report>

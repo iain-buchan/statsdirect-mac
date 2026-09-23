@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>PropPairs</name>
+  <friendly-name lang="en-GB">Comparison of paired proportions</friendly-name>
+  <help chm-id="1249" />
+  <steps>
+      <parameters>
+        <double>
+          <name>n</name>
+          <prompt>TOTAL number in study</prompt>
+          <must-request>true</must-request>
+          <minimum-value>1</minimum-value>
+        </double>
+        <double>
+          <name>r</name>
+          <prompt>Number responding in BOTH categories</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+        </double>
+        <double>
+          <name>s</name>
+          <prompt>Number responding in FIRST category only</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+        </double>
+        <double>
+          <name>t</name>
+          <prompt>Number responding in SECOND category only</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+        </double>
+        <confidence-interval>
+          <name>cco</name>
+          <must-request>true</must-request>
+        </confidence-interval>
+      </parameters>
+  	<builtin function-name="rptPropPairs" />
+    <report type="application/x-statsdirect-creole" filename="p_pair.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>PropPairs</suggested-operation>
+  </suggested-operations>
+</operation>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>MiscFalseResult</name>
+  <friendly-name lang="en-GB">Analysis of screening test error probabilities</friendly-name>
+  <help chm-id="1214" />
+  <steps>
+      <parameters>
+        <double>
+          <name>pt</name>
+          <prompt>Probability of a POSITIVE test when subject HAS the test condition (i.e. sensitivity)</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+          <maximum-value>1</maximum-value>
+        </double>
+        <double>
+          <name>pf</name>
+          <prompt>Probability of a POSITIVE test when subject does NOT have the condition (i.e. 1-specificity)</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+          <maximum-value>1</maximum-value>
+        </double>
+        <double>
+          <name>pd</name>
+          <prompt>Enter n where the population case rate for the condition is 1/n</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+        </double>
+      </parameters>
+  	<builtin function-name="rptMiscFalseResult" />
+    <report type="application/x-statsdirect-creole" filename="falser.creole" />
+  </steps>
+  <suggested-operations>
+    <suggested-operation>MiscFalseResult</suggested-operation>
+  </suggested-operations>
+</operation>

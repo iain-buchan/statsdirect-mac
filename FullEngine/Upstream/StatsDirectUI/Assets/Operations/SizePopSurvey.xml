@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>SizePopSurvey</name>
+  <friendly-name lang="en-GB">Sample size for a population survey</friendly-name>
+  <help chm-id="1316" />
+  <steps>
+      <parameters>
+        <double>
+          <name>ps</name>
+          <prompt>Approx size of population from which you will draw your sample</prompt>
+          <must-request>true</must-request>
+        </double>
+        <double>
+          <name>p</name>
+          <prompt>Estimate of rate at which characteristic occurs (%)</prompt>
+          <must-request>true</must-request>
+        </double>
+        <double>
+          <name>xd</name>
+          <prompt>Acceptable absolute deviation of sample rate from population rate (+/- %)</prompt>
+          <must-request>true</must-request>
+        </double>
+        <confidence-interval>
+          <name>cco</name>
+          <prompt>How confident must you be that your sample rate does NOT deviate from the true population mean by more than this acceptable deviation?</prompt>
+          <must-request>true</must-request>
+          <can-default>false</can-default>
+        </confidence-interval>
+      </parameters>
+  	<builtin function-name="rptSizePopSurvey" />
+    <report type="application/x-statsdirect-creole" filename="s_survey.creole" />
+  </steps>
+  <suggested-operations>
+    <suggested-operation>SizePopSurvey</suggested-operation>
+  </suggested-operations>
+</operation>

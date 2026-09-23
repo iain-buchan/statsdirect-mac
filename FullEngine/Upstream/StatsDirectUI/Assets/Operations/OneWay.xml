@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>OneWay</name>
+	<friendly-name lang="en-GB">One way analysis of variance</friendly-name>
+  <help chm-id="1011" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select DATA</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>2</min-columns>
+          <max-columns>200</max-columns>
+          <ask-for-group-id>true</ask-for-group-id>
+        </frame>
+      </parameters>
+		<builtin function-name="rptOneWay" />
+    <report type="application/x-statsdirect-creole" filename="oneway.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>Bonferroni</suggested-operation>
+    <suggested-operation>Tukey</suggested-operation>
+    <suggested-operation>Scheffe</suggested-operation>
+    <suggested-operation>NewmanKeuls</suggested-operation>
+    <suggested-operation>Dunnett</suggested-operation>
+    <suggested-operation>EqualityOfVariance</suggested-operation>
+  </suggested-operations>
+</operation>

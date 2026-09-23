@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ExactFisher</name>
+  <friendly-name lang="en-GB">Fisher's exact test</friendly-name>
+  <help chm-id="1108" />
+  <steps>
+      <parameters>
+        <double-2-by-2>
+          <name>scrap</name>
+          <columns-prompt>Characteristic (press F1 for an example)</columns-prompt>
+          <left-column-prompt>Present</left-column-prompt>
+          <right-column-prompt>Absent</right-column-prompt>
+          <rows-prompt>Outcome:</rows-prompt>
+          <top-row-prompt>Present</top-row-prompt>
+          <bottom-row-prompt>Absent</bottom-row-prompt>
+          <top-left-name>a</top-left-name>
+          <top-right-name>b</top-right-name>
+          <bottom-left-name>c</bottom-left-name>
+          <bottom-right-name>d</bottom-right-name>
+          <must-request>true</must-request>
+        </double-2-by-2>
+      </parameters>
+  	<builtin function-name="rptExactFisher" />
+    <report type="application/x-statsdirect-creole" filename="fisher.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>ExactFisher</suggested-operation>
+  </suggested-operations>
+</operation>

@@ -1,0 +1,453 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:sdop="http://www.statsdirect.com/schemas/Operation.xsd" elementFormDefault="qualified" targetNamespace="http://www.statsdirect.com/schemas/Operation.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="operation" nillable="true" type="sdop:Operation" />
+  <xs:complexType name="Operation">
+    <xs:choice maxOccurs="unbounded">
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="name" type="xs:string" />
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="friendly-name" type="sdop:FriendlyName" />
+      <xs:element minOccurs="0" maxOccurs="1" name="help" type="sdop:Help" />
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="prerequisite-operation" type="xs:string" />
+      <xs:element minOccurs="0" maxOccurs="1" name="suggested-operations" type="sdop:SuggestedOperations" />
+      <xs:element minOccurs="0" maxOccurs="1" name="steps" type="sdop:ArrayOfStep" />
+    </xs:choice>
+  </xs:complexType>
+  
+  <!-- STEPS -->
+  <xs:complexType name="ArrayOfStep">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element minOccurs="1" maxOccurs="1" name="report" nillable="true" type="sdop:ReportStep" />
+      <xs:element minOccurs="1" maxOccurs="1" name="test" nillable="true" type="sdop:TestStep" />
+      <xs:element minOccurs="1" maxOccurs="1" name="script" nillable="true" type="sdop:ScriptStep" />
+      <xs:element minOccurs="1" maxOccurs="1" name="output-frame" nillable="true" type="sdop:OutputFrameStep" />
+      <xs:element minOccurs="1" maxOccurs="1" name="iteration" nillable="true" type="sdop:IterationStep" />
+      <xs:element minOccurs="1" maxOccurs="1" name="builtin" nillable="true" type="sdop:BuiltinStep" />
+      <xs:element minOccurs="1" maxOccurs="1" name="chart" nillable="true" type="sdop:ChartStep" />
+      <xs:element minOccurs="1" maxOccurs="1" name="parameters" nillable="true" type="sdop:ArrayOfParameter" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="Step" abstract="true">
+    <xs:attribute name="name" type="xs:string" />
+    <xs:attribute name="copy-input-parameters" type="xs:boolean" default="true" />
+  </xs:complexType>
+  <xs:complexType name="BuiltinStep">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Step">
+        <xs:attribute name="function-name" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="ChartStep">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Step">
+        <xs:choice maxOccurs="unbounded">
+          <xs:element minOccurs="1" maxOccurs="1" name="chart-type" type="sdop:ChartType" />
+          <xs:element minOccurs="0" maxOccurs="1" name="chart-name" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="chart-title" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="box-axes" type="xs:boolean" />
+          <xs:element minOccurs="0" maxOccurs="1" name="x-axis-title" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="y-axis-title" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="x-series-data" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="y-series-data" type="xs:string" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="IterationStep">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Step">
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element minOccurs="1" maxOccurs="1" name="steps" type="sdop:ArrayOfStep" />
+          <xs:element minOccurs="0" maxOccurs="1" name="lower-bound" nillable="true" type="xs:int" />
+          <xs:element minOccurs="0" maxOccurs="1" name="upper-bound" nillable="true" type="xs:int" />
+          <xs:element minOccurs="0" maxOccurs="1" name="lower-bound-parameter" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="upper-bound-parameter" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="loop-variable-name" type="xs:string" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="OutputFrameStep">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Step">
+        <xs:attribute name="frame-name" type="xs:string" />
+        <xs:attribute name="keep-selection" type="xs:boolean" />
+        <xs:attribute name="formulae" type="xs:boolean" />
+        <xs:attribute name="missing-indicator" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="ReportStep" mixed="true">
+    <xs:complexContent mixed="true">
+      <xs:extension base="sdop:Step">
+        <xs:attribute name="filename" type="xs:string" />
+        <xs:attribute name="type" type="sdop:ReportStepType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="ScriptStep" mixed="true">
+    <xs:complexContent mixed="true">
+      <xs:extension base="sdop:Step">
+        <xs:attribute name="entry-point" type="xs:string" />
+        <xs:attribute name="language" type="xs:string" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="TestStep">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Step">
+        <xs:sequence>
+          <xs:element minOccurs="1" maxOccurs="1" name="condition" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="iftrue" type="sdop:ArrayOfStep" />
+          <xs:element minOccurs="0" maxOccurs="1" name="iffalse" type="sdop:ArrayOfStep" />
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  
+  <!-- PARAMETERS -->
+  <xs:complexType name="ArrayOfParameter">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element minOccurs="1" maxOccurs="1" name="boolean" nillable="true" type="sdop:BooleanParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="confidence-interval" nillable="true" type="sdop:ConfidenceIntervalParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="double" nillable="true" type="sdop:DoubleParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="edit-grid" nillable="true" type="sdop:EditGridParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="frame" nillable="true" type="sdop:FrameParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="frame2d" nillable="true" type="sdop:FrameParameter2D" />
+      <xs:element minOccurs="1" maxOccurs="1" name="grouped-covariance" nillable="true" type="sdop:GroupedCovarianceParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="integer" nillable="true" type="sdop:IntegerParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="pick-from-list" nillable="true" type="sdop:PickFromListParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="pick-variables" nillable="true" type="sdop:PickVariablesParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="option" nillable="true" type="sdop:OptionParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="multiple-options" nillable="true" type="sdop:OptionsParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="special" nillable="true" type="sdop:SpecialParameter" />
+      <xs:element minOccurs="1" maxOccurs="1" name="string" nillable="true" type="sdop:StringParameter" />
+    </xs:choice>
+  </xs:complexType>
+
+  <xs:complexType name="Parameter" abstract="true">
+    <xs:choice maxOccurs="unbounded">
+      <xs:element minOccurs="1" maxOccurs="1" name="acquire-if-true" type="xs:string" />
+      <xs:element minOccurs="1" maxOccurs="1" name="cancel-skips-parameter" type="xs:string" />
+      <xs:element minOccurs="1" maxOccurs="1" name="column" type="xs:integer" />
+      <xs:element minOccurs="1" maxOccurs="1" name="force-default" type="xs:boolean" />
+      <xs:element minOccurs="1" maxOccurs="1" name="help" type="sdop:HelpTip" />
+      <xs:element minOccurs="1" maxOccurs="1" name="lifetime" type="sdop:Lifetime" />
+      <xs:element minOccurs="1" maxOccurs="1" name="must-request" type="xs:boolean" />
+      <xs:element minOccurs="1" maxOccurs="1" name="name" type="xs:string" />
+      <xs:element minOccurs="1" maxOccurs="1" name="prompt" type="xs:string" />
+      <xs:element minOccurs="1" maxOccurs="1" name="prompt-precedes-parameter" type="xs:boolean" />
+      <xs:element minOccurs="1" maxOccurs="1" name="requires-parameter" type="xs:string" />
+      <xs:element minOccurs="1" maxOccurs="1" name="rubric" type="xs:string" />
+      <xs:element minOccurs="1" maxOccurs="1" name="title" type="xs:string" />
+      <xs:element minOccurs="1" maxOccurs="1" name="validation-fail-message" type="xs:string" />
+      <xs:element minOccurs="1" maxOccurs="1" name="validators" type="sdop:ArrayOfValidator" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="BooleanParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice maxOccurs="unbounded">
+          <xs:element minOccurs="0" maxOccurs="1" name="default-value" type="xs:boolean" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="ConfidenceIntervalParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice maxOccurs="unbounded">
+          <xs:element minOccurs="0" maxOccurs="1" name="default-value" type="xs:double" />
+          <xs:element minOccurs="0" maxOccurs="1" name="can-default" type="xs:boolean" />
+          <xs:element minOccurs="0" maxOccurs="1" name="can-use-standard" type="xs:boolean" />
+          <xs:element minOccurs="1" maxOccurs="1" name="minimum-suggested-value" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="maximum-suggested-value" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="suggested-step" type="xs:string" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="DoubleParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element minOccurs="1" maxOccurs="1" name="default-value" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="minimum-value" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="maximum-value" type="xs:string" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="EditGridParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:sequence>
+          <xs:element minOccurs="0" maxOccurs="1" name="key-variable" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="value-variable" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="source" type="xs:string" />
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="FrameParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice maxOccurs="unbounded">
+          <xs:element minOccurs="1" maxOccurs="1" name="can-select" type="xs:boolean" />
+          <xs:element minOccurs="1" maxOccurs="1" name="same-length" type="xs:boolean" />
+          <xs:element minOccurs="1" maxOccurs="1" name="mode" type="sdop:DataAcquisitionMode" />
+          <xs:element minOccurs="1" maxOccurs="1" name="same-length-as" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="append-to-frame" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="length" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="min-columns" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="max-columns" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="clear-selection-first" type="xs:boolean" />
+          <xs:element minOccurs="1" maxOccurs="1" name="ask-for-group-id" type="xs:boolean" />
+          <xs:element minOccurs="1" maxOccurs="1" name="data" type="sdop:FrameData" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="FrameParameter2D">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element minOccurs="1" maxOccurs="1" name="sub-prompt" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="same-length" type="xs:boolean" />
+          <xs:element minOccurs="1" maxOccurs="1" name="mode" type="sdop:DataAcquisitionMode2D" />
+          <xs:element minOccurs="1" maxOccurs="1" name="length" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="min-columns" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="max-columns" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="clear-selection-first" type="xs:boolean" />
+          <xs:element minOccurs="1" maxOccurs="1" name="ask-for-group-id" type="xs:boolean" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="GroupedCovarianceParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter" />
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="IntegerParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice maxOccurs="unbounded">
+          <xs:element minOccurs="0" maxOccurs="1" name="default-value" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="minimum-value" type="xs:int" />
+          <xs:element minOccurs="0" maxOccurs="1" name="maximum-value" type="xs:int" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="OptionParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice maxOccurs="unbounded">
+          <xs:element minOccurs="1" maxOccurs="1" name="columns" type="xs:integer" />
+          <xs:element minOccurs="1" maxOccurs="1" name="options" type="sdop:ArrayOfOptionOption" />
+          <xs:element minOccurs="1" maxOccurs="1" name="default-value" type="xs:string" />
+          <xs:element minOccurs="1" maxOccurs="1" name="format-type" type="sdop:OptionFormatType" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="OptionsParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice maxOccurs="unbounded">
+          <xs:element minOccurs="1" maxOccurs="1" name="options" type="sdop:ArrayOfOptionsOption" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="PickFromListParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice maxOccurs="unbounded">
+          <xs:element minOccurs="1" maxOccurs="1" name="allow-multiple" type="xs:boolean" />
+          <xs:element minOccurs="1" maxOccurs="1" name="source" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="include-none-entry" type="xs:boolean" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="PickVariablesParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice maxOccurs="unbounded">
+          <xs:element minOccurs="1" maxOccurs="1" name="preselect-variables" type="xs:boolean" />
+          <xs:element minOccurs="1" maxOccurs="1" name="minimum-variables" type="xs:int" />
+          <xs:element minOccurs="1" maxOccurs="1" name="maximum-variables" type="xs:int" />
+          <xs:element minOccurs="1" maxOccurs="1" name="parameter-name" type="xs:string" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="SpecialParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element minOccurs="0" maxOccurs="1" name="type" type="xs:string" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="StringParameter">
+    <xs:complexContent mixed="false">
+      <xs:extension base="sdop:Parameter">
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element minOccurs="0" maxOccurs="1" name="default-value" type="xs:string" />
+          <xs:element minOccurs="0" maxOccurs="1" name="maximum-length" type="xs:integer" />
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  
+  <!-- SIMPLE TYPES: ENUMERATIONS -->
+  <xs:simpleType name="ValidationMode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Boolean" />
+      <xs:enumeration value="CheckForNonDummiedCategories" />
+      <xs:enumeration value="NoMissingData" />
+      <xs:enumeration value="NonNegative" />
+      <xs:enumeration value="NotSet" />
+      <xs:enumeration value="Pooling" />
+      <xs:enumeration value="Positive" />
+      <xs:enumeration value="PositiveRowsExceptLastColumn" />
+      <xs:enumeration value="Square" />
+      <xs:enumeration value="SquareBins" />
+      <xs:enumeration value="ThreeColumns" />
+      <xs:enumeration value="TwoBinsAndNoMissingData" />
+      <xs:enumeration value="ZeroToOneExclusive" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="OptionFormatType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Radio" />
+      <xs:enumeration value="Dropdown" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Lifetime">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Operation" />
+      <xs:enumeration value="SessionForThisOperation" />
+      <xs:enumeration value="SessionForAllOperations" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="ArrayOfValidator">
+    <xs:sequence>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="validator" nillable="true" type="sdop:ValidationMode" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ArrayOfOptionsOption">
+    <xs:sequence>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="option" nillable="true" type="sdop:OptionsOption" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OptionsOption">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="name" type="xs:string" />
+        <xs:attribute name="selected" type="xs:boolean" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="ArrayOfOptionOption">
+    <xs:sequence>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="option" nillable="true" type="sdop:OptionOption" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OptionOption">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="value" type="xs:string" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:simpleType name="FrameDataType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="text/csv" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="DataAcquisitionMode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="NotSet" />
+      <xs:enumeration value="CategoryCombineAllColumns" />
+      <xs:enumeration value="CategoryReplaceMissing" />
+      <xs:enumeration value="NumericCodingTextToDummies" />
+      <xs:enumeration value="NumericReplaceMissing" />
+      <xs:enumeration value="NumericSkipMissing" />
+      <xs:enumeration value="Text" />
+      <xs:enumeration value="TextWithFormulae" />
+      <xs:enumeration value="TextNoTitles" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="FrameData">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="type" type="sdop:FrameDataType" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:simpleType name="ChartType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Histogram" />
+      <xs:enumeration value="Spread" />
+      <xs:enumeration value="BoxWhisker" />
+      <xs:enumeration value="ScatterXY" />
+      <xs:enumeration value="ScatterXYZ" />
+      <xs:enumeration value="LineXY" />
+      <xs:enumeration value="MultiLineXY" />
+      <xs:enumeration value="Normal" />
+      <xs:enumeration value="Pyramid" />
+      <xs:enumeration value="Forest" />
+      <xs:enumeration value="Ladder" />
+      <xs:enumeration value="Labbe" />
+      <xs:enumeration value="Curve" />
+      <xs:enumeration value="Control" />
+      <xs:enumeration value="ROC" />
+      <xs:enumeration value="Survival" />
+      <xs:enumeration value="MetaBias" />
+      <xs:enumeration value="AgreementPair" />
+      <xs:enumeration value="QQ" />
+      <xs:enumeration value="LinearRegression" />
+      <xs:enumeration value="Gini" />
+      <xs:enumeration value="Bar" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="SuggestedOperations">
+    <xs:sequence>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="suggested-operation" type="sdop:SuggestedOperation" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SuggestedOperation" mixed="true">
+    <xs:attribute name="suggest-if" type="xs:string" />
+    <xs:attribute name="suggest-if-language" type="xs:string" />
+  </xs:complexType>
+  <xs:complexType name="FriendlyName" mixed="true">
+    <xs:attribute name="lang" type="xs:language" />
+  </xs:complexType>
+  <xs:complexType name="Help">
+    <xs:attribute name="chm-id" type="xs:integer" />
+    <xs:attribute name="url" type="xs:anyURI" />
+  </xs:complexType>
+  <xs:complexType name="HelpTip">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="lang" type="xs:string" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:simpleType name="DataAcquisitionMode2D">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="NotSet" />
+      <xs:enumeration value="GroupThenBlock" />
+      <xs:enumeration value="BlockThenGroup" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ReportStepType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="application/x-statsdirect-creole" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

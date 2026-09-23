@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Kappa</name>
+  <friendly-name lang="en-GB">Measures of inter-rater agreement over categorization</friendly-name>
+  <help chm-id="1003" />
+  <steps>
+      <parameters>
+        <confidence-interval>
+          <name>ci</name>
+        </confidence-interval>
+        <frame>
+          <name>responses</name>
+          <prompt>Select RESPONSES (one column per rater, one row per subject)</prompt>
+          <same-length>true</same-length>
+          <mode>CategoryReplaceMissing</mode>
+          <min-columns>2</min-columns>
+          <max-columns>200</max-columns>
+        </frame>
+      </parameters>
+	<test>
+		<condition>=parameters["responses"].AsDataFrame.VariableCount == 2</condition>
+		<iftrue>
+      <!-- Two raters -->
+			<!-- Options -->
+        <parameters>
+          <option>
+            <name>method</name>
+            <prompt>Select method for weighted kappa</prompt>
+            <default-value>1</default-value>
+            <options>
+              <option value="1">linear: 1-abs(i-j)/(1-k)</option>
+              <option value="2">quadratic: 1-[(i-j)/(1-k)]&#178;</option>
+              <option value="3">user defined</option>
+            </options>
+          </option>
+        </parameters>
+			<test>
+				<condition>="3".Equals(parameters["method"].AsString)</condition>
+				<iftrue>
+					<builtin function-name="rptKappaSizeWeights"/>
+					<!-- Weights -->
+            <parameters>
+              <frame>
+                <name>weights</name>
+                <prompt>="Select table of WEIGHTS (" + parameters["ycats"].AsInt32 + " rows by " + parameters["xcats"].AsInt32 + " columns)"</prompt>
+                <length>=parameters["ycats"].AsInt32</length>
+                <mode>NumericReplaceMissing</mode>
+                <min-columns>=parameters["xcats"].AsInt32</min-columns>
+                <max-columns>=parameters["xcats"].AsInt32</max-columns>
+                <clear-selection-first>true</clear-selection-first>
+              </frame>
+            </parameters>
+				</iftrue>
+			</test>
+			<builtin function-name="rptKappa" />
+      <report type="application/x-statsdirect-creole" filename="xtab.creole"/>
+      <report type="application/x-statsdirect-creole" filename="kappa.creole"/>
+		</iftrue>
+		<iffalse>
+      <!-- More than two raters -->
+			<builtin function-name="rptKappa" />
+			<test>
+				<condition>=2 == parameters["categories"].AsInt32</condition>
+				<iftrue>
+          <report type="application/x-statsdirect-creole" filename="kappa2.creole"/>
+				</iftrue>
+				<iffalse>
+          <report type="application/x-statsdirect-creole" filename="kappam.creole"/>
+				</iffalse>
+			</test>
+		</iffalse>
+	</test>
+	</steps>
+  <suggested-operations>
+    <suggested-operation suggest-if="=null != parameters &amp;&amp; 2 == parameters[&quot;responses&quot;].AsDataFrame.VariableCount">KappaSimulateExactP</suggested-operation>
+  </suggested-operations>
+</operation>

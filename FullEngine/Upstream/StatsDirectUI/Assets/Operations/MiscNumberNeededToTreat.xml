@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>MiscNumberNeededToTreat</name>
+  <friendly-name lang="en-GB">Nunber needed to treat</friendly-name>
+  <help chm-id="1218" />
+  <steps>
+      <parameters>
+        <double>
+          <name>nc</name>
+          <prompt>Total number in CONTROL group</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+        </double>
+        <double>
+          <name>xc</name>
+          <prompt>Number in CONTROL group who suffer an event</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+        </double>
+        <double>
+          <name>nt</name>
+          <prompt>Total number in TREATED group</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+        </double>
+        <double>
+          <name>xt</name>
+          <prompt>Number in TREATED group who suffer an event</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+        </double>
+        <double>
+          <name>brr</name>
+          <prompt>Expected risk of event without treatment (optional)</prompt>
+          <must-request>true</must-request>
+          <cancel-skips-parameter>Skip</cancel-skips-parameter>
+        </double>
+        <confidence-interval>
+          <name>cco</name>
+          <must-request>true</must-request>
+        </confidence-interval>
+      </parameters>
+  	<builtin function-name="rptMiscNumberNeededToTreat" />
+    <report type="application/x-statsdirect-creole" filename="treat.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>MiscNumberNeededToTreat</suggested-operation>
+  </suggested-operations>
+</operation>

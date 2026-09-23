@@ -1,0 +1,45 @@
+<report>
+<title>Relative risk meta-analysis</title>
+<table>
+<tr><th>Stratum</th><th colspan="4">Table (exposed +ve, control +ve, exposed -ve, control -ve)</th><th></th></tr>
+<block name="inputs">
+<tr><td>@st</td><td>@a</td><td>@b</td><td>@c</td><td>@d</td><td>@lb</td></tr>
+</block>
+</table>
+
+<table>
+<tr><th>Stratum</th><th>Relative risk</th><th colspan="2"><ci>@{pc:round2}% CI (@method)</ci></th><th></th></tr>
+<block name="risks">
+<tr><td>@st</td><td>@{rr:roundu}</td><td><ci>@{lci:roundu}</ci></td><td><ci>@{uci:roundu}</ci></td><td>@lb</td></tr>
+</block>
+</table>
+
+<table>
+<tr><th>Stratum</th><th>Standardized effect</th><th>Variance</th><th colspan="2">% Weights (fixed, random)</th><th></th></tr>
+<block name="risks">
+<tr><td>@st</td><td>@{yi:roundu}</td><td>@{vi:roundu}</td><td>@{wt:roundu}</td><td>@{dwt:roundu}</td><td>@lb</td></tr>
+</block>
+</table>
+
+<p><u>Fixed effects (Mantel-Haenszel, Rothman-Boice)</u><br />
+Pooled relative risk = @{rr:roundu} (<ci>@{pc:round2}% CI = @{from:roundu} to @{to:roundu}</ci>)<br />
+Chi<sup>2</sup> (test relative risk differs from 1) = @{x2:roundu}  (df = @df)  <pval>@{xp:pval}</pval></p>
+
+<p><u>Non-combinability of studies</u><br />
+Cochran Q = @{qc:roundu}  (df = @df_cochran)  <pval>@{xp_cochran:pval}</pval><br />
+Moment-based estimate of between studies variance = @{tausq:roundu}<br />
+I<sub>2</sub> (inconsistency) = @{isq:round1}% (<ci>@{pc1:round1}% CI = @{llisq:round1}% to @{ulisq:round1}%</ci>) </p>
+
+<p><u>Random effects (DerSimonian-Laird)</u><br />
+Pooled relative risk = @{dsrr:roundu} (<ci>@{pc:round2}% CI = @{dsll:roundu} to @{dsul:roundu}</ci>)<br />
+Chi<sup>2</sup> (test relative risk differs from 1) = @{dsx2:roundu}  (df = @df_ds)  <pval>@{xp_ds:pval}</pval></p>
+
+<p><u>Bias indicators</u></p>
+<block name="egger">
+<p>Begg-Mazumdar: Kendall's @{tau:roundu}@{warnTooFewStrata}  <pval>@{p2:pval}</pval><br />
+Egger: bias = @{a:roundu} (<ci>@{pc_egger:round2}% CI = @{cl:roundu} to @{cu:roundu}</ci>)  <pval>@{p:pval}</pval></p>
+</block>
+<block name="harbord">
+<p>Harbord-Egger: bias = @{a:roundu} (<ci>@{pc_harbord:round2}% CI = @{cl:roundu} to @{cu:roundu}</ci>)  <pval>@{p:pval}</pval></p>
+</block>
+</report>

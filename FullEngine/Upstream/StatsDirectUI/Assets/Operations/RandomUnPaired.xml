@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>RandomUnPaired</name>
+  <friendly-name lang="en-GB">Random allocation into two independent groups</friendly-name>
+  <help chm-id="1257" />
+  <steps>
+      <parameters>
+        <integer>
+          <name>high</name>
+          <prompt>Number of subjects to allocate as case or control (must be EVEN)</prompt>
+          <minimum-value>2</minimum-value>
+          <must-request>true</must-request>
+        </integer>
+        <integer>
+          <name>seed</name>
+          <prompt>Seed (leave blank for automatic seed)</prompt>
+          <must-request>true</must-request>
+          <cancel-skips-parameter>Skip</cancel-skips-parameter>
+        </integer>
+      </parameters>
+  	<builtin function-name="rptRandomUnPaired" />
+    <report type="application/x-statsdirect-creole" filename="r_unpair.creole" />
+  </steps>
+  <suggested-operations>
+    <suggested-operation>RandomUnPaired</suggested-operation>
+  </suggested-operations>
+</operation>

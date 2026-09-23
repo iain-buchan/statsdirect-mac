@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>RateCompareTwo</name>
+  <friendly-name lang="en-GB">Compare two crude rates</friendly-name>
+  <help chm-id="1262" />
+  <steps>
+      <parameters>
+        <double-2-by-2>
+          <name>scrap</name>
+          <columns-prompt>Exposure:</columns-prompt>
+          <left-column-prompt>Exposed</left-column-prompt>
+          <right-column-prompt>Not exposed</right-column-prompt>
+          <rows-prompt>Outcome:</rows-prompt>
+          <top-row-prompt>Cases</top-row-prompt>
+          <bottom-row-prompt>Person-time</bottom-row-prompt>
+          <top-left-name>a</top-left-name>
+          <top-right-name>b</top-right-name>
+          <bottom-left-name>pt1</bottom-left-name>
+          <bottom-right-name>pt2</bottom-right-name>
+          <must-request>true</must-request>
+        </double-2-by-2>
+        <confidence-interval>
+          <name>gamma</name>
+          <must-request>true</must-request>
+        </confidence-interval>
+        <boolean>
+          <name>do_cml</name>
+          <must-request>true</must-request>
+          <prompt>Conditional maximum likelihood analysis</prompt>
+          <default-value>true</default-value>
+        </boolean>
+      </parameters>
+  	<builtin function-name="rptRateCompareTwo" />
+    <report type="application/x-statsdirect-creole" filename="incid.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>RateCompareTwo</suggested-operation>
+  </suggested-operations>
+</operation>

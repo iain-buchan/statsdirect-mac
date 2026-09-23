@@ -1,0 +1,17 @@
+<report>
+<title>Bonferroni comparison</title>
+
+<p>Variable A: @var_a<br />
+Variable B: @var_b<br />
+Mean A - Mean B = @{a-b:roundu}<br />
+Estimated std. error = @{std_err:roundu}<br />
+Number of groups = @groups<br />
+@{pc:round2}% confidence interval = @{from:roundu} to @{to:roundu}<br />
+Bonferroni-adjusted (simultaneous) @{pc:round2}% confidence interval for @comp = @{adj_from:roundu} to @{adj_to:roundu} (each comparison at @{adj_pc:round2}%)</p>
+
+<p>t = @{t:roundu}<br />
+df = @df<br />
+<pval>@{p:pval}</pval></p>
+
+<p>Bonferroni critical P for @comp = @{bonf:roundu}</p>
+</report>

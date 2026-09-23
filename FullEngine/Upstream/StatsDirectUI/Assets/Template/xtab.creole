@@ -1,0 +1,13 @@
+<report>
+<title>Crosstabs</title>
+
+<table>
+<tr><td>Row variable (first classifier):</td><td><b><grandtotal>@ylab</grandtotal></b></td></tr>
+<tr><td>Column variable (second classifier):</td><td><b><ci>@xlab</ci></b></td></tr>
+</table>
+
+<table>
+<tr><td></td><block name="x"><td><b><ci>@x</ci></b></td></block></tr>
+<block name="y"><tr><td><b><grandtotal>@y</grandtotal></b></td><block name="tot"><td>@{tot:roundu}</td></block></tr></block>
+</table>
+</report>

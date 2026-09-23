@@ -1,0 +1,16 @@
+<report>
+<title>Multiple linear regression - collinearity and parameter detail</title>
+<table>
+<tr><th></th><th>Coefficient</th><th>Standard Error</th><th><ci>@{pc:round2}% Confidence Interval</ci></th></tr>
+<block name="v"><tr><td>@label</td><td>@{coef:roundu}</td><td>@{err:roundu}</td><td><ci>@{from:roundu}  to  @{to:roundu}</ci></td></tr></block>
+</table>
+
+<table>
+<tr><th></th><th>Variance Inflation Factor (VIF)</th><th></th><th>Tolerance (1/VIF)</th></tr>
+<block name="vif"><tr><td>@label</td><td>@{vif:roundu}</td><td><warn>@x</warn></td><td>@{rvif:roundu}</td></tr></block>
+</table>
+
+<table>
+<tr><td>mean VIF</td><td>@{meanv:roundu}</td></tr>
+</table>
+</report>

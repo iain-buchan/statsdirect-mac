@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Kruskal</name>
+	<friendly-name lang="en-GB">Kruskal-Wallis (nonparametric one-way ANOVA) test</friendly-name>
+  <help chm-id="1226" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select DATA</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>2</min-columns>
+          <max-columns>200</max-columns>
+          <ask-for-group-id>true</ask-for-group-id>
+        </frame>
+      </parameters>
+		<builtin function-name="rptKruskal" />
+    <report type="application/x-statsdirect-creole" filename="kruskal.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>KruskalWallisMulti</suggested-operation>
+    <suggested-operation>SquaredRanks</suggested-operation>
+    <suggested-operation>KruskalSimulateExactP</suggested-operation>
+  </suggested-operations>
+</operation>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>PlotSeCi</name>
+	<friendly-name lang="en-GB">Plot SE and CI for population mean</friendly-name>
+  <prerequisite-operation>SimpleLinearRegression</prerequisite-operation>
+  <steps>
+      <parameters>
+        <confidence-interval>
+          <name>reggamma</name>
+        </confidence-interval>
+      </parameters>
+		<builtin function-name="plotSeCi" />
+    <report type="application/x-statsdirect-creole" filename="chartonly.creole" />
+	</steps>
+</operation>

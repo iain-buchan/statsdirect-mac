@@ -1,0 +1,4 @@
+<report>
+
+<p><pre>@chart</pre></p>
+</report>

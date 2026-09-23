@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ROCPlot</name>
+  <friendly-name lang="en-GB">ROC plot and area under the curve</friendly-name>
+  <help chm-id="1232" />
+  <steps>
+      <parameters>
+        <integer>
+          <name>series-count</name>
+          <prompt>How many series to plot?</prompt>
+          <minimum-value>1</minimum-value>
+          <default-value>1</default-value>
+          <maximum-value>9</maximum-value>
+        </integer>
+      </parameters>
+		<iteration>
+			<lower-bound>1</lower-bound>
+			<upper-bound-parameter>series-count</upper-bound-parameter>
+      <loop-variable-name>i</loop-variable-name>
+      <steps>
+          <parameters>
+            <frame>
+              <name>P1</name>
+              <prompt>="Select data for feature PRESENT of series " + parameters["i"].AsInt32.ToString()</prompt>
+              <mode>NumericSkipMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>P</append-to-frame>
+              <must-request>true</must-request>
+            </frame>
+            <frame>
+              <name>A1</name>
+              <prompt>="Select data for feature ABSENT of series " + parameters["i"].AsInt32.ToString()</prompt>
+              <mode>NumericSkipMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>A</append-to-frame>
+              <must-request>true</must-request>
+            </frame>
+          </parameters>
+			</steps>
+		</iteration>
+		<chart>
+			<chart-name>chart</chart-name>
+			<chart-type>ROC</chart-type>
+		</chart>
+    <report type="application/x-statsdirect-creole" filename="roc.creole" />
+	</steps>
+</operation>

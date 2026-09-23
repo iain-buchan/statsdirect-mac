@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>InterpolateYX</name>
+	<friendly-name lang="en-GB">Interpolate Y to X</friendly-name>
+  <prerequisite-operation>SimpleLinearRegression</prerequisite-operation>
+  <steps>
+      <parameters>
+        <confidence-interval>
+          <name>gamma</name>
+        </confidence-interval>
+        <double>
+          <name>newy</name>
+          <prompt>New Y value</prompt>
+          <must-request>true</must-request>
+        </double>
+      </parameters>
+		<builtin function-name="rptInterpolateYX" />
+    <report type="application/x-statsdirect-creole" filename="interp.creole" />
+	</steps>
+</operation>

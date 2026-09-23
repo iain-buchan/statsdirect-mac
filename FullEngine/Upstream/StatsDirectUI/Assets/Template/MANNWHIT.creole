@@ -1,0 +1,22 @@
+<report>
+<title>Mann-Whitney U test</title>
+
+<p>Observations (x) in @sample_1 = @obs_1   median = @{median_1:roundu}   rank sum = @{ranksum:roundu}<br />
+Observations (y) in @sample_2 = @obs_2   median = @{median_2:roundu}<br />
+U = @{u:roundu}      U' = @{u_prime:roundu}</p>
+
+<p>@stats<br />
+<pval>Lower side @{p_l:pval}</pval> (H<sub>1</sub>: x tends to be less than y)<br />
+<pval>Upper side @{p_u:pval}</pval> (H<sub>1</sub>: x tends to be greater than y)<br />
+<pval>Two sided @{p_2:pval}</pval> (H<sub>1</sub>: x tends to be distributed differently to y)</p>
+
+<p>Theta (U'/mn) = @{theta:roundu} <ci>(@{pc0:round1}% CI: @{tll:roundu} to @{tul:roundu})</ci></p>
+
+<block name="noconf">
+<p>@reason</p>
+</block>
+<block name="conf">
+<p><ci>@{pc:round2}% confidence interval for difference between medians or means:</ci><br />
+K = @k   Median difference = @{median:roundu} <ci>(CI: @{from:roundu} to @{to:roundu})</ci></p>
+</block>
+</report>

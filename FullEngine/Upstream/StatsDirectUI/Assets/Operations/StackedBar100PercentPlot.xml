@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>StackedBar100PercentPlot</name>
+  <friendly-name lang="en-GB">Stacked bar 100 percent plot</friendly-name>
+  <help chm-id="1334" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>values</name>
+          <prompt>Select bar values</prompt>
+          <same-length>true</same-length>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>10</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>labels</name>
+          <prompt>Select bar labels</prompt>
+          <same-length>true</same-length>
+          <mode>Text</mode>
+          <same-length-as>values</same-length-as>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+      </parameters>
+		<chart>
+			<chart-name>chart</chart-name>
+			<chart-type>StackedBar100Percent</chart-type>
+			<box-axes>false</box-axes>
+      <y-series-data>values</y-series-data>
+		</chart>
+    <report type="application/x-statsdirect-creole" filename="chartonly.creole" />
+	</steps>
+</operation>

@@ -1,0 +1,5 @@
+<report>
+<block name="error"><p><warn>Error in calculation</warn></p></block>
+<p>For Y = @{y:roundu}<br />
+Predicted X = @{x:roundu}</p>
+</report>

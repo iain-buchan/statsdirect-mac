@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>Combine</name>
+	<friendly-name lang="en-GB">Combine variables into one data and one category variable</friendly-name>
+  <help chm-id="1061" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select columns to COMBINE</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>200</max-columns>
+        </frame>
+      </parameters>
+    <builtin function-name="shtCombine"/>
+    <output-frame frame-name="output" />
+	</steps>
+</operation>

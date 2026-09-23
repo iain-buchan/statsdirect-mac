@@ -1,0 +1,29 @@
+<report>
+<title>Normality</title>
+<block name="variable">
+
+<table>
+<tr><td>Sample name</td><td>@sample</td></tr>
+<tr><td>Sample size</td><td>@n</td></tr>
+<tr><td>Mean</td><td>@{mean:roundu}</td></tr>
+<tr><td>Standard deviation</td><td>@{sd:roundu}</td></tr>
+</table>
+
+<table>
+<tr><td>Skewness</td><td>@{skewness:roundu}  <pval>@{b1_p:pval}</pval></td></tr>
+<tr><td>Kurtosis</td><td>@{kurtosis:roundu}  <pval>@{b2_p:pval}</pval></td></tr>
+<tr><td>Royston chi-sq</td><td>@{k2:roundu}  <pval>@{k2_p:pval}</pval></td></tr>
+</table>
+
+<table>
+<tr><td>Shapiro-Wilk W</td><td>@sw_w  @sw_v  <pval>@{sw_p:pval}@sw_p_warn</pval></td></tr>
+<tr><td>Shapiro-Francia W'</td><td>@sf_w  @sf_v  <pval>@{sf_p:pval}@sf_p_warn</pval></td></tr>
+</table>
+
+<p>@result</p>
+
+
+<p>@{chart:chart}</p>
+
+</block>
+</report>

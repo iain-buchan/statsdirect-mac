@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+  <name>UniversalAgreementSimulateExactP</name>
+  <friendly-name lang="en-GB">Simulate Exact P</friendly-name>
+  <prerequisite-operation>UniversalAgreement</prerequisite-operation>
+  <help chm-id="1004" />
+  <steps>
+    <parameters>
+      <integer>
+        <name>iterations</name>
+        <prompt>Iterations</prompt>
+        <must-request>true</must-request>
+        <minimum-value>1</minimum-value>
+        <default-value>100000</default-value>
+      </integer>
+      <integer>
+        <name>seed</name>
+        <prompt>Seed</prompt>
+        <must-request>true</must-request>
+        <force-default>true</force-default>
+        <default-value>=Base.DefaultSeed()</default-value>
+      </integer>
+      <confidence-interval>
+        <name>ci</name>
+        <must-request>true</must-request>
+        <default-value>0.99</default-value>
+        <can-default>false</can-default>
+      </confidence-interval>
+    </parameters>
+    <builtin function-name="rptUniversalAgreementSimulateExactP" />
+    <report type="application/x-statsdirect-creole" filename="simulatedExactP.creole" />
+  </steps>
+</operation>

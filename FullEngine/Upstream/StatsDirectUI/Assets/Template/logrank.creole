@@ -1,0 +1,53 @@
+<report>
+<title>Logrank and Wilcoxon tests</title>
+<block name="outer">
+<br />
+<title>@title@strata:</title>
+<block name="groups">
+
+<p><u><subtotal>For group @grp</subtotal></u><br />
+Observed deaths = @obs<br />
+Extent of exposure to risk of death = @{ext:roundu}<br />
+Relative rate = @{rel:roundu}</p>
+</block>
+
+<p>test statistics:</p>
+<table><tr><block name="rank"><td>@{cell:roundu}</td></block></tr></table>
+
+<p>variance-covariance matrix:</p>
+<table>
+<block name="covar"><tr><block name="mat"><td>@{cell:roundu}</td></block></tr></block>
+</table>
+
+<p>Chi-square for equivalence of death rates = @{chi:roundu}  <pval>@{p:pval}</pval></p>
+<block name="trends"><p>Chi-square for trend = @{trend:roundu} <pval> @{p_trend:pval}</pval></p></block>
+<block name="strata">
+<br />
+<title>@test for COMBINED STRATA:</title>
+
+<table>
+<tr><th>Group</th><th>Deaths</th><th>Extent of exposure to risk of death</th><th>Relative rate</th></tr>
+<block name="stratum"><tr><td>@grp</td><td>@res</td><td>@{sum:roundu}</td><td>@{tot:roundu}</td></tr></block>
+</table>
+
+<p>overall chi-square = @{chi_strata:roundu}  <pval>@{p_strata:pval}</pval></p>
+<block name="strata_trend"><p>Chi-square for trend = @{strata_trend:roundu}<pval>  @{p_strata_trend:pval}</pval></p></block>
+</block>
+<block name="hazards">
+<br />
+
+<p>Hazard Ratio  <ci>(approximate @{pc:round2}% confidence interval)</ci></p>
+<block name="hazard"><p>Group @vs1 vs. Group @vs2 = @{haz:roundu}  <ci>(@{from:roundu} to @{to:roundu})</ci></p></block>
+
+<block name="cml">
+<p>Conditional maximum likelihood estimates:<br />
+Hazard Ratio = @{hr:roundu}<br />
+<ci>Exact Fisher @{pc:round2}% confidence interval = @{llf:roundu} to @{ulf:roundu}</ci><br />
+<pval>Exact Fisher one sided @{p1f:pval}, two sided @{p2f:pval}</pval><br />
+<ci>Exact mid-P @{pc:round2}% confidence interval = @{llm:roundu} to @{ulm:roundu}</ci><br />
+<pval>Exact mid-P one sided @{p1m:pval}, two sided @{p2m:pval}</pval></p>
+</block>
+
+</block>
+</block>
+</report>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>SearchAndReplace</name>
+  <friendly-name lang="en-GB">Search and replace (basic)</friendly-name>
+  <help chm-id="1085" />
+  <steps>
+    <script language="CSharp" requires-grid="true"><![CDATA[StatsDirect.UI.OperationHacks.SendKeys("^h"); return new ParameterBag();]]></script>
+  </steps>
+</operation>

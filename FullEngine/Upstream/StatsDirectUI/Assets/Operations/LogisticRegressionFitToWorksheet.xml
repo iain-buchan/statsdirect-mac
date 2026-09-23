@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>LogisticRegressionFitToWorksheet</name>
+	<friendly-name lang="en-GB">Fits and residuals to worksheet</friendly-name>
+  <prerequisite-operation>LogisticRegression</prerequisite-operation>
+  <steps>
+    <test>
+      <condition>="individual".Equals(parameters["grouping"].AsString)</condition>
+      <iftrue>
+          <parameters>
+            <option>
+              <name>row_type</name>
+              <prompt>Output</prompt>
+              <must-request>true</must-request>
+              <format-type>Radio</format-type>
+              <default-value>covariatePatterns</default-value>
+              <options>
+                <option value="covariatePatterns">Covariate patterns</option>
+                <option value="individual">Individual observations</option>
+              </options>
+            </option>
+          </parameters>
+      </iftrue>
+    </test>
+      <parameters>
+        <multiple-options>
+          <prompt>Save fits and residuals to a worksheet</prompt>
+          <options>
+            <option selected="true" name="trials">Trials</option>
+            <option selected="true" name="events">Events</option>
+            <option selected="true" name="eventProbability">Event probability</option>
+            <option selected="true" name="devianceResidual">Deviance residual</option>
+            <option selected="true" name="pearsonResidual">Pearson residual</option>
+            <option selected="true" name="leverage">Leverage</option>
+            <option selected="true" name="stdPearsonResidual">Std Pearson residual</option>
+            <option selected="true" name="deltaBeta">Delta beta</option>
+            <option selected="true" name="stdDeltaBeta">Std delta beta</option>
+            <option selected="true" name="deltaDeviance">Delta deviance</option>
+            <option selected="true" name="deltaChiSquare">Delta chi-square</option>
+          </options>
+        </multiple-options>
+      </parameters>
+    <builtin function-name="rptLogisticRegressionFit" />
+    <builtin function-name="gridLogisticRegressionFit" />
+		<output-frame frame-name="results" />
+	</steps>
+</operation>

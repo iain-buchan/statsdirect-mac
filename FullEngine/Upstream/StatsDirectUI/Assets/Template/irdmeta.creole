@@ -1,0 +1,38 @@
+<report>
+<title>Incidence rate difference (IRD) meta-analysis</title>
+<table>
+<tr><th>Stratum</th><th colspan="4">Table (a, person-time exposed, b, person-time not exposed)</th><th></th></tr>
+<block name="inputs">
+<tr><td>@st</td><td>@a</td><td>@{pt1:roundu}</td><td>@b</td><td>@{pt2:roundu}</td><td>@lb</td></tr>
+</block>
+</table>
+
+<table>
+<tr><th>Stratum</th><th>IRD</th><th colspan="2"><ci>@{pc:round2}% CI (approximate)</ci></th><th></th></tr>
+<block name="ir"><tr><td>@st</td><td>@{ird:roundu}</td><td><ci>@{lci:roundu}</ci></td><td><ci>@{uci:roundu}</ci></td><td>@lb</td></tr></block>
+</table>
+
+<table>
+<tr><th>Stratum</th><th>Standardized effect</th><th>Variance</th><th colspan="2">% Weights (fixed, random)</th><th></th></tr>
+<block name="ir"><tr><td>@st</td><td>@{yi:roundu}</td><td>@{vi:roundu}</td><td>@{wt:roundu}</td><td>@{dwt:roundu}</td><td>@lb</td></tr></block>
+</table>
+
+<subtitle>Fixed effects (inverse variance)</subtitle>
+<p>Pooled IRD = @{rmh:roundu} (<ci>@{pc:round2}% CI = @{from:roundu} to @{to:roundu}</ci>)<br />
+Z (test IRD differs from 0) = @{z:roundu}  <pval>@{p_z:pval}</pval></p>
+
+<subtitle>Non-combinability of studies</subtitle>
+<p>Cohran Q = @{qc:roundu}  (df = @df)  <pval>@{xp:pval}</pval><br />
+Moment-based estimate of between studies variance = @{tausq:roundu}<br />
+I<sub>2</sub> (inconsistency) = @{isq:round1}% (<ci>@{pc1:round1}% CI = @{llisq:round1}% to @{ulisq:round1}%</ci>) </p>
+
+<subtitle>Random effects (DerSimonian-Laird)</subtitle>
+<p>Pooled IRD = @{dsird:roundu} (<ci>@{pc:round2}% CI = @{dsll:roundu}  to  @{dsul:roundu}</ci>)<br />
+Z (test IRD differs from 0) = @{dz:roundu}  <pval>@{dp:pval}</pval></p>
+
+<block name="egger">
+<subtitle>Bias indicators</subtitle>
+<p>Begg-Mazumdar: Kendall's @{tau:roundu}@{warnTooFewStrata}  <pval>@{p2:pval}</pval><br />
+Egger: bias = @{a:roundu} (<ci>@{pc_egger:round2}% CI = @{cl:roundu} to @{cu:roundu}</ci>)  <pval>@{p:pval}</pval></p>
+</block>
+</report>

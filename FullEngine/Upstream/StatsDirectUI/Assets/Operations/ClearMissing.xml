@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ClearMissing</name>
+	<friendly-name lang="en-GB">Clear missing values</friendly-name>
+  <help chm-id="1060" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select data to copy and clear MISSING VALUES</prompt>
+          <mode>Text</mode>
+          <min-columns>1</min-columns>
+          <max-columns>256</max-columns>
+        </frame>
+        <option>
+          <name>row-or-cell</name>
+          <prompt>Row Matching</prompt>
+          <columns>1</columns>
+          <default-value>cell</default-value>
+          <options>
+            <option value="row">If a row in your selection contains any missing data, treat the entire row as missing (incomplete record)</option>
+            <option value="cell">Do not match rows, just delete all individual missing values</option>
+          </options>
+        </option>
+        <double>
+          <name>missing-double</name>
+          <rubric>
+<![CDATA[The internal missing number value is 3E+300.
+You may define an additional missing number for clearing (leave the box blank if none).]]>
+          </rubric>
+          <prompt>User-defined missing number:</prompt>
+          <prompt-precedes-parameter>true</prompt-precedes-parameter>
+          <cancel-skips-parameter>Skip</cancel-skips-parameter>
+        </double>
+        <string>
+          <name>missing-text</name>
+          <rubric>
+<![CDATA[The internal missing text codes are: spaces, asterisk (*), point (.) and the words "missing", "#NULL!" and "#NUM!".
+You may define an additional missing text code for clearing (leave the box blank if none).]]>
+          </rubric>
+          <prompt>User-defined missing text:</prompt>
+          <prompt-precedes-parameter>true</prompt-precedes-parameter>
+        </string>
+      </parameters>
+		<builtin function-name="shtClearMissing" />
+    <output-frame frame-name="output" />
+	</steps>
+</operation>

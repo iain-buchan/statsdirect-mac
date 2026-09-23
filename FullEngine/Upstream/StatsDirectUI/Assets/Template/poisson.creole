@@ -1,0 +1,12 @@
+<report>
+<title>Poisson confidence interval</title>
+<block name="sample">
+<table>
+<tr><td>Sample name:</td><td>@ti    <warn>@warn</warn></td></tr>
+<tr><td>Size =</td><td>@n</td></tr>
+<tr><td>Mean =</td><td>@{mean:roundu}</td></tr>
+</table>
+<p><ci>Approximate two sided @pc2% CI =  @{lower2:roundu}  to  @{upper2:roundu}</ci><br />
+<ci>Approximate one sided @{pc1:round1}% CI =  @{lower1:roundu}  to  @{upper1:roundu}</ci>  </p>
+</block>
+</report>

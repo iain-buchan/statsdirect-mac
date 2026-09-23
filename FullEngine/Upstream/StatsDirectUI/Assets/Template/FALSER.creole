@@ -1,0 +1,11 @@
+<report>
+<title>False result probabilities</title>
+
+<p>For an overall case rate of @population per ten thousand population tested:</p>
+
+<p>Test SENSITIVITY = @{sensitive:roundu}%<br />
+Probability of a FALSE POSITIVE result = <pval>@{positive:roundu}</pval></p>
+
+<p>Test SPECIFICITY = @{specific:roundu}%<br />
+Probability of a FALSE NEGATIVE result = <pval>@{negative:roundu}</pval></p>
+</report>

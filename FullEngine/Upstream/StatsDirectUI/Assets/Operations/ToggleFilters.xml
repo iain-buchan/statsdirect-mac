@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ToggleFilters</name>
+  <friendly-name lang="en-GB">Turn Excel worksheet filters on/off</friendly-name>
+  <help chm-id="1395" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select data range to be filtered</prompt>
+          <mode>Text</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1000</max-columns>
+          <clear-selection-first>false</clear-selection-first>
+        </frame>
+      </parameters>
+    <builtin function-name="shtToggleFilters" />
+	</steps>
+</operation>

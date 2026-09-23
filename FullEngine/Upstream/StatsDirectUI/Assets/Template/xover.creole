@@ -1,0 +1,36 @@
+<report>
+<title>Crossover tests</title>
+<table>
+<tr><th></th><th>Period 1</th><th>Period 2</th><th>Difference</th></tr>
+<tr><td>Group 1</td><td>@{grp1_p1:roundu}</td><td>@{grp1_p2:roundu}</td><td>@{grp1_diff:roundu}</td></tr>
+<tr><td>Group 2</td><td>@{grp2_p1:roundu}</td><td>@{grp2_p2:roundu}</td><td>@{grp2_diff:roundu}</td></tr>
+</table>
+
+<p>Test for <b>relative effectiveness</b> of drug / placebo:</p>
+<table>
+<tr><td>combined diff = @{relative_diff:roundu}</td><td>SE = @{relative_se:roundu}</td><td></td></tr>
+<tr><td>t = @{relative_t:roundu}</td><td>DF = @relative_df</td><td><pval>@{relative_p:pval}</pval></td></tr>
+</table>
+
+<p>Test for <b>treatment effect</b>:</p>
+<table>
+<tr><td>diff 1 - diff 2 = @{treatment_diff:roundu}</td><td>SE = @{treatment_se:roundu}</td><td></td></tr>
+<tr><td>effect magnitude = @{treatment_mag:roundu}</td><td colspan="2"><ci>@{treatment_pc:roundu}% CI = @{treatment_from:roundu} to @{treatment_to:roundu}</ci></td></tr>
+<tr><td>t = @{treatment_t:roundu}</td><td>DF = @treatment_df</td><td><pval>@{treatment_p:pval}</pval></td></tr>
+</table>
+
+<p>Test for <b>period effect</b>:</p>
+<table>
+<tr><td>diff 1 + diff 2 = @{period_diff:roundu}</td><td>SE = @{period_se:roundu}</td><td></td></tr>
+<tr><td>t = @{period_t:roundu}</td><td>DF = @period_df</td><td><pval>@{period_p:pval}</pval></td></tr>
+</table>
+
+<p>Test for <b>treatment-period interaction</b>:</p>
+<table>
+<tr><td>sum 1 - sum 2 = @{tpi_sum:roundu}</td><td>SE = @{tpi_se:roundu}</td><td></td></tr>
+<tr><td>t = @{tpi_t:roundu}</td><td>DF = @tpi_df</td><td><pval>@{tpi_p:pval}</pval></td></tr>
+</table>
+<block name="warn">
+<p><warn>@warn</warn></p>
+</block>
+</report>

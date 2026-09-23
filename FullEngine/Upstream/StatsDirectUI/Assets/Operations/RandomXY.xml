@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>RandomXY</name>
+  <friendly-name lang="en-GB">Randomise a number series from x to y</friendly-name>
+  <help chm-id="1256" />
+  <steps>
+      <parameters>
+        <integer>
+          <name>low</name>
+          <prompt>Integer Lower limit (x)</prompt>
+          <must-request>true</must-request>
+        </integer>
+        <integer>
+          <name>high</name>
+          <prompt>Integer Upper limit (y)</prompt>
+          <must-request>true</must-request>
+        </integer>
+        <integer>
+          <name>seed</name>
+          <prompt>Seed (leave blank for automatic seed)</prompt>
+          <must-request>true</must-request>
+          <cancel-skips-parameter>Skip</cancel-skips-parameter>
+        </integer>
+      </parameters>
+  	<builtin function-name="rptRandomXY" />
+    <report type="application/x-statsdirect-creole" filename="r_xy.creole" />
+  </steps>
+  <suggested-operations>
+    <suggested-operation>RandomXY</suggested-operation>
+  </suggested-operations>
+</operation>

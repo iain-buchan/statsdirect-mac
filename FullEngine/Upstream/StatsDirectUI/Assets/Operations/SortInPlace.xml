@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>SortInPlace</name>
+  <friendly-name lang="en-GB">Sorting observations using the worksheet</friendly-name>
+  <help chm-id="1093" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select some data to be sorted in-place</prompt>
+          <mode>Text</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1000</max-columns>
+        </frame>
+      </parameters>
+		<builtin function-name="shtSortInPlace" />
+	</steps>
+</operation>

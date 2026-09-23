@@ -1,0 +1,39 @@
+<report>
+<title>Effect size meta-analysis</title>
+
+<table>
+<tr><th>Stratum</th><th>J(N-2)</th><th>g</th><th colspan="2"><ci>Exact @{pc:round2}% CI</ci></th><th></th></tr>
+<block name="exact"><tr><td>@st</td><td>@{gj:roundu}</td><td>@{g:roundu}</td><td><ci>@{lci:roundu}</ci></td><td><ci>@{uci:roundu}</ci></td><td>@lb</td></tr></block>
+</table>
+
+<table>
+<tr><th>Stratum</th><th>N (exptl.)</th><th>N (ctrl.)</th><th>d</th><th colspan="2"><ci>Approximate @{pc:round2}% CI</ci></th><th></th></tr>
+<block name="approximate"><tr><td>@st</td><td>@ne</td><td>@nc</td><td>@{d:roundu}</td><td><ci>@{lci:roundu}</ci></td><td><ci>@{uci:roundu}</ci></td><td>@lb</td></tr></block>
+</table>
+
+<table>
+<tr><th>Stratum</th><th colspan="2">% weights (fixed, random)</th><th></th></tr>
+<block name="weights"><tr><td>@st</td><td>@{howt:roundu}</td><td>@{dswt:roundu}</td><td>@lb</td></tr></block>
+</table>
+
+<block name="poolok">
+<subtitle>Fixed effects (Hedges-Olkin)</subtitle>
+<p>Pooled effect size d+ = @{dplus:roundu} (<ci>@{pc:round2}% CI = @{from:roundu} to @{to:roundu}</ci>)<br />
+Z (test d+ differs from 0) = @{z:roundu}  <pval>@{p:pval}</pval></p>
+
+<subtitle>Non-combinability of studies</subtitle>
+<p>Cochran Q = @{qc:roundu}  (df = @df)  <pval>@{xp:pval}</pval><br />
+Moment-based estimate of between studies variance = @{tausq:roundu}<br />
+I&#xb2; (inconsistency) = @{isq:round1}% (<ci>@{pc1:round1}% CI = @{llisq:round1}% to @{ulisq:round1}%</ci>) </p>
+
+<subtitle>Random effects (DerSimonian-Laird)</subtitle>
+<p>Pooled d+ = @{dsrd:roundu} (<ci>@{pc:round2}% CI = @{dsll:roundu} to @{dsul:roundu}</ci>)<br />
+Z (test d+ differs from 0) = @{dz:roundu}  <pval>@{dp:pval}</pval></p>
+</block>
+
+<block name="egger">
+<subtitle>Bias indicators</subtitle>
+<p>Begg-Mazumdar: Kendall's @{tau:roundu}@{warnTooFewStrata}  <pval>@{p2:pval}</pval><br />
+Egger: bias = @{a:roundu} (<ci>@{pc_egger:round2}% CI = @{cl:roundu} to @{cu:roundu}</ci>)  <pval>@{p:pval}</pval></p>
+</block>
+</report>

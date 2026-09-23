@@ -1,0 +1,15 @@
+<report>
+<title>Sample size for paired cohort study</title>
+
+<p>Event rate in control group = @{pc:roundu}<br />
+Event rate in experimental group = @{ps:roundu}<br />
+Correlation for failure between experimental and control subjects = @{r:roundu}<br />
+Alpha = @{alpha:roundu}<br />
+Power = @{power:roundu}</p>
+
+<p>Estimated minimum sample size = @size pairs</p>
+<block name="assumptions">
+
+<p>NB:Assumptions of this calculation may cause over estimation of sample size when power is low.  However, true power associated with @cases cases will be no less than @no_less and no greater than @no_greater.</p>
+</block>
+</report>

@@ -1,29 +1,33 @@
-# Verification — 23 September 2026
+# Verification — full headless engine, 23 September 2026
 
-## Numerical library
+The updated application was built, launched and exercised on this Apple Silicon Mac. Code-signature verification passed for the local app bundle.
 
-The NativeAOT shared library compiled successfully and passed Tests/test_engine.py. This exercises the exported C ABI, the same entry point called by the Mac host.
+## Full engine
 
-- Upstream fixture: all ten numeric values agree within rel=1e-11/abs=1e-12; power agrees when rounded to the expected 98.98%.
-- Swapping before/after reverses the effect and t statistic and preserves two-sided P.
-- Multiplying both columns by two scales effect, SD, SE and confidence limits, preserving t and P.
-- Incomplete pairs are excluded together.
-- Constant differences, insufficient complete pairs and invalid confidence are explicitly rejected by the prototype wrapper.
-- Changing the first observation changes the calculated result.
-- Vendored source hashes are checked against the recorded provenance manifest.
+- Compiles the complete numerical/Builtins calculation source with the platform exclusions documented in FullEngine/README.md.
+- Loads 284 original operation definitions.
+- Original unmodified OperationsTester: paired t test passes all 15 specified outputs, exact sign passes all 11; one empty test is skipped. This checkout has no other populated operation tests.
+- All 871 vendored source and asset files match the hashes recorded from upstream commit c56f888bd95604f9d656e90ad0236493a96f2ae7.
+- The original C#/VB script engine compiles the paired operation's expression during execution.
 
-These are upstream expected-value comparisons, not a fresh Windows executable replay or an independent R run. The full-engine parity suite remains outside this prototype.
+## Application bridge
 
-## Native Mac interaction
+Tests/test_engine.py invokes a native test driver that loads the same hostfxr library and managed engine as the app. The driver avoids Apple's protected system Python process, which cannot host CoreCLR on this Mac.
 
-Verified through the actual running app:
+- The live operation output agrees with all ten numerical fixture values and the formatted power.
+- The engine's original HTML renderer produces the title, mean, confidence limits, P value and power expected in the help example.
+- Swapping before/after reverses the mean, confidence interval and t statistic while preserving two-sided P.
+- Doubling units doubles location/spread outputs while preserving t/P.
+- Incomplete pairs are removed pairwise.
+- Constant differences, insufficient usable pairs and invalid confidence levels fail explicitly.
+- Editing the data changes the calculated report.
 
-1. Launch creates distinct help-library and example-data tabs.
-2. Analysis → Parametric methods → Paired t test — PEFR example runs and opens Report 1.
-3. Report 1 shows mean 56.111111, t 4.925774, df 8 and two-sided P 0.00115557.
-4. Method help opens a separate help tab, retaining the data and Report 1 tabs.
-5. Editing the first Before input from 312 to 332 and pressing Cmd+T opens Report 2 with mean 58.333333 and the Edited example data label.
-6. Selecting Report 1 still shows its original 56.111111 result and Original worked example label.
-7. The test edit was restored to 312, and Report 1 was selected for handoff.
+## Native UI
 
-The workspace and result layout were visually inspected. Prior-version PDF export/print preview checks are recorded in Git history; the PDF controls are retained but were not re-tested in this version. Copy into Office is not verified. Close-tab and next/previous actions are implemented but are not claimed here as manually tested.
+Using the application's native menu, Analysis → Parametric methods → Paired t test — PEFR example created Report 1. It displayed the original engine HTML: mean 56.111111, CI 29.842662 to 82.37956, t 4.925774, two-sided P 0.0012 at the engine's display precision, and power 98.98%.
+
+Method help opened the original paired t topic in a separate tab, retaining the data and report tabs. Editing the first before value from 312 to 332 and pressing ⌘T created Report 2 with mean 58.333333, t 5.556956 and power 99.78%. Returning to Report 1 confirmed its original values were unchanged. The data value was restored to 312, and Report 1 was left selected.
+
+## Limits
+
+This verifies the paired viewer path and the two populated upstream tests. It does not establish coverage of every built procedure. Full chart rendering, external R integration, Office/RTF export, printing fidelity and notarization are not verified by this update. The optional agreement outputs are checked by the upstream paired test, but agreement rendering is off in the viewer.

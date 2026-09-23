@@ -1,0 +1,30 @@
+<report>
+<title>Directly Standardized Rates</title>
+
+<p>Rates are expressed per @units of person time:</p>
+
+<table>
+<tr><th>Index events</th><th>Index PT</th><th>Index rate</th><th>Reference size</th><th>Weight</th></tr>
+<block name="inputs"><tr><td>@{idxy:roundu}</td><td>@{idxn:roundu}</td><td>@{idxr:roundu}</td><td>@{refn:roundu}</td><td>@{refw:roundu}</td></tr></block>
+</table>
+
+<table>
+<tr><th>Index rate</th><th><ci>Exact @{pc:round2}% confidence interval</ci></th><th></th></tr>
+<block name="cis"><tr><td>@{idxr:roundu}</td><td><ci>@{from:roundu}  to  @{to:roundu}</ci></td><td>@label</td></tr></block>
+</table>
+
+<p>Total events = @{events:roundu}<br />
+Adjusted events = @{stde:roundu}</p>
+
+<p>Crude rate = @{crude:roundu}<br />
+Adjusted rate R = @{stdr:roundu}</p>
+
+<p><u>Any rates (binomial model)</u><br />
+Approximate standard error of R = @{ser_any:roundu}<br />
+<ci>Approximate @{pc:round2}% confidence interval = @{from_any:roundu} to @{to_any:roundu}</ci></p>
+
+<p>Small rates (Poisson model)<br />
+Approximate standard error of R = @{ser_small:roundu}<br />
+<ci>Approximate @{pc:round2}% confidence interval = @{from_small:roundu} to @{to_small:roundu}</ci><br />
+<ci>Improved approximate (Dobson) @{pc:round2}% confidence interval = @{from_dobson:roundu} to @{to_dobson:roundu}</ci></p>
+</report>

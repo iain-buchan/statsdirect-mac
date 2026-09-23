@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+  <name>TransformZSD</name>
+  <friendly-name lang="en-GB">Transformation: Z score based on sample standard deviation</friendly-name>
+  <help chm-id="1094" />
+  <steps>
+    <parameters>
+      <frame>
+        <name>data</name>
+        <prompt>Select data for transformation</prompt>
+        <mode>NumericReplaceMissing</mode>
+        <min-columns>1</min-columns>
+        <max-columns>1</max-columns>
+      </frame>
+    </parameters>
+    <builtin function-name="shtTransformZSD"/>
+    <output-frame frame-name="output" />
+  </steps>
+</operation>

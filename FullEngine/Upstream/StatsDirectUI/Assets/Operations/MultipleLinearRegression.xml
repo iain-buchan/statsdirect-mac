@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>MultipleLinearRegression</name>
+  <friendly-name lang="en-GB">Multiple (general) linear regression</friendly-name>
+  <help chm-id="1277" />
+  <steps>
+			<parameters>
+				<confidence-interval>
+					<name>ci</name>
+				</confidence-interval>
+        <boolean>
+          <name>calculateIntercept</name>
+          <prompt>Calculate intercept</prompt>
+          <default-value>true</default-value>
+        </boolean>
+        <boolean>
+          <name>useWeights</name>
+          <prompt>Use weights</prompt>
+        </boolean>
+				<frame>
+					<name>outcome</name>
+					<prompt>Select data for OUTCOME (Y axis)</prompt>
+					<mode>NumericReplaceMissing</mode>
+					<min-columns>1</min-columns>
+					<max-columns>1</max-columns>
+					<clear-selection-first>true</clear-selection-first>
+				</frame>
+			</parameters>
+		<test>
+			<condition>=parameters["useWeights"].AsBoolean</condition>
+			<iftrue>
+					<parameters>
+						<frame>
+							<name>weights</name>
+							<prompt>Select data for WEIGHTS (Unweighted for unweighted)</prompt>
+              <cancel-skips-parameter>Unweighted</cancel-skips-parameter>
+              <mode>NumericReplaceMissing</mode>
+							<min-columns>1</min-columns>
+							<max-columns>1</max-columns>
+							<same-length-as>outcome</same-length-as>
+							<clear-selection-first>true</clear-selection-first>
+						</frame>
+					</parameters>
+			</iftrue>
+		</test>
+			<parameters>
+				<frame>
+					<name>predictors</name>
+					<prompt>Select data for PREDICTORS</prompt>
+          <mode>NumericCodingTextToDummies</mode>
+					<min-columns>1</min-columns>
+					<max-columns>200</max-columns>
+					<same-length-as>outcome</same-length-as>
+					<clear-selection-first>true</clear-selection-first>
+				</frame>
+			</parameters>
+		<builtin function-name="rptMultipleLinearRegression" />
+		<test>
+			<condition>=parameters["isPoly"].AsBoolean</condition>
+			<iftrue>
+        <report type="application/x-statsdirect-creole" filename="poly.creole" />
+      </iftrue>
+			<iffalse>
+        <report type="application/x-statsdirect-creole" filename="multi.creole" />
+      </iffalse>
+		</test>
+	</steps>
+  <suggested-operations>
+    <suggested-operation>MultipleLinearRegressionAnova</suggested-operation>
+    <suggested-operation>MultipleLinearRegressionPrediction</suggested-operation>
+    <suggested-operation>MultipleLinearRegressionBestSubset</suggested-operation>
+    <suggested-operation>MultipleLinearRegressionResiduals</suggested-operation>
+    <suggested-operation>Xxi</suggested-operation>
+    <suggested-operation>MultipleLinearRegressionParameterDetail</suggested-operation>
+    <suggested-operation>PlotMultipleLinearRegressionResiduals</suggested-operation>
+  </suggested-operations>
+</operation>

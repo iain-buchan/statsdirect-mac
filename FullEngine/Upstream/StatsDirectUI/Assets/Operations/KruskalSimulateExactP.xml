@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>KruskalSimulateExactP</name>
+	<friendly-name lang="en-GB">Simulate exact P for Kruskal-Wallis test</friendly-name>
+  <prerequisite-operation>Kruskal</prerequisite-operation>
+  <help chm-id="1226" />
+  <steps>
+      <parameters>
+        <integer>
+          <name>iterations</name>
+          <prompt>Iterations</prompt>
+          <minimum-value>1</minimum-value>
+          <default-value>1000000</default-value>
+          <must-request>true</must-request>
+        </integer>
+        <integer>
+          <name>seed</name>
+          <prompt>Seed</prompt>
+          <default-value>=Base.DefaultSeed()</default-value>
+          <force-default>true</force-default>
+          <must-request>true</must-request>
+        </integer>
+        <confidence-interval>
+          <name>ci</name>
+          <default-value>0.99</default-value>
+          <must-request>true</must-request>
+          <can-default>false</can-default>
+        </confidence-interval>
+      </parameters>
+		<builtin function-name="rptKruskalSimulateExactP" />
+    <report type="application/x-statsdirect-creole" filename="simulatedExactP.creole" />
+  </steps>
+</operation>

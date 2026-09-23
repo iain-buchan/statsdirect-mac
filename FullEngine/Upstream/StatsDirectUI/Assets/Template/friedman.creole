@@ -1,0 +1,24 @@
+<report>
+<title>Friedman test</title>
+
+<p>Variables: @tlist</p>
+
+<p>Mean rank: @rlist</p>
+
+<p>Treatment average sum of squares of ranks = @{a2:roundu}<br />
+Number of blocks = @nb<br />
+T<sub>1</sub> (chi-square) = @{t1:roundu}<br />
+df = @df</p>
+
+<p>After Iman &amp; Davenport (1980):<br />
+T<sub>2</sub> (F) = @{t2:roundu}<br />
+<pval>@{p:pval}</pval></p>
+<block name="message">
+
+<p>@msg</p>
+</block>
+<block name="warn">
+
+<p>@warning</p>
+</block>
+</report>

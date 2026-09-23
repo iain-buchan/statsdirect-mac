@@ -1,0 +1,19 @@
+<report>
+<title>Wilcoxon's signed ranks test</title>
+
+<p>@sample_1 vs. @sample_2<br />
+Number of non-zero differences ranked = @non_0<br />
+@sum</p>
+
+<p>@stats<br />
+<pval>Lower side @{p_l:pval}</pval>  (H<sub>1</sub>: differences tend to be less than zero)<br />
+<pval>Upper side @{p_u:pval}</pval>  (H<sub>1</sub>: differences tend to be greater than zero)<br />
+<pval>Two sided @{p_2:pval}</pval>  (H<sub>1</sub>: differences tend not to be zero)</p>
+<block name="noconf">
+<p>@reason</p>
+</block>
+<block name="conf">
+<p><ci>@pc</ci><br />
+@k   Median difference = @{med_diff:roundu} (<ci>@{from:roundu} to @{to:roundu}</ci>)</p>
+</block>
+</report>

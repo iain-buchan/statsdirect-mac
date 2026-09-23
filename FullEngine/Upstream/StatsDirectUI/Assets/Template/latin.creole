@@ -1,0 +1,20 @@
+<report>
+<title>Latin square test</title>
+
+<p>Column, row and treatment factors: @tlist</p>
+
+<table>
+<tr><th>Source of Variation</th><th>Sum Squares</th><th>DF</th><th>Mean Square</th></tr>
+<tr><td>Rows</td><td>@{row_sum:roundu}</td><td>@row_f</td><td>@{row_mean:roundu}</td></tr>
+<tr><td>Columns</td><td>@{col_sum:roundu}</td><td>@col_f</td><td>@{col_mean:roundu}</td></tr>
+<tr><td>Treatments</td><td>@{treat_sum:roundu}</td><td>@treat_f</td><td>@{treat_mean:roundu}</td></tr>
+<tr><td>Residual</td><td>@{res_sum:roundu}</td><td>@res_f</td><td>@{res_mean:roundu}</td></tr>
+<tr><td>Total</td><td>@{tot_sum:roundu}</td><td>@tot_f</td><td></td></tr>
+</table>
+
+<p><b>F (rows) </b>= @{f_row:roundu}  <pval>@{p_row:pval}</pval></p>
+
+<p><b>F (columns)</b> = @{f_col:roundu}  <pval>@{p_col:pval}</pval></p>
+
+<p><b>F (treatments)</b> = @{f_treat:roundu}  <pval>@{p_treat:pval}</pval></p>
+</report>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+  <name>TUnpairedSummary</name>
+  <friendly-name lang="en-GB">Unpaired Student t test from summary statistics</friendly-name>
+  <help chm-id="1244" />
+  <steps>
+    <parameters>
+      <integer>
+        <name>nx1</name>
+        <prompt>Sample 1 size</prompt>
+        <must-request>true</must-request>
+        <minimum-value>1</minimum-value>
+      </integer>
+      <double>
+        <name>um1</name>
+        <prompt>Sample 1 mean</prompt>
+        <must-request>true</must-request>
+      </double>
+      <double>
+        <name>sd1</name>
+        <prompt>Sample 1 standard deviation</prompt>
+        <must-request>true</must-request>
+      </double>
+      <integer>
+        <name>nx2</name>
+        <prompt>Sample 2 size</prompt>
+        <must-request>true</must-request>
+        <minimum-value>1</minimum-value>
+      </integer>
+      <double>
+        <name>um2</name>
+        <prompt>Sample 2 mean</prompt>
+        <must-request>true</must-request>
+      </double>
+      <double>
+        <name>sd2</name>
+        <prompt>Sample 2 standard deviation</prompt>
+        <must-request>true</must-request>
+      </double>
+      <confidence-interval>
+        <name>gamma</name>
+      </confidence-interval>
+    </parameters>
+    <builtin function-name="rptTUnpairedSummary" />
+    <report type="application/x-statsdirect-creole" filename="m_unpair.creole" />
+  </steps>
+  <suggested-operations>
+    <suggested-operation>TUnpairedSummary</suggested-operation>
+  </suggested-operations>
+</operation>

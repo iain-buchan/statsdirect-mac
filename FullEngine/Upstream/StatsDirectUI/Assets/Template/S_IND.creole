@@ -1,0 +1,20 @@
+<report>
+<title>Sample size for independent cohort study</title>
+
+<p>Probability of event in control group = @{pc:roundu}<br />
+Probability of event in experimental group = @{ps:roundu}<br />
+Controls per case subject = @cpc<br />
+Alpha = @{alpha:roundu}<br />
+Power = @{power:roundu}</p>
+
+<p>For uncorrected chi-square test:<br />
+N = @case case subjects and @controls controls</p>
+
+<p><b>For corrected chi-square and Fisher's exact tests:</b><br />
+N = @case_corr case subjects and @controls_corr controls</p>
+<block name="assumptions">
+
+<p><warn>NB:Assumptions of this calculation may cause over estimation of sample size when power is low.</warn><br />
+<warn>However, true power associated with @cases cases will be no less than @no_less and no greater than @no_greater.</warn></p>
+</block>
+</report>

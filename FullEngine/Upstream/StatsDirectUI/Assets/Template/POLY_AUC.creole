@@ -1,0 +1,7 @@
+<report>
+<title>Polynomial regression - area under curve</title>
+
+<p>AUC (polynomial function) = @poly_auc</p>
+
+<p>AUC (by trapezoidal rule) = @{trap_auc:roundu}</p>
+</report>

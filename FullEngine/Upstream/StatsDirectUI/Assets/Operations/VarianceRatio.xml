@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+  <name>VarianceRatio</name>
+  <friendly-name lang="en-GB">F (Variance ratio) test</friendly-name>
+  <help chm-id="1236" />
+  <steps>
+    <parameters>
+      <frame>
+        <name>data</name>
+        <prompt>Select DATA</prompt>
+        <mode>NumericReplaceMissing</mode>
+        <min-columns>2</min-columns>
+        <max-columns>2</max-columns>
+        <ask-for-group-id>true</ask-for-group-id>
+      </frame>
+    </parameters>
+    <script language="VB" entry-point="rptVarianceRatio">
+      <![CDATA[
+    Public Function rptVarianceRatio(ByVal host As ITemplateHost, ByVal parameters As ParameterBag) As ParameterBag
+        Dim P As Double, f As Double
+        Dim bot As Integer, top As Integer
+        Dim mean() As Double, ss() As Double, var() As Double, sd() As Double, sem() As Double
+        Dim tnx() As Integer
+
+        ReDim mean(1), ss(1), var(1), sd(1), sem(1), tnx(1)
+        Dim data As DataFrame = parameters("data").AsDataFrame
+        para(data, mean, ss, var, sd, sem, tnx)
+        If Math.Abs(var(0)) > Math.Abs(var(1)) Then
+            top = 0
+            bot = 1
+        Else
+            top = 1
+            bot = 0
+        End If
+        f = var(top) / var(bot)
+        Dim outputParameters As ParameterBag = New ParameterBag()
+        outputParameters.AddOutput("title_0", data.Variables(top).Title)
+        outputParameters.AddOutput("df_0", tnx(top) - 1)
+        outputParameters.AddOutput("var_0", host.RoundU(var(top)))
+        outputParameters.AddOutput("title_1", data.Variables(bot).Title)
+        outputParameters.AddOutput("df_1", tnx(bot) - 1)
+        outputParameters.AddOutput("var_1", host.RoundU(var(bot)))
+        outputParameters.AddOutput("f", host.RoundU(f))
+        P = PDF.fvalp(f, CDbl(tnx(top) - 1), CDbl(tnx(bot) - 1))
+        outputParameters.AddOutput("p_1", host.pval(P))
+        ' Two sided: twice the smaller tail (the upper tail is not always the smaller when the degrees of freedom differ)
+        outputParameters.AddOutput("p_2", host.pval(2.0 * Math.Min(P, 1.0 - P)))
+        ' If Err.Number <> 0 Then host.Error(Formatting.ERRCOLON & Err.Description, "Variance")
+        Return outputParameters
+    End Function
+
+    Private Sub para(ByVal Frame As DataFrame, ByRef mean() As Double, ByRef ss() As Double, ByRef var() As Double, ByRef sd() As Double, ByRef sem() As Double, ByRef tnx() As Integer)
+        For D As Integer = 0 To Frame.VariableCount - 1
+            Dim nx As Integer = 0
+            Dim sum As Double = 0.0
+            Dim sumsq As Double = 0.0
+            For Each v As Double In CType(Frame.Variables(D), DoubleVariable).Data
+                If v <> Constant.MISSING Then
+                    nx = nx + 1
+                    sum = sum + v
+                    sumsq = sumsq + (v * v)
+                End If
+            Next
+            tnx(D) = nx
+            mean(D) = sum / CDbl(tnx(D))
+            ss(D) = sumsq - ((sum * sum) / CDbl(tnx(D)))
+            Dim sumsqdev As Double = 0.0
+            For Each v As Double In CType(Frame.Variables(D), DoubleVariable).Data
+                If v <> Constant.MISSING Then
+                    If Math.Abs(sumsqdev) > 1.0E+300 Then
+                        sumsqdev = Constant.MISSING
+                        Exit For
+                    End If
+                    sumsqdev = sumsqdev + (v - mean(D)) * (v - mean(D))
+                End If
+            Next
+            If sumsqdev = Constant.MISSING Then
+                var(D) = Constant.MISSING
+            Else
+                var(D) = sumsqdev / CDbl(tnx(D) - 1)
+            End If
+            sd(D) = Math.Sqrt(var(D))
+            sem(D) = sd(D) / Math.Sqrt(CDbl(tnx(D)))
+        Next
+    End Sub
+
+      ]]>
+    </script>
+    <report type="application/x-statsdirect-creole">
+      <![CDATA[<report>
+<title>Variance ratio/F test</title>
+<table>
+<tr><th>Variable Name</th><th>DF (n-1)</th><th>Variance</th></tr>
+<tr><td>@title_0</td><td>@df_0</td><td>@var_0</td></tr>
+<tr><td>@title_1</td><td>@df_1</td><td>@var_1</td></tr>
+</table>
+
+<p>F = @f</p>
+
+<p><pval>Upper side @{p_1:pval}</pval><br />
+<pval>Two sided @{p_2:pval}</pval></p>
+</report>]]>
+    </report>
+  </steps>
+</operation>

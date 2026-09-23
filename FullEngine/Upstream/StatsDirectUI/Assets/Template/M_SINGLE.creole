@@ -1,0 +1,19 @@
+<report>
+<title>Single sample t test</title>
+
+<p>Sample name: @name<br />
+Sample mean = @{sam_mean:roundu}<br />
+Population mean = @{pop_mean:roundu}<br />
+Sample size n = @size<br />
+Sample sd = @{sd:roundu}</p>
+
+<p><ci>@{pc:round2}% confidence interval @for = @{from:roundu} to @{to:roundu}</ci></p>
+
+<p>df = @df<br />
+t  = @{t:roundu}</p>
+
+<p><pval>One sided @{p_1:pval}</pval><br />
+<pval>Two sided @{p_2:pval}</pval></p>
+
+<p>Power @pwr</p>
+</report>

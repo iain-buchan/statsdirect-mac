@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>DistributionBinomial</name>
+	<friendly-name lang="en-GB">Distribution: Binomial</friendly-name>
+  <help chm-id="1095" />
+  <steps>
+    <builtin function-name="distBinomial"/>
+    <test>
+      <condition>=parameters.ContainsKey("gr")</condition>
+      <iftrue>
+        <report type="application/x-statsdirect-creole" filename="probcal.creole" />
+      </iftrue>
+    </test>
+	</steps>
+</operation>

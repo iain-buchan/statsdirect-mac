@@ -1,0 +1,23 @@
+<report>
+<title>Sign test</title>
+
+<p><b>For @sample observations with @sample_1 on one side:</b></p>
+
+<block name="exact">
+<p>Cumulative probability<br />
+<pval>Two sided @{prob_2:pval}</pval><br />
+<pval>One sided @{prob_1:pval}</pval></p>
+</block>
+<block name="large"><p><warn>sample is too large for an exact calculation</warn></p></block>
+
+<p>Normal approximate z = @{z:roundu}<br />
+<pval>Two sided @{z:zvalp2}</pval><br />
+<pval>One sided @{z:zvalp1}</pval></p>
+
+<p><b><ci>Exact (Clopper-Pearson) @{ci:round2}% confidence interval for the proportion:</ci></b></p>
+<table>
+<tr><td><ci>Lower Limit =</ci></td><td><ci>@{lower:roundu}</ci></td></tr>
+<tr><td><ci>Proportion =</ci></td><td><ci>@{prop:roundu}</ci></td></tr>
+<tr><td><ci>Upper Limit =</ci></td><td><ci>@{upper:roundu}@warn</ci></td></tr>
+</table>
+</report>

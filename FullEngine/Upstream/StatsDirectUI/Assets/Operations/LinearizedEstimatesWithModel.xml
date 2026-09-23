@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>LinearizedEstimatesWithModel</name>
+	<friendly-name lang="en-GB">Select model</friendly-name>
+  <prerequisite-operation>LinearizedEstimates</prerequisite-operation>
+  <steps>
+      <parameters>
+        <frame>
+          <name>y</name>
+          <prompt>Select data for OUTCOME (Y axis)</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>x</name>
+          <prompt>Select data for PREDICTOR (X axis)</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <same-length-as>y</same-length-as>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <option>
+          <name>model</name>
+          <prompt>Select model</prompt>
+          <options>
+            <option value="0">Exponential</option>
+            <option value="1">Geometric / power</option>
+            <option value="2">Hyperbolic</option>
+          </options>
+          <must-request>true</must-request>
+        </option>
+      </parameters>
+		<builtin function-name="rptLinearizedEstimates" />
+    <report type="application/x-statsdirect-creole" filename="linised.creole" />
+	</steps>
+</operation>

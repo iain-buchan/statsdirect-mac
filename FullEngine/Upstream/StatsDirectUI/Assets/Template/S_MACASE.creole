@@ -1,0 +1,28 @@
+<report>
+<title>Sample size for matched case-control study</title>
+
+<p>case-control correlation = @{corr:roundu}<br />
+probability of exposure in controls = @{pc:roundu}<br />
+odds ratio = @{odds:roundu}<br />
+controls per case subject = @{cpc:roundu}<br />
+alpha = @{alpha:roundu}<br />
+power = @{power:roundu}</p>
+<block name="lower">
+
+<p><warn>NB. Assuming power from lower tail is negligible.</warn></p>
+</block>
+<block name="illegal">
+<p>Illegal odds ratio</p>
+</block>
+
+<p>Estimated minimum sample size (cases required) = @size</p>
+<block name="reduction">
+
+<p>Reduction in sample size, relative to paired design,<br />
+when using @controls controls per case = @reduction</p>
+</block>
+<block name="assumptions">
+
+<p><warn>NB:Assumptions of this calculation may cause over estimation of sample size when power is low.  However, true power associated with @cases cases will be no less than @no_less and no greater than @no_greater.</warn></p>
+</block>
+</report>

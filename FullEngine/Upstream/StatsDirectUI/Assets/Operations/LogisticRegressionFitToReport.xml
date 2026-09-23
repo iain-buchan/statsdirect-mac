@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>LogisticRegressionFitToReport</name>
+	<friendly-name lang="en-GB">Fits and residuals</friendly-name>
+  <prerequisite-operation>LogisticRegression</prerequisite-operation>
+  <steps>
+    <test>
+      <condition>="individual".Equals(parameters["grouping"].AsString)</condition>
+      <iftrue>
+          <parameters>
+            <option>
+              <name>row_type</name>
+              <prompt>Output</prompt>
+              <must-request>true</must-request>
+              <format-type>Radio</format-type>
+              <default-value>covariatePatterns</default-value>
+              <options>
+                <option value="covariatePatterns">Covariate patterns</option>
+                <option value="individual">Individual observations</option>
+              </options>
+            </option>
+          </parameters>
+      </iftrue>
+    </test>
+    <builtin function-name="rptLogisticRegressionFit" />
+    <report type="application/x-statsdirect-creole">
+      <![CDATA[
+<report>
+<title>Logistic regression - fits and residuals</title>
+<block name="grouped">
+<table>
+<br />
+<tr><th>Index</th><block name="predictors"><th>@lab</th></block></tr>
+<block name="predictorValues"><tr><td>@idx</td><block name="pred"><td>@val</td></block></tr>
+</block></table>
+
+<table>
+<tr><th>Index</th><th>Trials</th><th>Events</th><th>Event Probability</th><th>Deviance Residual</th></tr>
+<block name="predictorValues"><tr><td>@idx</td><td>@{sub:roundu}</td><td>@{res:roundu}</td><td>@{fit:roundu}</td><td>@{dev:roundu}</td></tr>
+</block></table>
+
+<table>
+<tr><th>Index</th><th>Pearson Residual</th><th>Leverage</th><th>Std Pearson Residual</th></tr>
+<block name="predictorValues"><tr><td>@idx</td><td>@{pres:roundu}</td><td>@{lev:roundu}</td><td>@{spres:roundu}</td></tr>
+</block></table>
+
+<table>
+<tr><th>Index</th><th>Delta Beta</th><th>Std Delta Beta</th><th>Delta Deviance</th><th>Delta Chi-square</th></tr>
+<block name="predictorValues"><tr><td>@idx</td><td>@{deltac:roundu}</td><td>@{deltabar:roundu}</td><td>@{deltadev:roundu}</td><td>@{deltachi:roundu}</td></tr>
+</block></table>
+</block>
+<block name="individual">
+
+<table>
+<tr><th>Index</th><th>Response</th><th>Event Probability</th><th>Deviance Residual</th></tr>
+<block name="predictorValues"><tr><td>@resnum</td><td>@{resbool:roundu}</td><td>@fit</td><td>@dev</td></tr>
+</block></table>
+
+<table>
+<tr><th>Index</th><th>Pearson Residual</th><th>Leverage</th><th>Std Pearson Residual</th></tr>
+<block name="predictorValues"><tr><td>@resnum</td><td>@pres</td><td>@lev</td><td>@spres</td></tr>
+</block></table>
+
+<table>
+<tr><th>Index</th><th>Delta Beta</th><th>Std Delta Beta</th><th>Delta Deviance</th><th>Delta Chi-square</th></tr>
+<block name="predictorValues"><tr><td>@resnum</td><td>@deltac</td><td>@deltabar</td><td>@deltadev</td><td>@deltachi</td></tr>
+</block></table>
+</block>
+
+<table>
+<tr><th>Parameters</th><th>Covariance</th></tr>
+<block name="covar"><tr><td>@lab</td><td>@{cov:roundu}</td></tr>
+</block></table>
+</report>]]>
+    </report>
+  </steps>
+</operation>

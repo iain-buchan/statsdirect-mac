@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>PropSingle</name>
+  <friendly-name lang="en-GB">Analysis of single proportions</friendly-name>
+  <help chm-id="1251" />
+  <steps>
+      <parameters>
+        <double>
+          <name>n</name>
+          <prompt>Total number of observations</prompt>
+          <must-request>true</must-request>
+          <minimum-value>1</minimum-value>
+        </double>
+        <double>
+          <name>r</name>
+          <prompt>Number responding</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+        </double>
+        <double>
+          <name>qpi</name>
+          <prompt>Probability of success on each trial</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+          <maximum-value>1</maximum-value>
+          <default-value>0.5</default-value>
+        </double>
+        <confidence-interval>
+          <name>cco</name>
+          <must-request>true</must-request>
+        </confidence-interval>
+      </parameters>
+  	<builtin function-name="rptPropSingle" />
+    <report type="application/x-statsdirect-creole">
+      <![CDATA[
+<report>
+<title>Single proportion</title>
+
+<p>Total = @n,  response = @r<br />
+Proportion = @{prop:roundu}</p>
+
+<p><ci>Exact (Clopper-Pearson) @{ci_exact:round2}% confidence interval = @{lower_exact:roundu} to @{upper_exact:roundu}@{warn_exact}</ci></p>
+
+<p>Using null hypothesis that the population proportion equals @{null:roundu}<br />
+<pval>@{ap_1_exact:pval} one sided @{p_1_exact:pval}</pval><br />
+<pval>@{ap_2_exact:pval} two sided @{p_2_exact:pval}</pval></p>
+
+<p>Approximate (Wilson) @{ci_approx:round2}% mid-P confidence interval = @{lower_approx:roundu} to @{upper_approx:roundu}</p>
+
+<p><pval>@{ap_1_approx:pval} one sided mid-@{p_1_approx:pval}</pval><br />
+<pval>@{ap_2_approx:pval} two sided mid-@{p_2_approx:pval}</pval></p>
+</report>
+      ]]>
+    </report>
+	</steps>
+  <suggested-operations>
+    <suggested-operation>PropSingle</suggested-operation>
+  </suggested-operations>
+</operation>

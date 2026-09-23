@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+  <name>TUnpaired</name>
+  <friendly-name lang="en-GB">Unpaired Student t test</friendly-name>
+  <help chm-id="1244" />
+  <steps>
+    <parameters>
+      <confidence-interval>
+        <name>gamma</name>
+        <lifetime>SessionForThisOperation</lifetime>
+      </confidence-interval>
+      <frame>
+        <name>data</name>
+        <prompt>Select DATA</prompt>
+        <mode>NumericReplaceMissing</mode>
+        <min-columns>2</min-columns>
+        <max-columns>2</max-columns>
+        <ask-for-group-id>true</ask-for-group-id>
+      </frame>
+    </parameters>
+    <builtin function-name="rptTUnpaired" />
+    <report type="application/x-statsdirect-creole" filename="m_unpair.creole" />
+  </steps>
+</operation>

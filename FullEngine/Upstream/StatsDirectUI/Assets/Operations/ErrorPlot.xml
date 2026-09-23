@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ErrorPlot</name>
+  <friendly-name lang="en-GB">Line or scatter plots with error bars</friendly-name>
+  <help chm-id="1120" />
+  <steps>
+      <parameters>
+        <integer>
+          <name>group-count</name>
+          <prompt>How many XY series to plot on graph?</prompt>
+          <minimum-value>1</minimum-value>
+          <default-value>1</default-value>
+          <maximum-value>10</maximum-value>
+        </integer>
+      </parameters>
+		<iteration>
+			<lower-bound>1</lower-bound>
+			<upper-bound-parameter>group-count</upper-bound-parameter>
+      <loop-variable-name>group-index</loop-variable-name>
+			<steps>
+          <parameters>
+            <frame>
+              <name>ydatNew</name>
+              <prompt>="Select data for Y axis: SERIES " + parameters["group-index"].AsInt32.ToString()</prompt>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>ydat</append-to-frame>
+              <must-request>true</must-request>
+            </frame>
+            <frame>
+              <name>xdatNew</name>
+              <prompt>="Select data for X axis: SERIES " + parameters["group-index"].AsInt32.ToString()</prompt>
+              <same-length-as>ydatNew</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>xdat</append-to-frame>
+              <must-request>true</must-request>
+            </frame>
+            <frame>
+              <name>ydatuNew</name>
+              <prompt>="Select data for UPPER error bar: SERIES " + parameters["group-index"].AsInt32.ToString()</prompt>
+              <same-length-as>ydatNew</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>ydatu</append-to-frame>
+              <must-request>true</must-request>
+            </frame>
+            <frame>
+              <name>ydatlNew</name>
+              <prompt>="Select data for LOWER error bar: SERIES " + parameters["group-index"].AsInt32.ToString()</prompt>
+              <same-length-as>ydatNew</same-length-as>
+              <mode>NumericReplaceMissing</mode>
+              <min-columns>1</min-columns>
+              <max-columns>1</max-columns>
+              <clear-selection-first>true</clear-selection-first>
+              <append-to-frame>ydatl</append-to-frame>
+              <must-request>true</must-request>
+            </frame>
+          </parameters>
+			</steps>
+		</iteration>
+		<chart>
+			<chart-name>chart</chart-name>
+			<chart-type>ErrorBar</chart-type>
+		</chart>
+    <report type="application/x-statsdirect-creole" filename="chartonly.creole" />
+	</steps>
+</operation>

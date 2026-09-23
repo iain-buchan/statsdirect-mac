@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>PairMeans</name>
+	<friendly-name lang="en-GB">Pairwise means</friendly-name>
+  <help chm-id="1080" />
+  <steps>
+      <parameters>
+        <frame>
+          <name>y</name>
+          <prompt>Select Y</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+      </parameters>
+    <builtin function-name="shtPairMeans"/>
+    <output-frame frame-name="output" />
+	</steps>
+</operation>

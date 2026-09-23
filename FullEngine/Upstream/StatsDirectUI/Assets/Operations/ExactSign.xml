@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>ExactSign</name>
+  <friendly-name lang="en-GB">Sign (binomial proportion) test</friendly-name>
+  <help chm-id="1111" />
+  <steps>
+      <parameters>
+        <double>
+          <name>n</name>
+          <prompt>Total observations in your sample</prompt>
+          <must-request>true</must-request>
+          <minimum-value>1</minimum-value>
+        </double>
+        <double>
+          <name>r</name>
+          <prompt>Subjects with study characteristic</prompt>
+          <must-request>true</must-request>
+          <minimum-value>0</minimum-value>
+        </double>
+        <confidence-interval>
+          <must-request>true</must-request>
+          <name>cco</name>
+        </confidence-interval>
+      </parameters>
+  	<builtin function-name="rptExactSign" />
+    <report type="application/x-statsdirect-creole" filename="sign.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>ExactSign</suggested-operation>
+  </suggested-operations>
+  <tests>
+    <test reason="Check example in help text">
+      <inputs>
+        <parameter name="n">11</parameter>
+        <parameter name="r">9</parameter>
+        <parameter name="cco">0.95</parameter>
+      </inputs>
+      <outputs>
+        <output name="sample">11</output>
+        <output name="sample_1">9</output>
+        <output name="*exact$1$prob_2">0.0654296875</output>
+        <output name="*exact$1$prob_1">0.03271484375</output>
+        <output name="z">1.8090680674665818</output>
+        <output name="ci">95</output>
+        <output name="lower">0.48224414763982704</output>
+        <output name="prop">0.81818181818181823</output>
+        <output name="upper">0.97716880170004039</output>
+        <output name="warn" />
+        <output name="large" missing="true"></output>
+        <!-- <output name="z"></output> TODO: Find out what the value should be -->
+      </outputs>
+    </test>
+    <test reason="Check reversal of n and r">
+    </test>
+  </tests>
+</operation>

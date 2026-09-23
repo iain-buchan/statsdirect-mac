@@ -5,6 +5,8 @@ import Darwin
 
 typealias PairedFunction = @convention(c) (UnsafePointer<Double>?, UnsafePointer<Double>?, Int32, Double, UnsafeMutablePointer<Double>?, Int32) -> Int32
 
+typealias ReportFunction = @convention(c) (UnsafeMutablePointer<CChar>?, Int32) -> Int32
+
 struct PairedExample: Decodable {
     let title: String
     let labels: [String]
@@ -220,19 +222,30 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             endRun(); showError("The paired-test calculation library could not be loaded. Please rebuild the application."); return
         }
         let compute = unsafeBitCast(symbol, to: PairedFunction.self)
+        let readReport: ReportFunction? = dlsym(handle, "statsdirect_paired_report").map { unsafeBitCast($0, to: ReportFunction.self) }
         DispatchQueue.global(qos: .userInitiated).async {
             var result = Array(repeating: 0.0, count: 11)
             let code = before.withUnsafeBufferPointer { a in after.withUnsafeBufferPointer { b in
                 result.withUnsafeMutableBufferPointer { output in compute(a.baseAddress, b.baseAddress, Int32(before.count), 0.95, output.baseAddress, 11) }
             } }
+            var engineReport = ""
+            if code == 0, let readReport = readReport {
+                let size = readReport(nil, 0)
+                if size > 0 && size < 10_000_000 {
+                    var bytes = Array<CChar>(repeating: 0, count: Int(size))
+                    _ = bytes.withUnsafeMutableBufferPointer { readReport($0.baseAddress, size) }
+                    engineReport = String(cString: bytes)
+                }
+            }
+            let reportHTML = engineReport
             let calculated = result
             DispatchQueue.main.async {
                 self.endRun()
                 guard code == 0 else {
-                    let messages = [1:"The paired data or confidence level is invalid.",2:"At least two complete numeric pairs are needed.",3:"The differences must be finite and must vary. A t test cannot be calculated for constant differences in this prototype.",4:"The calculation did not return finite results."]
+                    let messages = [1:"The paired data or confidence level is invalid.",2:"At least two complete numeric pairs are needed.",3:"The differences must be finite and must vary. A t test cannot be calculated for constant differences in this prototype.",4:"The calculation or report generation failed.",5:"The bundled .NET engine could not be initialized."]
                     self.showError(messages[Int(code)] ?? "Calculation failed."); return
                 }
-                self.showResult(calculated, before: before, after: after)
+                self.showResult(calculated, before: before, after: after, engineHTML: reportHTML)
             }
         }
     }
@@ -242,21 +255,19 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if value != 0 && abs(value) < pow(10, -Double(places)) { return String(format: "%.4g", value) }
         return String(format: "%.*f", places, value).replacingOccurrences(of: "\\.?0+$", with: "", options: .regularExpression)
     }
-    func showResult(_ r: [Double], before: [Double], after: [Double]) {
+    func showResult(_ r: [Double], before: [Double], after: [Double], engineHTML: String) {
         reportNumber += 1
         let unchanged = before == example.before && after == example.after
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
-        let resultRows: [(String,String)] = [("Complete pairs",String(Int(r[0]))),("Mean difference",number(r[1])),("Standard deviation",number(r[2])),("Standard error",number(r[3])),("95% confidence interval","\(number(r[4])) to \(number(r[5]))"),("Degrees of freedom",String(Int(r[6]))),("t statistic",number(r[7])),("One-sided P",number(r[8],places:8)),("Two-sided P",number(r[9],places:8)),("Power at 5% significance","\(number(100*r[10],places:2))%")]
-        let table = resultRows.map { "<tr><th scope='row'>\($0.0)</th><td>\($0.1)</td></tr>" }.joined()
         let inputs = zip(before,after).enumerated().map { i,pair in "<tr><th>\(i+1)</th><td>\(number(pair.0))</td><td>\(number(pair.1))</td><td>\(number(pair.0-pair.1))</td></tr>" }.joined()
         let body = """
-        <div class="eyebrow">Analysis / Parametric methods</div><h1>Paired t test</h1>
+        <div class="eyebrow">Analysis / Parametric methods</div>
         <p class="lead">PEFR Before − PEFR After</p><p class="muted">Report \(reportNumber) · \(stamp) · \(unchanged ? "Original worked example" : "Edited example data")</p>
         <div class="summary"><div><span>Mean difference</span><strong>\(number(r[1],places:4))</strong></div><div><span>Two-sided P</span><strong>\(number(r[9],places:6))</strong></div><div><span>Matched pairs</span><strong>\(Int(r[0]))</strong></div></div>
-        <h2>Results</h2><table>\(table)</table>
+        <section class="engine-report">\(engineHTML)</section>
         <p><a href="Help/parametric_methods/paired_t.htm">Paired Student t test: method and worked example →</a></p>
         <details><summary>Input data used for this report</summary><table><thead><tr><th>Subject</th><th>Before</th><th>After</th><th>Difference</th></tr></thead><tbody>\(inputs)</tbody></table></details>
-        <p class="muted">95% confidence level. Incomplete pairs are excluded. The optional agreement analysis is not included.</p>
+        <p class="muted">95% confidence level. Incomplete pairs are excluded. The optional agreement analysis is not included. Calculated by the full StatsDirect 5.0.5 headless engine and displayed using its HTML report renderer.</p>
         """
         newDocument(kind: "report", title: "Report \(reportNumber) · Paired t test", html: page("Paired t test",body))
         status.stringValue = "Paired t test completed · \(Int(r[0])) complete pairs · Report \(reportNumber)"

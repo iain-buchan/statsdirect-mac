@@ -1,0 +1,19 @@
+<report>
+<title>Exact confidence limits for 2 by 2 odds</title>
+
+<p>Input table:</p>
+<table>
+<tr><td>@tab_a1</td><td>@tab_b1</td></tr>
+<tr><td>@tab_a2</td><td>@tab_b2</td></tr>
+</table>
+
+<p>Observed odds ratio = @{odds:roundu}</p>
+
+<p>Conditional maximum likelihood estimate of odds ratio = @{eor:roundu}</p>
+
+<p><ci>Exact Fisher @{pc:round2}% confidence interval = @{llf:roundu}  to  @{ulf:roundu}</ci><br />
+<pval>Exact Fisher one sided @{p1f:pval}, two sided @{p2f:pval}</pval></p>
+
+<p><ci>Exact mid-P @{pc:round2}% confidence interval = @{llm:roundu}  to  @{ulm:roundu}</ci><br />
+<pval>Exact mid-P one sided @{p1m:pval}, two sided @{p2m:pval}</pval></p>
+</report>

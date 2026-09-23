@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>EqualityOfVariance</name>
+	<friendly-name lang="en-GB">Equality of variance (Levene, Bartlett) and Welch's F</friendly-name>
+  <prerequisite-operation>OneWay</prerequisite-operation>
+  <steps>
+      <parameters>
+        <frame>
+          <name>data</name>
+          <prompt>Select DATA</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>2</min-columns>
+          <max-columns>200</max-columns>
+          <ask-for-group-id>true</ask-for-group-id>
+        </frame>
+      </parameters>
+		<builtin function-name="rptEqualityOfVariance" />
+    <report type="application/x-statsdirect-creole">
+      <![CDATA[<report>
+<title>Approximate equality of variance tests and adjusted ANOVA</title>
+
+<p>Levene's (W50) F = @{f:roundx}  (df = @df1, @df2)  <pval>@{pLevene:pval}</pval></p>
+
+<p>Bartlett's chi-square = @{x2:roundx}  df = @df  <pval>@{pBartlett:pval}</pval></p>
+
+<p>Welch adjusted ANOVA F = @{fWelch:roundx}  (df = @dfnWelch, @{dfdWelch:roundx})  <pval>@{pWelch:pval}</pval></p>
+</report>]]>
+    </report>
+	</steps>
+</operation>

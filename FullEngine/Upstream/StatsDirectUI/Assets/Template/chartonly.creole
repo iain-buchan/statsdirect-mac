@@ -1,0 +1,4 @@
+<report>
+
+<p>@{chart:chart}</p>
+</report>

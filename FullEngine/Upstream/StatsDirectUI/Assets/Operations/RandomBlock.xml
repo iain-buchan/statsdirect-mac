@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>RandomBlock</name>
+  <friendly-name lang="en-GB">Block randomization</friendly-name>
+  <help chm-id="1252" />
+  <steps>
+      <parameters>
+        <integer>
+          <name>n</name>
+          <prompt>Number of subjects in total</prompt>
+          <must-request>true</must-request>
+          <minimum-value>2</minimum-value>
+        </integer>
+        <integer>
+          <name>b</name>
+          <prompt>Number of subjects per block (blank for random)</prompt>
+          <minimum-value>2</minimum-value>
+          <cancel-skips-parameter>Skip</cancel-skips-parameter>
+          <must-request>true</must-request>
+        </integer>
+        <integer>
+          <name>t</name>
+          <prompt>Number of treatments</prompt>
+          <minimum-value>2</minimum-value>
+          <must-request>true</must-request>
+        </integer>
+        <integer>
+          <name>seed</name>
+          <prompt>Seed (leave blank for automatic seed)</prompt>
+          <must-request>true</must-request>
+          <cancel-skips-parameter>Skip</cancel-skips-parameter>
+        </integer>
+      </parameters>
+  	<builtin function-name="rptRandomBlock" />
+    <report type="application/x-statsdirect-creole" filename="r_block.creole" />
+	</steps>
+  <suggested-operations>
+    <suggested-operation>RandomBlock</suggested-operation>
+  </suggested-operations>
+</operation>

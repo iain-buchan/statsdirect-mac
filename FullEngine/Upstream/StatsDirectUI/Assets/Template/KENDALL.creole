@@ -1,0 +1,33 @@
+<report>
+<title>Kendall's rank correlation</title>
+
+<p>@sample_1 vs. @sample_2<br />
+Observations per sample = @obs<br />
+Concordant pairs = @con<br />
+Discordant pairs = @dis<br />
+Tied pairs = @tie<br />
+Kendall's score = @s   (standard error = @{ses:roundu})<br />
+Gamma = @{gam:roundu}</p>
+
+<p>Kendall's @tb = @{tau:roundu}<br />
+<ci>Approximate @{pc:round2}% CI = @{ll:roundu} to @{ul:roundu}</ci></p>
+
+<p><u>Approximate tests@adj</u></p>
+<block name="smallsample">
+<p><warn>Sample size too small for reliable inference from z, use exact test</warn></p>
+</block>
+<p>z = @{kz:roundu}<br />
+<pval>Upper side @{p_u:pval}</pval>  (H<sub>1</sub>: concordance)<br />
+<pval>Lower side @{p_l:pval}</pval>  (H<sub>1</sub>: discordance)<br />
+<pval>Two sided @{p_2:pval}</pval>  (H<sub>1</sub>: dependence)</p>
+
+<p>z (continuity corrected) = @{kzcc:roundu}<br />
+<pval>Upper side @{p_ucc:pval}</pval>  (H<sub>1</sub>: concordance)<br />
+<pval>Lower side @{p_lcc:pval}</pval>  (H<sub>1</sub>: discordance)<br />
+<pval>Two sided @{p_2cc:pval}</pval>  (H<sub>1</sub>: dependence)</p>
+
+<p><u>Exact test@adjexact</u><br />
+<pval>Upper side @{p_uexact:pval}</pval>  (H<sub>1</sub>: concordance)<br />
+<pval>Lower side @{p_lexact:pval}</pval>  (H<sub>1</sub>: discordance)<br />
+<pval>Two sided @{p_2exact:pval}</pval>  (H<sub>1</sub>: dependence)</p>
+</report>

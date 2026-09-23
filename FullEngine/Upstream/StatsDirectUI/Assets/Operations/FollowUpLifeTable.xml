@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>FollowUpLifetable</name>
+  <friendly-name lang="en-GB">Follow-up life table</friendly-name>
+  <help chm-id="1324" />
+  <steps>
+      <parameters>
+        <confidence-interval>
+          <name>gamma</name>
+        </confidence-interval>
+        <frame>
+          <name>times</name>
+          <prompt>Select data for TIMES</prompt>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>deaths</name>
+          <prompt>Select data for DEATHS</prompt>
+          <same-length-as>times</same-length-as>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+        <frame>
+          <name>withdrawals</name>
+          <prompt>Select data for WITHDRAWALS</prompt>
+          <same-length-as>times</same-length-as>
+          <mode>NumericReplaceMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+          <clear-selection-first>true</clear-selection-first>
+        </frame>
+      </parameters>
+    <builtin function-name="rptFollowUpLifetableCalculateNatst" />
+      <parameters>
+        <double>
+          <name>natst</name>
+          <prompt>Number alive at start</prompt>
+          <must-request>true</must-request>
+          <minimum-value>=parameters["natst-min"].AsDouble</minimum-value>
+          <default-value>=parameters["natst-min"].AsDouble</default-value>
+        </double>
+      </parameters>
+    <builtin function-name="rptFollowUpLifetable" />
+    <report type="application/x-statsdirect-creole" filename="lifetab.creole" />
+	</steps>
+</operation>

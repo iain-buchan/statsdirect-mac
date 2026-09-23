@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>NormalPlot</name>
+  <friendly-name lang="en-GB">Normal scores plot</friendly-name>
+  <help chm-id="1128" />
+  <steps>
+      <parameters>
+        <!-- Now requested in chart options.  Callers are still able to pass this in, however.
+        <option>
+          <name>ScoreMethod</name>
+          <prompt>Select score method</prompt>
+          <options>
+            <option value="1">van der Waerden</option>
+            <option value="2">Blom</option>
+            <option value="3">expected normal order</option>
+          </options>
+        </option>
+        -->
+        <frame>
+          <name>X</name>
+          <prompt>Select data for normal plot</prompt>
+          <mode>NumericSkipMissing</mode>
+          <min-columns>1</min-columns>
+          <max-columns>1</max-columns>
+        </frame>
+      </parameters>
+		<chart>
+			<x-series-data>X</x-series-data>
+			<chart-name>chart</chart-name>
+			<chart-type>Normal</chart-type>
+			<box-axes>false</box-axes>
+		</chart>
+    <report type="application/x-statsdirect-creole" filename="chartonly.creole" />
+	</steps>
+</operation>

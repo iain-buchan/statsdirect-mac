@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operation xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.statsdirect.com/schemas/Operation.xsd">
+	<name>CoxBaselineToWorksheet</name>
+	<friendly-name lang="en-GB">Baseline survival and hazard to worksheet</friendly-name>
+  <prerequisite-operation>CoxRegression</prerequisite-operation>
+	<steps>
+		<builtin function-name="rptCoxBaselineToWorksheet" />
+		<test>
+			<condition>=parameters.ContainsKey("results")</condition>
+			<iftrue>
+				<output-frame frame-name="results" />
+			</iftrue>
+		</test>
+	</steps>
+</operation>

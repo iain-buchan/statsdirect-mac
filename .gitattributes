@@ -1,0 +1,3 @@
+# Preserve the upstream menu and bundled third-party legal notices byte for byte.
+Content/windows-menu.xml -text -whitespace
+Content/Grid/*.LEGAL.txt -text -whitespace

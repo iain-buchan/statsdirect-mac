@@ -9,3 +9,5 @@ FullEngine/obj/
 FullEngine/publish/
 Tests/bridge-driver
 Grid/node_modules/
+
+Tests/operation-driver

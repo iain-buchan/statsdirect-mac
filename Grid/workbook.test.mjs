@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WorkbookStore } from './workbook.mjs';
 const fixture = () => ({
+  id: 'workbook-fixture',
   name: 'sample.xlsx',
   formulaCount: 1,
   sheets: [{
@@ -124,4 +125,12 @@ test('a new worksheet exports headers and numbers to actual Excel coordinates', 
     text: '12',
     kind: 'number'
   });
+});
+
+test('generated analysis tables without a backing Excel file export all cells',()=>{
+  const data=fixture(); delete data.id; data.formulaCount=0;
+  const workbook=new WorkbookStore();workbook.load(data);
+  const exported=workbook.export();
+  assert.equal(exported.sheets[0].cells.length,data.sheets[0].cells.length);
+  assert.equal(exported.sheets[0].cells.find(c=>c.col===0&&c.row===1).text,'12');
 });

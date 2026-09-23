@@ -16,6 +16,7 @@ extension Viewer: WKScriptMessageHandler {
         newDocument(kind: "grid", title: "Data grid · PEFR", url: root.appendingPathComponent("Grid/index.html"))
     }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "statsDirectOperation" { handleOperation(message); return }
         if message.name == "statsDirectAnalysis" { handleAnalysis(message); return }
         guard message.name == "statsDirectGrid", message.frameInfo.isMainFrame, let web = message.webView, let doc = document(for: web), doc.kind == "grid",
               web.url?.standardizedFileURL == root.appendingPathComponent("Grid/index.html").standardizedFileURL,

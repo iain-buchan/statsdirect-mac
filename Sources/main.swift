@@ -37,6 +37,8 @@ final class Document {
     var excelBusy = false
     var analysisJobID: String?
     var analysisCancelled = false
+    var operationName: String?
+    var operationRevision = 0
     var hasSVG = false
     init(kind: String, title: String, access: URL) {
         self.kind = kind; self.title = title; self.access = access
@@ -69,6 +71,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
     var active: Document? { documents.first { $0.item === tabs.selectedTabViewItem } }
     var example: PairedExample!
+    var analysisCatalog: [String: [String: Any]] = [:]
     var analysisSourceID: String?
     func applicationDidFinishLaunching(_ notification: Notification) {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 850), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -139,13 +142,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             edit.addItem(NSMenuItem(title: title, action: selector, keyEquivalent: key))
         }
         let analysis = menu("Analysis")
-        let parametric = NSMenu(title: "Parametric methods")
-        let group = NSMenuItem(title: "Parametric methods", action: nil, keyEquivalent: ""); group.submenu = parametric; analysis.addItem(group)
-        add(parametric, "Paired t test — PEFR example", #selector(runPaired), "t")
-        let chi = NSMenu(title: "Chi-square"), rc = NSMenu(title: "R by C")
-        let chiGroup = NSMenuItem(title: "Chi-square", action: nil, keyEquivalent: ""), rcGroup = NSMenuItem(title: "R by C", action: nil, keyEquivalent: "")
-        chiGroup.submenu = chi; analysis.addItem(chiGroup); rcGroup.submenu = rc; chi.addItem(rcGroup)
-        add(rc, "Screen Data…", #selector(showChiSquare), "4")
+        populateAnalysisMenu(analysis)
         let rMenu = menu("R")
         add(rMenu, "New R Tab", #selector(newRTab), "")
         add(rMenu, "Run Script", #selector(runRScript), "\r")
@@ -164,8 +161,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(exportActiveCSV) { return active?.kind == "grid" }
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
         if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
-        if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
-        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? "Save Excel…" : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"; return active != nil }
+        if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
+        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? "Save Excel…" : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"; return active != nil && active?.kind != "operation" }
         if menuItem.action == #selector(runPaired) { return !running && example != nil }
         if [#selector(closeTab), #selector(printPage), #selector(savePDF)].contains(menuItem.action) { return active != nil }
         return true
@@ -200,6 +197,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         if let doc = active, ["data", "grid"].contains(doc.kind) { analysisSourceID = doc.id }
         window.title = "\(active?.title ?? "StatsDirect") · Mac prototype"
+        exportButton?.isEnabled = active?.kind != "operation"
         exportButton?.title = active?.kind == "r" ? "Save script…" : active?.kind == "grid" ? "Save Excel…" : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"
         status.stringValue = running ? "Running analysis…" : "\(documents.count) open documents · \(active?.kind.capitalized ?? "Ready")"
         if windowsMenu != nil { updateWindowMenu() }
@@ -208,6 +206,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func newDocument(kind: String, title: String, url: URL? = nil, html: String? = nil, access: URL? = nil) -> Document {
         let doc = Document(kind: kind, title: title, access: access ?? root)
         if kind == "grid" { doc.web.configuration.userContentController.add(self, name: "statsDirectGrid") }
+        if kind == "operation" { doc.web.configuration.userContentController.add(self, name: "statsDirectOperation") }
         if kind == "analysis" { doc.web.configuration.userContentController.add(self, name: "statsDirectAnalysis") }
         doc.hasSVG = html?.contains("<svg") == true
         doc.initialURL = url; doc.web.navigationDelegate = self; doc.web.uiDelegate = self
@@ -239,7 +238,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let body = """
         <div class="eyebrow">Example data / Paired observations</div><h1>Before and after a winter walk</h1>
         <p class="lead">Peak expiratory flow rate in nine people with asthma. Each row is one person.</p>
-        <div class="note">Choose <strong>Analysis → Parametric methods → Paired t test</strong> (⌘T) to calculate a new report. You can edit these values and run it again; earlier reports stay in their own tabs.</div>
+        <div class="note">Choose <strong>Analysis → Parametric → Paired t</strong> (⌘T) to configure a test, or use the Run paired t test toolbar button for a quick report. You can edit these values and run it again; earlier reports stay in their own tabs.</div>
         <table class="data"><thead><tr><th>Subject</th><th>PEFR Before</th><th>PEFR After</th></tr></thead><tbody>\(rows)</tbody></table>
         <p><label><input id="agreement" type="checkbox"> Agreement analysis (SVG chart)</label></p>
         <p class="muted">Difference = Before − After · 95% confidence interval · Missing pairs are omitted.</p>
@@ -260,7 +259,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func closeTab() {
         if active?.excelBusy == true { showError("Please wait for the Excel save to finish."); return }
         guard let doc = active else { return }
-        if doc.analysisJobID != nil { analysisState(doc, true, "Use Cancel calculation and wait for the engine to stop before closing this form."); return }
+        if doc.analysisJobID != nil { if doc.kind == "operation" { operationError(doc, "Cancel this analysis before closing its form.") } else { analysisState(doc, true, "Use Cancel calculation and wait for the engine to stop before closing this form.") }; return }
         if doc.kind == "analysis" && doc.gridDirty {
             let alert = NSAlert(); alert.messageText = "Close the contingency table?"
             alert.informativeText = "Unsaved counts and labels will be discarded. Use Save Table to keep a CSV copy. Reports remain open."
@@ -285,6 +284,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if let id = doc.workbookID { workbookRequest(["action": "close", "id": id]) { _ in } }
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectGrid")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectAnalysis")
+        doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectOperation")
         doc.rPane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }
         changingTabs = true; tabs.removeTabViewItem(doc.item); changingTabs = false

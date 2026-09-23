@@ -14,9 +14,19 @@ For a paired test, select two column headers or a two-column range; otherwise th
 
 This is an editable grid prototype. Save Excel before closing to retain all worksheet edits. Live formula editing and large-sheet performance work remain. Implementation, build instructions and limits are in [Grid/README.md](Grid/README.md).
 
+## Complete Analysis menu
+
+The native menu now follows the Windows `menu.xml`: 148 commands covering 135 distinct operations, each linked to its offline method help. Choose an analysis to open its form tab, then **Start**. The original operation definition drives the questions, defaults, conditional steps and validation. **Continue** advances the same running engine operation; **Cancel analysis** stops at its next checkpoint.
+
+For data, choose columns from a snapshot of the most recently selected worksheet, in the required order, and review the first/last row. Or enter/paste data into the embedded Glide table. Use **Refresh worksheet** after changing data or switching worksheets. Numeric categorical predictors offer the engine's reference-category choices. Grouped observations currently use separate columns; identifier-based selection/pivoting is not implemented. The ANOVA repeated/nested forms request each repeat or group in turn, and covariance requests each predictor/outcome series.
+
+Reports and SVG charts open in their own tabs. Analyses that output data also open new editable grid tabs, which can be saved to Excel. The dedicated chi-square screen form and quick paired-test toolbar action remain available. In the general paired-test form, **Agreement analysis** is an explicit follow-up question.
+
+LOESS and method-comparison regression are visible with help, but their engine R/Windows-graphics bridge is explicitly marked unavailable in this Mac prototype. The independent **+ R session** tab is unchanged. All other 133 operations reach their first input; 47 representative analyses have been exercised end to end. This is broader prototype coverage, not certification of every option or chart.
+
 ## Chi-square screen-data form
 
-Choose **Analysis → Chi-square → R by C → Screen Data…** (⌘4). The form embeds Glide in place of the Windows form's SpreadsheetGear control and runs the original `ExactChiRbyCScreen` operation. Resize the table, edit counts, or paste a rectangle without headings/totals. Enter zero explicitly; blank, negative and fractional counts are rejected. Undo/Redo retains table dimensions, counts and category labels. **Save Table…** exports the labelled count table as CSV, not analysis settings.
+Choose **Analysis → Chi-square Tests → R by C → Screen Data** (⌘4). The form embeds Glide in place of the Windows form's SpreadsheetGear control and runs the original `ExactChiRbyCScreen` operation. Resize the table, edit counts, or paste a rectangle without headings/totals. Enter zero explicitly; blank, negative and fractional counts are rejected. Undo/Redo retains table dimensions, counts and category labels. **Save Table…** exports the labelled count table as CSV, not analysis settings.
 
 **Load help example** fills the 4 × 3 grief/support table (66 observations) and enables expected counts and cell contributions. **Run analysis** opens a new report tab while retaining the form. The original engine provides Pearson and G tests, exact testing, percentages, expected counts, cell chi-square, trend scores and optional Monte Carlo simulation. Custom scores are supplied through the engine's existing amendment prompt. A fixed simulation seed reproduces results. Method help opens separately.
 
@@ -56,10 +66,10 @@ See [FullEngine/README.md](FullEngine/README.md) for provenance and exact platfo
 
 ## Scope
 
-The visible analysis menu runs paired t (including the agreement SVG) and chi-square r × c screen data. The complete numerical source is built; verification covers the two populated upstream operation tests and these viewer paths. Other chart types, Windows file dialogs, the engine’s R-operation integration and RTF/Office export still need Mac host work. This is an ad-hoc signed local prototype, not a notarized distribution.
+The full Analysis menu is populated. The general host supports numeric/boolean/choice questions, data frames, count tables, repeated/nested data, covariance, validation and cancellation. Engine R integration, identifier-based pivoting, suggested post-analysis commands, advanced chart controls and RTF/Office export remain. This is an ad-hoc signed local prototype, not a notarized distribution.
 
 ## Build
 
 Run `./build.sh` on an Apple Silicon Mac with Xcode command line tools, Python 3 and .NET 10 SDK installed. Set `DOTNET` to the SDK executable if necessary. The script also recognizes the SDK downloaded in this workspace's `work/dotnet` directory. Build caches are kept outside the deliverable by default.
 
-To refresh help, run `python3 import_help.py /path/to/statisticalhelp`. Engine refresh instructions are in FullEngine/README.md. Source revisions and hashes are recorded in the provenance manifests. No changes have been pushed to either upstream repository.
+To refresh the menu and its help mapping, run `python3 import_analysis.py /path/to/statsdirect /path/to/statisticalhelp`. To refresh help, run `python3 import_help.py /path/to/statisticalhelp`. Engine refresh instructions are in FullEngine/README.md. Source revisions and hashes are recorded in the provenance manifests. No changes have been pushed to either upstream repository.

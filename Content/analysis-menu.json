@@ -1,0 +1,1433 @@
+{
+  "menu": {
+    "label": "Analysis",
+    "children": [
+      {
+        "label": "Exact Tests on Counts",
+        "children": [
+          {
+            "label": "Sign",
+            "operation": "ExactSign"
+          },
+          {
+            "label": "Fisher",
+            "operation": "ExactFisher"
+          },
+          {
+            "label": "Expanded Fisher",
+            "operation": "ExactFisherX"
+          },
+          {
+            "label": "R by C Fisher",
+            "operation": "ExactFisherRbyC"
+          },
+          {
+            "label": "Matched Pairs",
+            "operation": "ExactMcNamar"
+          },
+          {
+            "label": "Odds Ratio Confidence Interval",
+            "operation": "ExactORCML"
+          },
+          {
+            "label": "Poisson Rate Confidence Interval",
+            "operation": "RatePoissonCI"
+          }
+        ]
+      },
+      {
+        "label": "Chi-square Tests",
+        "children": [
+          {
+            "label": "2 by 2",
+            "operation": "Chi2by2"
+          },
+          {
+            "label": "2 by K",
+            "children": [
+              {
+                "label": "Without Trend",
+                "operation": "Chi2byNWithoutTrend"
+              },
+              {
+                "label": "Trend Scores 1 to K",
+                "operation": "Chi2byNLinearTrend"
+              },
+              {
+                "label": "Enter Trend Scores",
+                "operation": "Chi2byNWithTrend"
+              }
+            ]
+          },
+          {
+            "label": "R by C",
+            "children": [
+              {
+                "label": "Worksheet Data",
+                "operation": "ExactChiRbyC"
+              },
+              {
+                "label": "Screen Data",
+                "operation": "ExactChiRbyCScreen"
+              }
+            ]
+          },
+          {
+            "label": "McNemar",
+            "operation": "ExactMcNamarChi"
+          },
+          {
+            "label": "Kappa and Maxwell",
+            "children": [
+              {
+                "label": "Worksheet (Individual Observations)",
+                "operation": "Kappa"
+              },
+              {
+                "label": "Screen (Summary Counts)",
+                "operation": "KappaScreen"
+              }
+            ]
+          },
+          {
+            "label": "Mantel-Haenszel",
+            "children": [
+              {
+                "label": "Worksheet Data",
+                "operation": "Mantel"
+              },
+              {
+                "label": "Screen Data",
+                "operation": "MantelHaenszelScreen"
+              }
+            ]
+          },
+          {
+            "label": "Woolf",
+            "children": [
+              {
+                "label": "Worksheet Data",
+                "operation": "ChiWoolfWorksheet"
+              },
+              {
+                "label": "Screen Data",
+                "operation": "ChiWoolfScreen"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Proportions",
+        "children": [
+          {
+            "label": "Single",
+            "operation": "PropSingle"
+          },
+          {
+            "label": "Paired",
+            "operation": "PropPairs"
+          },
+          {
+            "label": "Two Independent",
+            "operation": "PropUnPaired"
+          }
+        ]
+      },
+      {
+        "label": "Rates",
+        "children": [
+          {
+            "label": "Poisson Rate Confidence Interval",
+            "operation": "RatePoissonCI"
+          },
+          {
+            "label": "Compare Two Crude Rates",
+            "operation": "RateCompareTwo"
+          },
+          {
+            "label": "Standardize and Compare Two Rates",
+            "operation": "Stdrr"
+          },
+          {
+            "label": "Direct Standardization",
+            "children": [
+              {
+                "label": "Worksheet Data",
+                "operation": "RateDirect"
+              },
+              {
+                "label": "Screen Data",
+                "operation": "RateDirectScreen"
+              }
+            ]
+          },
+          {
+            "label": "Indirect Standardization and SMR",
+            "children": [
+              {
+                "label": "Worksheet Data",
+                "operation": "RateSmr"
+              },
+              {
+                "label": "Screen Data",
+                "operation": "RateSmrScreen"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Distributions",
+        "children": [
+          {
+            "label": "Normal",
+            "operation": "DistributionNormal"
+          },
+          {
+            "label": "Student's t",
+            "operation": "DistributionT"
+          },
+          {
+            "label": "F (Variance Ratio)",
+            "operation": "DistributionF"
+          },
+          {
+            "label": "Chi-square",
+            "operation": "DistributionChiSquare"
+          },
+          {
+            "label": "Studentised Range (Q)",
+            "operation": "DistributionQ"
+          },
+          {
+            "label": "Binomial",
+            "operation": "DistributionBinomial"
+          },
+          {
+            "label": "Poisson",
+            "operation": "DistributionPoisson"
+          },
+          {
+            "label": "Kendall's tau",
+            "operation": "DistributionKendall"
+          },
+          {
+            "label": "Spearman's rho",
+            "operation": "DistributionSpearman"
+          },
+          {
+            "label": "Non-central t",
+            "operation": "DistributionNonCentralT"
+          }
+        ]
+      },
+      {
+        "label": "Sample Size",
+        "children": [
+          {
+            "label": "Paired and 1 Sample t",
+            "operation": "SizePaired"
+          },
+          {
+            "label": "Unpaired t",
+            "operation": "SizeUnPaired"
+          },
+          {
+            "label": "Independent Case-control",
+            "operation": "SizeIndCase"
+          },
+          {
+            "label": "Independent Cohort",
+            "operation": "SizeIndProp"
+          },
+          {
+            "label": "Matched Case-control",
+            "operation": "SizeMatchCase"
+          },
+          {
+            "label": "Paired Cohort",
+            "operation": "SizeMatchProp"
+          },
+          {
+            "label": "Population Survey",
+            "operation": "SizePopSurvey"
+          },
+          {
+            "label": "Survival Times",
+            "operation": "SizeSurvival"
+          },
+          {
+            "label": "Correlation",
+            "operation": "SizeCorrelation"
+          }
+        ]
+      },
+      {
+        "label": "Randomization",
+        "children": [
+          {
+            "label": "Series X to Y",
+            "operation": "RandomXY"
+          },
+          {
+            "label": "Intervention-control Pairs",
+            "operation": "RandomPairs"
+          },
+          {
+            "label": "Two Independent Groups",
+            "operation": "RandomUnPaired"
+          },
+          {
+            "label": "Blocks",
+            "operation": "RandomBlock"
+          },
+          {
+            "label": "Preference Allocation",
+            "operation": "Preferences"
+          }
+        ]
+      },
+      {
+        "label": "Clinical Epidemiology",
+        "children": [
+          {
+            "label": "Risk (Prospective)",
+            "operation": "MiscRelRisk"
+          },
+          {
+            "label": "Risk (Retrospective)",
+            "operation": "MiscRetroRisk"
+          },
+          {
+            "label": "Diagnostic Test (2 by 2)",
+            "operation": "MiscDiagnostic"
+          },
+          {
+            "label": "Likelihood Ratios (2 by k)",
+            "operation": "MiscLikely"
+          },
+          {
+            "label": "Number Needed to Treat",
+            "operation": "MiscNumberNeededToTreat"
+          },
+          {
+            "label": "Kappa and Maxwell",
+            "children": [
+              {
+                "label": "Worksheet (Individual Observations)",
+                "operation": "Kappa"
+              },
+              {
+                "label": "Screen (Summary Counts)",
+                "operation": "KappaScreen"
+              }
+            ]
+          },
+          {
+            "label": "Screening Test Errors",
+            "operation": "MiscFalseResult"
+          },
+          {
+            "label": "Growth Charts",
+            "operation": "ChildGrowth"
+          }
+        ]
+      },
+      {
+        "separator": true
+      },
+      {
+        "label": "Descriptive",
+        "children": [
+          {
+            "label": "Univariate Summary",
+            "operation": "UnivariateSummary"
+          },
+          {
+            "label": "Weighted Univariate Summary",
+            "operation": "WeightedUnivariateSummary"
+          },
+          {
+            "label": "Quick Univariate Summary",
+            "operation": "QuickSummary"
+          },
+          {
+            "label": "Time Series Summary",
+            "operation": "TimeSeriesSummary"
+          }
+        ]
+      },
+      {
+        "label": "Parametric",
+        "children": [
+          {
+            "label": "Paired t",
+            "operation": "TPaired"
+          },
+          {
+            "label": "Single Sample t",
+            "operation": "TSingle"
+          },
+          {
+            "label": "Unpaired t",
+            "operation": "TUnpaired"
+          },
+          {
+            "label": "Summary Data t",
+            "children": [
+              {
+                "label": "Single Sample",
+                "operation": "TSingleSummary"
+              },
+              {
+                "label": "Unpaired",
+                "operation": "TUnpairedSummary"
+              }
+            ]
+          },
+          {
+            "label": "F (Variance Ratio)",
+            "operation": "VarianceRatio"
+          },
+          {
+            "label": "Single Sample z",
+            "operation": "ZSingle"
+          },
+          {
+            "label": "Unpaired z",
+            "operation": "ZUnpaired"
+          },
+          {
+            "label": "Reference Range",
+            "operation": "ReferenceRange"
+          },
+          {
+            "label": "Poisson Confidence Interval",
+            "operation": "PoissonConfidenceInterval"
+          },
+          {
+            "label": "Normality",
+            "operation": "Normality"
+          }
+        ]
+      },
+      {
+        "label": "Nonparametric",
+        "children": [
+          {
+            "label": "Mann-Whitney",
+            "operation": "MannWhitney"
+          },
+          {
+            "label": "Wilcoxon Signed Ranks",
+            "operation": "Wilcoxon"
+          },
+          {
+            "label": "Kendall Rank Correlation",
+            "operation": "Kendall"
+          },
+          {
+            "label": "Spearman Rank Correlation",
+            "operation": "Spearman"
+          },
+          {
+            "label": "Nonparametric Linear Regression",
+            "operation": "NonparametricLinearRegression"
+          },
+          {
+            "label": "LOESS Curve Fitting",
+            "operation": "LOESS"
+          },
+          {
+            "label": "Cuzick Trend",
+            "operation": "Cuzick"
+          },
+          {
+            "label": "Smirnov Two Sample",
+            "operation": "Smirnov"
+          },
+          {
+            "label": "Quantile Confidence Interval",
+            "operation": "Quantile"
+          },
+          {
+            "label": "Kruskal-Wallis",
+            "operation": "Kruskal"
+          },
+          {
+            "label": "Friedman",
+            "operation": "Friedman"
+          },
+          {
+            "label": "Cochran Q",
+            "operation": "CochranQ"
+          },
+          {
+            "label": "Chi-square Goodness of Fit",
+            "operation": "ChiSquareGoodnessOfFit"
+          },
+          {
+            "label": "ROC Curve Analysis",
+            "operation": "ROCPlot"
+          },
+          {
+            "label": "Gini Coefficient of Inequality",
+            "operation": "Gini"
+          },
+          {
+            "label": "Diversity of Classes",
+            "operation": "Diversity"
+          }
+        ]
+      },
+      {
+        "label": "Analysis of Variance",
+        "children": [
+          {
+            "label": "One Way...",
+            "operation": "OneWay"
+          },
+          {
+            "label": "Two Way...",
+            "operation": "TwoWay"
+          },
+          {
+            "label": "Replicate Two Way...",
+            "operation": "ReplicateTwoWay"
+          },
+          {
+            "label": "Fully Nested...",
+            "operation": "TwoWayNested"
+          },
+          {
+            "label": "Latin Square...",
+            "operation": "LatinSquare"
+          },
+          {
+            "label": "Crossover...",
+            "operation": "Crossover"
+          },
+          {
+            "label": "Kruskal-Wallis",
+            "operation": "Kruskal"
+          },
+          {
+            "label": "Friedman",
+            "operation": "Friedman"
+          }
+        ]
+      },
+      {
+        "label": "Regression and Correlation",
+        "children": [
+          {
+            "label": "Simple Linear with Correlation...",
+            "operation": "SimpleLinearRegression"
+          },
+          {
+            "label": "Multiple Linear...",
+            "operation": "MultipleLinearRegression"
+          },
+          {
+            "label": "Grouped Linear",
+            "children": [
+              {
+                "label": "Linearity",
+                "operation": "GroupedLinearity"
+              },
+              {
+                "label": "Covariance",
+                "operation": "GroupedCovariance"
+              }
+            ]
+          },
+          {
+            "label": "Deming",
+            "operation": "MethodComparisonRegression"
+          },
+          {
+            "label": "Principal Components",
+            "children": [
+              {
+                "label": "Correlation...",
+                "operation": "PCRCorrelation"
+              },
+              {
+                "label": "Covariance...",
+                "operation": "PCRCovariance"
+              }
+            ]
+          },
+          {
+            "label": "Linearized Estimates...",
+            "operation": "LinearizedEstimates"
+          },
+          {
+            "label": "Polynomial...",
+            "operation": "PolynomialRegression"
+          },
+          {
+            "label": "Logistic...",
+            "operation": "LogisticRegression"
+          },
+          {
+            "label": "Conditional Logistic...",
+            "operation": "ConditionalLogisticRegression"
+          },
+          {
+            "label": "Poisson...",
+            "operation": "PoissonRegression"
+          },
+          {
+            "label": "Probit Analysis",
+            "children": [
+              {
+                "label": "Probit Model...",
+                "operation": "Probit"
+              },
+              {
+                "label": "Logit Model...",
+                "operation": "Logit"
+              }
+            ]
+          },
+          {
+            "label": "Kendall Rank Correlation",
+            "operation": "Kendall"
+          },
+          {
+            "label": "Spearman Rank Correlation",
+            "operation": "Spearman"
+          },
+          {
+            "label": "Nonparametric Linear Regression",
+            "operation": "NonparametricLinearRegression"
+          },
+          {
+            "label": "Cox (Proportional Hazards) Regression",
+            "operation": "CoxRegression"
+          }
+        ]
+      },
+      {
+        "label": "Agreement",
+        "children": [
+          {
+            "label": "Continuous (Intraclass)...",
+            "operation": "Agreement"
+          },
+          {
+            "label": "Categorical (Kappa)...",
+            "children": [
+              {
+                "label": "Worksheet (Individual Observations)",
+                "operation": "Kappa"
+              },
+              {
+                "label": "Screen (Summary Counts)",
+                "operation": "KappaScreen"
+              }
+            ]
+          },
+          {
+            "label": "Method Comparison Regression",
+            "operation": "MethodComparisonRegression"
+          },
+          {
+            "label": "Reliability Analysis...",
+            "operation": "PCRCovarianceNoFollowOns"
+          },
+          {
+            "label": "Universal R...",
+            "operation": "UniversalAgreement"
+          },
+          {
+            "label": "Compare Two R Agreement Measures...",
+            "operation": "UniversalRCompare"
+          }
+        ]
+      },
+      {
+        "label": "Survival Analysis",
+        "children": [
+          {
+            "label": "Kaplan-Meier",
+            "operation": "KaplanMeier"
+          },
+          {
+            "label": "Follow-up Life Table",
+            "operation": "FollowUpLifetable"
+          },
+          {
+            "label": "Abridged Life Table",
+            "operation": "AbridgedLifetable"
+          },
+          {
+            "label": "Log-rank and Wilcoxon",
+            "operation": "LogRank"
+          },
+          {
+            "label": "Wei-Lachin",
+            "operation": "WeiLachin"
+          },
+          {
+            "label": "Cox (Proportional Hazards) Regression",
+            "operation": "CoxRegression"
+          }
+        ]
+      },
+      {
+        "label": "Meta-analysis",
+        "children": [
+          {
+            "label": "Odds Ratio",
+            "operation": "Mantel"
+          },
+          {
+            "label": "Peto Odds Ratio",
+            "operation": "PetoMeta"
+          },
+          {
+            "label": "Relative Risk",
+            "operation": "RelativeRiskMeta"
+          },
+          {
+            "label": "Risk Difference",
+            "operation": "RiskDifference"
+          },
+          {
+            "label": "Incidence Rate Ratio",
+            "operation": "MetaIncidenceRateRatio"
+          },
+          {
+            "label": "Incidence Rate Difference",
+            "operation": "MetaIncidenceRateDifference"
+          },
+          {
+            "label": "Effect Size",
+            "operation": "Effect"
+          },
+          {
+            "label": "Proportion",
+            "operation": "ProportionMeta"
+          },
+          {
+            "label": "Correlation",
+            "operation": "MetaCorrelation"
+          },
+          {
+            "label": "Summary",
+            "operation": "MetaSummary"
+          },
+          {
+            "separator": true
+          },
+          {
+            "label": "Calculation Options...",
+            "operation": "MetaCalculationOptions"
+          },
+          {
+            "label": "Plot Options...",
+            "operation": "MetaPlotOptions"
+          }
+        ]
+      },
+      {
+        "label": "Crosstabs",
+        "operation": "Crosstabs"
+      },
+      {
+        "label": "Frequencies",
+        "operation": "Frequency"
+      },
+      {
+        "separator": true
+      },
+      {
+        "label": "Options",
+        "operation": "AnalysisOptions"
+      }
+    ]
+  },
+  "operations": {
+    "ExactSign": {
+      "id": "ExactSign",
+      "title": "Sign (binomial proportion) test",
+      "help": "Help/exact_tests_on_counts/sign.htm"
+    },
+    "ExactFisher": {
+      "id": "ExactFisher",
+      "title": "Fisher's exact test",
+      "help": "Help/exact_tests_on_counts/fisher_exact.htm"
+    },
+    "ExactFisherX": {
+      "id": "ExactFisherX",
+      "title": "Expanded Fisher-Irwin test",
+      "help": "Help/exact_tests_on_counts/fisher_exact_extended.htm"
+    },
+    "ExactFisherRbyC": {
+      "id": "ExactFisherRbyC",
+      "title": "R-by-c contingency table tests",
+      "help": "Help/chi_square_tests/rc.htm"
+    },
+    "ExactMcNamar": {
+      "id": "ExactMcNamar",
+      "title": "McNemar matched pairs 2-by-2 test",
+      "help": "Help/chi_square_tests/mcnemar.htm"
+    },
+    "ExactORCML": {
+      "id": "ExactORCML",
+      "title": "Odds ratio confidence interval from 2-by-2 table",
+      "help": "Help/exact_tests_on_counts/odds_ratio_ci.htm"
+    },
+    "RatePoissonCI": {
+      "id": "RatePoissonCI",
+      "title": "Poisson rate confidence interval",
+      "help": "Help/rates/poisson_rate_ci.htm"
+    },
+    "Chi2by2": {
+      "id": "Chi2by2",
+      "title": "Chi-square 2-by-2 table test",
+      "help": "Help/chi_square_tests/22.htm"
+    },
+    "Chi2byNWithoutTrend": {
+      "id": "Chi2byNWithoutTrend",
+      "title": "Chi-square 2-by-k independence test",
+      "help": "Help/chi_square_tests/2k.htm"
+    },
+    "Chi2byNLinearTrend": {
+      "id": "Chi2byNLinearTrend",
+      "title": "Chi-square 2-by-k test with trend scores 1 to k",
+      "help": "Help/chi_square_tests/2k.htm"
+    },
+    "Chi2byNWithTrend": {
+      "id": "Chi2byNWithTrend",
+      "title": "Chi-square 2-by-k test with user-defined scores for trend",
+      "help": "Help/chi_square_tests/2k.htm"
+    },
+    "ExactChiRbyC": {
+      "id": "ExactChiRbyC",
+      "title": "R-by-c contingency table tests",
+      "help": "Help/chi_square_tests/rc.htm"
+    },
+    "ExactChiRbyCScreen": {
+      "id": "ExactChiRbyCScreen",
+      "title": "R-by-c contingency table tests",
+      "help": "Help/chi_square_tests/rc.htm"
+    },
+    "ExactMcNamarChi": {
+      "id": "ExactMcNamarChi",
+      "title": "McNemar and exact matched pairs 2-by-2 test",
+      "help": "Help/chi_square_tests/mcnemar.htm"
+    },
+    "Kappa": {
+      "id": "Kappa",
+      "title": "Measures of inter-rater agreement over categorization",
+      "help": "Help/agreement/kappa.htm"
+    },
+    "KappaScreen": {
+      "id": "KappaScreen",
+      "title": "Measures of inter-rater agreement over categorization",
+      "help": "Help/agreement/kappa.htm"
+    },
+    "Mantel": {
+      "id": "Mantel",
+      "title": "Mantel-Haenszel test and odds ratio meta-analysis",
+      "help": "Help/meta_analysis/mh.htm"
+    },
+    "MantelHaenszelScreen": {
+      "id": "MantelHaenszelScreen",
+      "title": "Mantel-Haenszel test and odds ratio meta-analysis",
+      "help": "Help/meta_analysis/mh.htm"
+    },
+    "ChiWoolfWorksheet": {
+      "id": "ChiWoolfWorksheet",
+      "title": "Chi-square 2-by-2-by-k Woolf test",
+      "help": "Help/chi_square_tests/woolf.htm"
+    },
+    "ChiWoolfScreen": {
+      "id": "ChiWoolfScreen",
+      "title": "Chi-square 2-by-2-by-k Woolf test",
+      "help": "Help/chi_square_tests/woolf.htm"
+    },
+    "PropSingle": {
+      "id": "PropSingle",
+      "title": "Analysis of single proportions",
+      "help": "Help/proportions/single.htm"
+    },
+    "PropPairs": {
+      "id": "PropPairs",
+      "title": "Comparison of paired proportions",
+      "help": "Help/proportions/paired.htm"
+    },
+    "PropUnPaired": {
+      "id": "PropUnPaired",
+      "title": "Comparison of independent proportions",
+      "help": "Help/proportions/unpaired.htm"
+    },
+    "RateCompareTwo": {
+      "id": "RateCompareTwo",
+      "title": "Compare two crude rates",
+      "help": "Help/rates/compare_crude_incidence_rates.htm"
+    },
+    "Stdrr": {
+      "id": "Stdrr",
+      "title": "Standardize and compare two rates",
+      "help": "Help/rates/standardize_compare_two_rates.htm"
+    },
+    "RateDirect": {
+      "id": "RateDirect",
+      "title": "Direct standardization",
+      "help": "Help/rates/direct_standardization.htm"
+    },
+    "RateDirectScreen": {
+      "id": "RateDirectScreen",
+      "title": "Direct standardisation",
+      "help": "Help/rates/direct_standardization.htm"
+    },
+    "RateSmr": {
+      "id": "RateSmr",
+      "title": "Indirect standardization and SMR",
+      "help": "Help/rates/smr.htm"
+    },
+    "RateSmrScreen": {
+      "id": "RateSmrScreen",
+      "title": "Indirect standardization and SMR",
+      "help": "Help/rates/smr.htm"
+    },
+    "DistributionNormal": {
+      "id": "DistributionNormal",
+      "title": "Distribution: Normal",
+      "help": "Help/distributions/normal.htm"
+    },
+    "DistributionT": {
+      "id": "DistributionT",
+      "title": "Distribution: Student's t",
+      "help": "Help/distributions/t.htm"
+    },
+    "DistributionF": {
+      "id": "DistributionF",
+      "title": "Distribution: F",
+      "help": "Help/distributions/f.htm"
+    },
+    "DistributionChiSquare": {
+      "id": "DistributionChiSquare",
+      "title": "Distribution: Chi-Square",
+      "help": "Help/distributions/chisq.htm"
+    },
+    "DistributionQ": {
+      "id": "DistributionQ",
+      "title": "Distribution: Q",
+      "help": "Help/distributions/studentized_range.htm"
+    },
+    "DistributionBinomial": {
+      "id": "DistributionBinomial",
+      "title": "Distribution: Binomial",
+      "help": "Help/distributions/binomial.htm"
+    },
+    "DistributionPoisson": {
+      "id": "DistributionPoisson",
+      "title": "Distribution: Poisson",
+      "help": "Help/distributions/poisson.htm"
+    },
+    "DistributionKendall": {
+      "id": "DistributionKendall",
+      "title": "Distribution: Kendall",
+      "help": "Help/distributions/tau.htm"
+    },
+    "DistributionSpearman": {
+      "id": "DistributionSpearman",
+      "title": "Distribution: Spearman",
+      "help": "Help/distributions/rho.htm"
+    },
+    "DistributionNonCentralT": {
+      "id": "DistributionNonCentralT",
+      "title": "Distribution: Non-central t",
+      "help": "Help/distributions/non_central_t.htm"
+    },
+    "SizePaired": {
+      "id": "SizePaired",
+      "title": "Sample size for a paired or 1 sample t test",
+      "help": "Help/sample_size/paired_t_test.htm"
+    },
+    "SizeUnPaired": {
+      "id": "SizeUnPaired",
+      "title": "Sample size for an unpaired t test",
+      "help": "Help/sample_size/unpaired_t_test.htm"
+    },
+    "SizeIndCase": {
+      "id": "SizeIndCase",
+      "title": "Sample size for independent case-control study",
+      "help": "Help/sample_size/independent_case_control.htm"
+    },
+    "SizeIndProp": {
+      "id": "SizeIndProp",
+      "title": "Sample size for independent cohort study",
+      "help": "Help/sample_size/independent_cohort.htm"
+    },
+    "SizeMatchCase": {
+      "id": "SizeMatchCase",
+      "title": "Sample size for matched case-control study",
+      "help": "Help/sample_size/matched_case_control.htm"
+    },
+    "SizeMatchProp": {
+      "id": "SizeMatchProp",
+      "title": "Sample size for paired cohort study",
+      "help": "Help/sample_size/paired_cohort.htm"
+    },
+    "SizePopSurvey": {
+      "id": "SizePopSurvey",
+      "title": "Sample size for a population survey",
+      "help": "Help/sample_size/population_survey.htm"
+    },
+    "SizeSurvival": {
+      "id": "SizeSurvival",
+      "title": "Sample size for comparing survival times",
+      "help": "Help/sample_size/survival.htm"
+    },
+    "SizeCorrelation": {
+      "id": "SizeCorrelation",
+      "title": "Sample size for correlation study",
+      "help": "Help/sample_size/correlation.htm"
+    },
+    "RandomXY": {
+      "id": "RandomXY",
+      "title": "Randomise a number series from x to y",
+      "help": "Help/randomization/x_y_series.htm"
+    },
+    "RandomPairs": {
+      "id": "RandomPairs",
+      "title": "Intervention-control pair randomization",
+      "help": "Help/randomization/intervention_control_pairs.htm"
+    },
+    "RandomUnPaired": {
+      "id": "RandomUnPaired",
+      "title": "Random allocation into two independent groups",
+      "help": "Help/randomization/two_independent_groups.htm"
+    },
+    "RandomBlock": {
+      "id": "RandomBlock",
+      "title": "Block randomization",
+      "help": "Help/randomization/block.htm"
+    },
+    "Preferences": {
+      "id": "Preferences",
+      "title": "Random allocation guided by group preference",
+      "help": "Help/randomization/preference_group.htm"
+    },
+    "MiscRelRisk": {
+      "id": "MiscRelRisk",
+      "title": "Risk (prospective) calculation with summary counts",
+      "help": "Help/clinical_epidemiology/risk_prospective.htm"
+    },
+    "MiscRetroRisk": {
+      "id": "MiscRetroRisk",
+      "title": "Risk calculation (retrospective) with summary counts",
+      "help": "Help/clinical_epidemiology/risk_retrospective.htm"
+    },
+    "MiscDiagnostic": {
+      "id": "MiscDiagnostic",
+      "title": "Dignostic test performance analysis",
+      "help": "Help/clinical_epidemiology/diagnostic.htm"
+    },
+    "MiscLikely": {
+      "id": "MiscLikely",
+      "title": "Likelihood ratios",
+      "help": "Help/clinical_epidemiology/likelihood_ratios.htm"
+    },
+    "MiscNumberNeededToTreat": {
+      "id": "MiscNumberNeededToTreat",
+      "title": "Nunber needed to treat",
+      "help": "Help/clinical_epidemiology/nnt.htm"
+    },
+    "MiscFalseResult": {
+      "id": "MiscFalseResult",
+      "title": "Analysis of screening test error probabilities",
+      "help": "Help/clinical_epidemiology/screening_test.htm"
+    },
+    "ChildGrowth": {
+      "id": "ChildGrowth",
+      "title": "Anthropometric Z-Scores",
+      "help": "Help/data_preparation/growth_charts.htm"
+    },
+    "UnivariateSummary": {
+      "id": "UnivariateSummary",
+      "title": "Univariate descriptive summaries of variables",
+      "help": "Help/basic_descriptive_statistics/univariate_summary.htm"
+    },
+    "WeightedUnivariateSummary": {
+      "id": "WeightedUnivariateSummary",
+      "title": "Weighted univariate descriptive statistics",
+      "help": "Help/basic_descriptive_statistics/univariate_summary.htm"
+    },
+    "QuickSummary": {
+      "id": "QuickSummary",
+      "title": "Univariate descriptive summary statistics",
+      "help": "Help/basic_descriptive_statistics/quick_summary.htm"
+    },
+    "TimeSeriesSummary": {
+      "id": "TimeSeriesSummary",
+      "title": "Time Series Summary",
+      "help": "Help/basic_descriptive_statistics/time_series.htm"
+    },
+    "TPaired": {
+      "id": "TPaired",
+      "title": "Paired Student t test",
+      "help": "Help/parametric_methods/paired_t.htm"
+    },
+    "TSingle": {
+      "id": "TSingle",
+      "title": "Single sample Student t test",
+      "help": "Help/parametric_methods/single_sample_t.htm"
+    },
+    "TUnpaired": {
+      "id": "TUnpaired",
+      "title": "Unpaired Student t test",
+      "help": "Help/parametric_methods/unpaired_t.htm"
+    },
+    "TSingleSummary": {
+      "id": "TSingleSummary",
+      "title": "Single sample Student t test from summary statistics",
+      "help": "Help/parametric_methods/single_sample_t.htm"
+    },
+    "TUnpairedSummary": {
+      "id": "TUnpairedSummary",
+      "title": "Unpaired Student t test from summary statistics",
+      "help": "Help/parametric_methods/unpaired_t.htm"
+    },
+    "VarianceRatio": {
+      "id": "VarianceRatio",
+      "title": "F (Variance ratio) test",
+      "help": "Help/parametric_methods/f_variance_ratio.htm"
+    },
+    "ZSingle": {
+      "id": "ZSingle",
+      "title": "Single sample z(normal distribution) test",
+      "help": "Help/parametric_methods/z_normal.htm"
+    },
+    "ZUnpaired": {
+      "id": "ZUnpaired",
+      "title": "Unpaired two-sample z(normal distribution) test",
+      "help": "Help/parametric_methods/z_normal.htm"
+    },
+    "ReferenceRange": {
+      "id": "ReferenceRange",
+      "title": "Reference Range",
+      "help": "Help/parametric_methods/reference_range.htm"
+    },
+    "PoissonConfidenceInterval": {
+      "id": "PoissonConfidenceInterval",
+      "title": "Poisson rate confidence interval",
+      "help": "Help/parametric_methods/poisson_ci.htm"
+    },
+    "Normality": {
+      "id": "Normality",
+      "title": "Tests for signs of departure from normal distributions",
+      "help": "Help/parametric_methods/normality.htm"
+    },
+    "MannWhitney": {
+      "id": "MannWhitney",
+      "title": "Mann-Whitney U (two-sample Wilcoxon) test",
+      "help": "Help/nonparametric_methods/mann_whitney.htm"
+    },
+    "Wilcoxon": {
+      "id": "Wilcoxon",
+      "title": "Wilcoxon signed ranks test",
+      "help": "Help/nonparametric_methods/wilcoxon_signed_ranks.htm"
+    },
+    "Kendall": {
+      "id": "Kendall",
+      "title": "Kendall's rank correlation",
+      "help": "Help/nonparametric_methods/kendall_correlation.htm"
+    },
+    "Spearman": {
+      "id": "Spearman",
+      "title": "Spearman rank correlation",
+      "help": "Help/nonparametric_methods/spearman.htm"
+    },
+    "NonparametricLinearRegression": {
+      "id": "NonparametricLinearRegression",
+      "title": "Nonparametric linear regression",
+      "help": "Help/nonparametric_methods/nonparametric_regression.htm"
+    },
+    "LOESS": {
+      "id": "LOESS",
+      "title": "LOESS curve fitting",
+      "help": "Help/nonparametric_methods/loess.htm",
+      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and the separate R session tab are available."
+    },
+    "Cuzick": {
+      "id": "Cuzick",
+      "title": "Cuzick's test for trend",
+      "help": "Help/nonparametric_methods/cuzick.htm"
+    },
+    "Smirnov": {
+      "id": "Smirnov",
+      "title": "Smirnov two-sample test",
+      "help": "Help/nonparametric_methods/smirnov.htm"
+    },
+    "Quantile": {
+      "id": "Quantile",
+      "title": "Calculation of quantiles (centiles)",
+      "help": "Help/nonparametric_methods/quantile_ci.htm"
+    },
+    "Kruskal": {
+      "id": "Kruskal",
+      "title": "Kruskal-Wallis (nonparametric one-way ANOVA) test",
+      "help": "Help/nonparametric_methods/kruskal_wallis.htm"
+    },
+    "Friedman": {
+      "id": "Friedman",
+      "title": "Friedman and Cochran (nonparametric two-way ANOVA) tests",
+      "help": "Help/nonparametric_methods/friedman.htm"
+    },
+    "CochranQ": {
+      "id": "CochranQ",
+      "title": "Cochran Q test",
+      "help": "Help/nonparametric_methods/friedman.htm"
+    },
+    "ChiSquareGoodnessOfFit": {
+      "id": "ChiSquareGoodnessOfFit",
+      "title": "Chi-square goodness of fit test",
+      "help": "Help/nonparametric_methods/chisq_goodness_fit.htm"
+    },
+    "ROCPlot": {
+      "id": "ROCPlot",
+      "title": "ROC plot and area under the curve",
+      "help": "Help/nonparametric_methods/roc.htm"
+    },
+    "Gini": {
+      "id": "Gini",
+      "title": "Gini coefficient of inequality",
+      "help": "Help/nonparametric_methods/gini.htm"
+    },
+    "Diversity": {
+      "id": "Diversity",
+      "title": "Analysis of diversity of classes",
+      "help": "Help/nonparametric_methods/diversity.htm"
+    },
+    "OneWay": {
+      "id": "OneWay",
+      "title": "One way analysis of variance",
+      "help": "Help/analysis_of_variance/one_way.htm"
+    },
+    "TwoWay": {
+      "id": "TwoWay",
+      "title": "Two-way analysis of variance",
+      "help": "Help/analysis_of_variance/two_way.htm"
+    },
+    "ReplicateTwoWay": {
+      "id": "ReplicateTwoWay",
+      "title": "Two-way ANOVA with repeated observations",
+      "help": "Help/analysis_of_variance/two_way_replicate.htm"
+    },
+    "TwoWayNested": {
+      "id": "TwoWayNested",
+      "title": "Two way hierarchical (nested) analysis of variance",
+      "help": "Help/analysis_of_variance/nested.htm"
+    },
+    "LatinSquare": {
+      "id": "LatinSquare",
+      "title": "Latin square analysis",
+      "help": "Help/analysis_of_variance/latin_square.htm"
+    },
+    "Crossover": {
+      "id": "Crossover",
+      "title": "Crossover analysis of variance",
+      "help": "Help/analysis_of_variance/crossover.htm"
+    },
+    "SimpleLinearRegression": {
+      "id": "SimpleLinearRegression",
+      "title": "Simple linear regression and correlation",
+      "help": "Help/regression_and_correlation/simple_linear.htm"
+    },
+    "MultipleLinearRegression": {
+      "id": "MultipleLinearRegression",
+      "title": "Multiple (general) linear regression",
+      "help": "Help/regression_and_correlation/multiple_linear.htm"
+    },
+    "GroupedLinearity": {
+      "id": "GroupedLinearity",
+      "title": "Analysis of linearity",
+      "help": "Help/regression_and_correlation/grouped_linearity_replicates.htm"
+    },
+    "GroupedCovariance": {
+      "id": "GroupedCovariance",
+      "title": "Analysis of covariance",
+      "help": "Help/regression_and_correlation/grouped_covariance.htm"
+    },
+    "MethodComparisonRegression": {
+      "id": "MethodComparisonRegression",
+      "title": "Method comparison regression",
+      "help": "Help/agreement/mcr.htm",
+      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and the separate R session tab are available."
+    },
+    "PCRCorrelation": {
+      "id": "PCRCorrelation",
+      "title": "Principal components analysis: correlation",
+      "help": "Help/regression_and_correlation/pca.htm"
+    },
+    "PCRCovariance": {
+      "id": "PCRCovariance",
+      "title": "Principal components analysis: covariance",
+      "help": "Help/regression_and_correlation/pca.htm"
+    },
+    "LinearizedEstimates": {
+      "id": "LinearizedEstimates",
+      "title": "Simple linearized estimates regression",
+      "help": "Help/regression_and_correlation/linear_estimates.htm"
+    },
+    "PolynomialRegression": {
+      "id": "PolynomialRegression",
+      "title": "Polynomial regression",
+      "help": "Help/regression_and_correlation/polynomial.htm"
+    },
+    "LogisticRegression": {
+      "id": "LogisticRegression",
+      "title": "Logistic regression",
+      "help": "Help/regression_and_correlation/logistic.htm"
+    },
+    "ConditionalLogisticRegression": {
+      "id": "ConditionalLogisticRegression",
+      "title": "Conditional (matched pairs) logistic regression",
+      "help": "Help/regression_and_correlation/conditional_logistic.htm"
+    },
+    "PoissonRegression": {
+      "id": "PoissonRegression",
+      "title": "Poisson regression",
+      "help": "Help/regression_and_correlation/poisson.htm"
+    },
+    "Probit": {
+      "id": "Probit",
+      "title": "Probit (dose response) analysis",
+      "help": "Help/regression_and_correlation/probit_analysis.htm"
+    },
+    "Logit": {
+      "id": "Logit",
+      "title": "Probit analysis on a logit scale",
+      "help": "Help/regression_and_correlation/probit_analysis.htm"
+    },
+    "CoxRegression": {
+      "id": "CoxRegression",
+      "title": "Cox (proportional hazards) regression",
+      "help": "Help/survival_analysis/cox_regression.htm"
+    },
+    "Agreement": {
+      "id": "Agreement",
+      "title": "General analysis of agreement",
+      "help": "Help/agreement/intraclass.htm"
+    },
+    "PCRCovarianceNoFollowOns": {
+      "id": "PCRCovarianceNoFollowOns",
+      "title": "Principal components analysis: covariance",
+      "help": "Help/regression_and_correlation/pca.htm"
+    },
+    "UniversalAgreement": {
+      "id": "UniversalAgreement",
+      "title": "Universal agreement statistic R",
+      "help": "Help/agreement/universal_agreement.htm"
+    },
+    "UniversalRCompare": {
+      "id": "UniversalRCompare",
+      "title": "Comparison of two R agreement measures",
+      "help": "Help/agreement/universal_agreement.htm"
+    },
+    "KaplanMeier": {
+      "id": "KaplanMeier",
+      "title": "Kaplan-Meier product limit estimates of survival",
+      "help": "Help/survival_analysis/kaplan_meier.htm"
+    },
+    "FollowUpLifetable": {
+      "id": "FollowUpLifetable",
+      "title": "Follow-up life table",
+      "help": "Help/survival_analysis/follow_up_life_table.htm"
+    },
+    "AbridgedLifetable": {
+      "id": "AbridgedLifetable",
+      "title": "Abridged (classical) life table analysis",
+      "help": "Help/survival_analysis/abridged_life_table.htm"
+    },
+    "LogRank": {
+      "id": "LogRank",
+      "title": "Log-rank test",
+      "help": "Help/survival_analysis/logrank.htm"
+    },
+    "WeiLachin": {
+      "id": "WeiLachin",
+      "title": "Wei-Lachin test",
+      "help": "Help/survival_analysis/wei_lachin.htm"
+    },
+    "PetoMeta": {
+      "id": "PetoMeta",
+      "title": "Peto odds ratio meta-analysis",
+      "help": "Help/meta_analysis/peto.htm"
+    },
+    "RelativeRiskMeta": {
+      "id": "RelativeRiskMeta",
+      "title": "Meta-analysis of relative risks",
+      "help": "Help/meta_analysis/relative_risk.htm"
+    },
+    "RiskDifference": {
+      "id": "RiskDifference",
+      "title": "Meta-analysis of risk differences",
+      "help": "Help/meta_analysis/risk_difference.htm"
+    },
+    "MetaIncidenceRateRatio": {
+      "id": "MetaIncidenceRateRatio",
+      "title": "Meta-analysis of incidence rate ratios",
+      "help": "Help/meta_analysis/incidence_rate.htm"
+    },
+    "MetaIncidenceRateDifference": {
+      "id": "MetaIncidenceRateDifference",
+      "title": "Meta-analysis of incidence rate differences",
+      "help": "Help/meta_analysis/incidence_rate.htm"
+    },
+    "Effect": {
+      "id": "Effect",
+      "title": "Effect size meta-analysis",
+      "help": "Help/meta_analysis/effect_size.htm"
+    },
+    "ProportionMeta": {
+      "id": "ProportionMeta",
+      "title": "Meta-analysis of proportions",
+      "help": "Help/meta_analysis/proportion.htm"
+    },
+    "MetaCorrelation": {
+      "id": "MetaCorrelation",
+      "title": "Meta-analysis of correlation coefficients",
+      "help": "Help/meta_analysis/correlation.htm"
+    },
+    "MetaSummary": {
+      "id": "MetaSummary",
+      "title": "Meta-analyses from summary statistics",
+      "help": "Help/meta_analysis/summary.htm"
+    },
+    "MetaCalculationOptions": {
+      "id": "MetaCalculationOptions",
+      "title": "Meta-analysis calculation options",
+      "help": "Help/meta_analysis/options.htm"
+    },
+    "MetaPlotOptions": {
+      "id": "MetaPlotOptions",
+      "title": "Meta-analysis plot options",
+      "help": "Help/meta_analysis/options.htm"
+    },
+    "Crosstabs": {
+      "id": "Crosstabs",
+      "title": "Cross-tabulate variables and analyse the tables",
+      "help": "Help/basic_descriptive_statistics/crosstabs.htm"
+    },
+    "Frequency": {
+      "id": "Frequency",
+      "title": "Frequency (counts) analysis",
+      "help": "Help/basic_descriptive_statistics/frequencies.htm"
+    },
+    "AnalysisOptions": {
+      "id": "AnalysisOptions",
+      "title": "Analysis options",
+      "help": "Help/menus/analysis_options.htm"
+    }
+  },
+  "sourceSHA256": "ef91d33e1cd058e800dca63ef0248fd7ebcb1b21fb22d85ad9f7e46d4397ba80"
+}

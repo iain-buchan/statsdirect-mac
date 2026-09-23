@@ -51,6 +51,7 @@ export class WorkbookStore {
     this.sheets = sheets;
     this.name = workbook.name;
     this.imported = true;
+    this.backed = !!workbook.id;
     this.formulaCount = workbook.formulaCount;
     this.edited = false;
     return Math.max(0, sheets.findIndex(s => !s.hidden));
@@ -76,7 +77,7 @@ export class WorkbookStore {
           const [col, row] = key.split(',').map(Number),
             text = store.get(col, row);
           const original = store.metadata.get(key);
-          if (this.imported && (original?.text ?? '') === text) continue;
+          if (this.imported && this.backed && (original?.text ?? '') === text) continue;
           cells.push({
             col,
             row: this.imported ? row : row + 1,

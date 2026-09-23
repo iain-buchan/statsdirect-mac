@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" label="" xmlns="http://www.statsdirect.com/schemas/Menu.xsd">
+  <sub-items>
+    <menu-item label="&amp;Data">
+      <help chm-id="1064" />
+      <sub-items>
+        <menu-item label="&amp;Generating">
+          <help chm-id="1129" />
+          <sub-items>
+            <menu-item label="&amp;Fill Series" operation="FillSeries" />
+            <menu-item label="&amp;Random Numbers">
+              <help chm-id="1258" />
+              <sub-items>
+                <menu-item label="&amp;Uniform 0 to 1" operation="RndUniform01" />
+                <menu-item label="Uniform &amp;A to B" operation="RndUniformAB" />
+                <menu-item label="&amp;Normal" operation="RndNormal" />
+                <menu-item label="&amp;Lognormal" operation="RndLogNormal" />
+                <menu-item label="B&amp;inomial" operation="RndBinomial" />
+                <menu-item label="&amp;Poisson" operation="RndPoisson" />
+                <menu-item label="&amp;Gamma" operation="RndGamma" />
+                <menu-item label="&amp;Exponential" operation="RndExponential" />
+                <menu-item label="&amp;Chi-square" operation="RndChiSquare" />
+                <menu-item label="&amp;F (Variance Ratio)" operation="RndF" />
+                <menu-item label="&amp;Student's t" operation="RndT" />
+                <menu-item label="L&amp;ogistic" operation="RndLogit" />
+                <menu-item label="G&amp;eometric" operation="RndGeometric" />
+                <menu-item label="Negati&amp;ve Binomial" operation="RndNegativeBinomial" />
+                <menu-item label="Cauch&amp;y" operation="RndCauchy" />
+                <menu-item label="&amp;Weibull" operation="RndWeibull" />
+                <menu-item label="&amp;Beta" operation="RndBeta" />
+              </sub-items>
+            </menu-item>
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Cleaning and Encoding">
+          <help chm-id="1377" />
+          <sub-items>
+            <menu-item label="&amp;Search and Replace (Basic)" operation="SearchAndReplace" />
+            <menu-item label="&amp;Search and Replace (Advanced)" operation="SearchAndReplaceAdvanced" />
+            <menu-item label="Clear &amp;Missing Data" operation="ClearMissing" />
+            <menu-item label="&amp;Text to Numbers" operation="TextCode" />
+            <menu-item label="&amp;Date and Time Intervals" operation="Dates" />
+            <menu-item label="&amp;Categorise" operation="GroupCategorise" />
+            <menu-item label="&amp;Extract Subset of Data" operation="GroupExtract" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Transforming and Deriving">
+          <help chm-id="1379" />
+          <sub-items>
+            <menu-item label="Common &amp;Transforms">
+              <help chm-id="1091" />
+              <sub-items>
+                <menu-item label="&amp;Log (Natural)" operation="TransformLog" />
+                <menu-item label="Log (Base &amp;10)" operation="TransformLog10" />
+                <menu-item label="Lo&amp;git" operation="TransformLogit" />
+                <menu-item label="&amp;Probit" operation="TransformProbit" />
+                <menu-item label="&amp;Angular" operation="TransformAngular" />
+                <menu-item label="&amp;Cumulative" operation="TransformCumulate" />
+                <menu-item label="La&amp;dder of Powers" operation="LadderPowers" />
+                <menu-item label="&amp;Empirical Cumulative Distribution" operation="TransformECDF" />
+                <menu-item label="&amp;Z Score" operation="TransformZSD" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="User-defined &amp;Function" operation="ApplyFunction" />
+            <menu-item label="&amp;Pairwise">
+              <help chm-id="1078" />
+              <sub-items>
+                <menu-item label="&amp;Differences" operation="PairDifferences" />
+                <menu-item label="&amp;Means" operation="PairMeans" />
+                <menu-item label="&amp;Slopes" operation="PairSlopes" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;Normal Scores" operation="Normal" />
+            <menu-item label="&amp;Standardization" operation="Standardize" />
+            <menu-item label="&amp;Ranks" operation="Rank" />
+            <menu-item label="S&amp;ummary" operation="UnivariateSummaryToWorksheetOnly" />
+            <menu-item label="&amp;Convert Units">
+              <sub-items>
+                <menu-item label="&amp;Worksheet Data" operation="ConvertUnits"/>
+                <menu-item label="&amp;Screen Data" operation="ConvertUnitsScreen"/>
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;Anthropometric Standardization" operation="ChildGrowth" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Organizing">
+          <help chm-id="1114" />
+          <sub-items>
+            <menu-item label="&amp;Sort">
+              <help chm-id="1087" />
+              <sub-items>
+                <menu-item label="&amp;Manipulate Worksheet" operation="SortInPlace" />
+                <menu-item label="&amp;Create Sorted Variables" operation="Sort" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;Filter Worksheet Rows" operation="ToggleFilters" />
+            <menu-item label="R&amp;otate Data Block" operation="Rotate" />
+            <menu-item label="&amp;Combine Groups" operation="Combine" />
+            <menu-item label="&amp;Split Combined Groups" operation="GroupSplit" />
+            <menu-item label="Dummy &amp;Variables" operation="DummyVariables" />
+            <menu-item label="&amp;Extract Subset of Data" operation="GroupExtract" />
+            <menu-item label="&amp;Tabulate" operation="Tabulate" />
+            <menu-item label="&amp;Detabulate" operation="Detabulate" />
+            <menu-item label="E&amp;xpand" operation="ExpandFrequencies" />
+            <menu-item label="Co&amp;ntract" operation="ContractFrequencies" />
+          </sub-items>
+        </menu-item>
+      </sub-items>
+    </menu-item>
+    <menu-item label="&amp;Analysis">
+      <help chm-id="1016" />
+      <sub-items>
+        <menu-item label="&amp;Exact Tests on Counts">
+          <help chm-id="1107" />
+          <sub-items>
+            <menu-item label="&amp;Sign" operation="ExactSign" />
+            <menu-item label="&amp;Fisher" operation="ExactFisher" />
+            <menu-item label="&amp;Expanded Fisher" operation="ExactFisherX" />
+            <menu-item label="&amp;R by C Fisher" operation="ExactFisherRbyC" />
+            <menu-item label="&amp;Matched Pairs" operation="ExactMcNamar" />
+            <menu-item label="&amp;Odds Ratio Confidence Interval" operation="ExactORCML" />
+            <menu-item label="&amp;Poisson Rate Confidence Interval" operation="RatePoissonCI" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="C&amp;hi-square Tests">
+          <help chm-id="1050" />
+          <sub-items>
+            <menu-item label="&amp;2 by 2" operation="Chi2by2" />
+            <menu-item label="2 by &amp;K">
+              <help chm-id="1049" />
+              <sub-items>
+                <menu-item label="&amp;Without Trend" operation="Chi2byNWithoutTrend" />
+                <menu-item label="&amp;Trend Scores 1 to K" operation="Chi2byNLinearTrend" />
+                <menu-item label="&amp;Enter Trend Scores" operation="Chi2byNWithTrend" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;R by C">
+              <help chm-id="1055" />
+              <sub-items>
+                <menu-item label="&amp;Worksheet Data" operation="ExactChiRbyC" />
+                <menu-item label="&amp;Screen Data" operation="ExactChiRbyCScreen" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;McNemar" operation="ExactMcNamarChi" />
+            <menu-item label="Kappa and Ma&amp;xwell">
+              <help chm-id="1003" />
+              <sub-items>
+                <menu-item label="&amp;Worksheet (Individual Observations)" operation="Kappa" />
+                <menu-item label="&amp;Screen (Summary Counts)" operation="KappaScreen" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="Mantel-&amp;Haenszel">
+              <help chm-id="1167" />
+              <sub-items>
+                <menu-item label="&amp;Worksheet Data" operation="Mantel" />
+                <menu-item label="&amp;Screen Data" operation="MantelHaenszelScreen" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;Woolf">
+              <help chm-id="1056" />
+              <sub-items>
+                <menu-item label="&amp;Worksheet Data" operation="ChiWoolfWorksheet" />
+                <menu-item label="&amp;Screen Data" operation="ChiWoolfScreen" />
+              </sub-items>
+            </menu-item>
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Proportions">
+          <help chm-id="1248" />
+          <sub-items>
+            <menu-item label="&amp;Single" operation="PropSingle" />
+            <menu-item label="&amp;Paired" operation="PropPairs" />
+            <menu-item label="&amp;Two Independent" operation="PropUnPaired" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="Ra&amp;tes">
+          <help chm-id="1264" />
+          <sub-items>
+            <menu-item label="&amp;Poisson Rate Confidence Interval" operation="RatePoissonCI" />
+            <menu-item label="&amp;Compare Two Crude Rates" operation="RateCompareTwo" />
+            <menu-item label="&amp;Standardize and Compare Two Rates" operation="Stdrr" />
+            <menu-item label="&amp;Direct Standardization">
+              <help chm-id="1260" />
+              <sub-items>
+                <menu-item label="&amp;Worksheet Data" operation="RateDirect" />
+                <menu-item label="&amp;Screen Data" operation="RateDirectScreen" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;Indirect Standardization and SMR">
+              <help chm-id="1265" />
+              <sub-items>
+                <menu-item label="&amp;Worksheet Data" operation="RateSmr" />
+                <menu-item label="&amp;Screen Data" operation="RateSmrScreen" />
+              </sub-items>
+            </menu-item>
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Distributions">
+          <help chm-id="1097" />
+          <sub-items>
+            <menu-item label="&amp;Normal" operation="DistributionNormal" />
+            <menu-item label="Student's &amp;t" operation="DistributionT" />
+            <menu-item label="&amp;F (Variance Ratio)" operation="DistributionF" />
+            <menu-item label="&amp;Chi-square" operation="DistributionChiSquare" />
+            <menu-item label="Studentised Range (&amp;Q)" operation="DistributionQ" />
+            <menu-item label="&amp;Binomial" operation="DistributionBinomial" />
+            <menu-item label="&amp;Poisson" operation="DistributionPoisson" />
+            <menu-item label="&amp;Kendall's tau" operation="DistributionKendall" />
+            <menu-item label="&amp;Spearman's rho" operation="DistributionSpearman" />
+            <menu-item label="N&amp;on-central t" operation="DistributionNonCentralT" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="Sample S&amp;ize">
+          <help chm-id="1311" />
+          <sub-items>
+            <menu-item label="Paired and 1 Sample &amp;t" operation="SizePaired" />
+            <menu-item label="&amp;Unpaired t" operation="SizeUnPaired" />
+            <menu-item label="&amp;Independent Case-control" operation="SizeIndCase" />
+            <menu-item label="Independent Coho&amp;rt" operation="SizeIndProp" />
+            <menu-item label="&amp;Matched Case-control" operation="SizeMatchCase" />
+            <menu-item label="&amp;Paired Cohort" operation="SizeMatchProp" />
+            <menu-item label="Population &amp;Survey" operation="SizePopSurvey" />
+            <menu-item label="Sur&amp;vival Times" operation="SizeSurvival" />
+            <menu-item label="&amp;Correlation" operation="SizeCorrelation" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="Randomi&amp;zation">
+          <help chm-id="1254" />
+          <sub-items>
+            <menu-item label="&amp;Series X to Y" operation="RandomXY" />
+            <menu-item label="&amp;Intervention-control Pairs" operation="RandomPairs" />
+            <menu-item label="&amp;Two Independent Groups" operation="RandomUnPaired" />
+            <menu-item label="&amp;Blocks" operation="RandomBlock" />
+            <menu-item label="&amp;Preference Allocation" operation="Preferences" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Clinical Epidemiology">
+          <help chm-id="1217" />
+          <sub-items>
+            <menu-item label="&amp;Risk (Prospective)" operation="MiscRelRisk" />
+            <menu-item label="Risk (R&amp;etrospective)" operation="MiscRetroRisk" />
+            <menu-item label="&amp;Diagnostic Test (2 by 2)" operation="MiscDiagnostic" />
+            <menu-item label="&amp;Likelihood Ratios (2 by k)" operation="MiscLikely" />
+            <menu-item label="&amp;Number Needed to Treat" operation="MiscNumberNeededToTreat" />
+            <menu-item label="&amp;Kappa and Maxwell">
+              <help chm-id="1003" />
+              <sub-items>
+                <menu-item label="&amp;Worksheet (Individual Observations)" operation="Kappa" />
+                <menu-item label="&amp;Screen (Summary Counts)" operation="KappaScreen" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="Screening &amp;Test Errors" operation="MiscFalseResult" />
+            <menu-item label="&amp;Growth Charts" operation="ChildGrowth" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="-" />
+        <menu-item label="&amp;Descriptive">
+          <help chm-id="1043" />
+          <sub-items>
+            <menu-item label="&amp;Univariate Summary" operation="UnivariateSummary" />
+            <menu-item label="&amp;Weighted Univariate Summary" operation="WeightedUnivariateSummary" />
+            <menu-item label="&amp;Quick Univariate Summary" operation="QuickSummary" />
+            <menu-item label="&amp;Time Series Summary" operation="TimeSeriesSummary" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="P&amp;arametric">
+          <help chm-id="1237" />
+          <sub-items>
+            <menu-item label="&amp;Paired t" operation="TPaired" />
+            <menu-item label="&amp;Single Sample t" operation="TSingle" />
+            <menu-item label="&amp;Unpaired t" operation="TUnpaired" />
+            <menu-item label="S&amp;ummary Data t">
+              <help chm-id="1242" />
+              <sub-items>
+                <menu-item label="&amp;Single Sample" operation="TSingleSummary" />
+                <menu-item label="&amp;Unpaired" operation="TUnpairedSummary" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;F (Variance Ratio)" operation="VarianceRatio" />
+            <menu-item label="Single Sample &amp;z" operation="ZSingle" />
+            <menu-item label="U&amp;npaired z" operation="ZUnpaired" />
+            <menu-item label="&amp;Reference Range" operation="ReferenceRange" />
+            <menu-item label="Poisson &amp;Confidence Interval" operation="PoissonConfidenceInterval" />
+            <menu-item label="&amp;Normality" operation="Normality" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Nonparametric">
+          <help chm-id="1229" />
+          <sub-items>
+            <menu-item label="&amp;Mann-Whitney" operation="MannWhitney" />
+            <menu-item label="&amp;Wilcoxon Signed Ranks" operation="Wilcoxon" />
+            <menu-item label="&amp;Kendall Rank Correlation" operation="Kendall" />
+            <menu-item label="&amp;Spearman Rank Correlation" operation="Spearman" />
+            <menu-item label="&amp;Nonparametric Linear Regression" operation="NonparametricLinearRegression" />
+            <menu-item label="&amp;LOESS Curve Fitting" operation="LOESS" />
+            <menu-item label="&amp;Cuzick Trend" operation="Cuzick" />
+            <menu-item label="Sm&amp;irnov Two Sample" operation="Smirnov" />
+            <menu-item label="&amp;Quantile Confidence Interval" operation = "Quantile" />
+            <menu-item label="K&amp;ruskal-Wallis" operation = "Kruskal" />
+            <menu-item label="&amp;Friedman" operation = "Friedman" />
+            <menu-item label="&amp;Cochran Q" operation = "CochranQ" />
+            <menu-item label="C&amp;hi-square Goodness of Fit" operation="ChiSquareGoodnessOfFit" />
+            <menu-item label="R&amp;OC Curve Analysis" operation="ROCPlot" />
+            <menu-item label="&amp;Gini Coefficient of Inequality" operation="Gini" />
+            <menu-item label="&amp;Diversity of Classes" operation="Diversity" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Analysis of Variance">
+          <help chm-id="1005" />
+          <sub-items>
+            <menu-item label="&amp;One Way..." operation="OneWay" />
+            <menu-item label="&amp;Two Way..." operation="TwoWay" />
+            <menu-item label="&amp;Replicate Two Way..." operation="ReplicateTwoWay" />
+            <menu-item label="&amp;Fully Nested..." operation="TwoWayNested" />
+            <menu-item label="&amp;Latin Square..." operation="LatinSquare" />
+            <menu-item label="&amp;Crossover..." operation="Crossover" />
+            <menu-item label="&amp;Kruskal-Wallis" operation = "Kruskal" />
+            <menu-item label="Fr&amp;iedman" operation = "Friedman" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Regression and Correlation">
+          <help chm-id="1285" />
+          <sub-items>
+            <menu-item label="&amp;Simple Linear with Correlation..." operation="SimpleLinearRegression" />
+            <menu-item label="&amp;Multiple Linear..." operation="MultipleLinearRegression" />
+            <menu-item label="&amp;Grouped Linear">
+              <help chm-id="1273" />
+              <sub-items>
+                <menu-item label="&amp;Linearity" operation="GroupedLinearity" />
+                <menu-item label="&amp;Covariance" operation="GroupedCovariance" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;Deming" operation="MethodComparisonRegression" />
+            <menu-item label="&amp;Principal Components">
+              <help chm-id="1280" />
+              <sub-items>
+                <menu-item label="&amp;Correlation..." operation="PCRCorrelation" />
+                <menu-item label="C&amp;ovariance..." operation="PCRCovariance" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;Linearized Estimates..." operation="LinearizedEstimates" />
+            <menu-item label="P&amp;olynomial..." operation="PolynomialRegression" />
+            <menu-item label="Lo&amp;gistic..." operation="LogisticRegression" />
+            <menu-item label="&amp;Conditional Logistic..." operation="ConditionalLogisticRegression" />
+            <menu-item label="Po&amp;isson..." operation="PoissonRegression" />
+            <menu-item label="P&amp;robit Analysis">
+              <help chm-id="1283" />
+              <sub-items>
+                <menu-item label="&amp;Probit Model..." operation="Probit" />
+                <menu-item label="&amp;Logit Model..." operation="Logit" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;Kendall Rank Correlation" operation="Kendall" />
+            <menu-item label="&amp;Spearman Rank Correlation" operation="Spearman" />
+            <menu-item label="&amp;Nonparametric Linear Regression" operation="NonparametricLinearRegression" />
+            <menu-item label="&amp;Cox (Proportional Hazards) Regression" operation="CoxRegression" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="A&amp;greement">
+          <help chm-id="1001" />
+          <sub-items>
+            <menu-item label="&amp;Continuous (Intraclass)..." operation="Agreement" />
+            <menu-item label="C&amp;ategorical (Kappa)...">
+              <help chm-id="1003" />
+              <sub-items>
+                <menu-item label="&amp;Worksheet (Individual Observations)" operation="Kappa" />
+                <menu-item label="&amp;Screen (Summary Counts)" operation="KappaScreen" />
+              </sub-items>
+            </menu-item>
+            <menu-item label="&amp;Method Comparison Regression" operation="MethodComparisonRegression" />
+            <menu-item label="&amp;Reliability Analysis..." operation="PCRCovarianceNoFollowOns" />
+            <menu-item label="&amp;Universal R..." operation="UniversalAgreement" />
+            <menu-item label="C&amp;ompare Two R Agreement Measures..." operation="UniversalRCompare" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Survival Analysis">
+          <help chm-id="1326" />
+          <sub-items>
+            <menu-item label="&amp;Kaplan-Meier" operation="KaplanMeier" />
+            <menu-item label="&amp;Follow-up Life Table" operation="FollowUpLifetable" />
+            <menu-item label="&amp;Abridged Life Table" operation="AbridgedLifetable" />
+            <menu-item label="&amp;Log-rank and Wilcoxon" operation="LogRank" />
+            <menu-item label="&amp;Wei-Lachin" operation="WeiLachin" />
+            <menu-item label="&amp;Cox (Proportional Hazards) Regression" operation="CoxRegression" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Meta-analysis">
+          <help chm-id="1165" />
+          <sub-items>
+            <menu-item label="&amp;Odds Ratio" operation="Mantel" />
+            <menu-item label="&amp;Peto Odds Ratio" operation="PetoMeta" />
+            <menu-item label="&amp;Relative Risk" operation="RelativeRiskMeta" />
+            <menu-item label="R&amp;isk Difference" operation="RiskDifference" />
+            <menu-item label="&amp;Incidence Rate Ratio" operation="MetaIncidenceRateRatio" />
+            <menu-item label="&amp;Incidence Rate Difference" operation="MetaIncidenceRateDifference" />
+            <menu-item label="&amp;Effect Size" operation="Effect" />
+            <menu-item label="Pr&amp;oportion" operation="ProportionMeta" />
+            <menu-item label="&amp;Correlation" operation="MetaCorrelation" />
+            <menu-item label="&amp;Summary" operation="MetaSummary" />
+            <menu-item label="-" />
+            <menu-item label="Calculation O&amp;ptions..." operation="MetaCalculationOptions" />
+            <menu-item label="P&amp;lot Options..." operation="MetaPlotOptions" />
+          </sub-items>
+        </menu-item>
+        <menu-item label="&amp;Crosstabs" operation="Crosstabs"/>
+        <menu-item label="&amp;Frequencies" operation="Frequency"/>
+        <menu-item label="-" />
+        <menu-item label="Options" operation="AnalysisOptions"/>
+      </sub-items>
+    </menu-item>
+    <menu-item label="&amp;Graphics">
+      <help chm-id="1122" />
+      <sub-items>
+        <menu-item label="&amp;Bar or Column (Value)" operation="BarPlot" />
+        <menu-item label="&amp;Bar or Column (Frequency)" operation="BarPlotFrequency" />
+        <menu-item label="B&amp;ox and Whisker" operation="BoxWhiskerPlot" />
+        <menu-item label="Bo&amp;x and Whisker (Text)" operation="BoxWhiskerPlotText" />
+        <menu-item label="&amp;Control" operation="ControlPlot" />
+        <menu-item label="&amp;Error Bars" operation="ErrorPlot" />
+        <menu-item label="&amp;Forest (Meta-analysis)" operation="CochranePlot" />
+        <menu-item label="&amp;Histogram" operation="HistogramPlot" />
+        <menu-item label="H&amp;istogram (Text)" operation="HistogramPlotText" />
+        <menu-item label="&amp;Ladder" operation="LadderPlot" />
+        <menu-item label="Lin&amp;e" operation="LinePlot" />
+        <menu-item label="&amp;Normal" operation="NormalPlot" />
+        <menu-item label="&amp;Population Pyramid" operation="PyramidPlot" />
+        <menu-item label="&amp;ROC" operation="ROCPlot" />
+        <menu-item label="&amp;Scatter" operation="ScatterPlot" />
+        <menu-item label="Sca&amp;tter (Text)" operation="ScatterPlotText" />
+        <menu-item label="S&amp;pread" operation="SpreadPlot" />
+        <menu-item label="S&amp;urvival" operation="SurvivalPlot" />
+        <menu-item label="-" />
+        <menu-item label="&amp;Options..." operation="GraphicsOptions" />
+      </sub-items>
+    </menu-item>
+  </sub-items>
+</menu>

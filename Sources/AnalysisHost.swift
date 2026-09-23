@@ -64,12 +64,12 @@ extension Viewer {
             if case .failure(let error) = result { self.status.stringValue = "Cancellation signal failed: " + error.localizedDescription }
         }
     }
-    func analysisRequest(_ request: [String: Any], completion: @escaping (Result<[String: Any], Error>) -> Void) {
+    func analysisRequest(_ request: [String: Any], entry: String = "statsdirect_analysis", completion: @escaping (Result<[String: Any], Error>) -> Void) {
         do {
             let data = try JSONSerialization.data(withJSONObject: request)
             let json = String(decoding: data, as: UTF8.self)
             if libraryHandle == nil { libraryHandle = dlopen(Bundle.main.bundleURL.appendingPathComponent("Contents/Frameworks/StatsDirectEngine.dylib").path, RTLD_NOW | RTLD_LOCAL) }
-            guard let handle = libraryHandle, let symbol = dlsym(handle, "statsdirect_analysis"), let freeSymbol = dlsym(handle, "statsdirect_analysis_free") else {
+            guard let handle = libraryHandle, let symbol = dlsym(handle, entry), let freeSymbol = dlsym(handle, entry + "_free") else {
                 throw NSError(domain: "StatsDirect.Analysis", code: 1, userInfo: [NSLocalizedDescriptionKey: "The analysis host could not be loaded. Rebuild the viewer."])
             }
             let invoke = unsafeBitCast(symbol, to: AnalysisFunction.self), free = unsafeBitCast(freeSymbol, to: AnalysisFreeFunction.self)
@@ -80,7 +80,7 @@ extension Viewer {
                     guard let pointer = json.withCString({ invoke($0) }) else { throw CocoaError(.executableRuntimeMismatch) }
                     let response = String(cString: pointer); free(pointer)
                     guard let output = try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any] else { throw CocoaError(.fileReadCorruptFile) }
-                    if let error = output["error"] as? String { throw NSError(domain: "StatsDirect.Analysis", code: 2, userInfo: [NSLocalizedDescriptionKey: error]) }
+                    if let error = output["error"] as? String, output["state"] == nil { throw NSError(domain: "StatsDirect.Analysis", code: 2, userInfo: [NSLocalizedDescriptionKey: error]) }
                     result = .success(output)
                 } catch { result = .failure(error) }
                 DispatchQueue.main.async { completion(result) }

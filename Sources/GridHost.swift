@@ -7,6 +7,7 @@ struct GridPairedData: Decodable {
     let after: [Double?]
     let labels: [String]
     let range: String
+    let agreement: Bool?
 }
 
 extension Viewer: WKScriptMessageHandler {
@@ -15,7 +16,8 @@ extension Viewer: WKScriptMessageHandler {
         newDocument(kind: "grid", title: "Data grid · PEFR", url: root.appendingPathComponent("Grid/index.html"))
     }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame, let web = message.webView, let doc = document(for: web), doc.kind == "grid",
+        if message.name == "statsDirectAnalysis" { handleAnalysis(message); return }
+        guard message.name == "statsDirectGrid", message.frameInfo.isMainFrame, let web = message.webView, let doc = document(for: web), doc.kind == "grid",
               web.url?.standardizedFileURL == root.appendingPathComponent("Grid/index.html").standardizedFileURL,
               let body = message.body as? [String: Any], let action = body["action"] as? String else { return }
         switch action {
@@ -60,7 +62,7 @@ extension Viewer: WKScriptMessageHandler {
                 self.endRun(); self.showError("The selected grid columns could not be read."); return
             }
             self.status.stringValue = "Running paired t test from the data grid…"
-            self.calculate(before: input.before.map { $0 ?? .nan }, after: input.after.map { $0 ?? .nan }, labels: input.labels, source: "Data grid · " + input.range)
+            self.calculate(before: input.before.map { $0 ?? .nan }, after: input.after.map { $0 ?? .nan }, labels: input.labels, source: "Data grid · " + input.range, agreement: input.agreement ?? false)
         }
     }
     func saveGrid(_ doc: Document) {

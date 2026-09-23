@@ -14,6 +14,18 @@ For a paired test, select two column headers or a two-column range; otherwise th
 
 This is an editable grid prototype. Save Excel before closing to retain all worksheet edits. Live formula editing and large-sheet performance work remain. Implementation, build instructions and limits are in [Grid/README.md](Grid/README.md).
 
+## Chi-square screen-data form
+
+Choose **Analysis → Chi-square → R by C → Screen Data…** (⌘4). The form embeds Glide in place of the Windows form's SpreadsheetGear control and runs the original `ExactChiRbyCScreen` operation. Resize the table, edit counts, or paste a rectangle without headings/totals. Enter zero explicitly; blank, negative and fractional counts are rejected. Undo/Redo retains table dimensions, counts and category labels. **Save Table…** exports the labelled count table as CSV, not analysis settings.
+
+**Load help example** fills the 4 × 3 grief/support table (66 observations) and enables expected counts and cell contributions. **Run analysis** opens a new report tab while retaining the form. The original engine provides Pearson and G tests, exact testing, percentages, expected counts, cell chi-square, trend scores and optional Monte Carlo simulation. Custom scores are supplied through the engine's existing amendment prompt. A fixed simulation seed reproduces results. Method help opens separately.
+
+The prototype accepts 2–200 categories on each axis, at most 2,500 cells and a total count up to one billion; every row and column needs a positive total. Simulation accepts up to ten million iterations and five million observations. The original engine skips exact testing above 100,000 observations. Cancellation takes effect at engine checkpoints; an exact-test step must finish first. Cancelled calculations never publish partial reports.
+
+## Paired agreement chart
+
+Check **Agreement analysis (SVG)** beside the paired-column selectors, then run the paired t test. The older PEFR example form has the same option. The report includes the original engine's limits of agreement and its `TiesChartRenderer` SVG plot: paired means on the horizontal axis, differences on the vertical axis, the mean-difference line and both limits. **File → Save Chart as SVG…** exports the vector chart from the selected report; PDF/Print retain it in the report. The verified example is `Content/Examples/paired-agreement.svg`.
+
 ## Excel workbooks
 
 **Open Excel…** (File menu, ⌘O) opens an `.xlsx` workbook in a new data tab. The buttons above the grid select its worksheets. **Open test.xlsx** loads the bundled StatsDirect example with all 11 worksheets. Its original filename is `test.xlsx`, not `text.xlsx`.
@@ -44,7 +56,7 @@ See [FullEngine/README.md](FullEngine/README.md) for provenance and exact platfo
 
 ## Scope
 
-The visible analysis menu currently runs the paired t test only. The complete numerical source is built, but only the two populated upstream operation tests and the paired viewer path have been exercised. Chart rendering, Windows file dialogs, the engine’s R-operation integration and RTF/Office export still need Mac host work. This is an ad-hoc signed local prototype, not a notarized distribution.
+The visible analysis menu runs paired t (including the agreement SVG) and chi-square r × c screen data. The complete numerical source is built; verification covers the two populated upstream operation tests and these viewer paths. Other chart types, Windows file dialogs, the engine’s R-operation integration and RTF/Office export still need Mac host work. This is an ad-hoc signed local prototype, not a notarized distribution.
 
 ## Build
 

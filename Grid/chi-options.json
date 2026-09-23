@@ -1,0 +1,37 @@
+[
+  {
+    "name": "doExact",
+    "prompt": "Try Fisher-Freeman-Halton exact test",
+    "default": true
+  },
+  {
+    "name": "show_pc",
+    "prompt": "Show percentages",
+    "default": true
+  },
+  {
+    "name": "xp",
+    "prompt": "Show expected counts",
+    "default": false
+  },
+  {
+    "name": "cs",
+    "prompt": "Show cell chi-square",
+    "default": false
+  },
+  {
+    "name": "xs",
+    "prompt": "Show trend scores",
+    "default": false
+  },
+  {
+    "name": "specify_scores",
+    "prompt": "Specify trend scores",
+    "default": false
+  },
+  {
+    "name": "doMonteCarlo",
+    "prompt": "Simulate exact P for chi-square",
+    "default": false
+  }
+]

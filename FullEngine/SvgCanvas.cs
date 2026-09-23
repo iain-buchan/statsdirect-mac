@@ -79,7 +79,7 @@ namespace StatsDirect.Charting
             string slant = style.HasFlag(FontStyle.Italic) ? "font-style:italic;" : string.Empty;
             string size = (font.SizeInPoints * PIXELS_PER_POINT).ToString(CultureInfo.InvariantCulture);
             //  The generic fallback matters where the named font is not installed (Calibri away from Windows): without it a browser falls back to its default, usually a serif
-            return $"font-family:'{font.FontFamily}',sans-serif;font-size:{size}px;{weight}{slant}";
+            return $"font-family:'Arial',sans-serif;font-size:{size}px;{weight}{slant}";
         }
 
         private string ToCss(StringFormat txtFormat)
@@ -481,8 +481,8 @@ namespace StatsDirect.Charting
 
         private static Size MeasureText(string s, FontDescriptor f)
         {
-            // HACK: Truly horrible layer-smashing, but the only way to get a reasonable size for a string.
-            throw new PlatformNotSupportedException("SVG text measurement is not yet connected to the Mac host.");
+            var measured = MacText.Measure(s, "Arial", f.SizeInPoints, f.Style);
+            return new Size((int)Math.Ceiling(measured.Width), (int)Math.Ceiling(measured.Height));
         }
     }
 }

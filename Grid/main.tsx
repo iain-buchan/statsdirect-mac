@@ -33,7 +33,8 @@ function App() {
     [message, setMessage] = useState('Ready · Double-click a cell to edit'),
     [first, setFirst] = useState(0),
     [second, setSecond] = useState(1),
-    [value, setValue] = useState('');
+    [value, setValue] = useState(''),
+    [agreement, setAgreement] = useState(false);
   const grid = useRef<DataEditorRef>(null),
     selectionRef = useRef(selection);
   selectionRef.current = selection;
@@ -125,7 +126,7 @@ function App() {
       area = s.current?.range;
     const result = cols.length === 2 ? store.paired(cols[0], cols[1]) : area?.width === 2 ? store.paired(area.x, area.x + 1, area.y, area.y + area.height) : store.paired(first, second);
     result.range = workbook.name + ' / ' + workbook.sheets[sheetIndex].name + ' · ' + result.range;
-    return result;
+    return {...result, agreement};
   };
   useEffect(() => {
     window.statsDirectGrid = {
@@ -281,7 +282,7 @@ function App() {
   <div className="analysis">{workbook.imported && <label><input type="checkbox" checked={store.headerRow} onChange={e => {
           store.headerRow = e.target.checked;
           refresh(n => n + 1);
-        }} />First row has column names</label>}<strong>Paired t test</strong><label>First column <select aria-label="First paired column" value={first} onChange={e => setFirst(Number(e.target.value))}>{store.columns.map((name: string, i: number) => <option value={i} key={i}>{columnName(i)} · {store.columnTitle(i)}</option>)}</select></label><span>−</span><label>Second column <select aria-label="Second paired column" value={second} onChange={e => setSecond(Number(e.target.value))}>{store.columns.map((name: string, i: number) => <option value={i} key={i}>{columnName(i)} · {store.columnTitle(i)}</option>)}</select></label><button className="primary" onClick={() => attempt(() => {
+        }} />First row has column names</label>}<strong>Paired t test</strong><label>First column <select aria-label="First paired column" value={first} onChange={e => setFirst(Number(e.target.value))}>{store.columns.map((name: string, i: number) => <option value={i} key={i}>{columnName(i)} · {store.columnTitle(i)}</option>)}</select></label><span>−</span><label>Second column <select aria-label="Second paired column" value={second} onChange={e => setSecond(Number(e.target.value))}>{store.columns.map((name: string, i: number) => <option value={i} key={i}>{columnName(i)} · {store.columnTitle(i)}</option>)}</select></label><label><input type="checkbox" checked={agreement} onChange={e=>setAgreement(e.target.checked)}/>Agreement analysis (SVG)</label><button className="primary" onClick={() => attempt(() => {
         paired();
         native('run');
       })}>Run paired t test</button></div>

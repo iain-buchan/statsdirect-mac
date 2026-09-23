@@ -28,12 +28,19 @@ namespace StatsDirect.UI
         public SDPreferences Preferences { get; } = new HeadlessPreferences();
         public System.Text.StringBuilder Html { get; } = new();
 
+        public Func<bool> Cancelled { get; set; } = () => false;
+        public Action<IFillable> AmendOptions { get; set; }
+        public List<string> Warnings { get; } = new();
+        private void CheckCancellation() { if (Cancelled()) throw new OperationCanceledException(); }
+
         Operation IUserInterface.Operation { get; set; }
 
         ParameterBag IUserInterface.Amend(IFillable options, ParameterBag context)
         {
-            // No amendment during tests
-            return context;
+            CheckCancellation();
+            if (AmendOptions == null) return context;
+            AmendOptions(options);
+            return context ?? new ParameterBag();
         }
 
         bool IUserInterface.CanCombine(Parameter parameter)
@@ -43,7 +50,7 @@ namespace StatsDirect.UI
 
         void IUserInterface.Error(string Message, string Caption)
         {
-            throw new NotImplementedException();
+            throw new InvalidOperationException(Caption + ": " + Message);
         }
 
         ParameterBag IUserInterface.FillAndValidateCombinedParameters(ITemplateProcessor processor, ParameterBag context)
@@ -54,6 +61,7 @@ namespace StatsDirect.UI
 
         ParameterBag IUserInterface.FillParameter(ITemplateProcessor processor, Parameter parameter, ParameterBag context, bool shouldCombine)
         {
+            CheckCancellation();
             if (!InputParameters.TryGetValue(parameter.Name, out OperationTestInputParameter input))
                 throw new NotImplementedException($"Operation {parameter.Operation.Name} expects parameter {parameter.Name} which was not specified in the test inputs");
             return new ParameterBag(parameter.Name, FilledParameterFactory.Input(new InputParameterFiller(input).Fill(parameter)));
@@ -78,12 +86,14 @@ namespace StatsDirect.UI
 
         object IUserInterface.OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation)
         {
+            CheckCancellation();
             Html.Append(new HtmlRenderer(this).Render(renderable));
             return null;
         }
 
         void IUserInterface.PrepareParameter(ITemplateProcessor processor, Parameter parameter, ParameterBag context)
         {
+            CheckCancellation();
             if (!InputParameters.TryGetValue(parameter.Name, out OperationTestInputParameter input))
                 throw new NotImplementedException($"Operation {parameter.Operation.Name} expects parameter {parameter.Name} which was not specified in the test inputs");
             context.AddInput(parameter.Name, new InputParameterFiller(input).Fill(parameter));
@@ -97,16 +107,19 @@ namespace StatsDirect.UI
 
         IProgressBar IProgressBarHost.StartProgress(string operationDescription, bool provideProgress, bool display)
         {
-            return new TestProgressBar();
+            CheckCancellation();
+            return new TestProgressBar(Cancelled);
         }
 
         void IUserInterface.Warning(string Message, string Caption)
         {
-            // No UI during a test
+            Warnings.Add(Caption + ": " + Message);
         }
 
         private class TestProgressBar : IProgressBar
         {
+            private readonly Func<bool> cancelled;
+            public TestProgressBar(Func<bool> cancelled) { this.cancelled = cancelled; }
             void IProgressBar.Finish()
             {
                 // Do nothing
@@ -114,8 +127,7 @@ namespace StatsDirect.UI
 
             bool IProgressBar.Update(double fractionComplete)
             {
-                // Do nothing, and continue: true would mean that the user had cancelled, which made any operation that reports progress cancel itself during a test
-                return false;
+                return cancelled();
             }
 
             #region IDisposable Support

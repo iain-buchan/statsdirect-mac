@@ -10,18 +10,19 @@ await mkdir(out, {
 const result = await build({
   absWorkingDir: fileURLToPath(new URL('.', import.meta.url)),
   metafile: true,
-  entryPoints: ['main.tsx'],
+  entryPoints: {grid: 'main.tsx', 'chi-square': 'chi-square.tsx'},
   bundle: true,
   minify: true,
   format: 'iife',
   target: 'safari17',
-  outfile: new URL('grid.js', out).pathname,
+  outdir: out.pathname,
   define: {
     'process.env.NODE_ENV': '"production"'
   },
   legalComments: 'linked'
 });
 await writeFile(new URL('index.html', out), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>StatsDirect data grid</title><link rel="stylesheet" href="grid.css"></head><body><div id="root"></div><div id="portal"></div><script src="grid.js"></script></body></html>`);
+await writeFile(new URL('chi-square.html', out), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chi-square r × c</title><link rel="stylesheet" href="chi-square.css"></head><body><div id="root"></div><div id="portal"></div><script src="chi-square.js"></script></body></html>`);
 // Include license files for every package whose source reaches the runtime bundle.
 const roots = new Set();
 for (const input of Object.keys(result.metafile.inputs)) {

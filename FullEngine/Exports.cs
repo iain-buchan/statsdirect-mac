@@ -30,7 +30,12 @@ public static unsafe class Exports {
         try { return PairedCore(before, after, count, confidence, output, capacity, Marshal.PtrToStringUTF8((IntPtr)first) ?? "Before", Marshal.PtrToStringUTF8((IntPtr)second) ?? "After"); }
         catch { return 1; }
     }
-    private static int PairedCore(double* before, double* after, int count, double confidence, double* output, int capacity, string first, string second) {
+    [UnmanagedCallersOnly]
+    public static int PairedOptions(double* before, double* after, int count, double confidence, double* output, int capacity, byte* first, byte* second, int agreement) {
+        try { return PairedCore(before, after, count, confidence, output, capacity, Marshal.PtrToStringUTF8((IntPtr)first) ?? "Before", Marshal.PtrToStringUTF8((IntPtr)second) ?? "After", agreement != 0); }
+        catch { return 1; }
+    }
+    private static int PairedCore(double* before, double* after, int count, double confidence, double* output, int capacity, string first, string second, bool agreement = false) {
         lastHtml = "";
         try {
             if (before == null || after == null || output == null || count < 2 || count > 1000000 || capacity < 11 || !(confidence > 0 && confidence < 1)) return 1;
@@ -48,10 +53,11 @@ public static unsafe class Exports {
             var host = new ViewerHost(new List<OperationTestInputParameter> {
                 new() { Name="data", Value=csv.ToString() },
                 new() { Name="gamma", Value=confidence.ToString("R", CultureInfo.InvariantCulture) },
-                new() { Name="doAgreement", Value="False" }
+                new() { Name="doAgreement", Value=agreement.ToString() }
             });
             var result = ((ITemplateProcessor)new TemplateProcessor(host)).Execute(TemplateFactory.Operations["TPaired"], new ParameterBag()).ParameterBag;
             lastHtml = host.Html.ToString();
+            if (agreement && !lastHtml.Contains("<svg")) throw new InvalidOperationException("Agreement chart rendering failed: " + lastHtml);
             string[] names = ["n","mean","sd","sem","from","to","df","t","tail_1","tail_2"];
             for (int i=0;i<names.Length;i++) {
                 double value=result[names[i]].IsDouble ? result[names[i]].AsDouble : result[names[i]].AsInt32;

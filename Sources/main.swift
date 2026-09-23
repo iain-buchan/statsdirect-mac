@@ -7,6 +7,8 @@ typealias PairedFunction = @convention(c) (UnsafePointer<Double>?, UnsafePointer
 
 typealias NamedPairedFunction = @convention(c) (UnsafePointer<Double>?, UnsafePointer<Double>?, Int32, Double, UnsafeMutablePointer<Double>?, Int32, UnsafePointer<CChar>?, UnsafePointer<CChar>?) -> Int32
 
+typealias OptionsPairedFunction = @convention(c) (UnsafePointer<Double>?, UnsafePointer<Double>?, Int32, Double, UnsafeMutablePointer<Double>?, Int32, UnsafePointer<CChar>?, UnsafePointer<CChar>?, Int32) -> Int32
+
 typealias ReportFunction = @convention(c) (UnsafeMutablePointer<CChar>?, Int32) -> Int32
 
 struct PairedExample: Decodable {
@@ -33,6 +35,9 @@ final class Document {
     var workbookName = "PEFR.xlsx"
     var pendingWorkbook: [String: Any]?
     var excelBusy = false
+    var analysisJobID: String?
+    var analysisCancelled = false
+    var hasSVG = false
     init(kind: String, title: String, access: URL) {
         self.kind = kind; self.title = title; self.access = access
         let config = WKWebViewConfiguration()
@@ -126,6 +131,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(file, "Open HTML in New Tab…", #selector(openFile))
         add(file, "Export Current Worksheet as CSV…", #selector(exportActiveCSV))
         add(file, "Save PDF…", #selector(savePDF), "s")
+        add(file, "Save Chart as SVG…", #selector(saveChartSVG))
         add(file, "Print…", #selector(printPage), "p")
         file.addItem(.separator()); add(file, "Close Tab", #selector(closeTab), "w")
         let edit = menu("Edit")
@@ -136,12 +142,17 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let parametric = NSMenu(title: "Parametric methods")
         let group = NSMenuItem(title: "Parametric methods", action: nil, keyEquivalent: ""); group.submenu = parametric; analysis.addItem(group)
         add(parametric, "Paired t test — PEFR example", #selector(runPaired), "t")
+        let chi = NSMenu(title: "Chi-square"), rc = NSMenu(title: "R by C")
+        let chiGroup = NSMenuItem(title: "Chi-square", action: nil, keyEquivalent: ""), rcGroup = NSMenuItem(title: "R by C", action: nil, keyEquivalent: "")
+        chiGroup.submenu = chi; analysis.addItem(chiGroup); rcGroup.submenu = rc; chi.addItem(rcGroup)
+        add(rc, "Screen Data…", #selector(showChiSquare), "4")
         let rMenu = menu("R")
         add(rMenu, "New R Tab", #selector(newRTab), "")
         add(rMenu, "Run Script", #selector(runRScript), "\r")
         add(rMenu, "Stop / Reset Session", #selector(stopRSession))
         add(rMenu, "Save Script…", #selector(saveRScript))
         let help = menu("Help")
+        add(help, "R × C Contingency Table", #selector(chiSquareHelp))
         add(help, "Help Library", #selector(helpLibrary), "2")
         add(help, "Paired Student t Test", #selector(pairedHelp), "?")
         windowsMenu = menu("Window")
@@ -149,11 +160,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
         if menuItem.action == #selector(exportActiveCSV) { return active?.kind == "grid" }
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
         if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
-        if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "r" && active?.kind != "grid" }
-        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? "Save Excel…" : "Save PDF…"; return active != nil }
+        if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
+        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? "Save Excel…" : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"; return active != nil }
         if menuItem.action == #selector(runPaired) { return !running && example != nil }
         if [#selector(closeTab), #selector(printPage), #selector(savePDF)].contains(menuItem.action) { return active != nil }
         return true
@@ -188,14 +200,16 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         if let doc = active, ["data", "grid"].contains(doc.kind) { analysisSourceID = doc.id }
         window.title = "\(active?.title ?? "StatsDirect") · Mac prototype"
-        exportButton?.title = active?.kind == "r" ? "Save script…" : active?.kind == "grid" ? "Save Excel…" : "Save PDF…"
-        status.stringValue = running ? "Running paired t test…" : "\(documents.count) open documents · \(active?.kind.capitalized ?? "Ready")"
+        exportButton?.title = active?.kind == "r" ? "Save script…" : active?.kind == "grid" ? "Save Excel…" : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"
+        status.stringValue = running ? "Running analysis…" : "\(documents.count) open documents · \(active?.kind.capitalized ?? "Ready")"
         if windowsMenu != nil { updateWindowMenu() }
     }
     @discardableResult
     func newDocument(kind: String, title: String, url: URL? = nil, html: String? = nil, access: URL? = nil) -> Document {
         let doc = Document(kind: kind, title: title, access: access ?? root)
         if kind == "grid" { doc.web.configuration.userContentController.add(self, name: "statsDirectGrid") }
+        if kind == "analysis" { doc.web.configuration.userContentController.add(self, name: "statsDirectAnalysis") }
+        doc.hasSVG = html?.contains("<svg") == true
         doc.initialURL = url; doc.web.navigationDelegate = self; doc.web.uiDelegate = self
         documents.append(doc)
         if tabs.tabViewItems.contains(where: { $0 === rLauncher }) {
@@ -227,6 +241,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         <p class="lead">Peak expiratory flow rate in nine people with asthma. Each row is one person.</p>
         <div class="note">Choose <strong>Analysis → Parametric methods → Paired t test</strong> (⌘T) to calculate a new report. You can edit these values and run it again; earlier reports stay in their own tabs.</div>
         <table class="data"><thead><tr><th>Subject</th><th>PEFR Before</th><th>PEFR After</th></tr></thead><tbody>\(rows)</tbody></table>
+        <p><label><input id="agreement" type="checkbox"> Agreement analysis (SVG chart)</label></p>
         <p class="muted">Difference = Before − After · 95% confidence interval · Missing pairs are omitted.</p>
         <p><a href="Help/parametric_methods/paired_t.htm">Read the method and worked example →</a></p>
         """
@@ -245,7 +260,13 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func closeTab() {
         if active?.excelBusy == true { showError("Please wait for the Excel save to finish."); return }
         guard let doc = active else { return }
-        if let pane = doc.rPane, pane.hasUnsavedChanges || pane.isRunning {
+        if doc.analysisJobID != nil { analysisState(doc, true, "Use Cancel calculation and wait for the engine to stop before closing this form."); return }
+        if doc.kind == "analysis" && doc.gridDirty {
+            let alert = NSAlert(); alert.messageText = "Close the contingency table?"
+            alert.informativeText = "Unsaved counts and labels will be discarded. Use Save Table to keep a CSV copy. Reports remain open."
+            alert.addButton(withTitle: "Close Table"); alert.addButton(withTitle: "Cancel")
+            alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
+        } else if let pane = doc.rPane, pane.hasUnsavedChanges || pane.isRunning {
             let alert = NSAlert(); alert.messageText = "Close this R session?"
             alert.informativeText = "Unsaved script edits and R variables will be discarded. Any running script will stop."
             alert.addButton(withTitle: "Close R Tab"); alert.addButton(withTitle: "Cancel")
@@ -263,6 +284,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func remove(_ doc: Document) {
         if let id = doc.workbookID { workbookRequest(["action": "close", "id": id]) { _ in } }
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectGrid")
+        doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectAnalysis")
         doc.rPane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }
         changingTabs = true; tabs.removeTabViewItem(doc.item); changingTabs = false
@@ -287,14 +309,14 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         guard let dataDoc = documents.first(where: { $0.kind == "data" }) else { return }
         running = true; runButton.isEnabled = false; status.stringValue = "Running paired t test…"
-        let script = "JSON.stringify({before:[...document.querySelectorAll('input[name=before]')].map(e=>e.value),after:[...document.querySelectorAll('input[name=after]')].map(e=>e.value)})"
+        let script = "JSON.stringify({before:[...document.querySelectorAll('input[name=before]')].map(e=>e.value),after:[...document.querySelectorAll('input[name=after]')].map(e=>e.value),agreement:[String(document.querySelector('#agreement')?.checked === true)]})"
         dataDoc.web.evaluateJavaScript(script) { value, error in
             guard error == nil, let text = value as? String, let bytes = text.data(using: .utf8), let values = try? JSONDecoder().decode([String:[String]].self, from: bytes), let a = values["before"], let b = values["after"], a.count == b.count, a.count >= 2 else { self.endRun(); self.showError("The data are still loading. Please try again."); return }
             let before = a.map { Double($0) ?? Double.nan }; let after = b.map { Double($0) ?? Double.nan }
-            self.calculate(before: before, after: after)
+            self.calculate(before: before, after: after, agreement: values["agreement"]?.first == "true")
         }
     }
-    func calculate(before: [Double], after: [Double], labels: [String] = ["PEFR Before", "PEFR After"], source: String = "PEFR example") {
+    func calculate(before: [Double], after: [Double], labels: [String] = ["PEFR Before", "PEFR After"], source: String = "PEFR example", agreement: Bool = false) {
         if libraryHandle == nil {
             let path = Bundle.main.bundleURL.appendingPathComponent("Contents/Frameworks/StatsDirectEngine.dylib").path
             libraryHandle = dlopen(path, RTLD_NOW | RTLD_LOCAL)
@@ -302,6 +324,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         guard let handle = libraryHandle, let symbol = dlsym(handle, "statsdirect_paired_t") else {
             endRun(); showError("The paired-test calculation library could not be loaded. Please rebuild the application."); return
         }
+        let optionsCompute: OptionsPairedFunction? = dlsym(handle, "statsdirect_paired_t_options").map { unsafeBitCast($0, to: OptionsPairedFunction.self) }
+        if agreement && optionsCompute == nil { endRun(); showError("Rebuild the viewer to enable agreement charts."); return }
         let compute = unsafeBitCast(symbol, to: PairedFunction.self)
         let namedCompute: NamedPairedFunction? = dlsym(handle, "statsdirect_paired_t_named").map { unsafeBitCast($0, to: NamedPairedFunction.self) }
         let readReport: ReportFunction? = dlsym(handle, "statsdirect_paired_report").map { unsafeBitCast($0, to: ReportFunction.self) }
@@ -309,6 +333,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             var result = Array(repeating: 0.0, count: 11)
             let code = before.withUnsafeBufferPointer { a in after.withUnsafeBufferPointer { b in
                 result.withUnsafeMutableBufferPointer { output in
+                    if let optionsCompute { return labels[0].withCString { first in labels[1].withCString { second in optionsCompute(a.baseAddress, b.baseAddress, Int32(before.count), 0.95, output.baseAddress, 11, first, second, agreement ? 1 : 0) } } }
                     if let namedCompute { return labels[0].withCString { first in labels[1].withCString { second in namedCompute(a.baseAddress, b.baseAddress, Int32(before.count), 0.95, output.baseAddress, 11, first, second) } } }
                     return compute(a.baseAddress, b.baseAddress, Int32(before.count), 0.95, output.baseAddress, 11)
                 }
@@ -330,7 +355,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
                     let messages = [1:"The paired data or confidence level is invalid.",2:"At least two complete numeric pairs are needed.",3:"The differences must be finite and must vary. A t test cannot be calculated for constant differences in this prototype.",4:"The calculation or report generation failed.",5:"The bundled .NET engine could not be initialized."]
                     self.showError(messages[Int(code)] ?? "Calculation failed."); return
                 }
-                self.showResult(calculated, before: before, after: after, engineHTML: reportHTML, labels: labels, source: source)
+                self.showResult(calculated, before: before, after: after, engineHTML: reportHTML, labels: labels, source: source, agreement: agreement)
             }
         }
     }
@@ -340,7 +365,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if value != 0 && abs(value) < pow(10, -Double(places)) { return String(format: "%.4g", value) }
         return String(format: "%.*f", places, value).replacingOccurrences(of: "\\.?0+$", with: "", options: .regularExpression)
     }
-    func showResult(_ r: [Double], before: [Double], after: [Double], engineHTML: String, labels: [String], source: String) {
+    func showResult(_ r: [Double], before: [Double], after: [Double], engineHTML: String, labels: [String], source: String, agreement: Bool) {
         reportNumber += 1
         let unchanged = before == example.before && after == example.after
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
@@ -353,7 +378,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         <section class="engine-report">\(engineHTML)</section>
         <p><a href="Help/parametric_methods/paired_t.htm">Paired Student t test: method and worked example →</a></p>
         <details><summary>Input data used for this report\(before.count > 1000 ? " (first 1,000 rows of \(before.count))" : "")</summary><table><thead><tr><th>Subject</th><th>\(htmlEscape(labels[0]))</th><th>\(htmlEscape(labels[1]))</th><th>Difference</th></tr></thead><tbody>\(inputs)</tbody></table></details>
-        <p class="muted">95% confidence level. Incomplete pairs are excluded. The optional agreement analysis is not included. Calculated by the full StatsDirect 5.0.5 headless engine and displayed using its HTML report renderer.</p>
+        <p class="muted">95% confidence level. Incomplete pairs are excluded. \(agreement ? "Agreement analysis is included; its chart is embedded SVG. Choose File → Save Chart as SVG to export it." : "Agreement analysis was not requested.") Calculated by the full StatsDirect 5.0.5 headless engine and displayed using its HTML report renderer.</p>
         """
         newDocument(kind: "report", title: "Report \(reportNumber) · Paired t test", html: page("Paired t test",body))
         status.stringValue = "Paired t test completed · \(Int(r[0])) complete pairs · Report \(reportNumber)"
@@ -363,7 +388,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>\(title)</title><style>\(css)</style></head><body>\(body)</body></html>"
     }
     @objc func printPage() {
-        guard active?.kind != "r" && active?.kind != "grid" else { return }
+        guard active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" else { return }
         guard let web = active?.web else { return }
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
         info.topMargin = 36; info.bottomMargin = 36; info.leftMargin = 36; info.rightMargin = 36
@@ -373,6 +398,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if let pane = active?.rPane { pane.saveScript(); return }
         guard let doc = active else { return }
         if doc.kind == "grid" { saveExcel(doc); return }
+        if doc.kind == "analysis" { saveAnalysisTable(doc); return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.pdf]; panel.nameFieldStringValue = "\(doc.title).pdf"
         panel.beginSheetModal(for: window) { response in
             if response == .OK, let url = panel.url {
@@ -428,6 +454,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if documents.contains(where: { $0.excelBusy }) { showError("Please wait for the Excel save to finish."); return .terminateCancel }
+        if running { showError("Please wait for the running analysis to finish, or cancel it from its form."); return .terminateCancel }
         if closeApproved { return .terminateNow }
         if documents.contains(where: { $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true || $0.gridDirty }) {
             let alert = NSAlert(); alert.messageText = "Quit with unsaved work?"

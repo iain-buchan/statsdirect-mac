@@ -1,0 +1,111 @@
+<svg width="6in" viewBox="0 0 1132 800" xmlns="http://www.w3.org/2000/svg">
+  <line x1="146" y1="690" x2="1052" y2="690" style="stroke:#868686;stroke-linecap:square;" />
+  <line x1="146" y1="80" x2="146" y2="690" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(146,697)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.8em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:middle;">220</tspan>
+    </text>
+  </g>
+  <line x1="146" y1="697" x2="146" y2="690" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(270.1095890410959,697)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.8em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:middle;">240</tspan>
+    </text>
+  </g>
+  <line x1="270.1095890410959" y1="697" x2="270.1095890410959" y2="690" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(394.2191780821918,697)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.8em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:middle;">260</tspan>
+    </text>
+  </g>
+  <line x1="394.2191780821918" y1="697" x2="394.2191780821918" y2="690" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(518.3287671232877,697)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.8em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:middle;">280</tspan>
+    </text>
+  </g>
+  <line x1="518.3287671232877" y1="697" x2="518.3287671232877" y2="690" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(642.4383561643838,697)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.8em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:middle;">300</tspan>
+    </text>
+  </g>
+  <line x1="642.4383561643838" y1="697" x2="642.4383561643838" y2="690" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(766.5479452054794,697)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.8em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:middle;">320</tspan>
+    </text>
+  </g>
+  <line x1="766.5479452054794" y1="697" x2="766.5479452054794" y2="690" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(890.6575342465756,697)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.8em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:middle;">340</tspan>
+    </text>
+  </g>
+  <line x1="890.6575342465756" y1="697" x2="890.6575342465756" y2="690" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(1014.7671232876712,697)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.8em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:middle;">360</tspan>
+    </text>
+  </g>
+  <line x1="1014.7671232876712" y1="697" x2="1014.7671232876712" y2="690" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(131,641.2037204065366)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.4em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:end;">0.0</tspan>
+    </text>
+  </g>
+  <line x1="139" y1="641.2037204065366" x2="146" y2="641.2037204065366" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(131,528.962978894216)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.4em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:end;">25.0</tspan>
+    </text>
+  </g>
+  <line x1="139" y1="528.962978894216" x2="146" y2="528.962978894216" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(131,416.7222373818954)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.4em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:end;">50.0</tspan>
+    </text>
+  </g>
+  <line x1="139" y1="416.7222373818954" x2="146" y2="416.7222373818954" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(131,304.48149586957476)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.4em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:end;">75.0</tspan>
+    </text>
+  </g>
+  <line x1="139" y1="304.48149586957476" x2="146" y2="304.48149586957476" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(131,192.2407543572541)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.4em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:end;">100.0</tspan>
+    </text>
+  </g>
+  <line x1="139" y1="192.2407543572541" x2="146" y2="192.2407543572541" style="stroke:#868686;stroke-linecap:square;" />
+  <g transform="translate(131,80.00001284493351)">
+    <text x="0" y="0" transform="rotate(0)">
+      <tspan dy="0.4em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:end;">125.0</tspan>
+    </text>
+  </g>
+  <line x1="139" y1="80.00001284493351" x2="146" y2="80.00001284493351" style="stroke:#868686;stroke-linecap:square;" />
+  <text x="599" y="723">
+    <tspan dy="0.8em" style="font-family:'Arial',sans-serif;font-size:20px;font-weight:bold;fill:#000000;text-anchor:middle;">Mean ((PEFR Before + PEFR After) / 2)</tspan>
+  </text>
+  <g transform="translate(77,385)">
+    <text x="0" y="0" transform="rotate(-90)">
+      <tspan dy="0" style="font-family:'Arial',sans-serif;font-size:20px;font-weight:bold;fill:#000000;text-anchor:middle;">Difference (PEFR Before - PEFR After)</tspan>
+    </text>
+  </g>
+  <text x="1052" y="34">
+    <tspan dy="0.8em" style="font-family:'Arial',sans-serif;font-size:20px;fill:#000000;text-anchor:end;">mean difference ± 95% limits of agreement</tspan>
+  </text>
+  <line x1="146" y1="88.5712143187402" x2="1052" y2="88.5712143187402" style="stroke:#FF0000;" />
+  <line x1="146" y1="690" x2="1052" y2="690" style="stroke:#FF0000;" />
+  <line x1="146" y1="389.28561358183674" x2="1052" y2="389.28561358183674" style="stroke:#000000;" />
+  <ellipse cx="679.6712328767123" cy="587.3281644806227" rx="6" ry="6" style="stroke:#40699C;fill:none;" />
+  <ellipse cx="155.30821917808225" cy="457.1289043263308" rx="6" ry="6" style="stroke:#40699C;fill:none;" />
+  <ellipse cx="555.5616438356165" cy="156.3237170733115" rx="6" ry="6" style="stroke:#40699C;fill:none;" />
+  <ellipse cx="952.7123287671232" cy="299.99186620908193" rx="6" ry="6" style="stroke:#40699C;fill:none;" />
+  <ellipse cx="381.80821917808225" cy="299.99186620908193" rx="6" ry="6" style="stroke:#40699C;fill:none;" />
+  <ellipse cx="363.191780821918" cy="650.1829797275223" rx="6" ry="6" style="stroke:#40699C;fill:none;" />
+  <ellipse cx="1011.664383561644" cy="358.3570517954887" rx="6" ry="6" style="stroke:#40699C;fill:none;" />
+  <ellipse cx="1051.9999999999998" cy="317.95038485105323" rx="6" ry="6" style="stroke:#40699C;fill:none;" />
+  <ellipse cx="397.32191780821904" cy="376.31557043745994" rx="6" ry="6" style="stroke:#40699C;fill:none;" />
+</svg>

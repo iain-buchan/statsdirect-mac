@@ -7,6 +7,8 @@
 using paired_fn = int (*)(const double*, const double*, int, double, double*, int);
 using named_paired_fn = int (*)(const double*, const double*, int, double, double*, int, const char*, const char*);
 static named_paired_fn pairedNamed = nullptr;
+using options_paired_fn = int (*)(const double*, const double*, int, double, double*, int, const char*, const char*, int);
+static options_paired_fn pairedOptions = nullptr;
 using report_fn = int (*)(char*, int);
 static paired_fn paired = nullptr;
 static report_fn report = nullptr;
@@ -14,6 +16,8 @@ using workbook_fn = char* (*)(const char*);
 using free_fn = void (*)(char*);
 static workbook_fn workbookRequest = nullptr;
 static free_fn workbookFree = nullptr;
+static workbook_fn analysisRequest = nullptr;
+static free_fn analysisFree = nullptr;
 static std::once_flag initialized;
 static void initialize() {
     Dl_info location{};
@@ -43,10 +47,16 @@ static void initialize() {
     if (code < 0) report = nullptr;
     code = load(assembly.c_str(), "Exports, StatsDirect.Headless", "PairedNamed", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&pairedNamed);
     if (code < 0) pairedNamed = nullptr;
+    code = load(assembly.c_str(), "Exports, StatsDirect.Headless", "PairedOptions", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&pairedOptions);
+    if (code < 0) pairedOptions = nullptr;
     code = load(assembly.c_str(), "WorkbookIO, StatsDirect.Headless", "Invoke", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&workbookRequest);
     if (code < 0) workbookRequest = nullptr;
     code = load(assembly.c_str(), "WorkbookIO, StatsDirect.Headless", "Free", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&workbookFree);
     if (code < 0) workbookFree = nullptr;
+    code = load(assembly.c_str(), "AnalysisIO, StatsDirect.Headless", "Invoke", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&analysisRequest);
+    if (code < 0) analysisRequest = nullptr;
+    code = load(assembly.c_str(), "AnalysisIO, StatsDirect.Headless", "Free", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&analysisFree);
+    if (code < 0) analysisFree = nullptr;
 }
 extern "C" int statsdirect_paired_t(const double* before, const double* after, int count, double confidence, double* output, int capacity) {
     std::call_once(initialized, initialize);
@@ -67,4 +77,15 @@ extern "C" char* statsdirect_workbook(const char* request) {
 }
 extern "C" void statsdirect_workbook_free(char* result) {
     if (workbookFree) workbookFree(result);
+}
+
+extern "C" char* statsdirect_analysis(const char* request) {
+    std::call_once(initialized, initialize);
+    return analysisRequest && analysisFree ? analysisRequest(request) : nullptr;
+}
+extern "C" void statsdirect_analysis_free(char* result) { if (analysisFree) analysisFree(result); }
+
+extern "C" int statsdirect_paired_t_options(const double* before, const double* after, int count, double confidence, double* output, int capacity, const char* first, const char* second, int agreement) {
+    std::call_once(initialized, initialize);
+    return pairedOptions ? pairedOptions(before, after, count, confidence, output, capacity, first, second, agreement) : 5;
 }

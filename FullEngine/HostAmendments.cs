@@ -19,6 +19,23 @@ internal static class HostAmendments {
     }
     internal static ParameterBag Amend(OperationJob job, OperationHost host, IFillable options, ParameterBag context) {
         context ??= new ParameterBag();
+        if (options is CategoriseOptions categorise) return HostDataForms.Categorise(job,categorise,context);
+        if (options is ExtractionOptions extraction) return HostDataForms.Extract(job,extraction,context);
+        if (options is SortInPlaceOptions) return HostDataForms.Sort(job,host,context);
+        if (options is ToggleFiltersOptions) return HostDataForms.Filter(job,host,context);
+        if (options is ROCCutoff cutoff) {
+            var a=Form(job,"ROC cutoff",new[]{Field("cutoff","Cutoff",cutoff.SeriesRecord.cutoff)});
+            cutoff.SeriesRecord.cutoff=HostParameters.Number(a.GetProperty("cutoff"));cutoff.SeriesRecord.ReCut();return context;
+        }
+        if (options is GraphicsOptions) {
+            var answer = job.Ask(new() { ["kind"]="options",["title"]="Graphics options",["prompt"]="Graphics defaults for new charts",["options"]=new[] {
+                new {value="colour",label="Use colour",selected=host.Preferences.ShouldUseColour},
+                new {value="box",label="Box axes",selected=ChartPreferences.DefaultBoxAxes}
+            }});
+            host.Preferences.ShouldUseColour=answer.GetProperty("colour").GetBoolean();
+            ChartPreferences.DefaultBoxAxes=answer.GetProperty("box").GetBoolean();
+            job.Record("Graphics options",answer);return context;
+        }
         if (options is DummyOptions dummy) {
             var choices = dummy.CategoryNames.Select((name,i) => new { value=i.ToString(),label=name }).ToList();
             choices.Add(new {value="-1",label="No reference — include every category"});
@@ -32,8 +49,19 @@ internal static class HostAmendments {
         if (options is ChartDefinition chart) {
             // The calculation layer has already set the appropriate chart type and scales.
             if (chart.ChartOptions != null) {
+                // The Windows options control initializes the marker list. Renderers
+                // need it for mixed numeric/category series such as bar-chart labels.
+                if (chart.ChartOptions.MarkerTypes == null || chart.ChartOptions.MarkerTypes.Count == 0)
+                    chart.ChartOptions.MarkerTypes = ChartPreferences.MarkerTypes.Select(m=>m.Clone()).ToList();
                 var a = Form(job, "Chart labels", new[] { Field("title", "Title", chart.ChartOptions.Title ?? "", "text"), Field("x", "Horizontal axis", chart.ChartOptions.XAxisTitle ?? "", "text"), Field("y", "Vertical axis", chart.ChartOptions.YAxisTitle ?? "", "text") });
                 chart.ChartOptions.Title = a.GetProperty("title").GetString(); chart.ChartOptions.XAxisTitle = a.GetProperty("x").GetString(); chart.ChartOptions.YAxisTitle = a.GetProperty("y").GetString();
+                if (chart.IsAscii && chart.ChartOptions is ScatterXYOptions) {
+                    var scale=chart.ScaleParameters;
+                    foreach(var pair in new[]{(axis:scale.X,isY:false),(axis:scale.Y,isY:true)}) {
+                        pair.axis.ScaleType=ScaleType.Linear;
+                        pair.axis.AxisScale=AxisScalerFactory.AxisScalerFor(ScaleType.Linear).QAxis(pair.axis.Min,pair.axis.MinGreaterThanZero,pair.axis.Max,pair.isY,true);
+                    }
+                }
             }
             return context;
         }

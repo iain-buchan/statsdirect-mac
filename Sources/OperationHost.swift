@@ -2,7 +2,7 @@ import Cocoa
 import WebKit
 
 extension Viewer {
-    func populateAnalysisMenu(_ menu: NSMenu) {
+    func populateOperationMenu(_ menu: NSMenu) {
         do {
             let catalog = try JSONSerialization.jsonObject(with: Data(contentsOf: root.appendingPathComponent("analysis-menu.json"))) as! [String: Any]
             analysisCatalog = catalog["operations"] as? [String: [String: Any]] ?? [:]
@@ -22,14 +22,14 @@ extension Viewer {
                     parent.addItem(item)
                 }
             }
-            append((catalog["menu"] as? [String: Any])?["children"] as? [[String: Any]] ?? [], to: menu)
-        } catch { showError("The Analysis menu could not be loaded: " + error.localizedDescription) }
+            let tree = (catalog["menus"] as? [[String: Any]])?.first { $0["label"] as? String == menu.title }
+            append(tree?["children"] as? [[String: Any]] ?? [], to: menu)
+        } catch { showError("The \(menu.title) menu could not be loaded: " + error.localizedDescription) }
     }
     @objc func openAnalysisOperation(_ sender: NSMenuItem) {
         guard let operation = sender.representedObject as? String, let definition = analysisCatalog[operation] else { return }
         if operation == "ExactChiRbyCScreen" { showChiSquare(); return }
-        if let doc = documents.first(where: { $0.operationName == operation }) { tabs.selectTabViewItem(doc.item); if doc.analysisJobID == nil { refreshOperationSource(doc) }; return }
-        let title = definition["title"] as? String ?? sender.title
+        let title = nextAnalysisTitle(definition["title"] as? String ?? sender.title)
         let doc = newDocument(kind: "operation", title: title, url: root.appendingPathComponent("Grid/operation.html"))
         doc.operationName = operation
     }
@@ -41,7 +41,9 @@ extension Viewer {
         switch action {
         case "ready":
             var config = doc.operationName.flatMap { analysisCatalog[$0] } ?? [:]; config["title"] = doc.title
-            operationScript(doc, "configure", config); refreshOperationSource(doc)
+            doc.operationReady = true
+            operationScript(doc, "configure", config)
+            refreshOperationSource(doc) { self.startOperation(doc) }
         case "refresh": refreshOperationSource(doc)
         case "help":
             if let operation = doc.operationName, let path = analysisCatalog[operation]?["help"] as? String {
@@ -50,11 +52,7 @@ extension Viewer {
         case "paste":
             if let text = NSPasteboard.general.string(forType: .string) { web.evaluateJavaScript("window.statsDirectOperation?.pasteText?.(\(jsString(text)))") }
         case "start":
-            guard !running, doc.analysisJobID == nil else { operationError(doc, "Finish or cancel the current analysis first."); return }
-            guard let operation = doc.operationName else { return }
-            let id = UUID().uuidString; doc.analysisJobID = id; doc.analysisCancelled = false; running = true; runButton.isEnabled = false
-            operationScript(doc, "update", ["state": "running", "progress": "Starting analysis…"])
-            operationRequest(["action": "start", "id": id, "operation": operation], doc: doc, id: id)
+            startOperation(doc)
         case "answer":
             guard let id = doc.analysisJobID, let token = body["token"], let value = body["value"] else { return }
             operationRequest(["action": "answer", "id": id, "token": token, "value": value], doc: doc, id: id)
@@ -65,13 +63,20 @@ extension Viewer {
         default: break
         }
     }
+    func startOperation(_ doc: Document) {
+        guard let operation = doc.operationName, analysisCatalog[operation]?["unavailable"] == nil else { return }
+        guard doc.analysisJobID == nil else { return }
+        let id = UUID().uuidString; doc.analysisJobID = id; doc.analysisCancelled = false; doc.operationStarting = true
+        operationScript(doc, "update", ["state": "running", "progress": "Opening input form…"])
+        operationRequest(["action": "start", "id": id, "operation": operation], doc: doc, id: id)
+    }
     func operationScript(_ doc: Document, _ method: String, _ object: Any) {
         guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.fragmentsAllowed]) else { return }
         doc.web.evaluateJavaScript("window.statsDirectOperation?.\(method)(\(String(decoding: data, as: UTF8.self)))")
     }
     func operationError(_ doc: Document, _ text: String) { operationScript(doc, "error", text) }
-    func refreshOperationSource(_ doc: Document) {
-        guard let source = documents.first(where: { $0.id == analysisSourceID }), ["grid", "data"].contains(source.kind) else { operationScript(doc, "setSource", NSNull()); return }
+    func refreshOperationSource(_ doc: Document, completion: (() -> Void)? = nil) {
+        guard let source = documents.first(where: { $0.id == analysisSourceID }), ["grid", "data"].contains(source.kind) else { operationScript(doc, "setSource", NSNull()); completion?(); return }
         let script = source.kind == "grid" ? "window.statsDirectGrid?.analysisSource()" : """
         (() => {const before=[...document.querySelectorAll('input[name=before]')].map(e=>e.value),after=[...document.querySelectorAll('input[name=after]')].map(e=>e.value);return {name:'PEFR example form',firstRow:1,rows:before.length,columns:['PEFR Before','PEFR After'],selection:[0,1],cells:[before,after].flatMap((column,col)=>column.map((text,row)=>({col,row,text})))}})()
         """
@@ -79,6 +84,7 @@ extension Viewer {
             guard self.documents.contains(where: { $0 === doc }) else { return }
             if let snapshot, error == nil { self.operationScript(doc, "setSource", snapshot) }
             else { self.operationError(doc, "The worksheet is still loading. Use Refresh worksheet when it is ready.") }
+            completion?()
         }
     }
     func operationRequest(_ request: [String: Any], doc: Document, id: String) {
@@ -86,16 +92,20 @@ extension Viewer {
         doc.operationRevision += 1; let revision = doc.operationRevision
         analysisRequest(request, entry: "statsdirect_operation") { result in
             guard doc.analysisJobID == id, doc.operationRevision == revision else { return }
+            let starting = request["action"] as? String == "start"
+            if starting { doc.operationStarting = false }
             switch result {
             case .failure(let error):
                 self.operationError(doc, error.localizedDescription)
-                if request["action"] as? String == "start" { doc.analysisJobID = nil; self.endRun() }
+                if starting { doc.analysisJobID = nil; if doc.operationClosing { self.remove(doc) } }
             case .success(let output):
+                if starting && doc.operationClosing { self.operationRequest(["action": "cancel", "id": id], doc: doc, id: id); return }
                 self.operationScript(doc, "update", output)
                 switch output["state"] as? String {
                 case "complete", "cancelled", "failed":
-                    doc.analysisJobID = nil; self.endRun()
+                    doc.analysisJobID = nil
                     self.analysisRequest(["action": "release", "id": id], entry: "statsdirect_operation") { _ in }
+                    if doc.operationClosing { self.remove(doc); return }
                     if output["state"] as? String == "complete", !doc.analysisCancelled { self.showOperationReport(doc, output) }
                     else { self.status.stringValue = doc.title + (doc.analysisCancelled ? " cancelled" : " did not complete") }
                 case "input": self.status.stringValue = doc.title + " · Waiting for input"
@@ -124,7 +134,7 @@ extension Viewer {
         let inputData = (try? JSONSerialization.data(withJSONObject: output["history"] ?? [], options: [.prettyPrinted, .sortedKeys])) ?? Data()
         let body = """
         <div class="eyebrow">Analysis / StatsDirect</div><h1>\(htmlEscape(doc.title))</h1><p class="muted">Report \(reportNumber) · \(stamp)</p>
-        <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate tabs.")</p>" : html)</section>\(help)
+        <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)</section>\(help)
         <details><summary>Inputs used for this report</summary><pre>\(htmlEscape(String(decoding: inputData, as: UTF8.self)))</pre></details>
         <p class="muted">Calculated by the StatsDirect 5.0.5 engine · \(htmlEscape(doc.operationName ?? ""))</p>
         """

@@ -47,7 +47,7 @@ public static class AnalysisIO {
             if (request.Action != "run") throw new Exception("Unknown analysis action.");
             foreach (var old in jobs.Where(j => j.Value.Created < DateTime.UtcNow.AddDays(-1))) jobs.TryRemove(old.Key, out _);
             var job = jobs.GetOrAdd(request.Id, _ => new Job());
-            try { return JsonSerializer.Serialize(Run(request.Input, job), json); }
+            try { lock (EngineExecution.Gate) return JsonSerializer.Serialize(Run(request.Input, job), json); }
             finally { jobs.TryRemove(request.Id, out _); }
         } catch (OperationCanceledException) { return "{\"cancelled\":true}"; }
         catch (Exception ex) { return JsonSerializer.Serialize(new { error = ex.Message }, json); }

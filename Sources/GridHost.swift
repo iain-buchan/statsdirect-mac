@@ -51,7 +51,7 @@ extension Viewer: WKScriptMessageHandler {
     }
     func runPairedFromGrid(_ doc: Document) {
         guard !running else { return }
-        running = true; runButton.isEnabled = false
+        running = true
         doc.web.evaluateJavaScript("JSON.stringify(window.statsDirectGrid?.pairedData())") { value, error in
             guard error == nil, let json = value as? String, let bytes = json.data(using: .utf8) else {
                 self.endRun(); self.showError("The data grid is still loading. Please try again."); return

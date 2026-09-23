@@ -5,7 +5,7 @@ import '@glideapps/glide-data-grid/dist/index.css';
 import './style.css';
 import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { WorkbookStore, cellKind } from './workbook.mjs';
-import { selectCellBelow } from './navigation';
+import { selectAdjacentCell, cellMovement, arrowKeyEditor } from './navigation';
 import example from '../Content/paired-example.json';
 declare global {
   interface Window {
@@ -236,16 +236,17 @@ function App() {
         setMessage(sheet.name + (sheet.hidden ? " (hidden in Excel)" : ""));
       }}>{sheet.name}{sheet.hidden ? " (hidden)" : ""}</button>)}</div>}
   <div className="formula"><label htmlFor="cellValue">{current ? columnName(current[0]) + (current[1] + 1) : 'Cell'}</label><input id="cellValue" aria-label="Selected cell value" placeholder="Select a cell, then edit its value here or double-click the cell" disabled={!current || !!store.metadata.get(`${current[0]},${current[1]}`)?.formula} value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => {
-        if (e.key === 'Enter' && !e.nativeEvent.isComposing && current) {
+        const movement = cellMovement(e);
+        if (movement && current) {
           e.preventDefault();
           e.stopPropagation();
           attempt(() => {
             if (store.apply([[current[0], current[1], value]])) changed();
-            selectCellBelow(current, store.rows, setSelection, grid.current);
+            selectAdjacentCell(current, movement, store.columns.length, store.rows, setSelection, grid.current);
           });
         }
       }} /><span>{current && store.metadata.get(`${current[0]},${current[1]}`)?.formula ? "Formula: " + store.metadata.get(`${current[0]},${current[1]}`).formula : "↵ to save and move down"}</span></div>
-  <div className="canvas" ref={container}><DataEditor ref={grid} width={containerSize.width} height={containerSize.height} columns={store.columns.map((title: string, c: number) => ({
+  <div className="canvas" ref={container}><DataEditor ref={grid} provideEditor={arrowKeyEditor} trapFocus width={containerSize.width} height={containerSize.height} columns={store.columns.map((title: string, c: number) => ({
         id: String(c),
         title: columnName(c) + ' · ' + store.columnTitle(c),
         width: widths[c] ?? 178

@@ -7,8 +7,7 @@ private typealias AnalysisFreeFunction = @convention(c) (UnsafeMutablePointer<CC
 
 extension Viewer {
     @objc func showChiSquare() {
-        if let doc = documents.first(where: { $0.kind == "analysis" }) { tabs.selectTabViewItem(doc.item); return }
-        newDocument(kind: "analysis", title: "Chi-square · R × C", url: root.appendingPathComponent("Grid/chi-square.html"))
+        newDocument(kind: "analysis", title: nextAnalysisTitle("Chi-square · R × C"), url: root.appendingPathComponent("Grid/chi-square.html"))
     }
     @objc func chiSquareHelp() { openHelp(root.appendingPathComponent("Help/chi_square_tests/rc.htm"), title: "R × C contingency table") }
     func handleAnalysis(_ message: WKScriptMessage) {
@@ -30,13 +29,14 @@ extension Viewer {
             guard let input = body["input"] as? [String: Any] else { return }
             guard !running else { analysisState(doc, false, "Another analysis is running. Please wait for it to finish.", error: true); return }
             let id = UUID().uuidString
-            running = true; runButton.isEnabled = false; doc.analysisJobID = id; doc.analysisCancelled = false
+            running = true; doc.analysisJobID = id; doc.analysisCancelled = false
             status.stringValue = "Running chi-square r × c…"
             analysisState(doc, true, "Running the StatsDirect engine…")
             analysisRequest(["action": "run", "id": id, "input": input]) { result in
                 let cancelled = doc.analysisCancelled
                 doc.analysisJobID = nil; self.endRun()
                 guard self.documents.contains(where: { $0 === doc }) else { return }
+                if doc.operationClosing { self.remove(doc); return }
                 switch result {
                 case .failure(let error):
                     self.analysisState(doc, false, error.localizedDescription, error: true); self.status.stringValue = "Chi-square analysis failed"

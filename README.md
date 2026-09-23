@@ -1,28 +1,30 @@
 # StatsDirect Mac viewer prototype
 
-Open **StatsDirect Viewer.app**. The **Data grid · PEFR** tab now opens by default. Choose **Analysis → Parametric methods → Paired t test — PEFR example** (⌘T), or click **Run paired t test**. Each run creates a new report tab. Edit the paired observations in the grid and run again to produce a separate report. Earlier reports retain their original results and input snapshots.
+Open **StatsDirect Viewer.app**. The **Data grid · PEFR** worksheet opens by default. Choose **Analysis → Parametric → Paired t** (⌘T) to open the first input step immediately, or use **Run paired t test** in the worksheet. Each run creates a new report tab. Edit the paired observations in the grid and run again to produce a separate report. Earlier reports retain their original results and input snapshots.
 
 The window frame has explicit **Close**, **Minimise**, **Resize / Restore** and **Move** controls. Drag Move to reposition the window; Resize / Restore toggles the window size, and the native edges support custom resizing.
 
-Reports and help occupy separate tabs in one native Mac window. The Help library contains 400 topics from the supplied statisticalhelp repository, including the worked paired t example. Help links open within help tabs. The Window menu lists open documents; ⌘W closes the selected tab. Printing and PDF export use WebKit.
+Reports, help, analysis forms, worksheets and R sessions stay open as separate documents in one native Mac window. **File, Edit, Data, Analysis, Graphics, R, Help and Window** dropdowns contain commands. A compact row of document tabs beneath them lets you switch directly and close any document with its **×** button. **Window** also lists the documents; **⌘W** closes the current one. Closing an active analysis cancels only that form. Unsaved worksheet and R script changes still prompt before being discarded. The same commands are available in the macOS menu bar. The Help library contains 400 topics from the supplied statisticalhelp repository. Printing and PDF export use WebKit.
 
 ## Data grid
 
-The **Data grid** toolbar button or **File → Data Grid** (⌘3) opens the Glide worksheet. Double-click to edit cells, or use the selected-cell value field. Return saves the value and selects the cell below, ready for the next entry. This also works in analysis input grids; at the last row the selection stays within the table. Use **Paste from clipboard** for tab-delimited data and **Copy selection** to copy a block. Undo/Redo, extra rows/columns and **Save CSV…** are available in the grid.
+**File → Data Grid** (⌘3) opens the Glide worksheet. Double-click to edit cells, or use the selected-cell value field. Return saves the value and selects the cell below, ready for the next entry. Arrow keys save an edit and move one cell in the indicated direction. These controls also work in analysis input grids and stop at the table edges. Small analysis grids fit their actual dimensions, so a 2 × 2 count table displays only four entry cells plus headings. Use **Paste from clipboard** for tab-delimited data and **Copy selection** to copy a block. Undo/Redo, extra rows/columns and **Save CSV…** are available in the grid.
 
 For a paired test, select two column headers or a two-column range; otherwise the two column selectors are used. Blank pairs are omitted and nonnumeric cells produce a validation error. The original engine generates a report in a separate tab, with the selected column names. The top Analysis menu uses the most recently selected grid or example-data form.
 
 This is an editable grid prototype. Save Excel before closing to retain all worksheet edits. Live formula editing and large-sheet performance work remain. Implementation, build instructions and limits are in [Grid/README.md](Grid/README.md).
 
-## Complete Analysis menu
+## Windows Data, Analysis and Graphics menus
 
-The native menu now follows the Windows `menu.xml`: 148 commands covering 135 distinct operations, each linked to its offline method help. Choose an analysis to open its form tab, then **Start**. The original operation definition drives the questions, defaults, conditional steps and validation. **Continue** advances the same running engine operation; **Cancel analysis** stops at its next checkpoint.
+The menus follow the Windows `menu.xml`: 224 commands covering 208 distinct operations, each linked to its offline method help. Selecting a command opens its first input form automatically. Several forms, including multiple copies of the same method, can remain open with independent inputs, progress and reports. **Continue** advances that form's original engine operation; **Cancel analysis** or the tab's **×** stops only that operation. Calculations are serialized between input boundaries to protect the engine's shared caches; waiting forms do not block other forms. The original definitions drive questions, defaults, conditional steps and validation.
 
 For data, choose columns from a snapshot of the most recently selected worksheet, in the required order, and review the first/last row. Or enter/paste data into the embedded Glide table. Use **Refresh worksheet** after changing data or switching worksheets. Numeric categorical predictors offer the engine's reference-category choices. Grouped observations currently use separate columns; identifier-based selection/pivoting is not implemented. The ANOVA repeated/nested forms request each repeat or group in turn, and covariance requests each predictor/outcome series.
 
-Reports and SVG charts open in their own tabs. Analyses that output data also open new editable grid tabs, which can be saved to Excel. The dedicated chi-square screen form and quick paired-test toolbar action remain available. In the general paired-test form, **Agreement analysis** is an explicit follow-up question.
+Reports and SVG charts open in their own tabs. Analyses that output data also open new editable grid tabs, which can be saved to Excel. The dedicated chi-square screen form and worksheet paired-test button remain available. In the general paired-test form, **Agreement analysis** is an explicit follow-up question.
 
-LOESS and method-comparison regression are visible with help, but their engine R/Windows-graphics bridge is explicitly marked unavailable in this Mac prototype. The independent **+ R session** tab is unchanged. All other 133 operations reach their first input; 47 representative analyses have been exercised end to end. This is broader prototype coverage, not certification of every option or chart.
+LOESS and method-comparison regression are visible with help, but their engine R/Windows-graphics bridge is explicitly marked unavailable. Independent R sessions are available through **R → New R Session**. All other 206 operations reach their first input. There are 121 end-to-end analysis/data/graphics cases, 14 independent R comparisons, and additional checks of six interleaved forms against serial results. This is prototype coverage, not certification of every option or chart.
+
+Some Windows UI commands have Mac host equivalents: basic Search and Replace uses the advanced engine form; the screen unit converter uses an entered-data grid and original conversion choices. Sort-in-place and Filter currently produce new result worksheets, leaving their source worksheet intact. Categorisation accepts explicit boundaries, and Graphics Options exposes colour and boxed axes; the full Windows editing controls remain to be ported.
 
 ## Chi-square screen-data form
 
@@ -48,9 +50,9 @@ Formula cells show saved results and are read-only. After an edit, analysis invo
 
 This first implementation supports `.xlsx` only, up to 50 MB compressed, 256 MB expanded, 128 sheets and 500,000 populated cells. Legacy `.xls`, `.xlsb`, macros, password-protected files and full Excel visual rendering are not implemented. Excel itself is not required for basic import/export. The full test workbook round trip is verified; this is not a general Excel conformance or million-row performance claim.
 
-## R tabs
+## R sessions
 
-Click the permanent **+ R session** tab to start a new R session. It stays at the end of the tab strip so you can start more sessions at any time. **File → New R Tab** and **R → New R Tab** (⌘R) are also available. Each tab starts a separate persistent session using the R installation on this Mac. Edit the script and click **Run script**, or press **⌘Return**. The initial script runs the paired t-test example in base R. The console displays output, warnings and errors; variables remain available between runs.
+Choose **R → New R Session** or **File → New R Session** (⌘R) to start a session. Use **Window** to switch between sessions and other documents. Each tab starts a separate persistent session using the R installation on this Mac. Edit the script and click **Run script**, or press **⌘Return**. The initial script runs the paired t-test example in base R. The console displays output, warnings and errors; variables remain available between runs.
 
 **Stop / Reset** terminates that session and clears its variables. The next run starts a new session. **Save script…** (⌘S when the R tab is selected) saves an `.R` file. Closing a tab or quitting warns about unsaved edits or running scripts. Session objects are not restored after closing.
 
@@ -66,7 +68,7 @@ See [FullEngine/README.md](FullEngine/README.md) for provenance and exact platfo
 
 ## Scope
 
-The full Analysis menu is populated. The general host supports numeric/boolean/choice questions, data frames, count tables, repeated/nested data, covariance, validation and cancellation. Engine R integration, identifier-based pivoting, suggested post-analysis commands, advanced chart controls and RTF/Office export remain. This is an ad-hoc signed local prototype, not a notarized distribution.
+The Windows Data, Analysis and Graphics menus are populated. The general host supports numeric/boolean/choice questions, data frames, count tables, repeated/nested data, covariance, validation and cancellation. Engine R integration, identifier-based pivoting, suggested post-analysis commands, advanced chart controls and RTF/Office export remain. This is an ad-hoc signed local prototype, not a notarized distribution.
 
 ## Build
 

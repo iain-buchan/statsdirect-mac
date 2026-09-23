@@ -750,7 +750,1402 @@
       }
     ]
   },
+  "menus": [
+    {
+      "label": "Data",
+      "children": [
+        {
+          "label": "Generating",
+          "children": [
+            {
+              "label": "Fill Series",
+              "operation": "FillSeries"
+            },
+            {
+              "label": "Random Numbers",
+              "children": [
+                {
+                  "label": "Uniform 0 to 1",
+                  "operation": "RndUniform01"
+                },
+                {
+                  "label": "Uniform A to B",
+                  "operation": "RndUniformAB"
+                },
+                {
+                  "label": "Normal",
+                  "operation": "RndNormal"
+                },
+                {
+                  "label": "Lognormal",
+                  "operation": "RndLogNormal"
+                },
+                {
+                  "label": "Binomial",
+                  "operation": "RndBinomial"
+                },
+                {
+                  "label": "Poisson",
+                  "operation": "RndPoisson"
+                },
+                {
+                  "label": "Gamma",
+                  "operation": "RndGamma"
+                },
+                {
+                  "label": "Exponential",
+                  "operation": "RndExponential"
+                },
+                {
+                  "label": "Chi-square",
+                  "operation": "RndChiSquare"
+                },
+                {
+                  "label": "F (Variance Ratio)",
+                  "operation": "RndF"
+                },
+                {
+                  "label": "Student's t",
+                  "operation": "RndT"
+                },
+                {
+                  "label": "Logistic",
+                  "operation": "RndLogit"
+                },
+                {
+                  "label": "Geometric",
+                  "operation": "RndGeometric"
+                },
+                {
+                  "label": "Negative Binomial",
+                  "operation": "RndNegativeBinomial"
+                },
+                {
+                  "label": "Cauchy",
+                  "operation": "RndCauchy"
+                },
+                {
+                  "label": "Weibull",
+                  "operation": "RndWeibull"
+                },
+                {
+                  "label": "Beta",
+                  "operation": "RndBeta"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "Cleaning and Encoding",
+          "children": [
+            {
+              "label": "Search and Replace (Basic)",
+              "operation": "SearchAndReplace"
+            },
+            {
+              "label": "Search and Replace (Advanced)",
+              "operation": "SearchAndReplaceAdvanced"
+            },
+            {
+              "label": "Clear Missing Data",
+              "operation": "ClearMissing"
+            },
+            {
+              "label": "Text to Numbers",
+              "operation": "TextCode"
+            },
+            {
+              "label": "Date and Time Intervals",
+              "operation": "Dates"
+            },
+            {
+              "label": "Categorise",
+              "operation": "GroupCategorise"
+            },
+            {
+              "label": "Extract Subset of Data",
+              "operation": "GroupExtract"
+            }
+          ]
+        },
+        {
+          "label": "Transforming and Deriving",
+          "children": [
+            {
+              "label": "Common Transforms",
+              "children": [
+                {
+                  "label": "Log (Natural)",
+                  "operation": "TransformLog"
+                },
+                {
+                  "label": "Log (Base 10)",
+                  "operation": "TransformLog10"
+                },
+                {
+                  "label": "Logit",
+                  "operation": "TransformLogit"
+                },
+                {
+                  "label": "Probit",
+                  "operation": "TransformProbit"
+                },
+                {
+                  "label": "Angular",
+                  "operation": "TransformAngular"
+                },
+                {
+                  "label": "Cumulative",
+                  "operation": "TransformCumulate"
+                },
+                {
+                  "label": "Ladder of Powers",
+                  "operation": "LadderPowers"
+                },
+                {
+                  "label": "Empirical Cumulative Distribution",
+                  "operation": "TransformECDF"
+                },
+                {
+                  "label": "Z Score",
+                  "operation": "TransformZSD"
+                }
+              ]
+            },
+            {
+              "label": "User-defined Function",
+              "operation": "ApplyFunction"
+            },
+            {
+              "label": "Pairwise",
+              "children": [
+                {
+                  "label": "Differences",
+                  "operation": "PairDifferences"
+                },
+                {
+                  "label": "Means",
+                  "operation": "PairMeans"
+                },
+                {
+                  "label": "Slopes",
+                  "operation": "PairSlopes"
+                }
+              ]
+            },
+            {
+              "label": "Normal Scores",
+              "operation": "Normal"
+            },
+            {
+              "label": "Standardization",
+              "operation": "Standardize"
+            },
+            {
+              "label": "Ranks",
+              "operation": "Rank"
+            },
+            {
+              "label": "Summary",
+              "operation": "UnivariateSummaryToWorksheetOnly"
+            },
+            {
+              "label": "Convert Units",
+              "children": [
+                {
+                  "label": "Worksheet Data",
+                  "operation": "ConvertUnits"
+                },
+                {
+                  "label": "Screen Data",
+                  "operation": "ConvertUnitsScreen"
+                }
+              ]
+            },
+            {
+              "label": "Anthropometric Standardization",
+              "operation": "ChildGrowth"
+            }
+          ]
+        },
+        {
+          "label": "Organizing",
+          "children": [
+            {
+              "label": "Sort",
+              "children": [
+                {
+                  "label": "Manipulate Worksheet",
+                  "operation": "SortInPlace"
+                },
+                {
+                  "label": "Create Sorted Variables",
+                  "operation": "Sort"
+                }
+              ]
+            },
+            {
+              "label": "Filter Worksheet Rows",
+              "operation": "ToggleFilters"
+            },
+            {
+              "label": "Rotate Data Block",
+              "operation": "Rotate"
+            },
+            {
+              "label": "Combine Groups",
+              "operation": "Combine"
+            },
+            {
+              "label": "Split Combined Groups",
+              "operation": "GroupSplit"
+            },
+            {
+              "label": "Dummy Variables",
+              "operation": "DummyVariables"
+            },
+            {
+              "label": "Extract Subset of Data",
+              "operation": "GroupExtract"
+            },
+            {
+              "label": "Tabulate",
+              "operation": "Tabulate"
+            },
+            {
+              "label": "Detabulate",
+              "operation": "Detabulate"
+            },
+            {
+              "label": "Expand",
+              "operation": "ExpandFrequencies"
+            },
+            {
+              "label": "Contract",
+              "operation": "ContractFrequencies"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Analysis",
+      "children": [
+        {
+          "label": "Exact Tests on Counts",
+          "children": [
+            {
+              "label": "Sign",
+              "operation": "ExactSign"
+            },
+            {
+              "label": "Fisher",
+              "operation": "ExactFisher"
+            },
+            {
+              "label": "Expanded Fisher",
+              "operation": "ExactFisherX"
+            },
+            {
+              "label": "R by C Fisher",
+              "operation": "ExactFisherRbyC"
+            },
+            {
+              "label": "Matched Pairs",
+              "operation": "ExactMcNamar"
+            },
+            {
+              "label": "Odds Ratio Confidence Interval",
+              "operation": "ExactORCML"
+            },
+            {
+              "label": "Poisson Rate Confidence Interval",
+              "operation": "RatePoissonCI"
+            }
+          ]
+        },
+        {
+          "label": "Chi-square Tests",
+          "children": [
+            {
+              "label": "2 by 2",
+              "operation": "Chi2by2"
+            },
+            {
+              "label": "2 by K",
+              "children": [
+                {
+                  "label": "Without Trend",
+                  "operation": "Chi2byNWithoutTrend"
+                },
+                {
+                  "label": "Trend Scores 1 to K",
+                  "operation": "Chi2byNLinearTrend"
+                },
+                {
+                  "label": "Enter Trend Scores",
+                  "operation": "Chi2byNWithTrend"
+                }
+              ]
+            },
+            {
+              "label": "R by C",
+              "children": [
+                {
+                  "label": "Worksheet Data",
+                  "operation": "ExactChiRbyC"
+                },
+                {
+                  "label": "Screen Data",
+                  "operation": "ExactChiRbyCScreen"
+                }
+              ]
+            },
+            {
+              "label": "McNemar",
+              "operation": "ExactMcNamarChi"
+            },
+            {
+              "label": "Kappa and Maxwell",
+              "children": [
+                {
+                  "label": "Worksheet (Individual Observations)",
+                  "operation": "Kappa"
+                },
+                {
+                  "label": "Screen (Summary Counts)",
+                  "operation": "KappaScreen"
+                }
+              ]
+            },
+            {
+              "label": "Mantel-Haenszel",
+              "children": [
+                {
+                  "label": "Worksheet Data",
+                  "operation": "Mantel"
+                },
+                {
+                  "label": "Screen Data",
+                  "operation": "MantelHaenszelScreen"
+                }
+              ]
+            },
+            {
+              "label": "Woolf",
+              "children": [
+                {
+                  "label": "Worksheet Data",
+                  "operation": "ChiWoolfWorksheet"
+                },
+                {
+                  "label": "Screen Data",
+                  "operation": "ChiWoolfScreen"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "Proportions",
+          "children": [
+            {
+              "label": "Single",
+              "operation": "PropSingle"
+            },
+            {
+              "label": "Paired",
+              "operation": "PropPairs"
+            },
+            {
+              "label": "Two Independent",
+              "operation": "PropUnPaired"
+            }
+          ]
+        },
+        {
+          "label": "Rates",
+          "children": [
+            {
+              "label": "Poisson Rate Confidence Interval",
+              "operation": "RatePoissonCI"
+            },
+            {
+              "label": "Compare Two Crude Rates",
+              "operation": "RateCompareTwo"
+            },
+            {
+              "label": "Standardize and Compare Two Rates",
+              "operation": "Stdrr"
+            },
+            {
+              "label": "Direct Standardization",
+              "children": [
+                {
+                  "label": "Worksheet Data",
+                  "operation": "RateDirect"
+                },
+                {
+                  "label": "Screen Data",
+                  "operation": "RateDirectScreen"
+                }
+              ]
+            },
+            {
+              "label": "Indirect Standardization and SMR",
+              "children": [
+                {
+                  "label": "Worksheet Data",
+                  "operation": "RateSmr"
+                },
+                {
+                  "label": "Screen Data",
+                  "operation": "RateSmrScreen"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "label": "Distributions",
+          "children": [
+            {
+              "label": "Normal",
+              "operation": "DistributionNormal"
+            },
+            {
+              "label": "Student's t",
+              "operation": "DistributionT"
+            },
+            {
+              "label": "F (Variance Ratio)",
+              "operation": "DistributionF"
+            },
+            {
+              "label": "Chi-square",
+              "operation": "DistributionChiSquare"
+            },
+            {
+              "label": "Studentised Range (Q)",
+              "operation": "DistributionQ"
+            },
+            {
+              "label": "Binomial",
+              "operation": "DistributionBinomial"
+            },
+            {
+              "label": "Poisson",
+              "operation": "DistributionPoisson"
+            },
+            {
+              "label": "Kendall's tau",
+              "operation": "DistributionKendall"
+            },
+            {
+              "label": "Spearman's rho",
+              "operation": "DistributionSpearman"
+            },
+            {
+              "label": "Non-central t",
+              "operation": "DistributionNonCentralT"
+            }
+          ]
+        },
+        {
+          "label": "Sample Size",
+          "children": [
+            {
+              "label": "Paired and 1 Sample t",
+              "operation": "SizePaired"
+            },
+            {
+              "label": "Unpaired t",
+              "operation": "SizeUnPaired"
+            },
+            {
+              "label": "Independent Case-control",
+              "operation": "SizeIndCase"
+            },
+            {
+              "label": "Independent Cohort",
+              "operation": "SizeIndProp"
+            },
+            {
+              "label": "Matched Case-control",
+              "operation": "SizeMatchCase"
+            },
+            {
+              "label": "Paired Cohort",
+              "operation": "SizeMatchProp"
+            },
+            {
+              "label": "Population Survey",
+              "operation": "SizePopSurvey"
+            },
+            {
+              "label": "Survival Times",
+              "operation": "SizeSurvival"
+            },
+            {
+              "label": "Correlation",
+              "operation": "SizeCorrelation"
+            }
+          ]
+        },
+        {
+          "label": "Randomization",
+          "children": [
+            {
+              "label": "Series X to Y",
+              "operation": "RandomXY"
+            },
+            {
+              "label": "Intervention-control Pairs",
+              "operation": "RandomPairs"
+            },
+            {
+              "label": "Two Independent Groups",
+              "operation": "RandomUnPaired"
+            },
+            {
+              "label": "Blocks",
+              "operation": "RandomBlock"
+            },
+            {
+              "label": "Preference Allocation",
+              "operation": "Preferences"
+            }
+          ]
+        },
+        {
+          "label": "Clinical Epidemiology",
+          "children": [
+            {
+              "label": "Risk (Prospective)",
+              "operation": "MiscRelRisk"
+            },
+            {
+              "label": "Risk (Retrospective)",
+              "operation": "MiscRetroRisk"
+            },
+            {
+              "label": "Diagnostic Test (2 by 2)",
+              "operation": "MiscDiagnostic"
+            },
+            {
+              "label": "Likelihood Ratios (2 by k)",
+              "operation": "MiscLikely"
+            },
+            {
+              "label": "Number Needed to Treat",
+              "operation": "MiscNumberNeededToTreat"
+            },
+            {
+              "label": "Kappa and Maxwell",
+              "children": [
+                {
+                  "label": "Worksheet (Individual Observations)",
+                  "operation": "Kappa"
+                },
+                {
+                  "label": "Screen (Summary Counts)",
+                  "operation": "KappaScreen"
+                }
+              ]
+            },
+            {
+              "label": "Screening Test Errors",
+              "operation": "MiscFalseResult"
+            },
+            {
+              "label": "Growth Charts",
+              "operation": "ChildGrowth"
+            }
+          ]
+        },
+        {
+          "separator": true
+        },
+        {
+          "label": "Descriptive",
+          "children": [
+            {
+              "label": "Univariate Summary",
+              "operation": "UnivariateSummary"
+            },
+            {
+              "label": "Weighted Univariate Summary",
+              "operation": "WeightedUnivariateSummary"
+            },
+            {
+              "label": "Quick Univariate Summary",
+              "operation": "QuickSummary"
+            },
+            {
+              "label": "Time Series Summary",
+              "operation": "TimeSeriesSummary"
+            }
+          ]
+        },
+        {
+          "label": "Parametric",
+          "children": [
+            {
+              "label": "Paired t",
+              "operation": "TPaired"
+            },
+            {
+              "label": "Single Sample t",
+              "operation": "TSingle"
+            },
+            {
+              "label": "Unpaired t",
+              "operation": "TUnpaired"
+            },
+            {
+              "label": "Summary Data t",
+              "children": [
+                {
+                  "label": "Single Sample",
+                  "operation": "TSingleSummary"
+                },
+                {
+                  "label": "Unpaired",
+                  "operation": "TUnpairedSummary"
+                }
+              ]
+            },
+            {
+              "label": "F (Variance Ratio)",
+              "operation": "VarianceRatio"
+            },
+            {
+              "label": "Single Sample z",
+              "operation": "ZSingle"
+            },
+            {
+              "label": "Unpaired z",
+              "operation": "ZUnpaired"
+            },
+            {
+              "label": "Reference Range",
+              "operation": "ReferenceRange"
+            },
+            {
+              "label": "Poisson Confidence Interval",
+              "operation": "PoissonConfidenceInterval"
+            },
+            {
+              "label": "Normality",
+              "operation": "Normality"
+            }
+          ]
+        },
+        {
+          "label": "Nonparametric",
+          "children": [
+            {
+              "label": "Mann-Whitney",
+              "operation": "MannWhitney"
+            },
+            {
+              "label": "Wilcoxon Signed Ranks",
+              "operation": "Wilcoxon"
+            },
+            {
+              "label": "Kendall Rank Correlation",
+              "operation": "Kendall"
+            },
+            {
+              "label": "Spearman Rank Correlation",
+              "operation": "Spearman"
+            },
+            {
+              "label": "Nonparametric Linear Regression",
+              "operation": "NonparametricLinearRegression"
+            },
+            {
+              "label": "LOESS Curve Fitting",
+              "operation": "LOESS"
+            },
+            {
+              "label": "Cuzick Trend",
+              "operation": "Cuzick"
+            },
+            {
+              "label": "Smirnov Two Sample",
+              "operation": "Smirnov"
+            },
+            {
+              "label": "Quantile Confidence Interval",
+              "operation": "Quantile"
+            },
+            {
+              "label": "Kruskal-Wallis",
+              "operation": "Kruskal"
+            },
+            {
+              "label": "Friedman",
+              "operation": "Friedman"
+            },
+            {
+              "label": "Cochran Q",
+              "operation": "CochranQ"
+            },
+            {
+              "label": "Chi-square Goodness of Fit",
+              "operation": "ChiSquareGoodnessOfFit"
+            },
+            {
+              "label": "ROC Curve Analysis",
+              "operation": "ROCPlot"
+            },
+            {
+              "label": "Gini Coefficient of Inequality",
+              "operation": "Gini"
+            },
+            {
+              "label": "Diversity of Classes",
+              "operation": "Diversity"
+            }
+          ]
+        },
+        {
+          "label": "Analysis of Variance",
+          "children": [
+            {
+              "label": "One Way...",
+              "operation": "OneWay"
+            },
+            {
+              "label": "Two Way...",
+              "operation": "TwoWay"
+            },
+            {
+              "label": "Replicate Two Way...",
+              "operation": "ReplicateTwoWay"
+            },
+            {
+              "label": "Fully Nested...",
+              "operation": "TwoWayNested"
+            },
+            {
+              "label": "Latin Square...",
+              "operation": "LatinSquare"
+            },
+            {
+              "label": "Crossover...",
+              "operation": "Crossover"
+            },
+            {
+              "label": "Kruskal-Wallis",
+              "operation": "Kruskal"
+            },
+            {
+              "label": "Friedman",
+              "operation": "Friedman"
+            }
+          ]
+        },
+        {
+          "label": "Regression and Correlation",
+          "children": [
+            {
+              "label": "Simple Linear with Correlation...",
+              "operation": "SimpleLinearRegression"
+            },
+            {
+              "label": "Multiple Linear...",
+              "operation": "MultipleLinearRegression"
+            },
+            {
+              "label": "Grouped Linear",
+              "children": [
+                {
+                  "label": "Linearity",
+                  "operation": "GroupedLinearity"
+                },
+                {
+                  "label": "Covariance",
+                  "operation": "GroupedCovariance"
+                }
+              ]
+            },
+            {
+              "label": "Deming",
+              "operation": "MethodComparisonRegression"
+            },
+            {
+              "label": "Principal Components",
+              "children": [
+                {
+                  "label": "Correlation...",
+                  "operation": "PCRCorrelation"
+                },
+                {
+                  "label": "Covariance...",
+                  "operation": "PCRCovariance"
+                }
+              ]
+            },
+            {
+              "label": "Linearized Estimates...",
+              "operation": "LinearizedEstimates"
+            },
+            {
+              "label": "Polynomial...",
+              "operation": "PolynomialRegression"
+            },
+            {
+              "label": "Logistic...",
+              "operation": "LogisticRegression"
+            },
+            {
+              "label": "Conditional Logistic...",
+              "operation": "ConditionalLogisticRegression"
+            },
+            {
+              "label": "Poisson...",
+              "operation": "PoissonRegression"
+            },
+            {
+              "label": "Probit Analysis",
+              "children": [
+                {
+                  "label": "Probit Model...",
+                  "operation": "Probit"
+                },
+                {
+                  "label": "Logit Model...",
+                  "operation": "Logit"
+                }
+              ]
+            },
+            {
+              "label": "Kendall Rank Correlation",
+              "operation": "Kendall"
+            },
+            {
+              "label": "Spearman Rank Correlation",
+              "operation": "Spearman"
+            },
+            {
+              "label": "Nonparametric Linear Regression",
+              "operation": "NonparametricLinearRegression"
+            },
+            {
+              "label": "Cox (Proportional Hazards) Regression",
+              "operation": "CoxRegression"
+            }
+          ]
+        },
+        {
+          "label": "Agreement",
+          "children": [
+            {
+              "label": "Continuous (Intraclass)...",
+              "operation": "Agreement"
+            },
+            {
+              "label": "Categorical (Kappa)...",
+              "children": [
+                {
+                  "label": "Worksheet (Individual Observations)",
+                  "operation": "Kappa"
+                },
+                {
+                  "label": "Screen (Summary Counts)",
+                  "operation": "KappaScreen"
+                }
+              ]
+            },
+            {
+              "label": "Method Comparison Regression",
+              "operation": "MethodComparisonRegression"
+            },
+            {
+              "label": "Reliability Analysis...",
+              "operation": "PCRCovarianceNoFollowOns"
+            },
+            {
+              "label": "Universal R...",
+              "operation": "UniversalAgreement"
+            },
+            {
+              "label": "Compare Two R Agreement Measures...",
+              "operation": "UniversalRCompare"
+            }
+          ]
+        },
+        {
+          "label": "Survival Analysis",
+          "children": [
+            {
+              "label": "Kaplan-Meier",
+              "operation": "KaplanMeier"
+            },
+            {
+              "label": "Follow-up Life Table",
+              "operation": "FollowUpLifetable"
+            },
+            {
+              "label": "Abridged Life Table",
+              "operation": "AbridgedLifetable"
+            },
+            {
+              "label": "Log-rank and Wilcoxon",
+              "operation": "LogRank"
+            },
+            {
+              "label": "Wei-Lachin",
+              "operation": "WeiLachin"
+            },
+            {
+              "label": "Cox (Proportional Hazards) Regression",
+              "operation": "CoxRegression"
+            }
+          ]
+        },
+        {
+          "label": "Meta-analysis",
+          "children": [
+            {
+              "label": "Odds Ratio",
+              "operation": "Mantel"
+            },
+            {
+              "label": "Peto Odds Ratio",
+              "operation": "PetoMeta"
+            },
+            {
+              "label": "Relative Risk",
+              "operation": "RelativeRiskMeta"
+            },
+            {
+              "label": "Risk Difference",
+              "operation": "RiskDifference"
+            },
+            {
+              "label": "Incidence Rate Ratio",
+              "operation": "MetaIncidenceRateRatio"
+            },
+            {
+              "label": "Incidence Rate Difference",
+              "operation": "MetaIncidenceRateDifference"
+            },
+            {
+              "label": "Effect Size",
+              "operation": "Effect"
+            },
+            {
+              "label": "Proportion",
+              "operation": "ProportionMeta"
+            },
+            {
+              "label": "Correlation",
+              "operation": "MetaCorrelation"
+            },
+            {
+              "label": "Summary",
+              "operation": "MetaSummary"
+            },
+            {
+              "separator": true
+            },
+            {
+              "label": "Calculation Options...",
+              "operation": "MetaCalculationOptions"
+            },
+            {
+              "label": "Plot Options...",
+              "operation": "MetaPlotOptions"
+            }
+          ]
+        },
+        {
+          "label": "Crosstabs",
+          "operation": "Crosstabs"
+        },
+        {
+          "label": "Frequencies",
+          "operation": "Frequency"
+        },
+        {
+          "separator": true
+        },
+        {
+          "label": "Options",
+          "operation": "AnalysisOptions"
+        }
+      ]
+    },
+    {
+      "label": "Graphics",
+      "children": [
+        {
+          "label": "Bar or Column (Value)",
+          "operation": "BarPlot"
+        },
+        {
+          "label": "Bar or Column (Frequency)",
+          "operation": "BarPlotFrequency"
+        },
+        {
+          "label": "Box and Whisker",
+          "operation": "BoxWhiskerPlot"
+        },
+        {
+          "label": "Box and Whisker (Text)",
+          "operation": "BoxWhiskerPlotText"
+        },
+        {
+          "label": "Control",
+          "operation": "ControlPlot"
+        },
+        {
+          "label": "Error Bars",
+          "operation": "ErrorPlot"
+        },
+        {
+          "label": "Forest (Meta-analysis)",
+          "operation": "CochranePlot"
+        },
+        {
+          "label": "Histogram",
+          "operation": "HistogramPlot"
+        },
+        {
+          "label": "Histogram (Text)",
+          "operation": "HistogramPlotText"
+        },
+        {
+          "label": "Ladder",
+          "operation": "LadderPlot"
+        },
+        {
+          "label": "Line",
+          "operation": "LinePlot"
+        },
+        {
+          "label": "Normal",
+          "operation": "NormalPlot"
+        },
+        {
+          "label": "Population Pyramid",
+          "operation": "PyramidPlot"
+        },
+        {
+          "label": "ROC",
+          "operation": "ROCPlot"
+        },
+        {
+          "label": "Scatter",
+          "operation": "ScatterPlot"
+        },
+        {
+          "label": "Scatter (Text)",
+          "operation": "ScatterPlotText"
+        },
+        {
+          "label": "Spread",
+          "operation": "SpreadPlot"
+        },
+        {
+          "label": "Survival",
+          "operation": "SurvivalPlot"
+        },
+        {
+          "separator": true
+        },
+        {
+          "label": "Options...",
+          "operation": "GraphicsOptions"
+        }
+      ]
+    }
+  ],
   "operations": {
+    "FillSeries": {
+      "id": "FillSeries",
+      "title": "Fill series",
+      "help": "Help/data_preparation/fill_series.htm"
+    },
+    "RndUniform01": {
+      "id": "RndUniform01",
+      "title": "Random numbers: uniform 0 to 1",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndUniformAB": {
+      "id": "RndUniformAB",
+      "title": "Random numbers: uniform a to b",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndNormal": {
+      "id": "RndNormal",
+      "title": "Random numbers: Normal",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndLogNormal": {
+      "id": "RndLogNormal",
+      "title": "Random numbers: Lognormal",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndBinomial": {
+      "id": "RndBinomial",
+      "title": "Random numbers: uniform a to b",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndPoisson": {
+      "id": "RndPoisson",
+      "title": "Random numbers: Poisson",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndGamma": {
+      "id": "RndGamma",
+      "title": "Random numbers: Gamma",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndExponential": {
+      "id": "RndExponential",
+      "title": "Random numbers: Exponential",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndChiSquare": {
+      "id": "RndChiSquare",
+      "title": "Random numbers: Chi-square",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndF": {
+      "id": "RndF",
+      "title": "Random numbers: F",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndT": {
+      "id": "RndT",
+      "title": "Random numbers: Student's t",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndLogit": {
+      "id": "RndLogit",
+      "title": "Random numbers: Logit",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndGeometric": {
+      "id": "RndGeometric",
+      "title": "Random numbers: Geometric",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndNegativeBinomial": {
+      "id": "RndNegativeBinomial",
+      "title": "Random numbers: Negative binomial",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndCauchy": {
+      "id": "RndCauchy",
+      "title": "Random numbers: Cauchy",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndWeibull": {
+      "id": "RndWeibull",
+      "title": "Random numbers: Weibull",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "RndBeta": {
+      "id": "RndBeta",
+      "title": "Random numbers: beta",
+      "help": "Help/randomization/generate_random_numbers.htm"
+    },
+    "SearchAndReplace": {
+      "id": "SearchAndReplace",
+      "title": "Search and replace (basic)",
+      "help": "Help/data_preparation/search_replace.htm"
+    },
+    "SearchAndReplaceAdvanced": {
+      "id": "SearchAndReplaceAdvanced",
+      "title": "Search and replace (Advanced)",
+      "help": "Help/data_preparation/search_replace.htm"
+    },
+    "ClearMissing": {
+      "id": "ClearMissing",
+      "title": "Clear missing values",
+      "help": "Help/data_preparation/clear_missing_data.htm"
+    },
+    "TextCode": {
+      "id": "TextCode",
+      "title": "Convert text to numbers",
+      "help": "Help/data_preparation/text_to_numbers.htm"
+    },
+    "Dates": {
+      "id": "Dates",
+      "title": "Calculate date and time intervals",
+      "help": "Help/data_preparation/date_time_intervals.htm"
+    },
+    "GroupCategorise": {
+      "id": "GroupCategorise",
+      "title": "Categorise observations into groups",
+      "help": "Help/data_preparation/categorise.htm"
+    },
+    "GroupExtract": {
+      "id": "GroupExtract",
+      "title": "Derive a variable from data based on rules",
+      "help": "Help/data_preparation/extract_variables.htm"
+    },
+    "TransformLog": {
+      "id": "TransformLog",
+      "title": "Transformation: Log",
+      "help": "Help/data_preparation/transform_log.htm"
+    },
+    "TransformLog10": {
+      "id": "TransformLog10",
+      "title": "Transformation: Log (base 10)",
+      "help": "Help/data_preparation/transform_log.htm"
+    },
+    "TransformLogit": {
+      "id": "TransformLogit",
+      "title": "Transformation: Logit",
+      "help": "Help/data_preparation/transform_logit.htm"
+    },
+    "TransformProbit": {
+      "id": "TransformProbit",
+      "title": "Transformation: Probit",
+      "help": "Help/data_preparation/transform_probit.htm"
+    },
+    "TransformAngular": {
+      "id": "TransformAngular",
+      "title": "Transformation: Angular",
+      "help": "Help/data_preparation/transform_angle.htm"
+    },
+    "TransformCumulate": {
+      "id": "TransformCumulate",
+      "title": "Transformation: Cumulative",
+      "help": "Help/data_preparation/transform_cumulative.htm"
+    },
+    "LadderPowers": {
+      "id": "LadderPowers",
+      "title": "Ladder of powers transformation set",
+      "help": "Help/data_preparation/transform_ladder_powers.htm"
+    },
+    "TransformECDF": {
+      "id": "TransformECDF",
+      "title": "Transformation: Empirical Cumulative Distribution Function",
+      "help": "Help/data_preparation/transform_empirical_cdf.htm"
+    },
+    "TransformZSD": {
+      "id": "TransformZSD",
+      "title": "Transformation: Z score based on sample standard deviation",
+      "help": "Help/data_preparation/transform_z_scores.htm"
+    },
+    "ApplyFunction": {
+      "id": "ApplyFunction",
+      "title": "Apply function to transform data",
+      "help": "Help/data_preparation/apply_function.htm"
+    },
+    "PairDifferences": {
+      "id": "PairDifferences",
+      "title": "Pairwise differences",
+      "help": "Help/data_preparation/pairwise_differences.htm"
+    },
+    "PairMeans": {
+      "id": "PairMeans",
+      "title": "Pairwise means",
+      "help": "Help/data_preparation/pairwise_means.htm"
+    },
+    "PairSlopes": {
+      "id": "PairSlopes",
+      "title": "Pairwise slopes",
+      "help": "Help/data_preparation/pairwise_slopes.htm"
+    },
+    "Normal": {
+      "id": "Normal",
+      "title": "Normal scores",
+      "help": "Help/data_preparation/transform_normal_scores.htm"
+    },
+    "Standardize": {
+      "id": "Standardize",
+      "title": "Standardization of variables",
+      "help": "Help/data_preparation/standardization.htm"
+    },
+    "Rank": {
+      "id": "Rank",
+      "title": "Ranking observations",
+      "help": "Help/data_preparation/ranking.htm"
+    },
+    "UnivariateSummaryToWorksheetOnly": {
+      "id": "UnivariateSummaryToWorksheetOnly",
+      "title": "Univariate descriptive summaries of variables",
+      "help": "Help/basic_descriptive_statistics/univariate_summary.htm"
+    },
+    "ConvertUnits": {
+      "id": "ConvertUnits",
+      "title": "Convert units",
+      "help": "Help/data_preparation/conversion_factors.htm"
+    },
+    "ConvertUnitsScreen": {
+      "id": "ConvertUnitsScreen",
+      "title": "Convert units - screen data",
+      "help": "Help/data_preparation/conversion_factors.htm"
+    },
+    "ChildGrowth": {
+      "id": "ChildGrowth",
+      "title": "Anthropometric Z-Scores",
+      "help": "Help/data_preparation/growth_charts.htm"
+    },
+    "SortInPlace": {
+      "id": "SortInPlace",
+      "title": "Sorting observations using the worksheet",
+      "help": "Help/data_preparation/sorting_worksheet.htm"
+    },
+    "Sort": {
+      "id": "Sort",
+      "title": "Sorting observations",
+      "help": "Help/data_preparation/sorting_create.htm"
+    },
+    "ToggleFilters": {
+      "id": "ToggleFilters",
+      "title": "Turn Excel worksheet filters on/off",
+      "help": "Help/data_preparation/filter_worksheet.htm"
+    },
+    "Rotate": {
+      "id": "Rotate",
+      "title": "Rotate data block",
+      "help": "Help/data_preparation/rotate_block.htm"
+    },
+    "Combine": {
+      "id": "Combine",
+      "title": "Combine variables into one data and one category variable",
+      "help": "Help/data_preparation/combine_groups.htm"
+    },
+    "GroupSplit": {
+      "id": "GroupSplit",
+      "title": "Split a combined variable into its component variables",
+      "help": "Help/data_preparation/group_split.htm"
+    },
+    "DummyVariables": {
+      "id": "DummyVariables",
+      "title": "Create dummy (indicator) variables",
+      "help": "Help/data_preparation/dummy_variables.htm"
+    },
+    "Tabulate": {
+      "id": "Tabulate",
+      "title": "Cross-tabulate two variables",
+      "help": "Help/data_preparation/tabulate.htm"
+    },
+    "Detabulate": {
+      "id": "Detabulate",
+      "title": "Detabulate",
+      "help": "Help/data_preparation/detabulate.htm"
+    },
+    "ExpandFrequencies": {
+      "id": "ExpandFrequencies",
+      "title": "Expand",
+      "help": "Help/data_preparation/expand.htm"
+    },
+    "ContractFrequencies": {
+      "id": "ContractFrequencies",
+      "title": "Contract",
+      "help": "Help/data_preparation/contract.htm"
+    },
     "ExactSign": {
       "id": "ExactSign",
       "title": "Sign (binomial proportion) test",
@@ -1046,11 +2441,6 @@
       "title": "Analysis of screening test error probabilities",
       "help": "Help/clinical_epidemiology/screening_test.htm"
     },
-    "ChildGrowth": {
-      "id": "ChildGrowth",
-      "title": "Anthropometric Z-Scores",
-      "help": "Help/data_preparation/growth_charts.htm"
-    },
     "UnivariateSummary": {
       "id": "UnivariateSummary",
       "title": "Univariate descriptive summaries of variables",
@@ -1155,7 +2545,7 @@
       "id": "LOESS",
       "title": "LOESS curve fitting",
       "help": "Help/nonparametric_methods/loess.htm",
-      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and the separate R session tab are available."
+      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and R \u2192 New R Session are available."
     },
     "Cuzick": {
       "id": "Cuzick",
@@ -1261,7 +2651,7 @@
       "id": "MethodComparisonRegression",
       "title": "Method comparison regression",
       "help": "Help/agreement/mcr.htm",
-      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and the separate R session tab are available."
+      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and R \u2192 New R Session are available."
     },
     "PCRCorrelation": {
       "id": "PCRCorrelation",
@@ -1427,6 +2817,96 @@
       "id": "AnalysisOptions",
       "title": "Analysis options",
       "help": "Help/menus/analysis_options.htm"
+    },
+    "BarPlot": {
+      "id": "BarPlot",
+      "title": "Bar and stacked bar plots",
+      "help": "Help/graphics/bar.htm"
+    },
+    "BarPlotFrequency": {
+      "id": "BarPlotFrequency",
+      "title": "Bar plots",
+      "help": "Help/graphics/bar.htm"
+    },
+    "BoxWhiskerPlot": {
+      "id": "BoxWhiskerPlot",
+      "title": "Box and whisker plot",
+      "help": "Help/graphics/box_whisker.htm"
+    },
+    "BoxWhiskerPlotText": {
+      "id": "BoxWhiskerPlotText",
+      "title": "Box and wisker plot in text",
+      "help": "Help/graphics/box_whisker_text.htm"
+    },
+    "ControlPlot": {
+      "id": "ControlPlot",
+      "title": "Control charts",
+      "help": "Help/graphics/control.htm"
+    },
+    "ErrorPlot": {
+      "id": "ErrorPlot",
+      "title": "Line or scatter plots with error bars",
+      "help": "Help/graphics/error_bar.htm"
+    },
+    "CochranePlot": {
+      "id": "CochranePlot",
+      "title": "Forest (Cochrane) plot",
+      "help": "Help/graphics/forest.htm"
+    },
+    "HistogramPlot": {
+      "id": "HistogramPlot",
+      "title": "Histogram plot",
+      "help": "Help/graphics/histogram.htm"
+    },
+    "HistogramPlotText": {
+      "id": "HistogramPlotText",
+      "title": "Histogram plot in text form",
+      "help": "Help/graphics/histogram_text.htm"
+    },
+    "LadderPlot": {
+      "id": "LadderPlot",
+      "title": "Ladder plot of changes in paired observations",
+      "help": "Help/graphics/ladder.htm"
+    },
+    "LinePlot": {
+      "id": "LinePlot",
+      "title": "Line plot",
+      "help": "Help/graphics/scatter.htm"
+    },
+    "NormalPlot": {
+      "id": "NormalPlot",
+      "title": "Normal scores plot",
+      "help": "Help/graphics/normal.htm"
+    },
+    "PyramidPlot": {
+      "id": "PyramidPlot",
+      "title": "Population pyramid plot",
+      "help": "Help/graphics/population_pyramid.htm"
+    },
+    "ScatterPlot": {
+      "id": "ScatterPlot",
+      "title": "Scatter plot",
+      "help": "Help/graphics/scatter.htm"
+    },
+    "ScatterPlotText": {
+      "id": "ScatterPlotText",
+      "title": "Scatter plot in text form",
+      "help": "Help/graphics/scatter_text.htm"
+    },
+    "SpreadPlot": {
+      "id": "SpreadPlot",
+      "title": "Spread plot",
+      "help": "Help/graphics/spread.htm"
+    },
+    "SurvivalPlot": {
+      "id": "SurvivalPlot",
+      "title": "Survival plot",
+      "help": "Help/graphics/survival.htm"
+    },
+    "GraphicsOptions": {
+      "id": "GraphicsOptions",
+      "title": "Graphics options",
+      "help": "Help/graphics/defaults.htm"
     }
   },
   "sourceSHA256": "ef91d33e1cd058e800dca63ef0248fd7ebcb1b21fb22d85ad9f7e46d4397ba80"

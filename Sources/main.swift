@@ -38,6 +38,9 @@ final class Document {
     var analysisJobID: String?
     var analysisCancelled = false
     var operationName: String?
+    var operationReady = false
+    var operationClosing = false
+    var operationStarting = false
     var operationRevision = 0
     var hasSVG = false
     init(kind: String, title: String, access: URL) {
@@ -57,22 +60,25 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var frameControls: WindowFrameControls!
     var closeApproved = false
     var tabs: NSTabView!
-    let rLauncher = NSTabViewItem(identifier: "start-r-session")
-    var changingTabs = false
+    let documentTabs = NSStackView()
+    let documentTabScroll = NSScrollView()
     var status: NSTextField!
-    var runButton: NSButton!
-    var exportButton: NSButton!
     var documents: [Document] = []
     var windowsMenu: NSMenu!
     var running = false
     var reportNumber = 0
     var rNumber = 0
+    var analysisNumbers: [String: Int] = [:]
     var libraryHandle: UnsafeMutableRawPointer?
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
     var active: Document? { documents.first { $0.item === tabs.selectedTabViewItem } }
     var example: PairedExample!
     var analysisCatalog: [String: [String: Any]] = [:]
     var analysisSourceID: String?
+    func nextAnalysisTitle(_ title: String) -> String {
+        let number = (analysisNumbers[title] ?? 0) + 1; analysisNumbers[title] = number
+        return number == 1 ? title : "\(title) · \(number)"
+    }
     func applicationDidFinishLaunching(_ notification: Notification) {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 850), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "StatsDirect · Mac prototype"
@@ -80,38 +86,45 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         frameControls = WindowFrameControls(window: window)
         window.minSize = NSSize(width: 850, height: 520)
         let container = NSView(); window.contentView = container
-        let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 10
-        for (label, selector) in [("Data grid", #selector(showGrid)), ("Run paired t test", #selector(runPaired)), ("Method help", #selector(pairedHelp)), ("Help library", #selector(helpLibrary)), ("Back", #selector(back)), ("Forward", #selector(forward)), ("Save PDF…", #selector(savePDF)), ("Close tab", #selector(closeTab))] {
-            let button = NSButton(title: label, target: self, action: selector)
-            button.bezelStyle = .rounded
-            if selector == #selector(runPaired) { runButton = button }
-            if selector == #selector(savePDF) { exportButton = button }
+        let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 4
+        for title in ["File", "Edit", "Data", "Analysis", "Graphics", "R", "Help", "Window"] {
+            let button = NSButton(title: title + " ▾", target: self, action: #selector(showDropdown(_:)))
+            button.identifier = NSUserInterfaceItemIdentifier(title)
+            button.isBordered = false; button.refusesFirstResponder = true
+            button.font = .systemFont(ofSize: 13)
+            button.setAccessibilityLabel(title + " menu")
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 54).isActive = true
             bar.addArrangedSubview(button)
         }
-        tabs = NSTabView(); tabs.tabViewType = .topTabsBezelBorder; tabs.delegate = self
+        tabs = NSTabView(); tabs.tabViewType = .noTabsNoBorder; tabs.delegate = self
+        documentTabs.orientation = .horizontal; documentTabs.alignment = .centerY; documentTabs.spacing = 4
+        documentTabScroll.documentView = documentTabs
+        documentTabScroll.hasHorizontalScroller = true; documentTabScroll.autohidesScrollers = true
+        documentTabScroll.scrollerStyle = .overlay; documentTabScroll.drawsBackground = false
         status = NSTextField(labelWithString: "Ready")
         status.font = .systemFont(ofSize: 11); status.textColor = .secondaryLabelColor
         status.lineBreakMode = .byTruncatingTail
-        for view in [bar, tabs!, status!] { view.translatesAutoresizingMaskIntoConstraints = false; container.addSubview(view) }
+        for view in [bar, documentTabScroll, tabs!, status!] { view.translatesAutoresizingMaskIntoConstraints = false; container.addSubview(view) }
         NSLayoutConstraint.activate([
             bar.heightAnchor.constraint(equalToConstant: 32), status.heightAnchor.constraint(equalToConstant: 16),
-            bar.topAnchor.constraint(equalTo: container.topAnchor, constant: 12), bar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 14),
-            tabs.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 12), tabs.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), tabs.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+            bar.topAnchor.constraint(equalTo: container.topAnchor, constant: 4), bar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+            documentTabScroll.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 2),
+            documentTabScroll.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), documentTabScroll.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8), documentTabScroll.heightAnchor.constraint(equalToConstant: 36),
+            tabs.topAnchor.constraint(equalTo: documentTabScroll.bottomAnchor, constant: 2), tabs.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), tabs.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
             status.topAnchor.constraint(equalTo: tabs.bottomAnchor, constant: 7), status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16), status.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16), status.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
         ])
         setupMenu()
         do { example = try JSONDecoder().decode(PairedExample.self, from: Data(contentsOf: root.appendingPathComponent("paired-example.json"))) }
         catch { showError("The example data could not be loaded: \(error.localizedDescription)") }
         helpLibrary(); showGrid()
-        rLauncher.label = "+ R session"
-        let launcherView = NSView()
-        let startButton = NSButton(title: "Start a new R session", target: self, action: #selector(newRTab))
-        startButton.bezelStyle = .rounded; startButton.translatesAutoresizingMaskIntoConstraints = false
-        launcherView.addSubview(startButton)
-        NSLayoutConstraint.activate([startButton.centerXAnchor.constraint(equalTo: launcherView.centerXAnchor), startButton.centerYAnchor.constraint(equalTo: launcherView.centerYAnchor)])
-        rLauncher.view = launcherView
-        tabs.addTabViewItem(rLauncher)
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+    }
+    @objc func showDropdown(_ sender: NSButton) {
+        guard let title = sender.identifier?.rawValue,
+              let source = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == title })?.submenu,
+              let menu = source.copy() as? NSMenu else { return }
+        // Copy at opening so document names, selection and command validation stay current.
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.minY), in: sender)
     }
     func setupMenu() {
         let main = NSMenu()
@@ -127,36 +140,41 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(app, "Quit StatsDirect", #selector(NSApplication.terminate(_:)), "q", target: NSApp)
         let file = menu("File")
         add(file, "Data Grid", #selector(showGrid), "3")
-        add(file, "New R Tab", #selector(newRTab), "r")
+        add(file, "New R Session", #selector(newRTab), "r")
         add(file, "PEFR example data", #selector(showData), "1")
         add(file, "Open Excel Workbook…", #selector(openExcel), "o")
         add(file, "Open StatsDirect test.xlsx", #selector(openExampleWorkbook))
-        add(file, "Open HTML in New Tab…", #selector(openFile))
+        add(file, "Open HTML Document…", #selector(openFile))
         add(file, "Export Current Worksheet as CSV…", #selector(exportActiveCSV))
         add(file, "Save PDF…", #selector(savePDF), "s")
         add(file, "Save Chart as SVG…", #selector(saveChartSVG))
         add(file, "Print…", #selector(printPage), "p")
-        file.addItem(.separator()); add(file, "Close Tab", #selector(closeTab), "w")
+        file.addItem(.separator()); add(file, "Close Document", #selector(closeTab), "w")
         let edit = menu("Edit")
         for (title, selector, key) in [("Undo", Selector(("undo:")), "z"), ("Cut", #selector(NSText.cut(_:)), "x"), ("Copy", #selector(NSText.copy(_:)), "c"), ("Paste", #selector(NSText.paste(_:)), "v"), ("Select All", #selector(NSText.selectAll(_:)), "a")] {
             edit.addItem(NSMenuItem(title: title, action: selector, keyEquivalent: key))
         }
-        let analysis = menu("Analysis")
-        populateAnalysisMenu(analysis)
+        for title in ["Data", "Analysis", "Graphics"] { populateOperationMenu(menu(title)) }
         let rMenu = menu("R")
-        add(rMenu, "New R Tab", #selector(newRTab), "")
+        add(rMenu, "New R Session", #selector(newRTab), "")
         add(rMenu, "Run Script", #selector(runRScript), "\r")
         add(rMenu, "Stop / Reset Session", #selector(stopRSession))
         add(rMenu, "Save Script…", #selector(saveRScript))
         let help = menu("Help")
+        add(help, "Current Method", #selector(currentMethodHelp))
         add(help, "R × C Contingency Table", #selector(chiSquareHelp))
         add(help, "Help Library", #selector(helpLibrary), "2")
         add(help, "Paired Student t Test", #selector(pairedHelp), "?")
+        help.addItem(.separator())
+        add(help, "Back", #selector(back))
+        add(help, "Forward", #selector(forward))
         windowsMenu = menu("Window")
         NSApp.mainMenu = main
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(back) { return active?.web.canGoBack == true }
+        if menuItem.action == #selector(forward) { return active?.web.canGoForward == true }
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
         if menuItem.action == #selector(exportActiveCSV) { return active?.kind == "grid" }
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
@@ -168,8 +186,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         return true
     }
     func updateWindowMenu() {
+        updateDocumentTabs()
         windowsMenu.removeAllItems()
-        for (name, action, key) in [("Next Tab", #selector(nextTab), "]"), ("Previous Tab", #selector(previousTab), "[")] {
+        for (name, action, key) in [("Next Document", #selector(nextTab), "]"), ("Previous Document", #selector(previousTab), "[")] {
             let item = NSMenuItem(title: name, action: action, keyEquivalent: key); item.target = self
             item.keyEquivalentModifierMask = [.command, .shift]; windowsMenu.addItem(item)
         }
@@ -178,6 +197,42 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             let item = NSMenuItem(title: doc.title, action: #selector(selectDocument(_:)), keyEquivalent: "")
             item.target = self; item.representedObject = doc.id; item.state = active === doc ? .on : .off; windowsMenu.addItem(item)
         }
+    }
+    func updateDocumentTabs() {
+        for view in documentTabs.arrangedSubviews { documentTabs.removeArrangedSubview(view); view.removeFromSuperview() }
+        var width: CGFloat = 0
+        var selected: NSView?
+        for doc in documents {
+            let group = NSStackView(); group.orientation = .horizontal; group.spacing = 0
+            group.wantsLayer = true; group.layer?.cornerRadius = 6
+            group.layer?.backgroundColor = (active === doc ? NSColor.controlAccentColor.withAlphaComponent(0.16) : NSColor.controlBackgroundColor).cgColor
+            group.layer?.borderColor = NSColor.separatorColor.cgColor; group.layer?.borderWidth = 0.5
+            let select = NSButton(title: doc.title, target: self, action: #selector(selectDocumentTab(_:)))
+            select.identifier = NSUserInterfaceItemIdentifier(doc.id); select.isBordered = false
+            select.font = .systemFont(ofSize: 12, weight: active === doc ? .semibold : .regular)
+            select.cell?.lineBreakMode = .byTruncatingTail; select.toolTip = doc.title
+            select.setAccessibilityLabel(doc.title + (active === doc ? ", selected document" : ", document"))
+            let titleWidth = min(240, max(90, (doc.title as NSString).size(withAttributes: [.font: select.font!]).width + 20))
+            group.widthAnchor.constraint(equalToConstant: titleWidth + 26).isActive = true
+            select.widthAnchor.constraint(equalToConstant: titleWidth).isActive = true
+            let close = NSButton(title: "×", target: self, action: #selector(closeDocumentTab(_:)))
+            close.identifier = NSUserInterfaceItemIdentifier(doc.id); close.isBordered = false
+            close.font = .systemFont(ofSize: 17); close.toolTip = "Close " + doc.title
+            close.setAccessibilityLabel("Close " + doc.title); close.widthAnchor.constraint(equalToConstant: 26).isActive = true
+            for button in [select, close] { button.refusesFirstResponder = true; group.addArrangedSubview(button) }
+            group.heightAnchor.constraint(equalToConstant: 30).isActive = true
+            documentTabs.addArrangedSubview(group); width += titleWidth + 30
+            if active === doc { selected = group }
+        }
+        documentTabs.frame = NSRect(x: 0, y: 0, width: max(1, width), height: 32)
+        documentTabs.layoutSubtreeIfNeeded()
+        if let selected { selected.scrollToVisible(selected.bounds) }
+    }
+    @objc func selectDocumentTab(_ sender: NSButton) {
+        if let doc = documents.first(where: { $0.id == sender.identifier?.rawValue }) { tabs.selectTabViewItem(doc.item) }
+    }
+    @objc func closeDocumentTab(_ sender: NSButton) {
+        if let doc = documents.first(where: { $0.id == sender.identifier?.rawValue }) { closeDocument(doc) }
     }
     @objc func selectDocument(_ sender: NSMenuItem) {
         if let doc = documents.first(where: { $0.id == sender.representedObject as? String }) { tabs.selectTabViewItem(doc.item) }
@@ -188,17 +243,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         guard let doc = active, let index = documents.firstIndex(where: { $0 === doc }), !documents.isEmpty else { return }
         tabs.selectTabViewItem(documents[(index + delta + documents.count) % documents.count].item)
     }
-    func tabView(_ tabView: NSTabView, shouldSelect tabViewItem: NSTabViewItem?) -> Bool {
-        guard tabViewItem === rLauncher, !changingTabs else { return true }
-        // Defer insertion until the tab view has finished handling this selection.
-        DispatchQueue.main.async { [weak self] in self?.newRTab() }
-        return false
-    }
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         if let doc = active, ["data", "grid"].contains(doc.kind) { analysisSourceID = doc.id }
         window.title = "\(active?.title ?? "StatsDirect") · Mac prototype"
-        exportButton?.isEnabled = active?.kind != "operation"
-        exportButton?.title = active?.kind == "r" ? "Save script…" : active?.kind == "grid" ? "Save Excel…" : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"
         status.stringValue = running ? "Running analysis…" : "\(documents.count) open documents · \(active?.kind.capitalized ?? "Ready")"
         if windowsMenu != nil { updateWindowMenu() }
     }
@@ -211,9 +258,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         doc.hasSVG = html?.contains("<svg") == true
         doc.initialURL = url; doc.web.navigationDelegate = self; doc.web.uiDelegate = self
         documents.append(doc)
-        if tabs.tabViewItems.contains(where: { $0 === rLauncher }) {
-            tabs.insertTabViewItem(doc.item, at: tabs.indexOfTabViewItem(rLauncher))
-        } else { tabs.addTabViewItem(doc.item) }
+        tabs.addTabViewItem(doc.item)
         tabs.selectTabViewItem(doc.item)
         if let url { doc.web.loadFileURL(url, allowingReadAccessTo: doc.access) }
         else if let html { doc.web.loadHTMLString(html, baseURL: root) }
@@ -229,6 +274,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     @objc func helpLibrary() { openHelp(root.appendingPathComponent("help-index.html"), title: "Library") }
     @objc func pairedHelp() { openHelp(root.appendingPathComponent("Help/parametric_methods/paired_t.htm"), title: "Paired t test") }
+    @objc func currentMethodHelp() {
+        if let doc = active, let operation = doc.operationName, let path = analysisCatalog[operation]?["help"] as? String {
+            openHelp(root.appendingPathComponent(path), title: doc.title)
+        } else if active?.kind == "analysis" { chiSquareHelp() }
+        else { pairedHelp() }
+    }
     @objc func showData() {
         if let doc = documents.first(where: { $0.kind == "data" }) { tabs.selectTabViewItem(doc.item); return }
         guard let example else { return }
@@ -238,7 +289,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let body = """
         <div class="eyebrow">Example data / Paired observations</div><h1>Before and after a winter walk</h1>
         <p class="lead">Peak expiratory flow rate in nine people with asthma. Each row is one person.</p>
-        <div class="note">Choose <strong>Analysis → Parametric → Paired t</strong> (⌘T) to configure a test, or use the Run paired t test toolbar button for a quick report. You can edit these values and run it again; earlier reports stay in their own tabs.</div>
+        <div class="note">Choose <strong>Analysis → Parametric → Paired t</strong> (⌘T) to configure a test. You can edit these values and run it again; earlier reports stay in separate documents.</div>
         <table class="data"><thead><tr><th>Subject</th><th>PEFR Before</th><th>PEFR After</th></tr></thead><tbody>\(rows)</tbody></table>
         <p><label><input id="agreement" type="checkbox"> Agreement analysis (SVG chart)</label></p>
         <p class="muted">Difference = Before − After · 95% confidence interval · Missing pairs are omitted.</p>
@@ -257,9 +308,18 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func stopRSession() { active?.rPane?.stopSession() }
     @objc func saveRScript() { active?.rPane?.saveScript() }
     @objc func closeTab() {
-        if active?.excelBusy == true { showError("Please wait for the Excel save to finish."); return }
         guard let doc = active else { return }
-        if doc.analysisJobID != nil { if doc.kind == "operation" { operationError(doc, "Cancel this analysis before closing its form.") } else { analysisState(doc, true, "Use Cancel calculation and wait for the engine to stop before closing this form.") }; return }
+        closeDocument(doc)
+    }
+    func closeDocument(_ doc: Document) {
+        if doc.excelBusy { showError("Please wait for the Excel save to finish."); return }
+        if let id = doc.analysisJobID {
+            if doc.kind == "operation" {
+                doc.operationClosing = true; doc.analysisCancelled = true
+                if !doc.operationStarting { operationRequest(["action": "cancel", "id": id], doc: doc, id: id) }
+            } else { doc.operationClosing = true; cancelAnalysis(doc) }
+            return
+        }
         if doc.kind == "analysis" && doc.gridDirty {
             let alert = NSAlert(); alert.messageText = "Close the contingency table?"
             alert.informativeText = "Unsaved counts and labels will be discarded. Use Save Table to keep a CSV copy. Reports remain open."
@@ -268,7 +328,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         } else if let pane = doc.rPane, pane.hasUnsavedChanges || pane.isRunning {
             let alert = NSAlert(); alert.messageText = "Close this R session?"
             alert.informativeText = "Unsaved script edits and R variables will be discarded. Any running script will stop."
-            alert.addButton(withTitle: "Close R Tab"); alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: "Close R Session"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else if doc.gridDirty {
             let alert = NSAlert(); alert.messageText = "Close the data grid?"; alert.informativeText = "Unsaved worksheet edits will be discarded. Use Save Excel to keep all worksheets."
@@ -287,7 +347,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectOperation")
         doc.rPane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }
-        changingTabs = true; tabs.removeTabViewItem(doc.item); changingTabs = false
+        tabs.removeTabViewItem(doc.item)
         updateWindowMenu(); status.stringValue = "\(documents.count) open documents"
     }
     @objc func back() { active?.web.goBack() }
@@ -303,12 +363,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if let doc = documents.first(where: { $0.id == analysisSourceID }), doc.kind == "grid" { runPairedFromGrid(doc); return }
         // Read the data document even when a report/help tab is selected.
         if !documents.contains(where: { $0.kind == "data" }) {
-            showData(); running = true; runButton.isEnabled = false
+            showData(); running = true
             calculate(before: example.before, after: example.after)
             return
         }
         guard let dataDoc = documents.first(where: { $0.kind == "data" }) else { return }
-        running = true; runButton.isEnabled = false; status.stringValue = "Running paired t test…"
+        running = true; status.stringValue = "Running paired t test…"
         let script = "JSON.stringify({before:[...document.querySelectorAll('input[name=before]')].map(e=>e.value),after:[...document.querySelectorAll('input[name=after]')].map(e=>e.value),agreement:[String(document.querySelector('#agreement')?.checked === true)]})"
         dataDoc.web.evaluateJavaScript(script) { value, error in
             guard error == nil, let text = value as? String, let bytes = text.data(using: .utf8), let values = try? JSONDecoder().decode([String:[String]].self, from: bytes), let a = values["before"], let b = values["after"], a.count == b.count, a.count >= 2 else { self.endRun(); self.showError("The data are still loading. Please try again."); return }
@@ -359,7 +419,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             }
         }
     }
-    func endRun() { running = false; runButton.isEnabled = true }
+    func endRun() { running = false }
     func number(_ value: Double, places: Int = 6) -> String {
         if !value.isFinite { return "—" }
         if value != 0 && abs(value) < pow(10, -Double(places)) { return String(format: "%.4g", value) }
@@ -456,9 +516,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if documents.contains(where: { $0.excelBusy }) { showError("Please wait for the Excel save to finish."); return .terminateCancel }
         if running { showError("Please wait for the running analysis to finish, or cancel it from its form."); return .terminateCancel }
         if closeApproved { return .terminateNow }
-        if documents.contains(where: { $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true || $0.gridDirty }) {
+        if documents.contains(where: { $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true || $0.gridDirty || $0.analysisJobID != nil }) {
             let alert = NSAlert(); alert.messageText = "Quit with unsaved work?"
-            alert.informativeText = "Unsaved worksheet and R script edits will be lost. R sessions will stop."
+            alert.informativeText = "Unsaved worksheet and R script edits will be lost. Open analyses and R sessions will stop."
             alert.addButton(withTitle: "Quit"); alert.addButton(withTitle: "Cancel")
             if alert.runModal() != .alertFirstButtonReturn { return .terminateCancel }
         }

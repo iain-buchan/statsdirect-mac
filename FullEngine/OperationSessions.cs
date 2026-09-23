@@ -10,6 +10,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using StatsDirect.Data;
+using StatsDirect.Numerics;
 using StatsDirect.Templates;
 using StatsDirect.TemplateProcessing;
 using StatsDirect.UI;
@@ -21,8 +22,6 @@ public static class OperationSessions {
     internal static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
     static readonly ConcurrentDictionary<string, OperationJob> jobs = new();
     static readonly object gate = new();
-    internal static readonly Dictionary<string, ParameterBag> SavedPerOperation = new();
-    internal static readonly ParameterBag SavedAcrossOperations = new();
     public sealed record Request(string Action, string Id, string Operation, int Token, JsonElement Value);
     public static string Execute(string input) {
         try {
@@ -31,16 +30,16 @@ public static class OperationSessions {
             object result;
             if (r.Action == "start") {
                 lock (gate) {
-                    if (jobs.Values.Any(j => !j.Finished)) throw new Exception("Finish or cancel the current analysis first.");
                     if (jobs.ContainsKey(r.Id)) throw new Exception("This analysis has already started.");
                     RuntimeHelpers.RunClassConstructor(typeof(Exports).TypeHandle);
                     _ = SdApplication.SoleInstance;
                     using var catalog = JsonDocument.Parse(File.ReadAllText(Path.Combine(Path.GetDirectoryName(typeof(OperationSessions).Assembly.Location), "AnalysisMenu.json")));
-                    if (r.Operation == null || !catalog.RootElement.GetProperty("operations").TryGetProperty(r.Operation, out var definition)) throw new Exception("Unknown Analysis menu command.");
+                    if (r.Operation == null || !catalog.RootElement.GetProperty("operations").TryGetProperty(r.Operation, out var definition)) throw new Exception("Unknown menu command.");
                     if (definition.TryGetProperty("unavailable", out var unavailable)) throw new Exception(unavailable.GetString());
                     if (!TemplateFactory.Operations.TryGetValue(r.Operation, out var operation)) throw new Exception("The operation definition could not be loaded.");
                     var job = new OperationJob(r.Id, operation); jobs[r.Id] = job;
-                    Task.Run(job.Run); result = job.Snapshot();
+                    Task.Factory.StartNew(job.Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                    result = job.Snapshot();
                 }
             } else {
                 if (!jobs.TryGetValue(r.Id, out var job)) throw new Exception("This analysis session is no longer available.");
@@ -81,12 +80,15 @@ internal sealed class OperationJob {
     public void Check() { if (Cancelled) throw new OperationCanceledException(); }
     public void Progress(string text, double? value = null) { lock (sync) { progress = text; fraction = value; } }
     public JsonElement Ask(Dictionary<string, object> descriptor) {
-        lock (sync) {
-            Check(); prompt = descriptor; answer = null; state = "input"; token++;
-            while (!answer.HasValue) { Check(); Monitor.Wait(sync, 500); }
-            var value = answer.Value; answer = null; state = "running"; prompt = null;
-            return value;
-        }
+        var value = EngineExecution.WaitForInput(() => {
+            lock (sync) {
+                Check(); prompt = descriptor; answer = null; state = "input"; token++;
+                while (!answer.HasValue) { Check(); Monitor.Wait(sync, 500); }
+                var input = answer.Value; answer = null; state = "running"; prompt = null;
+                return input;
+            }
+        });
+        Check(); return value;
     }
     public void Record(string title, object value) { lock (sync) history.Add(new InputRecord(title, value)); }
     public void Answer(int requestedToken, JsonElement value) {
@@ -95,11 +97,22 @@ internal sealed class OperationJob {
             answer = value.Clone(); state = "running"; Monitor.PulseAll(sync);
         }
     }
-    public void Cancel() { lock (sync) { if (Finished) return; Cancelled = true; progress = "Cancelling at the next engine checkpoint…"; Monitor.PulseAll(sync); } }
+    public void Cancel() { lock (sync) { if (Finished) return; Cancelled = true; state = "running"; prompt = null; progress = "Cancelling at the next engine checkpoint…"; Monitor.PulseAll(sync); } }
     public void Run() {
+        lock (EngineExecution.Gate) RunWithEngine();
+    }
+    void RunWithEngine() {
         try {
+            Check();
             var host = new OperationHost(this);
-            var result = ((ITemplateProcessor)new TemplateProcessor(host)).Execute(Operation, new ParameterBag());
+            // The Windows basic-search command only sends Ctrl+H to its shell. Use
+            // the existing search operation and unit-conversion engine in this host.
+            var engineOperation = Operation.Name switch {
+                "SearchAndReplace" => TemplateFactory.Operations["SearchAndReplaceAdvanced"],
+                "ConvertUnitsScreen" => TemplateFactory.Operations["ConvertUnits"],
+                _ => Operation
+            };
+            var result = ((ITemplateProcessor)new TemplateProcessor(host)).Execute(engineOperation, new ParameterBag());
             Check(); if (result == null) throw new Exception("The engine ended this operation without completing it.");
             lock (sync) {
                 html = host.Html.ToString(); frames = host.Frames.ToArray(); outputs = HostParameters.ScalarOutputs(result.ParameterBag);
@@ -113,13 +126,17 @@ internal sealed class OperationJob {
 
 internal sealed class OperationHost : ITemplateHost {
     readonly OperationJob job;
+    readonly Dictionary<string, ParameterBag> savedPerOperation = new();
+    readonly ParameterBag savedAcrossOperations = new();
     internal readonly List<object> Frames = new();
     public System.Text.StringBuilder Html { get; } = new();
     public OperationHost(OperationJob job) { this.job = job; }
     public SDPreferences Preferences => SdApplication.SoleInstance.Preferences;
     public Operation Operation { get; set; }
-    public IDictionary<string, ParameterBag> SessionParametersPerOperation => OperationSessions.SavedPerOperation;
-    public ParameterBag SessionParametersAcrossOperations => OperationSessions.SavedAcrossOperations;
+    // Each launched form starts from definition defaults. Keep recall within that
+    // running form so cancelled or previous launches cannot seed stale inputs.
+    public IDictionary<string, ParameterBag> SessionParametersPerOperation => savedPerOperation;
+    public ParameterBag SessionParametersAcrossOperations => savedAcrossOperations;
     public bool CanCombine(Parameter p) => false;
     public void PrepareParameter(ITemplateProcessor processor, Parameter p, ParameterBag context) { job.Check(); }
     public ParameterBag FillAndValidateCombinedParameters(ITemplateProcessor processor, ParameterBag context) => throw new InvalidOperationException("Unexpected combined parameter request.");
@@ -128,6 +145,23 @@ internal sealed class OperationHost : ITemplateHost {
         if (!p.AcquireIfTrue(processor, context)) return new ParameterBag();
         if (p is FrameParameter stored && stored.Data != null) return new ParameterBag(p.Name, FilledParameterFactory.Input(stored.Data.Frame));
         if (p is SpecialParameter target && (target.SpecialType == "frame" || target.SpecialType == "report")) return new ParameterBag();
+        if (p is SpecialParameter rubric && rubric.SpecialType == "rubric") {
+            Html.Append("<p>").Append(System.Net.WebUtility.HtmlEncode(p.Prompt(processor, context))).Append("</p>");
+            return new ParameterBag();
+        }
+        if (p is SpecialParameter constant && constant.SpecialType == "addedConstant") {
+            double minimum = StatsDirect.Builtins.Sheet.XConstant(((DoubleVariable)context["data"].AsDataFrame.Variables[0]).Data);
+            context.AddOutput("a_min", minimum);
+            if (minimum == Constant.MISSING) return new ParameterBag();
+            string inputError = null;
+            while (true) {
+                var input = job.Ask(new() { ["kind"]="number",["name"]=p.Name,["prompt"]=p.Prompt(processor,context),["defaultValue"]=minimum,["min"]=minimum,["skip"]="Skip",["error"]=inputError });
+                if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("skip",out _)) return new ParameterBag();
+                try { double n=HostParameters.Number(input);if(n<minimum)throw new ArgumentException("The constant must be at least " + minimum);job.Record(p.Name,n);return new ParameterBag(p.Name,FilledParameterFactory.Input(n)); }
+                catch(ArgumentException ex) { inputError=ex.Message; }
+            }
+        }
+        if (p is SpecialParameter coding && coding.SpecialType == "textToNumbers") return HostDataForms.TextCodes(job,context);
         if (p is SpecialParameter scores && scores.SpecialType == "scores") {
             var options = new StatsDirect.Builtins.ScoresOptions {Title1=context["c1"].AsDataFrame.Variables[0].Title,Title2=context["c2"].AsDataFrame.Variables[0].Title};
             options.Values1.AddRange(Enumerable.Range(1,context["ycats"].AsInt32).Select(i=>(double)i));options.Values2.AddRange(Enumerable.Range(1,context["xcats"].AsInt32).Select(i=>(double)i));
@@ -138,6 +172,7 @@ internal sealed class OperationHost : ITemplateHost {
         string error = null;
         while (true) {
             var descriptor = HostParameters.Describe(p, processor, context, Preferences);
+            if (job.Operation.Name == "ConvertUnitsScreen" && p is FrameParameter) descriptor["screen"] = true;
             descriptor["error"] = error;
             var input = job.Ask(descriptor);
             try {
@@ -145,6 +180,12 @@ internal sealed class OperationHost : ITemplateHost {
                 var combined = new ParameterBag(); foreach (var pair in context) combined[pair.Key] = pair.Value; foreach (var pair in filled) combined[pair.Key] = pair.Value;
                 if (p.Validators != null && filled.Count > 0) foreach (var validator in p.Validators) {
                     if (validator.HasTestIfTrueExpression && !(bool)processor.Evaluate(validator.TestIfTrueExpression, combined)) continue;
+                    // Search's literal text fields are quoted by its builtin. Only
+                    // expression mode should be passed to the expression validator.
+                    bool literalText = combined.ContainsKey("search-type") && combined["search-type"].AsString == "text" &&
+                        (p.Name == "search-expression" && combined["search-rule"].AsString != "match" ||
+                         p.Name == "replace-expression" && combined["action"].AsString == "replace-value");
+                    if (validator.ValidatorName == "Expression" && literalText) continue;
                     var validation = ValidationProcessor.Validate(this, validator.ValidatorName, p, combined, p.ValidationFailMessage);
                     if (validation.Validity == Validity.Invalid) throw new ArgumentException(validation.FailedValidationMessage);
                     if (validation.Validity == Validity.NeedMoreInformation) {

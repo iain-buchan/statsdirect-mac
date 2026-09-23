@@ -23,3 +23,6 @@ python3 Tests/test_agreement.py
 
 clang++ -std=c++17 -arch arm64 Tests/operation-driver.cpp -o Tests/operation-driver
 python3 Tests/test_menu.py Tests/operation-driver
+
+python3 Tests/test_data_graphics.py Tests/operation-driver
+python3 Tests/test_sessions.py Tests/operation-driver

@@ -36,6 +36,9 @@ public static unsafe class Exports {
         catch { return 1; }
     }
     private static int PairedCore(double* before, double* after, int count, double confidence, double* output, int capacity, string first, string second, bool agreement = false) {
+        lock (EngineExecution.Gate) return PairedLocked(before, after, count, confidence, output, capacity, first, second, agreement);
+    }
+    private static int PairedLocked(double* before, double* after, int count, double confidence, double* output, int capacity, string first, string second, bool agreement) {
         lastHtml = "";
         try {
             if (before == null || after == null || output == null || count < 2 || count > 1000000 || capacity < 11 || !(confidence > 0 && confidence < 1)) return 1;

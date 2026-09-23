@@ -1,4 +1,4 @@
-"""Import the unmodified Windows Analysis tree and resolve its offline help links."""
+"""Import the Windows Data, Analysis and Graphics trees and resolve offline help."""
 from pathlib import Path
 import xml.etree.ElementTree as ET, json, re, shutil, hashlib, sys
 base=Path(__file__).resolve().parent
@@ -20,10 +20,10 @@ def convert(node):
     children=node.find('m:sub-items',ns)
     if children is not None:result['children']=[convert(x) for x in children]
     return result
-analysis=next(x for x in ET.parse(menu).findall('.//m:menu-item',ns) if x.get('label')=='&Analysis')
-result={'menu':convert(analysis),'operations':ops,'sourceSHA256':hashlib.sha256(menu.read_bytes()).hexdigest()}
+menus=[convert(x) for x in ET.parse(menu).findall('m:sub-items/m:menu-item',ns)]
+result={'menu':next(x for x in menus if x['label']=='Analysis'),'menus':menus,'operations':ops,'sourceSHA256':hashlib.sha256(menu.read_bytes()).hexdigest()}
 for op in ('LOESS','MethodComparisonRegression'):
-    ops[op]['unavailable']='This R-based method is not enabled in the Mac prototype yet. Method help and the separate R session tab are available.'
+    ops[op]['unavailable']='This R-based method is not enabled in the Mac prototype yet. Method help and R → New R Session are available.'
 (base/'Content/analysis-menu.json').write_text(json.dumps(result,indent=2)+'\n')
 shutil.copy2(menu,base/'Content/windows-menu.xml')
-print(len(ops),'analysis operations;',sum(bool(x['help']) for x in ops.values()),'offline help links')
+print(len(ops),'menu operations;',sum(bool(x['help']) for x in ops.values()),'offline help links')

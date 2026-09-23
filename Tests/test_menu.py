@@ -54,17 +54,21 @@ if __name__=='__main__':
  def nodes(menu):
   yield menu
   for child in menu.get('children',[]):yield from nodes(child)
- commands=[n for n in nodes(catalog['menu']) if 'operation' in n]
- assert len(commands)==148 and len(catalog['operations'])==135
+ commands=[n for menu in catalog['menus'] for n in nodes(menu) if 'operation' in n]
+ assert len(commands)==224 and len(catalog['operations'])==208
+ import xml.etree.ElementTree as ET
+ windows=ET.parse(ROOT/'Content/windows-menu.xml')
+ expected=[(n.get('label','').replace('&',''),n.get('operation')) for n in windows.iter() if n.get('operation')]
+ assert [(n['label'],n['operation']) for n in commands]==expected
  for name,definition in catalog['operations'].items():
   assert (ROOT/'Content'/definition['help']).is_file()
   if definition.get('unavailable'):
    rejected=s.request(action='start',id=str(uuid.uuid4()),operation=name);assert definition['unavailable']==rejected.get('error')
   else:
    id,state=s.start(name);assert state['state']=='input',(name,state);s.close(id)
- print('PASS: all 148 menu commands, 135 offline help links, 133 input hosts and 2 explicit R deferrals',flush=True)
+ print('PASS: all 224 menu commands, 208 offline help links, 206 input hosts and 2 explicit R deferrals',flush=True)
  id,state=s.start('ExactSign');old=state['token']
- assert 'error' in s.request(action='start',id=str(uuid.uuid4()),operation='TPaired')
+ other,other_state=s.start('TPaired');assert other_state['state']=='input'
  s.request(action='answer',id=id,token=old,value='NaN');state=s.wait(id)
  assert state['state']=='input' and state['prompt']['error'] and state['token']>old
  assert 'error' in s.request(action='answer',id=id,token=old,value=20)
@@ -72,7 +76,8 @@ if __name__=='__main__':
  assert state['prompt']['name']=='r'
  s.request(action='cancel',id=id);state=s.wait(id)
  assert state['state']=='cancelled' and not state['html'];s.close(id)
- print('PASS: validation retry, stale-answer rejection, single-engine guard and cancellation at a prompt',flush=True)
+ assert s.request(action='poll',id=other)['token']==other_state['token'];s.close(other)
+ print('PASS: validation retry, stale-answer rejection, independent open forms and cancellation at a prompt',flush=True)
  cases={
   'TPaired':{'data':columns([312,242,340,388,296,254,391,402,290],[300,201,232,312,220,256,328,330,231]),'doAgreement':True},
   'TSingleSummary':{'nx':10,'mu':12,'sd1':3,'mu0':10},

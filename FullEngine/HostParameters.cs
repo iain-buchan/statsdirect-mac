@@ -18,6 +18,7 @@ internal static class HostParameters {
             case DoubleParameter n: d["kind"] = "number"; d["defaultValue"] = n.DefaultValue(processor, context); d["min"] = n.MinimumValue(processor, context); d["max"] = n.MaximumValue(processor, context); break;
             case IntegerParameter n: d["kind"] = "integer"; d["defaultValue"] = n.DefaultValue(processor, context); d["min"] = n.MinimumValue; d["max"] = n.MaximumValue; break;
             case StringParameter s: d["kind"] = "text"; d["defaultValue"] = s.DefaultValue(processor, context); d["maxLength"] = s.MaxLength; break;
+            case DateParameter date: d["kind"]="text";d["defaultValue"]=(date.HasDefaultValue?date.DefaultValue(processor,context):DateTime.Today).ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture);d["rubric"]="Enter a date as YYYY-MM-DD, optionally followed by HH:MM:SS.";break;
             case OptionParameter o: d["kind"] = "option"; d["options"] = o.Options.Where(x => x.AvailableIf(processor, context)).Select(x => Choice(x.Value, x.Label)).ToArray(); d["defaultValue"] = o.DefaultValue(processor, context); break;
             case OptionsParameter o: d["kind"] = "options"; d["options"] = o.Options.Select(x => Choice(x.Name, x.Label, x.Selected)).ToArray(); break;
             case FrameParameter f:
@@ -76,6 +77,7 @@ internal static class HostParameters {
             case DoubleParameter n: var x = Number(input); if (x < n.MinimumValue(processor, context) || x > n.MaximumValue(processor, context)) throw new ArgumentException($"Enter a value from {n.MinimumValue(processor, context)} to {n.MaximumValue(processor, context)}."); value = x; break;
             case IntegerParameter n: x = Number(input); if (x != Math.Truncate(x) || x < n.MinimumValue || x > n.MaximumValue) throw new ArgumentException($"Enter a whole number from {n.MinimumValue} to {n.MaximumValue}."); value = (int)x; break;
             case StringParameter s: var text = input.GetString() ?? ""; if (s.MaxLength > 0 && text.Length > s.MaxLength) throw new ArgumentException("The text is too long."); value = text; break;
+            case DateParameter: value=ParseDate(input.GetString());break;
             case OptionParameter o: text = input.GetString(); if (!o.Options.Any(x => x.Value == text && x.AvailableIf(processor, context))) throw new ArgumentException("Choose one of the available options."); value = text; break;
             case OptionsParameter o: foreach (var option in o.Options) bag.AddInput(option.Name, input.TryGetProperty(option.Name, out var flag) && flag.GetBoolean()); return bag;
             case FrameParameter f:
@@ -136,6 +138,7 @@ internal static class HostParameters {
             bool missing(string s) => s == "" || s == "*";
             bool numeric(string s) => missing(s) || double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double n) && double.IsFinite(n);
             bool coded = mode == DataAcquisitionMode.NumericCodingTextToCategories || mode == DataAcquisitionMode.NumericCodingTextToDummies;
+            if (mode == DataAcquisitionMode.DateReplaceMissing) {frame.Variables.Add(new DateVariable(texts.Select(s=>missing(s)?DateTime.MinValue:ParseDate(s)).ToArray(),title));continue;}
             if (mode == DataAcquisitionMode.Text || mode == DataAcquisitionMode.TextWithFormulae || mode == DataAcquisitionMode.TextNoTitles) { frame.Variables.Add(new StringVariable(texts, title)); continue; }
             if (mode == DataAcquisitionMode.CategoryReplaceMissing || mode == DataAcquisitionMode.CategoryCombineAllColumns || mode == DataAcquisitionMode.GroupIdentifiers || coded && texts.Any(s => !numeric(s))) {
                 if(mode==DataAcquisitionMode.CategoryReplaceMissing) {texts=Enumerable.Range(0,categoryLength).Select(r=>r>=texts.Length||missing(texts[r])?Formatting.MISSINGLABEL:texts[r]).ToArray();length=texts.Length;}
@@ -170,6 +173,10 @@ internal static class HostParameters {
         return frame;
     }
     internal static object FrameInput(DataFrame frame) => new {columns=frame.Variables.Select(v=>new {title=v.Title,values=Enumerable.Range(0,v.Length).Select(r=>v.DataAsObject(r)).ToArray()}).ToArray()};
+    static DateTime ParseDate(string text) {
+        if(DateTime.TryParseExact(text,new[]{"yyyy-MM-dd","yyyy-MM-dd HH:mm:ss","yyyy-MM-ddTHH:mm:ss","yyyy-MM-ddTHH:mm:ss.FFFFFFF"},CultureInfo.InvariantCulture,DateTimeStyles.None,out var date))return date;
+        throw new ArgumentException("Enter the date as YYYY-MM-DD, optionally followed by HH:MM:SS.");
+    }
     internal static object ScalarOutputs(ParameterBag bag) => bag.Where(p => p.Value != null && p.Value.Direction == FilledParameterDirection.Output && (p.Value.AsObject is string || p.Value.AsObject is bool || p.Value.AsObject is int || p.Value.AsObject is double d && double.IsFinite(d))).ToDictionary(p => p.Key, p => p.Value.AsObject);
     internal static object FrameOutput(DataFrame frame, bool formulae) {
         var cells = new List<object>();

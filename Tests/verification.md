@@ -52,3 +52,12 @@ The on-disk executable was replaced atomically and re-signed, preserving the run
 ## R launcher tab
 
 Added a permanent “+ R session” tab. A separate copy of the full application verified that clicking it created R Session 1, a second click created R Session 2 while retaining Session 1, and closing a session left the launcher available. The final layout was visually checked with the toolbar and tab strip fixed at the top. The launcher is not counted as an open document. No changes were made to the user's active R session.
+
+
+## Glide data-grid update
+
+Glide Data Grid 6.0.3 is bundled locally with React 18. The TypeScript check and four data-store tests pass: rectangular paste with growth and atomic undo/redo, quoted clipboard text and numeric validation, CSV quoting, and selected-range extraction. The original operation tests and the native bridge tests still pass; an additional native test confirms arbitrary selected column names reach the engine's HTML report with unchanged numeric results.
+
+A separate copy of the full Mac app displayed the real Glide canvas and accessible grid cells in its own tab. Live editing and analysis were observed in that window: the ninth before value changed from 290 to 333, and a new report displayed mean 60.888889, t 4.874386, and the input snapshot containing 333. An earlier report remained open in a separate tab. The user's open test window and its data were preserved. Native CSV-dialog and Office-specific clipboard behavior have not yet received a full manual verification pass.
+
+This is not a million-row performance result. The store is sparse and text-backed, with numerical validation on analysis; typed column storage, Excel file import and benchmarking remain.

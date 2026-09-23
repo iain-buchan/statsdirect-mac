@@ -1,10 +1,18 @@
 # StatsDirect Mac viewer prototype
 
-Open **StatsDirect Viewer.app**. Choose **Analysis → Parametric methods → Paired t test — PEFR example** (⌘T), or click **Run paired t test**. Each run creates a new report tab. Edit the nine paired observations in the data tab and run again to produce a separate report. Earlier reports retain their original results and input snapshots.
+Open **StatsDirect Viewer.app**. The **Data grid · PEFR** tab now opens by default. Choose **Analysis → Parametric methods → Paired t test — PEFR example** (⌘T), or click **Run paired t test**. Each run creates a new report tab. Edit the paired observations in the grid and run again to produce a separate report. Earlier reports retain their original results and input snapshots.
 
 The window frame has explicit **Close**, **Minimise**, **Resize / Restore** and **Move** controls. Drag Move to reposition the window; Resize / Restore toggles the window size, and the native edges support custom resizing.
 
 Reports and help occupy separate tabs in one native Mac window. The Help library contains 400 topics from the supplied statisticalhelp repository, including the worked paired t example. Help links open within help tabs. The Window menu lists open documents; ⌘W closes the selected tab. Printing and PDF export use WebKit.
+
+## Data grid
+
+The **Data grid** toolbar button or **File → Data Grid** (⌘3) opens the Glide worksheet. Double-click to edit cells, or use the selected-cell value field and press Return. Use **Paste from clipboard** for tab-delimited data and **Copy selection** to copy a block. Undo/Redo, extra rows/columns and **Save CSV…** are available in the grid.
+
+For a paired test, select two column headers or a two-column range; otherwise the two column selectors are used. Blank pairs are omitted and nonnumeric cells produce a validation error. The original engine generates a report in a separate tab, with the selected column names. The top Analysis menu uses the most recently selected grid or example-data form.
+
+This is an editable grid prototype. Excel workbook import, formulas and large-sheet performance work remain. Save CSV before closing to retain edits. Implementation, build instructions and limits are in [Grid/README.md](Grid/README.md).
 
 ## R tabs
 

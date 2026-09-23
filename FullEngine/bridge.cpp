@@ -5,6 +5,8 @@
 #include "hostfxr.h"
 #include "coreclr_delegates.h"
 using paired_fn = int (*)(const double*, const double*, int, double, double*, int);
+using named_paired_fn = int (*)(const double*, const double*, int, double, double*, int, const char*, const char*);
+static named_paired_fn pairedNamed = nullptr;
 using report_fn = int (*)(char*, int);
 static paired_fn paired = nullptr;
 static report_fn report = nullptr;
@@ -35,6 +37,8 @@ static void initialize() {
     if (code < 0) { paired = nullptr; return; }
     code = load(assembly.c_str(), "Exports, StatsDirect.Headless", "Report", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&report);
     if (code < 0) report = nullptr;
+    code = load(assembly.c_str(), "Exports, StatsDirect.Headless", "PairedNamed", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&pairedNamed);
+    if (code < 0) pairedNamed = nullptr;
 }
 extern "C" int statsdirect_paired_t(const double* before, const double* after, int count, double confidence, double* output, int capacity) {
     std::call_once(initialized, initialize);
@@ -43,4 +47,9 @@ extern "C" int statsdirect_paired_t(const double* before, const double* after, i
 extern "C" int statsdirect_paired_report(char* buffer, int capacity) {
     std::call_once(initialized, initialize);
     return report ? report(buffer, capacity) : -1;
+}
+
+extern "C" int statsdirect_paired_t_named(const double* before, const double* after, int count, double confidence, double* output, int capacity, const char* first, const char* second) {
+    std::call_once(initialized, initialize);
+    return pairedNamed ? pairedNamed(before, after, count, confidence, output, capacity, first, second) : 5;
 }

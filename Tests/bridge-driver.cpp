@@ -6,7 +6,7 @@
 #include <vector>
 #include <string>
 int main(int argc, char** argv) {
- if (argc != 2) return 1;
+ if (argc != 2 && argc != 4) return 1;
  auto handle=dlopen(argv[1], RTLD_NOW|RTLD_LOCAL);
  if (!handle) { std::cerr<<dlerror(); return 1; }
  using Calculate=int(*)(const double*,const double*,int,double,double*,int);
@@ -19,7 +19,10 @@ int main(int argc, char** argv) {
  std::vector<double> before(count),after(count);double result[11]={};std::string value;
  for(auto& x:before) {std::cin>>value;x=std::stod(value);}
  for(auto& x:after) {std::cin>>value;x=std::stod(value);}
- int code=calculate(before.data(),after.data(),count,confidence,result,11);
+ using Named=int(*)(const double*,const double*,int,double,double*,int,const char*,const char*);
+ auto named=(Named)dlsym(handle,"statsdirect_paired_t_named");
+ if(argc==4&&!named)return 1;
+ int code=argc==4?named(before.data(),after.data(),count,confidence,result,11,argv[2],argv[3]):calculate(before.data(),after.data(),count,confidence,result,11);
  std::cout<<code;for(auto x:result)std::cout<<" "<<std::setprecision(17)<<x;std::cout<<"\n";
  int n=report(nullptr,0);if(n>0&&n<10000000){std::vector<char> html(n);report(html.data(),n);std::cout<<html.data();}
  return 0;

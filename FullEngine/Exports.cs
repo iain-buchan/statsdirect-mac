@@ -23,6 +23,14 @@ public static unsafe class Exports {
     // Output: n, mean, sd, sem, CI lower, CI upper, df, t, P1, P2, power.
     [UnmanagedCallersOnly(EntryPoint = "statsdirect_paired_t")]
     public static int Paired(double* before, double* after, int count, double confidence, double* output, int capacity) {
+        return PairedCore(before, after, count, confidence, output, capacity, "PEFR Before", "PEFR After");
+    }
+    [UnmanagedCallersOnly]
+    public static int PairedNamed(double* before, double* after, int count, double confidence, double* output, int capacity, byte* first, byte* second) {
+        try { return PairedCore(before, after, count, confidence, output, capacity, Marshal.PtrToStringUTF8((IntPtr)first) ?? "Before", Marshal.PtrToStringUTF8((IntPtr)second) ?? "After"); }
+        catch { return 1; }
+    }
+    private static int PairedCore(double* before, double* after, int count, double confidence, double* output, int capacity, string first, string second) {
         lastHtml = "";
         try {
             if (before == null || after == null || output == null || count < 2 || count > 1000000 || capacity < 11 || !(confidence > 0 && confidence < 1)) return 1;
@@ -32,10 +40,10 @@ public static unsafe class Exports {
                 left.Add(before[i]); right.Add(after[i]);
             }
             if (left.Count < 2) return 2;
-            double first = left[0]-right[0];
-            if (!double.IsFinite(first) || Enumerable.Range(0,left.Count).Any(i=>!double.IsFinite(left[i]-right[i])) || Enumerable.Range(0,left.Count).All(i=>left[i]-right[i]==first)) return 3;
+            double firstDifference = left[0]-right[0];
+            if (!double.IsFinite(firstDifference) || Enumerable.Range(0,left.Count).Any(i=>!double.IsFinite(left[i]-right[i])) || Enumerable.Range(0,left.Count).All(i=>left[i]-right[i]==firstDifference)) return 3;
             _ = SdApplication.SoleInstance;
-            var csv = new StringBuilder("PEFR Before,PEFR After\n");
+            var csv = new StringBuilder("\"" + first.Replace("\"", "\"\"") + "\",\"" + second.Replace("\"", "\"\"") + "\"\n");
             for (int i=0;i<left.Count;i++) csv.Append(left[i].ToString("R", CultureInfo.InvariantCulture)).Append(',').Append(right[i].ToString("R", CultureInfo.InvariantCulture)).Append('\n');
             var host = new ViewerHost(new List<OperationTestInputParameter> {
                 new() { Name="data", Value=csv.ToString() },

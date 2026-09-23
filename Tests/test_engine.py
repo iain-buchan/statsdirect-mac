@@ -10,11 +10,11 @@ path=Path(sys.argv[1]) if len(sys.argv)>1 else base/'FullEngine/publish/StatsDir
 last_html=''
 fixture=json.loads((base/'Content/paired-example.json').read_text())
 a,b=fixture['before'],fixture['after']
-def calc(a,b,confidence=.95):
+def calc(a,b,confidence=.95,labels=None):
     assert len(a)==len(b)
     global last_html
     data=' '.join(map(str,[len(a),confidence]+a+b))
-    result=subprocess.run([str(base/'Tests/bridge-driver'),str(path.resolve())],input=data,text=True,capture_output=True,check=True)
+    result=subprocess.run([str(base/'Tests/bridge-driver'),str(path.resolve())]+(labels or []),input=data,text=True,capture_output=True,check=True)
     values,last_html=result.stdout.split('\n',1)
     fields=values.split()
     return int(fields[0]),list(map(float,fields[1:]))
@@ -48,3 +48,8 @@ print('PASS: constant differences, insufficient pairs and invalid confidence fai
 code,edited=calc([a[0]+20]+a[1:],b);assert code==0;assert edited[1]!=r[1] and edited[9]!=r[9]
 print('PASS: edited data produces a new calculation')
 print(json.dumps(dict(zip(['n','mean','sd','sem','lower','upper','df','t','p_one','p_two','power'],r)),indent=2))
+
+code,named=calc(a,b,labels=['Variable C','Variable D']);assert code==0
+for x,y in zip(named,r):close(x,y)
+assert 'differences between Variable C and Variable D' in last_html and 'PEFR Before' not in last_html
+print('PASS: selected grid column names reach the engine report without changing numbers')

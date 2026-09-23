@@ -4,6 +4,8 @@ import DataEditor, { CompactSelection, GridCellKind, type GridCell, type GridSel
 import '@glideapps/glide-data-grid/dist/index.css';
 import './style.css';
 import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
+import { rDataTables } from './r-data.mjs';
+import { csvWorkbook } from './csv.mjs';
 import { WorkbookStore, cellKind } from './workbook.mjs';
 import { selectAdjacentCell, cellMovement, arrowKeyEditor } from './navigation';
 import example from '../Content/paired-example.json';
@@ -146,14 +148,22 @@ function App() {
         return {name:workbook.name+' / '+workbook.sheets[sheetIndex].name,columns:store.columns.map((_:string,c:number)=>store.columnTitle(c)),cells,firstRow:store.headerRow?2:1,rows:usedRows,formulasStale:store.formulasStale,selection:selection.columns.toArray()};
       },
       csvData: () => store.csv(),
+      csvSnapshot: () => ({text: store.csv(), canSaveDocument: !workbook.backed && workbook.sheets.length === 1 && !workbook.formulaCount && !workbook.sheets.some((s:any) => s.rColumns)}),
+      rDataSnapshot: (currentOnly: boolean) => ({tables: rDataTables(workbook, currentOnly ? sheetIndex : undefined), canSaveDocument: !workbook.backed && !workbook.formulaCount && (!currentOnly || workbook.sheets.length === 1)}),
       excelData: () => workbook.export(),
       loadWorkbook: (data: any) => {
         setSheetIndex(workbook.load(data));
         setSelection(empty);
         setFirst(0);
         setSecond(data.sheets[0]?.columns > 1 ? 1 : 0);
-        setMessage(`Opened ${data.name} · ${data.sheets.length} worksheets`);
+        setMessage(`Opened ${data.name} · ${data.sheets.length} worksheets${data.warnings?.length ? '. Not imported: ' + data.warnings.join('; ') : ''}`);
         refresh(n => n + 1);
+      },
+      loadCSV: (text: string, name: string) => {
+        const data = csvWorkbook(text, name);
+        window.statsDirectGrid.loadWorkbook(data);
+        setMessage(`Opened ${name} · ${data.sheets[0].rows} rows × ${data.sheets[0].columns} columns`);
+        return {rows: data.sheets[0].rows, columns: data.sheets[0].columns};
       },
       pasteText: paste,
       copyText: copy,
@@ -202,6 +212,8 @@ function App() {
   <header><div><span className="eyebrow">WORKSHEET</span><h1>{workbook.name}</h1></div><span className="badge">Glide Data Grid</span></header>
   <div className="tools">
    <button onClick={() => native('openExcel')}>Open Excel…</button>
+   <button onClick={() => native('openCSV')}>Open CSV…</button>
+   <button onClick={() => native('openRData')}>Open R data…</button>
    <button onClick={() => native('openExample')}>Open test.xlsx</button>
    <button onClick={() => attempt(() => {
         if (store.undo()) changed();
@@ -224,8 +236,10 @@ function App() {
         store.apply([], store.rows, store.columns.length + 1);
         changed();
       })}>+ Column</button>
-   <button onClick={() => native('save')}>Export CSV…</button>
+   <button onClick={() => native('save')}>Save CSV…</button>
    <button onClick={() => native('saveExcel')}>Save Excel…</button>
+   <button onClick={() => native('saveRDS')}>Save RDS…</button>
+   <button onClick={() => native('saveRData')}>Save RData…</button>
   </div>
   {workbook.imported && <div className="sheetbar" role="tablist" aria-label="Worksheets">{workbook.sheets.map((sheet: any, i: number) => <button key={sheet.name} role="tab" aria-selected={i === sheetIndex} onClick={() => {
         setSheetIndex(i);

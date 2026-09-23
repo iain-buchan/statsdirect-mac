@@ -2,7 +2,7 @@
 
 Open **StatsDirect Viewer.app**. The **Data grid · PEFR** worksheet opens by default. Choose **Analysis → Parametric → Paired t** (⌘T) to open the first input step immediately, or use **Run paired t test** in the worksheet. Each run creates a new report tab. Edit the paired observations in the grid and run again to produce a separate report. Earlier reports retain their original results and input snapshots.
 
-The window frame has explicit **Close**, **Minimise**, **Resize / Restore** and **Move** controls. Drag Move to reposition the window; Resize / Restore toggles the window size, and the native edges support custom resizing.
+The window uses the native macOS red, amber and green controls. Drag the title bar to move it or its edges to resize it. Document tabs have their own **×** buttons; the duplicate top-right frame buttons have been removed.
 
 Reports, help, analysis forms, worksheets and R sessions stay open as separate documents in one native Mac window. **File, Edit, Data, Analysis, Graphics, R, Help and Window** dropdowns contain commands. A compact row of document tabs beneath them lets you switch directly and close any document with its **×** button. **Window** also lists the documents; **⌘W** closes the current one. Closing an active analysis cancels only that form. Unsaved worksheet and R script changes still prompt before being discarded. The same commands are available in the macOS menu bar. The Help library contains 400 topics from the supplied statisticalhelp repository. Printing and PDF export use WebKit.
 
@@ -12,7 +12,7 @@ Reports, help, analysis forms, worksheets and R sessions stay open as separate d
 
 For a paired test, select two column headers or a two-column range; otherwise the two column selectors are used. Blank pairs are omitted and nonnumeric cells produce a validation error. The original engine generates a report in a separate tab, with the selected column names. The top Analysis menu uses the most recently selected grid or example-data form.
 
-This is an editable grid prototype. Save Excel before closing to retain all worksheet edits. Live formula editing and large-sheet performance work remain. Implementation, build instructions and limits are in [Grid/README.md](Grid/README.md).
+This is an editable grid prototype. Save your data before closing; Excel and RData retain all worksheets, while CSV and RDS save the current worksheet. Live formula editing and large-sheet performance work remain. Implementation, build instructions and limits are in [Grid/README.md](Grid/README.md).
 
 ## Windows Data, Analysis and Graphics menus
 
@@ -42,13 +42,27 @@ Check **Agreement analysis (SVG)** beside the paired-column selectors, then run 
 
 **Open Excel…** (File menu, ⌘O) opens an `.xlsx` workbook in a new data tab. The buttons above the grid select its worksheets. **Open test.xlsx** loads the bundled StatsDirect example with all 11 worksheets. Its original filename is `test.xlsx`, not `text.xlsx`.
 
-**Save Excel…** (⌘S in a data tab) writes every worksheet to an `.xlsx` file. The default filename ends in `-edited.xlsx`; the original is untouched unless you explicitly select it in the save dialog. Numbers, text identifiers, dates and booleans retain their types. Existing workbook cell styles, formulas and other untouched package content are preserved; the grid itself uses a simple, consistent display. **Export CSV…** exports only the current worksheet and does not mark the whole workbook as saved.
+**Save Excel…** (⌘S in an Excel tab) writes every worksheet to an `.xlsx` file. The default filename ends in `-edited.xlsx`; the original is untouched unless you explicitly select it in the save dialog. Numbers, text identifiers, dates and booleans retain their types. Existing workbook cell styles, formulas and other untouched package content are preserved; the grid itself uses a simple, consistent display. **Save CSV…** exports only the current worksheet and does not mark an Excel workbook as saved.
 
 Imported rows retain their Excel row numbers. **First row has column names** is detected from text headers and can be toggled. When checked, analysis skips that row. The paired test on the Parametric sheet's first two columns reproduces the PEFR example.
 
 Formula cells show saved results and are read-only. After an edit, analysis involving formula cells is blocked until the file is recalculated and reopened. Export refreshes supported formula results and requests full recalculation when Excel opens the file; unsupported results are left uncached and reported. There is no live Excel formula engine in the grid.
 
 This first implementation supports `.xlsx` only, up to 50 MB compressed, 256 MB expanded, 128 sheets and 500,000 populated cells. Legacy `.xls`, `.xlsb`, macros, password-protected files and full Excel visual rendering are not implemented. Excel itself is not required for basic import/export. The full test workbook round trip is verified; this is not a general Excel conformance or million-row performance claim.
+
+## CSV files
+
+Choose **Open CSV…** from File or the worksheet toolbar to open a file in a new data tab. **Save CSV…** writes the current worksheet; **⌘S** also saves CSV when working in a CSV document. Quoted commas, doubled quotes, embedded line breaks, Unicode, whitespace, identifiers such as `0012`, empty fields and trailing blank rows are preserved. Short CSV records are padded to the table width. Text beginning with `=` is treated as data.
+
+The first row is detected as column names when it contains text; toggle **First row has column names** if needed. This changes analysis labels, without removing the source row. Import accepts UTF-8 (with or without BOM), BOM-marked UTF-16 and Windows-1252; output is comma-delimited UTF-8 with a BOM and CRLF records for Excel compatibility. Files are limited to 50 MB and 500,000 rectangular cells. Semicolon/tab-separated files are not covered by this CSV importer; tab-separated clipboard paste remains available. Invalid quoting fails explicitly.
+
+## R data files
+
+**Open R data…** reads `.rds`, `.RData` and `.rda`. Each supported data frame or numeric, logical or character matrix appears as a worksheet. **Save RDS…** writes the current worksheet as a single R object; **Save RData…** writes all worksheets as named objects. **⌘S** uses the opened R format. These commands also appear in File.
+
+The installed R runtime reads and writes the actual R formats without additional R packages. Supported columns retain integer/double/character/logical types, factor levels and ordering, Date/POSIXct values, time zones, row names, NA, NaN and infinities. Missing R values appear as blank cells. An unchanged empty character string remains distinct from NA. New factor labels are appended to the existing levels; invalid edits to typed columns fail before replacing an existing destination. New grid tables become base R data frames; an imported matrix retains its matrix shape.
+
+This is table interchange, not a full R workspace editor. Other objects and unsupported columns (such as nested lists or custom classes) are reported as not imported, and are not written by Save RData. Extra application-specific attributes and data-frame subclasses are not retained. Import is limited to 50 MB, 128 tables and 500,000 cells. Conversion runs separately from any open R script sessions, which keep their own variables. R must be installed on the Mac.
 
 ## R sessions
 

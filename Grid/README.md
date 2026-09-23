@@ -2,13 +2,13 @@
 
 This prototype uses Glide Data Grid 6.0.3 and React 18 inside the application's existing WKWebView. JavaScript, CSS and required libraries are bundled into `Content/Grid`; the grid does not require a server, CDN or internet connection. Runtime dependency licenses are included beside the bundle.
 
-The worksheet starts with the nine PEFR pairs in a 100-row, six-column grid. It supports cell editing, range/column/row selection, a cell-value field, clipboard buttons, tab-delimited paste, undo/redo, adding rows/columns, and CSV saving through the native Mac dialog. It also imports and exports `.xlsx` workbooks, retaining separate worksheet stores and their original row numbers. Formula cells are read-only.
+The worksheet starts with the nine PEFR pairs in a 100-row, six-column grid. It supports cell editing, range/column/row selection, a cell-value field, clipboard buttons, tab-delimited paste, undo/redo, adding rows/columns, and CSV opening/saving through native Mac dialogs. RDS and RData table import/export use the installed R runtime. It also imports and exports `.xlsx` workbooks, retaining separate worksheet stores and their original row numbers. Formula cells are read-only.
 
 The paired test uses two selected column headers, a two-column rectangular range, or the two column selectors. Blank cells are treated as missing; nonnumeric text in the analysed columns is reported as an error. Columns are transferred to the full C# engine, and their names are passed to its original report renderer. Calculations create separate report tabs. The Agreement analysis checkbox requests the original paired-test agreement statistics and SVG plot. The input snapshot in large reports is limited to the first 1,000 rows and says so explicitly.
 
 `store.mjs` is a sparse cell store behind the grid callback. It currently stores text, with numeric validation at analysis time. This is a working interaction prototype, not yet the typed column store proposed for large sheets. Logical dimensions are bounded by Excel's worksheet dimensions; a single paste/copy is limited to 100,000 cells. Million-row performance, memory use, Office clipboard fidelity and very wide sheets have not been benchmarked.
 
-Data are held in the open tab until saved as Excel. CSV exports only the current worksheet. Closing an edited grid or quitting prompts before discarding unsaved data. The R tabs and the older PEFR example form are independent of this worksheet.
+Data are held in the open tab until saved. Excel and RData save all worksheets; CSV and RDS save the current worksheet. Saving CSV does not clear unsaved workbook/R metadata, and saving one RDS does not mark a multiple-table document saved. Closing an edited grid or quitting prompts before discarding unsaved data. The R tabs and the older PEFR example form are independent of this worksheet.
 
 ## Build and checks
 
@@ -37,3 +37,12 @@ References: [Glide's setup guide](https://docs.grid.glideapps.com/extended-quick
 ## Embedded contingency form
 
 `chi-square.tsx` is a separate offline entry point for the screen-data form. `contingency.mjs` owns counts, labels, resize/paste and atomic history. The form's seven checkbox names, labels and defaults in `chi-options.json` match the original ExactChiRbyCScreen XML and are checked by a regression test. The original engine validates parameters again in `AnalysisIO`; the form does not calculate test statistics. Native menu, cancellation, report tabs and CSV saving are in `Sources/AnalysisHost.swift`.
+
+
+## CSV and R data files
+
+`csv.mjs` parses quoted comma-separated records strictly, preserves field text and bounds the rectangular table size. `CSVFileIO.swift` handles UTF-8/UTF-16/Windows-1252 decoding and atomic UTF-8 output. Native CSV import/export is in `GridHost.swift`; CSV document saves participate in dirty-state and revision checks.
+
+`r-data.mjs` snapshots table data and R column metadata. `RDataHost.swift` owns the dialogs; `RDataFileIO.swift` invokes the bundled `Content/R/data-files.R` using `Rscript --vanilla` and isolated temporary files. No shell interpolation or extra R package is used. Base R reads/writes RDS and RData; a quoted text exchange carries values, explicit missingness, factor levels and date/time raw values. A successfully written temporary R file atomically replaces the requested destination. The existing interactive R sessions and the calculation engine are untouched.
+
+Run `node --test Grid/*.test.mjs` from the repository root for model tests. To verify the actual native file boundary, compile `Sources/CSVFileIO.swift Sources/RDataFileIO.swift Tests/data-file-driver.swift` with `swiftc -o /tmp/statsdirect-data-file-driver`, then run `python3 Tests/test_data_files.py /tmp/statsdirect-data-file-driver /path/to/node`. The test uses base R for independent equality checks, including empty/all-missing tables, exact column types, ordered factors, row names, Date/POSIXct values, edits and failed-write preservation. Native open/save dialogs are checked separately in the app.

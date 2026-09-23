@@ -34,7 +34,10 @@ final class Document {
     var workbookID: String?
     var workbookName = "PEFR.xlsx"
     var pendingWorkbook: [String: Any]?
-    var excelBusy = false
+    var pendingCSV: String?
+    var csvSaveName: String?
+    var rDataFormat: String?
+    var fileBusy = false
     var analysisJobID: String?
     var analysisCancelled = false
     var operationName: String?
@@ -57,7 +60,6 @@ final class Document {
 @MainActor
 final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, NSTabViewDelegate, NSMenuItemValidation, NSWindowDelegate {
     var window: NSWindow!
-    var frameControls: WindowFrameControls!
     var closeApproved = false
     var tabs: NSTabView!
     let documentTabs = NSStackView()
@@ -83,7 +85,6 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 850), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "StatsDirect · Mac prototype"
         window.delegate = self
-        frameControls = WindowFrameControls(window: window)
         window.minSize = NSSize(width: 850, height: 520)
         let container = NSView(); window.contentView = container
         let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 4
@@ -143,9 +144,13 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(file, "New R Session", #selector(newRTab), "r")
         add(file, "PEFR example data", #selector(showData), "1")
         add(file, "Open Excel Workbook…", #selector(openExcel), "o")
+        add(file, "Open CSV…", #selector(openCSV))
+        add(file, "Open R Data…", #selector(openRData))
         add(file, "Open StatsDirect test.xlsx", #selector(openExampleWorkbook))
         add(file, "Open HTML Document…", #selector(openFile))
-        add(file, "Export Current Worksheet as CSV…", #selector(exportActiveCSV))
+        add(file, "Save Current Worksheet as CSV…", #selector(exportActiveCSV))
+        add(file, "Save Current Worksheet as RDS…", #selector(saveActiveRDS))
+        add(file, "Save All Worksheets as RData…", #selector(saveActiveRData))
         add(file, "Save PDF…", #selector(savePDF), "s")
         add(file, "Save Chart as SVG…", #selector(saveChartSVG))
         add(file, "Print…", #selector(printPage), "p")
@@ -176,11 +181,11 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(back) { return active?.web.canGoBack == true }
         if menuItem.action == #selector(forward) { return active?.web.canGoForward == true }
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
-        if menuItem.action == #selector(exportActiveCSV) { return active?.kind == "grid" }
+        if [#selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
         if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
         if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
-        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? "Save Excel…" : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"; return active != nil && active?.kind != "operation" }
+        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV…") : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"; return active != nil && active?.kind != "operation" }
         if menuItem.action == #selector(runPaired) { return !running && example != nil }
         if [#selector(closeTab), #selector(printPage), #selector(savePDF)].contains(menuItem.action) { return active != nil }
         return true
@@ -312,7 +317,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         closeDocument(doc)
     }
     func closeDocument(_ doc: Document) {
-        if doc.excelBusy { showError("Please wait for the Excel save to finish."); return }
+        if doc.fileBusy { showError("Please wait for the file save to finish."); return }
         if let id = doc.analysisJobID {
             if doc.kind == "operation" {
                 doc.operationClosing = true; doc.analysisCancelled = true
@@ -331,7 +336,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             alert.addButton(withTitle: "Close R Session"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else if doc.gridDirty {
-            let alert = NSAlert(); alert.messageText = "Close the data grid?"; alert.informativeText = "Unsaved worksheet edits will be discarded. Use Save Excel to keep all worksheets."
+            let alert = NSAlert(); alert.messageText = "Close the data grid?"; alert.informativeText = doc.rDataFormat != nil ? "Unsaved R table edits will be discarded. Save RDS for one table or RData for all tables." : doc.csvSaveName != nil ? "Unsaved CSV edits will be discarded. Use Save CSV to keep them." : "Unsaved worksheet edits will be discarded. Use Save Excel to keep all worksheets, or Save CSV for a single data table."
             alert.addButton(withTitle: "Close Grid"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else if doc.kind == "data" {
@@ -457,7 +462,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func savePDF() {
         if let pane = active?.rPane { pane.saveScript(); return }
         guard let doc = active else { return }
-        if doc.kind == "grid" { saveExcel(doc); return }
+        if doc.kind == "grid" { if let format = doc.rDataFormat { saveRData(doc, format: format) } else if doc.csvSaveName != nil { saveGrid(doc) } else { saveExcel(doc) }; return }
         if doc.kind == "analysis" { saveAnalysisTable(doc); return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.pdf]; panel.nameFieldStringValue = "\(doc.title).pdf"
         panel.beginSheetModal(for: window) { response in
@@ -513,7 +518,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         return allowed
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if documents.contains(where: { $0.excelBusy }) { showError("Please wait for the Excel save to finish."); return .terminateCancel }
+        if documents.contains(where: { $0.fileBusy }) { showError("Please wait for the file save to finish."); return .terminateCancel }
         if running { showError("Please wait for the running analysis to finish, or cancel it from its form."); return .terminateCancel }
         if closeApproved { return .terminateNow }
         if documents.contains(where: { $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true || $0.gridDirty || $0.analysisJobID != nil }) {

@@ -22,7 +22,12 @@ extension Viewer: WKScriptMessageHandler {
               web.url?.standardizedFileURL == root.appendingPathComponent("Grid/index.html").standardizedFileURL,
               let body = message.body as? [String: Any], let action = body["action"] as? String else { return }
         switch action {
-        case "ready": loadPendingWorkbook(doc)
+        case "ready":
+            if doc.pendingCSV != nil { loadPendingCSV(doc) } else { loadPendingWorkbook(doc) }
+        case "openCSV": openCSV()
+        case "openRData": openRData()
+        case "saveRDS": saveRData(doc, format: "rds")
+        case "saveRData": saveRData(doc, format: "RData")
         case "openExcel": openExcel()
         case "openExample": openExampleWorkbook()
         case "saveExcel": saveExcel(doc)
@@ -66,14 +71,69 @@ extension Viewer: WKScriptMessageHandler {
             self.calculate(before: input.before.map { $0 ?? .nan }, after: input.after.map { $0 ?? .nan }, labels: input.labels, source: "Data grid · " + input.range, agreement: input.agreement ?? false)
         }
     }
+    @objc func openCSV() {
+        let panel = NSOpenPanel(); panel.allowedContentTypes = [.commaSeparatedText]
+        panel.allowsMultipleSelection = false; panel.canChooseDirectories = false
+        panel.beginSheetModal(for: window) { response in
+            if response == .OK, let url = panel.url { self.openCSVURL(url) }
+        }
+    }
+    func openCSVURL(_ url: URL) {
+        status.stringValue = "Opening " + url.lastPathComponent + "…"
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result { try CSVFileIO.read(url) }
+            DispatchQueue.main.async {
+                switch result {
+                case .failure(let error): self.showError(error.localizedDescription)
+                case .success(let text):
+                    let doc = self.newDocument(kind: "grid", title: url.lastPathComponent, url: self.root.appendingPathComponent("Grid/index.html"))
+                    doc.workbookName = url.lastPathComponent
+                    doc.csvSaveName = url.deletingPathExtension().lastPathComponent + "-edited.csv"
+                    doc.pendingCSV = text
+                }
+            }
+        }
+    }
+    func loadPendingCSV(_ doc: Document) {
+        guard let text = doc.pendingCSV else { return }
+        doc.web.evaluateJavaScript("window.statsDirectGrid.loadCSV(\(jsString(text)),\(jsString(doc.workbookName)))") { _, error in
+            guard self.documents.contains(where: { $0 === doc }) else { return }
+            doc.pendingCSV = nil
+            if let error {
+                self.remove(doc)
+                self.showError("CSV import failed: " + error.localizedDescription)
+            } else { self.status.stringValue = "Opened " + doc.workbookName }
+        }
+    }
     func saveGrid(_ doc: Document) {
-        doc.web.evaluateJavaScript("window.statsDirectGrid?.csvData()") { value, error in
-            guard error == nil, let csv = value as? String else { self.showError("The grid could not be exported."); return }
-            let panel = NSSavePanel(); panel.allowedContentTypes = [.commaSeparatedText]; panel.nameFieldStringValue = "StatsDirect data.csv"
-            panel.beginSheetModal(for: self.window) { response in
-                guard response == .OK, let url = panel.url else { return }
-                do { try csv.write(to: url, atomically: true, encoding: .utf8); self.gridStatus(doc, "Exported current worksheet to " + url.lastPathComponent) }
-                catch { self.showError(error.localizedDescription) }
+        guard !doc.fileBusy else { return }
+        let panel = NSSavePanel(); panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = doc.csvSaveName ?? (doc.workbookName as NSString).deletingPathExtension + ".csv"
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            let version = doc.gridVersion; doc.fileBusy = true
+            // Read after the dialog closes so the snapshot includes the latest edits.
+            doc.web.evaluateJavaScript("window.statsDirectGrid.csvSnapshot()") { value, error in
+                guard error == nil, let snapshot = value as? [String: Any], let csv = snapshot["text"] as? String else {
+                    doc.fileBusy = false; self.showError("The grid could not be saved as CSV. " + (error?.localizedDescription ?? "The worksheet is still loading.")); return
+                }
+                let completeDocument = snapshot["canSaveDocument"] as? Bool == true && doc.workbookID == nil
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let result = Result { try CSVFileIO.write(csv, to: url) }
+                    DispatchQueue.main.async {
+                        doc.fileBusy = false
+                        switch result {
+                        case .failure(let error): self.showError(error.localizedDescription)
+                        case .success:
+                            if completeDocument {
+                                doc.csvSaveName = url.lastPathComponent; doc.rDataFormat = nil
+                                if doc.gridVersion == version { doc.gridDirty = false }
+                            }
+                            self.gridStatus(doc, "Saved current worksheet to " + url.lastPathComponent)
+                            self.status.stringValue = "Saved " + url.lastPathComponent
+                        }
+                    }
+                }
             }
         }
     }

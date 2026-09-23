@@ -64,23 +64,23 @@ extension Viewer {
     @objc func saveActiveExcel() { if let doc = active, doc.kind == "grid" { saveExcel(doc) } }
     @objc func exportActiveCSV() { if let doc = active, doc.kind == "grid" { saveGrid(doc) } }
     func saveExcel(_ doc: Document) {
-        guard !doc.excelBusy else { return }
+        guard !doc.fileBusy else { return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [UTType(filenameExtension: "xlsx")!]
         let stem = (doc.workbookName as NSString).deletingPathExtension
         panel.nameFieldStringValue = stem + "-edited.xlsx"
         panel.beginSheetModal(for: window) { response in
             guard response == .OK, let url = panel.url else { return }
             let version = doc.gridVersion
-            doc.excelBusy = true
+            doc.fileBusy = true
             doc.web.evaluateJavaScript("JSON.stringify(window.statsDirectGrid.excelData())") { value, error in
                 guard error == nil, let json = value as? String, let data = json.data(using: .utf8), var request = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-                    doc.excelBusy = false; self.showError("The workbook could not be read from the grid."); return
+                    doc.fileBusy = false; self.showError("The workbook could not be read from the grid."); return
                 }
                 request["action"] = "save"; request["path"] = url.path
                 if let id = doc.workbookID { request["id"] = id }
                 self.gridStatus(doc, "Saving Excel workbook…")
                 self.workbookRequest(request) { result in
-                    doc.excelBusy = false
+                    doc.fileBusy = false
                     switch result {
                     case .failure(let error): self.gridStatus(doc, "Excel save failed"); self.showError(error.localizedDescription)
                     case .success(let saved):

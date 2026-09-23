@@ -34,14 +34,16 @@ export class WorkbookStore {
       }, (_, c) => columnName(c));
       store.rows = Math.max(100, sheet.rows);
       store.excelRows = true;
+      store.csvRows = sheet.csvRows ?? 0;
       for (const cell of sheet.cells) {
         const key = `${cell.col},${cell.row}`;
         if (cell.text !== '') store.cells.set(key, cell.text);
         store.metadata.set(key, cell);
       }
       const first = sheet.cells.filter(c => c.row === 0 && c.text !== '');
-      store.headerRow = first.length > 0 && first.every(c => c.kind === 'text' && !c.formula);
+      store.headerRow = sheet.headerRow ?? (first.length > 0 && first.every(c => c.kind === 'text' && !c.formula));
       return {
+        rColumns: sheet.rColumns, rRowNames: sheet.rRowNames, rObjectName: sheet.rObjectName, rObjectType: sheet.rObjectType,
         name: sheet.name,
         hidden: sheet.hidden,
         store

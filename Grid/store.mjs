@@ -52,6 +52,7 @@ export class GridStore {
     this.metadata = new Map();
     this.headerRow = false;
     this.excelRows = false;
+    this.csvRows = 0;
     this.formulasStale = false;
     if (example) {
       example.before.forEach((v, r) => this.cells.set(`0,${r}`, String(v)));
@@ -161,8 +162,9 @@ export class GridStore {
   csv() {
     const quote = s => /[",\r\n]/.test(s) ? '"' + s.replaceAll('"', '""') + '"' : s;
     const rows = this.excelRows ? [] : [this.columns.map(quote).join(',')];
-    const end = this.usedRows();
+    const end = Math.max(this.csvRows, this.usedRows());
+    if ((end + (this.excelRows ? 0 : 1)) * this.columns.length > 500000) throw new Error('CSV export supports at most 500,000 cells in this prototype.');
     for (let r = 0; r < end; r++) rows.push(this.columns.map((_, c) => quote(this.get(c, r))).join(','));
-    return rows.join('\r\n') + '\r\n';
+    return rows.length ? rows.join('\r\n') + '\r\n' : '';
   }
 }

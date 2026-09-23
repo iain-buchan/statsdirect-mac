@@ -1,59 +1,62 @@
-# StatsDirect report and help viewer — first prototype
+# StatsDirect for Mac — tabbed prototype 0.2
 
-Open **StatsDirect Viewer.app** on this Mac. It contains a documented report example and the published HTML help collection from statisticalhelp, with a searchable index of 400 topics. Use Open HTML to display a saved report; use Reload after replacing that report with new engine output.
+Open **StatsDirect Viewer.app**. Choose **Analysis → Parametric methods → Paired t test — PEFR example** (⌘T), or click **Run paired t test**. A new report tab is calculated from the nine before/after pairs in the example data tab.
 
-## What this establishes
+## Working with documents
 
-A small native macOS host displays HTML tables, SVG and existing help using WKWebView. The interface provides back/forward navigation, copy/select-all, printing and PDF export. External web links open in the default browser. Local help works offline. The HTML content is independent of the host and can be reused by a C# application.
+- Data, reports and help occupy separate native tabs in one Mac window.
+- Each run creates a new report. Existing reports retain their original results and input values.
+- Edit the PEFR data cells and run again to compare results. Blank values are excluded as incomplete pairs.
+- **Method help**, or the method link in a report, opens a separate help tab without replacing the report.
+- **Help library** provides an index of 400 topics; original published help includes its own navigation and R-code sections.
+- **Window** lists open documents. Use ⌘⇧] / ⌘⇧[ to move between tabs, and ⌘W or **Close tab** to close the selected document.
+- **Open HTML in New Tab…** opens a saved HTML report alongside existing documents.
+- **Save PDF** captures the selected document; **Print** provides paper sizes and paginated PDF output.
 
-The report table is copied verbatim from the repository's Michelson help example. Its SVG confidence interval graphic is an explicitly labelled rendering fixture. No statistics are calculated by this prototype.
+## Calculation implementation
 
-## Scope and limitations
+This is a real calculation, not a saved report. The app loads an Apple Silicon native shared library compiled from C# using .NET 10 NativeAOT. It runs in the same process as the Swift/AppKit/WKWebView host. No .NET installation is needed to run the built app.
 
-- This is a Swift/AppKit feasibility host, not the proposed Avalonia/C# application. Swift was available locally; a .NET executable was not found on PATH.
-- The calculation engine is **not connected**. The existing engine and renderer are still compiled into a Windows-targeted project with commercial UI dependencies. Engine extraction is a separate step.
-- Published help pages and assets from statisticalhelp/Docs are bundled unchanged (build log archives are excluded). The title/category filter is a new index, not full-text search. Existing help instructions describe the Windows product.
-- Open HTML grants local resource access to the selected file's containing directory. For multi-folder help, use the bundled help library. HTML/MHT are not interchangeable: MHT/MHTML import is not implemented.
-- Save PDF uses WKWebView's document capture. For paper sizes, margins and paginated output, use File → Print → PDF.
-- Copy uses macOS WebKit's standard selection support. Fidelity when pasting tables or charts into Microsoft Word remains to be checked manually.
-- Built for Apple Silicon on this Mac. Ad-hoc code signed for local testing; not Developer ID signed or notarized for distribution.
-- Open trusted HTML only. No privileged JavaScript-to-native engine bridge is exposed, but the viewer is not a general-purpose untrusted-document sandbox.
+The paired-test `RptTPaired` method and its `Univariate` helper are extracted verbatim from StatsDirect 5.0.5. Their numerical dependencies and formatting source files are copied unchanged. A small parameter/data host supplies the inputs; a C-compatible entry point returns numerical results to Swift. The report presentation is new HTML; the full existing report renderer and operation-definition host are not ported in this version.
 
-## Source and integration point
+Upstream engine repository: https://github.com/iain-buchan/statsdirect
 
-Engine source: https://github.com/iain-buchan/statsdirect
+Pinned engine commit: `c56f888bd95604f9d656e90ad0236493a96f2ae7`.
 
-Authoritative help source: https://github.com/iain-buchan/statisticalhelp
+`Engine/upstream-manifest.json` records the source hashes. `Engine/Upstream/TPaired.xml` retains the upstream example and expected results; `m_paired.creole` is retained as the reference report template. The wrapper invokes the operation with agreement analysis off; the unrelated chart path deliberately throws if invoked.
 
-Help commit: `ae360074b18cbe2374317cada1e500c0fdb7d21c`. `Content/` contains editable MadCap Flare source; `Docs/` contains generated HTML with rendered equations and is bundled in the viewer. The Flare build was not rerun on this Mac. Future editorial changes belong in statisticalhelp/Content and should be published through the Flare build before refreshing the viewer.
+The wrapper rejects insufficient pairs, non-finite/constant differences and invalid confidence levels explicitly. Missing input pairs are removed together. This prototype fixes confidence at 95% and supports the nine-row example editor only.
 
-Inspected commit: `c56f888bd95604f9d656e90ad0236493a96f2ae7` (StatsDirectUI project version 5.0.5).
+## Help source
 
-The existing Windows report window obtains HTML with `new HtmlRenderer(host).Render(renderable)`, wraps the fragment in a `statsDirectResults` element with operation/help metadata, and appends it to the document. `HtmlImageRenderer` uses `SvgCanvasFactory` and returns inline SVG. This is the appropriate boundary for a future C# viewer; calculation code should not move into JavaScript.
+Authoritative repository: https://github.com/iain-buchan/statisticalhelp
 
-Relevant repository paths:
+Pinned help commit: `ae360074b18cbe2374317cada1e500c0fdb7d21c`.
 
-- `StatsDirectUI/TemplateProcessing/HtmlRenderer.cs`
-- `StatsDirectUI/TemplateProcessing/CreoleHtmlReportRenderer.cs`
-- `StatsDirectUI/TemplateProcessing/HtmlImageRenderer.cs`
-- `StatsDirectUI/UI/frmReportDotNetBrowser.cs`
-- `statisticalhelp/Content/` (editable help)
-- `statisticalhelp/Docs/` (published viewer content)
+`Content/` in that repository is editable MadCap Flare source; `Docs/` is generated HTML, copied into this app with assets intact (build logs excluded). Flare was not rerun on this Mac. Editorial updates belong in the help source and should be published before refreshing the bundle.
 
-Next integration step: separate enough of the existing renderer/engine to run a genuine univariate operation on macOS, feed its rendered output to the viewer, and compare against a captured Windows result. No engine equivalence is claimed by this prototype.
+Refresh from a local checkout using `python3 import_help.py /path/to/statisticalhelp`, then rebuild. The report fixture this importer produces is retained for reference; live paired-test reports are generated by the app.
 
-## Rebuild and test
+## Build and numerical tests
 
-Run `./build.sh` with Apple Command Line Tools installed. No external Swift packages are required. Build output is placed beside this README.
+Requires Apple Command Line Tools and the .NET 10 SDK. Run `./build.sh`. Set `DOTNET=/path/to/dotnet` if needed. The build also detects the SDK downloaded to this task's work/dotnet directory. NuGet dependencies are restored from the normal configured sources.
 
-For the WKWebView smoke test, set `VIEWER_TEST_DIR` to an existing writable directory, then run `StatsDirect Viewer.app/Contents/MacOS/StatsDirectViewer --self-test`. The test validates the saved table and SVG, exports a PDF, follows the help link, checks help image loading, then follows a reference link. It saves screenshots and `result.txt`.
+The build publishes a native C# library, runs `Tests/test_engine.py` against that exact library, compiles the Swift host and ad-hoc signs the app. Only source/content is tracked in Git; native binaries and build caches are excluded.
 
-MIT notices are retained in STATSDIRECT-LICENSE.txt and STATISTICALHELP-LICENSE.txt. Bundled help assets retain their existing notices.
+Numerical verification compares all ten numerical outputs and formatted power against the upstream TPaired operation fixture, with relative tolerance 1e-11 and absolute tolerance 1e-12. Additional checks cover swapped pairs, rescaled units, pairwise missing values, edited data and invalid/degenerate inputs.
 
-## Verification performed on 23 September 2026
+Expected default result: n = 9; mean difference = 56.111111111111114; SD = 34.1739829564994; t = 4.9257744860354; df = 8; two-sided P = 0.0011555730513523055; 95% CI = 29.842662439749674 to 82.37955978247255.
 
-Built successfully with the installed Swift compiler. Launched using the desktop app tools and visually verified the report table, inline SVG, original help text/equation rendering, navigation to the references page, and filtering the help index for Kaplan–Meier. Saved a PDF successfully; the native print dialog generated a two-page preview. No physical printing was performed. Clipboard-to-Office and live engine output remain untested. The optional automated smoke-test launch was blocked by the shell's GUI environment before app startup; the checks above were performed through the running desktop app instead.
+## Current limits
 
-To refresh bundled help from a local checkout, run `python3 import_help.py /path/to/statisticalhelp`, then `./build.sh`. This also regenerates the help index and the labelled report fixture from that checkout.
+- A Swift/AppKit feasibility host; it is not the proposed Avalonia shell. The HTML and C# calculation code can be reused in that later shell.
+- One extracted calculation is connected. The complete StatsDirect engine, dynamic prompts, spreadsheet, session persistence and general analysis workflow are not yet included.
+- Data edits and open documents are held in memory and are not restored after quitting. Export reports to PDF before quitting if you want to retain them.
+- Optional agreement analysis/charts are not implemented. Do not interpret this prototype as full Windows behaviour parity.
+- Apple Silicon, macOS 14 or later; tested on this Mac. Ad-hoc signed for local use, not Developer ID signed/notarized for distribution.
+- Copy uses WebKit's standard selection handling. Pasting tables/charts into Office has not been validated.
+- The original help still describes Windows menus/features. MHT/MHTML import is not supported.
 
-After switching to statisticalhelp, verified that bundled help files match Docs byte-for-byte, the updated univariate help renders in the Mac viewer, and its R-code section expands correctly. The report fixture now uses the results in that same published help version.
+MIT notices for StatsDirect and StatisticalHelp are retained alongside this file. Bundled third-party assets retain their notices.
+
+See `Tests/verification.md` for the numerical and native-app checks performed on this build.

@@ -8,7 +8,7 @@ Reports and help occupy separate tabs in one native Mac window. The Help library
 
 ## Data grid
 
-The **Data grid** toolbar button or **File → Data Grid** (⌘3) opens the Glide worksheet. Double-click to edit cells, or use the selected-cell value field and press Return. Use **Paste from clipboard** for tab-delimited data and **Copy selection** to copy a block. Undo/Redo, extra rows/columns and **Save CSV…** are available in the grid.
+The **Data grid** toolbar button or **File → Data Grid** (⌘3) opens the Glide worksheet. Double-click to edit cells, or use the selected-cell value field. Return saves the value and selects the cell below, ready for the next entry. This also works in analysis input grids; at the last row the selection stays within the table. Use **Paste from clipboard** for tab-delimited data and **Copy selection** to copy a block. Undo/Redo, extra rows/columns and **Save CSV…** are available in the grid.
 
 For a paired test, select two column headers or a two-column range; otherwise the two column selectors are used. Blank pairs are omitted and nonnumeric cells produce a validation error. The original engine generates a report in a separate tab, with the selected column names. The top Analysis menu uses the most recently selected grid or example-data form.
 

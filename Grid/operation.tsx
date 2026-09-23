@@ -1,10 +1,11 @@
 import React,{useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
-import DataEditor,{GridCellKind,CompactSelection,type GridSelection} from '@glideapps/glide-data-grid';
+import DataEditor,{GridCellKind,CompactSelection,type GridSelection,type DataEditorRef} from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
 import './operation.css';
 import {columnName} from './store.mjs';
 import {worksheetInput,enteredInput,pasteMatrix} from './operation-data.mjs';
+import {selectCellBelow} from './navigation';
 declare global { interface Window { statsDirectOperation:any; webkit?:any; } }
 const native=(action:string,extra:object={})=>window.webkit?.messageHandlers?.statsDirectOperation?.postMessage({action,...extra});
 const empty:GridSelection={columns:CompactSelection.empty(),rows:CompactSelection.empty()};
@@ -15,6 +16,7 @@ function DataInput({p,source,onChange,initial}:{p:any,source:any,onChange:(v:any
   const [titles,setTitles]=useState<string[]>(initial?.columns?.map((c:any)=>c.title)??p.labels??Array.from({length:Math.max(1,p.minColumns)},(_,i)=>`Column ${i+1}`));
   const [selection,setSelection]=useState(empty),[cell,setCell]=useState(''),[error,setError]=useState('');
   const container=useRef<HTMLDivElement>(null),[width,setWidth]=useState(700);
+  const grid=useRef<DataEditorRef>(null);
   const [c,r]=selection.current?.cell??[0,0];
   useEffect(()=>{setCell(matrix[r]?.[c]??'');},[r,c,matrix]);
   useEffect(()=>{const observer=new ResizeObserver(([e])=>setWidth(Math.floor(e.contentRect.width)));if(container.current)observer.observe(container.current);return()=>observer.disconnect();},[]);
@@ -31,8 +33,8 @@ function DataInput({p,source,onChange,initial}:{p:any,source:any,onChange:(v:any
       <div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type="checkbox" checked={selected.includes(i)} onChange={e=>setSelected(a=>e.target.checked?[...a,i]:a.filter(n=>n!==i))}/><span>{columnName(i)} · {label}</span>{selected.includes(i)&&<b>{selected.indexOf(i)+1}</b>}</label>)}</div>
       <p className="selection">Selected order: {selected.map(i=>source.columns[i]).join(' → ')||'None'}</p><div className="row-range"><label>First worksheet row<input type="number" min={source.firstRow} value={first} onChange={e=>setFirst(e.target.value)}/></label><label>Last worksheet row<input type="number" max={source.rows} value={last} onChange={e=>setLast(e.target.value)}/></label></div>
     </>:<><div className="grid-tools"><button type="button" onClick={()=>native('paste')}>Paste data</button>{!p.fixedRows&&<button type="button" onClick={()=>apply([...matrix,...Array.from({length:10},()=>titles.map(()=>''))])}>+ 10 rows</button>}{titles.length<p.maxColumns&&<button type="button" onClick={()=>apply(matrix.map(r=>[...r,'']))}>+ Column</button>}{titles.length>p.minColumns&&<button type="button" onClick={()=>apply(matrix.map(r=>r.slice(0,-1)))}>Remove last column</button>}<span>{matrix.length} rows × {titles.length} columns</span></div>
-      {p.rowLabels&&<p>Rows: {p.rowLabels.join(' / ')}</p>}<label className="cell-editor">Row {r+1}, column {c+1}<input value={cell} aria-label="Selected data cell" onChange={e=>{setCell(e.target.value);edit(e.target.value);}}/></label>
-      <div ref={container} className="grid"><DataEditor width={width} height={300} columns={titles.map(title=>({title,width:170}))} rows={matrix.length} rowMarkers="number" getCellsForSelection={true} getCellContent={([x,y])=>({kind:GridCellKind.Text,data:matrix[y]?.[x]??'',displayData:matrix[y]?.[x]??'',allowOverlay:true})} gridSelection={selection} onGridSelectionChange={setSelection} onCellsEdited={items=>{const next=matrix.map(r=>[...r]);items.forEach(({location:[x,y],value})=>{if(value.kind===GridCellKind.Text)next[y][x]=value.data;});apply(next);return true;}} onPaste={(target,values)=>{try{apply(pasteMatrix(matrix,values.map(r=>r.join('\t')).join('\n'),target[0],target[1],p.fixedRows,p.maxColumns));}catch(e){setError((e as Error).message);}return false;}} smoothScrollX smoothScrollY/></div>
+      {p.rowLabels&&<p>Rows: {p.rowLabels.join(' / ')}</p>}<label className="cell-editor">Row {r+1}, column {c+1}<input value={cell} aria-label="Selected data cell" onChange={e=>{setCell(e.target.value);edit(e.target.value);}} onKeyDown={e=>{if(e.key==='Enter'&&!e.nativeEvent.isComposing){e.preventDefault();e.stopPropagation();selectCellBelow([c,r],matrix.length,setSelection,grid.current);}}}/></label>
+      <div ref={container} className="grid"><DataEditor ref={grid} width={width} height={300} columns={titles.map(title=>({title,width:170}))} rows={matrix.length} rowMarkers="number" getCellsForSelection={true} getCellContent={([x,y])=>({kind:GridCellKind.Text,data:matrix[y]?.[x]??'',displayData:matrix[y]?.[x]??'',allowOverlay:true})} gridSelection={selection} onGridSelectionChange={setSelection} onCellsEdited={items=>{const next=matrix.map(r=>[...r]);items.forEach(({location:[x,y],value})=>{if(value.kind===GridCellKind.Text)next[y][x]=value.data;});apply(next);return true;}} onPaste={(target,values)=>{try{apply(pasteMatrix(matrix,values.map(r=>r.join('\t')).join('\n'),target[0],target[1],p.fixedRows,p.maxColumns));}catch(e){setError((e as Error).message);}return false;}} smoothScrollX smoothScrollY/></div>
       <details><summary>Column names</summary>{titles.map((title,i)=><label className="field" key={i}>Column {i+1}<input value={title} onChange={e=>setTitles(t=>t.map((v,n)=>n===i?e.target.value:v))}/></label>)}</details><p className="hint">Paste tab-separated cells without headings or totals. Use * for a missing observation. Blank trailing rows are ignored.</p></>}
     {p.mode?.includes('Coding')&&<p className="hint">Text columns are treated as categories. The engine will ask about reference categories when dummy coding is needed.</p>}{error&&<p role="alert" className="error">{error}</p>}
   </div>;

@@ -42,6 +42,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var frameControls: WindowFrameControls!
     var closeApproved = false
     var tabs: NSTabView!
+    let rLauncher = NSTabViewItem(identifier: "start-r-session")
+    var changingTabs = false
     var status: NSTextField!
     var runButton: NSButton!
     var exportButton: NSButton!
@@ -75,6 +77,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         status.lineBreakMode = .byTruncatingTail
         for view in [bar, tabs!, status!] { view.translatesAutoresizingMaskIntoConstraints = false; container.addSubview(view) }
         NSLayoutConstraint.activate([
+            bar.heightAnchor.constraint(equalToConstant: 32), status.heightAnchor.constraint(equalToConstant: 16),
             bar.topAnchor.constraint(equalTo: container.topAnchor, constant: 12), bar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 14),
             tabs.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 12), tabs.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), tabs.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
             status.topAnchor.constraint(equalTo: tabs.bottomAnchor, constant: 7), status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16), status.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16), status.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
@@ -83,6 +86,14 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         do { example = try JSONDecoder().decode(PairedExample.self, from: Data(contentsOf: root.appendingPathComponent("paired-example.json"))) }
         catch { showError("The example data could not be loaded: \(error.localizedDescription)") }
         helpLibrary(); showData()
+        rLauncher.label = "+ R session"
+        let launcherView = NSView()
+        let startButton = NSButton(title: "Start a new R session", target: self, action: #selector(newRTab))
+        startButton.bezelStyle = .rounded; startButton.translatesAutoresizingMaskIntoConstraints = false
+        launcherView.addSubview(startButton)
+        NSLayoutConstraint.activate([startButton.centerXAnchor.constraint(equalTo: launcherView.centerXAnchor), startButton.centerYAnchor.constraint(equalTo: launcherView.centerYAnchor)])
+        rLauncher.view = launcherView
+        tabs.addTabViewItem(rLauncher)
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
     func setupMenu() {
@@ -154,6 +165,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         guard let doc = active, let index = documents.firstIndex(where: { $0 === doc }), !documents.isEmpty else { return }
         tabs.selectTabViewItem(documents[(index + delta + documents.count) % documents.count].item)
     }
+    func tabView(_ tabView: NSTabView, shouldSelect tabViewItem: NSTabViewItem?) -> Bool {
+        guard tabViewItem === rLauncher, !changingTabs else { return true }
+        // Defer insertion until the tab view has finished handling this selection.
+        DispatchQueue.main.async { [weak self] in self?.newRTab() }
+        return false
+    }
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         window.title = "\(active?.title ?? "StatsDirect") · Mac prototype"
         exportButton?.title = active?.kind == "r" ? "Save script…" : "Save PDF…"
@@ -164,7 +181,11 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func newDocument(kind: String, title: String, url: URL? = nil, html: String? = nil, access: URL? = nil) -> Document {
         let doc = Document(kind: kind, title: title, access: access ?? root)
         doc.initialURL = url; doc.web.navigationDelegate = self; doc.web.uiDelegate = self
-        documents.append(doc); tabs.addTabViewItem(doc.item); tabs.selectTabViewItem(doc.item)
+        documents.append(doc)
+        if tabs.tabViewItems.contains(where: { $0 === rLauncher }) {
+            tabs.insertTabViewItem(doc.item, at: tabs.indexOfTabViewItem(rLauncher))
+        } else { tabs.addTabViewItem(doc.item) }
+        tabs.selectTabViewItem(doc.item)
         if let url { doc.web.loadFileURL(url, allowingReadAccessTo: doc.access) }
         else if let html { doc.web.loadHTMLString(html, baseURL: root) }
         updateWindowMenu(); return doc
@@ -220,7 +241,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func remove(_ doc: Document) {
         doc.rPane?.shutdown()
-        doc.web.stopLoading(); documents.removeAll { $0 === doc }; tabs.removeTabViewItem(doc.item)
+        doc.web.stopLoading(); documents.removeAll { $0 === doc }
+        changingTabs = true; tabs.removeTabViewItem(doc.item); changingTabs = false
         updateWindowMenu(); status.stringValue = "\(documents.count) open documents"
     }
     @objc func back() { active?.web.goBack() }

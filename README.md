@@ -8,7 +8,7 @@ Reports and help occupy separate tabs in one native Mac window. The Help library
 
 ## R tabs
 
-Choose **File → New R Tab** or **R → New R Tab** (⌘R). Each tab starts a separate persistent session using the R installation on this Mac. Edit the script and click **Run script**, or press **⌘Return**. The initial script runs the paired t-test example in base R. The console displays output, warnings and errors; variables remain available between runs.
+Click the permanent **+ R session** tab to start a new R session. It stays at the end of the tab strip so you can start more sessions at any time. **File → New R Tab** and **R → New R Tab** (⌘R) are also available. Each tab starts a separate persistent session using the R installation on this Mac. Edit the script and click **Run script**, or press **⌘Return**. The initial script runs the paired t-test example in base R. The console displays output, warnings and errors; variables remain available between runs.
 
 **Stop / Reset** terminates that session and clears its variables. The next run starts a new session. **Save script…** (⌘S when the R tab is selected) saves an `.R` file. Closing a tab or quitting warns about unsaved edits or running scripts. Session objects are not restored after closing.
 

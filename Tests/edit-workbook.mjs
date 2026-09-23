@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import { WorkbookStore } from '../Grid/workbook.mjs';
+const book = new WorkbookStore(); book.load(JSON.parse(fs.readFileSync(0, 'utf8')));
+assert.equal(book.sheets.length, 11);
+const store = book.sheets[0].store;
+const pairs = store.paired(0, 1);
+assert.deepEqual(pairs.before.slice(0, 9), [312, 242, 340, 388, 296, 254, 391, 402, 290]);
+assert.equal(pairs.before.filter((x, i) => x !== null && pairs.after[i] !== null).length, 9);
+store.apply([[0, 1, '332']]);
+const result = book.export();
+assert.equal(result.sheets.reduce((n, s) => n + s.cells.length, 0), 1);
+process.stdout.write(JSON.stringify(result));

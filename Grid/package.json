@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node --test store.test.mjs"
+    "test": "node --test store.test.mjs workbook.test.mjs"
   },
   "dependencies": {
     "@glideapps/glide-data-grid": "6.0.3",

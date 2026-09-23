@@ -10,6 +10,10 @@ static named_paired_fn pairedNamed = nullptr;
 using report_fn = int (*)(char*, int);
 static paired_fn paired = nullptr;
 static report_fn report = nullptr;
+using workbook_fn = char* (*)(const char*);
+using free_fn = void (*)(char*);
+static workbook_fn workbookRequest = nullptr;
+static free_fn workbookFree = nullptr;
 static std::once_flag initialized;
 static void initialize() {
     Dl_info location{};
@@ -39,6 +43,10 @@ static void initialize() {
     if (code < 0) report = nullptr;
     code = load(assembly.c_str(), "Exports, StatsDirect.Headless", "PairedNamed", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&pairedNamed);
     if (code < 0) pairedNamed = nullptr;
+    code = load(assembly.c_str(), "WorkbookIO, StatsDirect.Headless", "Invoke", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&workbookRequest);
+    if (code < 0) workbookRequest = nullptr;
+    code = load(assembly.c_str(), "WorkbookIO, StatsDirect.Headless", "Free", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&workbookFree);
+    if (code < 0) workbookFree = nullptr;
 }
 extern "C" int statsdirect_paired_t(const double* before, const double* after, int count, double confidence, double* output, int capacity) {
     std::call_once(initialized, initialize);
@@ -52,4 +60,11 @@ extern "C" int statsdirect_paired_report(char* buffer, int capacity) {
 extern "C" int statsdirect_paired_t_named(const double* before, const double* after, int count, double confidence, double* output, int capacity, const char* first, const char* second) {
     std::call_once(initialized, initialize);
     return pairedNamed ? pairedNamed(before, after, count, confidence, output, capacity, first, second) : 5;
+}
+extern "C" char* statsdirect_workbook(const char* request) {
+    std::call_once(initialized, initialize);
+    return workbookRequest && workbookFree ? workbookRequest(request) : nullptr;
+}
+extern "C" void statsdirect_workbook_free(char* result) {
+    if (workbookFree) workbookFree(result);
 }

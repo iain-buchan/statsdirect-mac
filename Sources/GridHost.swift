@@ -19,7 +19,11 @@ extension Viewer: WKScriptMessageHandler {
               web.url?.standardizedFileURL == root.appendingPathComponent("Grid/index.html").standardizedFileURL,
               let body = message.body as? [String: Any], let action = body["action"] as? String else { return }
         switch action {
-        case "changed": doc.gridDirty = true
+        case "ready": loadPendingWorkbook(doc)
+        case "openExcel": openExcel()
+        case "openExample": openExampleWorkbook()
+        case "saveExcel": saveExcel(doc)
+        case "changed": doc.gridDirty = true; doc.gridVersion += 1
         case "run": runPairedFromGrid(doc)
         case "save": saveGrid(doc)
         case "copy":
@@ -65,7 +69,7 @@ extension Viewer: WKScriptMessageHandler {
             let panel = NSSavePanel(); panel.allowedContentTypes = [.commaSeparatedText]; panel.nameFieldStringValue = "StatsDirect data.csv"
             panel.beginSheetModal(for: self.window) { response in
                 guard response == .OK, let url = panel.url else { return }
-                do { try csv.write(to: url, atomically: true, encoding: .utf8); doc.gridDirty = false; self.gridStatus(doc, "Saved " + url.lastPathComponent) }
+                do { try csv.write(to: url, atomically: true, encoding: .utf8); self.gridStatus(doc, "Exported current worksheet to " + url.lastPathComponent) }
                 catch { self.showError(error.localizedDescription) }
             }
         }

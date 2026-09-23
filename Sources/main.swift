@@ -28,6 +28,11 @@ final class Document {
     var initialURL: URL?
     var rPane: RPane?
     var gridDirty = false
+    var gridVersion = 0
+    var workbookID: String?
+    var workbookName = "PEFR.xlsx"
+    var pendingWorkbook: [String: Any]?
+    var excelBusy = false
     init(kind: String, title: String, access: URL) {
         self.kind = kind; self.title = title; self.access = access
         let config = WKWebViewConfiguration()
@@ -116,7 +121,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(file, "Data Grid", #selector(showGrid), "3")
         add(file, "New R Tab", #selector(newRTab), "r")
         add(file, "PEFR example data", #selector(showData), "1")
-        add(file, "Open HTML in New Tab…", #selector(openFile), "o")
+        add(file, "Open Excel Workbook…", #selector(openExcel), "o")
+        add(file, "Open StatsDirect test.xlsx", #selector(openExampleWorkbook))
+        add(file, "Open HTML in New Tab…", #selector(openFile))
+        add(file, "Export Current Worksheet as CSV…", #selector(exportActiveCSV))
         add(file, "Save PDF…", #selector(savePDF), "s")
         add(file, "Print…", #selector(printPage), "p")
         file.addItem(.separator()); add(file, "Close Tab", #selector(closeTab), "w")
@@ -141,10 +149,11 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(exportActiveCSV) { return active?.kind == "grid" }
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
         if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
         if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "r" && active?.kind != "grid" }
-        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? "Save CSV…" : "Save PDF…"; return active != nil }
+        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? "Save Excel…" : "Save PDF…"; return active != nil }
         if menuItem.action == #selector(runPaired) { return !running && example != nil }
         if [#selector(closeTab), #selector(printPage), #selector(savePDF)].contains(menuItem.action) { return active != nil }
         return true
@@ -179,7 +188,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         if let doc = active, ["data", "grid"].contains(doc.kind) { analysisSourceID = doc.id }
         window.title = "\(active?.title ?? "StatsDirect") · Mac prototype"
-        exportButton?.title = active?.kind == "r" ? "Save script…" : active?.kind == "grid" ? "Save CSV…" : "Save PDF…"
+        exportButton?.title = active?.kind == "r" ? "Save script…" : active?.kind == "grid" ? "Save Excel…" : "Save PDF…"
         status.stringValue = running ? "Running paired t test…" : "\(documents.count) open documents · \(active?.kind.capitalized ?? "Ready")"
         if windowsMenu != nil { updateWindowMenu() }
     }
@@ -234,6 +243,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func stopRSession() { active?.rPane?.stopSession() }
     @objc func saveRScript() { active?.rPane?.saveScript() }
     @objc func closeTab() {
+        if active?.excelBusy == true { showError("Please wait for the Excel save to finish."); return }
         guard let doc = active else { return }
         if let pane = doc.rPane, pane.hasUnsavedChanges || pane.isRunning {
             let alert = NSAlert(); alert.messageText = "Close this R session?"
@@ -241,7 +251,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             alert.addButton(withTitle: "Close R Tab"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else if doc.gridDirty {
-            let alert = NSAlert(); alert.messageText = "Close the data grid?"; alert.informativeText = "Unsaved worksheet edits will be discarded. Use Save CSV to keep your data."
+            let alert = NSAlert(); alert.messageText = "Close the data grid?"; alert.informativeText = "Unsaved worksheet edits will be discarded. Use Save Excel to keep all worksheets."
             alert.addButton(withTitle: "Close Grid"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else if doc.kind == "data" {
@@ -251,6 +261,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         } else { remove(doc) }
     }
     func remove(_ doc: Document) {
+        if let id = doc.workbookID { workbookRequest(["action": "close", "id": id]) { _ in } }
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectGrid")
         doc.rPane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }
@@ -361,7 +372,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func savePDF() {
         if let pane = active?.rPane { pane.saveScript(); return }
         guard let doc = active else { return }
-        if doc.kind == "grid" { saveGrid(doc); return }
+        if doc.kind == "grid" { saveExcel(doc); return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.pdf]; panel.nameFieldStringValue = "\(doc.title).pdf"
         panel.beginSheetModal(for: window) { response in
             if response == .OK, let url = panel.url {
@@ -416,6 +427,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         return allowed
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if documents.contains(where: { $0.excelBusy }) { showError("Please wait for the Excel save to finish."); return .terminateCancel }
         if closeApproved { return .terminateNow }
         if documents.contains(where: { $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true || $0.gridDirty }) {
             let alert = NSAlert(); alert.messageText = "Quit with unsaved work?"

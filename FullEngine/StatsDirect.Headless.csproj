@@ -18,6 +18,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" Version="5.9.0" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
     <Antlr4 Include="$(SourceRoot)/Creole/*.g4" CustomToolNamespace="StatsDirect.Creole" Generator="MSBuild:Compile" Listener="true" Visitor="true" /><Antlr4 Include="$(SourceRoot)/Expressions/*.g4" CustomToolNamespace="StatsDirect.Expressions" Generator="MSBuild:Compile" Listener="true" Visitor="true" />
     <Antlr4 Include="$(SourceRoot)/CsvParser/*.g4" CustomToolNamespace="StatsDirect.CsvParser" Generator="MSBuild:Compile" Listener="true" Visitor="true" /><Antlr4 Include="$(SourceRoot)/R/*.g4" CustomToolNamespace="StatsDirect.R" Generator="MSBuild:Compile" Listener="true" Visitor="true" /><Content Include="$(SourceRoot)/Assets/Operations/**"><Link>Operations/%(RecursiveDir)%(Filename)%(Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
 <Content Include="$(SourceRoot)/Assets/UserOperations/**"><Link>UserOperations/%(RecursiveDir)%(Filename)%(Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>

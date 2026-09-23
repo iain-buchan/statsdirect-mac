@@ -49,6 +49,10 @@ export class GridStore {
     this.cells = new Map();
     this.undoStack = [];
     this.redoStack = [];
+    this.metadata = new Map();
+    this.headerRow = false;
+    this.excelRows = false;
+    this.formulasStale = false;
     if (example) {
       example.before.forEach((v, r) => this.cells.set(`0,${r}`, String(v)));
       example.after.forEach((v, r) => this.cells.set(`1,${r}`, String(v)));
@@ -69,6 +73,7 @@ export class GridStore {
     const seen = new Map();
     for (const [c, r, value] of edits) {
       if (c < 0 || r < 0 || c >= MAX_COLS || r >= MAX_ROWS) throw new Error('Cell is outside the worksheet.');
+      if (this.metadata.get(`${c},${r}`)?.formula && String(value) !== this.get(c, r)) throw new Error('Formula cells are read-only. Edit their formulas in Excel.');
       seen.set(`${c},${r}`, String(value));
       rows = Math.max(rows, r + 1);
       cols = Math.max(cols, c + 1);
@@ -125,7 +130,8 @@ export class GridStore {
     if (size > 100000) throw new Error('Paste at most 100,000 cells at a time.');
     return this.apply(rows.flatMap((row, y) => row.map((v, x) => [c + x, r + y, v])));
   }
-  paired(c1, c2, start = 0, end = this.usedRows()) {
+  paired(c1, c2, start = this.headerRow ? 1 : 0, end = this.usedRows()) {
+    if (this.headerRow) start = Math.max(1, start);
     if (c1 < 0 || c2 < 0 || c1 >= this.columns.length || c2 >= this.columns.length) throw new Error('Choose columns that exist in this worksheet.');
     if (c1 === c2) throw new Error('Choose two different columns.');
     if (end - start > 1000000) throw new Error('This analysis currently accepts at most 1,000,000 rows.');
@@ -133,6 +139,8 @@ export class GridStore {
       after = [];
     for (let r = start; r < end; r++) {
       try {
+        if ([c1, c2].some(c => this.metadata.get(`${c},${r}`)?.formula && this.get(c, r) === '')) throw new Error('A formula has no saved result. Recalculate and save this workbook in Excel before analysing it.');
+        if (this.formulasStale && [c1, c2].some(c => this.metadata.get(`${c},${r}`)?.formula)) throw new Error('This selection contains formula results that may be out of date. Save, recalculate in Excel, and reopen the workbook before analysing these cells.');
         before.push(numeric(this.get(c1, r)));
         after.push(numeric(this.get(c2, r)));
       } catch (e) {
@@ -143,13 +151,16 @@ export class GridStore {
     return {
       before,
       after,
-      labels: [this.columns[c1], this.columns[c2]],
+      labels: [this.columnTitle(c1), this.columnTitle(c2)],
       range: `${columnName(c1)}${start + 1} and ${columnName(c2)}${start + 1}, ${end - start} rows`
     };
   }
+  columnTitle(c) {
+    return this.excelRows ? this.headerRow ? this.get(c, 0) || `Column ${columnName(c)}` : `Column ${columnName(c)}` : this.columns[c];
+  }
   csv() {
     const quote = s => /[",\r\n]/.test(s) ? '"' + s.replaceAll('"', '""') + '"' : s;
-    const rows = [this.columns.map(quote).join(',')];
+    const rows = this.excelRows ? [] : [this.columns.map(quote).join(',')];
     const end = this.usedRows();
     for (let r = 0; r < end; r++) rows.push(this.columns.map((_, c) => quote(this.get(c, r))).join(','));
     return rows.join('\r\n') + '\r\n';

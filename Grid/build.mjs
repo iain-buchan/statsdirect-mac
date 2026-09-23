@@ -1,11 +1,14 @@
 import { build } from 'esbuild';
 import { mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+process.chdir(fileURLToPath(new URL('.', import.meta.url)));
 const out = new URL('../Content/Grid/', import.meta.url);
 await mkdir(out, {
   recursive: true
 });
 const result = await build({
+  absWorkingDir: fileURLToPath(new URL('.', import.meta.url)),
   metafile: true,
   entryPoints: ['main.tsx'],
   bundle: true,

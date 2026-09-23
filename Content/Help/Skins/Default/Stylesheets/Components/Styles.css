@@ -170,6 +170,11 @@ ul.menu li > a
         font-weight: bold;
     }
 
+li.emptyMenuItem
+{
+    list-style: none;
+}
+
 /* Search Results Styles */
 #results-heading
 {

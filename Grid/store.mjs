@@ -44,7 +44,7 @@ export function numeric(raw) {
 }
 export class GridStore {
   constructor(example) {
-    this.columns = ['PEFR Before', 'PEFR After', 'Variable C', 'Variable D', 'Variable E', 'Notes'];
+    this.columns = example ? ['PEFR Before', 'PEFR After', 'Variable C', 'Variable D', 'Variable E', 'Notes'] : Array.from({length: 6}, (_, c) => columnName(c));
     this.rows = 100;
     this.cells = new Map();
     this.undoStack = [];

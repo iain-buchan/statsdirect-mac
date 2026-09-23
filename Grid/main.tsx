@@ -8,20 +8,19 @@ import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
 import { WorkbookStore, cellKind } from './workbook.mjs';
 import { selectAdjacentCell, cellMovement, arrowKeyEditor } from './navigation';
-import example from '../Content/paired-example.json';
 declare global {
   interface Window {
     webkit?: any;
     statsDirectGrid: any;
   }
 }
-const workbook = new WorkbookStore(example);
+const workbook = new WorkbookStore();
 function native(action: string, extra: object = {}) {
   const bridge = window.webkit?.messageHandlers?.statsDirectGrid;
   if (bridge) bridge.postMessage({
     action,
     ...extra
-  });else if (action === 'run') alert('Run this worksheet inside StatsDirect to calculate a report.');
+  });
 }
 const empty: GridSelection = {
   columns: CompactSelection.empty(),
@@ -33,11 +32,8 @@ function App() {
   const [revision, refresh] = useState(0),
     [selection, setSelection] = useState<GridSelection>(empty),
     [widths, setWidths] = useState<Record<number, number>>({}),
-    [message, setMessage] = useState('Ready · Double-click a cell to edit'),
-    [first, setFirst] = useState(0),
-    [second, setSecond] = useState(1),
-    [value, setValue] = useState(''),
-    [agreement, setAgreement] = useState(false);
+    [message, setMessage] = useState('Ready'),
+    [value, setValue] = useState('');
   const grid = useRef<DataEditorRef>(null),
     selectionRef = useRef(selection);
   selectionRef.current = selection;
@@ -123,24 +119,24 @@ function App() {
       }
     });
   };
-  const paired = () => {
-    const s = selectionRef.current,
-      cols = s.columns.toArray(),
-      area = s.current?.range;
-    const result = cols.length === 2 ? store.paired(cols[0], cols[1]) : area?.width === 2 ? store.paired(area.x, area.x + 1, area.y, area.y + area.height) : store.paired(first, second);
-    result.range = workbook.name + ' / ' + workbook.sheets[sheetIndex].name + ' · ' + result.range;
-    return {...result, agreement};
-  };
   useEffect(() => {
     window.statsDirectGrid = {
-      pairedData: () => {
-        try {
-          return paired();
-        } catch (e) {
-          return {
-            error: (e as Error).message
-          };
-        }
+      editCommand: (command: string, clipboard: string) => {
+        const focused = document.activeElement as HTMLElement | null;
+        if (focused?.matches('input,textarea,select') || focused?.isContentEditable) return false;
+        attempt(() => {
+          switch (command) {
+            case 'undo': if (store.undo()) changed(); break;
+            case 'redo': if (store.redo()) changed(); break;
+            case 'copy': native('copy', {text: copy()}); break;
+            case 'cut': native('copy', {text: copy()}); clear(); break;
+            case 'paste': paste(clipboard); break;
+            case 'selectAll':
+              setSelection({...empty, current: {cell: [0, 0], range: {x: 0, y: 0, width: store.columns.length, height: Math.max(1, store.usedRows())}, rangeStack: []}});
+              break;
+          }
+        });
+        return true;
       },
       analysisSource: () => {
         const cells = [...new Set([...store.cells.keys(), ...store.metadata.keys()])].map(key=>{const [col,row]=key.split(',').map(Number);return {...store.metadata.get(key),col,row,text:store.get(col,row)};});
@@ -154,9 +150,7 @@ function App() {
       loadWorkbook: (data: any) => {
         setSheetIndex(workbook.load(data));
         setSelection(empty);
-        setFirst(0);
-        setSecond(data.sheets[0]?.columns > 1 ? 1 : 0);
-        setMessage(`Opened ${data.name} · ${data.sheets.length} worksheets${data.warnings?.length ? '. Not imported: ' + data.warnings.join('; ') : ''}`);
+        setMessage(`Opened ${data.name} · ${data.sheets.length} worksheet${data.sheets.length === 1 ? '' : 's'}${data.warnings?.length ? '. Not imported: ' + data.warnings.join('; ') : ''}`);
         refresh(n => n + 1);
       },
       loadCSV: (text: string, name: string) => {
@@ -209,12 +203,7 @@ function App() {
     if (store.apply(rows.flatMap(r => cols.map(c => [c, r, ''])))) changed();
   };
   return <main>
-  <header><div><span className="eyebrow">WORKSHEET</span><h1>{workbook.name}</h1></div><span className="badge">Glide Data Grid</span></header>
   <div className="tools">
-   <button onClick={() => native('openExcel')}>Open Excel…</button>
-   <button onClick={() => native('openCSV')}>Open CSV…</button>
-   <button onClick={() => native('openRData')}>Open R data…</button>
-   <button onClick={() => native('openExample')}>Open test.xlsx</button>
    <button onClick={() => attempt(() => {
         if (store.undo()) changed();
       })} disabled={!store.undoStack.length}>Undo</button>
@@ -223,8 +212,8 @@ function App() {
       })} disabled={!store.redoStack.length}>Redo</button>
    <button onClick={() => attempt(() => native('copy', {
         text: copy()
-      }))}>Copy selection</button>
-   <button onClick={() => native('paste')}>Paste from clipboard</button>
+      }))}>Copy</button>
+   <button onClick={() => native('paste')}>Paste</button>
    <button onClick={() => attempt(clear)}>Clear cells</button>
    <span className="spacer" />
    <button onClick={() => attempt(() => {
@@ -236,16 +225,10 @@ function App() {
         store.apply([], store.rows, store.columns.length + 1);
         changed();
       })}>+ Column</button>
-   <button onClick={() => native('save')}>Save CSV…</button>
-   <button onClick={() => native('saveExcel')}>Save Excel…</button>
-   <button onClick={() => native('saveRDS')}>Save RDS…</button>
-   <button onClick={() => native('saveRData')}>Save RData…</button>
   </div>
-  {workbook.imported && <div className="sheetbar" role="tablist" aria-label="Worksheets">{workbook.sheets.map((sheet: any, i: number) => <button key={sheet.name} role="tab" aria-selected={i === sheetIndex} onClick={() => {
+  {workbook.sheets.length > 1 && <div className="sheetbar" role="tablist" aria-label="Worksheets">{workbook.sheets.map((sheet: any, i: number) => <button key={sheet.name} role="tab" aria-selected={i === sheetIndex} onClick={() => {
         setSheetIndex(i);
         setSelection(empty);
-        setFirst(0);
-        setSecond(sheet.store.columns.length > 1 ? 1 : 0);
         setWidths({});
         setMessage(sheet.name + (sheet.hidden ? " (hidden in Excel)" : ""));
       }}>{sheet.name}{sheet.hidden ? " (hidden)" : ""}</button>)}</div>}
@@ -262,7 +245,7 @@ function App() {
       }} /><span>{current && store.metadata.get(`${current[0]},${current[1]}`)?.formula ? "Formula: " + store.metadata.get(`${current[0]},${current[1]}`).formula : "↵ to save and move down"}</span></div>
   <div className="canvas" ref={container}><DataEditor ref={grid} provideEditor={arrowKeyEditor} trapFocus width={containerSize.width} height={containerSize.height} columns={store.columns.map((title: string, c: number) => ({
         id: String(c),
-        title: columnName(c) + ' · ' + store.columnTitle(c),
+        title: store.headerRow ? columnName(c) + ' · ' + store.columnTitle(c) : columnName(c),
         width: widths[c] ?? 178
       }))} rows={store.rows} getCellContent={getCell} getCellsForSelection={true} rowMarkers="both" rowMarkerWidth={48} headerHeight={36} rowHeight={29} freezeColumns={0} smoothScrollX smoothScrollY gridSelection={selection} onGridSelectionChange={setSelection} onColumnResize={(_col, width, index) => setWidths(w => ({
         ...w,
@@ -303,16 +286,13 @@ function App() {
         baseFontStyle: '13px',
         headerFontStyle: '600 12px'
       }} /></div>
-  <div className="analysis">{workbook.imported && <label><input type="checkbox" checked={store.headerRow} onChange={e => {
+  <div className="worksheet-options"><label><input type="checkbox" checked={store.headerRow} onChange={e => {
           store.headerRow = e.target.checked;
           refresh(n => n + 1);
-        }} />First row has column names</label>}<strong>Paired t test</strong><label>First column <select aria-label="First paired column" value={first} onChange={e => setFirst(Number(e.target.value))}>{store.columns.map((name: string, i: number) => <option value={i} key={i}>{columnName(i)} · {store.columnTitle(i)}</option>)}</select></label><span>−</span><label>Second column <select aria-label="Second paired column" value={second} onChange={e => setSecond(Number(e.target.value))}>{store.columns.map((name: string, i: number) => <option value={i} key={i}>{columnName(i)} · {store.columnTitle(i)}</option>)}</select></label><label><input type="checkbox" checked={agreement} onChange={e=>setAgreement(e.target.checked)}/>Agreement analysis (SVG)</label><button className="primary" onClick={() => attempt(() => {
-        paired();
-        native('run');
-      })}>Run paired t test</button></div>
+        }} />First row has column names</label><span>Choose a method from Analysis to analyse these data.</span></div>
   <footer><span role="status">{message}</span><span>{store.rows.toLocaleString()} rows × {store.columns.length} columns · {store.cells.size} filled cells</span></footer>
   {workbook.formulaCount > 0 && <p className="formula-note">{workbook.formulaCount} formula cells show results from the last Excel save and are read-only. Formulas are retained on export and recalculate in Excel. {workbook.edited ? "After editing, reopen the recalculated file before analysing formula cells." : ""}</p>}
-  <p className="hint">Select two column headers or a two-column range to analyse that selection. Otherwise the chosen columns above are used. Blank cells are missing values. Save Excel keeps all worksheets; CSV exports the current sheet.</p>
+
  </main>;
 }
 createRoot(document.getElementById('root')!).render(<App />);

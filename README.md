@@ -1,6 +1,8 @@
 # StatsDirect Mac viewer prototype
 
-Open **StatsDirect Viewer.app**. The **Data grid · PEFR** worksheet opens by default. Choose **Analysis → Parametric → Paired t** (⌘T) to open the first input step immediately, or use **Run paired t test** in the worksheet. Each run creates a new report tab. Edit the paired observations in the grid and run again to produce a separate report. Earlier reports retain their original results and input snapshots.
+Open **StatsDirect Viewer.app**. It starts with one blank worksheet. **File → New Worksheet** (⌘N) creates another independent document; **File → Open…** (⌘O) accepts Excel, CSV, R data and HTML reports. Choose a function from **Analysis** to open its first input step immediately. Results open in separate report tabs, preserving earlier results.
+
+**StatsDirect → About StatsDirect** opens the native About panel, showing the Mac prototype version and calculation-engine version. The same command is available under **Help**. Worked data are available under **Help → Examples → StatsDirect Example Workbook**; no example data or test-specific controls are loaded into a new worksheet.
 
 The window uses the native macOS red, amber and green controls. Drag the title bar to move it or its edges to resize it. Document tabs have their own **×** buttons; the duplicate top-right frame buttons have been removed.
 
@@ -8,9 +10,11 @@ Reports, help, analysis forms, worksheets and R sessions stay open as separate d
 
 ## Data grid
 
-**File → Data Grid** (⌘3) opens the Glide worksheet. Double-click to edit cells, or use the selected-cell value field. Return saves the value and selects the cell below, ready for the next entry. Arrow keys save an edit and move one cell in the indicated direction. These controls also work in analysis input grids and stop at the table edges. Small analysis grids fit their actual dimensions, so a 2 × 2 count table displays only four entry cells plus headings. Use **Paste from clipboard** for tab-delimited data and **Copy selection** to copy a block. Undo/Redo, extra rows/columns and **Save CSV…** are available in the grid.
+**File → New Worksheet** (⌘N) opens a blank 100-row, eight-column worksheet. Double-click to edit, or use the selected-cell value field. Return saves the value and selects the cell below. Arrow keys save an edit and move one cell in the indicated direction. These controls also work in analysis input grids and stop at table edges. Small analysis grids fit their dimensions, so a 2 × 2 count table displays only four entry cells plus headings.
 
-For a paired test, select two column headers or a two-column range; otherwise the two column selectors are used. Blank pairs are omitted and nonnumeric cells produce a validation error. The original engine generates a report in a separate tab, with the selected column names. The top Analysis menu uses the most recently selected grid or example-data form.
+The worksheet toolbar contains Undo/Redo, Copy/Paste, Clear cells and extra rows/columns. The Edit menu and standard keyboard shortcuts also operate on worksheet cells while retaining normal text editing inside fields. File commands stay in **File**: **⌘S** saves the selected document in its current format, and **Export** offers Excel, current-sheet CSV/RDS, all-sheet RData and report SVG charts. Each save opens a destination dialog.
+
+Analyses use a snapshot of the most recently selected worksheet. Choose **Analysis → Parametric → Paired t** (⌘T), select the required columns in its form and continue through the engine's questions. Blank pairs are omitted and nonnumeric values produce a validation error.
 
 This is an editable grid prototype. Save your data before closing; Excel and RData retain all worksheets, while CSV and RDS save the current worksheet. Live formula editing and large-sheet performance work remain. Implementation, build instructions and limits are in [Grid/README.md](Grid/README.md).
 
@@ -20,7 +24,7 @@ The menus follow the Windows `menu.xml`: 224 commands covering 208 distinct oper
 
 For data, choose columns from a snapshot of the most recently selected worksheet, in the required order, and review the first/last row. Or enter/paste data into the embedded Glide table. Use **Refresh worksheet** after changing data or switching worksheets. Numeric categorical predictors offer the engine's reference-category choices. Grouped observations currently use separate columns; identifier-based selection/pivoting is not implemented. The ANOVA repeated/nested forms request each repeat or group in turn, and covariance requests each predictor/outcome series.
 
-Reports and SVG charts open in their own tabs. Analyses that output data also open new editable grid tabs, which can be saved to Excel. The dedicated chi-square screen form and worksheet paired-test button remain available. In the general paired-test form, **Agreement analysis** is an explicit follow-up question.
+Reports and SVG charts open in their own tabs. Analyses that output data also open new editable grid tabs, which can be saved to Excel. The dedicated chi-square screen form remains available. In the general paired-test form, **Agreement analysis** is an explicit follow-up question.
 
 LOESS and method-comparison regression are visible with help, but their engine R/Windows-graphics bridge is explicitly marked unavailable. Independent R sessions are available through **R → New R Session**. All other 206 operations reach their first input. There are 121 end-to-end analysis/data/graphics cases, 14 independent R comparisons, and additional checks of six interleaved forms against serial results. This is prototype coverage, not certification of every option or chart.
 
@@ -36,13 +40,13 @@ The prototype accepts 2–200 categories on each axis, at most 2,500 cells and a
 
 ## Paired agreement chart
 
-Check **Agreement analysis (SVG)** beside the paired-column selectors, then run the paired t test. The older PEFR example form has the same option. The report includes the original engine's limits of agreement and its `TiesChartRenderer` SVG plot: paired means on the horizontal axis, differences on the vertical axis, the mean-difference line and both limits. **File → Save Chart as SVG…** exports the vector chart from the selected report; PDF/Print retain it in the report. The verified example is `Content/Examples/paired-agreement.svg`.
+Choose **Analysis → Parametric → Paired t**, select columns and answer **Yes** to **Agreement analysis** when prompted. The report includes the original engine's limits of agreement and its `TiesChartRenderer` SVG plot: paired means on the horizontal axis, differences on the vertical axis, the mean-difference line and both limits. **File → Export → Chart as SVG…** exports the vector chart from the selected report; PDF/Print retain it in the report. The verified example is `Content/Examples/paired-agreement.svg`.
 
 ## Excel workbooks
 
-**Open Excel…** (File menu, ⌘O) opens an `.xlsx` workbook in a new data tab. The buttons above the grid select its worksheets. **Open test.xlsx** loads the bundled StatsDirect example with all 11 worksheets. Its original filename is `test.xlsx`, not `text.xlsx`.
+**File → Open…** (⌘O) opens an `.xlsx` workbook in a new data tab. The buttons above the grid select its worksheets. **Help → Examples → StatsDirect Example Workbook** loads the bundled StatsDirect example with all 11 worksheets. Its original filename is `test.xlsx`, not `text.xlsx`.
 
-**Save Excel…** (⌘S in an Excel tab) writes every worksheet to an `.xlsx` file. The default filename ends in `-edited.xlsx`; the original is untouched unless you explicitly select it in the save dialog. Numbers, text identifiers, dates and booleans retain their types. Existing workbook cell styles, formulas and other untouched package content are preserved; the grid itself uses a simple, consistent display. **Save CSV…** exports only the current worksheet and does not mark an Excel workbook as saved.
+**Save Excel…** (⌘S in an Excel tab) writes every worksheet to an `.xlsx` file. The default filename ends in `-edited.xlsx`; the original is untouched unless you explicitly select it in the save dialog. Numbers, text identifiers, dates and booleans retain their types. Existing workbook cell styles, formulas and other untouched package content are preserved; the grid itself uses a simple, consistent display. **File → Export → Current Worksheet as CSV…** exports only the current worksheet and does not mark an Excel workbook as saved.
 
 Imported rows retain their Excel row numbers. **First row has column names** is detected from text headers and can be toggled. When checked, analysis skips that row. The paired test on the Parametric sheet's first two columns reproduces the PEFR example.
 
@@ -52,13 +56,13 @@ This first implementation supports `.xlsx` only, up to 50 MB compressed, 256 MB 
 
 ## CSV files
 
-Choose **Open CSV…** from File or the worksheet toolbar to open a file in a new data tab. **Save CSV…** writes the current worksheet; **⌘S** also saves CSV when working in a CSV document. Quoted commas, doubled quotes, embedded line breaks, Unicode, whitespace, identifiers such as `0012`, empty fields and trailing blank rows are preserved. Short CSV records are padded to the table width. Text beginning with `=` is treated as data.
+Choose **File → Open…** (⌘O) to open a file in a new data tab. **File → Export → Current Worksheet as CSV…** writes the current worksheet; **⌘S** also saves CSV when working in a CSV document. Quoted commas, doubled quotes, embedded line breaks, Unicode, whitespace, identifiers such as `0012`, empty fields and trailing blank rows are preserved. Short CSV records are padded to the table width. Text beginning with `=` is treated as data.
 
 The first row is detected as column names when it contains text; toggle **First row has column names** if needed. This changes analysis labels, without removing the source row. Import accepts UTF-8 (with or without BOM), BOM-marked UTF-16 and Windows-1252; output is comma-delimited UTF-8 with a BOM and CRLF records for Excel compatibility. Files are limited to 50 MB and 500,000 rectangular cells. Semicolon/tab-separated files are not covered by this CSV importer; tab-separated clipboard paste remains available. Invalid quoting fails explicitly.
 
 ## R data files
 
-**Open R data…** reads `.rds`, `.RData` and `.rda`. Each supported data frame or numeric, logical or character matrix appears as a worksheet. **Save RDS…** writes the current worksheet as a single R object; **Save RData…** writes all worksheets as named objects. **⌘S** uses the opened R format. These commands also appear in File.
+**File → Open…** reads `.rds`, `.RData` and `.rda`. Each supported data frame or numeric, logical or character matrix appears as a worksheet. **File → Export → Current Worksheet as RDS…** writes one R object; **All Worksheets as RData…** writes all worksheets as named objects. **⌘S** uses the opened R format. Format choices are grouped under File → Export.
 
 The installed R runtime reads and writes the actual R formats without additional R packages. Supported columns retain integer/double/character/logical types, factor levels and ordering, Date/POSIXct values, time zones, row names, NA, NaN and infinities. Missing R values appear as blank cells. An unchanged empty character string remains distinct from NA. New factor labels are appended to the existing levels; invalid edits to typed columns fail before replacing an existing destination. New grid tables become base R data frames; an imported matrix retains its matrix shape.
 
@@ -66,7 +70,7 @@ This is table interchange, not a full R workspace editor. Other objects and unsu
 
 ## R sessions
 
-Choose **R → New R Session** or **File → New R Session** (⌘R) to start a session. Use **Window** to switch between sessions and other documents. Each tab starts a separate persistent session using the R installation on this Mac. Edit the script and click **Run script**, or press **⌘Return**. The initial script runs the paired t-test example in base R. The console displays output, warnings and errors; variables remain available between runs.
+Choose **R → New R Session** or **File → New R Session** (⌘R) to start a session. Use **Window** to switch between sessions and other documents. Each tab starts a separate persistent session using the R installation on this Mac. Edit the script and click **Run script**, or press **⌘Return**. The script editor starts empty. The console displays output, warnings and errors; variables remain available between runs.
 
 **Stop / Reset** terminates that session and clears its variables. The next run starts a new session. **Save script…** (⌘S when the R tab is selected) saves an `.R` file. Closing a tab or quitting warns about unsaved edits or running scripts. Session objects are not restored after closing.
 

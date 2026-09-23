@@ -3,22 +3,6 @@ import WebKit
 import UniformTypeIdentifiers
 import Darwin
 
-typealias PairedFunction = @convention(c) (UnsafePointer<Double>?, UnsafePointer<Double>?, Int32, Double, UnsafeMutablePointer<Double>?, Int32) -> Int32
-
-typealias NamedPairedFunction = @convention(c) (UnsafePointer<Double>?, UnsafePointer<Double>?, Int32, Double, UnsafeMutablePointer<Double>?, Int32, UnsafePointer<CChar>?, UnsafePointer<CChar>?) -> Int32
-
-typealias OptionsPairedFunction = @convention(c) (UnsafePointer<Double>?, UnsafePointer<Double>?, Int32, Double, UnsafeMutablePointer<Double>?, Int32, UnsafePointer<CChar>?, UnsafePointer<CChar>?, Int32) -> Int32
-
-typealias ReportFunction = @convention(c) (UnsafeMutablePointer<CChar>?, Int32) -> Int32
-
-struct PairedExample: Decodable {
-    let title: String
-    let labels: [String]
-    let before: [Double]
-    let after: [Double]
-    let confidence: Double
-}
-
 @MainActor
 final class Document {
     let id = UUID().uuidString
@@ -32,7 +16,7 @@ final class Document {
     var gridDirty = false
     var gridVersion = 0
     var workbookID: String?
-    var workbookName = "PEFR.xlsx"
+    var workbookName = "Untitled.xlsx"
     var pendingWorkbook: [String: Any]?
     var pendingCSV: String?
     var csvSaveName: String?
@@ -74,7 +58,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var libraryHandle: UnsafeMutableRawPointer?
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
     var active: Document? { documents.first { $0.item === tabs.selectedTabViewItem } }
-    var example: PairedExample!
+    var worksheetNumber = 0
     var analysisCatalog: [String: [String: Any]] = [:]
     var analysisSourceID: String?
     func nextAnalysisTitle(_ title: String) -> String {
@@ -115,9 +99,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             status.topAnchor.constraint(equalTo: tabs.bottomAnchor, constant: 7), status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16), status.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16), status.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
         ])
         setupMenu()
-        do { example = try JSONDecoder().decode(PairedExample.self, from: Data(contentsOf: root.appendingPathComponent("paired-example.json"))) }
-        catch { showError("The example data could not be loaded: \(error.localizedDescription)") }
-        helpLibrary(); showGrid()
+        newWorksheet()
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
     @objc func showDropdown(_ sender: NSButton) {
@@ -138,26 +120,39 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             item.target = target ?? self; menu.addItem(item)
         }
         let app = menu("StatsDirect")
+        add(app, "About StatsDirect", #selector(showAbout))
+        app.addItem(.separator())
+        add(app, "Hide StatsDirect", #selector(NSApplication.hide(_:)), "h", target: NSApp)
+        add(app, "Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", target: NSApp)
+        app.items.last?.keyEquivalentModifierMask = [.command, .option]
+        add(app, "Show All", #selector(NSApplication.unhideAllApplications(_:)), target: NSApp)
+        app.addItem(.separator())
         add(app, "Quit StatsDirect", #selector(NSApplication.terminate(_:)), "q", target: NSApp)
         let file = menu("File")
-        add(file, "Data Grid", #selector(showGrid), "3")
+        add(file, "New Worksheet", #selector(newWorksheet), "n")
         add(file, "New R Session", #selector(newRTab), "r")
-        add(file, "PEFR example data", #selector(showData), "1")
-        add(file, "Open Excel Workbook…", #selector(openExcel), "o")
-        add(file, "Open CSV…", #selector(openCSV))
-        add(file, "Open R Data…", #selector(openRData))
-        add(file, "Open StatsDirect test.xlsx", #selector(openExampleWorkbook))
-        add(file, "Open HTML Document…", #selector(openFile))
-        add(file, "Save Current Worksheet as CSV…", #selector(exportActiveCSV))
-        add(file, "Save Current Worksheet as RDS…", #selector(saveActiveRDS))
-        add(file, "Save All Worksheets as RData…", #selector(saveActiveRData))
-        add(file, "Save PDF…", #selector(savePDF), "s")
-        add(file, "Save Chart as SVG…", #selector(saveChartSVG))
+        file.addItem(.separator())
+        add(file, "Open…", #selector(openFile), "o")
+        file.addItem(.separator())
+        add(file, "Save…", #selector(savePDF), "s")
+        let export = NSMenu(title: "Export")
+        let exportItem = NSMenuItem(title: "Export", action: nil, keyEquivalent: "")
+        exportItem.submenu = export; file.addItem(exportItem)
+        add(export, "Excel Workbook (.xlsx)…", #selector(saveActiveExcel))
+        add(export, "Current Worksheet as CSV…", #selector(exportActiveCSV))
+        add(export, "Current Worksheet as RDS…", #selector(saveActiveRDS))
+        add(export, "All Worksheets as RData…", #selector(saveActiveRData))
+        export.addItem(.separator())
+        add(export, "Chart as SVG…", #selector(saveChartSVG))
         add(file, "Print…", #selector(printPage), "p")
         file.addItem(.separator()); add(file, "Close Document", #selector(closeTab), "w")
         let edit = menu("Edit")
-        for (title, selector, key) in [("Undo", Selector(("undo:")), "z"), ("Cut", #selector(NSText.cut(_:)), "x"), ("Copy", #selector(NSText.copy(_:)), "c"), ("Paste", #selector(NSText.paste(_:)), "v"), ("Select All", #selector(NSText.selectAll(_:)), "a")] {
-            edit.addItem(NSMenuItem(title: title, action: selector, keyEquivalent: key))
+        for (title, command, key) in [("Undo", "undo", "z"), ("Redo", "redo", "z"), ("Cut", "cut", "x"), ("Copy", "copy", "c"), ("Paste", "paste", "v"), ("Select All", "selectAll", "a")] {
+            if command == "cut" { edit.addItem(.separator()) }
+            let item = NSMenuItem(title: title, action: #selector(editCommand(_:)), keyEquivalent: key)
+            item.target = self; item.representedObject = command
+            if command == "redo" { item.keyEquivalentModifierMask = [.command, .shift] }
+            edit.addItem(item)
         }
         for title in ["Data", "Analysis", "Graphics"] { populateOperationMenu(menu(title)) }
         let rMenu = menu("R")
@@ -166,27 +161,32 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(rMenu, "Stop / Reset Session", #selector(stopRSession))
         add(rMenu, "Save Script…", #selector(saveRScript))
         let help = menu("Help")
-        add(help, "Current Method", #selector(currentMethodHelp))
-        add(help, "R × C Contingency Table", #selector(chiSquareHelp))
-        add(help, "Help Library", #selector(helpLibrary), "2")
-        add(help, "Paired Student t Test", #selector(pairedHelp), "?")
+        add(help, "StatsDirect Help", #selector(helpLibrary), "?")
+        add(help, "Help for Current Analysis", #selector(currentMethodHelp))
+        let examples = NSMenu(title: "Examples")
+        let examplesItem = NSMenuItem(title: "Examples", action: nil, keyEquivalent: "")
+        examplesItem.submenu = examples; help.addItem(examplesItem)
+        add(examples, "StatsDirect Example Workbook", #selector(openExampleWorkbook))
         help.addItem(.separator())
         add(help, "Back", #selector(back))
         add(help, "Forward", #selector(forward))
+        help.addItem(.separator())
+        add(help, "About StatsDirect", #selector(showAbout))
         windowsMenu = menu("Window")
         NSApp.mainMenu = main
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(currentMethodHelp) { return active?.operationName != nil || active?.kind == "analysis" }
+        if menuItem.action == #selector(editCommand(_:)) { return active != nil }
         if menuItem.action == #selector(back) { return active?.web.canGoBack == true }
         if menuItem.action == #selector(forward) { return active?.web.canGoForward == true }
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
-        if [#selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
+        if [#selector(saveActiveExcel), #selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
         if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
         if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
         if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV…") : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"; return active != nil && active?.kind != "operation" }
-        if menuItem.action == #selector(runPaired) { return !running && example != nil }
         if [#selector(closeTab), #selector(printPage), #selector(savePDF)].contains(menuItem.action) { return active != nil }
         return true
     }
@@ -249,7 +249,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         tabs.selectTabViewItem(documents[(index + delta + documents.count) % documents.count].item)
     }
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
-        if let doc = active, ["data", "grid"].contains(doc.kind) { analysisSourceID = doc.id }
+        if let doc = active, doc.kind == "grid" { analysisSourceID = doc.id }
         window.title = "\(active?.title ?? "StatsDirect") · Mac prototype"
         status.stringValue = running ? "Running analysis…" : "\(documents.count) open documents · \(active?.kind.capitalized ?? "Ready")"
         if windowsMenu != nil { updateWindowMenu() }
@@ -278,35 +278,34 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         newDocument(kind: "help", title: "Help · \(title)", url: url)
     }
     @objc func helpLibrary() { openHelp(root.appendingPathComponent("help-index.html"), title: "Library") }
-    @objc func pairedHelp() { openHelp(root.appendingPathComponent("Help/parametric_methods/paired_t.htm"), title: "Paired t test") }
     @objc func currentMethodHelp() {
         if let doc = active, let operation = doc.operationName, let path = analysisCatalog[operation]?["help"] as? String {
             openHelp(root.appendingPathComponent(path), title: doc.title)
         } else if active?.kind == "analysis" { chiSquareHelp() }
-        else { pairedHelp() }
     }
-    @objc func showData() {
-        if let doc = documents.first(where: { $0.kind == "data" }) { tabs.selectTabViewItem(doc.item); return }
-        guard let example else { return }
-        let rows = zip(example.before, example.after).enumerated().map { i, pair in
-            "<tr><th scope='row'>\(i+1)</th><td><input aria-label='Before, subject \(i+1)' name='before' type='number' step='any' value='\(pair.0)'></td><td><input aria-label='After, subject \(i+1)' name='after' type='number' step='any' value='\(pair.1)'></td></tr>"
-        }.joined()
-        let body = """
-        <div class="eyebrow">Example data / Paired observations</div><h1>Before and after a winter walk</h1>
-        <p class="lead">Peak expiratory flow rate in nine people with asthma. Each row is one person.</p>
-        <div class="note">Choose <strong>Analysis → Parametric → Paired t</strong> (⌘T) to configure a test. You can edit these values and run it again; earlier reports stay in separate documents.</div>
-        <table class="data"><thead><tr><th>Subject</th><th>PEFR Before</th><th>PEFR After</th></tr></thead><tbody>\(rows)</tbody></table>
-        <p><label><input id="agreement" type="checkbox"> Agreement analysis (SVG chart)</label></p>
-        <p class="muted">Difference = Before − After · 95% confidence interval · Missing pairs are omitted.</p>
-        <p><a href="Help/parametric_methods/paired_t.htm">Read the method and worked example →</a></p>
-        """
-        newDocument(kind: "data", title: "Data · PEFR example", html: page("PEFR example", body))
+    @objc func showAbout() {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0"
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "StatsDirect",
+            .applicationVersion: "\(version) · macOS prototype",
+            .version: "",
+            .credits: NSAttributedString(string: "Calculation engine: StatsDirect 5.0.5\nA development preview for macOS.", attributes: [.font: NSFont.systemFont(ofSize: 12)])
+        ])
+    }
+    @objc func editCommand(_ sender: NSMenuItem) {
+        guard let command = sender.representedObject as? String else { return }
+        let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
+        guard let doc = active, doc.kind == "grid" else { _ = fallback(); return }
+        let clipboard = command == "paste" ? NSPasteboard.general.string(forType: .string) ?? "" : ""
+        doc.web.evaluateJavaScript("window.statsDirectGrid?.editCommand(\(jsString(command)),\(jsString(clipboard)))") { handled, error in
+            if error != nil || handled as? Bool != true { _ = fallback() }
+        }
     }
     @objc func newRTab() {
         rNumber += 1
         let number = rNumber
         let doc = newDocument(kind: "r", title: "R · Session \(number)")
-        let pane = RPane(before: example?.before ?? [], after: example?.after ?? [])
+        let pane = RPane()
         doc.rPane = pane; doc.item.view = pane.view
     }
     @objc func runRScript() { active?.rPane?.runScript() }
@@ -339,10 +338,6 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             let alert = NSAlert(); alert.messageText = "Close the data grid?"; alert.informativeText = doc.rDataFormat != nil ? "Unsaved R table edits will be discarded. Save RDS for one table or RData for all tables." : doc.csvSaveName != nil ? "Unsaved CSV edits will be discarded. Use Save CSV to keep them." : "Unsaved worksheet edits will be discarded. Use Save Excel to keep all worksheets, or Save CSV for a single data table."
             alert.addButton(withTitle: "Close Grid"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
-        } else if doc.kind == "data" {
-            let alert = NSAlert(); alert.messageText = "Close the example data?"; alert.informativeText = "Any edits to the example data will be discarded. Your reports remain open."
-            alert.addButton(withTitle: "Close Data"); alert.addButton(withTitle: "Cancel")
-            alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else { remove(doc) }
     }
     func remove(_ doc: Document) {
@@ -358,69 +353,19 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func back() { active?.web.goBack() }
     @objc func forward() { active?.web.goForward() }
     @objc func openFile() {
-        let panel = NSOpenPanel(); panel.allowedContentTypes = [.html]
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = ["xlsx", "csv", "rds", "rdata", "rda", "html", "htm"].compactMap { UTType(filenameExtension: $0) }
+        panel.allowsMultipleSelection = true; panel.canChooseDirectories = false
+        panel.message = "Open Excel, CSV or R data, or an HTML report."
         panel.beginSheetModal(for: window) { response in
-            if response == .OK, let url = panel.url { self.newDocument(kind: "report", title: "Report · \(url.deletingPathExtension().lastPathComponent)", url: url, access: url.deletingLastPathComponent()) }
-        }
-    }
-    @objc func runPaired() {
-        guard !running, example != nil else { return }
-        if let doc = documents.first(where: { $0.id == analysisSourceID }), doc.kind == "grid" { runPairedFromGrid(doc); return }
-        // Read the data document even when a report/help tab is selected.
-        if !documents.contains(where: { $0.kind == "data" }) {
-            showData(); running = true
-            calculate(before: example.before, after: example.after)
-            return
-        }
-        guard let dataDoc = documents.first(where: { $0.kind == "data" }) else { return }
-        running = true; status.stringValue = "Running paired t test…"
-        let script = "JSON.stringify({before:[...document.querySelectorAll('input[name=before]')].map(e=>e.value),after:[...document.querySelectorAll('input[name=after]')].map(e=>e.value),agreement:[String(document.querySelector('#agreement')?.checked === true)]})"
-        dataDoc.web.evaluateJavaScript(script) { value, error in
-            guard error == nil, let text = value as? String, let bytes = text.data(using: .utf8), let values = try? JSONDecoder().decode([String:[String]].self, from: bytes), let a = values["before"], let b = values["after"], a.count == b.count, a.count >= 2 else { self.endRun(); self.showError("The data are still loading. Please try again."); return }
-            let before = a.map { Double($0) ?? Double.nan }; let after = b.map { Double($0) ?? Double.nan }
-            self.calculate(before: before, after: after, agreement: values["agreement"]?.first == "true")
-        }
-    }
-    func calculate(before: [Double], after: [Double], labels: [String] = ["PEFR Before", "PEFR After"], source: String = "PEFR example", agreement: Bool = false) {
-        if libraryHandle == nil {
-            let path = Bundle.main.bundleURL.appendingPathComponent("Contents/Frameworks/StatsDirectEngine.dylib").path
-            libraryHandle = dlopen(path, RTLD_NOW | RTLD_LOCAL)
-        }
-        guard let handle = libraryHandle, let symbol = dlsym(handle, "statsdirect_paired_t") else {
-            endRun(); showError("The paired-test calculation library could not be loaded. Please rebuild the application."); return
-        }
-        let optionsCompute: OptionsPairedFunction? = dlsym(handle, "statsdirect_paired_t_options").map { unsafeBitCast($0, to: OptionsPairedFunction.self) }
-        if agreement && optionsCompute == nil { endRun(); showError("Rebuild the viewer to enable agreement charts."); return }
-        let compute = unsafeBitCast(symbol, to: PairedFunction.self)
-        let namedCompute: NamedPairedFunction? = dlsym(handle, "statsdirect_paired_t_named").map { unsafeBitCast($0, to: NamedPairedFunction.self) }
-        let readReport: ReportFunction? = dlsym(handle, "statsdirect_paired_report").map { unsafeBitCast($0, to: ReportFunction.self) }
-        DispatchQueue.global(qos: .userInitiated).async {
-            var result = Array(repeating: 0.0, count: 11)
-            let code = before.withUnsafeBufferPointer { a in after.withUnsafeBufferPointer { b in
-                result.withUnsafeMutableBufferPointer { output in
-                    if let optionsCompute { return labels[0].withCString { first in labels[1].withCString { second in optionsCompute(a.baseAddress, b.baseAddress, Int32(before.count), 0.95, output.baseAddress, 11, first, second, agreement ? 1 : 0) } } }
-                    if let namedCompute { return labels[0].withCString { first in labels[1].withCString { second in namedCompute(a.baseAddress, b.baseAddress, Int32(before.count), 0.95, output.baseAddress, 11, first, second) } } }
-                    return compute(a.baseAddress, b.baseAddress, Int32(before.count), 0.95, output.baseAddress, 11)
+            guard response == .OK else { return }
+            for url in panel.urls {
+                switch url.pathExtension.lowercased() {
+                case "xlsx": self.openExcelURL(url)
+                case "csv": self.openCSVURL(url)
+                case "rds", "rdata", "rda": self.openRDataURL(url)
+                default: self.newDocument(kind: "report", title: "Report · \(url.deletingPathExtension().lastPathComponent)", url: url, access: url.deletingLastPathComponent())
                 }
-            } }
-            var engineReport = ""
-            if code == 0, let readReport = readReport {
-                let size = readReport(nil, 0)
-                if size > 0 && size < 10_000_000 {
-                    var bytes = Array<CChar>(repeating: 0, count: Int(size))
-                    _ = bytes.withUnsafeMutableBufferPointer { readReport($0.baseAddress, size) }
-                    engineReport = String(cString: bytes)
-                }
-            }
-            let reportHTML = engineReport
-            let calculated = result
-            DispatchQueue.main.async {
-                self.endRun()
-                guard code == 0 else {
-                    let messages = [1:"The paired data or confidence level is invalid.",2:"At least two complete numeric pairs are needed.",3:"The differences must be finite and must vary. A t test cannot be calculated for constant differences in this prototype.",4:"The calculation or report generation failed.",5:"The bundled .NET engine could not be initialized."]
-                    self.showError(messages[Int(code)] ?? "Calculation failed."); return
-                }
-                self.showResult(calculated, before: before, after: after, engineHTML: reportHTML, labels: labels, source: source, agreement: agreement)
             }
         }
     }
@@ -429,24 +374,6 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if !value.isFinite { return "—" }
         if value != 0 && abs(value) < pow(10, -Double(places)) { return String(format: "%.4g", value) }
         return String(format: "%.*f", places, value).replacingOccurrences(of: "\\.?0+$", with: "", options: .regularExpression)
-    }
-    func showResult(_ r: [Double], before: [Double], after: [Double], engineHTML: String, labels: [String], source: String, agreement: Bool) {
-        reportNumber += 1
-        let unchanged = before == example.before && after == example.after
-        let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
-        let inputs = zip(before,after).prefix(1000).enumerated().map { i,pair in "<tr><th>\(i+1)</th><td>\(number(pair.0))</td><td>\(number(pair.1))</td><td>\(number(pair.0-pair.1))</td></tr>" }.joined()
-        let body = """
-        <div class="eyebrow">Analysis / Parametric methods</div>
-        <p class="lead">\(htmlEscape(labels[0])) − \(htmlEscape(labels[1]))</p><p class="muted">Report \(reportNumber) · \(stamp) · \(unchanged ? "Original worked example" : "Edited example data")</p>
-        <div class="summary"><div><span>Mean difference</span><strong>\(number(r[1],places:4))</strong></div><div><span>Two-sided P</span><strong>\(number(r[9],places:6))</strong></div><div><span>Matched pairs</span><strong>\(Int(r[0]))</strong></div></div>
-        <p class="muted">Source: \(htmlEscape(source))</p>
-        <section class="engine-report">\(engineHTML)</section>
-        <p><a href="Help/parametric_methods/paired_t.htm">Paired Student t test: method and worked example →</a></p>
-        <details><summary>Input data used for this report\(before.count > 1000 ? " (first 1,000 rows of \(before.count))" : "")</summary><table><thead><tr><th>Subject</th><th>\(htmlEscape(labels[0]))</th><th>\(htmlEscape(labels[1]))</th><th>Difference</th></tr></thead><tbody>\(inputs)</tbody></table></details>
-        <p class="muted">95% confidence level. Incomplete pairs are excluded. \(agreement ? "Agreement analysis is included; its chart is embedded SVG. Choose File → Save Chart as SVG to export it." : "Agreement analysis was not requested.") Calculated by the full StatsDirect 5.0.5 headless engine and displayed using its HTML report renderer.</p>
-        """
-        newDocument(kind: "report", title: "Report \(reportNumber) · Paired t test", html: page("Paired t test",body))
-        status.stringValue = "Paired t test completed · \(Int(r[0])) complete pairs · Report \(reportNumber)"
     }
     func page(_ title: String, _ body: String) -> String {
         let css = (try? String(contentsOf: root.appendingPathComponent("workspace.css"), encoding: .utf8)) ?? ""

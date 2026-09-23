@@ -76,10 +76,8 @@ extension Viewer {
     }
     func operationError(_ doc: Document, _ text: String) { operationScript(doc, "error", text) }
     func refreshOperationSource(_ doc: Document, completion: (() -> Void)? = nil) {
-        guard let source = documents.first(where: { $0.id == analysisSourceID }), ["grid", "data"].contains(source.kind) else { operationScript(doc, "setSource", NSNull()); completion?(); return }
-        let script = source.kind == "grid" ? "window.statsDirectGrid?.analysisSource()" : """
-        (() => {const before=[...document.querySelectorAll('input[name=before]')].map(e=>e.value),after=[...document.querySelectorAll('input[name=after]')].map(e=>e.value);return {name:'PEFR example form',firstRow:1,rows:before.length,columns:['PEFR Before','PEFR After'],selection:[0,1],cells:[before,after].flatMap((column,col)=>column.map((text,row)=>({col,row,text})))}})()
-        """
+        guard let source = documents.first(where: { $0.id == analysisSourceID }), source.kind == "grid" else { operationScript(doc, "setSource", NSNull()); completion?(); return }
+        let script = "window.statsDirectGrid?.analysisSource()"
         source.web.evaluateJavaScript(script) { snapshot, error in
             guard self.documents.contains(where: { $0 === doc }) else { return }
             if let snapshot, error == nil { self.operationScript(doc, "setSource", snapshot) }

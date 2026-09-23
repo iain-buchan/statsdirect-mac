@@ -25,6 +25,7 @@ export class WorkbookStore {
     this.imported = false;
     this.formulaCount = 0;
     this.edited = false;
+    if (!example) this.load({name: 'Untitled', formulaCount: 0, sheets: [{name: 'Sheet 1', columns: 8, rows: 100, headerRow: false, cells: []}]});
   }
   load(workbook) {
     const sheets = workbook.sheets.map(sheet => {

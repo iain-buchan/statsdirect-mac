@@ -134,3 +134,18 @@ test('generated analysis tables without a backing Excel file export all cells',(
   assert.equal(exported.sheets[0].cells.length,data.sheets[0].cells.length);
   assert.equal(exported.sheets[0].cells.find(c=>c.col===0&&c.row===1).text,'12');
 });
+
+test('blank worksheets have no example data or implicit export header', () => {
+  const book = new WorkbookStore();
+  const store = book.sheets[0].store;
+  assert.equal(book.name, 'Untitled');
+  assert.equal(book.sheets[0].name, 'Sheet 1');
+  assert.equal(store.cells.size, 0);
+  assert.equal(store.headerRow, false);
+  store.apply([[0, 0, '12'], [1, 0, '8']]);
+  assert.deepEqual(book.export().sheets[0].cells, [
+    {col: 0, row: 0, text: '12', kind: 'number'},
+    {col: 1, row: 0, text: '8', kind: 'number'}
+  ]);
+  assert.equal(store.csv().split('\r\n')[0], '12,8,,,,,,');
+});

@@ -2,18 +2,13 @@ import Cocoa
 import WebKit
 import UniformTypeIdentifiers
 
-struct GridPairedData: Decodable {
-    let before: [Double?]
-    let after: [Double?]
-    let labels: [String]
-    let range: String
-    let agreement: Bool?
-}
-
 extension Viewer: WKScriptMessageHandler {
-    @objc func showGrid() {
-        if let existing = documents.first(where: { $0.kind == "grid" }) { tabs.selectTabViewItem(existing.item); return }
-        newDocument(kind: "grid", title: "Data grid · PEFR", url: root.appendingPathComponent("Grid/index.html"))
+    @objc func newWorksheet() {
+        worksheetNumber += 1
+        let title = worksheetNumber == 1 ? "Untitled" : "Untitled \(worksheetNumber)"
+        let doc = newDocument(kind: "grid", title: title, url: root.appendingPathComponent("Grid/index.html"))
+        doc.workbookName = title + ".xlsx"
+        doc.pendingWorkbook = ["name": title, "formulaCount": 0, "sheets": [["name": "Sheet 1", "rows": 100, "columns": 8, "headerRow": false, "cells": []]]]
     }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         if message.name == "statsDirectOperation" { handleOperation(message); return }
@@ -32,7 +27,6 @@ extension Viewer: WKScriptMessageHandler {
         case "openExample": openExampleWorkbook()
         case "saveExcel": saveExcel(doc)
         case "changed": doc.gridDirty = true; doc.gridVersion += 1
-        case "run": runPairedFromGrid(doc)
         case "save": saveGrid(doc)
         case "copy":
             if let text = body["text"] as? String {
@@ -53,23 +47,6 @@ extension Viewer: WKScriptMessageHandler {
     }
     func gridStatus(_ doc: Document, _ text: String) {
         doc.web.evaluateJavaScript("window.statsDirectGrid?.setStatus(\(jsString(text)))")
-    }
-    func runPairedFromGrid(_ doc: Document) {
-        guard !running else { return }
-        running = true
-        doc.web.evaluateJavaScript("JSON.stringify(window.statsDirectGrid?.pairedData())") { value, error in
-            guard error == nil, let json = value as? String, let bytes = json.data(using: .utf8) else {
-                self.endRun(); self.showError("The data grid is still loading. Please try again."); return
-            }
-            if let object = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any], let message = object["error"] as? String {
-                self.endRun(); self.showError(message); return
-            }
-            guard let input = try? JSONDecoder().decode(GridPairedData.self, from: bytes), input.before.count == input.after.count, input.labels.count == 2 else {
-                self.endRun(); self.showError("The selected grid columns could not be read."); return
-            }
-            self.status.stringValue = "Running paired t test from the data grid…"
-            self.calculate(before: input.before.map { $0 ?? .nan }, after: input.after.map { $0 ?? .nan }, labels: input.labels, source: "Data grid · " + input.range, agreement: input.agreement ?? false)
-        }
     }
     @objc func openCSV() {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.commaSeparatedText]

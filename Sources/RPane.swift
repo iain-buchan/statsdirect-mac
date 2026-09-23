@@ -22,14 +22,9 @@ final class RPane: NSObject, NSTextViewDelegate {
     var hasUnsavedChanges: Bool { editor.string != savedScript }
     var isRunning: Bool { busy }
 
-    init(before: [Double], after: [Double]) {
+    override init() {
         super.init()
-        editor.string = """
-        # StatsDirect help example: paired peak expiratory flow measurements
-        before <- c(\(before.map { String($0) }.joined(separator: ", ")))
-        after  <- c(\(after.map { String($0) }.joined(separator: ", ")))
-        t.test(before, after, paired = TRUE, conf.level = 0.95)
-        """
+        editor.string = ""
         savedScript = editor.string
         editor.delegate = self
         editor.isRichText = false; editor.isAutomaticQuoteSubstitutionEnabled = false

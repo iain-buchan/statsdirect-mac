@@ -103,12 +103,11 @@ extension Viewer {
         let scores = input["specify_scores"] as? Bool == true ? "<p>Row scores: \(htmlEscape(String(describing: input["rowScores"] ?? "")))<br>Column scores: \(htmlEscape(String(describing: input["columnScores"] ?? "")))</p>" : "<p>Trend scores follow table order: 1, 2, 3, … on each axis.</p>"
         let rPlan = try? RScriptGenerator.generate(operation: "ExactChiRbyCScreen", title: "Chi-square R × C", output: output, resources: root)
         let body = """
-        \(reportRAction(rPlan))
         <div class="eyebrow">Analysis / Chi-square / Screen data</div>
         <p class="lead">\(counts.count) × \(counts[0].count) contingency table</p><p class="muted">Report \(reportNumber) · \(stamp)</p>
         <div class="summary"><div><span>Pearson chi-square</span><strong>\(number(values["chio"] as? Double ?? .nan))</strong></div><div><span>P</span><strong>\(number(values["po"] as? Double ?? .nan))</strong></div><div><span>Observations</span><strong>\(number(output["total"] as? Double ?? .nan))</strong></div></div>
         \(warnings)\(skipped)<section class="engine-report">\(html)</section>
-        <p><a href="Help/chi_square_tests/rc.htm">R × C contingency table: method and worked example →</a></p>
+        \(reportLinks(rPlan, helpPath: "Help/chi_square_tests/rc.htm", helpLabel: "R × C contingency table: method and worked example →"))
         <details><summary>Input counts and options used for this report</summary><table><thead><tr><th>Category</th>\(headers)</tr></thead><tbody>\(rows)</tbody></table><p>\(htmlEscape(options)) · \(number(confidence))% confidence</p>\(scores)</details>
         <p class="muted">Calculated by the full StatsDirect 5.0.5 headless engine, operation ExactChiRbyCScreen, using its original HTML report renderer. The input form stays open for further edits.</p>
         """

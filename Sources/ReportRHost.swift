@@ -2,14 +2,14 @@ import Cocoa
 import WebKit
 
 extension Viewer {
-    func reportRAction(_ plan: RScriptPlan?) -> String {
-        guard let plan else { return "<p class='note'>R script generation is unavailable for this report.</p>" }
-        let label = plan.hasRecipe ? "Continue in R" : "Open data and settings in R"
-        return """
-        <div class="report-actions"><button type="button" onclick="window.webkit.messageHandlers.statsDirectReport.postMessage({action:'continueInR'})">\(label)</button>
-        <span>Opens and runs an editable script in a new R tab.</span>
-        <details><summary>R script coverage</summary><p>\(htmlEscape(plan.detail))</p></details></div>
-        """
+    func reportLinks(_ plan: RScriptPlan?, helpPath: String?, helpLabel: String = "Method and worked example →") -> String {
+        var links = [String]()
+        if let helpPath { links.append("<a href=\"\(htmlEscape(helpPath))\">\(htmlEscape(helpLabel))</a>") }
+        if let plan {
+            let label = plan.hasRecipe ? "Continue in R" : "Open data and settings in R"
+            links.append("<a class='report-r-link' href='#' title=\"Opens and runs an editable R script. \(htmlEscape(plan.detail))\" onclick=\"window.webkit.messageHandlers.statsDirectReport.postMessage({action:'continueInR'});return false\">\(label)</a>")
+        }
+        return "<p class='report-links'>" + links.joined(separator: "<span aria-hidden='true'> · </span>") + "</p>"
     }
     func handleReport(_ message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, let web = message.webView, let doc = document(for: web),

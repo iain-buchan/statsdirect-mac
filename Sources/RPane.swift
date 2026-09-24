@@ -1,10 +1,33 @@
 import Cocoa
 import UniformTypeIdentifiers
+import PDFKit
+
+final class RPaneView: NSView {
+    weak var split: NSSplitView?
+    private var positioned = false
+    override func layout() {
+        super.layout()
+        if !positioned, let split, split.bounds.height > 300 {
+            positioned = true
+            split.setPosition(split.bounds.height * 0.42, ofDividerAt: 0)
+        }
+    }
+}
+
+/// Keep plot previews inside the text column as the output pane is resized.
+private final class RPlotAttachment: NSTextAttachment {
+    override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: NSRect, glyphPosition position: NSPoint, characterIndex charIndex: Int) -> NSRect {
+        guard let image, image.size.width > 0, image.size.height > 0 else { return .zero }
+        let availableHeight = max(1, (textContainer?.textView?.enclosingScrollView?.contentView.bounds.height ?? 600) - 72)
+        let width = min(900, max(1, lineFrag.width - 2 * (textContainer?.lineFragmentPadding ?? 0)), availableHeight * image.size.width / image.size.height)
+        return NSRect(x: 0, y: 0, width: width, height: width * image.size.height / image.size.width)
+    }
+}
 
 /// An independent, persistent R process per tab. Scripts run only on explicit Run.
 @MainActor
 final class RPane: NSObject, NSTextViewDelegate {
-    let view = NSView()
+    let view = RPaneView()
     let editor = NSTextView()
     let console = NSTextView()
     let state = NSTextField(labelWithString: "Starting R…")
@@ -19,10 +42,14 @@ final class RPane: NSObject, NSTextViewDelegate {
     private var marker = ""
     private var busy = false
     private var savedScript = ""
+    private let resources: URL
+    private struct PlotStamp: Equatable { let modified: Date; let size: Int }
+    private var plotsBefore: [URL: PlotStamp] = [:]
     var hasUnsavedChanges: Bool { editor.string != savedScript }
     var isRunning: Bool { busy }
 
-    init(script: String = "") {
+    init(script: String = "", resources: URL = Bundle.main.resourceURL!.appendingPathComponent("Content")) {
+        self.resources = resources
         super.init()
         editor.string = script
         savedScript = ""
@@ -32,10 +59,10 @@ final class RPane: NSObject, NSTextViewDelegate {
         editor.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
         editor.textContainerInset = NSSize(width: 14, height: 12)
         editor.setAccessibilityLabel("R script editor")
-        console.isEditable = false; console.isRichText = false; console.isSelectable = true
+        console.isEditable = false; console.isRichText = true; console.isSelectable = true
         console.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         console.textContainerInset = NSSize(width: 14, height: 12)
-        console.setAccessibilityLabel("R console output")
+        console.setAccessibilityLabel("R output: text and plots")
         runButton.target = self; runButton.action = #selector(runScript)
         stopButton.target = self; stopButton.action = #selector(stopSession)
         let save = NSButton(title: "Save script…", target: self, action: #selector(saveScript))
@@ -44,11 +71,16 @@ final class RPane: NSObject, NSTextViewDelegate {
         let label = NSTextField(labelWithString: "R script · Variables persist between runs. Stop / Reset clears the session.")
         label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor
         let split = NSSplitView(); split.isVertical = false; split.dividerStyle = .thin
+        view.split = split
         for text in [editor, console] {
             let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.borderType = .bezelBorder
             text.isVerticallyResizable = true; text.isHorizontallyResizable = false
             text.autoresizingMask = [.width]; text.textContainer?.widthTracksTextView = true
             scroll.documentView = text; split.addArrangedSubview(scroll)
+            if text === console {
+                scroll.contentView.postsFrameChangedNotifications = true
+                NotificationCenter.default.addObserver(self, selector: #selector(outputResized), name: NSView.frameDidChangeNotification, object: scroll.contentView)
+            }
         }
         for child in [bar, label, split, state] { child.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(child) }
         NSLayoutConstraint.activate([
@@ -74,28 +106,10 @@ final class RPane: NSObject, NSTextViewDelegate {
         let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Viewer/R Sessions/" + token.uuidString, isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let bootstrap = """
-            options(warn = 1)
-            cat(R.version.string, "\\n", sep = "")
-            cat("Working directory: ", getwd(), "\\n", sep = "")
-            local({
-              input <- file("stdin", open = "r")
-              repeat {
-                path <- readLines(input, n = 1, warn = FALSE)
-                if (!length(path)) break
-                tryCatch(source(path, local = .GlobalEnv, echo = TRUE, print.eval = TRUE),
-                  error = function(e) cat("Error: ", conditionMessage(e), "\\n", sep = ""),
-                  interrupt = function(e) cat("Interrupted\\n"))
-                unlink(path)
-                cat("\\n\(marker)\\n")
-                flush.console()
-              }
-              close(input)
-            })
-            """
-            let script = folder.appendingPathComponent("session.R"); try bootstrap.write(to: script, atomically: true, encoding: .utf8)
+            let script = resources.appendingPathComponent("R/session.R")
+            guard FileManager.default.isReadableFile(atPath: script.path) else { throw CocoaError(.fileReadNoSuchFile) }
             let child = Process(), incoming = Pipe(), outgoing = Pipe()
-            child.executableURL = URL(fileURLWithPath: executable); child.arguments = ["--vanilla", script.path]
+            child.executableURL = URL(fileURLWithPath: executable); child.arguments = ["--vanilla", script.path, marker]
             child.currentDirectoryURL = folder
             child.standardInput = incoming; child.standardOutput = outgoing; child.standardError = outgoing
             outgoing.fileHandleForReading.readabilityHandler = { [weak self] handle in
@@ -111,6 +125,7 @@ final class RPane: NSObject, NSTextViewDelegate {
                     self.process = nil; self.busy = false; self.runButton.isEnabled = true; self.stopButton.isEnabled = false
                     self.state.stringValue = "R session ended (\(task.terminationStatus)). Run script starts a fresh session."
                     if !self.pending.isEmpty { self.append(String(decoding: self.pending, as: UTF8.self)); self.pending.removeAll() }
+                    self.showNewPlots()
                 }
                 // Retain files the user's R scripts create in the session working directory.
             }
@@ -128,6 +143,7 @@ final class RPane: NSObject, NSTextViewDelegate {
             let line = String(decoding: pending[..<newline], as: UTF8.self)
             pending.removeSubrange(...newline)
             if line.trimmingCharacters(in: .whitespacesAndNewlines) == marker {
+                showNewPlots()
                 busy = false; runButton.isEnabled = true; state.stringValue = "Ready · R session retained"
             } else { append(line + "\n") }
         }
@@ -139,11 +155,57 @@ final class RPane: NSObject, NSTextViewDelegate {
         if let storage = console.textStorage, storage.length > 1_000_000 { storage.deleteCharacters(in: NSRange(location: 0, length: storage.length - 800_000)) }
         console.scrollToEndOfDocument(nil)
     }
+    @objc private func outputResized() {
+        guard let storage = console.textStorage, storage.containsAttachments else { return }
+        console.layoutManager?.invalidateLayout(forCharacterRange: NSRange(location: 0, length: storage.length), actualCharacterRange: nil)
+        console.needsDisplay = true
+    }
+    private func plotFiles() -> [URL: PlotStamp] {
+        guard let directory, let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey], options: [.skipsHiddenFiles]) else { return [:] }
+        var result: [URL: PlotStamp] = [:]
+        for case let url as URL in files {
+            guard ["pdf", "png", "jpg", "jpeg", "tif", "tiff"].contains(url.pathExtension.lowercased()),
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]), values.isRegularFile == true else { continue }
+            result[url] = PlotStamp(modified: values.contentModificationDate ?? .distantPast, size: values.fileSize ?? 0)
+        }
+        return result
+    }
+    private func showNewPlots() {
+        let files = plotFiles()
+        let changed = files.keys.filter { files[$0] != plotsBefore[$0] }.sorted {
+            let left = files[$0]!.modified, right = files[$1]!.modified
+            return left == right ? $0.path < $1.path : left < right
+        }
+        for url in changed {
+            if url.pathExtension.lowercased() == "pdf", let pdf = PDFDocument(url: url) {
+                for index in 0..<pdf.pageCount {
+                    guard let page = pdf.page(at: index) else { continue }
+                    let bounds = page.bounds(for: .mediaBox)
+                    guard bounds.width > 0, bounds.height > 0 else { continue }
+                    let scale = 1800 / max(bounds.width, bounds.height)
+                    let size = NSSize(width: bounds.width * scale, height: bounds.height * scale)
+                    appendPlot(page.thumbnail(of: size, for: .mediaBox), url: url, label: pdf.pageCount > 1 ? "\(url.lastPathComponent) · page \(index + 1)" : url.lastPathComponent)
+                }
+            } else if let image = NSImage(contentsOf: url), image.size.width > 0 {
+                appendPlot(image, url: url, label: url.lastPathComponent)
+            }
+        }
+        plotsBefore = files
+    }
+    private func appendPlot(_ image: NSImage, url: URL, label: String) {
+        guard let storage = console.textStorage else { return }
+        append("\nPlot · \(label)\n")
+        let attachment = RPlotAttachment(); attachment.image = image
+        storage.append(NSAttributedString(attachment: attachment))
+        storage.append(NSAttributedString(string: "\nOpen plot file\n", attributes: [.link: url, .font: NSFont.systemFont(ofSize: 12)]))
+        console.scrollToEndOfDocument(nil)
+    }
     @objc func runScript() {
         guard !busy else { return }
         if process == nil { startSession() }
         guard let process, process.isRunning, let input, let directory else { return }
         do {
+            plotsBefore = plotFiles()
             let script = directory.appendingPathComponent("run-" + UUID().uuidString + ".R")
             try editor.string.write(to: script, atomically: true, encoding: .utf8)
             busy = true; runButton.isEnabled = false; state.stringValue = "Running R script…"; append("\n── Run script ──\n")

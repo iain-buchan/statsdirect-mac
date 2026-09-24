@@ -3,4 +3,4 @@
 /* Engine-produced SVG stays vector-based and fits the report pane. */
 .engine-report svg{display:block;width:100%;max-width:960px;height:auto;margin:24px auto;background:white;break-inside:avoid}
 
-.report-actions{margin:0 0 24px;padding:12px 16px;background:#f0f7f5;border:1px solid #d7e6e2;border-radius:8px;font-size:13px}.report-actions button{font:inherit;font-weight:600;color:white;background:#23695f;border:0;border-radius:5px;padding:9px 14px;cursor:pointer;margin-right:12px}.report-actions button:focus-visible{outline:2px solid #23695f;outline-offset:3px}.report-actions span{color:#4d6170}.report-actions details{margin-top:8px}.report-actions p{margin:8px 0 0}@media print{.report-actions{display:none}}
+.report-links{margin:24px 0 12px;font-size:13px;color:#607583}.report-links span{margin:0 8px}.report-links a:focus-visible{outline:2px solid #23695f;outline-offset:3px}@media print{.report-r-link,.report-links span{display:none}}

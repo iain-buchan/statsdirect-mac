@@ -134,14 +134,13 @@ extension Viewer {
         }
         let html = output["html"] as? String ?? ""
         let methodPath = doc.operationName.flatMap { analysisCatalog[$0]?["help"] as? String }
-        let help = methodPath.map { "<p><a href='\(htmlEscape($0))'>Method and worked example →</a></p>" } ?? ""
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
         let inputData = (try? JSONSerialization.data(withJSONObject: output["history"] ?? [], options: [.prettyPrinted, .sortedKeys])) ?? Data()
         let rPlan = try? RScriptGenerator.generate(operation: doc.operationName ?? "", title: doc.title, output: output, resources: root)
         let body = """
-        \(reportRAction(rPlan))
         <div class="eyebrow">Analysis / StatsDirect</div><h1>\(htmlEscape(doc.title))</h1><p class="muted">Report \(reportNumber) · \(stamp)</p>
-        <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)</section>\(help)
+        <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)</section>
+        \(reportLinks(rPlan, helpPath: methodPath))
         <details><summary>Inputs used for this report</summary><pre>\(htmlEscape(String(decoding: inputData, as: UTF8.self)))</pre></details>
         <p class="muted">Calculated by the StatsDirect 5.0.5 engine · \(htmlEscape(doc.operationName ?? ""))</p>
         """

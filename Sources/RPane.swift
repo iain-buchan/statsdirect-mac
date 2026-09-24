@@ -71,7 +71,7 @@ final class RPane: NSObject, NSTextViewDelegate {
             append("Rscript was not found in the standard macOS installation locations.\n"); return
         }
         let token = UUID(); generation = token; marker = "STATSDIRECT_R_DONE_" + token.uuidString
-        let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Viewer/R Sessions/" + token.uuidString, isDirectory: true)
+        let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect/R Sessions/" + token.uuidString, isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let bootstrap = """

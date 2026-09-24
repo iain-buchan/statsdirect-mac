@@ -2,7 +2,7 @@
 
 Native macOS prototype in [iain-buchan/statsdirect-mac](https://github.com/iain-buchan/statsdirect-mac), using the calculation engine from [iain-buchan/statsdirect](https://github.com/iain-buchan/statsdirect). The engine repository's primary branch is **main**. `FullEngine/Upstream` is a Git submodule pinned to a tested commit; builds compile that source directly. Mac hosting and rendering adaptations remain in this repository. Engine updates are explicit and do not happen automatically during a build.
 
-Open **StatsDirect Viewer.app**. It starts with one blank worksheet. **File → New Worksheet** (⌘N) creates another independent document; **File → Open…** (⌘O) accepts Excel, CSV, R data and HTML reports. Choose a function from **Analysis** to open its first input step immediately. Results open in separate report tabs, preserving earlier results.
+Open **StatsDirect.app**. It starts with one blank worksheet. **File → New Worksheet** (⌘N) creates another independent document; **File → Open…** (⌘O) accepts Excel, CSV, R data and HTML reports. Choose a function from **Analysis** to open its first input step immediately. Results open in separate report tabs, preserving earlier results.
 
 **StatsDirect → About StatsDirect** opens the native About panel, showing the Mac prototype version and calculation-engine version. The same command is available under **Help**. Worked data are available under **Help → Examples → StatsDirect Example Workbook**; no example data or test-specific controls are loaded into a new worksheet.
 
@@ -76,7 +76,7 @@ Choose **R → New R Session** or **File → New R Session** (⌘R) to start a s
 
 **Stop / Reset** terminates that session and clears its variables. The next run starts a new session. **Save script…** (⌘S when the R tab is selected) saves an `.R` file. Closing a tab or quitting warns about unsaved edits or running scripts. Session objects are not restored after closing.
 
-R-created files are retained in `~/Library/Application Support/StatsDirect Viewer/R Sessions/<session-id>`, shown in the console. This first version provides a script editor and text output; it does not embed an R graphics device or support interactive console input such as `readline()`. The R tab is separate from the calculation engine's R-operation integration. R is installed separately and is not bundled with this app.
+R-created files are retained in `~/Library/Application Support/StatsDirect/R Sessions/<session-id>`, shown in the console. This first version provides a script editor and text output; it does not embed an R graphics device or support interactive console input such as `readline()`. The R tab is separate from the calculation engine's R-operation integration. R is installed separately and is not bundled with this app.
 
 ## Continue a completed analysis in R
 

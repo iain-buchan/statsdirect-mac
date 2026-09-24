@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-APP="$PWD/StatsDirect Viewer.app"
+APP="$PWD/StatsDirect.app"
 BUILD_WORK="${STATSDIRECT_BUILD_WORK:-$PWD/.build}"
 mkdir -p "$BUILD_WORK"
 BUILD_WORK="$(cd "$BUILD_WORK" && pwd -P)"
@@ -23,7 +23,7 @@ if [[ -z "${STATSDIRECT_ENGINE_PREBUILT:-}" ]]; then
 fi
 FullEngine/build.sh
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
-swiftc -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/main.swift Sources/RPane.swift Sources/RScriptGenerator.swift Sources/ReportRHost.swift Sources/GridHost.swift Sources/CSVFileIO.swift Sources/RDataFileIO.swift Sources/RDataHost.swift Sources/ExcelHost.swift Sources/AnalysisHost.swift Sources/ChartHost.swift Sources/OperationHost.swift -o "$APP/Contents/MacOS/StatsDirectViewer" -framework Cocoa -framework WebKit
+swiftc -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/main.swift Sources/RPane.swift Sources/RScriptGenerator.swift Sources/ReportRHost.swift Sources/GridHost.swift Sources/CSVFileIO.swift Sources/RDataFileIO.swift Sources/RDataHost.swift Sources/ExcelHost.swift Sources/AnalysisHost.swift Sources/ChartHost.swift Sources/OperationHost.swift -o "$APP/Contents/MacOS/StatsDirect" -framework Cocoa -framework WebKit
 cp FullEngine/publish/StatsDirectEngine.dylib "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
 ditto FullEngine/publish "$APP/Contents/Resources/Engine"
 cp Info.plist "$APP/Contents/Info.plist"

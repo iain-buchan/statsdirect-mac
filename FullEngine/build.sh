@@ -27,3 +27,4 @@ python3 Tests/test_menu.py Tests/operation-driver
 
 python3 Tests/test_data_graphics.py Tests/operation-driver
 python3 Tests/test_sessions.py Tests/operation-driver
+python3 Tests/test_analysis_defaults.py Tests/operation-driver

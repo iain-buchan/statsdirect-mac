@@ -12,6 +12,8 @@ The original `OperationTestHost` and `OperationsTester` are compiled unchanged. 
 
 The host-facing C functions are intentionally small; they are not a replacement calculation layer. `EngineExecution` serializes calculation segments, releasing the engine at interactive host prompts so multiple independent forms can remain open. Each generic job owns its input history, parameter recall, output frames and report. Completed history records include stable parameter names, kinds and acquisition modes for generating R scripts from the original run. The quick paired path retains a last-report buffer, retrieved by the viewer before another quick paired calculation starts.
 
+`AnalysisDefaults` snapshots the six Analysis Options for each new analysis. The native host persists them with `UserDefaults` and supplies them on startup requests. The Analysis Options form combines the original six parameter definitions, validates them as a group, and runs the original settings builtin. Confidence parameters use the saved level without asking only when `CanDefault` and `CanDefaultConfidenceInterval` are both true, matching Windows `ImmediateParameterFiller`. Automatic values are retained in the report history and generated R script. `Tests/test_analysis_defaults.py` checks this behaviour, cancellation, validation, non-defaultable inputs and independent settings for already-open forms.
+
 ## Explicit platform boundaries
 
 - `Nonparametric.cs`: full original file with two unused DevExpress namespace imports removed.

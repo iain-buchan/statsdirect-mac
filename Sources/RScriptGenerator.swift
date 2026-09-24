@@ -62,8 +62,10 @@ enum RScriptGenerator {
         let manifest = try JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: [String: String]] ?? [:]
         let recipe = manifest[operation]
         let history = output["history"] as? [[String: Any]] ?? []
+        var scriptHistory = [[String: Any]]()
         var parameters = [String: Any](), frames = [(String, [String: Any], String)]()
         for (i, step) in history.enumerated() {
+            var historyStep = step
             let name = step["name"] as? String ?? step["title"] as? String ?? "input_\(i + 1)"
             let value = step["value"] ?? NSNull()
             if let frame = value as? [String: Any], frame["columns"] != nil {
@@ -71,9 +73,16 @@ enum RScriptGenerator {
                 var key = name; var n = 2
                 while frames.contains(where: { $0.0 == key }) { key = name + "_\(n)"; n += 1 }
                 frames.append((key, frame, step["mode"] as? String ?? "NumericReplaceMissing"))
+                // Keep the spreadsheet provenance, but write the data only once.
+                // The report still retains its complete original input history.
+                var reference = frame
+                reference.removeValue(forKey: "columns")
+                reference["data_frame"] = key
+                historyStep["value"] = reference
             } else if step["kind"] as? String == "confidence", let n = Double(String(describing: value)) {
                 parameters[name] = n / 100
             } else { parameters[name] = value }
+            scriptHistory.append(historyStep)
         }
         if let input = output["input"] as? [String: Any] { parameters = input }
         let detail = recipe?["detail"] ?? "Data and settings only: an equivalent R implementation of this method is not yet available."
@@ -86,7 +95,8 @@ enum RScriptGenerator {
         analysis_title <- \(string(title))
         parameters <- \(literal(parameters))
         original_results <- \(literal(output["values"] ?? [:]))
-        input_history <- \(literal(history))
+        # Data inputs in this history refer to the exact selected columns in data_frames.
+        input_history <- \(literal(scriptHistory))
         data_frames <- list()
 
         """

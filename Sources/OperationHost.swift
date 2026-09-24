@@ -68,7 +68,9 @@ extension Viewer {
         guard doc.analysisJobID == nil else { return }
         let id = UUID().uuidString; doc.analysisJobID = id; doc.analysisCancelled = false; doc.operationStarting = true
         operationScript(doc, "update", ["state": "running", "progress": "Opening input form…"])
-        operationRequest(["action": "start", "id": id, "operation": operation], doc: doc, id: id)
+        var request: [String: Any] = ["action": "start", "id": id, "operation": operation]
+        if let defaults = UserDefaults.standard.dictionary(forKey: "analysisDefaults") { request["preferences"] = defaults }
+        operationRequest(request, doc: doc, id: id)
     }
     func operationScript(_ doc: Document, _ method: String, _ object: Any) {
         guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.fragmentsAllowed]) else { return }
@@ -104,7 +106,12 @@ extension Viewer {
                     doc.analysisJobID = nil
                     self.analysisRequest(["action": "release", "id": id], entry: "statsdirect_operation") { _ in }
                     if doc.operationClosing { self.remove(doc); return }
-                    if output["state"] as? String == "complete", !doc.analysisCancelled { self.showOperationReport(doc, output) }
+                    if output["state"] as? String == "complete", !doc.analysisCancelled {
+                        if doc.operationName == "AnalysisOptions", let defaults = output["analysisOptions"] as? [String: Any] {
+                            UserDefaults.standard.set(defaults, forKey: "analysisDefaults")
+                            self.status.stringValue = "Analysis defaults saved · Applied to new analyses"
+                        } else { self.showOperationReport(doc, output) }
+                    }
                     else { self.status.stringValue = doc.title + (doc.analysisCancelled ? " cancelled" : " did not complete") }
                 case "input": self.status.stringValue = doc.title + " · Waiting for input"
                 default:

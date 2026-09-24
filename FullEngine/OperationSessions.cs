@@ -22,7 +22,7 @@ public static class OperationSessions {
     internal static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
     static readonly ConcurrentDictionary<string, OperationJob> jobs = new();
     static readonly object gate = new();
-    public sealed record Request(string Action, string Id, string Operation, int Token, JsonElement Value);
+    public sealed record Request(string Action, string Id, string Operation, int Token, JsonElement Value, JsonElement Preferences);
     public static string Execute(string input) {
         try {
             var r = JsonSerializer.Deserialize<Request>(input, Json) ?? throw new Exception("Missing operation request.");
@@ -37,7 +37,7 @@ public static class OperationSessions {
                     if (r.Operation == null || !catalog.RootElement.GetProperty("operations").TryGetProperty(r.Operation, out var definition)) throw new Exception("Unknown menu command.");
                     if (definition.TryGetProperty("unavailable", out var unavailable)) throw new Exception(unavailable.GetString());
                     if (!TemplateFactory.Operations.TryGetValue(r.Operation, out var operation)) throw new Exception("The operation definition could not be loaded.");
-                    var job = new OperationJob(r.Id, operation); jobs[r.Id] = job;
+                    var job = new OperationJob(r.Id, operation, r.Preferences); jobs[r.Id] = job;
                     Task.Factory.StartNew(job.Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
                     result = job.Snapshot();
                 }
@@ -64,6 +64,7 @@ internal sealed class OperationJob {
     readonly object sync = new();
     public string Id { get; }
     public Operation Operation { get; }
+    public JsonElement SavedPreferences { get; }
     public volatile bool Cancelled;
     public volatile bool Finished;
     int token;
@@ -72,11 +73,11 @@ internal sealed class OperationJob {
     string state = "running", error, html;
     string progress = "Starting analysis…";
     double? fraction;
-    object frames, outputs;
+    object frames, outputs, analysisOptions;
     sealed record InputRecord(string Title, object Value, string Name = null, string Kind = null, string Mode = null);
     readonly List<InputRecord> history = new();
-    public OperationJob(string id, Operation operation) { Id = id; Operation = operation; }
-    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, values = outputs, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray() }; }
+    public OperationJob(string id, Operation operation, JsonElement preferences) { Id = id; Operation = operation; SavedPreferences = preferences; }
+    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray() }; }
     public void Check() { if (Cancelled) throw new OperationCanceledException(); }
     public void Progress(string text, double? value = null) { lock (sync) { progress = text; fraction = value; } }
     public JsonElement Ask(Dictionary<string, object> descriptor) {
@@ -114,6 +115,10 @@ internal sealed class OperationJob {
             };
             var result = ((ITemplateProcessor)new TemplateProcessor(host)).Execute(engineOperation, new ParameterBag());
             Check(); if (result == null) throw new Exception("The engine ended this operation without completing it.");
+            if (Operation.Name == "AnalysisOptions") {
+                analysisOptions = AnalysisDefaults.Values(host.Preferences);
+                AnalysisDefaults.Apply(SdApplication.SoleInstance.Preferences, JsonSerializer.SerializeToElement(analysisOptions));
+            }
             lock (sync) {
                 html = host.Html.ToString(); frames = host.Frames.ToArray(); outputs = HostParameters.ScalarOutputs(result.ParameterBag);
                 state = "complete"; Finished = true; progress = "Analysis complete"; fraction = 1;
@@ -130,19 +135,49 @@ internal sealed class OperationHost : ITemplateHost {
     readonly ParameterBag savedAcrossOperations = new();
     internal readonly List<object> Frames = new();
     public System.Text.StringBuilder Html { get; } = new();
-    public OperationHost(OperationJob job) { this.job = job; }
-    public SDPreferences Preferences => SdApplication.SoleInstance.Preferences;
+    public OperationHost(OperationJob job) {
+        this.job = job;
+        var snapshot = AnalysisDefaults.Snapshot(SdApplication.SoleInstance.Preferences);
+        AnalysisDefaults.Apply(snapshot, job.SavedPreferences);
+        Preferences = job.Operation.Name is "MetaCalculationOptions" or "MetaPlotOptions" or "GraphicsOptions" ? SdApplication.SoleInstance.Preferences : snapshot;
+    }
+    public SDPreferences Preferences { get; }
     public Operation Operation { get; set; }
     // Each launched form starts from definition defaults. Keep recall within that
     // running form so cancelled or previous launches cannot seed stale inputs.
     public IDictionary<string, ParameterBag> SessionParametersPerOperation => savedPerOperation;
     public ParameterBag SessionParametersAcrossOperations => savedAcrossOperations;
-    public bool CanCombine(Parameter p) => false;
+    readonly List<Parameter> settingsParameters = new();
+    public bool CanCombine(Parameter p) => job.Operation.Name == "AnalysisOptions" && p is BooleanParameter or OptionParameter;
     public void PrepareParameter(ITemplateProcessor processor, Parameter p, ParameterBag context) { job.Check(); }
-    public ParameterBag FillAndValidateCombinedParameters(ITemplateProcessor processor, ParameterBag context) => throw new InvalidOperationException("Unexpected combined parameter request.");
+    public ParameterBag FillAndValidateCombinedParameters(ITemplateProcessor processor, ParameterBag context) {
+        if (job.Operation.Name != "AnalysisOptions") throw new InvalidOperationException("Unexpected combined parameter request.");
+        var fields = settingsParameters.Select(p => {
+            var d=HostParameters.Describe(p,processor,context,Preferences);
+            if (p.Name=="default-ci") d["prompt"]="Default confidence level";
+            if (p.Name=="selectGroupsByIdentifier") { d["disabled"]=true; d["note"]="Not yet available on Mac; grouped data currently use separate columns."; }
+            return d;
+        }).ToArray();
+        string error=null;
+        while (true) {
+            var input=job.Ask(new() { ["kind"]="settings", ["name"]="analysisOptions", ["prompt"]="Analysis options", ["fields"]=fields, ["error"]=error });
+            try {
+                var filled=new ParameterBag();
+                foreach (var p in settingsParameters) {
+                    if (!input.TryGetProperty(p.Name,out var value)) throw new ArgumentException("Complete every analysis option.");
+                    foreach (var pair in HostParameters.Parse(p,value,processor,context,this)) filled[pair.Key]=pair.Value;
+                }
+                // Validate the complete group before the original options builtin changes anything.
+                AnalysisDefaults.Apply(AnalysisDefaults.Snapshot(Preferences),input);
+                foreach (var p in settingsParameters) job.Record(p.Prompt(processor,context),input.GetProperty(p.Name).Clone(),p.Name,p is BooleanParameter?"boolean":"option");
+                settingsParameters.Clear(); return filled;
+            } catch (ArgumentException ex) { error=ex.Message; }
+        }
+    }
     public ParameterBag FillParameter(ITemplateProcessor processor, Parameter p, ParameterBag context, bool shouldCombine) {
         job.Check();
         if (!p.AcquireIfTrue(processor, context)) return new ParameterBag();
+        if (shouldCombine && CanCombine(p)) { settingsParameters.Add(p); return new ParameterBag(); }
         if (p is FrameParameter stored && stored.Data != null) return new ParameterBag(p.Name, FilledParameterFactory.Input(stored.Data.Frame));
         if (p is SpecialParameter target && (target.SpecialType == "frame" || target.SpecialType == "report")) return new ParameterBag();
         if (p is SpecialParameter rubric && rubric.SpecialType == "rubric") {
@@ -174,7 +209,10 @@ internal sealed class OperationHost : ITemplateHost {
             var descriptor = HostParameters.Describe(p, processor, context, Preferences);
             if (job.Operation.Name == "ConvertUnitsScreen" && p is FrameParameter) descriptor["screen"] = true;
             descriptor["error"] = error;
-            var input = job.Ask(descriptor);
+            // Match the Windows ImmediateParameterFiller: only parameters which
+            // permit defaulting use the saved CI without displaying another form.
+            bool useDefault = error == null && p is ConfidenceIntervalParameter ci && ci.CanDefault && Preferences.CanDefaultConfidenceInterval;
+            var input = useDefault ? JsonSerializer.SerializeToElement(Preferences.DefaultConfidenceInterval * 100) : job.Ask(descriptor);
             try {
                 var filled = HostParameters.Parse(p, input, processor, context, this);
                 var combined = new ParameterBag(); foreach (var pair in context) combined[pair.Key] = pair.Value; foreach (var pair in filled) combined[pair.Key] = pair.Value;

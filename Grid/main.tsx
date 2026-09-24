@@ -6,6 +6,7 @@ import './style.css';
 import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
+import { worksheetSelection } from './operation-data.mjs';
 import { WorkbookStore, cellKind } from './workbook.mjs';
 import { selectAdjacentCell, cellMovement, arrowKeyEditor } from './navigation';
 declare global {
@@ -141,7 +142,7 @@ function App() {
       analysisSource: () => {
         const cells = [...new Set([...store.cells.keys(), ...store.metadata.keys()])].map(key=>{const [col,row]=key.split(',').map(Number);return {...store.metadata.get(key),col,row,text:store.get(col,row)};});
         const usedRows = cells.filter(cell=>cell.text!=='').reduce((m,cell)=>Math.max(m,cell.row+1),store.headerRow?2:1);
-        return {name:workbook.name+' / '+workbook.sheets[sheetIndex].name,columns:store.columns.map((_:string,c:number)=>store.columnTitle(c)),cells,firstRow:store.headerRow?2:1,rows:usedRows,formulasStale:store.formulasStale,selection:selection.columns.toArray()};
+        return {name:workbook.name+' / '+workbook.sheets[sheetIndex].name,columns:store.columns.map((_:string,c:number)=>store.columnTitle(c)),cells,firstRow:store.headerRow?2:1,rows:Math.max(usedRows,selection.current?.range.y+selection.current?.range.height||0),formulasStale:store.formulasStale,...worksheetSelection(selection.columns.toArray(),selection.current?.range)};
       },
       csvData: () => store.csv(),
       csvSnapshot: () => ({text: store.csv(), canSaveDocument: !workbook.backed && workbook.sheets.length === 1 && !workbook.formulaCount && !workbook.sheets.some((s:any) => s.rColumns)}),

@@ -134,7 +134,10 @@ internal static class HostParameters {
             string title = col.TryGetProperty("title", out var label) ? label.GetString() : "Column " + (frame.VariableCount + 1);
             var texts = col.GetProperty("values").EnumerateArray().Select(v => v.ValueKind == JsonValueKind.Null ? "" : v.ToString().Trim()).ToArray();
             // Trim only genuinely empty tail cells; '*' deliberately retains a missing final observation.
-            int length = texts.Length; while (length > 0 && texts[length - 1] == "") length--; texts = texts.Take(length).ToArray();
+            int length = texts.Length;
+            bool preserveRows = input.TryGetProperty("preserveRows", out var preserve) && preserve.ValueKind == JsonValueKind.True;
+            if (!preserveRows) while (length > 0 && texts[length - 1] == "") length--;
+            texts = texts.Take(length).ToArray();
             bool missing(string s) => s == "" || s == "*";
             bool numeric(string s) => missing(s) || double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double n) && double.IsFinite(n);
             bool coded = mode == DataAcquisitionMode.NumericCodingTextToCategories || mode == DataAcquisitionMode.NumericCodingTextToDummies;

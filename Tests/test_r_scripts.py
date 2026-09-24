@@ -69,9 +69,15 @@ try:
     print('PASS',name,flush=True)
    except Exception as error:failures.append((name,str(error)));print('FAIL',name,str(error)[:2500],flush=True)
   # Matched missing values must keep pair alignment; custom confidence must survive export.
-  output=session.run('TPaired',{'data':columns([10,'*',20,30],[8,9,17,25]),'gamma':90,'doAgreement':True})
+  preferences={'use-default-ci':True,'default-ci':'90','selectGroupsByIdentifier':False,'decp':'6','pdecp':'4','use-scientific-notation-for-small-p-values':False}
+  output=session.run('TPaired',{'data':columns([10,'*',20,30],[8,9,17,25]),'doAgreement':True},preferences=preferences)
   generate_run(folder,'TPaired',output,'stopifnot(nrow(data)==3, confidence==0.9, abs(result$p.value-original_results$tail_2)<1e-10)')
   print('PASS paired missing values and 90% confidence',flush=True)
+  # The selected block is the only data passed to R, despite a taller worksheet.
+  selected=columns([10,'',20,30],[8,9,17,'']);selected.update(preserveRows=True,source='Worksheet rows 5–8',range={'firstRow':5,'lastRow':8,'columns':[1,2]})
+  output=session.run('TPaired',{'data':selected})
+  _,script=generate_run(folder,'TPaired',output,'stopifnot(identical(unname(lengths(data_frames$data)), c(4L,4L)), is.na(data_frames$data[[1]][2]), is.na(data_frames$data[[2]][4]), nrow(data)==2, abs(result$p.value-original_results$tail_2)<1e-10, input_history[[1]]$value$range$firstRow==5, input_history[[1]]$value$data_frame=="data", is.null(input_history[[1]]$value$columns))')
+  print('PASS exact selected block, aligned missing cells and non-duplicated R history',flush=True)
   # Single-column differences use one-sample t, without generating a bogus second series.
   output=session.run('TPaired',{'data':columns([2,3,5,4,8])})
   generate_run(folder,'TPaired',output,'stopifnot(ncol(data)==1, abs(result$p.value-original_results$tail_2)<1e-10)')

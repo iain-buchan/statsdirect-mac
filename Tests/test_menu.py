@@ -17,21 +17,21 @@ class Session:
    time.sleep(.005)
   self.request(action='cancel',id=id)
   raise AssertionError('Engine did not finish within 60 seconds')
- def start(self,operation):
-  id=str(uuid.uuid4());s=self.request(action='start',id=id,operation=operation)
+ def start(self,operation,preferences=None):
+  id=str(uuid.uuid4());s=self.request(action='start',id=id,operation=operation,**({'preferences':preferences} if preferences is not None else {}))
   assert 'error' not in s or s['error'] is None,s
   return id,self.wait(id)
  def close(self,id):
   self.request(action='cancel',id=id);self.wait(id);self.request(action='release',id=id)
- def run(self,operation,answers):
-  id,s=self.start(operation);prompts=[]
+ def run(self,operation,answers,preferences=None):
+  id,s=self.start(operation,preferences);prompts=[]
   for _ in range(100):
    if s.get('state')!='input':break
    p=s['prompt'];name=p.get('name');prompts.append((name,p['kind']))
    if name in answers:value=answers[name]
    elif p.get('prompt') in answers:value=answers[p['prompt']]
    elif p['kind']=='options':value={o['value']:o['selected'] for o in p['options']}
-   elif p['kind']=='fields':value={o['name']:o['defaultValue'] for o in p['fields']}
+   elif p['kind'] in ('fields','settings'):value={o['name']:o['defaultValue'] for o in p['fields']}
    elif p['kind']=='boolean':value=False
    elif p['kind']=='confidence':value=p['defaultValue']
    elif p.get('defaultValue') is not None:value=p['defaultValue']

@@ -4,6 +4,7 @@
 #   FullEngine/publish              managed engine, published for osx-arm64
 #   <build work>/dotnet-osx-arm64   macOS .NET runtime staged for the app bundle
 #   <build work>/dotnet-osx-arm64/include  hostfxr headers for bridge.cpp
+#   <build work>/dotnet-osx-arm64/runtime-version  the version published against
 set -euo pipefail
 cd /work
 
@@ -55,5 +56,8 @@ if [[ ! -f "$HEADER_SOURCE/hostfxr.h" ]]; then
 fi
 mkdir -p "$RUNTIME_DIR/include"
 cp "$HEADER_SOURCE"/*.h "$RUNTIME_DIR/include/"
+# Older runtimes from earlier images stay staged, so record which one this
+# publish used rather than leave the Mac build to guess.
+printf '%s\n' "$RUNTIME_VERSION" > "$RUNTIME_DIR/runtime-version"
 
 printf 'Published the engine and staged .NET %s for osx-arm64 in %s\n' "$RUNTIME_VERSION" "$RUNTIME_DIR"

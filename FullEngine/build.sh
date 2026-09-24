@@ -8,12 +8,12 @@ BUILD_WORK="$(cd "$BUILD_WORK" && pwd -P)"
 MAC_RUNTIME="$BUILD_WORK/dotnet-osx-arm64"
 if [[ -n "${STATSDIRECT_ENGINE_PREBUILT:-}" ]]; then
   # docker-build.sh already published the engine and staged a macOS runtime.
-  if [[ ! -f FullEngine/publish/StatsDirect.Headless.dll || ! -x "$MAC_RUNTIME/dotnet" ]]; then
+  if [[ ! -f FullEngine/publish/StatsDirect.Headless.dll || ! -x "$MAC_RUNTIME/dotnet" || ! -f "$MAC_RUNTIME/runtime-version" ]]; then
     printf 'No prebuilt engine in FullEngine/publish and %s. Run ./docker-build.sh.\n' "$MAC_RUNTIME" >&2
     exit 1
   fi
   DOTNET_ROOT_DIR="$MAC_RUNTIME"
-  RUNTIME_VERSION="$(/bin/ls "$MAC_RUNTIME/shared/Microsoft.NETCore.App" | sort -V | tail -1)"
+  RUNTIME_VERSION="$(<"$MAC_RUNTIME/runtime-version")"
   HOST_HEADERS="$MAC_RUNTIME/include"
   ENGINE_DOTNET="$MAC_RUNTIME/dotnet"
 else

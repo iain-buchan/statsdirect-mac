@@ -116,6 +116,21 @@ For an existing clone, run `git submodule update --init --recursive` first. Down
 
 Run `./build.sh` on an Apple Silicon Mac with Xcode command line tools, Python 3 and .NET 10 SDK installed. Set `DOTNET` to the SDK executable if necessary. Build caches default to the ignored `.build` directory; set `STATSDIRECT_BUILD_WORK` to use another location. The generated `.app`, runtime, caches and compiler outputs are excluded from Git. The prebuilt offline grid and help are included; Node.js/pnpm is needed only when rebuilding the grid.
 
+### Building without the .NET SDK
+
+`./docker-build.sh` builds the same app without installing the .NET SDK on the Mac:
+
+```sh
+git submodule update --init --recursive
+./docker-build.sh
+```
+
+A container holding the .NET 10 SDK compiles the managed engine for `osx-arm64` and downloads the matching macOS .NET runtime and its `hostfxr` headers into `.build/dotnet-osx-arm64`. `docker-build.sh` then runs `./build.sh` with `STATSDIRECT_ENGINE_PREBUILT=1`, which skips the SDK steps and uses those staged files. The resulting `.app` is the same as an SDK build: the container's runtime is the one the app bundles, and no .NET remains installed on the Mac afterwards.
+
+The Mac still does everything macOS-only, because no container can produce it: the Swift shell, the `TextMetrics` and `bridge` dylibs, ad-hoc codesigning, and the engine, agreement, menu, data/graphics and session tests. Xcode command line tools and Python 3 are therefore still required, and the build remains Apple Silicon only. Docker replaces the .NET SDK requirement, nothing else.
+
+Set `DOCKER` to choose another Docker-compatible executable, and `STATSDIRECT_DOCKER_IMAGE` to change the image tag. `STATSDIRECT_BUILD_WORK` is honoured and mounted into the container. The container runs as the invoking user, so build outputs are owned normally. Rebuilds reuse the cached image, NuGet packages and staged runtime.
+
 See [Updating the calculation engine](FullEngine/README.md#updating-the-calculation-engine) for the controlled update procedure. The Git submodule link and `FullEngine/upstream-manifest.json` identify the exact engine revision used by this Mac version.
 
 To refresh the menu and its help mapping, run `python3 import_analysis.py /path/to/statsdirect /path/to/statisticalhelp`. To refresh help, run `python3 import_help.py /path/to/statisticalhelp`. Engine refresh instructions are in FullEngine/README.md. Source revisions and hashes are recorded in the provenance manifests. No changes have been pushed to either upstream repository.

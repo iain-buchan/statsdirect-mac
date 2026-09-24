@@ -30,6 +30,8 @@ These are hosting/rendering boundaries, not numerical rewrites. Do not interpret
 
 Run `../build.sh` to build, run the original operation tests, verify the live bridge, and package the app. Requirements: Apple Silicon Mac, Xcode command line tools, Python 3, .NET 10 SDK. The .NET runtime is bundled with the app, so the resulting app does not require a separate .NET installation.
 
+`../docker-build.sh` replaces the .NET 10 SDK requirement with Docker. A container publishes this project for `osx-arm64` and stages the matching macOS runtime and hostfxr headers under `.build/dotnet-osx-arm64`; `build.sh` then reads `STATSDIRECT_ENGINE_PREBUILT=1` and skips `dotnet publish` and the SDK runtime copy, keeping every other step, including the operation tests, on the Mac. The bundled runtime layout, and therefore the app, is identical either way.
+
 An existing clone needs `git submodule update --init --recursive`. The build verifies the submodule revision and all 871 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build.
 
 ## Updating the calculation engine

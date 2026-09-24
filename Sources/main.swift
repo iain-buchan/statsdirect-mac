@@ -55,7 +55,6 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var running = false
     var reportNumber = 0
     var rNumber = 0
-    var analysisNumbers: [String: Int] = [:]
     var libraryHandle: UnsafeMutableRawPointer?
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
     var active: Document? { documents.first { $0.item === tabs.selectedTabViewItem } }
@@ -63,8 +62,11 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var analysisCatalog: [String: [String: Any]] = [:]
     var analysisSourceID: String?
     func nextAnalysisTitle(_ title: String) -> String {
-        let number = (analysisNumbers[title] ?? 0) + 1; analysisNumbers[title] = number
-        return number == 1 ? title : "\(title) · \(number)"
+        let openTitles = Set(documents.filter { $0.kind == "operation" || $0.kind == "analysis" }.map(\.title))
+        if !openTitles.contains(title) { return title }
+        var number = 2
+        while openTitles.contains("\(title) · \(number)") { number += 1 }
+        return "\(title) · \(number)"
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 850), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)

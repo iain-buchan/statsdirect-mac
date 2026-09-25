@@ -4,7 +4,7 @@
 
 A conversational **Learn** document is feasible within the existing Mac shell. The strongest version would connect explanation, assessment and practical work: a learner discusses a concept, answers a question, explores its data in StatsDirect and receives a specific plan for further study. Reviewed feedback could then become evidence in their CPD portfolio.
 
-The technical fit is good: `Sources/main.swift` already creates independent WKWebView documents, `Sources/OperationHost.swift` starts engine operations, and reports already link to help and R scripts. A future `LearnHost.swift` can use these boundaries without changing the calculation engine. The pending inverse-beta/inverter update is independent of this exploration and has not been imported.
+The technical fit is good: `Sources/main.swift` already creates independent WKWebView documents, `Sources/OperationHost.swift` starts engine operations, and reports already link to help and R scripts. A future `LearnHost.swift` can use these boundaries without changing the calculation engine. Learn development is independent of numerical engine updates and does not modify calculation routines.
 
 ## What is here to try
 

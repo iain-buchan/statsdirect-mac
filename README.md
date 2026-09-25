@@ -98,9 +98,9 @@ The mappings follow the [R stats reference](https://stat.ethz.ch/R-manual/R-deve
 
 ## Engine
 
-The app now embeds the **full StatsDirect 5.0.7 headless calculation build**, replacing the earlier extracted paired routine. It loads 284 operation definitions. The paired menu action runs the original `TPaired` definition through `TemplateProcessor` and displays HTML from the original report renderer. Calculations and C#/VB scripts run in the same process as the Mac window, using a bundled .NET runtime.
+The app now embeds the **full StatsDirect 5.0.8 headless calculation build**, replacing the earlier extracted paired routine. It loads 284 operation definitions. The paired menu action runs the original `TPaired` definition through `TemplateProcessor` and displays HTML from the original report renderer. Calculations and C#/VB scripts run in the same process as the Mac window, using a bundled .NET runtime.
 
-The 25 September 2026 refresh incorporates Windows engine commit `c956b122c9b7`, help commit `d02543897aac`, and the revised example workbook. About and report footers read the imported engine version. The 400 offline help topics include 135 expandable R examples. See [verification](Tests/verification.md#upstream-refresh--25-september-2026) for coverage and the three outstanding checks in the help repository's R reference suite.
+The latest 25 September 2026 refresh incorporates Windows engine commit `dcc2af8f0ec5`, including the beta inverse, F, t, chi-square and gamma changes. Before acceptance, the unmodified Windows numerical source was compared with its previous revision and R in an [isolated numerical audit](Docs/Validation/Core-5.0.8/README.md); independent high-precision checks resolved all candidate/R discrepancies. The Mac distribution forms request each tail directly from the new core. About and report footers read the imported engine version. The previously imported help (`d02543897aac`) and example workbook are unchanged; the 400 offline topics include 135 expandable R examples. See [verification](Tests/verification.md) for coverage and the existing help-suite limitations.
 
 The shell is Swift/AppKit with WKWebView. This establishes a native Mac prototype and reusable HTML content; it is not yet the proposed Avalonia shell or a completed replacement for the Windows application.
 

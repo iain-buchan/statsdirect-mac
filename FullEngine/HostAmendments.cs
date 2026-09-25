@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using StatsDirect.Builtins;
 using StatsDirect.Charting;
+using StatsDirect.Expressions;
 using StatsDirect.Numerics;
 using StatsDirect.Templates;
 using StatsDirect.Utilities;
@@ -93,12 +94,11 @@ internal static class HostAmendments {
             if (type != DistributionType.Z && (df < (type == DistributionType.Poisson ? 0 : 1) || df != Math.Truncate(df) || df > int.MaxValue)) throw new ArgumentException("Enter valid integer degrees of freedom, sample size or event count.");
             int fault = 0;
             switch (type) {
-                // Match the Windows calculator: obtain the small upper tail directly,
-                // since subtracting a rounded lower tail loses it for large positive z.
+                // Obtain each tail directly: subtracting a rounded tail loses small probabilities.
                 case DistributionType.Z: lower = PDF.alnorm(x); upper = PDF.alnorm(-x); break;
-                case DistributionType.T: upper = PDF.tvalp(x, df); lower = 1 - upper; break;
-                case DistributionType.F: if (x < 0 || df2 <= 0) throw new ArgumentException("F must be non-negative and both degrees of freedom positive."); upper = PDF.fvalp(x, df, df2); lower = 1 - upper; break;
-                case DistributionType.ChiSq: if (x < 0) throw new ArgumentException("Chi-square must be non-negative."); upper = PDF.chivalp(x, df); lower = 1 - upper; break;
+                case DistributionType.T: upper = PDF.TProbability(x, df); lower = PDF.TProbability(x, df, true); break;
+                case DistributionType.F: if (x < 0 || df2 <= 0) throw new ArgumentException("F must be non-negative and both degrees of freedom positive."); upper = PDF.FProbability(x, df, df2); lower = PDF.FProbability(x, df, df2, true); break;
+                case DistributionType.ChiSq: if (x < 0) throw new ArgumentException("Chi-square must be non-negative."); upper = SDMath.Pchisq(x, df, false, false); lower = SDMath.Pchisq(x, df, true, false); break;
                 case DistributionType.Q: if (x < 0 || df2 < 2) throw new ArgumentException("Q must be non-negative and the number of samples at least two."); lower = PDF.probsr(x, df2, df); upper = 1 - lower; break;
                 case DistributionType.Binomial: if (x < 0 || x > 1 || df2 < 0 || df2 > df || df2 != Math.Truncate(df2)) throw new ArgumentException("Use a probability from 0 to 1 and an integer number of successes between 0 and the trial count."); ExFortran.bino((int)df, x, (int)df2, out mass, out lower, out upper, out fault); break;
                 case DistributionType.Poisson: if (df2 < 0) throw new ArgumentException("The mean must be non-negative."); ExFortran.poisson(df2, (int)df, out upper, out lower, out mass, out fault); break;

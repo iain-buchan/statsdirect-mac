@@ -1,3 +1,21 @@
+# Windows 5.0.8 core validation and Mac integration — 25 September 2026
+
+The accepted core is `dcc2af8f0ec55d736a98acac029297510195e2df` (5.0.8). Before accepting it, the unchanged Windows numerical files were compiled independently of the Mac host and compared with 5.0.7 and R 4.6.1. The candidate completed 4,902 cases without a fault or timeout. All 322 candidate/R discrepancies passed independent high-precision checks under the documented tolerances; ten representative cases were repeated at 100 digits. The 400 ordinary seeded cases agree with R in both versions. Full inputs, raw outputs, source hashes, criteria and limitations are retained in the [numerical audit](../Docs/Validation/Core-5.0.8/README.md).
+
+The Mac build imports all five new beta/special-function source files without modifying numerical algorithms. It verifies 879 source/asset hashes. The Mac distribution forms now request both tails directly from the new APIs; their old subtraction lost a t lower tail of 5e-41 as zero. Windows-only installer changes remain outside the Mac host. Existing platform copies, operation definitions, menus, workbook and imported help did not change in this core revision.
+
+Validation passed:
+
+- The upstream distribution suite: 1,552 checks, now included in normal builds.
+- Original operation fixtures; paired analysis and SVG agreement geometry; all 224 menu commands and 206 enabled entry points; 47 analysis/calculator and 74 Data/Graphics cases; 14 R comparisons.
+- Six interleaved forms, cancellation/validation and the complete saved-confidence/defaults suite.
+- Existing normality/extreme-scale checks, plus new tiny t/F/chi-square tails, seven worksheet expressions using the updated SDMath functions, and the corrected 99.8% rate-ratio interval through the real report path. Reference calculations use stable R identities/forward-tail inversion where direct R quantiles are inaccurate.
+- Dedicated chi-square tests, including independent R calculations, simulation and cancellation; all generated R-script checks and numerical comparisons.
+- Full Swift build and package; strict local code-signature verification; packaged engine DLL and version metadata match the tested build byte-for-byte.
+- Native About displays **StatsDirect 5.0.8**. Selecting Student's t from the menu opens its input form immediately. Entering t = −1e20 and 2 df produces a separate report showing lower tail `4.99999999999998E-41` and two-sided P `9.99999999999996E-41`, with the 5.0.8 footer and help/R links.
+
+This remains a locally signed development build. The earlier help-suite and unsupported R-operation limitations below are unchanged; this does not certify every statistical procedure or Windows UI feature.
+
 # Upstream refresh — 25 September 2026
 
 The Mac build now uses Windows StatsDirect **5.0.7**, pinned to `c956b122c9b77683f58c4d10c221390183968cd3`, and statisticalhelp `d02543897aac61eb0a98e2c708628655c9e48072`. All 874 recorded engine source/asset hashes and 978 imported help-file hashes were verified. The bundled example workbook is byte-identical to the upstream workbook. The menu/help catalogue was regenerated; corrected operation titles are included.

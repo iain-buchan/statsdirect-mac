@@ -1,0 +1,197 @@
+{
+  "provenance": {
+    "candidate": {
+      "commit": "dcc2af8f0ec55d736a98acac029297510195e2df",
+      "sha256": {
+        "StatsDirectUI/Numerics/BetaDistributions.cs": "c12347cac6a22e5faf011695a1d2d31d75e1e1ecf93a58631ac0b3d693e476f0",
+        "StatsDirectUI/Numerics/BetaInverse.cs": "474ba0d1184f198a378e574b9aca442a3e51293d6a4ae0f9bacabbed1747fd9a",
+        "StatsDirectUI/Numerics/Numerics.cs": "72e3b97cfa13a32858c8a124ffb2f68a64203043f23cf9ae3e93eb26fb2b41b7",
+        "StatsDirectUI/Numerics/SpecialFunctions/GammaCoefficients.cs": "bd5c7f7a758275988e685b974156bdbb467994775ccee387b8fbda6ff1494ce3",
+        "StatsDirectUI/Numerics/SpecialFunctions/IncompleteBeta708.cs": "b9f9e6bc9196e7bd9616dcd2bc91dda43bde8a78d0963956be2746ec84c0d409",
+        "StatsDirectUI/Numerics/SpecialFunctions/MathSupport.cs": "a64c14ab25f34323a4bbdf9bc6a959999c7736de762e6c667b82294657b40fff"
+      }
+    },
+    "baseline": {
+      "commit": "c956b122c9b77683f58c4d10c221390183968cd3",
+      "sha256": {
+        "StatsDirectUI/Numerics/Numerics.cs": "2bea6972461ebf13678c8ecf7a21679312777b0a1f1c7c9a0036345c36c10435"
+      }
+    },
+    "R": "R version 4.6.1 (2026-06-24)"
+  },
+  "caseCount": 4902,
+  "results": {
+    "baseline": {
+      "pbeta": {
+        "tested": 900,
+        "agree": 892,
+        "differ": 8,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "qbeta": {
+        "tested": 1000,
+        "agree": 531,
+        "differ": 469,
+        "faults": 220,
+        "rWarnings": 10
+      },
+      "pf": {
+        "tested": 1100,
+        "agree": 938,
+        "differ": 162,
+        "faults": 29,
+        "rWarnings": 0
+      },
+      "qf": {
+        "tested": 1000,
+        "agree": 413,
+        "differ": 587,
+        "faults": 66,
+        "rWarnings": 4
+      },
+      "pt": {
+        "tested": 110,
+        "agree": 99,
+        "differ": 11,
+        "faults": 2,
+        "rWarnings": 0
+      },
+      "qt": {
+        "tested": 90,
+        "agree": 63,
+        "differ": 27,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "pchisq": {
+        "tested": 70,
+        "agree": 68,
+        "differ": 2,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "pgamma": {
+        "tested": 140,
+        "agree": 136,
+        "differ": 4,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "qchisq": {
+        "tested": 180,
+        "agree": 169,
+        "differ": 11,
+        "faults": 0,
+        "rWarnings": 0
+      }
+    },
+    "candidate": {
+      "pbeta": {
+        "tested": 900,
+        "agree": 900,
+        "differ": 0,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "qbeta": {
+        "tested": 1000,
+        "agree": 995,
+        "differ": 5,
+        "faults": 0,
+        "rWarnings": 10
+      },
+      "pf": {
+        "tested": 1100,
+        "agree": 1070,
+        "differ": 30,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "qf": {
+        "tested": 1000,
+        "agree": 750,
+        "differ": 250,
+        "faults": 0,
+        "rWarnings": 4
+      },
+      "pt": {
+        "tested": 110,
+        "agree": 110,
+        "differ": 0,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "qt": {
+        "tested": 90,
+        "agree": 82,
+        "differ": 8,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "pchisq": {
+        "tested": 70,
+        "agree": 70,
+        "differ": 0,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "pgamma": {
+        "tested": 140,
+        "agree": 140,
+        "differ": 0,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "qchisq": {
+        "tested": 180,
+        "agree": 180,
+        "differ": 0,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "pf_direct": {
+        "tested": 72,
+        "agree": 68,
+        "differ": 4,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "qf_direct": {
+        "tested": 84,
+        "agree": 60,
+        "differ": 24,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "pt_direct": {
+        "tested": 72,
+        "agree": 72,
+        "differ": 0,
+        "faults": 0,
+        "rWarnings": 0
+      },
+      "qt_direct": {
+        "tested": 84,
+        "agree": 83,
+        "differ": 1,
+        "faults": 0,
+        "rWarnings": 0
+      }
+    }
+  },
+  "validation": {
+    "comparisonRelativeTolerance": 2e-10,
+    "logComparisonScale": "max(1, abs(reference))",
+    "timeoutSecondsPerCoreCase": 2,
+    "highPrecisionDecimalDigits": 80,
+    "highPrecisionCases": 322,
+    "highPrecisionUnresolved": 0,
+    "repeatDecimalDigits": 100,
+    "repeatCases": 10,
+    "repeatUnresolved": 0,
+    "mpmathVersion": "1.4.1",
+    "inverseValidation": "Brackets target probability within max(4 ULP, 2e-10 times magnitude); beta uses the smaller coordinate. Overflow checked against largest finite double.",
+    "quadChecks": "Six F/Cauchy closed forms checked within 1e-40 at 100 digits."
+  }
+}

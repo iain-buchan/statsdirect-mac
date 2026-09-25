@@ -1,3 +1,30 @@
+# Upstream refresh — 25 September 2026
+
+The Mac build now uses Windows StatsDirect **5.0.7**, pinned to `c956b122c9b77683f58c4d10c221390183968cd3`, and statisticalhelp `d02543897aac61eb0a98e2c708628655c9e48072`. All 874 recorded engine source/asset hashes and 978 imported help-file hashes were verified. The bundled example workbook is byte-identical to the upstream workbook. The menu/help catalogue was regenerated; corrected operation titles are included.
+
+The two changed Mac platform copies were reconciled with upstream: permutation-count formatting in Nonparametric and the zero-range axis message. The Mac distribution host also adopts the Windows normal-tail fix and the Kendall minimum of two observations. Numerical algorithms remain in the pinned upstream engine. About and report footers now read the imported version metadata.
+
+Checks completed successfully:
+
+- Full engine build and the original two populated operation tests (26 expected outputs; one empty test skipped).
+- All 224 menu commands, 208 help links and 206 enabled input hosts; the two pre-existing R-dependent deferrals remain explicit.
+- 47 completed analysis/calculator cases, 74 Data/Graphics cases and 14 independent R numerical comparisons.
+- Paired-test output, original SVG agreement geometry, dedicated chi-square calculations against R, custom scores, seeded simulation, validation and cancellation.
+- Six interleaved forms and the complete Analysis Options/default-confidence suite.
+- New 5.0.7 regression checks: normality statistics under scaling by 1e300 and 1e-300 and translation by 1e12; Shapiro-Wilk against R; constant/two-value sample messages; tiny normal/F/Poisson tails against R; signed Kendall tau and the minimum sample size.
+- All Mac-generated R-script checks and engine comparisons.
+- Updated workbook round trip: 11 sheets, 14,363 populated cells, 22 formulas, cached results, types and styles; formula-input recalculation and invalid-file handling.
+- Swift compilation; native About shows 5.0.7; the bundled workbook opens; the paired example runs with automatic 95% confidence and produces the expected report and SVG agreement chart. Its help link opens the refreshed offline topic, and the new R-code section expands correctly.
+- Final app packaged with the rebuilt engine and content, verified byte-for-byte against the source build; local ad-hoc code signing and strict signature verification passed. This is still a development build, not a notarized installer.
+
+The help repository's separate `RCode/check-rcode.R` suite passed **132 of 135** examples on the installed R. Three upstream reference checks remain unresolved; the imported help was kept unchanged:
+
+- `agreement/mcr`: the optional `mcr` package is not installed, so this script could not run.
+- `basic_descriptive_statistics/univariate_summary`: R prints the sum as `29985.239999999991`, while the literal expected fragment is `29985.24`.
+- `regression_and_correlation/multiple_linear`: the Longley intercept and year coefficient differ in the final printed digit (`-3482258.63459583` versus `-3482258.63459582`, and `1829.15146461356` versus `1829.15146461355`).
+
+At extreme numeric scales or very large offsets, normality statistics complete correctly but the existing chart axis renderer can report that the chart cannot be drawn. These tests do not claim complete Windows UI parity or coverage of every statistical procedure. The active user session was preserved; reopening the packaged app loads the updated engine.
+
 # Verification — full headless engine, 23 September 2026
 
 The updated application was built, launched and exercised on this Apple Silicon Mac. Code-signature verification passed for the local app bundle.

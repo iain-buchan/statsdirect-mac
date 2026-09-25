@@ -109,7 +109,7 @@ extension Viewer {
         \(warnings)\(skipped)<section class="engine-report">\(html)</section>
         \(reportLinks(rPlan, helpPath: "Help/chi_square_tests/rc.htm", helpLabel: "R × C contingency table: method and worked example →"))
         <details><summary>Input counts and options used for this report</summary><table><thead><tr><th>Category</th>\(headers)</tr></thead><tbody>\(rows)</tbody></table><p>\(htmlEscape(options)) · \(number(confidence))% confidence</p>\(scores)</details>
-        <p class="muted">Calculated by the full StatsDirect 5.0.5 headless engine, operation ExactChiRbyCScreen, using its original HTML report renderer. The input form stays open for further edits.</p>
+        <p class="muted">Calculated by the full StatsDirect \(htmlEscape(engineVersion)) headless engine, operation ExactChiRbyCScreen, using its original HTML report renderer. The input form stays open for further edits.</p>
         """
         let report = newDocument(kind: "report", title: "Report \(reportNumber) · Chi-square R × C", html: page("R × C contingency table", body))
         report.rScriptPlan = rPlan; report.operationName = "ExactChiRbyCScreen"

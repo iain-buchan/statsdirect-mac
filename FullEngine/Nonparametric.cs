@@ -3004,7 +3004,7 @@ namespace StatsDirect.Builtins
             outputParameters.AddOutput("ll", ll);
             outputParameters.AddOutput("ul", ul);
             outputParameters.AddOutput("warn", warn);
-            outputParameters.AddOutput("k", actualIterations.ToString("N0"));
+            outputParameters.AddOutput("k", actualIterations.ToString());
             outputParameters.AddOutput("seed_fmt", seed);
             return new StepOutput(outputParameters);
         }

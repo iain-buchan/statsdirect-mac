@@ -16,7 +16,9 @@ namespace StatsDirect.Charting.Scales
             // Font metrics are supplied by CoreText in the host QuantitativeFormatter.
             Axis tlhAxis = axisLayout.LayoutAxis(null);
             if (null == tlhAxis)
-                throw new System.Exception("Cannot create a suitable axis based on the specified data or scale values");
+                throw new System.Exception(maximumDataValue == minimumDataValue
+                    ? "Cannot draw an axis for a range of zero: the values are all equal, or there is only one"
+                    : "Cannot create a suitable axis based on the specified data or scale values");
             return new TalbotLinHanrahanAxisScale(tlhAxis, minimumDataValue, maximumDataValue);
         }
     }

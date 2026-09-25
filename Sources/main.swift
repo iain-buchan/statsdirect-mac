@@ -57,6 +57,11 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var rNumber = 0
     var libraryHandle: UnsafeMutableRawPointer?
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
+    var engineVersion: String {
+        guard let data = try? Data(contentsOf: root.appendingPathComponent("engine-info.json")),
+              let info = try? JSONSerialization.jsonObject(with: data) as? [String: String] else { return "unknown" }
+        return info["version"] ?? "unknown"
+    }
     var active: Document? { documents.first { $0.item === tabs.selectedTabViewItem } }
     var worksheetNumber = 0
     var analysisCatalog: [String: [String: Any]] = [:]
@@ -296,7 +301,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             .applicationName: "StatsDirect",
             .applicationVersion: "\(version) · macOS prototype",
             .version: "",
-            .credits: NSAttributedString(string: "Calculation engine: StatsDirect 5.0.5\nA development preview for macOS.", attributes: [.font: NSFont.systemFont(ofSize: 12)])
+            .credits: NSAttributedString(string: "Calculation engine: StatsDirect \(engineVersion)\nA development preview for macOS.", attributes: [.font: NSFont.systemFont(ofSize: 12)])
         ])
     }
     @objc func editCommand(_ sender: NSMenuItem) {

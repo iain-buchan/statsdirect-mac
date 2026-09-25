@@ -1,6 +1,6 @@
 # Full headless calculation engine
 
-This project compiles the StatsDirect 5.0.5 calculation source, rather than extracting a single procedure. `Upstream` is a Git submodule of [iain-buchan/statsdirect](https://github.com/iain-buchan/statsdirect), tracking its primary **main** branch for explicit updates and pinned to the tested commit recorded in `upstream-manifest.json`. The project compiles the calculation source directly from that checkout: all Builtins (apart from the dialog-dependent ImportExport implementation), Numerics, Data, Templates, expression parsers, template processing, chart definitions/renderers, utilities, configuration, CSV and R support. All 284 operation definitions and their report templates are included. Numerical algorithms are unchanged.
+This project compiles the StatsDirect 5.0.7 calculation source, rather than extracting a single procedure. `Upstream` is a Git submodule of [iain-buchan/statsdirect](https://github.com/iain-buchan/statsdirect), tracking its primary **main** branch for explicit updates and pinned to the tested commit recorded in `upstream-manifest.json`. The project compiles the calculation source directly from that checkout: all Builtins (apart from the dialog-dependent ImportExport implementation), Numerics, Data, Templates, expression parsers, template processing, chart definitions/renderers, utilities, configuration, CSV and R support. All 284 operation definitions and their report templates are included. Numerical algorithms are unchanged.
 
 The original `OperationTestHost` and `OperationsTester` are compiled unchanged. This source revision contains **two populated operation tests**, covering paired t and exact sign, plus one empty test. Both populated tests pass, checking 26 expected outputs in total. Loading 284 definitions does not mean all 284 procedures have been exercised.
 
@@ -30,9 +30,9 @@ These are hosting/rendering boundaries, not numerical rewrites. Do not interpret
 
 ## Rebuild
 
-Run `../build.sh` to build, run the original operation tests, verify the live bridge, and package the app. Requirements: Apple Silicon Mac, Xcode command line tools, Python 3, .NET 10 SDK. The .NET runtime is bundled with the app, so the resulting app does not require a separate .NET installation.
+Run `../build.sh` to build, run the original operation tests, verify the live bridge, and package the app. Requirements: Apple Silicon Mac, Xcode command line tools, Python 3, .NET 10 SDK and R for the independent numerical checks. The .NET runtime is bundled with the app, so the resulting app does not require a separate .NET installation.
 
-An existing clone needs `git submodule update --init --recursive`. The build verifies the submodule revision and all 871 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build.
+An existing clone needs `git submodule update --init --recursive`. The build verifies the submodule revision and all 874 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build.
 
 ## Updating the calculation engine
 
@@ -49,15 +49,20 @@ Review the upstream changes against the Mac platform copies listed above, especi
 ```sh
 python3 FullEngine/import_upstream.py
 # If Windows menu/help definitions changed, with a statisticalhelp checkout:
+python3 import_help.py /path/to/statisticalhelp
 python3 import_analysis.py FullEngine/Upstream /path/to/statisticalhelp
+# If the example workbook changed, copy it and update Content/Examples/README.md:
+cp FullEngine/Upstream/StatsDirectUI/Assets/Data/test.xlsx Content/Examples/test.xlsx
 ./build.sh
-git add FullEngine/Upstream FullEngine/upstream-manifest.json
-# Also stage reviewed host adaptations and generated menu changes, then commit.
+git add FullEngine/Upstream FullEngine/upstream-manifest.json Content/engine-info.json
+# Also stage reviewed host adaptations, imported help, menus and examples, then commit.
 ```
 
-`import_upstream.py` records provenance only; it neither copies engine files nor reapplies platform adaptations. `--check` verifies the revision and hashes without writing. Commit the submodule pointer, provenance and any reviewed host changes together after the regression checks pass. Push the Mac repository to `iain-buchan/statsdirect-mac`; ordinary Mac work does not require pushing to or changing `iain-buchan/statsdirect`.
+`import_upstream.py` records provenance only; it neither copies engine files nor reapplies platform adaptations. It also writes `Content/engine-info.json`, which supplies the engine version shown in About and report footers. `--check` verifies that metadata, the revision and hashes without writing. The help importer records its source revision and all bundled help hashes in `Content/help-manifest.json`. Commit the submodule pointer, provenance and any reviewed host changes together after the regression checks pass. Push the Mac repository to `iain-buchan/statsdirect-mac`; ordinary Mac work does not require pushing to or changing `iain-buchan/statsdirect`.
 
 ## Analysis checks
+
+`Tests/test_upstream_update.py` checks the 5.0.7 normality fixes through the Mac report path, including constant samples, two-value samples, extreme scaling and large offsets. It compares Shapiro-Wilk and small normal/F/Poisson tails with base R, and checks the Mac calculator's Kendall input limits. At extreme numeric scales, the normality statistics complete but the existing chart axis renderer may report that the chart cannot be drawn.
 
 `Tests/test_chi_square.py` exercises the native analysis bridge and compares the help table's Pearson, G and Fisher exact tests against R. It also checks custom scores, report options, seeded Monte Carlo, input validation and cancellation. Compile `Tests/analysis-driver.cpp`, then pass its path to the Python test; Rscript must be available at the configured Mac path.
 

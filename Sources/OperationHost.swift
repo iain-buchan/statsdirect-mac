@@ -142,7 +142,7 @@ extension Viewer {
         <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)</section>
         \(reportLinks(rPlan, helpPath: methodPath))
         <details><summary>Inputs used for this report</summary><pre>\(htmlEscape(String(decoding: inputData, as: UTF8.self)))</pre></details>
-        <p class="muted">Calculated by the StatsDirect 5.0.5 engine · \(htmlEscape(doc.operationName ?? ""))</p>
+        <p class="muted">Calculated by the StatsDirect \(htmlEscape(engineVersion)) engine · \(htmlEscape(doc.operationName ?? ""))</p>
         """
         let report = newDocument(kind: "report", title: "Report \(reportNumber) · \(doc.title)", html: page(doc.title, body))
         report.rScriptPlan = rPlan; report.operationName = doc.operationName

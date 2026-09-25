@@ -1873,12 +1873,12 @@
     },
     "RndUniform01": {
       "id": "RndUniform01",
-      "title": "Random numbers: uniform 0 to 1",
+      "title": "Random numbers: Uniform 0 to 1",
       "help": "Help/randomization/generate_random_numbers.htm"
     },
     "RndUniformAB": {
       "id": "RndUniformAB",
-      "title": "Random numbers: uniform a to b",
+      "title": "Random numbers: Uniform a to b",
       "help": "Help/randomization/generate_random_numbers.htm"
     },
     "RndNormal": {
@@ -1893,7 +1893,7 @@
     },
     "RndBinomial": {
       "id": "RndBinomial",
-      "title": "Random numbers: uniform a to b",
+      "title": "Random numbers: Binomial",
       "help": "Help/randomization/generate_random_numbers.htm"
     },
     "RndPoisson": {
@@ -1928,7 +1928,7 @@
     },
     "RndLogit": {
       "id": "RndLogit",
-      "title": "Random numbers: Logit",
+      "title": "Random numbers: Logistic",
       "help": "Help/randomization/generate_random_numbers.htm"
     },
     "RndGeometric": {
@@ -1953,7 +1953,7 @@
     },
     "RndBeta": {
       "id": "RndBeta",
-      "title": "Random numbers: beta",
+      "title": "Random numbers: Beta",
       "help": "Help/randomization/generate_random_numbers.htm"
     },
     "SearchAndReplace": {
@@ -2423,7 +2423,7 @@
     },
     "MiscDiagnostic": {
       "id": "MiscDiagnostic",
-      "title": "Dignostic test performance analysis",
+      "title": "Diagnostic test performance analysis",
       "help": "Help/clinical_epidemiology/diagnostic.htm"
     },
     "MiscLikely": {
@@ -2433,7 +2433,7 @@
     },
     "MiscNumberNeededToTreat": {
       "id": "MiscNumberNeededToTreat",
-      "title": "Nunber needed to treat",
+      "title": "Number needed to treat",
       "help": "Help/clinical_epidemiology/nnt.htm"
     },
     "MiscFalseResult": {

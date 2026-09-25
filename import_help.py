@@ -1,5 +1,5 @@
 from pathlib import Path
-import shutil,re,html,sys
+import shutil,re,html,sys,subprocess,json,hashlib
 base=Path(__file__).resolve().parent
 if len(sys.argv) != 2: raise SystemExit('Usage: python3 import_help.py /path/to/statisticalhelp')
 repository=Path(sys.argv[1]).resolve()
@@ -32,4 +32,6 @@ for category,title,path in items:
     body+=f'<li><a href="Help/{html.escape(path)}">{html.escape(title)}</a></li>'
 body+='</ul></section>'
 (content/'help-index.html').write_text('''<!doctype html><html lang="en"><head><meta charset="utf-8"><title>StatsDirect help library</title><link rel="stylesheet" href="viewer.css"><style>input{font:inherit;width:90%;padding:12px;border:1px solid #bac8cf;border-radius:8px}li{margin:6px 0}ul{list-style:none;padding:0}</style></head><body><div class="eyebrow">StatsDirect / Help</div><h1>Help library</h1><p>Original StatsDirect help pages, available offline. Filter by topic title or category.</p><input aria-label="Filter help topics" placeholder="Find a topic…" type="search" oninput="filterTopics(this.value)">'''+body+'''<script>function filterTopics(value){const q=value.toLowerCase();document.querySelectorAll('section').forEach(s=>{const category=s.querySelector('h2').textContent.toLowerCase();s.querySelectorAll('li').forEach(li=>li.hidden=!(category+' '+li.textContent.toLowerCase()).includes(q));s.hidden=![...s.querySelectorAll('li')].some(li=>!li.hidden)})}</script></body></html>''')
-print(f'Copied original help collection; indexed {len(items)} topics; extracted original results table.')
+manifest={'repository':'https://github.com/iain-buchan/statisticalhelp','commit':subprocess.check_output(['git','-C',str(repository),'rev-parse','HEAD'],text=True).strip(),'source':'Docs','topics':len(items),'sha256':{p.relative_to(content/'Help').as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((content/'Help').rglob('*')) if p.is_file()}}
+(content/'help-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+print(f'Copied original help collection; indexed {len(items)} topics; extracted original results table; recorded help {manifest["commit"][:12]}.')

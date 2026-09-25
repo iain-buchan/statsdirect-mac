@@ -83,7 +83,7 @@ internal static class HostAmendments {
     static ParameterBag Distribution(OperationJob job, DistributionType type) {
         var fields = new List<object>();
         if (type != DistributionType.Poisson) fields.Add(Field("x", type == DistributionType.Binomial ? "Probability of success" : type == DistributionType.Kendall ? "Kendall tau" : type == DistributionType.Rho ? "Spearman rho" : "Statistic", type == DistributionType.Binomial || type == DistributionType.Kendall || type == DistributionType.Rho ? 0.5 : 1.96));
-        if (type != DistributionType.Z) fields.Add(Field("df", type == DistributionType.Binomial ? "Number of trials" : type == DistributionType.Poisson ? "Number of events" : type == DistributionType.Rho || type == DistributionType.Kendall ? "Sample size" : "Degrees of freedom", 10, "integer", type == DistributionType.Poisson ? 0 : 1));
+        if (type != DistributionType.Z) fields.Add(Field("df", type == DistributionType.Binomial ? "Number of trials" : type == DistributionType.Poisson ? "Number of events" : type == DistributionType.Rho || type == DistributionType.Kendall ? "Sample size" : "Degrees of freedom", 10, "integer", type == DistributionType.Poisson ? 0 : type == DistributionType.Kendall ? 2 : 1));
         if (type == DistributionType.F || type == DistributionType.Q || type == DistributionType.Binomial || type == DistributionType.Poisson || type == DistributionType.NonCentralT) fields.Add(Field("df2", type == DistributionType.F ? "Denominator degrees of freedom" : type == DistributionType.Q ? "Number of samples" : type == DistributionType.Binomial ? "Number of successes" : type == DistributionType.Poisson ? "Mean" : "Noncentrality", type == DistributionType.NonCentralT ? 0 : 2));
         double lower = 0, upper = 0, mass = double.NaN;
         var result = Form(job, type + " distribution", fields.ToArray(), a => {
@@ -93,7 +93,9 @@ internal static class HostAmendments {
             if (type != DistributionType.Z && (df < (type == DistributionType.Poisson ? 0 : 1) || df != Math.Truncate(df) || df > int.MaxValue)) throw new ArgumentException("Enter valid integer degrees of freedom, sample size or event count.");
             int fault = 0;
             switch (type) {
-                case DistributionType.Z: lower = PDF.alnorm(x); upper = 1 - lower; break;
+                // Match the Windows calculator: obtain the small upper tail directly,
+                // since subtracting a rounded lower tail loses it for large positive z.
+                case DistributionType.Z: lower = PDF.alnorm(x); upper = PDF.alnorm(-x); break;
                 case DistributionType.T: upper = PDF.tvalp(x, df); lower = 1 - upper; break;
                 case DistributionType.F: if (x < 0 || df2 <= 0) throw new ArgumentException("F must be non-negative and both degrees of freedom positive."); upper = PDF.fvalp(x, df, df2); lower = 1 - upper; break;
                 case DistributionType.ChiSq: if (x < 0) throw new ArgumentException("Chi-square must be non-negative."); upper = PDF.chivalp(x, df); lower = 1 - upper; break;
@@ -102,7 +104,7 @@ internal static class HostAmendments {
                 case DistributionType.Poisson: if (df2 < 0) throw new ArgumentException("The mean must be non-negative."); ExFortran.poisson(df2, (int)df, out upper, out lower, out mass, out fault); break;
                 case DistributionType.NonCentralT: lower = ExFortran.pnct(x, (int)df, df2, out fault); upper = 1 - lower; break;
                 case DistributionType.Rho: if (df < 4 || x < -1 || x > 1) throw new ArgumentException("Use a sample size of at least 4 and rho between −1 and 1."); upper = MathDbl.prhoUpper((int)df, Convert.ToInt32((1 - x) * df * (df * df - 1) / 6), out fault); lower = double.NaN; break;
-                case DistributionType.Kendall: if (x < -1 || x > 1) throw new ArgumentException("Tau must be between −1 and 1."); upper = MathDbl.kendp(Convert.ToInt32(x * df * (df - 1) / 2), (int)df, ref fault); lower = double.NaN; break;
+                case DistributionType.Kendall: if (df < 2 || x < -1 || x > 1) throw new ArgumentException("Use a sample size of at least 2 and tau between −1 and 1."); upper = MathDbl.kendp(Convert.ToInt32(x * df * (df - 1) / 2), (int)df, ref fault); lower = double.NaN; break;
             }
             if (fault != 0 || !double.IsFinite(upper) || upper < 0 || upper > 1) throw new ArgumentException("The engine could not calculate this distribution for those inputs.");
         });

@@ -94,7 +94,9 @@ The mappings follow the [R stats reference](https://stat.ethz.ch/R-manual/R-deve
 
 ## Engine
 
-The app now embeds the **full StatsDirect 5.0.5 headless calculation build**, replacing the earlier extracted paired routine. It loads 284 operation definitions. The paired menu action runs the original `TPaired` definition through `TemplateProcessor` and displays HTML from the original report renderer. Calculations and C#/VB scripts run in the same process as the Mac window, using a bundled .NET runtime.
+The app now embeds the **full StatsDirect 5.0.7 headless calculation build**, replacing the earlier extracted paired routine. It loads 284 operation definitions. The paired menu action runs the original `TPaired` definition through `TemplateProcessor` and displays HTML from the original report renderer. Calculations and C#/VB scripts run in the same process as the Mac window, using a bundled .NET runtime.
+
+The 25 September 2026 refresh incorporates Windows engine commit `c956b122c9b7`, help commit `d02543897aac`, and the revised example workbook. About and report footers read the imported engine version. The 400 offline help topics include 135 expandable R examples. See [verification](Tests/verification.md#upstream-refresh--25-september-2026) for coverage and the three outstanding checks in the help repository's R reference suite.
 
 The shell is Swift/AppKit with WKWebView. This establishes a native Mac prototype and reusable HTML content; it is not yet the proposed Avalonia shell or a completed replacement for the Windows application.
 

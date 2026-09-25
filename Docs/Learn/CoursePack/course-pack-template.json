@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "title": "Example course pack — replace with your module title",
+  "documents": [
+    {
+      "id": "course-outline",
+      "title": "Learning outcomes and teaching approach",
+      "text": "Example for tutors to replace: By the end of this module, learners should distinguish risk, rates and prevalence; identify cohort, case-control and randomised designs; interpret confidence intervals; explain confounding and selection bias; and reproduce a simple StatsDirect analysis in base R. Begin with a study question and a labelled data table. Ask the learner to explain the denominator and assumptions before calculating."
+    },
+    {
+      "id": "causal-foundations",
+      "title": "Causal inference — introductory guidance",
+      "text": "A causal question compares well-defined alternatives in a target population. Observational associations can be distorted by confounding, selection and measurement error. A confounder can be a cause of both exposure and outcome. A mediator lies on a causal pathway; adjusting for it can change a total-effect question into a different one. A collider is a common consequence; conditioning on it can induce an association. Discuss temporal order and the causal question before selecting adjustment variables."
+    },
+    {
+      "id": "review-guidance",
+      "title": "Formative feedback and external review",
+      "text": "Suggested formative feedback: assess whether the learner identified the population, denominator, time horizon, study design, assumptions and limitations; explain misconceptions; ask a new transfer question. This example pack supplies teaching context only. It does not configure accredited assessment, add scored examination items or authorise a CPD award."
+    }
+  ]
+}

@@ -11,6 +11,7 @@ extension Viewer: WKScriptMessageHandler {
         doc.pendingWorkbook = ["name": title, "formulaCount": 0, "sheets": [["name": "Sheet 1", "rows": 100, "columns": 8, "headerRow": false, "cells": []]]]
     }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "statsDirectLearn" { handleLearning(message); return }
         if message.name == "statsDirectReport" { handleReport(message); return }
         if message.name == "statsDirectOperation" { handleOperation(message); return }
         if message.name == "statsDirectAnalysis" { handleAnalysis(message); return }

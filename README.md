@@ -127,3 +127,7 @@ Run `./build.sh` on an Apple Silicon Mac with Xcode command line tools, Python 3
 See [Updating the calculation engine](FullEngine/README.md#updating-the-calculation-engine) for the controlled update procedure. The Git submodule link and `FullEngine/upstream-manifest.json` identify the exact engine revision used by this Mac version.
 
 To refresh the menu and its help mapping, run `python3 import_analysis.py /path/to/statsdirect /path/to/statisticalhelp`. To refresh help, run `python3 import_help.py /path/to/statisticalhelp`. Engine refresh instructions are in FullEngine/README.md. Source revisions and hashes are recorded in the provenance manifests. No changes have been pushed to either upstream repository.
+
+## Learning
+
+Version 0.3.0 adds **Help → Learning** and **Learning Options** with an OpenAI tutor connection, personalised exam goals, epidemiology and causal inference, 30 original practice questions, worked StatsDirect/R examples, tutor-supplied course packs and review-record email drafts. Add an API key securely through **AI settings** for live conversation. See [Learning documentation](Learn/README.md), [course-pack template](Docs/Learn/CoursePack/course-pack-template.json) and [exam sources](Docs/Learn/EXAM-SOURCES.md). Draft scores do not award accreditation or CPD points.

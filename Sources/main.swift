@@ -30,6 +30,11 @@ final class Document {
     var operationClosing = false
     var operationStarting = false
     var operationRevision = 0
+    var learningTask: Task<Void, Never>?
+    var learningRequestID: String?
+    var learningState: [String: Any]?
+    var initialLearningView: String?
+    var initialOperationSource: [String: Any]?
     var hasSVG = false
     init(kind: String, title: String, access: URL) {
         self.kind = kind; self.title = title; self.access = access
@@ -80,6 +85,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         window.minSize = NSSize(width: 850, height: 520)
         let container = NSView(); window.contentView = container
         let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 4
+        let symbol = NSImageView(); symbol.image = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")); symbol.imageScaling = .scaleProportionallyUpOrDown
+        symbol.setAccessibilityLabel("StatsDirect"); symbol.widthAnchor.constraint(equalToConstant:26).isActive = true; symbol.heightAnchor.constraint(equalToConstant:26).isActive = true; bar.addArrangedSubview(symbol)
         for title in ["File", "Edit", "Data", "Analysis", "Graphics", "R", "Help", "Window"] {
             let button = NSButton(title: title + " ▾", target: self, action: #selector(showDropdown(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(title)
@@ -106,6 +113,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             tabs.topAnchor.constraint(equalTo: documentTabScroll.bottomAnchor, constant: 2), tabs.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), tabs.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
             status.topAnchor.constraint(equalTo: tabs.bottomAnchor, constant: 7), status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16), status.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16), status.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
         ])
+        if let icon = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")) { NSApp.applicationIconImage = icon }
         setupMenu()
         newWorksheet()
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
@@ -171,6 +179,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(rMenu, "Stop / Reset Session", #selector(stopRSession))
         add(rMenu, "Save Script…", #selector(saveRScript))
         let help = menu("Help")
+        add(help, "Learning", #selector(openLearning))
+        add(help, "Learning Options…", #selector(openLearningOptions))
+        help.addItem(.separator())
         add(help, "StatsDirect Help", #selector(helpLibrary), "?")
         add(help, "Help for Current Analysis", #selector(currentMethodHelp))
         let examples = NSMenu(title: "Examples")
@@ -197,7 +208,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
         if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
         if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
-        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV…") : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"; return active != nil && active?.kind != "operation" }
+        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "learn" ? "Export Learning Record…" : active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV…") : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"; return active != nil && active?.kind != "operation" }
         if [#selector(closeTab), #selector(printPage), #selector(savePDF)].contains(menuItem.action) { return active != nil }
         return true
     }
@@ -271,6 +282,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if kind == "report" && url == nil { doc.web.configuration.userContentController.add(self, name: "statsDirectReport") }
         if kind == "grid" { doc.web.configuration.userContentController.add(self, name: "statsDirectGrid") }
         if kind == "operation" { doc.web.configuration.userContentController.add(self, name: "statsDirectOperation") }
+        if kind == "learn" { doc.web.configuration.userContentController.add(self, name: "statsDirectLearn") }
         if kind == "analysis" { doc.web.configuration.userContentController.add(self, name: "statsDirectAnalysis") }
         doc.hasSVG = html?.contains("<svg") == true
         doc.initialURL = url; doc.web.navigationDelegate = self; doc.web.uiDelegate = self
@@ -299,6 +311,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0"
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "StatsDirect",
+            .applicationIcon: NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")) ?? NSApp.applicationIconImage!,
             .applicationVersion: "\(version) · macOS prototype",
             .version: "",
             .credits: NSAttributedString(string: "Calculation engine: StatsDirect \(engineVersion)\nA development preview for macOS.", attributes: [.font: NSFont.systemFont(ofSize: 12)])
@@ -358,6 +371,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectGrid")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectAnalysis")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectOperation")
+        doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectLearn")
+        doc.learningTask?.cancel(); doc.learningTask = nil
         doc.rPane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }
         tabs.removeTabViewItem(doc.item)
@@ -402,6 +417,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func savePDF() {
         if let pane = active?.rPane { pane.saveScript(); return }
         guard let doc = active else { return }
+        if doc.kind == "learn" { doc.web.evaluateJavaScript("window.statsDirectLearn?.exportRecord()"); return }
         if doc.kind == "grid" { if let format = doc.rDataFormat { saveRData(doc, format: format) } else if doc.csvSaveName != nil { saveGrid(doc) } else { saveExcel(doc) }; return }
         if doc.kind == "analysis" { saveAnalysisTable(doc); return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.pdf]; panel.nameFieldStringValue = "\(doc.title).pdf"

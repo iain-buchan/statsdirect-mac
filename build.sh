@@ -19,9 +19,11 @@ DOTNET_BIN="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "
 export DOTNET_BIN
 FullEngine/build.sh
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
-swiftc -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/main.swift Sources/RPane.swift Sources/RScriptGenerator.swift Sources/ReportRHost.swift Sources/GridHost.swift Sources/CSVFileIO.swift Sources/RDataFileIO.swift Sources/RDataHost.swift Sources/ExcelHost.swift Sources/AnalysisHost.swift Sources/ChartHost.swift Sources/OperationHost.swift -o "$APP/Contents/MacOS/StatsDirectViewer" -framework Cocoa -framework WebKit -framework PDFKit
+swiftc -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/main.swift Sources/RPane.swift Sources/RScriptGenerator.swift Sources/ReportRHost.swift Sources/GridHost.swift Sources/CSVFileIO.swift Sources/RDataFileIO.swift Sources/RDataHost.swift Sources/ExcelHost.swift Sources/AnalysisHost.swift Sources/ChartHost.swift Sources/OperationHost.swift Sources/LearningCore.swift Sources/LearnHost.swift Sources/CoursePack.swift Sources/CoursePackHost.swift -o "$APP/Contents/MacOS/StatsDirectViewer" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
 cp FullEngine/publish/StatsDirectEngine.dylib "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
 ditto FullEngine/publish "$APP/Contents/Resources/Engine"
+python3 Scripts/build-icon.py "$BUILD_WORK"
+cp "$BUILD_WORK/StatsDirect.icns" "$APP/Contents/Resources/StatsDirect.icns"
 cp Info.plist "$APP/Contents/Info.plist"
 cp STATSDIRECT-LICENSE.txt STATISTICALHELP-LICENSE.txt DOTNET-LICENSE.txt DOTNET-ThirdPartyNotices.txt "$APP/Contents/Resources/"
 ditto Content "$APP/Contents/Resources/Content"

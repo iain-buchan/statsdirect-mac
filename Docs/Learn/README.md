@@ -1,6 +1,8 @@
 # StatsDirect Learn — feasibility and pilot proposal
 
-25 September 2026 · Research and an interactive concept, not a released feature.
+25 September 2026 · Original research and interactive concept.
+
+**Implementation update:** The integrated macOS feature is now documented in [Learn/README.md](../../Learn/README.md), including OpenAI configuration, 30 draft questions, learning options and [course packs](CoursePack/README.md). The standalone concept below remains an archive of the initial proposal.
 
 A conversational **Learn** document is feasible within the existing Mac shell. The strongest version would connect explanation, assessment and practical work: a learner discusses a concept, answers a question, explores its data in StatsDirect and receives a specific plan for further study. Reviewed feedback could then become evidence in their CPD portfolio.
 

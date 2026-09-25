@@ -78,6 +78,9 @@ extension Viewer {
     }
     func operationError(_ doc: Document, _ text: String) { operationScript(doc, "error", text) }
     func refreshOperationSource(_ doc: Document, completion: (() -> Void)? = nil) {
+        if let source = doc.initialOperationSource {
+            doc.initialOperationSource = nil; operationScript(doc, "setSource", source); completion?(); return
+        }
         guard let source = documents.first(where: { $0.id == analysisSourceID }), source.kind == "grid" else { operationScript(doc, "setSource", NSNull()); completion?(); return }
         let script = "window.statsDirectGrid?.analysisSource()"
         source.web.evaluateJavaScript(script) { snapshot, error in

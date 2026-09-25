@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <title>StatsDirect · Learn concept</title><link rel="stylesheet" href="learn.css">
+</head>
+<body>
+  <header><div><strong>StatsDirect</strong><span class="divider">/</span><span>Learn</span></div><span class="badge">Interactive concept</span></header>
+  <div class="workspace">
+    <aside aria-label="Learning setup">
+      <p class="eyebrow">BIOSTATISTICS</p><h1>Think it through.</h1>
+      <p class="muted">Understand the method.<br>Explain the result.<br>Build your next learning step.</p>
+      <label for="track">Your learning path</label><select id="track"><option value="foundation">Medical undergraduate</option><option value="medicine">Postgraduate medicine</option><option value="publicHealth">Public health postgraduate</option></select>
+      <label for="mode">Session</label><select id="mode"><option value="learn">Learn with guidance</option><option value="test">Test yourself</option></select>
+      <p id="mode-note" class="small">Explanations and hints are available as you work.</p>
+      <button id="start" class="primary">Start a four-question session →</button>
+      <div class="sidebar-note"><strong>Research prototype</strong><p>12 original question drafts. The tutor is scripted. No live AI, email or University review is connected.</p><p>Answers stay in this page until you export or close it.</p></div>
+      <a href="README.md" target="_blank" rel="noopener">Read the feasibility proposal ↗</a>
+    </aside>
+    <main>
+      <section id="welcome">
+        <p class="eyebrow">A PLACE TO ASK WHY</p><h2>A tutor beside your analysis.</h2>
+        <p class="lead">A Learn window could connect a question to its explanation, a StatsDirect example and a record of what to practise next.</p>
+        <div class="steps"><article><span>01</span><h3>Learn</h3><p>Work through an idea, ask for a hint and explain your thinking.</p></article><article><span>02</span><h3>Practise</h3><p>Choose an answer and record how confident you feel.</p></article><article><span>03</span><h3>Review</h3><p>Use targeted feedback to plan your next learning session.</p></article></div>
+        <div class="note"><strong>What would happen after a test?</strong><p>You would preview your results and choose whether to submit them. StatsDirect support would receive a review notification; a future University service could check the marking, with academic review before any formal assessment decision.</p></div>
+        <p class="small">This is a design demonstration for formative learning. These items have not been approved by an examination board or a subject-expert panel.</p>
+      </section>
+      <section id="study" hidden aria-labelledby="topic">
+        <div class="session-line"><span id="progress"></span><span id="session-mode" class="badge"></span></div>
+        <progress id="progress-bar" max="4" value="0" aria-label="Questions answered"></progress>
+        <p id="objective" class="eyebrow"></p><h2 id="topic" tabindex="-1"></h2>
+        <div id="conversation" class="conversation" aria-live="polite"></div>
+        <form id="answer-form">
+          <fieldset id="choices"><legend>Choose one best answer</legend></fieldset>
+          <label for="confidence">How confident are you?</label><select id="confidence"><option value="unsure">Unsure</option><option value="fairly" selected>Fairly sure</option><option value="confident">Confident</option></select>
+          <label for="reasoning">Explain your thinking <span class="muted">(optional)</span></label><textarea id="reasoning" maxlength="1500" rows="2" placeholder="Which detail or calculation led you to your answer?"></textarea>
+          <p class="small">Your explanation is saved for review; this demo marks only your selected answer.</p>
+          <div class="actions"><button type="submit" id="answer" class="primary">Check my answer</button><button type="button" id="hint">Give me a hint</button><button type="button" id="explain">Explain this idea</button></div>
+          <p id="error" role="alert"></p>
+        </form>
+        <div id="feedback" aria-live="polite"></div>
+        <div class="actions"><button id="next" class="primary" hidden>Next question →</button></div>
+      </section>
+      <section id="results" hidden aria-labelledby="result-title">
+        <p class="eyebrow">YOUR LEARNING RECORD</p><h2 id="result-title" tabindex="-1">A starting point for your next session.</h2>
+        <div id="score"></div><div id="plan"></div><div id="answer-review"></div>
+        <label for="reflection">What will you do differently after this session?</label><textarea id="reflection" maxlength="1500" rows="3" placeholder="One thing I understand better; one thing I want to practise next…"></textarea>
+        <div class="note"><strong>Review status: local draft</strong><p>In the proposed service, you would preview this record before submitting it to StatsDirect support. University review would be a separate, recorded step.</p><p><strong>Initial destination:</strong> support@statsdirect.com<br><strong>Future University destination:</strong> chil@liverpool.ac.uk</p><p>No email is sent in this prototype. No University approval or CPD credit is claimed.</p></div>
+        <div class="actions"><button id="export" class="primary">Export local review record</button><button id="again">Choose another session</button></div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="learn.mjs"></script>
+</body>
+</html>

@@ -10,6 +10,10 @@ The window uses the native macOS red, amber and green controls. Drag the title b
 
 Reports, help, analysis forms, worksheets and R sessions stay open as separate documents in one native Mac window. **File, Edit, Data, Analysis, Graphics, R, Help and Window** dropdowns contain commands. A compact row of document tabs beneath them lets you switch directly and close any document with its **×** button. **Window** also lists the documents; **⌘W** closes the current one. Closing an active analysis cancels only that form. Unsaved worksheet and R script changes still prompt before being discarded. The same commands are available in the macOS menu bar. The Help library contains 400 topics from the supplied statisticalhelp repository. Printing and PDF export use WebKit.
 
+## Learn exploration
+
+[Learn research and interactive concept](Docs/Learn/README.md) explores biostatistics teaching, formative testing and reviewed feedback for medical and public-health learners. The standalone browser concept contains twelve original question drafts with guided practice, independent testing and an exportable learning record. It is not yet integrated into the Mac application and has no live AI, email delivery or University review connection.
+
 ## Data grid
 
 **File → New Worksheet** (⌘N) opens a blank 100-row, eight-column worksheet. Double-click to edit, or use the selected-cell value field. Return saves the value and selects the cell below. Arrow keys save an edit and move one cell in the indicated direction. These controls also work in analysis input grids and stop at table edges. Small analysis grids fit their dimensions, so a 2 × 2 count table displays only four entry cells plus headings.

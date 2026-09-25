@@ -1,12 +1,16 @@
-# StatsDirect Learning (macOS prototype 0.3.0)
+# StatsDirect Learning (macOS prototype 0.3.1)
 
 Open **Help → Learning** or **Help → Learning Options**. This is an integrated closable Mac document: original Windows artwork, seven lessons, five learner pathways, 30 original draft MCQs, local persistence, real StatsDirect analysis forms and seven runnable base-R examples with plots. Epidemiology and causal inference are shared foundations. Options include learning needs, named exams/qualifications, prior knowledge, R experience, target date, priorities and teaching style.
 
-## OpenAI tutor
+## Shared conversational tutor
 
-Choose **AI settings**, enter your own API key and an available model (default `gpt-6-sol`). The native host stores the key in macOS Keychain; it is never passed into the WebView, saved in a learning record or bundled with the app. Each explicit Send calls the [Responses API](https://developers.openai.com/api/docs/guides/text) at the fixed HTTPS OpenAI endpoint using `store:false`, bounded recent conversation (up to 40 messages / 60,000 characters), lesson context, learning options and any retrieved course excerpts. API billing and [provider data controls](https://developers.openai.com/api/docs/guides/your-data) apply; `store:false` is not a promise of zero retention. Review identity fields and other open worksheets are not automatically attached. A model name can be changed for the API project's availability; the default was checked against the [model catalogue](https://developers.openai.com/api/docs/models) on 25 September 2026.
+Learners do not enter an OpenAI key or choose a model. The Mac connects to a StatsDirect/course-managed service and automatically creates a limited learning session when the learner first sends a question. Its service token stays in macOS Keychain. The administrator holds the OpenAI credential on the server and controls the model, teaching policy and usage allowance. No provider credential is accepted by the Mac or included in its bundle.
 
-The tutor has no tools and cannot run R, modify marks or send email. Replies are rendered as escaped text/code. Curated lesson buttons start allowlisted engine methods, help pages and bundled R examples; model-generated code is never auto-executed. Cancellation and API errors keep local records intact. Live OpenAI quality/network testing requires a user-supplied API key and remains outstanding for this build; offline request/response boundary tests use synthetic data only.
+This build includes the client and the [deployable .NET service](../TutorService/README.md). Hosting and an administrator's OpenAI credential have not yet been configured, so the shipped prototype shows **Awaiting service activation**. It does not silently substitute an offline guide for a live AI answer. Once a publisher embeds the service's HTTPS address, learners can simply type and Send. Existing pilot builds can import a public connection file through **Tutor connection**; this is not an API-key file.
+
+Each explicit Send shares bounded recent conversation (up to 40 messages / 60,000 characters), the lesson, learning options and retrieved course excerpts with the chosen service and OpenAI. Review identity fields and other open worksheets are not automatically attached. The service uses the [Responses API](https://developers.openai.com/api/docs/guides/text), `store:false`, fixed teaching instructions and no tools. Provider [data controls](https://developers.openai.com/api/docs/guides/your-data) apply; `store:false` is not a promise of zero retention. Replies are escaped text/code, and model-generated code is never auto-executed.
+
+Offline service/client tests use a simulated provider. Live network credentials, quality, latency and deployment testing remain outstanding until the service is hosted and activated. The service includes persistent daily caps; these are request allowances, not monetary budgets or learner identity verification.
 
 ## Teaching and records
 
@@ -14,7 +18,7 @@ Supported practice gives feedback after each answer, recording hints and in-app 
 
 **My learning record** previews the exact attachment, exports TXT or JSON and opens a native Mail draft addressed to the learner's choice of support@statsdirect.com or chil@liverpool.ac.uk. Sending is completed in Mail. If no Mail sharing service is available, Finder reveals the attachment for manual email. The app cannot verify dispatch, delivery, independent review or CPD accreditation. No email is sent during automated verification.
 
-Records and course packs are stored in `~/Library/Application Support/<bundle-id>/Learning/` with private file permissions. A malformed existing record is not overwritten. Browser preview uses separate browser-local storage and does not accept API credentials. Test builds use a separate bundle ID and storage.
+Records and course packs are stored in `~/Library/Application Support/<bundle-id>/Learning/` with private file permissions. A malformed existing record is not overwritten. Browser preview uses separate browser-local storage and does not connect to the managed service. Test builds use a separate bundle ID and storage.
 
 ## Course packs and sources
 

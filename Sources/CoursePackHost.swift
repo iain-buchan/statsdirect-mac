@@ -18,7 +18,7 @@ extension Viewer {
         guard doc.learningTask == nil else { return }
         let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.allowsMultipleSelection = true
         panel.allowedContentTypes = [.pdf,.plainText,.json,UTType(filenameExtension:"md") ?? .plainText]
-        panel.message = "Choose a tutor's JSON pack, or PDF, Markdown and text notes. Readable excerpts will be included when you send questions to OpenAI. A new import replaces the active pack; previous imports are kept locally."
+        panel.message = "Choose a tutor's JSON pack, or PDF, Markdown and text notes. Readable excerpts will be included when you send questions through the tutor service to OpenAI. A new import replaces the active pack; previous imports are kept locally."
         panel.beginSheetModal(for:window) { response in
             guard response == .OK else { return }
             do {

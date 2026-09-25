@@ -12,3 +12,8 @@ Tests/bridge-driver
 Grid/node_modules/
 
 Tests/operation-driver
+
+TutorService/bin/
+TutorService/obj/
+TutorService/data/
+TutorService/.env

@@ -2,26 +2,29 @@ import Cocoa
 import WebKit
 import Security
 import UniformTypeIdentifiers
+import CryptoKit
 
-/// Credentials never enter the WebView, the learning record, or the repository.
+/// A service-scoped session credential is stored on the Mac; it is not an OpenAI credential.
 enum TutorKeychain {
-    static var query: [String: Any] { [kSecClass as String:kSecClassGenericPassword, kSecAttrService as String:(Bundle.main.bundleIdentifier ?? "com.statsdirect.viewer.prototype") + ".openai-tutor", kSecAttrAccount as String:"api-key"] }
-    static func read() -> String? {
-        var q = query; q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
+    static func query(_ service: URL) -> [String:Any] {
+        let hostID = SHA256.hash(data:Data(service.absoluteString.utf8)).map{String(format:"%02x",$0)}.joined()
+        return [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:(Bundle.main.bundleIdentifier ?? "com.statsdirect.viewer.prototype") + ".managed-tutor",kSecAttrAccount as String:hostID]
+    }
+    static func read(_ service: URL) -> String? {
+        var q = query(service); q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        guard SecItemCopyMatching(q as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
+        guard SecItemCopyMatching(q as CFDictionary,&result) == errSecSuccess, let data = result as? Data else { return nil }
         return String(data:data,encoding:.utf8)
     }
-    static func write(_ value: String) throws {
-        let attributes = [kSecValueData as String:Data(value.utf8)]
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+    static func write(_ token: String, service: URL) throws {
+        let attributes = [kSecValueData as String:Data(token.utf8)]
+        let status = SecItemUpdate(query(service) as CFDictionary,attributes as CFDictionary)
         if status == errSecItemNotFound {
-            var q = query; q.merge(attributes) { _,new in new }; q[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            let added = SecItemAdd(q as CFDictionary,nil)
-            guard added == errSecSuccess else { throw LearningTutor.Failure(message:"The API key could not be saved in Keychain (\(added)).") }
-        } else if status != errSecSuccess { throw LearningTutor.Failure(message:"The API key could not be updated in Keychain (\(status)).") }
+            var q = query(service); q.merge(attributes){_,new in new}; q[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            guard SecItemAdd(q as CFDictionary,nil) == errSecSuccess else { throw LearningTutor.Failure(message:"The learning session could not be saved in Keychain.") }
+        } else if status != errSecSuccess { throw LearningTutor.Failure(message:"The learning session could not be updated in Keychain.") }
     }
-    static func remove() { SecItemDelete(query as CFDictionary) }
+    static func remove(_ service: URL) { SecItemDelete(query(service) as CFDictionary) }
 }
 
 extension Viewer {
@@ -44,8 +47,13 @@ extension Viewer {
         guard documents.contains(where:{$0 === doc}), let data = try? JSONSerialization.data(withJSONObject:value,options:[.fragmentsAllowed]) else { return }
         doc.web.evaluateJavaScript("window.statsDirectLearn?.\(action)(\(String(decoding:data,as:UTF8.self)))")
     }
+    var tutorServiceURL: URL? {
+        let raw = UserDefaults.standard.string(forKey:"managedTutorServiceURL") ?? Bundle.main.object(forInfoDictionaryKey:"StatsDirectTutorServiceURL") as? String ?? ""
+        let local = Bundle.main.object(forInfoDictionaryKey:"StatsDirectTutorAllowLocalTesting") as? Bool == true
+        return try? LearningTutor.serviceURL(raw,allowLocalTesting:local)
+    }
     func learningSettings(_ doc: Document) {
-        learningScript(doc,"settings",["configured":TutorKeychain.read() != nil,"model":UserDefaults.standard.string(forKey:"learningModel") ?? LearningTutor.defaultModel])
+        learningScript(doc,"settings",["configured":tutorServiceURL != nil,"service":tutorServiceURL?.host ?? "","label":tutorServiceURL == nil ? "Awaiting service activation" : "StatsDirect tutor"])
     }
     func handleLearning(_ message: WKScriptMessage) {
         guard message.name == "statsDirectLearn", message.frameInfo.isMainFrame,
@@ -93,39 +101,46 @@ extension Viewer {
         }
     }
     func configureLearningAI(_ doc: Document) {
-        let alert = NSAlert(); alert.messageText = "OpenAI tutor settings"
-        alert.informativeText = "Your API key is saved in macOS Keychain. Sending a question shares up to the last 40 conversation messages and the current learning context with OpenAI. Identity fields and other worksheets are not attached. API usage is billed to your OpenAI account."
-        alert.addButton(withTitle:"Save Settings"); alert.addButton(withTitle:"Cancel"); alert.addButton(withTitle:"Remove Key")
-        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 8
-        let key = NSSecureTextField(frame:NSRect(x:0,y:0,width:430,height:26)); key.placeholderString = TutorKeychain.read() == nil ? "OpenAI API key" : "Key saved — leave blank to keep it"
-        let model = NSTextField(string:UserDefaults.standard.string(forKey:"learningModel") ?? LearningTutor.defaultModel)
-        model.frame.size = NSSize(width:430,height:26)
-        stack.addArrangedSubview(NSTextField(labelWithString:"API key")); stack.addArrangedSubview(key)
-        stack.addArrangedSubview(NSTextField(labelWithString:"Model")); stack.addArrangedSubview(model)
-        stack.frame = NSRect(x:0,y:0,width:430,height:122); alert.accessoryView = stack
+        let alert = NSAlert(); alert.messageText = "Tutor connection"
+        if let service = tutorServiceURL {
+            alert.informativeText = "Learning connects through \(service.host ?? "your course service"). A learning session is created automatically when you send a question. StatsDirect or your course provider manages the OpenAI connection and usage. You do not need an OpenAI account or key.\n\nQuestions, recent conversation, learning goals and relevant course excerpts are shared with this service and OpenAI when you press Send."
+        } else {
+            alert.informativeText = "The shared tutor service is awaiting setup. StatsDirect or your course provider will activate it for learners. You do not need an OpenAI account or key.\n\nLessons, practice questions and StatsDirect/R examples are ready to use now."
+        }
+        alert.addButton(withTitle:"Done"); alert.addButton(withTitle:"Import Connection…")
         alert.beginSheetModal(for:window) { response in
-            if response == .alertThirdButtonReturn {
-                let requestID = doc.learningRequestID ?? ""
-                doc.learningTask?.cancel(); doc.learningTask = nil; doc.learningRequestID = nil
-                TutorKeychain.remove(); self.learningScript(doc,"tutorError",["id":requestID,"message":"API key removed."])
-            }
-            if response == .alertFirstButtonReturn {
-                do {
-                    let name = model.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)
-                    guard !name.isEmpty, name.count <= 100, name.range(of:"^[A-Za-z0-9._:-]+$",options:.regularExpression) != nil else { throw LearningTutor.Failure(message:"Enter a valid OpenAI model name.") }
-                    let secret = key.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)
-                    if !secret.isEmpty { try TutorKeychain.write(secret) }
-                    UserDefaults.standard.set(name,forKey:"learningModel")
-                } catch { self.showError(error.localizedDescription) }
-            }
-            key.stringValue = ""; self.learningSettings(doc)
+            if response == .alertSecondButtonReturn { self.importTutorConnection(doc) }
+        }
+    }
+    func importTutorConnection(_ doc: Document) {
+        guard doc.learningTask == nil else { return }
+        let panel = NSOpenPanel(); panel.allowedContentTypes = [.json]; panel.canChooseDirectories = false
+        panel.message = "Select the connection file supplied by StatsDirect or your course provider. It contains a service address, not an OpenAI key."
+        panel.beginSheetModal(for:window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                let data = try Data(contentsOf:url)
+                guard data.count <= 16_000, let profile = try JSONSerialization.jsonObject(with:data) as? [String:Any],
+                      profile["schemaVersion"] as? Int == 1, let raw = profile["serviceURL"] as? String else {
+                    throw LearningTutor.Failure(message:"Choose a valid StatsDirect tutor connection file.")
+                }
+                let service = try LearningTutor.serviceURL(raw)
+                let confirm = NSAlert(); confirm.messageText = "Connect learning to \(service.host ?? "")?"
+                confirm.informativeText = "Service: \(service.absoluteString)\n\nSending a question will share recent conversation, learning goals and relevant course excerpts with this service and its OpenAI connection. Importing makes no network request."
+                confirm.addButton(withTitle:"Use This Connection"); confirm.addButton(withTitle:"Cancel")
+                confirm.beginSheetModal(for:self.window) { choice in
+                    guard choice == .alertFirstButtonReturn else { return }
+                    UserDefaults.standard.set(service.absoluteString,forKey:"managedTutorServiceURL")
+                    self.learningSettings(doc); self.learningScript(doc,"notice","Tutor connection set. Send a question to start your learning session.")
+                }
+            } catch { self.learningScript(doc,"notice",error.localizedDescription) }
         }
     }
     func askLearningTutor(_ doc: Document, _ body: [String:Any]) {
         guard doc.learningTask == nil, let id = body["id"] as? String else { return }
         func failure(_ message: String) { learningScript(doc,"tutorError",["id":id,"message":message]) }
         if let quiz = doc.learningState?["quiz"] as? [String:Any], quiz["mode"] as? String == "test", quiz["completedAt"] is NSNull { failure("Finish or end the independent practice before asking the tutor."); return }
-        guard let key = TutorKeychain.read() else { failure("Add your OpenAI API key using AI settings to start the conversation."); return }
+        guard let service = tutorServiceURL else { failure("The shared tutor is awaiting activation by StatsDirect or your course provider. You do not need an OpenAI key."); return }
         guard let lessonID = body["lesson"] as? String, let lesson = learningLessons.first(where:{$0["id"] as? String == lessonID}),
               let messages = body["messages"] as? [[String:String]], let profile = body["profile"] as? String, let stage = body["stage"] as? String else { return }
         var context = "Learner pathway: \(profile.prefix(100)). R experience: \(stage.prefix(100)).\n"
@@ -144,28 +159,22 @@ extension Viewer {
                 courseSources.append(["id":excerpt.id,"title":excerpt.title])
             }
         }
-        let model = UserDefaults.standard.string(forKey:"learningModel") ?? LearningTutor.defaultModel
-        do {
-            let request = try LearningTutor.request(key:key,model:model,context:context,messages:messages)
-            doc.learningTask = Task { @MainActor [weak self, weak doc] in
-                guard let self, let doc else { return }
-                do {
-                    let configuration = URLSessionConfiguration.ephemeral; configuration.urlCache = nil
-                    let session = URLSession(configuration:configuration)
-                    defer { session.finishTasksAndInvalidate() }
-                    let (data,response) = try await session.data(for:request)
-                    try Task.checkCancellation()
-                    let result = try LearningTutor.reply(data:data,status:(response as? HTTPURLResponse)?.statusCode ?? 0)
-                    self.learningScript(doc,"reply",["id":id,"text":result.text,"model":result.model,"responseID":result.responseID,"promptVersion":LearningTutor.promptVersion,"courseSources":courseSources])
-                } catch {
-                    if !Task.isCancelled { self.learningScript(doc,"tutorError",["id":id,"message":error is URLError ? "The tutor could not connect to OpenAI. Check your network and try again." : error.localizedDescription]) }
+        doc.learningRequestID = id
+        doc.learningTask = Task { @MainActor [weak self, weak doc] in
+            guard let self, let doc else { return }
+            defer { if doc.learningRequestID == id { doc.learningTask = nil; doc.learningRequestID = nil } }
+            do {
+                let result = try await LearningTutor.converse(service:service,savedToken:TutorKeychain.read(service),lesson:lessonID,context:context,messages:messages,saveToken:{try TutorKeychain.write($0,service:service)},removeToken:{TutorKeychain.remove(service)})
+                self.learningScript(doc,"reply",["id":id,"text":result.text,"model":result.model,"responseID":result.responseID,"promptVersion":result.promptVersion,"courseSources":courseSources])
+            } catch {
+                if let failure = error as? LearningTutor.Failure, failure.code == "session_expired" { TutorKeychain.remove(service) }
+                if !Task.isCancelled {
+                    self.learningScript(doc,"tutorError",["id":id,"message":error is URLError ? "The shared tutor could not be reached. Check your network and try again." : error.localizedDescription])
                 }
-                // Do not let a cancelled old task clear a new request.
-                if doc.learningRequestID == id { doc.learningTask = nil }
             }
-            doc.learningRequestID = id
-        } catch { failure(error.localizedDescription) }
+        }
     }
+
     func openLearningExample(_ lesson: [String:Any], inR: Bool) {
         let title = lesson["title"] as? String ?? "Learning example"
         if inR, let script = lesson["r"] as? String {

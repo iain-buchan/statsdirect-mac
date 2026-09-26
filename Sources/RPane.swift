@@ -33,6 +33,11 @@ final class RPane: NSObject, NSTextViewDelegate {
     let state = NSTextField(labelWithString: "Starting R…")
     private let runButton = NSButton(title: "Run script  ⌘↩", target: nil, action: nil)
     private let stopButton = NSButton(title: "Stop / Reset", target: nil, action: nil)
+    private let installButton = NSButton(title: "Install R…", target: nil, action: nil)
+    private let installer: RInstaller
+    private let executable: () -> String?
+    private var requestingInstallation = false
+    private var runAfterInstallation = false
     private var process: Process?
     private var input: Pipe?
     private var output: Pipe?
@@ -48,8 +53,9 @@ final class RPane: NSObject, NSTextViewDelegate {
     var hasUnsavedChanges: Bool { editor.string != savedScript }
     var isRunning: Bool { busy }
 
-    init(script: String = "", resources: URL = Bundle.main.resourceURL!.appendingPathComponent("Content")) {
+    init(script: String = "", resources: URL = Bundle.main.resourceURL!.appendingPathComponent("Content"), installer: RInstaller? = nil, executable: @escaping () -> String? = { RRuntime.executable() }) {
         self.resources = resources
+        self.installer = installer ?? .shared; self.executable = executable
         super.init()
         editor.string = script
         savedScript = ""
@@ -65,9 +71,11 @@ final class RPane: NSObject, NSTextViewDelegate {
         console.setAccessibilityLabel("R output: text and plots")
         runButton.target = self; runButton.action = #selector(runScript)
         stopButton.target = self; stopButton.action = #selector(stopSession)
+        installButton.target = self; installButton.action = #selector(prepareSession)
+        installButton.isHidden = true; stopButton.isEnabled = false
         let save = NSButton(title: "Save script…", target: self, action: #selector(saveScript))
         let clear = NSButton(title: "Clear output", target: self, action: #selector(clearOutput))
-        let bar = NSStackView(views: [runButton, stopButton, save, clear]); bar.spacing = 10
+        let bar = NSStackView(views: [runButton, stopButton, save, clear, installButton]); bar.spacing = 10
         let label = NSTextField(labelWithString: "R script · Variables persist between runs. Stop / Reset clears the session.")
         label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor
         let split = NSSplitView(); split.isVertical = false; split.dividerStyle = .thin
@@ -97,11 +105,12 @@ final class RPane: NSObject, NSTextViewDelegate {
 
     private func startSession() {
         guard process == nil else { return }
-        let candidates = ["/Library/Frameworks/R.framework/Resources/bin/Rscript", "/opt/homebrew/bin/Rscript", "/usr/local/bin/Rscript"]
-        guard let executable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
-            state.stringValue = "R was not found. Install R for macOS, then click Run script."
-            append("Rscript was not found in the standard macOS installation locations.\n"); return
+        guard let executable = executable() else {
+            installButton.isHidden = false; stopButton.isEnabled = false
+            state.stringValue = "R is not installed. Choose Install R to download and set it up."
+            return
         }
+        installButton.isHidden = true
         let token = UUID(); generation = token; marker = "STATSDIRECT_R_DONE_" + token.uuidString
         let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Viewer/R Sessions/" + token.uuidString, isDirectory: true)
         do {
@@ -135,6 +144,24 @@ final class RPane: NSObject, NSTextViewDelegate {
         } catch {
             state.stringValue = "Could not start R: \(error.localizedDescription)"
             append(state.stringValue + "\n")
+        }
+    }
+    @objc func prepareSession() {
+        if executable() == nil { requestInstallation(run: false) }
+        else { startSession() }
+    }
+    private func requestInstallation(run: Bool) {
+        runAfterInstallation = runAfterInstallation || run
+        guard !requestingInstallation else { return }
+        requestingInstallation = true; installButton.isEnabled = false
+        let request = generation
+        state.stringValue = "R setup is open. Your script will be kept here."
+        installer.ensureInstalled { [weak self] installed in
+            guard let self, self.generation == request else { return }
+            let run = self.runAfterInstallation
+            self.requestingInstallation = false; self.runAfterInstallation = false; self.installButton.isEnabled = true
+            if installed { self.startSession(); if run { self.runScript() } }
+            else { self.state.stringValue = "R setup was postponed. Choose Install R when you are ready." }
         }
     }
     private func consume(_ data: Data) {
@@ -202,6 +229,7 @@ final class RPane: NSObject, NSTextViewDelegate {
     }
     @objc func runScript() {
         guard !busy else { return }
+        if executable() == nil { requestInstallation(run: true); return }
         if process == nil { startSession() }
         guard let process, process.isRunning, let input, let directory else { return }
         do {
@@ -218,6 +246,7 @@ final class RPane: NSObject, NSTextViewDelegate {
     }
     func shutdown() {
         generation = UUID(); output?.fileHandleForReading.readabilityHandler = nil
+        requestingInstallation = false; runAfterInstallation = false; installButton.isEnabled = true
         let child = process; process = nil
         try? input?.fileHandleForWriting.close(); input = nil; output = nil; pending.removeAll()
         if let child, child.isRunning { child.terminate() }

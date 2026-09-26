@@ -199,6 +199,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(rMenu, "Run Script", #selector(runRScript), "\r")
         add(rMenu, "Stop / Reset Session", #selector(stopRSession))
         add(rMenu, "Save Script…", #selector(saveRScript))
+        rMenu.addItem(.separator())
+        add(rMenu, "Install R…", #selector(installR))
         let help = menu("Help")
         add(help, "Learning", #selector(openLearning))
         add(help, "Learning Options…", #selector(openLearningOptions))
@@ -221,6 +223,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(installR) { menuItem.title = RRuntime.executable() == nil ? "Install R…" : "R Is Installed"; return RRuntime.executable() == nil }
         if menuItem.action == #selector(checkUpdates) { return !checkingUpdates && window.attachedSheet == nil }
         if menuItem.action == #selector(toggleAutomaticUpdates) { menuItem.state = automaticUpdates ? .on : .off; return true }
         if menuItem.action == #selector(currentMethodHelp) { return active?.operationName != nil || active?.kind == "analysis" }
@@ -362,7 +365,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let doc = newDocument(kind: "r", title: "R · Session \(number)")
         let pane = RPane()
         doc.rPane = pane; doc.item.view = pane.view
+        pane.prepareSession()
     }
+    @objc func installR() { RInstaller.shared.ensureInstalled { [weak self] installed in if installed { self?.status.stringValue = "R is installed and ready" } } }
     @objc func runRScript() { active?.rPane?.runScript() }
     @objc func stopRSession() { active?.rPane?.stopSession() }
     @objc func saveRScript() { active?.rPane?.saveScript() }
@@ -519,7 +524,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         return .terminateNow
     }
-    func applicationWillTerminate(_ notification: Notification) { chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() } }
+    func applicationWillTerminate(_ notification: Notification) { RInstaller.shared.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() } }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 MainActor.assumeIsolated {

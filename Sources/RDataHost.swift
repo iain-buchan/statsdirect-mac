@@ -12,6 +12,10 @@ extension Viewer {
         }
     }
     func openRDataURL(_ url: URL) {
+        guard RRuntime.executable() != nil else {
+            RInstaller.shared.ensureInstalled { [weak self] installed in if installed { self?.openRDataURL(url) } }
+            return
+        }
         let script = root.appendingPathComponent("R/data-files.R")
         status.stringValue = "Opening " + url.lastPathComponent + "…"
         DispatchQueue.global(qos: .userInitiated).async {
@@ -32,6 +36,13 @@ extension Viewer {
     @objc func saveActiveRData() { if let doc = active, doc.kind == "grid" { saveRData(doc, format: "RData") } }
     func saveRData(_ doc: Document, format: String) {
         guard !doc.fileBusy else { return }
+        guard RRuntime.executable() != nil else {
+            RInstaller.shared.ensureInstalled { [weak self, weak doc] installed in
+                guard installed, let self, let doc, self.documents.contains(where: { $0 === doc }) else { return }
+                self.saveRData(doc, format: format)
+            }
+            return
+        }
         let panel = NSSavePanel(); panel.allowedContentTypes = (format == "rds" ? ["rds"] : ["rdata", "rda"]).compactMap { UTType(filenameExtension: $0) }
         panel.nameFieldStringValue = (doc.workbookName as NSString).deletingPathExtension + "-edited." + format
         panel.message = format == "rds" ? "Save the current worksheet as one R table." : "Save all worksheets as named R tables."

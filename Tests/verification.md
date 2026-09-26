@@ -294,3 +294,27 @@ Scripts/test-learning-workspace.sh "$PWD/StatsDirect Viewer.app"
 - Built the learning bundle and visually checked the native layout in an isolated app with synthetic conversation history and a draft. Visiting Learning options and returning preserved the draft and restored the context strip. The isolated app was closed.
 - Opened the finished 0.3.6 application to Learning and verified the bottom strip, expanded conversation area, fully visible composer, collapsed notes and restored real conversation. No live tutor question was sent.
 - Both packaged application paths pass deep/strict ad-hoc signature verification. Native executable UUID and calculation-engine bytes are unchanged from 0.3.5; this is a web layout change.
+
+## 2026-09-26 — 0.3.7: Download and install missing R
+
+- Added shared R setup for new sessions, report/learning scripts and RData/RDS open/save. Missing R presents Download and Install R, progress, cancellation and retry. The R menu also exposes setup and recognises an existing installation. Repeated requests share one setup window.
+- The package is pinned to official CRAN R 4.6.1 for Apple Silicon/macOS 14+, SHA-256 `67f6eea4ced4ce48f0a0d4fa3a1cac43d1859a05a88993ee3dff7c52e7edbc4b`. The actual URLSession download passed checksum verification, `pkgutil` verification of Developer ID Installer Simon Urbanek (`VZLD955F6P`) and macOS installer assessment. Downloads cannot redirect to another URL, exceed their size bound or open before verification. Cancellation/failure cleans the staging directory.
+- Core tests cover runtime discovery, unsuccessful runtime probes, empty/oversized/wrong-checksum files, a matching-checksum unsigned file, changed URLs, HTTP errors and unexpected content lengths. Local HTTP fixtures exercise the real download path for 404, forbidden redirects, oversized/corrupt/unsigned payloads and cancellation; all pass.
+- An isolated native UI fixture simulated missing R without removing or reinstalling the existing runtime. Verified download failure/retry, cancellation with script preservation, installer handoff state, rejection of an unfinished installation, and successful resumption of the original script with its plot after R became available. The fixture deliberately does not launch macOS Installer. It was then closed.
+- Existing native RPane tests pass persistent variables, default plots, multiple devices, error-after-plot handling, agreement PDF replacement, attachment links and resizing. Real RData/RDS/CSV round trips also pass, including types, missing values, factors, edits, invalid input and atomic-save protection.
+- Compiled the full native app; both 0.3.7 and the canonical bundle pass deep/strict ad-hoc signature verification. Calculation-engine bytes are unchanged from 0.3.6. Opened 0.3.7, verified R Is Installed in the menu, and opened a ready R session directly.
+- The actual privileged installation on a clean Mac still needs colleague testing. StatsDirect opens the standard macOS Installer; it does not bypass its installation steps, administrator approval or managed-device restrictions. Returning to StatsDirect runs a real Rscript readiness probe before resuming the pending action.
+
+Reproduce core/download and existing-R checks:
+
+```sh
+swiftc Sources/RInstallation.swift Tests/r-installation-test.swift -o .build/r-installation-test
+.build/r-installation-test --fetch
+python3 Tests/test_r_install_download.py .build/r-installation-test
+swiftc Sources/RInstallation.swift Sources/RInstaller.swift Sources/RPane.swift Sources/RScriptGenerator.swift Tests/r-pane-driver.swift -o .build/r-pane-test -framework Cocoa -framework PDFKit
+.build/r-pane-test "$PWD/Content"
+swiftc Sources/RInstallation.swift Sources/RDataFileIO.swift Sources/CSVFileIO.swift Tests/data-file-driver.swift -o .build/data-file-driver
+python3 Tests/test_data_files.py .build/data-file-driver /path/to/node
+```
+
+`Tests/r-installation-ui.swift` can be compiled with RInstallation, RInstaller and RPane into an isolated app containing `Content/R/session.R`. Its first download fails deliberately; subsequent downloads simulate progress without installing software. Creating `~/Library/Application Support/com.statsdirect.r-setup-ui/ready` after the simulated installer handoff lets Check Again use the existing local R and resume the retained script. Launching the fixture resets only this marker.

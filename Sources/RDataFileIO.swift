@@ -42,8 +42,7 @@ enum RDataFileIO {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true); return url
     }
     private static func run(_ script: URL, arguments: [String], folder: URL) throws {
-        let candidates = ["/Library/Frameworks/R.framework/Resources/bin/Rscript", "/opt/homebrew/bin/Rscript", "/usr/local/bin/Rscript"]
-        guard let executable = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else { throw error("Install R for macOS to open and save R data files.") }
+        guard let executable = RRuntime.executable() else { throw error("R is not available. Choose R → Install R to open and save R data files.") }
         let log = folder.appendingPathComponent("R-output.txt")
         _ = FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log); defer { try? handle.close() }

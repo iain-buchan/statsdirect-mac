@@ -1,4 +1,4 @@
-# StatsDirect Learning (macOS prototype 0.3.6)
+# StatsDirect Learning (macOS prototype 0.3.7)
 
 Open **Help → Learning** or **Help → Learning Options**. This is an integrated closable Mac document: original Windows artwork, seven lessons, five learner pathways, 30 original draft MCQs, local persistence, real StatsDirect analysis forms and seven runnable base-R examples with plots. Epidemiology and causal inference are shared foundations. Options include learning needs, named exams/qualifications, prior knowledge, R experience, target date, priorities and teaching style.
 

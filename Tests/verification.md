@@ -1,3 +1,9 @@
+# Published Mac update — 26 September 2026
+
+Published [v0.3.10](https://github.com/iain-buchan/statsdirect-mac/releases/tag/v0.3.10), targeting commit `36bc277e5b9f0500e859e83ef7c3c5fa12f68c3f`, with the Apple Silicon application ZIP and SHA256SUMS.txt. Both assets were uploaded and verified before the draft was made public and latest. The ZIP is 153,314,538 bytes; SHA-256 `7484d55956fc7b8cda5d3f63abaf28339e221ee404ec1571a2db3f3e5739cd48`, also confirmed by GitHub asset metadata. Archive integrity and the extracted app’s deep, strict local signature verification passed. The release notes identify its ad-hoc signing/notarisation limitation and manual installation.
+
+The real public update endpoint and website latest-release redirect both resolve to v0.3.10. Existing update-service tests passed. An isolated copy of the actual 0.3.9 app displayed “StatsDirect v0.3.10 is available” both automatically and when selecting Help → Check for Updates; its dialog correctly stated “You are using 0.3.9.” No updater code change was required: prior source pushes had not created a GitHub release.
+
 # Example workbook menu — 26 September 2026
 
 Mac build 0.3.10 replaces Help → Examples → StatsDirect Example Workbook with the direct Help → Example workbook command. Native UI verification in an isolated app confirmed the shortened entry and that selecting it opens test.xlsx with all 11 worksheets. The shared menu definition also supplies the macOS menu bar. Swift compilation and deep, strict signature verification passed for both packaged app paths. The calculation engine and workbook are unchanged.

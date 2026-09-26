@@ -10,7 +10,7 @@
     {
       "id": "causal-foundations",
       "title": "Causal inference — introductory guidance",
-      "text": "A causal question compares well-defined alternatives in a target population. Observational associations can be distorted by confounding, selection and measurement error. A confounder can be a cause of both exposure and outcome. A mediator lies on a causal pathway; adjusting for it can change a total-effect question into a different one. A collider is a common consequence; conditioning on it can induce an association. Discuss temporal order and the causal question before selecting adjustment variables."
+      "text": "A causal question compares well-defined alternatives in a target population. Observational associations can be distorted by confounding, selection and measurement error. A confounder can be a cause of both exposure and outcome. A mediator lies on a causal pathway; adjusting for it can remove part of a total effect and introduce bias. It does not automatically identify a direct causal effect; direct effects require additional assumptions. A collider is a common consequence; conditioning on it can induce an association. Discuss temporal order and the causal question before selecting adjustment variables."
     },
     {
       "id": "review-guidance",

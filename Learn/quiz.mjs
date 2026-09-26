@@ -43,7 +43,7 @@ export function reviewBundle(session) {
     session:{...session,reflection:session.reflection.slice(0,1500)},
     provisionalResult:result,
     markingMethod:'Fixed draft answer keys; 1 for correct and 0 otherwise. Reasoning retained but not graded.',
-    questionSnapshots:session.questionIds.map(id=>questions.find(q=>q.id===id)),
+    questionSnapshots:session.questionIds.map(id=>structuredClone(sessionQuestion(session,id))),
     teachingSource:'Original unreviewed StatsDirect teaching drafts, not official examination items.',
     accreditation:'No CPD credit or University approval is claimed.'};
 }

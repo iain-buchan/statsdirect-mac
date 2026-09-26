@@ -1,3 +1,6 @@
+# McNemar analyses paired binary outcomes; pairs must be independent of each other.
+# The exact binomial test concerns the direction among discordant pairs. Its CI is
+# for that conditional proportion, not a risk-difference or odds-ratio interval.
 counts <- sd_matrix(lapply(sd_columns("scrap"), sd_numeric))
 result <- mcnemar.test(counts, correct = FALSE)
 print(result)

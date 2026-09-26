@@ -50,7 +50,7 @@ sealed record TutorRequest(int SchemaVersion, string Lesson, string Context, Lis
 
 sealed class TutorProxy : IDisposable
 {
-    public const string PromptVersion = "statsdirect-managed-tutor-2026-09-25-v2";
+    public const string PromptVersion = "statsdirect-managed-tutor-2026-09-26-v3";
     readonly HttpClient client = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(85) };
     readonly ServiceSettings settings;
     readonly string instructions;

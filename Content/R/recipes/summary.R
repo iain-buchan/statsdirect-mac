@@ -1,3 +1,6 @@
+# The mean CI is a t interval, exact for independent normal observations.
+# With small skewed samples, coverage may be poor; inspect the data and study design.
+# Missing observations are omitted per column; this does not remove missing-data bias.
 columns <- lapply(sd_columns(), function(x) na.omit(sd_numeric(x)))
 result <- lapply(columns, function(x) {
   n <- length(x)

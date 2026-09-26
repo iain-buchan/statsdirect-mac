@@ -1,3 +1,6 @@
+# Counts, means and SDs must describe independent samples. Summary statistics cannot
+# reveal outliers or verify normality. Pooled t inference also assumes equal variances;
+# Welch inference relaxes that equality and uses an approximate reference distribution.
 if (operation == "TSingleSummary") {
   n <- parameters$nx
   difference <- parameters$mu - parameters$mu0

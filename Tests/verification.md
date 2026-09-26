@@ -1,3 +1,9 @@
+# Teaching content audit — 26 September 2026
+
+Mac build 0.3.9 incorporates the [educational-content audit](../Docs/Learn/CONTENT-AUDIT-2026-09-26.md): all seven lessons, 30 fixed questions, both tutor policies, the sample course pack, archived teaching content and R handoff explanations. Fourteen question wordings were revised; all answer keys remain unchanged.
+
+The 16 learning/history/archive tests passed, including seven executed R examples and plots, independent numerical choices, preserved historical scoring and correct lesson attribution. All seven lesson workflows were exercised through the unchanged engine. All 37 generated-R operation fixtures and the existing data/setting handoff cases passed. Swift compilation, 0.3.9 packaging and strict local signature verification passed. Native UI checks in an isolated app confirmed the paired question and risk/NNT corrections without replacing the user’s open documents. The 5.0.8 engine binary is unchanged.
+
 # Windows 5.0.8 core validation and Mac integration — 25 September 2026
 
 The accepted core is `dcc2af8f0ec55d736a98acac029297510195e2df` (5.0.8). Before accepting it, the unchanged Windows numerical files were compiled independently of the Mac host and compared with 5.0.7 and R 4.6.1. The candidate completed 4,902 cases without a fault or timeout. All 322 candidate/R discrepancies passed independent high-precision checks under the documented tolerances; ten representative cases were repeated at 100 digits. The 400 ordinary seeded cases agree with R in both versions. Full inputs, raw outputs, source hashes, criteria and limitations are retained in the [numerical audit](../Docs/Validation/Core-5.0.8/README.md).

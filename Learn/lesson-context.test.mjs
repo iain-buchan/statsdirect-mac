@@ -25,7 +25,7 @@ test('switching lessons supplies the right prompt and tags model history with it
   s.lesson='epidemiology';assert.equal(ensureLessonPrompt(s,lessons),true);assert.equal(s.conversation.at(-1).text,epi.challenge);
 });
 test('the paired lesson establishes actual pairing and upgrades its older prompt without rewriting it',()=>{
-  assert.match(paired.challenge,/same eight people/);assert.match(paired.challenge,/different people/);assert.match(paired.summary,/unmatched patients/);
+  assert.match(paired.challenge,/same eight people/);assert.match(paired.challenge,/different, unmatched people/);assert.match(paired.summary,/not automatically paired/);
   const s=newPortfolio();s.lesson='paired';const old=transcriptEntry(s,'assistant',paired.previousChallenges[0],'Study guide');
   labelStudyGuides(s,lessons);assert.equal(old.lessonId,'paired');assert.equal(guidePresentation(old,paired).earlier,true);
   assert.equal(ensureLessonPrompt(s,lessons),true);assert.equal(old.text,paired.previousChallenges[0]);

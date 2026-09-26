@@ -1,3 +1,5 @@
+# Each row is an aligned pair; rows must be independent for this inference.
+# Complete-case selection can introduce bias. Correlation is not agreement or causation.
 data <- sd_matrix(lapply(sd_columns(), sd_numeric))
 data <- data[complete.cases(data), , drop = FALSE]
 method <- if (operation == "Spearman") "spearman" else "kendall"

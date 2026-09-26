@@ -61,3 +61,9 @@ Scripts/test-learning-workspace.sh
 ```
 
 The build creates `StatsDirect Viewer.app` with its original calculation engine unchanged. The icon script extracts no new art; it packages the Windows symbol for macOS.
+
+## Teaching content maintenance
+
+`lessons.json` in this directory is the canonical catalogue. Run `python3 Learn/create-lessons.py` to publish it to `Content/Learn/lessons.json`, then rebuild with `node Learn/build.mjs`. Preserve old challenge text in `previousChallenges` so saved conversations retain their original topic. Increment changed question versions and the bank version; saved attempts retain their original wording and marking. The archived concept imports its original twelve questions from the maintained bank.
+
+The [26 September 2026 content audit](../Docs/Learn/CONTENT-AUDIT-2026-09-26.md) records the scope, corrections, independent numerical checks and sources. It is an AI-assisted audit, not external expert approval.

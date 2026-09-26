@@ -19,4 +19,23 @@ try:
  regression=lessons['regression']['columns']
  result=s.run('SimpleLinearRegression',{'y':columns(regression[0]['values']),'x':columns(regression[1]['values'])})
  assert result['html'] and result['state']=='complete';print('PASS learning regression example')
+ # Reproduce the four-cell layouts stated in the teaching instructions.
+ diagnostic=s.run('MiscDiagnostic',{'scrap':columns([72,18],[81,729])})['values']
+ for key,value in [('sensitive',.8),('specific',.9),('likely',8/17),('likely_negative',81/83)]:
+  assert math.isclose(diagnostic[key],value,rel_tol=1e-12),(key,diagnostic[key])
+ print('PASS learning diagnostic denominators and grid orientation')
+ benefit=s.run('MiscNumberNeededToTreat',{'nt':200,'xt':16,'nc':200,'xc':28})['values']
+ assert math.isclose(benefit['rd'],.06) and math.isclose(benefit['rre'],4/7)
+ assert benefit['treat_round']=='17_benefit'
+ assert benefit['rd_from']<0<benefit['rd_to']
+ print('PASS learning NNT: direction, point estimate and uncertainty spanning no effect')
+ cohort=s.run('MiscRelRisk',{'scrap':columns([30,270],[15,285])})['values']
+ assert cohort['ratio']==2 and math.isclose(cohort['dif'],.05)
+ print('PASS learning cohort: event/non-event counts, risks and reference group')
+ age=s.run('MiscRelRisk',{'scrap':columns([44,156],[26,174])})['values']
+ assert math.isclose(age['ratio'],22/13) and math.isclose(age['dif'],.09)
+ for data in [columns([4,36],[16,144]),columns([40,120],[10,30])]:
+  stratum=s.run('MiscRelRisk',{'scrap':data})['values']
+  assert stratum['ratio']==1 and stratum['dif']==0
+ print('PASS learning age example: crude and both within-age comparisons')
 finally:s.finish()

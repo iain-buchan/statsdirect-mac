@@ -1,70 +1,11 @@
-import json, pathlib
-root=pathlib.Path(__file__).resolve().parent.parent
-lessons=[dict(id='paired',title='Comparing paired measurements',topic='Change within a person',objective='Recognise pairing, analyse differences and interpret a confidence interval.',summary='When each person is measured twice, the two columns belong together. A paired t test asks whether the population mean difference is zero. Check the distribution of the differences, rather than requiring each original column to be normal.',challenge='If the average measurement falls after an intervention, what else would you need before claiming the intervention caused the change?',steps='Choose Analysis → Parametric Methods → Paired Student t test. This example selects Before and After. Use the displayed difference direction consistently. Interpret the estimated difference and 95% confidence interval before the P value. The worksheet contains eight fictional participants.',operation='TPaired',help='parametric_methods/paired_t.htm',columns=[{'title':'Before','values':[142,136,151,145,139,148,132,155]},{'title':'After','values':[135,134,143,141,136,140,130,147]}],r='''# Fictional paired measurements: same eight people, same row order.
-before <- c(142,136,151,145,139,148,132,155)
-after <- c(135,134,143,141,136,140,130,147)
-data <- data.frame(Before=before, After=after)
-print(data)
-# StatsDirect uses first minus second for this selection.
-change <- before - after
-print(t.test(before, after, paired=TRUE, conf.level=0.95))
-plot(before, after, pch=19, xlab="Before", ylab="After", main="Fictional paired measurements")
-abline(0,1,lty=2)
-# Try: change one after value, rerun, and explain the change in the interval.
-'''),
-dict(id='precision',title='Variation, precision and uncertainty',topic='Describing data',objective='Separate standard deviation from standard error and confidence intervals.',summary='Standard deviation describes differences between observations. Standard error describes the precision of an estimated mean. A 95% confidence interval is produced by a method that covers the population value in 95% of repeated samples under its assumptions.',challenge='Why would collecting four times as many independent observations halve the standard error but not necessarily change the standard deviation?',steps='Open the descriptive summary for the fictional waiting times. Compare the mean, median, standard deviation and confidence interval. Investigate the long wait before deciding which summary best answers your service question.',operation='UnivariateSummary',help='basic_descriptive_statistics/univariate_summary.htm',columns=[{'title':'Waiting time (minutes)','values':[12,15,14,18,21,16,19,13,45,17,20,22]}],r='''# Fictional clinic waits; no patient data.
-wait <- c(12,15,14,18,21,16,19,13,45,17,20,22)
-print(data.frame(Waiting_minutes=wait))
-print(c(mean=mean(wait), median=median(wait), SD=sd(wait), SE=sd(wait)/sqrt(length(wait))))
-print(t.test(wait, conf.level=0.95)$conf.int)
-hist(wait, breaks=8, main="Fictional clinic waiting times", xlab="Minutes")
-# Try: explain why mean and median differ; inspect the outlier without silently deleting it.
-'''),
-dict(id='diagnostic',title='Interpreting a diagnostic test',topic='Sensitivity and predictive value',objective='Choose the right denominator for sensitivity, specificity and predictive value.',summary='Sensitivity starts with people who have the condition. Positive predictive value starts with people whose test is positive. Keeping these denominators distinct is central to interpreting diagnostic evidence.',challenge='If the condition becomes rarer while sensitivity and specificity stay the same, what happens to the proportion of positive results that are false positives?',steps='In the diagnostic test form enter true positives 72, false negatives 18, false positives 81 and true negatives 729, using the field labels. These fictional counts give sensitivity 80%, specificity 90% and positive predictive value about 47.1%.',operation='MiscDiagnostic',help='clinical_epidemiology/diagnostic.htm',columns=[],r='''# Fictional diagnostic study. Rows: test result; columns: disease status.
-tp <- 72; fn <- 18; fp <- 81; tn <- 729
-counts <- matrix(c(tp,fp,fn,tn),nrow=2,byrow=TRUE,dimnames=list(Test=c("Positive","Negative"),Disease=c("Present","Absent")))
-print(counts)
-print(c(sensitivity=tp/(tp+fn), specificity=tn/(tn+fp), PPV=tp/(tp+fp), NPV=tn/(tn+fn)))
-print(binom.test(tp,tp+fn,conf.level=0.95)$conf.int)
-barplot(counts, beside=TRUE, legend.text=TRUE, main="Fictional diagnostic counts", ylab="People")
-'''),
-dict(id='risk',title='Absolute and relative benefit',topic='Risk, treatment effects and NNT',objective='Interpret absolute risk reduction, relative risk and the follow-up period.',summary='Relative effects do not describe absolute benefit on their own. A change from 14% to 8% is a six percentage point absolute reduction and a relative risk of about 0.57. The number needed to treat is linked to a particular outcome and follow-up period.',challenge='Would the same relative risk imply the same absolute benefit in a population with a much lower baseline risk?',steps='For the number-needed-to-treat form use 16 events among 200 treated participants and 28 among 200 controls, over one year. Follow the field labels for numerator and denominator. Explain the benefit and its uncertainty; the NNT point estimate rounds up to 17.',operation='MiscNumberNeededToTreat',help='clinical_epidemiology/nnt.htm',columns=[],r='''# Fictional randomised programme, one-year follow-up.
-events <- c(16,28); totals <- c(200,200)
-risk <- events/totals
-print(data.frame(Group=c("Programme","Usual care"),Events=events,Total=totals,Risk=risk))
-arr <- risk[2]-risk[1]
-print(c(absolute_reduction=arr,relative_risk=risk[1]/risk[2],NNT=ceiling(1/arr)))
-# This base-R comparison uses its own interval method, which can differ from StatsDirect.
-print(prop.test(events,totals,correct=FALSE,conf.level=0.95))
-barplot(risk,names.arg=c("Programme","Usual care"),ylim=c(0,0.2),ylab="One-year event risk")
-'''),
-dict(id='regression',title='Association is not causation',topic='Regression and study design',objective='Interpret a regression slope without confusing prediction with causation.',summary='A fitted line describes an association under a model. It cannot establish causation by itself. Think about confounding, the sampling design, residuals and the range of data before interpreting the slope or making predictions.',challenge='A service with longer appointment slots has higher satisfaction. What alternative explanations could produce this association?',steps='Use the fictional service data in simple linear regression. Select Satisfaction as the dependent variable and Appointment minutes as the independent variable. Examine the scatterplot and residuals. Do not extrapolate beyond the observed range without justification.',operation='SimpleLinearRegression',help='regression_and_correlation/simple_linear.htm',columns=[{'title':'Satisfaction','values':[58,61,60,67,65,73,71,78]},{'title':'Appointment minutes','values':[10,12,14,16,18,20,22,24]}],r='''# Fictional service-level observations, not a causal experiment.
-data <- data.frame(Satisfaction=c(58,61,60,67,65,73,71,78),Minutes=c(10,12,14,16,18,20,22,24))
-print(data)
-fit <- lm(Satisfaction ~ Minutes, data=data)
-print(summary(fit))
-print(confint(fit,level=0.95))
-plot(data$Minutes,data$Satisfaction,pch=19,xlab="Appointment minutes",ylab="Satisfaction",main="Association in fictional service data")
-abline(fit)
-# Try: plot(fitted(fit),residuals(fit)); explain a potential confounder.
-''')]
-(root/'Content/Learn/lessons.json').write_text(json.dumps(lessons,indent=2)+'\n')
-core=[dict(id='epidemiology',title='Epidemiological foundations',topic='People, populations and study design',objective='Define the population, outcome, denominator and time period before choosing an analysis.',summary='Begin with who is being studied, how they were selected, what counts as an outcome and when it is measured. Distinguish prevalence from incidence, risk from rates, and descriptive comparisons from causal questions. A cohort, case-control study and randomised trial answer different questions and have different sources of bias.',challenge='A clinic sees twice as many new diagnoses this year. Which population, testing and time-period information would you need before concluding that disease risk has doubled?',steps='A fictional one-year cohort has 30 events among 300 exposed people and 15 among 300 unexposed people. In the risk calculation form enter the event counts and group totals using the field labels. The observed risks are 10% and 5%, with risk ratio 2. This observational comparison alone does not establish an exposure effect.',operation='MiscRelRisk',help='clinical_epidemiology/risk_prospective.htm',columns=[],r='''# Fictional one-year cohort. Risks need people initially at risk and a time horizon.
-events <- c(30,15); at_risk <- c(300,300)
-print(data.frame(Group=c("Exposed","Unexposed"),Events=events,At_risk=at_risk,Risk=events/at_risk))
-print(c(risk_ratio=(30/300)/(15/300),risk_difference=30/300-15/300))
-barplot(events/at_risk,names.arg=c("Exposed","Unexposed"),ylim=c(0,0.15),ylab="One-year risk",main="Observed association, not a causal estimate")
-# If follow-up durations differ, examine person-time and censoring; do not label these risks incidence rates.
-'''),
-dict(id='causal',title='From association to causal questions',topic='Causal inference basics',objective='Recognise confounding and define the assumptions behind a causal comparison.',summary='Ask what would happen to the same target population under two well-defined alternatives. Because both outcomes cannot be observed for one person at the same time, we need a defensible comparison. Study design and causal knowledge matter: adjustment is not a substitute for knowing which variables precede exposure, mediate effects or create selection bias.',challenge='Age can affect both treatment choice and outcome. Why might adjusting for age help, while adjusting for a consequence of treatment change the effect we are trying to estimate?',steps='Fictional data illustrate confounding. Exposed: 44 events among 200 people; unexposed: 26 among 200. Within the younger group the risks are 4/40 and 16/160; within the older group they are 40/160 and 10/40. Open the risk calculation to explore the crude counts; Explore in R shows the stratum-specific comparisons. The crude difference arises from age imbalance in this constructed example.',operation='MiscRelRisk',help='basics/confounding.htm',columns=[],r='''# Fictional age-confounding example. Counts are constructed for teaching.
-data <- data.frame(Age=c("Younger","Older"),Exposed_events=c(4,40),Exposed_total=c(40,160),Unexposed_events=c(16,10),Unexposed_total=c(160,40))
-data$Exposed_risk <- data$Exposed_events/data$Exposed_total
-data$Unexposed_risk <- data$Unexposed_events/data$Unexposed_total
-print(data)
-print(c(crude_RR=(44/200)/(26/200)))
-print(data.frame(Age=data$Age,Within_age_RR=data$Exposed_risk/data$Unexposed_risk))
-barplot(rbind(data$Exposed_risk,data$Unexposed_risk),beside=TRUE,names.arg=data$Age,legend.text=c("Exposed","Unexposed"),ylab="Observed risk",main="Same within-age risks; different age mix")
-# Within-stratum agreement is not proof that every source of bias has been removed.
-''')]
-# Use the catalogue as shared reference material for the native tutor and lesson UI.
-(root/'Content/Learn/lessons.json').write_text(json.dumps(core+lessons,indent=2)+'\n')
+"""Publish the canonical lesson catalogue; never reconstruct older teaching text."""
+import json
+from pathlib import Path
+
+root = Path(__file__).resolve().parent.parent
+source = root / "Learn/lessons.json"
+lessons = json.loads(source.read_text())
+assert len({lesson["id"] for lesson in lessons}) == len(lessons)
+(root / "Content/Learn/lessons.json").write_text(
+    json.dumps(lessons, ensure_ascii=False, indent=2) + "\n"
+)

@@ -7,7 +7,7 @@ final class ChatGPTTutor {
         let message: String
         var errorDescription: String? { message }
     }
-    struct Reply { let text: String; let model: String; let responseID: String; let promptVersion = "statsdirect-chatgpt-tutor-v2" }
+    struct Reply { let text: String; let model: String; let responseID: String; let promptVersion = "statsdirect-chatgpt-tutor-v3" }
     typealias ToolHandler = @MainActor (String, [String:Any]) async throws -> [String:Any]
     struct Account { let email: String; let plan: String }
     private struct Pending {

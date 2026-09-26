@@ -4,7 +4,8 @@ import {readFileSync,existsSync,mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os';
 import {execFileSync} from 'node:child_process';
 import {questions,tracks} from './bank.mjs';
-import {createSession,recordAnswer,recordAssistance,learnerResult,sessionQuestion} from './quiz.mjs';
+import {lessonChecks} from './content-audit.test.mjs';
+import {createSession,recordAnswer,recordAssistance,learnerResult,sessionQuestion,reviewBundle} from './quiz.mjs';
 import {newPortfolio,restorePortfolio,reviewRecord,reviewText,transcriptEntry,practiceContext} from './portfolio.mjs';
 const root=new URL('../',import.meta.url);
 const lessons=JSON.parse(readFileSync(new URL('Content/Learn/lessons.json',root)));
@@ -38,7 +39,7 @@ test('provisional scores, support, first answers and full conversation survive r
 });
 test('bundled R examples run without packages, use exact fictional rows, and produce plots',()=>{
  const dir=mkdtempSync(tmpdir()+'/statsdirect-learn-');
- try{for(const l of lessons){const script=dir+'/'+l.id+'.R';writeFileSync(script,`pdf(${JSON.stringify(dir+'/'+l.id+'.pdf')})\n${l.r}\ndev.off()\n`);const output=execFileSync('/Library/Frameworks/R.framework/Resources/bin/Rscript',['--vanilla',script],{encoding:'utf8'});assert.ok(existsSync(dir+'/'+l.id+'.pdf'));if(l.id==='paired'){assert.match(output,/Paired t-test/);assert.match(output,/5.25/);}}}finally{rmSync(dir,{recursive:true});}
+ try{for(const l of lessons){const script=dir+'/'+l.id+'.R';writeFileSync(script,`pdf(${JSON.stringify(dir+'/'+l.id+'.pdf')})\n${l.r}\n${lessonChecks[l.id]}\ndev.off()\n`);const output=execFileSync('/Library/Frameworks/R.framework/Resources/bin/Rscript',['--vanilla',script],{encoding:'utf8'});assert.ok(existsSync(dir+'/'+l.id+'.pdf'));if(l.id==='paired'){assert.match(output,/Paired t-test/);assert.match(output,/5.25/);}}}finally{rmSync(dir,{recursive:true});}
 });
 test('saved goals round trip; malformed nested records are rejected before replacement',()=>{
  const p=newPortfolio();p.learning.qualifications='MRCGP AKT';p.learning.needs='Causal inference and diagnostic test interpretation';p.quiz=createSession('foundation','learn');
@@ -50,7 +51,7 @@ test('saved goals round trip; malformed nested records are rejected before repla
 });
 test('a saved attempt keeps its wording and answer key when the question bank changes',()=>{
  const p=newPortfolio();p.quiz=createSession('foundation','learn');const id=p.quiz.questionIds[0],q=questions.find(q=>q.id===id),oldStem=q.stem,oldKey=q.correct;
- try{q.stem='Replacement question';q.correct=oldKey==='A'?'B':'A';const restored=restorePortfolio(JSON.parse(JSON.stringify(p)));assert.equal(sessionQuestion(restored.quiz,id).stem,oldStem);recordAnswer(restored.quiz,id,oldKey,'confident');assert.equal(restored.quiz.answers[0].correct,true);assert.equal(reviewRecord(restored).attempts[0].questionSnapshots[0].correct,oldKey);}finally{q.stem=oldStem;q.correct=oldKey;}
+ try{q.stem='Replacement question';q.correct=oldKey==='A'?'B':'A';const restored=restorePortfolio(JSON.parse(JSON.stringify(p)));assert.equal(sessionQuestion(restored.quiz,id).stem,oldStem);recordAnswer(restored.quiz,id,oldKey,'confident');assert.equal(restored.quiz.answers[0].correct,true);assert.equal(reviewRecord(restored).attempts[0].questionSnapshots[0].correct,oldKey);for(const next of restored.quiz.questionIds.slice(1))recordAnswer(restored.quiz,next,sessionQuestion(restored.quiz,next).correct,'confident');assert.equal(reviewBundle(restored.quiz).questionSnapshots[0].stem,oldStem);}finally{q.stem=oldStem;q.correct=oldKey;}
 });
 
 test('worksheet provenance survives portfolio restore and text export',()=>{

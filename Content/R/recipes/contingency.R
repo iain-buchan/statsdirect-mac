@@ -1,3 +1,6 @@
+# Enter counts, not percentages; each independent observational unit contributes once.
+# Sparse expected counts can make the asymptotic chi-square approximation unreliable.
+# Paired or clustered observations require an analysis that respects that dependence.
 if (!is.null(parameters$counts)) {
   counts <- do.call(rbind, lapply(parameters$counts, unlist))
   dimnames(counts) <- list(unlist(parameters$rowLabels), unlist(parameters$columnLabels))

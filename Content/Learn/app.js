@@ -304,7 +304,7 @@
     };
     const defaults = newPortfolio();
     const learning = value?.learning === void 0 ? defaults.learning : value.learning;
-    if (!strings(value, ["id", "startedAt", "profile", "stage", "lesson", "view", "reflection", "draft"]) || value.schemaVersion !== 2 || !tracks[value.profile] || !stages[value.stage] || !["study", "options", "sources", "practice", "record"].includes(value.view) || !strings(value.identity, ["name", "email", "goal"]) || !strings(learning, ["needs", "qualifications", "priorKnowledge", "targetDate", "style"]) || !Array.isArray(learning.focus) || !learning.focus.every((x) => typeof x === "string") || !Array.isArray(value.conversation) || !value.conversation.every((c) => strings(c, ["id", "at", "role", "text", "source"]) && ["user", "assistant"].includes(c.role) && (!c.workspaceSources || Array.isArray(c.workspaceSources) && c.workspaceSources.every((s) => typeof s === "string")) && (!c.courseSources || Array.isArray(c.courseSources) && c.courseSources.every((s) => strings(s, ["id", "title"])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz !== null && !validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every((a) => strings(a, ["at", "text"]))) throw new Error("The saved learning record is incompatible. It has not been overwritten.");
+    if (!strings(value, ["id", "startedAt", "profile", "stage", "lesson", "view", "reflection", "draft"]) || value.schemaVersion !== 2 || !tracks[value.profile] || !stages[value.stage] || !["study", "options", "sources", "practice", "record"].includes(value.view) || !strings(value.identity, ["name", "email", "goal"]) || !strings(learning, ["needs", "qualifications", "priorKnowledge", "targetDate", "style"]) || !Array.isArray(learning.focus) || !learning.focus.every((x) => typeof x === "string") || !Array.isArray(value.conversation) || !value.conversation.every((c) => strings(c, ["id", "at", "role", "text", "source"]) && ["user", "assistant"].includes(c.role) && ["lessonId", "lessonTitle"].every((k) => c[k] === void 0 || typeof c[k] === "string") && (c.lessonPrompt === void 0 || typeof c.lessonPrompt === "boolean") && (!c.workspaceSources || Array.isArray(c.workspaceSources) && c.workspaceSources.every((s) => typeof s === "string")) && (!c.courseSources || Array.isArray(c.courseSources) && c.courseSources.every((s) => strings(s, ["id", "title"])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz !== null && !validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every((a) => strings(a, ["at", "text"]))) throw new Error("The saved learning record is incompatible. It has not been overwritten.");
     return { ...defaults, ...value, learning: { ...learning, focus: [.../* @__PURE__ */ new Set(["epidemiology", "causal", ...learning.focus])] } };
   }
   function transcriptEntry(state2, role, text, source = "study guide", details = {}) {
@@ -363,7 +363,7 @@
       }
     }
     lines.push("", "COMPLETE LEARNING CONVERSATION");
-    for (const c of record.conversation) lines.push("", `[${c.at}] ${c.role === "user" ? "Learner" : "Tutor"} \u2014 ${c.source}${c.model ? " / " + c.model : ""}`, c.text, ...(c.courseSources ?? []).map((s) => "Course reference: " + s.id + " \u2014 " + s.title), ...(c.workspaceSources ?? []).map((s) => "StatsDirect context: " + s));
+    for (const c of record.conversation) lines.push("", `[${c.at}] ${c.role === "user" ? "Learner" : "Tutor"} \u2014 ${c.source}${c.lessonTitle ? " \xB7 " + c.lessonTitle : ""}${c.model ? " / " + c.model : ""}`, c.text, ...(c.courseSources ?? []).map((s) => "Course reference: " + s.id + " \u2014 " + s.title), ...(c.workspaceSources ?? []).map((s) => "StatsDirect context: " + s));
     lines.push("", "LEARNING ACTIVITIES");
     for (const a of record.activities) lines.push(`[${a.at}] ${a.text}`);
     lines.push("", "LEARNER REFLECTION", record.reflection || "(not supplied)");
@@ -387,6 +387,37 @@ Teaching rationale: ${item.explanation}` : "";
     { title: "MFPH: final membership assessment", url: "https://www.fph.org.uk/training-careers/the-diplomate-dfph-and-final-membership-examination-mfph/the-faculty-of-public-health-final-membership-examination/marking-results-and-feedback/", note: "Final membership assesses practical competencies across six stations. Use the conversational explanation exercise below alongside MCQ practice." }
   ];
   var communicationPrompt = "Practise a short public-health communication scenario with me. You are a fictional service manager asking whether a clinic with longer average waiting times is performing poorly. Give me a small original data example, ask me to explain it in plain language, and wait for my reply. Then give formative feedback on interpretation, case mix, uncertainty and clarity. Do not assign an official examination grade.";
+
+  // Learn/lesson-context.mjs
+  function labelStudyGuides(state2, lessons) {
+    for (const entry of state2.conversation) {
+      if (entry.source !== "Study guide" || entry.role !== "assistant") continue;
+      const origin = lessons.find((l) => l.challenge === entry.text || (l.previousChallenges ?? []).includes(entry.text));
+      if (origin) {
+        entry.lessonId = origin.id;
+        entry.lessonTitle = origin.title;
+        entry.lessonPrompt = true;
+      }
+    }
+  }
+  function ensureLessonPrompt(state2, lessons) {
+    labelStudyGuides(state2, lessons);
+    const current = lessons.find((l) => l.id === state2.lesson);
+    if (!current) return false;
+    const latest = state2.conversation.findLast((c) => c.lessonPrompt === true);
+    if (latest?.lessonId === current.id && latest.text === current.challenge) return false;
+    transcriptEntry(state2, "assistant", current.challenge, "Study guide", { lessonId: current.id, lessonTitle: current.title, lessonPrompt: true });
+    return true;
+  }
+  function guidePresentation(entry, currentLesson) {
+    if (entry.lessonPrompt !== true) return { label: entry.lessonTitle ? `${entry.source} \xB7 ${entry.lessonTitle}` : entry.source, earlier: false };
+    const earlier = entry.lessonId !== currentLesson.id || entry.text !== currentLesson.challenge;
+    return { label: `${earlier ? "Earlier study guide" : "Study guide"} \xB7 ${entry.lessonTitle}`, earlier };
+  }
+  function conversationForTutor(state2) {
+    return state2.conversation.slice(-40).map((c) => ({ role: c.role, text: c.lessonTitle ? `[Lesson context: ${c.lessonTitle}]
+${c.text}` : c.text }));
+  }
 
   // Content/Learn/lessons.json
   var lessons_default = [
@@ -421,8 +452,8 @@ Teaching rationale: ${item.explanation}` : "";
       title: "Comparing paired measurements",
       topic: "Change within a person",
       objective: "Recognise pairing, analyse differences and interpret a confidence interval.",
-      summary: "When each person is measured twice, the two columns belong together. A paired t test asks whether the population mean difference is zero. Check the distribution of the differences, rather than requiring each original column to be normal.",
-      challenge: "If the average measurement falls after an intervention, what else would you need before claiming the intervention caused the change?",
+      summary: "Paired measurements come from the same people measured twice, or from explicitly matched pairs. Analyse the within-pair differences. Measuring different, unmatched patients before and after does not create pairing just because they attend the same clinic. For a paired t test, assess the distribution of the differences.",
+      challenge: "The same eight people have a measurement taken before and after an intervention, with each person's two values on the same row. Why are these paired observations? How would the analysis change if different people were measured in the two periods?",
       steps: "Choose Analysis \u2192 Parametric Methods \u2192 Paired Student t test. This example selects Before and After. Use the displayed difference direction consistently. Interpret the estimated difference and 95% confidence interval before the P value. The worksheet contains eight fictional participants.",
       operation: "TPaired",
       help: "parametric_methods/paired_t.htm",
@@ -454,7 +485,10 @@ Teaching rationale: ${item.explanation}` : "";
           ]
         }
       ],
-      r: '# Fictional paired measurements: same eight people, same row order.\nbefore <- c(142,136,151,145,139,148,132,155)\nafter <- c(135,134,143,141,136,140,130,147)\ndata <- data.frame(Before=before, After=after)\nprint(data)\n# StatsDirect uses first minus second for this selection.\nchange <- before - after\nprint(t.test(before, after, paired=TRUE, conf.level=0.95))\nplot(before, after, pch=19, xlab="Before", ylab="After", main="Fictional paired measurements")\nabline(0,1,lty=2)\n# Try: change one after value, rerun, and explain the change in the interval.\n'
+      r: '# Fictional paired measurements: same eight people, same row order.\nbefore <- c(142,136,151,145,139,148,132,155)\nafter <- c(135,134,143,141,136,140,130,147)\ndata <- data.frame(Before=before, After=after)\nprint(data)\n# StatsDirect uses first minus second for this selection.\nchange <- before - after\nprint(t.test(before, after, paired=TRUE, conf.level=0.95))\nplot(before, after, pch=19, xlab="Before", ylab="After", main="Fictional paired measurements")\nabline(0,1,lty=2)\n# Try: change one after value, rerun, and explain the change in the interval.\n',
+      previousChallenges: [
+        "If the average measurement falls after an intervention, what else would you need before claiming the intervention caused the change?"
+      ]
     },
     {
       id: "precision",
@@ -626,8 +660,14 @@ Teaching rationale: ${item.explanation}` : "";
   }
   function renderStudy() {
     const l = lesson();
+    if (ensureLessonPrompt(state, lessons_default)) save();
     $("main").innerHTML = `<section class="intro"><div class="eyebrow">${esc(l.topic)}</div><h1>${esc(l.title)}</h1><p>${esc(l.summary)}</p></section><div class="actions"><button class="primary" data-action="example">Try in StatsDirect</button><button data-action="r">Explore in R</button><button class="link-button" data-action="help">Read help \u2197</button></div><details><summary>Your worked example \xB7 fictional data</summary><p>${esc(l.steps)}</p></details><section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><span id="tutorBadge" class="badge">${esc(settings.label)}</span></div><div id="workspaceContext" class="workspace-context"></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending ? "disabled" : ""}>${esc(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${settings.configured ? "Send shares learning context, up to 40 recent messages and requested open document content with OpenAI. Choose Lessons only to exclude documents. Avoid identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply."}</small><button id="send" class="primary" ${pending ? "disabled" : ""}>${settings.configured ? "Send" : settings.signingIn ? "Finish sign-in" : "Use my ChatGPT"}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
-    $("messages").innerHTML = state.conversation.map((c) => `<article class="message ${c.role === "user" ? "user" : ""}"><div class="message-label">${c.role === "user" ? "YOU" : esc(c.source.toUpperCase())}${c.model ? " \xB7 " + esc(c.model) : ""}</div><div class="message-body">${bodyHTML(c.text)}</div>${c.workspaceSources?.length ? `<div class="small context-used">Used: ${c.workspaceSources.map(esc).join("; ")}</div>` : ""}</article>`).join("");
+    $("messages").innerHTML = state.conversation.map((c) => {
+      const guide = guidePresentation(c, l);
+      const content = `<div class="message-body">${bodyHTML(c.text)}</div>${c.workspaceSources?.length ? `<div class="small context-used">Used: ${c.workspaceSources.map(esc).join("; ")}</div>` : ""}`;
+      if (guide.earlier) return `<details class="earlier-guide"><summary>${esc(guide.label)}</summary>${content}</details>`;
+      return `<article class="message ${c.role === "user" ? "user" : ""}"><div class="message-label">${c.role === "user" ? "YOU" : esc(guide.label.toUpperCase())}${c.model ? " \xB7 " + esc(c.model) : ""}</div>${content}</article>`;
+    }).join("");
     $("messages").scrollTop = $("messages").scrollHeight;
     renderWorkspace();
     $("question").oninput = () => {
@@ -688,12 +728,12 @@ Teaching rationale: ${item.explanation}` : "";
       return;
     }
     teachingSupport();
-    transcriptEntry(state, "user", text, "Learner");
+    transcriptEntry(state, "user", text, "Learner", { lessonId: lesson().id, lessonTitle: lesson().title });
     state.draft = "";
     pending = crypto.randomUUID();
     save();
     render();
-    post({ action: "ask", id: pending, lesson: lesson().id, profile: tracks[state.profile].title, stage: stages[state.stage], practiceContext: practiceContext(state), learningGoals: state.learning, messages: state.conversation.map((c) => ({ role: c.role, text: c.text })).slice(-40) });
+    post({ action: "ask", id: pending, lesson: lesson().id, profile: tracks[state.profile].title, stage: stages[state.stage], practiceContext: practiceContext(state), learningGoals: state.learning, messages: conversationForTutor(state) });
   }
   function startQuiz(mode) {
     if (pending || state.quiz && !state.quiz.completedAt) return;
@@ -899,7 +939,7 @@ Teaching rationale: ${item.explanation}` : "";
     teachingSupport();
     state.lesson = button.dataset.lesson;
     state.view = "study";
-    transcriptEntry(state, "assistant", lesson().challenge, "Study guide");
+    ensureLessonPrompt(state, lessons_default);
     activity("Opened lesson: " + lesson().title);
     render();
   };
@@ -912,6 +952,7 @@ Teaching rationale: ${item.explanation}` : "";
         loaded = false;
         state = value ? restorePortfolio(value) : newPortfolio();
         if (!lessons_default.some((l) => l.id === state.lesson)) state.lesson = "epidemiology";
+        labelStudyGuides(state, lessons_default);
         if (independent()) state.view = "practice";
         welcome();
         render();
@@ -951,7 +992,7 @@ Teaching rationale: ${item.explanation}` : "";
       if (value.id !== pending) return;
       pending = null;
       if (value.workspaceSources?.length) activity("Tutor used: " + value.workspaceSources.join("; "));
-      transcriptEntry(state, "assistant", value.text, "StatsDirect AI tutor", { model: value.model, responseID: value.responseID, promptVersion: value.promptVersion, courseSources: value.courseSources ?? [], workspaceSources: value.workspaceSources ?? [] });
+      transcriptEntry(state, "assistant", value.text, "StatsDirect AI tutor", { lessonId: lesson().id, lessonTitle: lesson().title, model: value.model, responseID: value.responseID, promptVersion: value.promptVersion, courseSources: value.courseSources ?? [], workspaceSources: value.workspaceSources ?? [] });
       save();
       render();
     },

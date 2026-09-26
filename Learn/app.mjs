@@ -2,6 +2,7 @@ import {questions,tracks} from './bank.mjs';
 import {createSession,recordAnswer,recordAssistance,learnerResult,sessionQuestion} from './quiz.mjs';
 import {newPortfolio,restorePortfolio,transcriptEntry,reviewRecord,reviewText,practiceContext,stages} from './portfolio.mjs';
 import {examSources,communicationPrompt} from './exam-sources.mjs';
+import {labelStudyGuides,ensureLessonPrompt,guidePresentation,conversationForTutor} from './lesson-context.mjs';
 import lessons from '../Content/Learn/lessons.json';
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -28,9 +29,14 @@ function render(){
   if(state.view==='options')renderOptions();else if(state.view==='sources')renderSources();else if(state.view==='practice')renderPractice();else if(state.view==='record')renderRecord();else renderStudy();
 }
 function bodyHTML(text){return text.split(/```(?:[A-Za-z0-9_-]+)?\n?/).map((s,i)=>i%2?`<pre><code>${esc(s)}</code></pre>`:esc(s)).join('');}
-function renderStudy(){const l=lesson();
+function renderStudy(){const l=lesson();if(ensureLessonPrompt(state,lessons))save();
   $('main').innerHTML=`<section class="intro"><div class="eyebrow">${esc(l.topic)}</div><h1>${esc(l.title)}</h1><p>${esc(l.summary)}</p></section><div class="actions"><button class="primary" data-action="example">Try in StatsDirect</button><button data-action="r">Explore in R</button><button class="link-button" data-action="help">Read help ↗</button></div><details><summary>Your worked example · fictional data</summary><p>${esc(l.steps)}</p></details><section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><span id="tutorBadge" class="badge">${esc(settings.label)}</span></div><div id="workspaceContext" class="workspace-context"></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending?'disabled':''}>${esc(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${settings.configured?'Send shares learning context, up to 40 recent messages and requested open document content with OpenAI. Choose Lessons only to exclude documents. Avoid identifiers.':'Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account’s Codex access and usage allowance apply.'}</small><button id="send" class="primary" ${pending?'disabled':''}>${settings.configured?'Send':settings.signingIn?'Finish sign-in':'Use my ChatGPT'}</button>${pending?'<button id="stop">Stop</button>':''}</div><p class="small" id="chatStatus" role="status">${pending?'The tutor is thinking…':''}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
-  $('messages').innerHTML=state.conversation.map(c=>`<article class="message ${c.role==='user'?'user':''}"><div class="message-label">${c.role==='user'?'YOU':esc(c.source.toUpperCase())}${c.model?' · '+esc(c.model):''}</div><div class="message-body">${bodyHTML(c.text)}</div>${c.workspaceSources?.length?`<div class="small context-used">Used: ${c.workspaceSources.map(esc).join('; ')}</div>`:''}</article>`).join('');
+  $('messages').innerHTML=state.conversation.map(c=>{
+    const guide=guidePresentation(c,l);
+    const content=`<div class="message-body">${bodyHTML(c.text)}</div>${c.workspaceSources?.length?`<div class="small context-used">Used: ${c.workspaceSources.map(esc).join('; ')}</div>`:''}`;
+    if(guide.earlier)return `<details class="earlier-guide"><summary>${esc(guide.label)}</summary>${content}</details>`;
+    return `<article class="message ${c.role==='user'?'user':''}"><div class="message-label">${c.role==='user'?'YOU':esc(guide.label.toUpperCase())}${c.model?' · '+esc(c.model):''}</div>${content}</article>`;
+  }).join('');
   $('messages').scrollTop=$('messages').scrollHeight;
   renderWorkspace();
   $('question').oninput=()=>{state.draft=$('question').value;save();};
@@ -54,8 +60,8 @@ function send(){
   const text=$('question')?.value.trim()||state.draft.trim();if(!text)return;
   if(!settings.configured){configure();return;}
   teachingSupport();
-  transcriptEntry(state,'user',text,'Learner');state.draft='';pending=crypto.randomUUID();save();render();
-  post({action:'ask',id:pending,lesson:lesson().id,profile:tracks[state.profile].title,stage:stages[state.stage],practiceContext:practiceContext(state),learningGoals:state.learning,messages:state.conversation.map(c=>({role:c.role,text:c.text})).slice(-40)});
+  transcriptEntry(state,'user',text,'Learner',{lessonId:lesson().id,lessonTitle:lesson().title});state.draft='';pending=crypto.randomUUID();save();render();
+  post({action:'ask',id:pending,lesson:lesson().id,profile:tracks[state.profile].title,stage:stages[state.stage],practiceContext:practiceContext(state),learningGoals:state.learning,messages:conversationForTutor(state)});
 }
 function startQuiz(mode){if(pending||state.quiz&&!state.quiz.completedAt)return;if(state.quiz)state.attempts.push(state.quiz);state.quiz=createSession(state.profile,mode);feedback=null;state.view='practice';activity(`Started ${mode==='test'?'independent':'supported'} practice for ${tracks[state.profile].title}`);render();}
 function renderPractice(){const qz=state.quiz;
@@ -101,11 +107,11 @@ $('settings').onclick=configure;
 $('options').onclick=()=>navigate('options');
 $('profile').onchange=()=>{state.profile=$('profile').value;activity('Learning pathway changed to '+tracks[state.profile].title);render();};
 $('stage').onchange=()=>{state.stage=$('stage').value;activity('R learning stage changed to '+stages[state.stage]);render();};
-$('lessons').onclick=e=>{const button=e.target.closest('[data-lesson]');if(!button||button.disabled)return;teachingSupport();state.lesson=button.dataset.lesson;state.view='study';transcriptEntry(state,'assistant',lesson().challenge,'Study guide');activity('Opened lesson: '+lesson().title);render();};
+$('lessons').onclick=e=>{const button=e.target.closest('[data-lesson]');if(!button||button.disabled)return;teachingSupport();state.lesson=button.dataset.lesson;state.view='study';ensureLessonPrompt(state,lessons);activity('Opened lesson: '+lesson().title);render();};
 $('sourcesNav').onclick=()=>navigate('sources');
 $('practiceNav').onclick=()=>navigate('practice');$('recordNav').onclick=()=>navigate('record');
 window.statsDirectLearn={
-  restore(value){try{loaded=false;state=value?restorePortfolio(value):newPortfolio();if(!lessons.some(l=>l.id===state.lesson))state.lesson='epidemiology';if(independent())state.view='practice';welcome();render();loaded=true;save();}catch(error){this.loadError(error.message);}},
+  restore(value){try{loaded=false;state=value?restorePortfolio(value):newPortfolio();if(!lessons.some(l=>l.id===state.lesson))state.lesson='epidemiology';labelStudyGuides(state,lessons);if(independent())state.view='practice';welcome();render();loaded=true;save();}catch(error){this.loadError(error.message);}},
   loadError(message){loaded=false;$('main').innerHTML='<h1>The learning record needs attention</h1><p id="loadError"></p>';$('loadError').textContent=message;notice('The existing record has not been overwritten.');},
   settings(value){
     const wasSigningIn=settings.signingIn;settings=value;
@@ -120,7 +126,7 @@ window.statsDirectLearn={
   toolActivity(value){if(value.id===pending&&$('chatStatus'))$('chatStatus').textContent=value.text;},
   saved(value){if(value===revision)$('saveStatus').textContent='Saved on this Mac';},
   notice,
-  reply(value){if(value.id!==pending)return;pending=null;if(value.workspaceSources?.length)activity('Tutor used: '+value.workspaceSources.join('; '));transcriptEntry(state,'assistant',value.text,'StatsDirect AI tutor',{model:value.model,responseID:value.responseID,promptVersion:value.promptVersion,courseSources:value.courseSources??[],workspaceSources:value.workspaceSources??[]});save();render();},
+  reply(value){if(value.id!==pending)return;pending=null;if(value.workspaceSources?.length)activity('Tutor used: '+value.workspaceSources.join('; '));transcriptEntry(state,'assistant',value.text,'StatsDirect AI tutor',{lessonId:lesson().id,lessonTitle:lesson().title,model:value.model,responseID:value.responseID,promptVersion:value.promptVersion,courseSources:value.courseSources??[],workspaceSources:value.workspaceSources??[]});save();render();},
   tutorError(value){if(value.id&&value.id!==pending)return;pending=null;notice(value.message);render();},
   exportRecord,
   coursePack(value){coursePack=value;if(loaded&&state.view==='options')renderOptions();},

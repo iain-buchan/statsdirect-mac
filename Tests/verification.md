@@ -277,3 +277,12 @@ swiftc Sources/ChatGPTTutor.swift Sources/TutorTools.swift Sources/RScriptGenera
 .build/tutor-engine-test "$PWD"
 Scripts/test-learning-workspace.sh "$PWD/StatsDirect Viewer.app"
 ```
+
+## 2026-09-26 — 0.3.5: Keep study-guide prompts with their lessons
+
+- Confirmed the clinic-diagnosis question belongs to the epidemiology lesson. The shared conversation previously displayed all lesson prompts with the same generic label, making earlier questions look like part of the currently selected lesson.
+- Guide prompts now carry their lesson title; prompts from other lessons or older wording are collapsed as earlier study guides. Exact-text matching labels legacy entries without rewriting or deleting the conversation. Reopening a lesson supplies its current prompt when needed; re-rendering does not duplicate it. Lesson titles are retained in exports and sent with model conversation context.
+- The paired lesson explicitly establishes repeated observations on the same people or matched pairs and contrasts these with different unmatched patients in two periods. The teaching instructions likewise require actual pairing before selecting a paired method.
+- All ten Learning/lesson-context tests pass, including legacy-record migration, lesson switching, duplicate prevention, draft/history preservation, export attribution and the seven executable R lesson examples.
+- Built and verified ad-hoc signatures for 0.3.5 and the canonical app. Engine bytes and native executable UUID are unchanged from 0.3.4. No calculations or runtime protocols changed.
+- Opened 0.3.5 after confirming the older window contained only an empty worksheet. In the restored real Learning record, the paired heading and revised prompt are correct, both earlier prompts are collapsed with their original lesson names, ChatGPT remains connected, and the complete prior learner/tutor conversation is retained. No question was sent to the live tutor during this verification.

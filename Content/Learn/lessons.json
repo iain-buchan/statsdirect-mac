@@ -30,8 +30,8 @@
     "title": "Comparing paired measurements",
     "topic": "Change within a person",
     "objective": "Recognise pairing, analyse differences and interpret a confidence interval.",
-    "summary": "When each person is measured twice, the two columns belong together. A paired t test asks whether the population mean difference is zero. Check the distribution of the differences, rather than requiring each original column to be normal.",
-    "challenge": "If the average measurement falls after an intervention, what else would you need before claiming the intervention caused the change?",
+    "summary": "Paired measurements come from the same people measured twice, or from explicitly matched pairs. Analyse the within-pair differences. Measuring different, unmatched patients before and after does not create pairing just because they attend the same clinic. For a paired t test, assess the distribution of the differences.",
+    "challenge": "The same eight people have a measurement taken before and after an intervention, with each person's two values on the same row. Why are these paired observations? How would the analysis change if different people were measured in the two periods?",
     "steps": "Choose Analysis \u2192 Parametric Methods \u2192 Paired Student t test. This example selects Before and After. Use the displayed difference direction consistently. Interpret the estimated difference and 95% confidence interval before the P value. The worksheet contains eight fictional participants.",
     "operation": "TPaired",
     "help": "parametric_methods/paired_t.htm",
@@ -63,7 +63,10 @@
         ]
       }
     ],
-    "r": "# Fictional paired measurements: same eight people, same row order.\nbefore <- c(142,136,151,145,139,148,132,155)\nafter <- c(135,134,143,141,136,140,130,147)\ndata <- data.frame(Before=before, After=after)\nprint(data)\n# StatsDirect uses first minus second for this selection.\nchange <- before - after\nprint(t.test(before, after, paired=TRUE, conf.level=0.95))\nplot(before, after, pch=19, xlab=\"Before\", ylab=\"After\", main=\"Fictional paired measurements\")\nabline(0,1,lty=2)\n# Try: change one after value, rerun, and explain the change in the interval.\n"
+    "r": "# Fictional paired measurements: same eight people, same row order.\nbefore <- c(142,136,151,145,139,148,132,155)\nafter <- c(135,134,143,141,136,140,130,147)\ndata <- data.frame(Before=before, After=after)\nprint(data)\n# StatsDirect uses first minus second for this selection.\nchange <- before - after\nprint(t.test(before, after, paired=TRUE, conf.level=0.95))\nplot(before, after, pch=19, xlab=\"Before\", ylab=\"After\", main=\"Fictional paired measurements\")\nabline(0,1,lty=2)\n# Try: change one after value, rerun, and explain the change in the interval.\n",
+    "previousChallenges": [
+      "If the average measurement falls after an intervention, what else would you need before claiming the intervention caused the change?"
+    ]
   },
   {
     "id": "precision",

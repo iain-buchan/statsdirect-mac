@@ -1,4 +1,4 @@
-# StatsDirect Learning (macOS prototype 0.3.4)
+# StatsDirect Learning (macOS prototype 0.3.5)
 
 Open **Help → Learning** or **Help → Learning Options**. This is an integrated closable Mac document: original Windows artwork, seven lessons, five learner pathways, 30 original draft MCQs, local persistence, real StatsDirect analysis forms and seven runnable base-R examples with plots. Epidemiology and causal inference are shared foundations. Options include learning needs, named exams/qualifications, prior knowledge, R experience, target date, priorities and teaching style.
 
@@ -27,6 +27,9 @@ Direct calculations currently support paired and unpaired t tests, univariate an
 Reads are limited to 4,000 cells across at most 32 columns and 50,000 characters, with no silent sampling or truncation. Missing-cell positions and selected column order are retained. Stale formula caches and Excel errors cannot be calculated. Large documents/R output are explicitly bounded excerpts. Replies show the sources actually used, which are also included in the learning record. The teacher is instructed to inspect available data before asking the learner to paste it, and to distinguish open workbooks from each lesson's fictional example.
 
 ## Teaching and records
+
+Study-guide questions carry their lesson title. Prompts from another lesson are collapsed as earlier study guides in the shared conversation, while the current lesson has its own prompt. Older saved prompts are identified by exact bundled text, retaining their original wording and the complete review record. The paired lesson explicitly contrasts repeated/matched observations with different unmatched patients in two periods. The same lesson labels accompany conversation history sent to the tutor.
+
 
 Supported practice gives feedback after each answer, recording hints and in-app assistance. Independent practice disables in-app tutoring and withholds keys/results until completion or early termination. First answers, reasoning, confidence, question snapshots and provisional scores are saved, together with the complete teaching conversation, activity log and reflection. Existing sessions freeze their question version when created. This is unsupervised practice, not a secure examination. Fixed answer keys score MCQs; free-text reasoning and AI explanations are not independently marked.
 

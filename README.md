@@ -4,7 +4,7 @@ Native macOS prototype in [iain-buchan/statsdirect-mac](https://github.com/iain-
 
 Open **StatsDirect Viewer.app**. It starts with one blank worksheet. **File → New Worksheet** (⌘N) creates another independent document; **File → Open…** (⌘O) accepts Excel, CSV, R data and HTML reports. Choose a function from **Analysis** to open its first input step immediately. Ordinary results append to one active report. Instant-answer methods show results above their editable data and parameters, with **Add to report** to keep a snapshot. **File → New Report** explicitly starts another report; selecting an existing report makes it the destination for subsequent results. Each saved result retains its own method help and R script.
 
-**StatsDirect → About StatsDirect** opens the native About panel, showing the Mac prototype version and calculation-engine version. The same command is available under **Help**. Worked data are available under **Help → Examples → StatsDirect Example Workbook**; no example data or test-specific controls are loaded into a new worksheet.
+**StatsDirect → About StatsDirect** opens the native About panel, showing the Mac prototype version and calculation-engine version. The same command is available under **Help**. Worked data are available under **Help → Example workbook**; no example data or test-specific controls are loaded into a new worksheet.
 
 The window uses the native macOS red, amber and green controls. Drag the title bar to move it or its edges to resize it. Document tabs have their own **×** buttons; the duplicate top-right frame buttons have been removed.
 
@@ -58,7 +58,7 @@ Choose **Analysis → Parametric → Paired t**, select columns and answer **Yes
 
 ## Excel workbooks
 
-**File → Open…** (⌘O) opens an `.xlsx` workbook in a new data tab. The buttons above the grid select its worksheets. **Help → Examples → StatsDirect Example Workbook** loads the bundled StatsDirect example with all 11 worksheets. Its original filename is `test.xlsx`, not `text.xlsx`.
+**File → Open…** (⌘O) opens an `.xlsx` workbook in a new data tab. The buttons above the grid select its worksheets. **Help → Example workbook** loads the bundled StatsDirect example with all 11 worksheets. Its original filename is `test.xlsx`, not `text.xlsx`.
 
 **Save Excel…** (⌘S in an Excel tab) writes every worksheet to an `.xlsx` file. The default filename ends in `-edited.xlsx`; the original is untouched unless you explicitly select it in the save dialog. Numbers, text identifiers, dates and booleans retain their types. Existing workbook cell styles, formulas and other untouched package content are preserved; the grid itself uses a simple, consistent display. **File → Export → Current Worksheet as CSV…** exports only the current worksheet and does not mark an Excel workbook as saved.
 

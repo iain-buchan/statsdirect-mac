@@ -1,3 +1,7 @@
+# Example workbook menu — 26 September 2026
+
+Mac build 0.3.10 replaces Help → Examples → StatsDirect Example Workbook with the direct Help → Example workbook command. Native UI verification in an isolated app confirmed the shortened entry and that selecting it opens test.xlsx with all 11 worksheets. The shared menu definition also supplies the macOS menu bar. Swift compilation and deep, strict signature verification passed for both packaged app paths. The calculation engine and workbook are unchanged.
+
 # Teaching content audit — 26 September 2026
 
 Mac build 0.3.9 incorporates the [educational-content audit](../Docs/Learn/CONTENT-AUDIT-2026-09-26.md): all seven lessons, 30 fixed questions, both tutor policies, the sample course pack, archived teaching content and R handoff explanations. Fourteen question wordings were revised; all answer keys remain unchanged.

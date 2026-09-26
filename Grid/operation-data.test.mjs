@@ -46,3 +46,25 @@ test('paste expands without truncating and rejects fixed-table overflow',()=>{
  assert.throws(()=>worksheetInput(source,[0,0],2,4),/once/);
  assert.throws(()=>worksheetInput(source,[0],0,4),/valid/);
 });
+
+const screen={screen:true,rows:2,fixedRows:true,minColumns:2,maxColumns:2,labels:['Present','Absent']};
+const block={name:'Book / Counts',firstRow:1,rows:30,columns:['A','B','C','D'],selection:[2,3],range:{first:5,last:6},cells:[{col:0,row:0,text:'999'},{col:2,row:4,text:'12'},{col:3,row:4,text:'3'},{col:2,row:5,text:'0'},{col:3,row:5,text:'17'}]};
+import {screenSelection,initialGrid} from './operation-data.mjs';
+test('screen table fills exactly the highlighted rectangle in worksheet orientation',()=>{
+ assert.deepEqual(screenSelection(block,screen),[['12','3'],['0','17']]);
+ assert.deepEqual(initialGrid(screen,block).titles,['Present','Absent']);
+ assert.deepEqual(screenSelection({...block,cells:block.cells.slice(0,-1)},screen),[['12','3'],['0','']]);
+ assert.equal(screenSelection({...block,range:undefined},screen),null);
+ assert.equal(screenSelection(block,{...screen,screen:false}),null);
+});
+test('screen selection never crops an oversized block or bypasses formula safety',()=>{
+ assert.throws(()=>screenSelection({...block,range:{first:5,last:7}},screen),/not been copied/);
+ assert.throws(()=>screenSelection({...block,selection:[1,2,3]},screen),/not been copied/);
+ assert.match(initialGrid(screen,{...block,selection:[1]}).error,/not been copied/);
+ assert.throws(()=>screenSelection({...block,formulasStale:true,cells:[...block.cells,{col:2,row:4,text:'12',formula:'SUM(A1:B1)'}]},screen),/Recalculate/);
+ assert.throws(()=>screenSelection({...block,cells:[{col:2,row:4,text:'#VALUE!',kind:'error'}]},screen),/Excel errors/);
+});
+test('edited/rejected answers take precedence over the original worksheet snapshot',()=>{
+ const initial={columns:[{title:'Present',values:['9','7']},{title:'Absent',values:['4','20']}]};
+ assert.deepEqual(initialGrid(screen,block,initial).matrix,[['9','4'],['7','20']]);
+});

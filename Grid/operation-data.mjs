@@ -27,6 +27,25 @@ export function worksheetInput(source, selected, first, last) {
     return {title:source.columns[col],values};
   })};
 }
+// Screen forms take an explicitly highlighted rectangle, never a cropped larger selection.
+export function screenSelection(source, prompt) {
+  if (!prompt.screen || !source?.range || !source.selection?.length) return null;
+  const {first,last}=source.range, columns=source.selection;
+  const rows=last-first+1;
+  if (columns.length<prompt.minColumns || columns.length>prompt.maxColumns ||
+      (prompt.fixedRows && rows!==prompt.rows))
+    throw new Error(`Select ${prompt.fixedRows?prompt.rows+' rows and ':''}${prompt.minColumns===prompt.maxColumns?prompt.minColumns:prompt.minColumns+'–'+prompt.maxColumns} columns in the worksheet to fill this table. The selection has not been copied.`);
+  if (rows*columns.length>1000000) throw new Error('The selected table is too large for this form.');
+  const input=worksheetInput(source,columns,first,last);
+  return Array.from({length:rows},(_,r)=>input.columns.map(c=>String(c.values[r]??'')));
+}
+export function initialGrid(prompt, source, initial) {
+  const titles=initial?.columns?.map(c=>c.title)??prompt.labels??Array.from({length:Math.max(1,prompt.minColumns)},(_,i)=>`Column ${i+1}`);
+  if(initial?.columns) return {titles,matrix:Array.from({length:Math.max(prompt.rows??0,initial.columns[0].values.length)},(_,r)=>initial.columns.map(c=>String(c.values[r]??''))),error:''};
+  const blank=Array.from({length:prompt.rows??12},()=>titles.map(()=>''));
+  try { const matrix=screenSelection(source,prompt); return {titles:matrix?Array.from({length:matrix[0].length},(_,i)=>titles[i]??`Column ${i+1}`):titles,matrix:matrix??blank,error:''}; }
+  catch(e) {return {titles,matrix:blank,error:e.message};}
+}
 export function enteredInput(matrix, titles, fixedRows=false) {
   let end=matrix.length;
   if(!fixedRows) while(end>0 && matrix[end-1].every(v=>String(v).trim()===''))end--;

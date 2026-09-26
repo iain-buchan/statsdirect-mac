@@ -1869,1044 +1869,1252 @@
     "FillSeries": {
       "id": "FillSeries",
       "title": "Fill series",
-      "help": "Help/data_preparation/fill_series.htm"
+      "help": "Help/data_preparation/fill_series.htm",
+      "instant": false
     },
     "RndUniform01": {
       "id": "RndUniform01",
       "title": "Random numbers: Uniform 0 to 1",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndUniformAB": {
       "id": "RndUniformAB",
       "title": "Random numbers: Uniform a to b",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndNormal": {
       "id": "RndNormal",
       "title": "Random numbers: Normal",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndLogNormal": {
       "id": "RndLogNormal",
       "title": "Random numbers: Lognormal",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndBinomial": {
       "id": "RndBinomial",
       "title": "Random numbers: Binomial",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndPoisson": {
       "id": "RndPoisson",
       "title": "Random numbers: Poisson",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndGamma": {
       "id": "RndGamma",
       "title": "Random numbers: Gamma",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndExponential": {
       "id": "RndExponential",
       "title": "Random numbers: Exponential",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndChiSquare": {
       "id": "RndChiSquare",
       "title": "Random numbers: Chi-square",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndF": {
       "id": "RndF",
       "title": "Random numbers: F",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndT": {
       "id": "RndT",
       "title": "Random numbers: Student's t",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndLogit": {
       "id": "RndLogit",
       "title": "Random numbers: Logistic",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndGeometric": {
       "id": "RndGeometric",
       "title": "Random numbers: Geometric",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndNegativeBinomial": {
       "id": "RndNegativeBinomial",
       "title": "Random numbers: Negative binomial",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndCauchy": {
       "id": "RndCauchy",
       "title": "Random numbers: Cauchy",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndWeibull": {
       "id": "RndWeibull",
       "title": "Random numbers: Weibull",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "RndBeta": {
       "id": "RndBeta",
       "title": "Random numbers: Beta",
-      "help": "Help/randomization/generate_random_numbers.htm"
+      "help": "Help/randomization/generate_random_numbers.htm",
+      "instant": false
     },
     "SearchAndReplace": {
       "id": "SearchAndReplace",
       "title": "Search and replace (basic)",
-      "help": "Help/data_preparation/search_replace.htm"
+      "help": "Help/data_preparation/search_replace.htm",
+      "instant": false
     },
     "SearchAndReplaceAdvanced": {
       "id": "SearchAndReplaceAdvanced",
       "title": "Search and replace (Advanced)",
-      "help": "Help/data_preparation/search_replace.htm"
+      "help": "Help/data_preparation/search_replace.htm",
+      "instant": true
     },
     "ClearMissing": {
       "id": "ClearMissing",
       "title": "Clear missing values",
-      "help": "Help/data_preparation/clear_missing_data.htm"
+      "help": "Help/data_preparation/clear_missing_data.htm",
+      "instant": false
     },
     "TextCode": {
       "id": "TextCode",
       "title": "Convert text to numbers",
-      "help": "Help/data_preparation/text_to_numbers.htm"
+      "help": "Help/data_preparation/text_to_numbers.htm",
+      "instant": false
     },
     "Dates": {
       "id": "Dates",
       "title": "Calculate date and time intervals",
-      "help": "Help/data_preparation/date_time_intervals.htm"
+      "help": "Help/data_preparation/date_time_intervals.htm",
+      "instant": false
     },
     "GroupCategorise": {
       "id": "GroupCategorise",
       "title": "Categorise observations into groups",
-      "help": "Help/data_preparation/categorise.htm"
+      "help": "Help/data_preparation/categorise.htm",
+      "instant": false
     },
     "GroupExtract": {
       "id": "GroupExtract",
       "title": "Derive a variable from data based on rules",
-      "help": "Help/data_preparation/extract_variables.htm"
+      "help": "Help/data_preparation/extract_variables.htm",
+      "instant": false
     },
     "TransformLog": {
       "id": "TransformLog",
       "title": "Transformation: Log",
-      "help": "Help/data_preparation/transform_log.htm"
+      "help": "Help/data_preparation/transform_log.htm",
+      "instant": false
     },
     "TransformLog10": {
       "id": "TransformLog10",
       "title": "Transformation: Log (base 10)",
-      "help": "Help/data_preparation/transform_log.htm"
+      "help": "Help/data_preparation/transform_log.htm",
+      "instant": false
     },
     "TransformLogit": {
       "id": "TransformLogit",
       "title": "Transformation: Logit",
-      "help": "Help/data_preparation/transform_logit.htm"
+      "help": "Help/data_preparation/transform_logit.htm",
+      "instant": false
     },
     "TransformProbit": {
       "id": "TransformProbit",
       "title": "Transformation: Probit",
-      "help": "Help/data_preparation/transform_probit.htm"
+      "help": "Help/data_preparation/transform_probit.htm",
+      "instant": false
     },
     "TransformAngular": {
       "id": "TransformAngular",
       "title": "Transformation: Angular",
-      "help": "Help/data_preparation/transform_angle.htm"
+      "help": "Help/data_preparation/transform_angle.htm",
+      "instant": false
     },
     "TransformCumulate": {
       "id": "TransformCumulate",
       "title": "Transformation: Cumulative",
-      "help": "Help/data_preparation/transform_cumulative.htm"
+      "help": "Help/data_preparation/transform_cumulative.htm",
+      "instant": false
     },
     "LadderPowers": {
       "id": "LadderPowers",
       "title": "Ladder of powers transformation set",
-      "help": "Help/data_preparation/transform_ladder_powers.htm"
+      "help": "Help/data_preparation/transform_ladder_powers.htm",
+      "instant": false
     },
     "TransformECDF": {
       "id": "TransformECDF",
       "title": "Transformation: Empirical Cumulative Distribution Function",
-      "help": "Help/data_preparation/transform_empirical_cdf.htm"
+      "help": "Help/data_preparation/transform_empirical_cdf.htm",
+      "instant": false
     },
     "TransformZSD": {
       "id": "TransformZSD",
       "title": "Transformation: Z score based on sample standard deviation",
-      "help": "Help/data_preparation/transform_z_scores.htm"
+      "help": "Help/data_preparation/transform_z_scores.htm",
+      "instant": false
     },
     "ApplyFunction": {
       "id": "ApplyFunction",
       "title": "Apply function to transform data",
-      "help": "Help/data_preparation/apply_function.htm"
+      "help": "Help/data_preparation/apply_function.htm",
+      "instant": false
     },
     "PairDifferences": {
       "id": "PairDifferences",
       "title": "Pairwise differences",
-      "help": "Help/data_preparation/pairwise_differences.htm"
+      "help": "Help/data_preparation/pairwise_differences.htm",
+      "instant": false
     },
     "PairMeans": {
       "id": "PairMeans",
       "title": "Pairwise means",
-      "help": "Help/data_preparation/pairwise_means.htm"
+      "help": "Help/data_preparation/pairwise_means.htm",
+      "instant": false
     },
     "PairSlopes": {
       "id": "PairSlopes",
       "title": "Pairwise slopes",
-      "help": "Help/data_preparation/pairwise_slopes.htm"
+      "help": "Help/data_preparation/pairwise_slopes.htm",
+      "instant": false
     },
     "Normal": {
       "id": "Normal",
       "title": "Normal scores",
-      "help": "Help/data_preparation/transform_normal_scores.htm"
+      "help": "Help/data_preparation/transform_normal_scores.htm",
+      "instant": false
     },
     "Standardize": {
       "id": "Standardize",
       "title": "Standardization of variables",
-      "help": "Help/data_preparation/standardization.htm"
+      "help": "Help/data_preparation/standardization.htm",
+      "instant": false
     },
     "Rank": {
       "id": "Rank",
       "title": "Ranking observations",
-      "help": "Help/data_preparation/ranking.htm"
+      "help": "Help/data_preparation/ranking.htm",
+      "instant": false
     },
     "UnivariateSummaryToWorksheetOnly": {
       "id": "UnivariateSummaryToWorksheetOnly",
       "title": "Univariate descriptive summaries of variables",
-      "help": "Help/basic_descriptive_statistics/univariate_summary.htm"
+      "help": "Help/basic_descriptive_statistics/univariate_summary.htm",
+      "instant": false
     },
     "ConvertUnits": {
       "id": "ConvertUnits",
       "title": "Convert units",
-      "help": "Help/data_preparation/conversion_factors.htm"
+      "help": "Help/data_preparation/conversion_factors.htm",
+      "instant": false
     },
     "ConvertUnitsScreen": {
       "id": "ConvertUnitsScreen",
       "title": "Convert units - screen data",
-      "help": "Help/data_preparation/conversion_factors.htm"
+      "help": "Help/data_preparation/conversion_factors.htm",
+      "instant": false
     },
     "ChildGrowth": {
       "id": "ChildGrowth",
       "title": "Anthropometric Z-Scores",
-      "help": "Help/data_preparation/growth_charts.htm"
+      "help": "Help/data_preparation/growth_charts.htm",
+      "instant": false
     },
     "SortInPlace": {
       "id": "SortInPlace",
       "title": "Sorting observations using the worksheet",
-      "help": "Help/data_preparation/sorting_worksheet.htm"
+      "help": "Help/data_preparation/sorting_worksheet.htm",
+      "instant": false
     },
     "Sort": {
       "id": "Sort",
       "title": "Sorting observations",
-      "help": "Help/data_preparation/sorting_create.htm"
+      "help": "Help/data_preparation/sorting_create.htm",
+      "instant": false
     },
     "ToggleFilters": {
       "id": "ToggleFilters",
       "title": "Turn Excel worksheet filters on/off",
-      "help": "Help/data_preparation/filter_worksheet.htm"
+      "help": "Help/data_preparation/filter_worksheet.htm",
+      "instant": false
     },
     "Rotate": {
       "id": "Rotate",
       "title": "Rotate data block",
-      "help": "Help/data_preparation/rotate_block.htm"
+      "help": "Help/data_preparation/rotate_block.htm",
+      "instant": false
     },
     "Combine": {
       "id": "Combine",
       "title": "Combine variables into one data and one category variable",
-      "help": "Help/data_preparation/combine_groups.htm"
+      "help": "Help/data_preparation/combine_groups.htm",
+      "instant": false
     },
     "GroupSplit": {
       "id": "GroupSplit",
       "title": "Split a combined variable into its component variables",
-      "help": "Help/data_preparation/group_split.htm"
+      "help": "Help/data_preparation/group_split.htm",
+      "instant": false
     },
     "DummyVariables": {
       "id": "DummyVariables",
       "title": "Create dummy (indicator) variables",
-      "help": "Help/data_preparation/dummy_variables.htm"
+      "help": "Help/data_preparation/dummy_variables.htm",
+      "instant": false
     },
     "Tabulate": {
       "id": "Tabulate",
       "title": "Cross-tabulate two variables",
-      "help": "Help/data_preparation/tabulate.htm"
+      "help": "Help/data_preparation/tabulate.htm",
+      "instant": false
     },
     "Detabulate": {
       "id": "Detabulate",
       "title": "Detabulate",
-      "help": "Help/data_preparation/detabulate.htm"
+      "help": "Help/data_preparation/detabulate.htm",
+      "instant": false
     },
     "ExpandFrequencies": {
       "id": "ExpandFrequencies",
       "title": "Expand",
-      "help": "Help/data_preparation/expand.htm"
+      "help": "Help/data_preparation/expand.htm",
+      "instant": false
     },
     "ContractFrequencies": {
       "id": "ContractFrequencies",
       "title": "Contract",
-      "help": "Help/data_preparation/contract.htm"
+      "help": "Help/data_preparation/contract.htm",
+      "instant": false
     },
     "ExactSign": {
       "id": "ExactSign",
       "title": "Sign (binomial proportion) test",
-      "help": "Help/exact_tests_on_counts/sign.htm"
+      "help": "Help/exact_tests_on_counts/sign.htm",
+      "instant": true
     },
     "ExactFisher": {
       "id": "ExactFisher",
       "title": "Fisher's exact test",
-      "help": "Help/exact_tests_on_counts/fisher_exact.htm"
+      "help": "Help/exact_tests_on_counts/fisher_exact.htm",
+      "instant": true
     },
     "ExactFisherX": {
       "id": "ExactFisherX",
       "title": "Expanded Fisher-Irwin test",
-      "help": "Help/exact_tests_on_counts/fisher_exact_extended.htm"
+      "help": "Help/exact_tests_on_counts/fisher_exact_extended.htm",
+      "instant": true
     },
     "ExactFisherRbyC": {
       "id": "ExactFisherRbyC",
       "title": "R-by-c contingency table tests",
-      "help": "Help/chi_square_tests/rc.htm"
+      "help": "Help/chi_square_tests/rc.htm",
+      "instant": true
     },
     "ExactMcNamar": {
       "id": "ExactMcNamar",
       "title": "McNemar matched pairs 2-by-2 test",
-      "help": "Help/chi_square_tests/mcnemar.htm"
+      "help": "Help/chi_square_tests/mcnemar.htm",
+      "instant": true
     },
     "ExactORCML": {
       "id": "ExactORCML",
       "title": "Odds ratio confidence interval from 2-by-2 table",
-      "help": "Help/exact_tests_on_counts/odds_ratio_ci.htm"
+      "help": "Help/exact_tests_on_counts/odds_ratio_ci.htm",
+      "instant": true
     },
     "RatePoissonCI": {
       "id": "RatePoissonCI",
       "title": "Poisson rate confidence interval",
-      "help": "Help/rates/poisson_rate_ci.htm"
+      "help": "Help/rates/poisson_rate_ci.htm",
+      "instant": true
     },
     "Chi2by2": {
       "id": "Chi2by2",
       "title": "Chi-square 2-by-2 table test",
-      "help": "Help/chi_square_tests/22.htm"
+      "help": "Help/chi_square_tests/22.htm",
+      "instant": true
     },
     "Chi2byNWithoutTrend": {
       "id": "Chi2byNWithoutTrend",
       "title": "Chi-square 2-by-k independence test",
-      "help": "Help/chi_square_tests/2k.htm"
+      "help": "Help/chi_square_tests/2k.htm",
+      "instant": true
     },
     "Chi2byNLinearTrend": {
       "id": "Chi2byNLinearTrend",
       "title": "Chi-square 2-by-k test with trend scores 1 to k",
-      "help": "Help/chi_square_tests/2k.htm"
+      "help": "Help/chi_square_tests/2k.htm",
+      "instant": true
     },
     "Chi2byNWithTrend": {
       "id": "Chi2byNWithTrend",
       "title": "Chi-square 2-by-k test with user-defined scores for trend",
-      "help": "Help/chi_square_tests/2k.htm"
+      "help": "Help/chi_square_tests/2k.htm",
+      "instant": true
     },
     "ExactChiRbyC": {
       "id": "ExactChiRbyC",
       "title": "R-by-c contingency table tests",
-      "help": "Help/chi_square_tests/rc.htm"
+      "help": "Help/chi_square_tests/rc.htm",
+      "instant": false
     },
     "ExactChiRbyCScreen": {
       "id": "ExactChiRbyCScreen",
       "title": "R-by-c contingency table tests",
-      "help": "Help/chi_square_tests/rc.htm"
+      "help": "Help/chi_square_tests/rc.htm",
+      "instant": true
     },
     "ExactMcNamarChi": {
       "id": "ExactMcNamarChi",
       "title": "McNemar and exact matched pairs 2-by-2 test",
-      "help": "Help/chi_square_tests/mcnemar.htm"
+      "help": "Help/chi_square_tests/mcnemar.htm",
+      "instant": true
     },
     "Kappa": {
       "id": "Kappa",
       "title": "Measures of inter-rater agreement over categorization",
-      "help": "Help/agreement/kappa.htm"
+      "help": "Help/agreement/kappa.htm",
+      "instant": false
     },
     "KappaScreen": {
       "id": "KappaScreen",
       "title": "Measures of inter-rater agreement over categorization",
-      "help": "Help/agreement/kappa.htm"
+      "help": "Help/agreement/kappa.htm",
+      "instant": true
     },
     "Mantel": {
       "id": "Mantel",
       "title": "Mantel-Haenszel test and odds ratio meta-analysis",
-      "help": "Help/meta_analysis/mh.htm"
+      "help": "Help/meta_analysis/mh.htm",
+      "instant": false
     },
     "MantelHaenszelScreen": {
       "id": "MantelHaenszelScreen",
       "title": "Mantel-Haenszel test and odds ratio meta-analysis",
-      "help": "Help/meta_analysis/mh.htm"
+      "help": "Help/meta_analysis/mh.htm",
+      "instant": true
     },
     "ChiWoolfWorksheet": {
       "id": "ChiWoolfWorksheet",
       "title": "Chi-square 2-by-2-by-k Woolf test",
-      "help": "Help/chi_square_tests/woolf.htm"
+      "help": "Help/chi_square_tests/woolf.htm",
+      "instant": false
     },
     "ChiWoolfScreen": {
       "id": "ChiWoolfScreen",
       "title": "Chi-square 2-by-2-by-k Woolf test",
-      "help": "Help/chi_square_tests/woolf.htm"
+      "help": "Help/chi_square_tests/woolf.htm",
+      "instant": true
     },
     "PropSingle": {
       "id": "PropSingle",
       "title": "Analysis of single proportions",
-      "help": "Help/proportions/single.htm"
+      "help": "Help/proportions/single.htm",
+      "instant": true
     },
     "PropPairs": {
       "id": "PropPairs",
       "title": "Comparison of paired proportions",
-      "help": "Help/proportions/paired.htm"
+      "help": "Help/proportions/paired.htm",
+      "instant": true
     },
     "PropUnPaired": {
       "id": "PropUnPaired",
       "title": "Comparison of independent proportions",
-      "help": "Help/proportions/unpaired.htm"
+      "help": "Help/proportions/unpaired.htm",
+      "instant": true
     },
     "RateCompareTwo": {
       "id": "RateCompareTwo",
       "title": "Compare two crude rates",
-      "help": "Help/rates/compare_crude_incidence_rates.htm"
+      "help": "Help/rates/compare_crude_incidence_rates.htm",
+      "instant": true
     },
     "Stdrr": {
       "id": "Stdrr",
       "title": "Standardize and compare two rates",
-      "help": "Help/rates/standardize_compare_two_rates.htm"
+      "help": "Help/rates/standardize_compare_two_rates.htm",
+      "instant": false
     },
     "RateDirect": {
       "id": "RateDirect",
       "title": "Direct standardization",
-      "help": "Help/rates/direct_standardization.htm"
+      "help": "Help/rates/direct_standardization.htm",
+      "instant": false
     },
     "RateDirectScreen": {
       "id": "RateDirectScreen",
       "title": "Direct standardisation",
-      "help": "Help/rates/direct_standardization.htm"
+      "help": "Help/rates/direct_standardization.htm",
+      "instant": true
     },
     "RateSmr": {
       "id": "RateSmr",
       "title": "Indirect standardization and SMR",
-      "help": "Help/rates/smr.htm"
+      "help": "Help/rates/smr.htm",
+      "instant": false
     },
     "RateSmrScreen": {
       "id": "RateSmrScreen",
       "title": "Indirect standardization and SMR",
-      "help": "Help/rates/smr.htm"
+      "help": "Help/rates/smr.htm",
+      "instant": true
     },
     "DistributionNormal": {
       "id": "DistributionNormal",
       "title": "Distribution: Normal",
-      "help": "Help/distributions/normal.htm"
+      "help": "Help/distributions/normal.htm",
+      "instant": false
     },
     "DistributionT": {
       "id": "DistributionT",
       "title": "Distribution: Student's t",
-      "help": "Help/distributions/t.htm"
+      "help": "Help/distributions/t.htm",
+      "instant": false
     },
     "DistributionF": {
       "id": "DistributionF",
       "title": "Distribution: F",
-      "help": "Help/distributions/f.htm"
+      "help": "Help/distributions/f.htm",
+      "instant": false
     },
     "DistributionChiSquare": {
       "id": "DistributionChiSquare",
       "title": "Distribution: Chi-Square",
-      "help": "Help/distributions/chisq.htm"
+      "help": "Help/distributions/chisq.htm",
+      "instant": false
     },
     "DistributionQ": {
       "id": "DistributionQ",
       "title": "Distribution: Q",
-      "help": "Help/distributions/studentized_range.htm"
+      "help": "Help/distributions/studentized_range.htm",
+      "instant": false
     },
     "DistributionBinomial": {
       "id": "DistributionBinomial",
       "title": "Distribution: Binomial",
-      "help": "Help/distributions/binomial.htm"
+      "help": "Help/distributions/binomial.htm",
+      "instant": false
     },
     "DistributionPoisson": {
       "id": "DistributionPoisson",
       "title": "Distribution: Poisson",
-      "help": "Help/distributions/poisson.htm"
+      "help": "Help/distributions/poisson.htm",
+      "instant": false
     },
     "DistributionKendall": {
       "id": "DistributionKendall",
       "title": "Distribution: Kendall",
-      "help": "Help/distributions/tau.htm"
+      "help": "Help/distributions/tau.htm",
+      "instant": false
     },
     "DistributionSpearman": {
       "id": "DistributionSpearman",
       "title": "Distribution: Spearman",
-      "help": "Help/distributions/rho.htm"
+      "help": "Help/distributions/rho.htm",
+      "instant": false
     },
     "DistributionNonCentralT": {
       "id": "DistributionNonCentralT",
       "title": "Distribution: Non-central t",
-      "help": "Help/distributions/non_central_t.htm"
+      "help": "Help/distributions/non_central_t.htm",
+      "instant": false
     },
     "SizePaired": {
       "id": "SizePaired",
       "title": "Sample size for a paired or 1 sample t test",
-      "help": "Help/sample_size/paired_t_test.htm"
+      "help": "Help/sample_size/paired_t_test.htm",
+      "instant": true
     },
     "SizeUnPaired": {
       "id": "SizeUnPaired",
       "title": "Sample size for an unpaired t test",
-      "help": "Help/sample_size/unpaired_t_test.htm"
+      "help": "Help/sample_size/unpaired_t_test.htm",
+      "instant": true
     },
     "SizeIndCase": {
       "id": "SizeIndCase",
       "title": "Sample size for independent case-control study",
-      "help": "Help/sample_size/independent_case_control.htm"
+      "help": "Help/sample_size/independent_case_control.htm",
+      "instant": true
     },
     "SizeIndProp": {
       "id": "SizeIndProp",
       "title": "Sample size for independent cohort study",
-      "help": "Help/sample_size/independent_cohort.htm"
+      "help": "Help/sample_size/independent_cohort.htm",
+      "instant": true
     },
     "SizeMatchCase": {
       "id": "SizeMatchCase",
       "title": "Sample size for matched case-control study",
-      "help": "Help/sample_size/matched_case_control.htm"
+      "help": "Help/sample_size/matched_case_control.htm",
+      "instant": true
     },
     "SizeMatchProp": {
       "id": "SizeMatchProp",
       "title": "Sample size for paired cohort study",
-      "help": "Help/sample_size/paired_cohort.htm"
+      "help": "Help/sample_size/paired_cohort.htm",
+      "instant": true
     },
     "SizePopSurvey": {
       "id": "SizePopSurvey",
       "title": "Sample size for a population survey",
-      "help": "Help/sample_size/population_survey.htm"
+      "help": "Help/sample_size/population_survey.htm",
+      "instant": true
     },
     "SizeSurvival": {
       "id": "SizeSurvival",
       "title": "Sample size for comparing survival times",
-      "help": "Help/sample_size/survival.htm"
+      "help": "Help/sample_size/survival.htm",
+      "instant": true
     },
     "SizeCorrelation": {
       "id": "SizeCorrelation",
       "title": "Sample size for correlation study",
-      "help": "Help/sample_size/correlation.htm"
+      "help": "Help/sample_size/correlation.htm",
+      "instant": true
     },
     "RandomXY": {
       "id": "RandomXY",
       "title": "Randomise a number series from x to y",
-      "help": "Help/randomization/x_y_series.htm"
+      "help": "Help/randomization/x_y_series.htm",
+      "instant": true
     },
     "RandomPairs": {
       "id": "RandomPairs",
       "title": "Intervention-control pair randomization",
-      "help": "Help/randomization/intervention_control_pairs.htm"
+      "help": "Help/randomization/intervention_control_pairs.htm",
+      "instant": true
     },
     "RandomUnPaired": {
       "id": "RandomUnPaired",
       "title": "Random allocation into two independent groups",
-      "help": "Help/randomization/two_independent_groups.htm"
+      "help": "Help/randomization/two_independent_groups.htm",
+      "instant": true
     },
     "RandomBlock": {
       "id": "RandomBlock",
       "title": "Block randomization",
-      "help": "Help/randomization/block.htm"
+      "help": "Help/randomization/block.htm",
+      "instant": true
     },
     "Preferences": {
       "id": "Preferences",
       "title": "Random allocation guided by group preference",
-      "help": "Help/randomization/preference_group.htm"
+      "help": "Help/randomization/preference_group.htm",
+      "instant": false
     },
     "MiscRelRisk": {
       "id": "MiscRelRisk",
       "title": "Risk (prospective) calculation with summary counts",
-      "help": "Help/clinical_epidemiology/risk_prospective.htm"
+      "help": "Help/clinical_epidemiology/risk_prospective.htm",
+      "instant": true
     },
     "MiscRetroRisk": {
       "id": "MiscRetroRisk",
       "title": "Risk calculation (retrospective) with summary counts",
-      "help": "Help/clinical_epidemiology/risk_retrospective.htm"
+      "help": "Help/clinical_epidemiology/risk_retrospective.htm",
+      "instant": true
     },
     "MiscDiagnostic": {
       "id": "MiscDiagnostic",
       "title": "Diagnostic test performance analysis",
-      "help": "Help/clinical_epidemiology/diagnostic.htm"
+      "help": "Help/clinical_epidemiology/diagnostic.htm",
+      "instant": true
     },
     "MiscLikely": {
       "id": "MiscLikely",
       "title": "Likelihood ratios",
-      "help": "Help/clinical_epidemiology/likelihood_ratios.htm"
+      "help": "Help/clinical_epidemiology/likelihood_ratios.htm",
+      "instant": true
     },
     "MiscNumberNeededToTreat": {
       "id": "MiscNumberNeededToTreat",
       "title": "Number needed to treat",
-      "help": "Help/clinical_epidemiology/nnt.htm"
+      "help": "Help/clinical_epidemiology/nnt.htm",
+      "instant": true
     },
     "MiscFalseResult": {
       "id": "MiscFalseResult",
       "title": "Analysis of screening test error probabilities",
-      "help": "Help/clinical_epidemiology/screening_test.htm"
+      "help": "Help/clinical_epidemiology/screening_test.htm",
+      "instant": true
     },
     "UnivariateSummary": {
       "id": "UnivariateSummary",
       "title": "Univariate descriptive summaries of variables",
-      "help": "Help/basic_descriptive_statistics/univariate_summary.htm"
+      "help": "Help/basic_descriptive_statistics/univariate_summary.htm",
+      "instant": false
     },
     "WeightedUnivariateSummary": {
       "id": "WeightedUnivariateSummary",
       "title": "Weighted univariate descriptive statistics",
-      "help": "Help/basic_descriptive_statistics/univariate_summary.htm"
+      "help": "Help/basic_descriptive_statistics/univariate_summary.htm",
+      "instant": false
     },
     "QuickSummary": {
       "id": "QuickSummary",
       "title": "Univariate descriptive summary statistics",
-      "help": "Help/basic_descriptive_statistics/quick_summary.htm"
+      "help": "Help/basic_descriptive_statistics/quick_summary.htm",
+      "instant": false
     },
     "TimeSeriesSummary": {
       "id": "TimeSeriesSummary",
       "title": "Time Series Summary",
-      "help": "Help/basic_descriptive_statistics/time_series.htm"
+      "help": "Help/basic_descriptive_statistics/time_series.htm",
+      "instant": false
     },
     "TPaired": {
       "id": "TPaired",
       "title": "Paired Student t test",
-      "help": "Help/parametric_methods/paired_t.htm"
+      "help": "Help/parametric_methods/paired_t.htm",
+      "instant": false
     },
     "TSingle": {
       "id": "TSingle",
       "title": "Single sample Student t test",
-      "help": "Help/parametric_methods/single_sample_t.htm"
+      "help": "Help/parametric_methods/single_sample_t.htm",
+      "instant": false
     },
     "TUnpaired": {
       "id": "TUnpaired",
       "title": "Unpaired Student t test",
-      "help": "Help/parametric_methods/unpaired_t.htm"
+      "help": "Help/parametric_methods/unpaired_t.htm",
+      "instant": false
     },
     "TSingleSummary": {
       "id": "TSingleSummary",
       "title": "Single sample Student t test from summary statistics",
-      "help": "Help/parametric_methods/single_sample_t.htm"
+      "help": "Help/parametric_methods/single_sample_t.htm",
+      "instant": true
     },
     "TUnpairedSummary": {
       "id": "TUnpairedSummary",
       "title": "Unpaired Student t test from summary statistics",
-      "help": "Help/parametric_methods/unpaired_t.htm"
+      "help": "Help/parametric_methods/unpaired_t.htm",
+      "instant": true
     },
     "VarianceRatio": {
       "id": "VarianceRatio",
       "title": "F (Variance ratio) test",
-      "help": "Help/parametric_methods/f_variance_ratio.htm"
+      "help": "Help/parametric_methods/f_variance_ratio.htm",
+      "instant": false
     },
     "ZSingle": {
       "id": "ZSingle",
       "title": "Single sample z(normal distribution) test",
-      "help": "Help/parametric_methods/z_normal.htm"
+      "help": "Help/parametric_methods/z_normal.htm",
+      "instant": false
     },
     "ZUnpaired": {
       "id": "ZUnpaired",
       "title": "Unpaired two-sample z(normal distribution) test",
-      "help": "Help/parametric_methods/z_normal.htm"
+      "help": "Help/parametric_methods/z_normal.htm",
+      "instant": false
     },
     "ReferenceRange": {
       "id": "ReferenceRange",
       "title": "Reference Range",
-      "help": "Help/parametric_methods/reference_range.htm"
+      "help": "Help/parametric_methods/reference_range.htm",
+      "instant": false
     },
     "PoissonConfidenceInterval": {
       "id": "PoissonConfidenceInterval",
       "title": "Poisson rate confidence interval",
-      "help": "Help/parametric_methods/poisson_ci.htm"
+      "help": "Help/parametric_methods/poisson_ci.htm",
+      "instant": false
     },
     "Normality": {
       "id": "Normality",
       "title": "Tests for signs of departure from normal distributions",
-      "help": "Help/parametric_methods/normality.htm"
+      "help": "Help/parametric_methods/normality.htm",
+      "instant": false
     },
     "MannWhitney": {
       "id": "MannWhitney",
       "title": "Mann-Whitney U (two-sample Wilcoxon) test",
-      "help": "Help/nonparametric_methods/mann_whitney.htm"
+      "help": "Help/nonparametric_methods/mann_whitney.htm",
+      "instant": false
     },
     "Wilcoxon": {
       "id": "Wilcoxon",
       "title": "Wilcoxon signed ranks test",
-      "help": "Help/nonparametric_methods/wilcoxon_signed_ranks.htm"
+      "help": "Help/nonparametric_methods/wilcoxon_signed_ranks.htm",
+      "instant": false
     },
     "Kendall": {
       "id": "Kendall",
       "title": "Kendall's rank correlation",
-      "help": "Help/nonparametric_methods/kendall_correlation.htm"
+      "help": "Help/nonparametric_methods/kendall_correlation.htm",
+      "instant": false
     },
     "Spearman": {
       "id": "Spearman",
       "title": "Spearman rank correlation",
-      "help": "Help/nonparametric_methods/spearman.htm"
+      "help": "Help/nonparametric_methods/spearman.htm",
+      "instant": false
     },
     "NonparametricLinearRegression": {
       "id": "NonparametricLinearRegression",
       "title": "Nonparametric linear regression",
-      "help": "Help/nonparametric_methods/nonparametric_regression.htm"
+      "help": "Help/nonparametric_methods/nonparametric_regression.htm",
+      "instant": false
     },
     "LOESS": {
       "id": "LOESS",
       "title": "LOESS curve fitting",
       "help": "Help/nonparametric_methods/loess.htm",
-      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and R \u2192 New R Session are available."
+      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and R \u2192 New R Session are available.",
+      "instant": false
     },
     "Cuzick": {
       "id": "Cuzick",
       "title": "Cuzick's test for trend",
-      "help": "Help/nonparametric_methods/cuzick.htm"
+      "help": "Help/nonparametric_methods/cuzick.htm",
+      "instant": false
     },
     "Smirnov": {
       "id": "Smirnov",
       "title": "Smirnov two-sample test",
-      "help": "Help/nonparametric_methods/smirnov.htm"
+      "help": "Help/nonparametric_methods/smirnov.htm",
+      "instant": false
     },
     "Quantile": {
       "id": "Quantile",
       "title": "Calculation of quantiles (centiles)",
-      "help": "Help/nonparametric_methods/quantile_ci.htm"
+      "help": "Help/nonparametric_methods/quantile_ci.htm",
+      "instant": false
     },
     "Kruskal": {
       "id": "Kruskal",
       "title": "Kruskal-Wallis (nonparametric one-way ANOVA) test",
-      "help": "Help/nonparametric_methods/kruskal_wallis.htm"
+      "help": "Help/nonparametric_methods/kruskal_wallis.htm",
+      "instant": false
     },
     "Friedman": {
       "id": "Friedman",
       "title": "Friedman and Cochran (nonparametric two-way ANOVA) tests",
-      "help": "Help/nonparametric_methods/friedman.htm"
+      "help": "Help/nonparametric_methods/friedman.htm",
+      "instant": false
     },
     "CochranQ": {
       "id": "CochranQ",
       "title": "Cochran Q test",
-      "help": "Help/nonparametric_methods/friedman.htm"
+      "help": "Help/nonparametric_methods/friedman.htm",
+      "instant": false
     },
     "ChiSquareGoodnessOfFit": {
       "id": "ChiSquareGoodnessOfFit",
       "title": "Chi-square goodness of fit test",
-      "help": "Help/nonparametric_methods/chisq_goodness_fit.htm"
+      "help": "Help/nonparametric_methods/chisq_goodness_fit.htm",
+      "instant": false
     },
     "ROCPlot": {
       "id": "ROCPlot",
       "title": "ROC plot and area under the curve",
-      "help": "Help/nonparametric_methods/roc.htm"
+      "help": "Help/nonparametric_methods/roc.htm",
+      "instant": false
     },
     "Gini": {
       "id": "Gini",
       "title": "Gini coefficient of inequality",
-      "help": "Help/nonparametric_methods/gini.htm"
+      "help": "Help/nonparametric_methods/gini.htm",
+      "instant": false
     },
     "Diversity": {
       "id": "Diversity",
       "title": "Analysis of diversity of classes",
-      "help": "Help/nonparametric_methods/diversity.htm"
+      "help": "Help/nonparametric_methods/diversity.htm",
+      "instant": false
     },
     "OneWay": {
       "id": "OneWay",
       "title": "One way analysis of variance",
-      "help": "Help/analysis_of_variance/one_way.htm"
+      "help": "Help/analysis_of_variance/one_way.htm",
+      "instant": false
     },
     "TwoWay": {
       "id": "TwoWay",
       "title": "Two-way analysis of variance",
-      "help": "Help/analysis_of_variance/two_way.htm"
+      "help": "Help/analysis_of_variance/two_way.htm",
+      "instant": false
     },
     "ReplicateTwoWay": {
       "id": "ReplicateTwoWay",
       "title": "Two-way ANOVA with repeated observations",
-      "help": "Help/analysis_of_variance/two_way_replicate.htm"
+      "help": "Help/analysis_of_variance/two_way_replicate.htm",
+      "instant": false
     },
     "TwoWayNested": {
       "id": "TwoWayNested",
       "title": "Two way hierarchical (nested) analysis of variance",
-      "help": "Help/analysis_of_variance/nested.htm"
+      "help": "Help/analysis_of_variance/nested.htm",
+      "instant": false
     },
     "LatinSquare": {
       "id": "LatinSquare",
       "title": "Latin square analysis",
-      "help": "Help/analysis_of_variance/latin_square.htm"
+      "help": "Help/analysis_of_variance/latin_square.htm",
+      "instant": false
     },
     "Crossover": {
       "id": "Crossover",
       "title": "Crossover analysis of variance",
-      "help": "Help/analysis_of_variance/crossover.htm"
+      "help": "Help/analysis_of_variance/crossover.htm",
+      "instant": false
     },
     "SimpleLinearRegression": {
       "id": "SimpleLinearRegression",
       "title": "Simple linear regression and correlation",
-      "help": "Help/regression_and_correlation/simple_linear.htm"
+      "help": "Help/regression_and_correlation/simple_linear.htm",
+      "instant": false
     },
     "MultipleLinearRegression": {
       "id": "MultipleLinearRegression",
       "title": "Multiple (general) linear regression",
-      "help": "Help/regression_and_correlation/multiple_linear.htm"
+      "help": "Help/regression_and_correlation/multiple_linear.htm",
+      "instant": false
     },
     "GroupedLinearity": {
       "id": "GroupedLinearity",
       "title": "Analysis of linearity",
-      "help": "Help/regression_and_correlation/grouped_linearity_replicates.htm"
+      "help": "Help/regression_and_correlation/grouped_linearity_replicates.htm",
+      "instant": false
     },
     "GroupedCovariance": {
       "id": "GroupedCovariance",
       "title": "Analysis of covariance",
-      "help": "Help/regression_and_correlation/grouped_covariance.htm"
+      "help": "Help/regression_and_correlation/grouped_covariance.htm",
+      "instant": false
     },
     "MethodComparisonRegression": {
       "id": "MethodComparisonRegression",
       "title": "Method comparison regression",
       "help": "Help/agreement/mcr.htm",
-      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and R \u2192 New R Session are available."
+      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and R \u2192 New R Session are available.",
+      "instant": false
     },
     "PCRCorrelation": {
       "id": "PCRCorrelation",
       "title": "Principal components analysis: correlation",
-      "help": "Help/regression_and_correlation/pca.htm"
+      "help": "Help/regression_and_correlation/pca.htm",
+      "instant": false
     },
     "PCRCovariance": {
       "id": "PCRCovariance",
       "title": "Principal components analysis: covariance",
-      "help": "Help/regression_and_correlation/pca.htm"
+      "help": "Help/regression_and_correlation/pca.htm",
+      "instant": false
     },
     "LinearizedEstimates": {
       "id": "LinearizedEstimates",
       "title": "Simple linearized estimates regression",
-      "help": "Help/regression_and_correlation/linear_estimates.htm"
+      "help": "Help/regression_and_correlation/linear_estimates.htm",
+      "instant": false
     },
     "PolynomialRegression": {
       "id": "PolynomialRegression",
       "title": "Polynomial regression",
-      "help": "Help/regression_and_correlation/polynomial.htm"
+      "help": "Help/regression_and_correlation/polynomial.htm",
+      "instant": false
     },
     "LogisticRegression": {
       "id": "LogisticRegression",
       "title": "Logistic regression",
-      "help": "Help/regression_and_correlation/logistic.htm"
+      "help": "Help/regression_and_correlation/logistic.htm",
+      "instant": false
     },
     "ConditionalLogisticRegression": {
       "id": "ConditionalLogisticRegression",
       "title": "Conditional (matched pairs) logistic regression",
-      "help": "Help/regression_and_correlation/conditional_logistic.htm"
+      "help": "Help/regression_and_correlation/conditional_logistic.htm",
+      "instant": false
     },
     "PoissonRegression": {
       "id": "PoissonRegression",
       "title": "Poisson regression",
-      "help": "Help/regression_and_correlation/poisson.htm"
+      "help": "Help/regression_and_correlation/poisson.htm",
+      "instant": false
     },
     "Probit": {
       "id": "Probit",
       "title": "Probit (dose response) analysis",
-      "help": "Help/regression_and_correlation/probit_analysis.htm"
+      "help": "Help/regression_and_correlation/probit_analysis.htm",
+      "instant": false
     },
     "Logit": {
       "id": "Logit",
       "title": "Probit analysis on a logit scale",
-      "help": "Help/regression_and_correlation/probit_analysis.htm"
+      "help": "Help/regression_and_correlation/probit_analysis.htm",
+      "instant": false
     },
     "CoxRegression": {
       "id": "CoxRegression",
       "title": "Cox (proportional hazards) regression",
-      "help": "Help/survival_analysis/cox_regression.htm"
+      "help": "Help/survival_analysis/cox_regression.htm",
+      "instant": false
     },
     "Agreement": {
       "id": "Agreement",
       "title": "General analysis of agreement",
-      "help": "Help/agreement/intraclass.htm"
+      "help": "Help/agreement/intraclass.htm",
+      "instant": false
     },
     "PCRCovarianceNoFollowOns": {
       "id": "PCRCovarianceNoFollowOns",
       "title": "Principal components analysis: covariance",
-      "help": "Help/regression_and_correlation/pca.htm"
+      "help": "Help/regression_and_correlation/pca.htm",
+      "instant": false
     },
     "UniversalAgreement": {
       "id": "UniversalAgreement",
       "title": "Universal agreement statistic R",
-      "help": "Help/agreement/universal_agreement.htm"
+      "help": "Help/agreement/universal_agreement.htm",
+      "instant": false
     },
     "UniversalRCompare": {
       "id": "UniversalRCompare",
       "title": "Comparison of two R agreement measures",
-      "help": "Help/agreement/universal_agreement.htm"
+      "help": "Help/agreement/universal_agreement.htm",
+      "instant": true
     },
     "KaplanMeier": {
       "id": "KaplanMeier",
       "title": "Kaplan-Meier product limit estimates of survival",
-      "help": "Help/survival_analysis/kaplan_meier.htm"
+      "help": "Help/survival_analysis/kaplan_meier.htm",
+      "instant": false
     },
     "FollowUpLifetable": {
       "id": "FollowUpLifetable",
       "title": "Follow-up life table",
-      "help": "Help/survival_analysis/follow_up_life_table.htm"
+      "help": "Help/survival_analysis/follow_up_life_table.htm",
+      "instant": false
     },
     "AbridgedLifetable": {
       "id": "AbridgedLifetable",
       "title": "Abridged (classical) life table analysis",
-      "help": "Help/survival_analysis/abridged_life_table.htm"
+      "help": "Help/survival_analysis/abridged_life_table.htm",
+      "instant": false
     },
     "LogRank": {
       "id": "LogRank",
       "title": "Log-rank test",
-      "help": "Help/survival_analysis/logrank.htm"
+      "help": "Help/survival_analysis/logrank.htm",
+      "instant": false
     },
     "WeiLachin": {
       "id": "WeiLachin",
       "title": "Wei-Lachin test",
-      "help": "Help/survival_analysis/wei_lachin.htm"
+      "help": "Help/survival_analysis/wei_lachin.htm",
+      "instant": false
     },
     "PetoMeta": {
       "id": "PetoMeta",
       "title": "Peto odds ratio meta-analysis",
-      "help": "Help/meta_analysis/peto.htm"
+      "help": "Help/meta_analysis/peto.htm",
+      "instant": false
     },
     "RelativeRiskMeta": {
       "id": "RelativeRiskMeta",
       "title": "Meta-analysis of relative risks",
-      "help": "Help/meta_analysis/relative_risk.htm"
+      "help": "Help/meta_analysis/relative_risk.htm",
+      "instant": false
     },
     "RiskDifference": {
       "id": "RiskDifference",
       "title": "Meta-analysis of risk differences",
-      "help": "Help/meta_analysis/risk_difference.htm"
+      "help": "Help/meta_analysis/risk_difference.htm",
+      "instant": false
     },
     "MetaIncidenceRateRatio": {
       "id": "MetaIncidenceRateRatio",
       "title": "Meta-analysis of incidence rate ratios",
-      "help": "Help/meta_analysis/incidence_rate.htm"
+      "help": "Help/meta_analysis/incidence_rate.htm",
+      "instant": false
     },
     "MetaIncidenceRateDifference": {
       "id": "MetaIncidenceRateDifference",
       "title": "Meta-analysis of incidence rate differences",
-      "help": "Help/meta_analysis/incidence_rate.htm"
+      "help": "Help/meta_analysis/incidence_rate.htm",
+      "instant": false
     },
     "Effect": {
       "id": "Effect",
       "title": "Effect size meta-analysis",
-      "help": "Help/meta_analysis/effect_size.htm"
+      "help": "Help/meta_analysis/effect_size.htm",
+      "instant": false
     },
     "ProportionMeta": {
       "id": "ProportionMeta",
       "title": "Meta-analysis of proportions",
-      "help": "Help/meta_analysis/proportion.htm"
+      "help": "Help/meta_analysis/proportion.htm",
+      "instant": false
     },
     "MetaCorrelation": {
       "id": "MetaCorrelation",
       "title": "Meta-analysis of correlation coefficients",
-      "help": "Help/meta_analysis/correlation.htm"
+      "help": "Help/meta_analysis/correlation.htm",
+      "instant": false
     },
     "MetaSummary": {
       "id": "MetaSummary",
       "title": "Meta-analyses from summary statistics",
-      "help": "Help/meta_analysis/summary.htm"
+      "help": "Help/meta_analysis/summary.htm",
+      "instant": false
     },
     "MetaCalculationOptions": {
       "id": "MetaCalculationOptions",
       "title": "Meta-analysis calculation options",
-      "help": "Help/meta_analysis/options.htm"
+      "help": "Help/meta_analysis/options.htm",
+      "instant": false
     },
     "MetaPlotOptions": {
       "id": "MetaPlotOptions",
       "title": "Meta-analysis plot options",
-      "help": "Help/meta_analysis/options.htm"
+      "help": "Help/meta_analysis/options.htm",
+      "instant": false
     },
     "Crosstabs": {
       "id": "Crosstabs",
       "title": "Cross-tabulate variables and analyse the tables",
-      "help": "Help/basic_descriptive_statistics/crosstabs.htm"
+      "help": "Help/basic_descriptive_statistics/crosstabs.htm",
+      "instant": false
     },
     "Frequency": {
       "id": "Frequency",
       "title": "Frequency (counts) analysis",
-      "help": "Help/basic_descriptive_statistics/frequencies.htm"
+      "help": "Help/basic_descriptive_statistics/frequencies.htm",
+      "instant": false
     },
     "AnalysisOptions": {
       "id": "AnalysisOptions",
       "title": "Analysis options",
-      "help": "Help/menus/analysis_options.htm"
+      "help": "Help/menus/analysis_options.htm",
+      "instant": false
     },
     "BarPlot": {
       "id": "BarPlot",
       "title": "Bar and stacked bar plots",
-      "help": "Help/graphics/bar.htm"
+      "help": "Help/graphics/bar.htm",
+      "instant": false
     },
     "BarPlotFrequency": {
       "id": "BarPlotFrequency",
       "title": "Bar plots",
-      "help": "Help/graphics/bar.htm"
+      "help": "Help/graphics/bar.htm",
+      "instant": false
     },
     "BoxWhiskerPlot": {
       "id": "BoxWhiskerPlot",
       "title": "Box and whisker plot",
-      "help": "Help/graphics/box_whisker.htm"
+      "help": "Help/graphics/box_whisker.htm",
+      "instant": false
     },
     "BoxWhiskerPlotText": {
       "id": "BoxWhiskerPlotText",
       "title": "Box and wisker plot in text",
-      "help": "Help/graphics/box_whisker_text.htm"
+      "help": "Help/graphics/box_whisker_text.htm",
+      "instant": false
     },
     "ControlPlot": {
       "id": "ControlPlot",
       "title": "Control charts",
-      "help": "Help/graphics/control.htm"
+      "help": "Help/graphics/control.htm",
+      "instant": false
     },
     "ErrorPlot": {
       "id": "ErrorPlot",
       "title": "Line or scatter plots with error bars",
-      "help": "Help/graphics/error_bar.htm"
+      "help": "Help/graphics/error_bar.htm",
+      "instant": false
     },
     "CochranePlot": {
       "id": "CochranePlot",
       "title": "Forest (Cochrane) plot",
-      "help": "Help/graphics/forest.htm"
+      "help": "Help/graphics/forest.htm",
+      "instant": false
     },
     "HistogramPlot": {
       "id": "HistogramPlot",
       "title": "Histogram plot",
-      "help": "Help/graphics/histogram.htm"
+      "help": "Help/graphics/histogram.htm",
+      "instant": false
     },
     "HistogramPlotText": {
       "id": "HistogramPlotText",
       "title": "Histogram plot in text form",
-      "help": "Help/graphics/histogram_text.htm"
+      "help": "Help/graphics/histogram_text.htm",
+      "instant": false
     },
     "LadderPlot": {
       "id": "LadderPlot",
       "title": "Ladder plot of changes in paired observations",
-      "help": "Help/graphics/ladder.htm"
+      "help": "Help/graphics/ladder.htm",
+      "instant": false
     },
     "LinePlot": {
       "id": "LinePlot",
       "title": "Line plot",
-      "help": "Help/graphics/scatter.htm"
+      "help": "Help/graphics/scatter.htm",
+      "instant": false
     },
     "NormalPlot": {
       "id": "NormalPlot",
       "title": "Normal scores plot",
-      "help": "Help/graphics/normal.htm"
+      "help": "Help/graphics/normal.htm",
+      "instant": false
     },
     "PyramidPlot": {
       "id": "PyramidPlot",
       "title": "Population pyramid plot",
-      "help": "Help/graphics/population_pyramid.htm"
+      "help": "Help/graphics/population_pyramid.htm",
+      "instant": false
     },
     "ScatterPlot": {
       "id": "ScatterPlot",
       "title": "Scatter plot",
-      "help": "Help/graphics/scatter.htm"
+      "help": "Help/graphics/scatter.htm",
+      "instant": false
     },
     "ScatterPlotText": {
       "id": "ScatterPlotText",
       "title": "Scatter plot in text form",
-      "help": "Help/graphics/scatter_text.htm"
+      "help": "Help/graphics/scatter_text.htm",
+      "instant": false
     },
     "SpreadPlot": {
       "id": "SpreadPlot",
       "title": "Spread plot",
-      "help": "Help/graphics/spread.htm"
+      "help": "Help/graphics/spread.htm",
+      "instant": false
     },
     "SurvivalPlot": {
       "id": "SurvivalPlot",
       "title": "Survival plot",
-      "help": "Help/graphics/survival.htm"
+      "help": "Help/graphics/survival.htm",
+      "instant": false
     },
     "GraphicsOptions": {
       "id": "GraphicsOptions",
       "title": "Graphics options",
-      "help": "Help/graphics/defaults.htm"
+      "help": "Help/graphics/defaults.htm",
+      "instant": false
     }
   },
   "sourceSHA256": "ef91d33e1cd058e800dca63ef0248fd7ebcb1b21fb22d85ad9f7e46d4397ba80"

@@ -4,6 +4,8 @@ import DataEditor, { CompactSelection, GridCellKind, type GridCell, type GridSel
 import '@glideapps/glide-data-grid/dist/index.css';
 import './chi-square.css';
 import { ContingencyTable, example, validate } from './contingency.mjs';
+import {ResultPreview} from './ResultPreview';
+import {screenSelection} from './operation-data.mjs';
 import options from './chi-options.json';
 import { selectAdjacentCell, cellMovement, arrowKeyEditor } from './navigation';
 
@@ -13,6 +15,7 @@ const defaults = Object.fromEntries(options.map(o => [o.name, o.default]));
 const native = (action: string, extra: object = {}) => window.webkit?.messageHandlers?.statsDirectAnalysis?.postMessage({action,...extra});
 const emptySelection: GridSelection = { columns: CompactSelection.empty(), rows: CompactSelection.empty() };
 function App() {
+  const [result,setResult]=useState<any>(null);
   const [revision, refresh] = useState(0), [selection, select] = useState<GridSelection>(emptySelection);
   const [rows, setRows] = useState('2'), [cols, setCols] = useState('2');
   const [flags, setFlags] = useState(defaults), [confidence, setConfidence] = useState('95');
@@ -31,8 +34,18 @@ function App() {
     window.statsDirectChiSquare = {
       setState: (running: boolean, text: string, error = false) => { setBusy(running); setCancelling(false); setMessage(text); setFailed(error); },
       pasteText: (text: string) => { if (current.current.busy) return; attempt(() => { const [c,r] = current.current.selection.current?.cell ?? [0,0]; table.paste(c,r,text); changed(); setMessage('Pasted counts. Review category labels and table dimensions.'); }); },
+      showResult: (r:any) => {setResult(r);window.scrollTo(0,0);},
+      resultKept: (name:string) => setResult((r:any)=>r?{...r,kept:name}:r),
+      error: (text:string) => {setMessage(text);setFailed(true);},
+      setSource: (source:any) => attempt(()=>{
+        const counts=screenSelection(source,{screen:true,minColumns:2,maxColumns:200});
+        if(!counts)return;
+        table.change(s=>{s.counts=counts;s.columnLabels=source.selection.map((c:number)=>source.columns[c]);s.rowLabels=counts.map((_:any,i:number)=>`Row ${i+1}`);});
+        changed();setMessage('Selected worksheet cells copied. Review the counts and category labels.');
+      }),
       csvData: () => table.csv()
     };
+    native('ready');
     return () => { observer.disconnect(); delete window.statsDirectChiSquare; };
   }, []);
   const [selectedCol, selectedRow] = selection.current?.cell ?? [0,0];
@@ -54,13 +67,14 @@ function App() {
       if (!(input.cco > 0 && input.cco < 1)) throw new Error('Confidence must be greater than 0% and less than 100%.');
       if (flags.doMonteCarlo && (!Number.isInteger(input.iterations) || !Number.isInteger(input.seed))) throw new Error('Iterations and seed must be whole numbers.');
       if (!window.webkit?.messageHandlers?.statsDirectAnalysis) throw new Error('Open this form in the StatsDirect Mac app to run the engine.');
-      setBusy(true); setMessage('Running the StatsDirect engine…'); native('run',{input});
+      setResult(null); setBusy(true); setMessage('Running the StatsDirect engine…'); native('run',{input});
     });
   }
   const countRows = table.state.counts.length, countCols = table.state.counts[0].length;
   const total = table.state.counts.flat().reduce((a,v) => a + (v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : 0),0);
   return <main>
     <header><div><div className="eyebrow">ANALYSIS / CHI-SQUARE / SCREEN DATA</div><h1>R × C contingency table</h1><p>Enter a count for each combination of categories.</p></div><button onClick={()=>native('help')}>Method help ↗</button></header>
+    <ResultPreview result={result} busy={busy} onKeep={()=>native('keepResult',{id:result.id})}/>
     <div className="layout"><section className="data-panel" aria-label="Observed counts">
       <div className="section-title"><h2>Observed counts</h2><span>{countRows} rows × {countCols} columns</span></div>
       <div className="tools"><label>Rows <input aria-label="Number of rows" type="number" min="2" max="200" value={rows} disabled={busy} onChange={e=>setRows(e.target.value)}/></label><label>Columns <input aria-label="Number of columns" type="number" min="2" max="200" value={cols} disabled={busy} onChange={e=>setCols(e.target.value)}/></label><button disabled={busy} onClick={()=>attempt(()=>{table.resize(Number(rows),Number(cols));select(emptySelection);changed();setMessage('Table resized. Undo restores any removed counts.');})}>Resize table</button><button disabled={busy} onClick={()=>{table.change(s=>Object.assign(s,structuredClone(example)));setFlags({...defaults,xp:true,cs:true});setConfidence('95');setRowScores('1, 2, 3, 4');setColumnScores('1, 2, 3');select(emptySelection);changed();setFailed(false);setMessage('Help example: grief state by level of support · 66 observations.');}}>Load help example</button></div>

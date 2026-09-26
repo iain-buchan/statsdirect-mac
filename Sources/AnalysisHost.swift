@@ -7,7 +7,8 @@ private typealias AnalysisFreeFunction = @convention(c) (UnsafeMutablePointer<CC
 
 extension Viewer {
     @objc func showChiSquare() {
-        newDocument(kind: "analysis", title: nextAnalysisTitle("Chi-square · R × C"), url: root.appendingPathComponent("Grid/chi-square.html"))
+        let doc = newDocument(kind: "analysis", title: nextAnalysisTitle("Chi-square · R × C"), url: root.appendingPathComponent("Grid/chi-square.html"))
+        doc.operationSourceID = analysisSourceID
     }
     @objc func chiSquareHelp() { openHelp(root.appendingPathComponent("Help/chi_square_tests/rc.htm"), title: "R × C contingency table") }
     func handleAnalysis(_ message: WKScriptMessage) {
@@ -16,7 +17,9 @@ extension Viewer {
               web.url?.standardizedFileURL == root.appendingPathComponent("Grid/chi-square.html").standardizedFileURL,
               let body = message.body as? [String: Any], let action = body["action"] as? String else { return }
         switch action {
+        case "ready": refreshOperationSource(doc)
         case "help": chiSquareHelp()
+        case "keepResult": keepResult(doc, id: body["id"] as? String)
         case "changed": doc.gridDirty = true; doc.gridVersion += 1
         case "save": saveAnalysisTable(doc)
         case "copy":
@@ -45,8 +48,8 @@ extension Viewer {
                         self.analysisState(doc, false, "Calculation cancelled. Your table is unchanged; no report was created.")
                         self.status.stringValue = "Chi-square analysis cancelled"; return
                     }
-                    self.analysisState(doc, false, "Analysis complete. Results are in a separate report tab; edit these counts to run again.")
-                    self.showChiSquareReport(output)
+                    self.analysisState(doc, false, "Results are shown above. Add them to the report to keep them, or edit the table and calculate again.")
+                    self.showChiSquareReport(output, in: doc)
                 }
             }
         case "cancel": cancelAnalysis(doc)
@@ -87,10 +90,10 @@ extension Viewer {
             }
         } catch { completion(.failure(error)) }
     }
-    func showChiSquareReport(_ output: [String: Any]) {
+    func showChiSquareReport(_ output: [String: Any], in doc: Document) {
         guard let html = output["html"] as? String, let input = output["input"] as? [String: Any],
               let counts = input["counts"] as? [[Double]], let values = output["values"] as? [String: Any] else { showError("The engine returned an incomplete report."); return }
-        reportNumber += 1
+        let resultID = UUID().uuidString
         let rowLabels = input["rowLabels"] as? [String] ?? counts.indices.map { "Row \($0 + 1)" }
         let columnLabels = input["columnLabels"] as? [String] ?? counts[0].indices.map { "Column \($0 + 1)" }
         let headers = columnLabels.map { "<th>\(htmlEscape($0))</th>" }.joined()
@@ -104,16 +107,14 @@ extension Viewer {
         let rPlan = try? RScriptGenerator.generate(operation: "ExactChiRbyCScreen", title: "Chi-square R × C", output: output, resources: root)
         let body = """
         <div class="eyebrow">Analysis / Chi-square / Screen data</div>
-        <p class="lead">\(counts.count) × \(counts[0].count) contingency table</p><p class="muted">Report \(reportNumber) · \(stamp)</p>
+        <h1>Chi-square R × C</h1><p class="lead">\(counts.count) × \(counts[0].count) contingency table</p><p class="muted">\(stamp)</p>
         <div class="summary"><div><span>Pearson chi-square</span><strong>\(number(values["chio"] as? Double ?? .nan))</strong></div><div><span>P</span><strong>\(number(values["po"] as? Double ?? .nan))</strong></div><div><span>Observations</span><strong>\(number(output["total"] as? Double ?? .nan))</strong></div></div>
         \(warnings)\(skipped)<section class="engine-report">\(html)</section>
-        \(reportLinks(rPlan, helpPath: "Help/chi_square_tests/rc.htm", helpLabel: "R × C contingency table: method and worked example →"))
+        \(reportLinks(rPlan, helpPath: "Help/chi_square_tests/rc.htm", helpLabel: "R × C contingency table: method and worked example →", resultID: resultID))
         <details><summary>Input counts and options used for this report</summary><table><thead><tr><th>Category</th>\(headers)</tr></thead><tbody>\(rows)</tbody></table><p>\(htmlEscape(options)) · \(number(confidence))% confidence</p>\(scores)</details>
         <p class="muted">Calculated by the full StatsDirect \(htmlEscape(engineVersion)) headless engine, operation ExactChiRbyCScreen, using its original HTML report renderer. The input form stays open for further edits.</p>
         """
-        let report = newDocument(kind: "report", title: "Report \(reportNumber) · Chi-square R × C", html: page("R × C contingency table", body))
-        report.rScriptPlan = rPlan; report.operationName = "ExactChiRbyCScreen"
-        status.stringValue = "Chi-square r × c completed · Report \(reportNumber)"
+        previewResult(ReportEntry(id: resultID, title: "Chi-square R × C", operation: "ExactChiRbyCScreen", body: body, rPlan: rPlan), in: doc)
     }
     func saveAnalysisTable(_ doc: Document) {
         let version = doc.gridVersion

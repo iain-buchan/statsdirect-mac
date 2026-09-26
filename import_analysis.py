@@ -15,7 +15,7 @@ def convert(node):
         help=root.find('s:help',ns); path=ids.get(int(help.get('chm-id','0')),'') if help is not None else ''
         if path and not (base/'Content'/path).is_file():path=''
         title=root.findtext('s:friendly-name',default=op,namespaces=ns)
-        ops[op]={'id':op,'title':title,'help':path}
+        ops[op]={'id':op,'title':title,'help':path,'instant':any(x.text==op for x in root.findall('s:suggested-operations/s:suggested-operation',ns))}
         result['operation']=op
     children=node.find('m:sub-items',ns)
     if children is not None:result['children']=[convert(x) for x in children]

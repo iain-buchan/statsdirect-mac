@@ -35,6 +35,10 @@ final class Document {
     var learningState: [String: Any]?
     var initialLearningView: String?
     var initialOperationSource: [String: Any]?
+    var operationSourceID: String?
+    var reportEntries: [ReportEntry]?
+    var pendingResult: ReportEntry?
+    var scrollToResultID: String?
     var hasSVG = false
     init(kind: String, title: String, access: URL) {
         self.kind = kind; self.title = title; self.access = access
@@ -59,6 +63,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var windowsMenu: NSMenu!
     var running = false
     var reportNumber = 0
+    var activeReportID: String?
+    var checkingUpdates = false
+    var updateTimer: Timer?
     var rNumber = 0
     var libraryHandle: UnsafeMutableRawPointer?
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
@@ -117,6 +124,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         setupMenu()
         newWorksheet()
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        startUpdateChecks()
     }
     @objc func showDropdown(_ sender: NSButton) {
         guard let title = sender.identifier?.rawValue,
@@ -146,6 +154,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(app, "Quit StatsDirect", #selector(NSApplication.terminate(_:)), "q", target: NSApp)
         let file = menu("File")
         add(file, "New Worksheet", #selector(newWorksheet), "n")
+        add(file, "New Report", #selector(newReport))
         add(file, "New R Session", #selector(newRTab), "r")
         file.addItem(.separator())
         add(file, "Open…", #selector(openFile), "o")
@@ -193,11 +202,15 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(help, "Forward", #selector(forward))
         help.addItem(.separator())
         add(help, "About StatsDirect", #selector(showAbout))
+        add(help, "Check for Updates…", #selector(checkUpdates))
+        add(help, "Automatically Check for Updates", #selector(toggleAutomaticUpdates))
         windowsMenu = menu("Window")
         NSApp.mainMenu = main
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(checkUpdates) { return !checkingUpdates && window.attachedSheet == nil }
+        if menuItem.action == #selector(toggleAutomaticUpdates) { menuItem.state = automaticUpdates ? .on : .off; return true }
         if menuItem.action == #selector(currentMethodHelp) { return active?.operationName != nil || active?.kind == "analysis" }
         if menuItem.action == #selector(editCommand(_:)) { return active != nil }
         if menuItem.action == #selector(back) { return active?.web.canGoBack == true }
@@ -272,6 +285,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         if let doc = active, doc.kind == "grid" { analysisSourceID = doc.id }
+        if let doc = active, doc.reportEntries != nil { activeReportID = doc.id }
         window.title = "\(active?.title ?? "StatsDirect") · Mac prototype"
         status.stringValue = running ? "Running analysis…" : "\(documents.count) open documents · \(active?.kind.capitalized ?? "Ready")"
         if windowsMenu != nil { updateWindowMenu() }
@@ -459,6 +473,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard let doc = document(for: webView) else { return }
+        if let id = doc.scrollToResultID {
+            doc.scrollToResultID = nil
+            webView.evaluateJavaScript("document.getElementById(\(jsString("result-" + id)))?.scrollIntoView()")
+        }
         if doc.kind == "help", webView.url?.lastPathComponent != "help-index.html" {
             webView.evaluateJavaScript("document.querySelector('h1')?.textContent?.trim() || document.title") { value, _ in
                 if let name = value as? String, !name.isEmpty {

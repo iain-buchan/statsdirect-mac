@@ -32,6 +32,7 @@ extension Viewer {
         let title = nextAnalysisTitle(definition["title"] as? String ?? sender.title)
         let doc = newDocument(kind: "operation", title: title, url: root.appendingPathComponent("Grid/operation.html"))
         doc.operationName = operation
+        doc.operationSourceID = analysisSourceID
     }
     func handleOperation(_ message: WKScriptMessage) {
         guard message.name == "statsDirectOperation", message.frameInfo.isMainFrame,
@@ -45,6 +46,7 @@ extension Viewer {
             operationScript(doc, "configure", config)
             refreshOperationSource(doc) { self.startOperation(doc) }
         case "refresh": refreshOperationSource(doc)
+        case "keepResult": keepResult(doc, id: body["id"] as? String)
         case "help":
             if let operation = doc.operationName, let path = analysisCatalog[operation]?["help"] as? String {
                 openHelp(root.appendingPathComponent(path), title: doc.title)
@@ -74,14 +76,15 @@ extension Viewer {
     }
     func operationScript(_ doc: Document, _ method: String, _ object: Any) {
         guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.fragmentsAllowed]) else { return }
-        doc.web.evaluateJavaScript("window.statsDirectOperation?.\(method)(\(String(decoding: data, as: UTF8.self)))")
+        let bridge = doc.kind == "analysis" ? "statsDirectChiSquare" : "statsDirectOperation"
+        doc.web.evaluateJavaScript("window.\(bridge)?.\(method)(\(String(decoding: data, as: UTF8.self)))")
     }
     func operationError(_ doc: Document, _ text: String) { operationScript(doc, "error", text) }
     func refreshOperationSource(_ doc: Document, completion: (() -> Void)? = nil) {
         if let source = doc.initialOperationSource {
             doc.initialOperationSource = nil; operationScript(doc, "setSource", source); completion?(); return
         }
-        guard let source = documents.first(where: { $0.id == analysisSourceID }), source.kind == "grid" else { operationScript(doc, "setSource", NSNull()); completion?(); return }
+        guard let source = documents.first(where: { $0.id == (doc.operationSourceID ?? analysisSourceID) }), source.kind == "grid" else { operationScript(doc, "setSource", NSNull()); completion?(); return }
         let script = "window.statsDirectGrid?.analysisSource()"
         source.web.evaluateJavaScript(script) { snapshot, error in
             guard self.documents.contains(where: { $0 === doc }) else { return }
@@ -128,7 +131,7 @@ extension Viewer {
         }
     }
     func showOperationReport(_ doc: Document, _ output: [String: Any]) {
-        reportNumber += 1
+        let resultID = UUID().uuidString
         let frames = output["frames"] as? [[String: Any]] ?? []
         for (index, frame) in frames.enumerated() {
             let dataDoc = newDocument(kind: "grid", title: "\(doc.title) · Data \(index + 1)", url: root.appendingPathComponent("Grid/index.html"))
@@ -141,14 +144,15 @@ extension Viewer {
         let inputData = (try? JSONSerialization.data(withJSONObject: output["history"] ?? [], options: [.prettyPrinted, .sortedKeys])) ?? Data()
         let rPlan = try? RScriptGenerator.generate(operation: doc.operationName ?? "", title: doc.title, output: output, resources: root)
         let body = """
-        <div class="eyebrow">Analysis / StatsDirect</div><h1>\(htmlEscape(doc.title))</h1><p class="muted">Report \(reportNumber) · \(stamp)</p>
+        <div class="eyebrow">Analysis / StatsDirect</div><h1>\(htmlEscape(doc.title))</h1><p class="muted">\(stamp)</p>
         <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)</section>
-        \(reportLinks(rPlan, helpPath: methodPath))
+        \(reportLinks(rPlan, helpPath: methodPath, resultID: resultID))
         <details><summary>Inputs used for this report</summary><pre>\(htmlEscape(String(decoding: inputData, as: UTF8.self)))</pre></details>
         <p class="muted">Calculated by the StatsDirect \(htmlEscape(engineVersion)) engine · \(htmlEscape(doc.operationName ?? ""))</p>
         """
-        let report = newDocument(kind: "report", title: "Report \(reportNumber) · \(doc.title)", html: page(doc.title, body))
-        report.rScriptPlan = rPlan; report.operationName = doc.operationName
-        status.stringValue = doc.title + " completed · Report \(reportNumber)"
+        let entry = ReportEntry(id: resultID, title: doc.title, operation: doc.operationName ?? "", body: body, rPlan: rPlan)
+        if doc.operationName.flatMap({ analysisCatalog[$0]?["instant"] as? Bool }) == true {
+            previewResult(entry, in: doc)
+        } else { appendReport(entry) }
     }
 }

@@ -3,7 +3,37 @@
 .masthead{padding:13px 25px}.masthead img{width:36px;height:36px}main{padding-top:20px}h1{font-size:26px}.intro p{font-size:14px;margin-bottom:10px}.actions{margin:12px 0}details{margin:12px 0;padding:10px 14px}.chat{margin-top:16px}.chat-heading{padding:10px 18px}.messages{padding:15px 20px;max-height:300px}.message-body{font-size:13px}.composer{padding:12px 17px}.composer textarea{min-height:60px}.nav-bottom button{padding:8px 10px}
 .header-actions{display:flex;gap:8px;margin-left:auto}.masthead .header-actions button{margin:0}.focus-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0}.focus-grid .option{font-size:13px}.card>label:not(.option){margin-top:14px}@media(max-width:900px){.focus-grid{grid-template-columns:1fr}.header-actions{flex-direction:column;gap:5px}}
 
-.workspace-context{padding:10px 18px;background:#f0f7f7;border-bottom:1px solid var(--border)}.workspace-controls{display:flex;gap:12px;align-items:center}.workspace-controls select{margin:0;max-width:440px}.workspace-context small{display:block;margin-top:5px;color:#476974;font-size:11px;overflow-wrap:anywhere}
-.workspace-context{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;align-items:center}.workspace-context label{margin:0}.workspace-context small{grid-column:1/-1}.context-used{margin-top:8px;padding-top:7px;border-top:1px solid var(--border)}.messages{max-height:160px;min-height:90px}.intro p{font-size:13px;line-height:1.45}.composer textarea{min-height:50px}
+.context-used{margin-top:8px;padding-top:7px;border-top:1px solid var(--border)}.intro p{font-size:13px;line-height:1.45}.composer textarea{min-height:50px}
 
 .earlier-guide{margin:0 0 12px;padding:8px 10px;background:#f7f9fa;font-size:11px}.earlier-guide .message-body{margin-top:10px}
+
+/* Let the conversation use the available height; secondary context stays at the bottom. */
+body.study-mode{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.study-mode .masthead,.study-mode #notice,.study-mode footer{flex:none}
+.study-mode .workspace{flex:1;min-height:0;overflow:hidden}
+.study-mode aside{min-height:0;overflow-y:auto}
+.study-mode main{display:flex;flex-direction:column;min-height:0;height:100%;margin:0 auto;padding:14px 24px 8px;overflow-y:auto}
+.study-mode .intro,.study-mode main>.actions,.study-mode .lesson-guide,.study-mode .suggestions{flex:none}
+.study-mode h1{font-size:24px;margin-bottom:4px}
+.study-mode main>.actions{margin:7px 0}
+.study-mode .lesson-guide{margin:5px 0;padding:7px 12px}
+.study-mode .lesson-guide[open]{max-height:180px;overflow-y:auto}
+.study-mode .chat{display:flex;flex-direction:column;flex:1;min-height:230px;margin-top:8px}
+.study-mode .chat-heading,.study-mode .composer{flex:none}
+.study-mode .messages{flex:1;min-height:75px;max-height:none;overflow-y:auto}
+.study-mode .composer{padding:9px 14px}
+.study-mode .composer textarea{max-height:140px}
+.study-mode #chatStatus:empty{display:none}
+.study-mode #chatStatus{margin:6px 0 0}
+.study-mode .suggestions{margin:8px 0 0}
+.study-mode .suggestions button{padding:4px 9px}
+.study-mode footer{padding:5px 16px;font-size:9px}
+.workspace-context{flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px;background:#f0f7f7;border-top:1px solid var(--border);min-width:0}
+.workspace-context[hidden]{display:none}
+.workspace-context label{margin:0;font-size:11px;white-space:nowrap}
+.workspace-controls{display:flex;align-items:center;gap:10px;flex:none}
+.workspace-controls select{width:210px;margin:0;padding:4px 7px;font-size:11px}
+.workspace-controls button{font-size:11px;padding:2px 0}
+.workspace-context small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#476974;font-size:10px}
+@media(max-width:900px){.study-mode main{padding:12px 16px 8px}.workspace-controls select{width:180px}}
+@media(max-width:640px){.study-mode .workspace{display:grid;grid-template-columns:150px minmax(0,1fr)}.study-mode aside{padding:12px 8px}.study-mode aside label,.study-mode aside select{display:block;width:100%}.study-mode nav{display:block}.study-mode nav button{width:100%}.study-mode .nav-bottom{display:block}.workspace-context{flex-wrap:wrap;gap:5px 10px}.workspace-context small{flex-basis:100%}.study-mode h1{font-size:21px}}

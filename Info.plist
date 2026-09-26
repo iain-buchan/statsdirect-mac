@@ -6,7 +6,7 @@
 <key>CFBundleName</key><string>StatsDirect Viewer</string>
 <key>CFBundleIconFile</key><string>StatsDirect.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.3.5</string>
+<key>CFBundleShortVersionString</key><string>0.3.6</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

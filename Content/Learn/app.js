@@ -636,6 +636,8 @@ ${c.text}` : c.text }));
     if (!state.conversation.length) transcriptEntry(state, "assistant", "Welcome. We can start with a clinical, service or research question, work through an example in StatsDirect, then connect each step to R when you are ready.\n\nFirst, tell me the population and question you want to understand. Are you describing what happens, predicting an outcome, or asking whether something causes it?", "Study guide");
   }
   function render() {
+    document.body.classList.toggle("study-mode", state.view === "study");
+    $("workspaceContext").hidden = state.view !== "study";
     $("profile").innerHTML = Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc(t.title)}</option>`).join("");
     $("stage").innerHTML = Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc(t)}</option>`).join("");
     $("profile").disabled = Boolean(state.quiz && !state.quiz.completedAt) || Boolean(pending);
@@ -661,15 +663,15 @@ ${c.text}` : c.text }));
   function renderStudy() {
     const l = lesson();
     if (ensureLessonPrompt(state, lessons_default)) save();
-    $("main").innerHTML = `<section class="intro"><div class="eyebrow">${esc(l.topic)}</div><h1>${esc(l.title)}</h1><p>${esc(l.summary)}</p></section><div class="actions"><button class="primary" data-action="example">Try in StatsDirect</button><button data-action="r">Explore in R</button><button class="link-button" data-action="help">Read help \u2197</button></div><details><summary>Your worked example \xB7 fictional data</summary><p>${esc(l.steps)}</p></details><section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><span id="tutorBadge" class="badge">${esc(settings.label)}</span></div><div id="workspaceContext" class="workspace-context"></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending ? "disabled" : ""}>${esc(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${settings.configured ? "Send shares learning context, up to 40 recent messages and requested open document content with OpenAI. Choose Lessons only to exclude documents. Avoid identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply."}</small><button id="send" class="primary" ${pending ? "disabled" : ""}>${settings.configured ? "Send" : settings.signingIn ? "Finish sign-in" : "Use my ChatGPT"}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
+    $("main").innerHTML = `<section class="intro"><div class="eyebrow">${esc(l.topic)}</div><h1>${esc(l.title)}</h1></section><div class="actions"><button class="primary" data-action="example">Try in StatsDirect</button><button data-action="r">Explore in R</button><button class="link-button" data-action="help">Read help \u2197</button></div><details class="lesson-guide"><summary>Lesson guide and worked example</summary><p>${esc(l.summary)}</p><p>${esc(l.steps)}</p></details><section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><span id="tutorBadge" class="badge">${esc(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending ? "disabled" : ""}>${esc(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${settings.configured ? "Send shares learning context, up to 40 recent messages and requested open document content with OpenAI. Choose Lessons only to exclude documents. Avoid identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply."}</small><button id="send" class="primary" ${pending ? "disabled" : ""}>${settings.configured ? "Send" : settings.signingIn ? "Finish sign-in" : "Use my ChatGPT"}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
     $("messages").innerHTML = state.conversation.map((c) => {
       const guide = guidePresentation(c, l);
       const content = `<div class="message-body">${bodyHTML(c.text)}</div>${c.workspaceSources?.length ? `<div class="small context-used">Used: ${c.workspaceSources.map(esc).join("; ")}</div>` : ""}`;
       if (guide.earlier) return `<details class="earlier-guide"><summary>${esc(guide.label)}</summary>${content}</details>`;
       return `<article class="message ${c.role === "user" ? "user" : ""}"><div class="message-label">${c.role === "user" ? "YOU" : esc(guide.label.toUpperCase())}${c.model ? " \xB7 " + esc(c.model) : ""}</div>${content}</article>`;
     }).join("");
-    $("messages").scrollTop = $("messages").scrollHeight;
     renderWorkspace();
+    $("messages").scrollTop = $("messages").scrollHeight;
     $("question").oninput = () => {
       state.draft = $("question").value;
       save();
@@ -701,7 +703,7 @@ ${c.text}` : c.text }));
   function renderWorkspace() {
     const element = $("workspaceContext");
     if (!element) return;
-    element.innerHTML = `<label for="workspaceChoice">Tutor context</label><div class="workspace-controls"><select id="workspaceChoice" ${pending || independent() ? "disabled" : ""}><option value="">Follow my active document</option><option value="__none__">Lessons only</option>${workspace.choices.map((d) => `<option value="${esc(d.id)}">${esc(d.title)}</option>`).join("")}</select><button id="refreshWorkspace" class="link-button" ${pending ? "disabled" : ""}>Refresh</button></div><small id="workspaceLabel" role="status">${esc(workspace.label)}</small>`;
+    element.innerHTML = `<label for="workspaceChoice">Tutor context</label><div class="workspace-controls"><select id="workspaceChoice" ${pending || independent() ? "disabled" : ""}><option value="">Follow my active document</option><option value="__none__">Lessons only</option>${workspace.choices.map((d) => `<option value="${esc(d.id)}">${esc(d.title)}</option>`).join("")}</select><button id="refreshWorkspace" class="link-button" ${pending ? "disabled" : ""}>Refresh</button></div><small id="workspaceLabel" role="status" title="${esc(workspace.label)}">${esc(workspace.label)}</small>`;
     $("workspaceChoice").value = workspace.choice;
     $("workspaceChoice").onchange = () => post({ action: "workspace", choice: $("workspaceChoice").value });
     $("refreshWorkspace").onclick = () => post({ action: "workspace" });
@@ -964,6 +966,8 @@ ${c.text}` : c.text }));
     },
     loadError(message) {
       loaded = false;
+      document.body.classList.remove("study-mode");
+      $("workspaceContext").hidden = true;
       $("main").innerHTML = '<h1>The learning record needs attention</h1><p id="loadError"></p>';
       $("loadError").textContent = message;
       notice("The existing record has not been overwritten.");

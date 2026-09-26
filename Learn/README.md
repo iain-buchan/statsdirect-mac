@@ -1,4 +1,4 @@
-# StatsDirect Learning (macOS prototype 0.3.5)
+# StatsDirect Learning (macOS prototype 0.3.6)
 
 Open **Help → Learning** or **Help → Learning Options**. This is an integrated closable Mac document: original Windows artwork, seven lessons, five learner pathways, 30 original draft MCQs, local persistence, real StatsDirect analysis forms and seven runnable base-R examples with plots. Epidemiology and causal inference are shared foundations. Options include learning needs, named exams/qualifications, prior knowledge, R experience, target date, priorities and teaching style.
 
@@ -18,7 +18,7 @@ Native tests cover browser authentication setup/cancel with the real signed-out 
 
 ## Working with open data and results
 
-The tutor sees an inventory of documents open when Send is pressed, with worksheet headings and selections. **Tutor context** follows the last active document, can be pinned to a particular document, or set to **Lessons only**. That last preference persists across launches. It does not remove earlier conversation messages. Context/status updates preserve the draft text.
+The tutor sees an inventory of documents open when Send is pressed, with worksheet headings and selections. The conversation fills the available window height, with the message composer visible and lesson notes in an expandable section. A compact **Tutor context** strip at the bottom follows the last active document, can be pinned to a particular document, or set to **Lessons only**. That last preference persists across launches. It does not remove earlier conversation messages. Context/status updates preserve the draft text.
 
 The six host tools list the workspace, read exact worksheet ranges, read open forms/reports/help/R scripts and output, retrieve bundled method help, calculate a supported method, or open another normal analysis form. The native host supplies data from the live grid, rather than asking the model to transcribe or reconstruct it. Dataset IDs refer to a per-question snapshot; edited/closed worksheets are rejected before calculation. New documents opened during a question are not silently added to that question's scope. The embedded grids in analysis forms are readable too.
 

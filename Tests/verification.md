@@ -286,3 +286,11 @@ Scripts/test-learning-workspace.sh "$PWD/StatsDirect Viewer.app"
 - All ten Learning/lesson-context tests pass, including legacy-record migration, lesson switching, duplicate prevention, draft/history preservation, export attribution and the seven executable R lesson examples.
 - Built and verified ad-hoc signatures for 0.3.5 and the canonical app. Engine bytes and native executable UUID are unchanged from 0.3.4. No calculations or runtime protocols changed.
 - Opened 0.3.5 after confirming the older window contained only an empty worksheet. In the restored real Learning record, the paired heading and revised prompt are correct, both earlier prompts are collapsed with their original lesson names, ChatGPT remains connected, and the complete prior learner/tutor conversation is retained. No question was sent to the live tutor during this verification.
+
+## 2026-09-26 — 0.3.6: More room for the tutor conversation
+
+- Moved Tutor context out of the chat header into a compact strip at the bottom of the Learning window, retaining the document selector, Refresh and current-source status. Long status text has a tooltip.
+- The conversation now fills the available height instead of being capped at 160 pixels. The composer stays visible; lesson notes and the worked example are expandable. Other Learning pages retain their normal scrolling layout and hide the context strip.
+- Built the learning bundle and visually checked the native layout in an isolated app with synthetic conversation history and a draft. Visiting Learning options and returning preserved the draft and restored the context strip. The isolated app was closed.
+- Opened the finished 0.3.6 application to Learning and verified the bottom strip, expanded conversation area, fully visible composer, collapsed notes and restored real conversation. No live tutor question was sent.
+- Both packaged application paths pass deep/strict ad-hoc signature verification. Native executable UUID and calculation-engine bytes are unchanged from 0.3.5; this is a web layout change.

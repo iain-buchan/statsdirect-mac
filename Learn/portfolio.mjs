@@ -17,7 +17,7 @@ export function restorePortfolio(value) {
   };
   const defaults=newPortfolio();
   const learning=value?.learning===undefined?defaults.learning:value.learning;
-  if (!strings(value,['id','startedAt','profile','stage','lesson','view','reflection','draft']) || value.schemaVersion!==2 || !tracks[value.profile] || !stages[value.stage] || !['study','options','sources','practice','record'].includes(value.view) || !strings(value.identity,['name','email','goal']) || !strings(learning,['needs','qualifications','priorKnowledge','targetDate','style']) || !Array.isArray(learning.focus) || !learning.focus.every(x=>typeof x==='string') || !Array.isArray(value.conversation) || !value.conversation.every(c=>strings(c,['id','at','role','text','source'])&&['user','assistant'].includes(c.role)&&(!c.courseSources||Array.isArray(c.courseSources)&&c.courseSources.every(s=>strings(s,['id','title'])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz!==null&&!validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every(a=>strings(a,['at','text']))) throw new Error('The saved learning record is incompatible. It has not been overwritten.');
+  if (!strings(value,['id','startedAt','profile','stage','lesson','view','reflection','draft']) || value.schemaVersion!==2 || !tracks[value.profile] || !stages[value.stage] || !['study','options','sources','practice','record'].includes(value.view) || !strings(value.identity,['name','email','goal']) || !strings(learning,['needs','qualifications','priorKnowledge','targetDate','style']) || !Array.isArray(learning.focus) || !learning.focus.every(x=>typeof x==='string') || !Array.isArray(value.conversation) || !value.conversation.every(c=>strings(c,['id','at','role','text','source'])&&['user','assistant'].includes(c.role)&&(!c.workspaceSources||Array.isArray(c.workspaceSources)&&c.workspaceSources.every(s=>typeof s==='string'))&&(!c.courseSources||Array.isArray(c.courseSources)&&c.courseSources.every(s=>strings(s,['id','title'])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz!==null&&!validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every(a=>strings(a,['at','text']))) throw new Error('The saved learning record is incompatible. It has not been overwritten.');
   return {...defaults,...value,learning:{...learning,focus:[...new Set(['epidemiology','causal',...learning.focus])]}};
 }
 export function transcriptEntry(state,role,text,source='study guide',details={}) {
@@ -48,7 +48,7 @@ export function reviewText(record) {
     }
   }
   lines.push('','COMPLETE LEARNING CONVERSATION');
-  for(const c of record.conversation) lines.push('',`[${c.at}] ${c.role==='user'?'Learner':'Tutor'} — ${c.source}${c.model?' / '+c.model:''}`,c.text,...(c.courseSources??[]).map(s=>'Course reference: '+s.id+' — '+s.title));
+  for(const c of record.conversation) lines.push('',`[${c.at}] ${c.role==='user'?'Learner':'Tutor'} — ${c.source}${c.model?' / '+c.model:''}`,c.text,...(c.courseSources??[]).map(s=>'Course reference: '+s.id+' — '+s.title),...(c.workspaceSources??[]).map(s=>'StatsDirect context: '+s));
   lines.push('','LEARNING ACTIVITIES');
   for(const a of record.activities) lines.push(`[${a.at}] ${a.text}`);
   lines.push('','LEARNER REFLECTION',record.reflection || '(not supplied)');

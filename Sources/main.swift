@@ -32,6 +32,8 @@ final class Document {
     var operationRevision = 0
     var learningTask: Task<Void, Never>?
     var learningRequestID: String?
+    var learningSourceID = UserDefaults.standard.bool(forKey:"learningLessonsOnly") ? "__none__" : ""
+    var learningContextRevision = 0
     var learningState: [String: Any]?
     var initialLearningView: String?
     var initialOperationSource: [String: Any]?
@@ -68,6 +70,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         return tutor
     }()
+    var learningLastDocumentID: String?
     var openingTutorConnection = false
     var windowsMenu: NSMenu!
     var running = false
@@ -293,6 +296,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         tabs.selectTabViewItem(documents[(index + delta + documents.count) % documents.count].item)
     }
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        if let doc = active {
+            if doc.kind == "learn" { refreshLearningWorkspace(doc) }
+            else { learningLastDocumentID = doc.id }
+        }
         if let doc = active, doc.kind == "grid" { analysisSourceID = doc.id }
         if let doc = active, doc.reportEntries != nil { activeReportID = doc.id }
         window.title = "\(active?.title ?? "StatsDirect") · Mac prototype"

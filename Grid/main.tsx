@@ -6,6 +6,7 @@ import './style.css';
 import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
+import { tutorInfo, tutorData } from './tutor-data.mjs';
 import { worksheetSelection } from './operation-data.mjs';
 import { WorkbookStore, cellKind } from './workbook.mjs';
 import { selectAdjacentCell, cellMovement, arrowKeyEditor } from './navigation';
@@ -139,6 +140,8 @@ function App() {
         });
         return true;
       },
+      tutorInfo: () => tutorInfo(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
+      tutorData: (options: any = {}) => tutorData(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range},options),
       analysisSource: () => {
         const cells = [...new Set([...store.cells.keys(), ...store.metadata.keys()])].map(key=>{const [col,row]=key.split(',').map(Number);return {...store.metadata.get(key),col,row,text:store.get(col,row)};});
         const usedRows = cells.filter(cell=>cell.text!=='').reduce((m,cell)=>Math.max(m,cell.row+1),store.headerRow?2:1);

@@ -1,4 +1,4 @@
-# StatsDirect Learning (macOS prototype 0.3.3)
+# StatsDirect Learning (macOS prototype 0.3.4)
 
 Open **Help → Learning** or **Help → Learning Options**. This is an integrated closable Mac document: original Windows artwork, seven lessons, five learner pathways, 30 original draft MCQs, local persistence, real StatsDirect analysis forms and seven runnable base-R examples with plots. Epidemiology and causal inference are shared foundations. Options include learning needs, named exams/qualifications, prior knowledge, R experience, target date, priorities and teaching style.
 
@@ -8,13 +8,23 @@ Choose **Use my ChatGPT**, complete sign-in in your browser, then return to Lear
 
 The app bundles OpenAI's official **Codex App Server 0.157.1** for Apple silicon and uses its managed ChatGPT browser authentication. Access depends on the learner's ChatGPT plan, Codex entitlement, workspace policy and available usage allowance. This does not import existing ChatGPT chats, create a ChatGPT website conversation, or turn a ChatGPT subscription into an API key. See the official [app-server authentication protocol](https://learn.chatgpt.com/docs/app-server) and [authentication guidance](https://learn.chatgpt.com/docs/auth).
 
-Each Send shares bounded recent conversation (up to 40 messages / 60,000 characters), bundled lesson context, learning options and relevant course excerpts with OpenAI. Review identity fields and other open worksheets are not automatically attached. The learner's ChatGPT/Codex account data controls apply; API `store:false` settings from the separate managed-service prototype do not apply to this connection. Replies are escaped text/code and generated code is never automatically executed.
+Each Send shares bounded recent conversation (up to 40 messages / 60,000 characters), bundled lesson context, learning options and relevant course excerpts with OpenAI. Review identity fields are not automatically attached. Application context is controlled by the selector described below. The learner's ChatGPT/Codex account data controls apply; API `store:false` settings from the separate managed-service prototype do not apply to this connection. Replies are escaped text/code and generated code is never automatically executed.
 
-The native process owns login and token refresh. Credentials are kept by the runtime in macOS Keychain, under a separate StatsDirect runtime home; neither tokens nor login URLs enter the web view or portfolio. Runtime setup is private to `~/Library/Application Support/<bundle-id>/ChatGPT Tutor/`. It does not reuse `~/.codex`, personal API keys or project configuration. Each reply uses an ephemeral thread with **no selected computer environment**, no connected apps/plugins, shell, browser or image tools; approval requests are rejected. Learning conversation history is managed by the existing local portfolio. The runtime's default available model is used, rather than hardcoding an entitlement-dependent model name.
+The native process owns login and token refresh. Credentials are kept by the runtime in macOS Keychain, under a separate StatsDirect runtime home; neither tokens nor login URLs enter the web view or portfolio. Runtime setup is private to `~/Library/Application Support/<bundle-id>/ChatGPT Tutor/`. It does not reuse `~/.codex`, personal API keys or project configuration. Each reply uses an ephemeral thread with **no selected computer environment**, no connected apps/plugins, shell, browser or image tools; approval requests are rejected. Only the six registered StatsDirect host tools are available; these cannot access arbitrary files, execute R/shell commands or send email. Learning conversation history is managed by the existing local portfolio. The runtime's default available model is used, rather than hardcoding an entitlement-dependent model name.
 
-The runtime is pinned because its app-server interface contains experimental fields, including disabling environment access. `Scripts/bundle-chatgpt.py` verifies the official archive's SHA-256, includes its Apache licence and notice, and signs the embedded executables. Contract tests exercise the exact pinned binary. A runtime upgrade must repeat those tests. This remains an unsigned-for-distribution Mac prototype; release signing/notarisation is still outstanding.
+The runtime is pinned because its app-server interface contains experimental fields, including disabling environment access and dynamic host tools. `Scripts/bundle-chatgpt.py` verifies the official archive's SHA-256, includes its Apache licence and notice, and signs the embedded executables. Contract tests exercise the exact pinned binary. A runtime upgrade must repeat those tests. This remains an unsigned-for-distribution Mac prototype; release signing/notarisation is still outstanding.
 
 Native tests cover browser authentication setup/cancel with the real signed-out runtime, and completed login, answers, usage errors, cancellation/retry and logout with a local protocol fixture. A live model response requires the learner to finish browser sign-in. The optional [managed service prototype](../TutorService/README.md) remains in the repository for future institutional use; it is not the shipped tutor connection.
+
+## Working with open data and results
+
+The tutor sees an inventory of documents open when Send is pressed, with worksheet headings and selections. **Tutor context** follows the last active document, can be pinned to a particular document, or set to **Lessons only**. That last preference persists across launches. It does not remove earlier conversation messages. Context/status updates preserve the draft text.
+
+The six host tools list the workspace, read exact worksheet ranges, read open forms/reports/help/R scripts and output, retrieve bundled method help, calculate a supported method, or open another normal analysis form. The native host supplies data from the live grid, rather than asking the model to transcribe or reconstruct it. Dataset IDs refer to a per-question snapshot; edited/closed worksheets are rejected before calculation. New documents opened during a question are not silently added to that question's scope. The embedded grids in analysis forms are readable too.
+
+Direct calculations currently support paired and unpaired t tests, univariate and quick summaries, chi-square 2×2, Fisher's exact test, Wilcoxon signed ranks, Spearman correlation, agreement and normality. The engine supplies defaults and validates inputs; chi-square study design must be specified instead of guessed. Other methods open their ordinary forms for further input. Results go into the existing active report, with engine-generated SVG and the existing R link. A repeated calculation request for the same dataset/method within a question reuses its report entry.
+
+Reads are limited to 4,000 cells across at most 32 columns and 50,000 characters, with no silent sampling or truncation. Missing-cell positions and selected column order are retained. Stale formula caches and Excel errors cannot be calculated. Large documents/R output are explicitly bounded excerpts. Replies show the sources actually used, which are also included in the learning record. The teacher is instructed to inspect available data before asking the learner to paste it, and to distinguish open workbooks from each lesson's fictional example.
 
 ## Teaching and records
 
@@ -33,7 +43,7 @@ See [the tutor pack guide](../Docs/Learn/CoursePack/README.md) and its JSON temp
 The generated `Content/Learn/app.js` is committed, like the existing grid assets. After editing Learn sources, run `node Learn/build.mjs` with the Grid esbuild dependency installed. Then run:
 
 ```
-node --test Learn/learning.test.mjs
+node --test Learn/learning.test.mjs Grid/tutor-data.test.mjs
 swiftc Sources/ChatGPTTutor.swift Tests/chatgpt-tutor-driver.swift -o .build/chatgpt-tutor-test
 .build/chatgpt-tutor-test Tests/mock-chatgpt-server.py .build/chatgpt-mock Content/Tutor mock
 .build/chatgpt-tutor-test .build/codex-runtime/bin/codex-app-server .build/chatgpt-probe Content/Tutor probe
@@ -41,6 +51,9 @@ python3 Tests/probe-chatgpt-runtime.py .build/codex-runtime/bin/codex-app-server
 swiftc Sources/LearningCore.swift Sources/CoursePack.swift Tests/learning-client-test.swift -o .build/learning-client-test
 .build/learning-client-test
 python3 Tests/test_learning_examples.py
+swiftc Sources/ChatGPTTutor.swift Sources/TutorTools.swift Sources/RScriptGenerator.swift Tests/tutor-engine-driver.swift -o .build/tutor-engine-test
+.build/tutor-engine-test "$PWD"
+Scripts/test-learning-workspace.sh
 ./build.sh
 ```
 

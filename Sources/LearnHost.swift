@@ -41,6 +41,7 @@ extension Viewer {
                     learningScript(doc,"restore",saved)
                 } else { learningScript(doc,"restore",NSNull()) }
                 learningSettings(doc)
+                refreshLearningWorkspace(doc)
                 Task { @MainActor in
                     do { try await self.chatGPTTutor.refreshAccount() }
                     catch { self.learningScript(doc,"notice",error.localizedDescription) }
@@ -60,6 +61,10 @@ extension Viewer {
                 learningScript(doc,"saved",body["revision"] ?? 0)
             } catch { learningScript(doc,"notice","Learning record was not saved: " + error.localizedDescription) }
         case "importCoursePack": importCoursePack(doc)
+        case "workspace":
+            guard doc.learningTask == nil else { return }
+            if let choice = body["choice"] as? String, choice.isEmpty || choice == "__none__" || documents.contains(where:{$0.id == choice && $0.kind != "learn"}) { doc.learningSourceID = choice; UserDefaults.standard.set(choice == "__none__",forKey:"learningLessonsOnly") }
+            refreshLearningWorkspace(doc)
         case "settings": configureLearningAI(doc)
         case "ask": askLearningTutor(doc,body)
         case "cancel": doc.learningTask?.cancel(); doc.learningTask = nil; doc.learningRequestID = nil; chatGPTTutor.cancelReply(); learningScript(doc,"tutorError",["id":body["id"] ?? "","message":"Reply stopped. You can send another question."])
@@ -87,7 +92,7 @@ extension Viewer {
             if let account = tutor.account {
                 alert.messageText = "Connected to ChatGPT"
                 let identity = account.email.isEmpty ? "Your ChatGPT account" : account.email
-                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\nYour tutor uses this account's Codex access and usage allowance. Each Send shares your question, recent learning conversation, learning options and relevant course excerpts with OpenAI. Other open worksheets are not attached automatically.\n\nSigning out here leaves your local learning record and your other apps unchanged."
+                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\nYour tutor uses this account's Codex access and usage allowance. Each Send shares your question, recent learning conversation, learning options and relevant course excerpts with OpenAI. The tutor can read the open StatsDirect worksheets, reports, help and R output shown in Learning and request engine calculations. Choose Lessons only to exclude open documents.\n\nSigning out here leaves your local learning record and your other apps unchanged."
                 alert.addButton(withTitle:"Done"); alert.addButton(withTitle:"Sign Out")
                 alert.beginSheetModal(for:self.window) { response in
                     if response == .alertSecondButtonReturn {
@@ -107,7 +112,7 @@ extension Viewer {
                 }
             } else {
                 alert.messageText = "Use my ChatGPT"
-                alert.informativeText = "Sign in with your own ChatGPT account in your browser. No API key is needed.\n\nThe tutor uses the Codex access and usage allowance included with your account, subject to your plan and workspace settings. It teaches inside StatsDirect; your existing ChatGPT chats are not imported.\n\nWhen you press Send, your question, recent learning conversation, learning options and relevant course excerpts are shared with OpenAI."
+                alert.informativeText = "Sign in with your own ChatGPT account in your browser. No API key is needed.\n\nThe tutor uses the Codex access and usage allowance included with your account, subject to your plan and workspace settings. It teaches inside StatsDirect; your existing ChatGPT chats are not imported.\n\nWhen you press Send, your question, recent learning conversation, learning options, relevant course excerpts and the application context shown in Learning are shared with OpenAI. Choose Lessons only to exclude open documents."
                 alert.addButton(withTitle:"Use my ChatGPT"); alert.addButton(withTitle:"Not Now")
                 alert.beginSheetModal(for:self.window) { response in
                     guard response == .alertFirstButtonReturn else { return }
@@ -148,12 +153,19 @@ extension Viewer {
         doc.learningRequestID = id
         doc.learningTask = Task { @MainActor [weak self, weak doc] in
             guard let self, let doc else { return }
-            defer { if doc.learningRequestID == id { doc.learningTask = nil; doc.learningRequestID = nil } }
+            defer { if doc.learningRequestID == id { doc.learningTask = nil; doc.learningRequestID = nil; self.refreshLearningWorkspace(doc) } }
             do {
-                let result = try await self.chatGPTTutor.converse(context:context,messages:messages)
+                let workspace = LearningWorkspace(self,doc,id)
+                let overview = try await workspace.overview()
+                let metadata = String(decoding:try JSONSerialization.data(withJSONObject:overview,options:[.sortedKeys]),as:UTF8.self)
+                let methods = self.analysisCatalog.keys.sorted().map { $0 + ": " + (self.analysisCatalog[$0]?["title"] as? String ?? $0) }.joined(separator:"\n")
+                let tools = TutorTools.definitions.filter { !workspace.allowed.isEmpty || ["statsdirect_method_help","statsdirect_workspace"].contains($0["name"] as? String ?? "") }
+                let result = try await self.chatGPTTutor.converse(context:"CURRENT STATSDIRECT WORKSPACE (metadata, not cell values):\n" + String(metadata.prefix(18000)) + "\nBUNDLED LESSON AND LEARNING CONTEXT (separate from open data):\n" + context + "\nMETHOD CATALOGUE:\n" + methods,messages:messages,tools:tools) { name, arguments in
+                    try await workspace.call(name,arguments)
+                }
                 try Task.checkCancellation()
                 guard doc.learningRequestID == id else { return }
-                self.learningScript(doc,"reply",["id":id,"text":result.text,"model":result.model,"responseID":result.responseID,"promptVersion":result.promptVersion,"courseSources":courseSources])
+                self.learningScript(doc,"reply",["id":id,"text":result.text,"model":result.model,"responseID":result.responseID,"promptVersion":result.promptVersion,"courseSources":courseSources,"workspaceSources":workspace.sources])
             } catch {
                 if !Task.isCancelled, doc.learningRequestID == id {
                     self.learningScript(doc,"tutorError",["id":id,"message":error is URLError ? "ChatGPT could not be reached. Check your network and try again." : error.localizedDescription])

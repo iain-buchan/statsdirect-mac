@@ -45,10 +45,13 @@ function DataInput({p,source,onChange,initial}:{p:any,source:any,onChange:(v:any
     {p.mode?.includes('Coding')&&<p className="hint">Text columns are treated as categories. The engine will ask about reference categories when dummy coding is needed.</p>}{error&&<p role="alert" className="error">{error}</p>}
   </div>;
 }
+const tutorInputs=new Map<symbol,()=>any>();
 function Prompt({p,source,onSubmit,onCancel,initial,busy,embedded=false,register}:{p:any,source:any,onSubmit:(v:any)=>void,onCancel:()=>void,initial:any,busy:boolean,embedded?:boolean,register?:(reader:()=>any)=>void}) {
   const initialValue=()=>initial??(p.kind==='options'?Object.fromEntries(p.options.map((o:any)=>[o.value,o.selected])):['fields','settings'].includes(p.kind)?Object.fromEntries(p.fields.map((o:any)=>[o.name,o.defaultValue??''])):p.kind==='selectList'?[]:p.defaultValue??(p.kind==='option'?p.options[0]?.value:'')??'');
   const [value,setValue]=useState<any>(initialValue),[error,setError]=useState(''); const gridValue=useRef<()=>any>(()=>{throw new Error('Enter or select data.');});
   useEffect(()=>{register?.(()=>p.kind==='grid'?gridValue.current():value);},[value,p.kind,register]);
+  const tutorKey=useRef(Symbol());
+  useEffect(()=>{tutorInputs.set(tutorKey.current,()=>({prompt:p.prompt,name:p.name,kind:p.kind,value:p.kind==='grid'?gridValue.current():value}));return()=>{tutorInputs.delete(tutorKey.current);};},[p,value]);
   const Container=embedded?'div':'form';
   function submit(e:React.FormEvent){e.preventDefault();try{onSubmit(p.kind==='grid'?gridValue.current():value);setError('');}catch(e){setError((e as Error).message);}}
   return <Container className={embedded?'embedded-prompt':p.kind==='settings'?'settings-form':undefined} onSubmit={embedded?undefined:submit}><fieldset disabled={busy}><div className="prompt-body"><h2>{p.kind==='settings'?'Current defaults':p.prompt==='Enter a value'&&p.kind==='confidence'?'Confidence level':p.prompt==='Enter a value'&&p.kind==='grid'?'Enter the data table':p.prompt||p.title}</h2>{p.rubric&&<p className="rubric">{p.rubric}</p>}{p.error&&<p className="error" role="alert">{p.error}</p>}
@@ -76,7 +79,7 @@ function App(){
   const lastAnswer=useRef<any>();
   const answers=useRef(new InstantAnswers());
   const [result,setResult]=useState<any>(null),[steps,setSteps]=useState<any[]>([]);
-  useEffect(()=>{window.statsDirectOperation={configure:(c:any)=>setConfig(c),setSource:(s:any)=>setSource(s),update:(s:any)=>{setState(s);setBusy(false);setError('');if(s.state==='input'){const next=answers.current.next(s.prompt);if(next.found){lastAnswer.current=next.value;setBusy(true);native('answer',{token:s.token,value:next.value});}}if(s.state==='complete')setSteps(answers.current.finish());},showResult:(r:any)=>{setResult(r);window.scrollTo(0,0);},resultKept:(name:string)=>setResult((r:any)=>r?{...r,kept:name}:r),error:(s:string)=>{setError(s);setBusy(false);}};native('ready');return()=>{delete window.statsDirectOperation;};},[]);
+  useEffect(()=>{window.statsDirectOperation={tutorSnapshot:()=>({inputs:Array.from(tutorInputs.values()).map(read=>{try{const input=read();return JSON.stringify(input).length<=50000?input:{error:'Input too large for the tutor; choose a smaller worksheet range.'};}catch(e){return {error:(e as Error).message};}})}),configure:(c:any)=>setConfig(c),setSource:(s:any)=>setSource(s),update:(s:any)=>{setState(s);setBusy(false);setError('');if(s.state==='input'){const next=answers.current.next(s.prompt);if(next.found){lastAnswer.current=next.value;setBusy(true);native('answer',{token:s.token,value:next.value});}}if(s.state==='complete')setSteps(answers.current.finish());},showResult:(r:any)=>{setResult(r);window.scrollTo(0,0);},resultKept:(name:string)=>setResult((r:any)=>r?{...r,kept:name}:r),error:(s:string)=>{setError(s);setBusy(false);}};native('ready');return()=>{delete window.statsDirectOperation;};},[]);
   const isActive=['input','running'].includes(state.state),isSettings=config.id==='AnalysisOptions';
   return <main className={isSettings?'options-page':undefined}><header><div><div className="eyebrow">ANALYSIS / STATSDIRECT</div><h1>{config.title}</h1><p>{isSettings?"Review all defaults below, then save them together.":"Results collect in the active report. Use File → New Report to start another."}</p></div><button onClick={()=>native('help')}>Method help ↗</button></header>
     {error&&<p className="error" role="alert">{error}</p>}

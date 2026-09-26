@@ -19,10 +19,10 @@ with tempfile.TemporaryDirectory(prefix='statsdirect-protocol-') as temporary:
                 assert 'error' not in item, item.get('error')
                 return item['result']
     try:
-        call(1,'initialize',{'clientInfo':{'name':'statsdirect_contract_test','version':'0.3.3'},'capabilities':{'experimentalApi':True}})
+        call(1,'initialize',{'clientInfo':{'name':'statsdirect_contract_test','version':'0.3.4'},'capabilities':{'experimentalApi':True}})
         write({'method':'initialized'})
         assert call(2,'account/read',{'refreshToken':False})['account'] is None
-        thread = call(3,'thread/start',{'cwd':str(workspace),'approvalPolicy':'never','sandbox':'read-only','ephemeral':True,'environments':[],'baseInstructions':'You are a biostatistics tutor. You have no tools.'})
+        thread = call(3,'thread/start',{'cwd':str(workspace),'approvalPolicy':'never','sandbox':'read-only','ephemeral':True,'environments':[],'baseInstructions':'You are a biostatistics tutor. Only use the supplied StatsDirect tools.', 'dynamicTools':[{'type':'function','name':'statsdirect_workspace','description':'Read open StatsDirect document metadata','inputSchema':{'type':'object','properties':{},'required':[],'additionalProperties':False}}]})
         assert thread['instructionSources'] == [], thread['instructionSources']
         assert thread['sandbox']['type'] == 'readOnly'
         # Validation and context creation are local. With no account this cannot contact a model.
@@ -30,6 +30,6 @@ with tempfile.TemporaryDirectory(prefix='statsdirect-protocol-') as temporary:
         assert turn['turn']['id']
         call(5,'turn/interrupt',{'threadId':thread['thread']['id'],'turnId':turn['turn']['id']})
         call(6,'thread/unsubscribe',{'threadId':thread['thread']['id']})
-        print('Pinned runtime: initialization, signed-out account, no-environment thread, turn schema, interrupt and unsubscribe passed')
+        print('Pinned runtime: initialization, signed-out account, no-environment thread with a controlled dynamic tool, turn schema, interrupt and unsubscribe passed')
     finally:
         process.stdin.close(); process.terminate(); process.wait(timeout=5)

@@ -52,3 +52,10 @@ test('a saved attempt keeps its wording and answer key when the question bank ch
  const p=newPortfolio();p.quiz=createSession('foundation','learn');const id=p.quiz.questionIds[0],q=questions.find(q=>q.id===id),oldStem=q.stem,oldKey=q.correct;
  try{q.stem='Replacement question';q.correct=oldKey==='A'?'B':'A';const restored=restorePortfolio(JSON.parse(JSON.stringify(p)));assert.equal(sessionQuestion(restored.quiz,id).stem,oldStem);recordAnswer(restored.quiz,id,oldKey,'confident');assert.equal(restored.quiz.answers[0].correct,true);assert.equal(reviewRecord(restored).attempts[0].questionSnapshots[0].correct,oldKey);}finally{q.stem=oldStem;q.correct=oldKey;}
 });
+
+test('worksheet provenance survives portfolio restore and text export',()=>{
+  const state=newPortfolio();transcriptEntry(state,'assistant','The engine calculated the paired differences.','StatsDirect AI tutor',{workspaceSources:['test.xlsx · PEFR · A, B · rows 2–10 · 9 rows']});
+  const restored=restorePortfolio(JSON.parse(JSON.stringify(state)));
+  assert.match(reviewText(reviewRecord(restored)),/StatsDirect context: test.xlsx/);
+  const bad=JSON.parse(JSON.stringify(state));bad.conversation[0].workspaceSources='invalid';assert.throws(()=>restorePortfolio(bad));
+});

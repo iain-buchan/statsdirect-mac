@@ -43,6 +43,7 @@ function App() {
         table.change(s=>{s.counts=counts;s.columnLabels=source.selection.map((c:number)=>source.columns[c]);s.rowLabels=counts.map((_:any,i:number)=>`Row ${i+1}`);});
         changed();setMessage('Selected worksheet cells copied. Review the counts and category labels.');
       }),
+      tutorSnapshot: () => table.state.counts.length*table.state.columnLabels.length<=4000?{table:table.state}:{error:"Table exceeds 4,000 cells; select a smaller range."},
       csvData: () => table.csv()
     };
     native('ready');

@@ -256,3 +256,24 @@ Help offers Check for Updates and an initially enabled automatic-check toggle. A
 - Native UI verified with a separate bundle ID and portfolio: **Use my ChatGPT** in Learning, no API-key field, browser opened to OpenAI's sign-in page, pending/reopen/cancel controls, and a complete draft preserved across a connection check. Status changes now update their own elements rather than rebuilding the learner's form. Temporary sign-in cancelled and its browser page closed; test app quit.
 - `StatsDirect 0.3.3.app` and canonical `StatsDirect Viewer.app` passed deep/strict signature verification. These are ad-hoc signed prototypes, not notarised distribution builds.
 - Remaining: learner completes browser login to verify a live teaching response and account-specific access/limits. The existing 0.3.2 session was not closed by this work. After it was no longer running, the finished 0.3.3 build was opened to Learning.
+
+## 2026-09-26 — 0.3.4: Tutor application context and engine tools
+
+- Built the native Mac shell and both web bundles. The bundled Windows engine is byte-for-byte identical to 0.3.3 (`dcc2af8f0ec5`, version 5.0.8); no statistical routines were changed.
+- 28 Learning, worksheet extraction, operation-data and workbook tests pass. Coverage includes exact rectangles/column order, nine PEFR pairs without blank sheet padding, internal missing positions, hidden/oversized data rejection, formula/error flags, portfolio provenance, independent practice and executable lesson R examples.
+- The actual engine ran all ten direct tutor methods through `TutorTools.run`: paired/unpaired t, univariate/quick summaries, chi-square 2×2, Fisher, Wilcoxon signed ranks, Spearman, agreement and normality. The host preserves row positions and requires an explicit chi-square study design; it refuses an oversized screen table rather than cropping it.
+- The nine-pair example gives mean before-minus-after 56.111111, 95% CI 29.842662–82.379560 and two-sided P 0.001155573. Its generated R script has nine rows and agrees with engine mean/CI/P to the test tolerances (1e-10 / 1e-9 / 1e-12). The engine report contains an SVG agreement chart. With the third before value missing, the native helper retains row alignment: n=8, mean=49.625 and eight plotted points.
+- Swift protocol tests pass tool round-trip JSON, registered-tool restrictions, wrong-thread/turn rejection, duplicate call suppression and cancellation of a running tool, alongside the existing login, answer, usage-limit, retry and disconnect checks. The pinned real App Server 0.157.1 accepts the dynamic tool definition with no selected computer environment; the probe remained signed out.
+- `Scripts/test-learning-workspace.sh` compiled a separate native test app with its own bundle ID and portfolio. It opened the real bundled test.xlsx through the Excel host, located the PEFR columns, read their nine pairs from WKWebView, ran the engine, appended one report with SVG/R link, and verified repeat-result reuse. It also verified stale worksheet rejection, per-question document scope, cancellation, Lessons only, bundled help, actual rendered report reading, R script/output reading and draft preservation through context/account updates.
+- Native UI checked the context choices and Lessons-only status; the typed draft remained intact. Tool-source references are escaped in the conversation and exported in the record. The isolated test app was closed.
+- `StatsDirect 0.3.4.app` and canonical `StatsDirect Viewer.app` pass deep/strict code-signature verification. Packaged executable UUID matches the new native build. They remain ad-hoc signed prototypes.
+- A live model/tool conversation was not sent from the user's signed-in account in this verification. Transport and host integration were exercised separately with the protocol fixture and the real native/engine harness. The user's running 0.3.3 session, including its open analysis form, worksheet and saved learning conversation, was left intact; opening 0.3.4 after closing that session is required to use the new native tools.
+
+Additional reproducible checks:
+
+```sh
+node --test Learn/learning.test.mjs Grid/tutor-data.test.mjs Grid/operation-data.test.mjs Grid/workbook.test.mjs
+swiftc Sources/ChatGPTTutor.swift Sources/TutorTools.swift Sources/RScriptGenerator.swift Tests/tutor-engine-driver.swift -o .build/tutor-engine-test
+.build/tutor-engine-test "$PWD"
+Scripts/test-learning-workspace.sh "$PWD/StatsDirect Viewer.app"
+```

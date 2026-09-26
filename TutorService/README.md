@@ -1,5 +1,7 @@
 # StatsDirect managed tutor service
 
+> Optional institutional service prototype. The shipped Mac app now uses **Use my ChatGPT**; see [Learning](../Learn/README.md). This service is retained for future hosted deployment.
+
 The learner opens Learning and sends a question. The Mac automatically obtains an anonymous, limited session from this service and keeps that service token in Keychain. The service calls OpenAI using its administrator's credential. Learners need neither an OpenAI account nor an OpenAI key. The model, teaching instructions and request limits are controlled by the server.
 
 **Current deployment status:** implemented and tested locally with a simulated provider. No public host, administrator credential, live OpenAI call or billing account has been configured. Shipping the app alone does not activate the shared tutor.

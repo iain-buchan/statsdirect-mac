@@ -1,31 +1,6 @@
 import Cocoa
 import WebKit
-import Security
 import UniformTypeIdentifiers
-import CryptoKit
-
-/// A service-scoped session credential is stored on the Mac; it is not an OpenAI credential.
-enum TutorKeychain {
-    static func query(_ service: URL) -> [String:Any] {
-        let hostID = SHA256.hash(data:Data(service.absoluteString.utf8)).map{String(format:"%02x",$0)}.joined()
-        return [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:(Bundle.main.bundleIdentifier ?? "com.statsdirect.viewer.prototype") + ".managed-tutor",kSecAttrAccount as String:hostID]
-    }
-    static func read(_ service: URL) -> String? {
-        var q = query(service); q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: CFTypeRef?
-        guard SecItemCopyMatching(q as CFDictionary,&result) == errSecSuccess, let data = result as? Data else { return nil }
-        return String(data:data,encoding:.utf8)
-    }
-    static func write(_ token: String, service: URL) throws {
-        let attributes = [kSecValueData as String:Data(token.utf8)]
-        let status = SecItemUpdate(query(service) as CFDictionary,attributes as CFDictionary)
-        if status == errSecItemNotFound {
-            var q = query(service); q.merge(attributes){_,new in new}; q[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            guard SecItemAdd(q as CFDictionary,nil) == errSecSuccess else { throw LearningTutor.Failure(message:"The learning session could not be saved in Keychain.") }
-        } else if status != errSecSuccess { throw LearningTutor.Failure(message:"The learning session could not be updated in Keychain.") }
-    }
-    static func remove(_ service: URL) { SecItemDelete(query(service) as CFDictionary) }
-}
 
 extension Viewer {
     var learningFolder: URL {
@@ -47,13 +22,8 @@ extension Viewer {
         guard documents.contains(where:{$0 === doc}), let data = try? JSONSerialization.data(withJSONObject:value,options:[.fragmentsAllowed]) else { return }
         doc.web.evaluateJavaScript("window.statsDirectLearn?.\(action)(\(String(decoding:data,as:UTF8.self)))")
     }
-    var tutorServiceURL: URL? {
-        let raw = UserDefaults.standard.string(forKey:"managedTutorServiceURL") ?? Bundle.main.object(forInfoDictionaryKey:"StatsDirectTutorServiceURL") as? String ?? ""
-        let local = Bundle.main.object(forInfoDictionaryKey:"StatsDirectTutorAllowLocalTesting") as? Bool == true
-        return try? LearningTutor.serviceURL(raw,allowLocalTesting:local)
-    }
     func learningSettings(_ doc: Document) {
-        learningScript(doc,"settings",["configured":tutorServiceURL != nil,"service":tutorServiceURL?.host ?? "","label":tutorServiceURL == nil ? "Awaiting service activation" : "StatsDirect tutor"])
+        learningScript(doc,"settings",["configured":chatGPTTutor.account != nil,"service":"ChatGPT","label":chatGPTTutor.status,"signingIn":chatGPTTutor.loginID != nil])
     }
     func handleLearning(_ message: WKScriptMessage) {
         guard message.name == "statsDirectLearn", message.frameInfo.isMainFrame,
@@ -71,6 +41,10 @@ extension Viewer {
                     learningScript(doc,"restore",saved)
                 } else { learningScript(doc,"restore",NSNull()) }
                 learningSettings(doc)
+                Task { @MainActor in
+                    do { try await self.chatGPTTutor.refreshAccount() }
+                    catch { self.learningScript(doc,"notice",error.localizedDescription) }
+                }
                 coursePackInfo(doc)
                 if doc.initialLearningView == "options" { doc.initialLearningView = nil; learningScript(doc,"showOptions",NSNull()) }
             } catch { learningScript(doc,"loadError",error.localizedDescription) }
@@ -88,7 +62,7 @@ extension Viewer {
         case "importCoursePack": importCoursePack(doc)
         case "settings": configureLearningAI(doc)
         case "ask": askLearningTutor(doc,body)
-        case "cancel": doc.learningTask?.cancel(); doc.learningTask = nil; learningScript(doc,"tutorError",["id":body["id"] ?? "","message":"Reply stopped. You can send another question."])
+        case "cancel": doc.learningTask?.cancel(); doc.learningTask = nil; doc.learningRequestID = nil; chatGPTTutor.cancelReply(); learningScript(doc,"tutorError",["id":body["id"] ?? "","message":"Reply stopped. You can send another question."])
         case "help":
             if let id = body["lesson"] as? String, let lesson = learningLessons.first(where:{$0["id"] as? String == id}), let help = lesson["help"] as? String {
                 openHelp(root.appendingPathComponent("Help/" + help),title:lesson["title"] as? String ?? "Learning")
@@ -101,46 +75,58 @@ extension Viewer {
         }
     }
     func configureLearningAI(_ doc: Document) {
-        let alert = NSAlert(); alert.messageText = "Tutor connection"
-        if let service = tutorServiceURL {
-            alert.informativeText = "Learning connects through \(service.host ?? "your course service"). A learning session is created automatically when you send a question. StatsDirect or your course provider manages the OpenAI connection and usage. You do not need an OpenAI account or key.\n\nQuestions, recent conversation, learning goals and relevant course excerpts are shared with this service and OpenAI when you press Send."
-        } else {
-            alert.informativeText = "The shared tutor service is awaiting setup. StatsDirect or your course provider will activate it for learners. You do not need an OpenAI account or key.\n\nLessons, practice questions and StatsDirect/R examples are ready to use now."
-        }
-        alert.addButton(withTitle:"Done"); alert.addButton(withTitle:"Import Connection…")
-        alert.beginSheetModal(for:window) { response in
-            if response == .alertSecondButtonReturn { self.importTutorConnection(doc) }
-        }
-    }
-    func importTutorConnection(_ doc: Document) {
-        guard doc.learningTask == nil else { return }
-        let panel = NSOpenPanel(); panel.allowedContentTypes = [.json]; panel.canChooseDirectories = false
-        panel.message = "Select the connection file supplied by StatsDirect or your course provider. It contains a service address, not an OpenAI key."
-        panel.beginSheetModal(for:window) { response in
-            guard response == .OK, let url = panel.url else { return }
-            do {
-                let data = try Data(contentsOf:url)
-                guard data.count <= 16_000, let profile = try JSONSerialization.jsonObject(with:data) as? [String:Any],
-                      profile["schemaVersion"] as? Int == 1, let raw = profile["serviceURL"] as? String else {
-                    throw LearningTutor.Failure(message:"Choose a valid StatsDirect tutor connection file.")
+        guard !openingTutorConnection else { return }
+        openingTutorConnection = true
+        Task { @MainActor in
+            defer { self.openingTutorConnection = false }
+            do { try await self.chatGPTTutor.refreshAccount() }
+            catch { self.learningScript(doc,"notice",error.localizedDescription); return }
+            guard self.documents.contains(where:{$0 === doc}) else { return }
+            let tutor = self.chatGPTTutor
+            let alert = NSAlert()
+            if let account = tutor.account {
+                alert.messageText = "Connected to ChatGPT"
+                let identity = account.email.isEmpty ? "Your ChatGPT account" : account.email
+                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\nYour tutor uses this account's Codex access and usage allowance. Each Send shares your question, recent learning conversation, learning options and relevant course excerpts with OpenAI. Other open worksheets are not attached automatically.\n\nSigning out here leaves your local learning record and your other apps unchanged."
+                alert.addButton(withTitle:"Done"); alert.addButton(withTitle:"Sign Out")
+                alert.beginSheetModal(for:self.window) { response in
+                    if response == .alertSecondButtonReturn {
+                        Task { @MainActor in
+                            do { try await tutor.signOut() }
+                            catch { self.learningScript(doc,"notice",error.localizedDescription) }
+                        }
+                    }
                 }
-                let service = try LearningTutor.serviceURL(raw)
-                let confirm = NSAlert(); confirm.messageText = "Connect learning to \(service.host ?? "")?"
-                confirm.informativeText = "Service: \(service.absoluteString)\n\nSending a question will share recent conversation, learning goals and relevant course excerpts with this service and its OpenAI connection. Importing makes no network request."
-                confirm.addButton(withTitle:"Use This Connection"); confirm.addButton(withTitle:"Cancel")
-                confirm.beginSheetModal(for:self.window) { choice in
-                    guard choice == .alertFirstButtonReturn else { return }
-                    UserDefaults.standard.set(service.absoluteString,forKey:"managedTutorServiceURL")
-                    self.learningSettings(doc); self.learningScript(doc,"notice","Tutor connection set. Send a question to start your learning session.")
+            } else if let url = tutor.loginURL {
+                alert.messageText = "Finish signing in to ChatGPT"
+                alert.informativeText = "Complete sign-in in your browser, then return to StatsDirect. Your draft question is kept here. The connection will update automatically."
+                alert.addButton(withTitle:"Open Browser"); alert.addButton(withTitle:"Cancel Sign-in"); alert.addButton(withTitle:"Done")
+                alert.beginSheetModal(for:self.window) { response in
+                    if response == .alertFirstButtonReturn { NSWorkspace.shared.open(url) }
+                    if response == .alertSecondButtonReturn { Task { await tutor.cancelSignIn() } }
                 }
-            } catch { self.learningScript(doc,"notice",error.localizedDescription) }
+            } else {
+                alert.messageText = "Use my ChatGPT"
+                alert.informativeText = "Sign in with your own ChatGPT account in your browser. No API key is needed.\n\nThe tutor uses the Codex access and usage allowance included with your account, subject to your plan and workspace settings. It teaches inside StatsDirect; your existing ChatGPT chats are not imported.\n\nWhen you press Send, your question, recent learning conversation, learning options and relevant course excerpts are shared with OpenAI."
+                alert.addButton(withTitle:"Use my ChatGPT"); alert.addButton(withTitle:"Not Now")
+                alert.beginSheetModal(for:self.window) { response in
+                    guard response == .alertFirstButtonReturn else { return }
+                    Task { @MainActor in
+                        do {
+                            let url = try await tutor.signIn()
+                            if !NSWorkspace.shared.open(url) { throw ChatGPTTutor.Failure(message:"The browser could not open. Choose Tutor connection to reopen the sign-in page.") }
+                            self.learningScript(doc,"notice","Finish signing in in your browser, then return here and send your question.")
+                        } catch { self.learningScript(doc,"notice",error.localizedDescription) }
+                    }
+                }
+            }
         }
     }
     func askLearningTutor(_ doc: Document, _ body: [String:Any]) {
         guard doc.learningTask == nil, let id = body["id"] as? String else { return }
         func failure(_ message: String) { learningScript(doc,"tutorError",["id":id,"message":message]) }
         if let quiz = doc.learningState?["quiz"] as? [String:Any], quiz["mode"] as? String == "test", quiz["completedAt"] is NSNull { failure("Finish or end the independent practice before asking the tutor."); return }
-        guard let service = tutorServiceURL else { failure("The shared tutor is awaiting activation by StatsDirect or your course provider. You do not need an OpenAI key."); return }
+        guard chatGPTTutor.account != nil else { failure("Choose Use my ChatGPT to connect your account, then send your question."); return }
         guard let lessonID = body["lesson"] as? String, let lesson = learningLessons.first(where:{$0["id"] as? String == lessonID}),
               let messages = body["messages"] as? [[String:String]], let profile = body["profile"] as? String, let stage = body["stage"] as? String else { return }
         var context = "Learner pathway: \(profile.prefix(100)). R experience: \(stage.prefix(100)).\n"
@@ -164,12 +150,13 @@ extension Viewer {
             guard let self, let doc else { return }
             defer { if doc.learningRequestID == id { doc.learningTask = nil; doc.learningRequestID = nil } }
             do {
-                let result = try await LearningTutor.converse(service:service,savedToken:TutorKeychain.read(service),lesson:lessonID,context:context,messages:messages,saveToken:{try TutorKeychain.write($0,service:service)},removeToken:{TutorKeychain.remove(service)})
+                let result = try await self.chatGPTTutor.converse(context:context,messages:messages)
+                try Task.checkCancellation()
+                guard doc.learningRequestID == id else { return }
                 self.learningScript(doc,"reply",["id":id,"text":result.text,"model":result.model,"responseID":result.responseID,"promptVersion":result.promptVersion,"courseSources":courseSources])
             } catch {
-                if let failure = error as? LearningTutor.Failure, failure.code == "session_expired" { TutorKeychain.remove(service) }
-                if !Task.isCancelled {
-                    self.learningScript(doc,"tutorError",["id":id,"message":error is URLError ? "The shared tutor could not be reached. Check your network and try again." : error.localizedDescription])
+                if !Task.isCancelled, doc.learningRequestID == id {
+                    self.learningScript(doc,"tutorError",["id":id,"message":error is URLError ? "ChatGPT could not be reached. Check your network and try again." : error.localizedDescription])
                 }
             }
         }

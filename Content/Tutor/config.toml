@@ -1,0 +1,52 @@
+# StatsDirect's isolated conversational tutor. No project or personal Codex setup.
+forced_login_method = "chatgpt"
+cli_auth_credentials_store = "keyring"
+model_provider = "openai"
+approval_policy = "never"
+sandbox_mode = "read-only"
+web_search = "disabled"
+project_doc_max_bytes = 0
+allow_login_shell = false
+include_apps_instructions = false
+include_collaboration_mode_instructions = false
+[analytics]
+enabled = false
+[history]
+persistence = "none"
+[tools.update_plan]
+enabled = false
+[tools.experimental_request_user_input]
+enabled = false
+[features]
+shell_tool = false
+unified_exec = false
+shell_snapshot = false
+view_image = false
+code_mode = false
+code_mode_host = false
+code_mode_only = false
+js_repl = false
+apps = false
+connectors = false
+plugins = false
+remote_plugin = false
+recommended_plugins = false
+skill_search = false
+skip_host_skill_discovery = true
+memories = false
+memory_tool = false
+multi_agent = false
+multi_agent_v2 = false
+collab = false
+browser_use = false
+computer_use = false
+image_generation = false
+request_permissions_tool = false
+request_permissions = false
+tool_suggest = false
+hooks = false
+codex_hooks = false
+plugin_hooks = false
+deferred_executor = false
+sleep_tool = false
+workspace_dependencies = false

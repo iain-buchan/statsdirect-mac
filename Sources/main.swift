@@ -60,6 +60,15 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     let documentTabScroll = NSScrollView()
     var status: NSTextField!
     var documents: [Document] = []
+    lazy var chatGPTTutor: ChatGPTTutor = {
+        let tutor = ChatGPTTutor.bundled()
+        tutor.changed = { [weak self] in
+            guard let self else { return }
+            for doc in self.documents where doc.kind == "learn" { self.learningSettings(doc) }
+        }
+        return tutor
+    }()
+    var openingTutorConnection = false
     var windowsMenu: NSMenu!
     var running = false
     var reportNumber = 0
@@ -503,7 +512,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         return .terminateNow
     }
-    func applicationWillTerminate(_ notification: Notification) { for doc in documents { doc.rPane?.shutdown() } }
+    func applicationWillTerminate(_ notification: Notification) { chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() } }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 MainActor.assumeIsolated {

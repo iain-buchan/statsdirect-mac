@@ -318,3 +318,16 @@ python3 Tests/test_data_files.py .build/data-file-driver /path/to/node
 ```
 
 `Tests/r-installation-ui.swift` can be compiled with RInstallation, RInstaller and RPane into an isolated app containing `Content/R/session.R`. Its first download fails deliberately; subsequent downloads simulate progress without installing software. Creating `~/Library/Application Support/com.statsdirect.r-setup-ui/ready` after the simulated installer handoff lets Check Again use the existing local R and resume the retained script. Launching the fixture resets only this marker.
+
+## 2026-09-26 — 0.3.8: Update checks when GitHub API DNS fails
+
+- Reproduced the reported error on this Mac: both curl and native URLSession failed to resolve `api.github.com` (NSURLErrorCannotFindHost, -1003). `github.com` resolved and its repository `/releases/latest` address redirected successfully to the release list. No network or DNS settings were changed.
+- The checker now falls back from a failed GitHub API request to GitHub's documented latest-release web address. It validates the final HTTPS host, repository path and numeric tag rather than scraping HTML. A successful redirect to the release list reports no published release. An unrelated/login page, invalid tag, HTTP failure or failure of both hosts remains an error.
+- Manual connection errors have specific DNS/offline/timeout/TLS explanations and Try Again, Open Downloads and Cancel. The current-version message also handles local builds newer than the latest published version correctly.
+- Unit/URLSession fixtures pass API-only success, DNS/rate-limit/server-error fallback, newer/current versions, missing releases, invalid URLs, failure of both hosts and cancellation without fallback. The live check succeeds on the affected Mac and reports no published release.
+- Built and ad-hoc signature-verified 0.3.8 and the canonical bundle; calculation-engine bytes are unchanged. Opened 0.3.8 and selected Help → Check for Updates: the native dialog correctly says No published update is available and identifies version 0.3.8. No GitHub release or installer was published by this fix.
+
+```sh
+swiftc Sources/UpdateService.swift Tests/update-service-test.swift -o .build/update-service-test
+.build/update-service-test --live
+```

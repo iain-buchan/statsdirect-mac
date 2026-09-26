@@ -41,17 +41,27 @@ extension Viewer {
                 case .current:
                     guard manual else { return }
                     alert.messageText = "StatsDirect is up to date"
-                    alert.informativeText = "Version \(installed) is the latest available release."
+                    alert.informativeText = "You are using version \(installed). No newer published release is available."
                     alert.addButton(withTitle: "OK"); alert.beginSheetModal(for: window) { _ in }
                 case .noRelease:
                     guard manual else { return }
                     alert.messageText = "No published update is available"
-                    alert.informativeText = "GitHub has no accessible published release for StatsDirect Mac yet. You are using \(installed). New commits alone are not application releases."
+                    alert.informativeText = "There is no published Mac application download on GitHub yet. You are using version \(installed)."
                     alert.addButton(withTitle: "OK"); alert.beginSheetModal(for: window) { _ in }
                 }
                 if manual { status.stringValue = "Update check complete · Version \(installed)" }
             } catch {
-                if manual { showError("Could not check for updates. " + error.localizedDescription); status.stringValue = "Update check failed · Try again later" }
+                if manual {
+                    status.stringValue = "Unable to check for updates · Version \(installed)"
+                    guard window.attachedSheet == nil else { return }
+                    let alert = NSAlert(); alert.messageText = "Could not check for updates"
+                    alert.informativeText = UpdateService.message(for: error)
+                    alert.addButton(withTitle: "Try Again"); alert.addButton(withTitle: "Open Downloads"); alert.addButton(withTitle: "Cancel")
+                    alert.beginSheetModal(for: window) { response in
+                        if response == .alertFirstButtonReturn { self.checkForUpdates(manual: true) }
+                        else if response == .alertSecondButtonReturn { NSWorkspace.shared.open(UpdateService.releases) }
+                    }
+                }
             }
         }
     }

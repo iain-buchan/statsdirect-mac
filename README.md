@@ -13,7 +13,7 @@ Expand the application ZIP and move **StatsDirect Viewer.app** to Applications. 
 Open your data with **File → Open**, or choose **Help → Example workbook**, then select a method from **Analysis**.
 
 - Read and write Excel (`.xlsx`), CSV and R data files.
-- Keep results together in an active report, with SVG charts and PDF export.
+- Keep results together in an active report, with SVG charts; save as HTML, PDF or editable Word documents.
 - Continue supported analyses in editable R sessions; install R through the app if needed.
 - Use **Help → Learning** for biostatistics, epidemiology, practice questions and a tutor connected to your open work. **Use my ChatGPT** signs in through your browser; your account’s Codex access and usage allowance apply.
 
@@ -31,4 +31,4 @@ The engine is pinned to a tested Git submodule revision. Prebuilt web content is
 
 ## Documentation
 
-[Data grid](Grid/README.md) · [Learning](Learn/README.md) · [Engine and updates](FullEngine/README.md) · [Verification and limitations](Tests/verification.md)
+[Reports](Report/README.md) · [Data grid](Grid/README.md) · [Learning](Learn/README.md) · [Engine and updates](FullEngine/README.md) · [Verification and limitations](Tests/verification.md)

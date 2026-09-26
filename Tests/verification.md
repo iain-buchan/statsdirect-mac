@@ -347,3 +347,17 @@ python3 Tests/test_data_files.py .build/data-file-driver /path/to/node
 swiftc Sources/UpdateService.swift Tests/update-service-test.swift -o .build/update-service-test
 .build/update-service-test --live
 ```
+
+## 2026-09-26 — 0.3.11: Report export and Excel paste
+
+- Save Report (⌘S) offers HTML, PDF and DOCX in a native format chooser; changing formats changes the filename extension. Verified the actual dialog through a successful DOCX save. File → Export provides direct entries too. The complete active report is exported.
+- `Scripts/test-report-export.sh` ran the unchanged 5.0.8 engine for paired t/agreement and chi-square 2×2, appended a 65-row synthetic table with merged headings, and exported/reopened the combined report. All native assertions pass: portable HTML, five A4 PDF pages including the last result, SVG charts, and a reopened HTML-to-DOCX round trip. App-only controls/scripts and local help paths are absent from saved HTML.
+- DOCX package checks verified three editable tables, all 65 observations, horizontal/vertical merges, two repeated heading rows, superscripts/subscripts, external help relationships, and SVG plus PNG chart media. Both the PDF and the four-page DOCX rendering were visually checked. Word uses semantic document formatting; PDF follows WebKit pagination (table headings do not reliably repeat there).
+- Actual Microsoft Excel for Mac ⌘C/⌘V testing exposed chart-axis text leaking into cells, text-label and scientific-number formatting issues, and pictures covering later results. Corrected the report clipboard HTML and retested in a new synthetic worksheet. All 65 labels, decimals, negatives and scientific P values are present; numeric cells remain numeric, both header merges survive, and the picture ends before the next analysis. No Excel error cells occur. Excel retains destination column widths; wrapped labels remain visible and AutoFit gives more room.
+- Native clipboard tests pass whole-report selection, a single selected table row with restored table structure, and empty selection; the plain-text fallback contains tab-separated cells and excludes chart-axis clutter. Node tests cover percentages, Unicode minus, identifiers, Excel's 15-digit precision bound, formula-like labels and nonnumeric values. No calculation code changed.
+- The versioned and canonical 0.3.11 app bundles pass deep/strict ad-hoc signature verification. The calculation-engine binary is byte-for-byte identical to 0.3.10. The downloadable ZIP is 153,476,978 bytes; SHA-256 `77d0e0c8898463e77b0d1ad52f08996fb75e0cafd9361cab7fecc55891b0c5d1`.
+
+```sh
+node --test Report/clipboard.test.mjs
+Scripts/test-report-export.sh "$PWD/StatsDirect Viewer.app"
+```

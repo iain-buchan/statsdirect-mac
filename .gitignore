@@ -17,3 +17,5 @@ TutorService/bin/
 TutorService/obj/
 TutorService/data/
 TutorService/.env
+
+Report/node_modules/

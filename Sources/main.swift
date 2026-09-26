@@ -171,7 +171,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         file.addItem(.separator())
         add(file, "Open…", #selector(openFile), "o")
         file.addItem(.separator())
-        add(file, "Save…", #selector(savePDF), "s")
+        add(file, "Save…", #selector(saveDocument), "s")
         let export = NSMenu(title: "Export")
         let exportItem = NSMenuItem(title: "Export", action: nil, keyEquivalent: "")
         exportItem.submenu = export; file.addItem(exportItem)
@@ -180,6 +180,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(export, "Current Worksheet as RDS…", #selector(saveActiveRDS))
         add(export, "All Worksheets as RData…", #selector(saveActiveRData))
         export.addItem(.separator())
+        add(export, "Report as HTML…", #selector(exportReportHTML))
+        add(export, "Report as PDF…", #selector(exportReportPDF))
+        add(export, "Report as Word (.docx)…", #selector(exportReportDOCX))
         add(export, "Chart as SVG…", #selector(saveChartSVG))
         add(file, "Print…", #selector(printPage), "p")
         file.addItem(.separator()); add(file, "Close Document", #selector(closeTab), "w")
@@ -227,14 +230,15 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(editCommand(_:)) { return active != nil }
         if menuItem.action == #selector(back) { return active?.web.canGoBack == true }
         if menuItem.action == #selector(forward) { return active?.web.canGoForward == true }
+        if [#selector(exportReportHTML), #selector(exportReportPDF), #selector(exportReportDOCX)].contains(menuItem.action) { return active?.kind == "report" && active?.fileBusy == false && active?.web.isLoading == false }
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
         if [#selector(saveActiveExcel), #selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
         if menuItem.action == #selector(continueActiveReportInR) { menuItem.title = active?.rScriptPlan?.hasRecipe == false ? "Open Report Data in R" : "Continue Report in R"; return active?.rScriptPlan != nil }
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
         if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
         if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
-        if menuItem.action == #selector(savePDF) { menuItem.title = active?.kind == "learn" ? "Export Learning Record…" : active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV…") : active?.kind == "analysis" ? "Save Table…" : "Save PDF…"; return active != nil && active?.kind != "operation" }
-        if [#selector(closeTab), #selector(printPage), #selector(savePDF)].contains(menuItem.action) { return active != nil }
+        if menuItem.action == #selector(saveDocument) { menuItem.title = active?.kind == "learn" ? "Export Learning Record…" : active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV…") : active?.kind == "analysis" ? "Save Table…" : active?.kind == "report" ? "Save Report…" : "Save PDF…"; return active != nil && active?.kind != "operation" && active?.fileBusy == false }
+        if [#selector(closeTab), #selector(printPage), #selector(saveDocument)].contains(menuItem.action) { return active != nil }
         return true
     }
     func updateWindowMenu() {
@@ -350,6 +354,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func editCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
+        if let doc=active, doc.kind=="report", command=="copy", window.attachedSheet==nil { copyReportSelection(doc); return }
         guard let doc = active, doc.kind == "grid" else { _ = fallback(); return }
         let clipboard = command == "paste" ? NSPasteboard.general.string(forType: .string) ?? "" : ""
         doc.web.evaluateJavaScript("window.statsDirectGrid?.editCommand(\(jsString(command)),\(jsString(clipboard)))") { handled, error in
@@ -446,12 +451,13 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         info.topMargin = 36; info.bottomMargin = 36; info.leftMargin = 36; info.rightMargin = 36
         web.printOperation(with: info).runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
-    @objc func savePDF() {
+    @objc func saveDocument() {
         if let pane = active?.rPane { pane.saveScript(); return }
         guard let doc = active else { return }
         if doc.kind == "learn" { doc.web.evaluateJavaScript("window.statsDirectLearn?.exportRecord()"); return }
         if doc.kind == "grid" { if let format = doc.rDataFormat { saveRData(doc, format: format) } else if doc.csvSaveName != nil { saveGrid(doc) } else { saveExcel(doc) }; return }
         if doc.kind == "analysis" { saveAnalysisTable(doc); return }
+        if doc.kind == "report" { saveReport(doc); return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.pdf]; panel.nameFieldStringValue = "\(doc.title).pdf"
         panel.beginSheetModal(for: window) { response in
             if response == .OK, let url = panel.url {

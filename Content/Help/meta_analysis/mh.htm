@@ -112,7 +112,7 @@
                             <div class="body-container">
                                 <div data-mc-content-body="True">
                                     <div role="main" id="mc-main-content">
-                                        <h1><a name="kanchor79"></a>
+                                        <h1><a name="kanchor78"></a>
             Mantel-Haenszel Test and Odds Ratio Meta-analysis</h1>
                                         <p>&#160;</p>
                                         <p>Menu locations:</p>
@@ -158,7 +158,7 @@
                                         <p>&#160;</p>
                                         <p>Sample estimate of the odds ratio = (ad)/(bc)</p>
                                         <p>&#160;</p>
-                                        <p>For each table, the observed odds ratio is displayed with an exact confidence interval (<a href="../references/reference_list.htm#ref-martin-1991">Martin and Austin, 1991</a>; <a href="../references/reference_list.htm#ref-sahai-1996">Sahai and Khurshid, 1996</a>). With very large numbers these calculations can take an appreciable amount of time. If the ’try exact’ <a href="options.htm">option</a> is not selected then the logit (Woolf) interval is given instead.</p>
+                                        <p>For each table, the observed odds ratio is displayed with an exact confidence interval (<a href="../references/reference_list.htm#ref-martin-1991">Martin and Austin, 1991</a>; <a href="../references/reference_list.htm#ref-sahai-1996">Sahai and Khurshid, 1996</a>). With very large numbers these calculations can take an appreciable amount of time. If the ’try exact’ <a href="options.htm">option</a> is not selected then the logit (Woolf) interval is given instead. With tables that are entered on screen (the Mantel-Haenszel function of the chi-square section) the option is asked for with the data, and it is for all of the exact methods of the results: the confidence interval of each table, the conditional maximum likelihood estimate of the pooled odds ratio and the confidence interval of I². Counts that are not whole numbers are rounded to the nearest whole number for the exact methods.</p>
                                         <p>&#160;</p>
                                         <p>The Mantel-Haenszel method is used to estimate the pooled odds ratio for all strata, assuming a fixed effects model:</p>
                                         <p>
@@ -166,9 +166,9 @@
                                         </p>
                                         <p>- where n<sub>i</sub> =  a<sub>i</sub>+b<sub>i</sub>+c<sub>i</sub>+d<sub>i</sub>.</p>
                                         <p>&#160;</p>
-                                        <p>Alternative methods, such as Woolf and inverse variance, can be used to estimate the pooled odds ratio with fixed effects but the Mantel-Haenszel method is generally the most robust. A confidence interval for the Mantel-Haenszel odds ratio in StatsDirect is calculated using the Robins, Breslow and Greenland variance formula (<a href="../references/reference_list.htm#ref-robins-1986">Robins et al., 1986</a>) or by the method of <a href="../references/reference_list.htm#ref-sato-1990">Sato (1990)</a> if the estimate of the odds ratio can not be determined. A chi-square test statistic is given with its associated probability that the pooled odds ratio is equal to one.</p>
+                                        <p>Alternative methods, such as Woolf and inverse variance, can be used to estimate the pooled odds ratio with fixed effects but the Mantel-Haenszel method is generally the most robust. A confidence interval for the Mantel-Haenszel odds ratio in StatsDirect is calculated using the Robins, Breslow and Greenland variance formula (<a href="../references/reference_list.htm#ref-robins-1986">Robins et al., 1986</a>) or by the method of <a href="../references/reference_list.htm#ref-sato-1990">Sato (1990)</a> if the estimate of the odds ratio can not be determined. A chi-square test statistic is given with its associated probability that the pooled odds ratio is equal to one; it is calculated from the counts as they are, with a correction of one half for continuity if the difference between the observed and expected numbers of exposed cases, summed over the tables, is one half or more.</p>
                                         <p>&#160;</p>
-                                        <p>If any cell count in a table is zero then a continuity correction is applied to each cell in that table – if you have selected the ’delay continuity correction’ <a href="options.htm">option</a> then no continuity correction is applied to the Mantel-Haenszel calculation unless all of the ’a’ cells or all of the ’d’ cells are zero across the studies. The type of continuity correction used is set in the <a href="options.htm">options</a>.</p>
+                                        <p>If any cell count in a table is zero then a continuity correction is applied to each cell in that table – if you have selected the ’delay continuity correction’ <a href="options.htm">option</a> then no continuity correction is applied to the Mantel-Haenszel calculation unless the product of the ’a’ and ’d’ cells is zero in every study. The type of continuity correction used is set in the <a href="options.htm">options</a>. A table is left out of the pooling, and marked as excluded, if it has no cases in either group, no non-cases in either group, or no subjects in one of the groups.</p>
                                         <p>&#160;</p>
                                         <p>An exact conditional likelihood method is optionally used to evaluate the pooled odds ratio (<a href="../references/reference_list.htm#ref-martin-2000">Martin and Austin, 2000</a>). The exact method may take an appreciable time to compute with large numbers. The exact results should be used in preference to the Mantel-Haenszel approximation, especially if some categories involve few observations (less than 15 or so).</p>
                                         <p>&#160;</p>
@@ -451,8 +451,9 @@ exact_limits &lt;- function(dist, s, level = 0.95, half = FALSE) {
 }
 
 # Each study's odds ratio with its exact (conditional maximum likelihood) limits,
-# as fisher.test would give them, but to a tight tolerance; the report applies a
-# continuity correction first when a table has an empty cell, which none has here
+# as fisher.test would give them, but to a tight tolerance. The report gives the odds
+# ratio of a table with an empty cell after a continuity correction, and the exact
+# limits of the table as it is; no table has an empty cell here
 or &lt;- a * d / (b * c)
 lci &lt;- numeric(k)
 uci &lt;- numeric(k)
@@ -506,9 +507,9 @@ wt_random &lt;- 100 * w_re / sum(w_re)
 or_re &lt;- exp(sum(w_re * yi) / sum(w_re))
 x2_re &lt;- sum(w_re * yi)^2 / sum(w_re)
 
-# The report's second table: the standardised effect is the log odds ratio, its
-# variance is recovered from the exact limits, and the weights are percentages
-vi &lt;- ((log(uci) - log(lci)) / 2 / z)^2
+# The report's second table: the standardised effect is the log odds ratio, with
+# its logit (Woolf) variance, and the weights are percentages
+vi &lt;- v_woolf
 cat("Stratum, standardized effect, variance, % weights (fixed, random)\n")
 for (i in 1:k) {
   cat(i, six(yi[i]), six(vi[i]), six(wt_fixed[i]), six(wt_random[i]), "\n")

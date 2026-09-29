@@ -112,7 +112,7 @@
                             <div class="body-container">
                                 <div data-mc-content-body="True">
                                     <div role="main" id="mc-main-content">
-                                        <h1><a name="kanchor197"></a>
+                                        <h1><a name="kanchor196"></a>
              Relative Risk (Risk Ratio) Meta-analysis</h1>
                                         <p>&#160;</p>
                                         <p>Menu location:  <b>Analysis_Meta-Analysis_Relative Risk</b>.</p>
@@ -162,6 +162,8 @@
                                         <p>- where n<sub>i</sub> =  a<sub>i</sub>+b<sub>i</sub>+c<sub>i</sub>+d<sub>i</sub>.</p>
                                         <p>&#160;</p>
                                         <p>A confidence interval for the pooled relative risk is calculated using the Greenland-Robins variance formula(<a href="../references/reference_list.htm#ref-greenland-1985">Greenland and Robins, 1985</a>). A chi-square test statistic is given with associated probability of the pooled relative risk being equal to one. Note that some packages give a z statistic; this is equal to the square root of the chi-square statistic with one degree of freedom, i.e. it gives the same P.</p>
+                                        <p>&#160;</p>
+                                        <p>If any cell count in a table is zero then a continuity correction is applied to each cell in that table - if you have selected the 'delay continuity correction' <a href="options.htm">option</a> then the pooled relative risk, its confidence interval and the fixed effects weights are calculated from the counts as they are, provided that there is an event in each group among the studies. The type of continuity correction used is set in the <a href="options.htm">options</a>. A table is left out of the pooling, and marked as excluded, if it has no cases in either group or no subjects in one of the groups.</p>
                                         <p>&#160;</p>
                                         <p>The inconsistency of results across studies is summarised in the I² statistic, which is the percentage of variation across studies that is due to heterogeneity rather than chance – see the <a href="heterogeneity.htm">heterogeneity</a> section for more information.</p>
                                         <p>&#160;</p>
@@ -354,7 +356,7 @@
                                             <tr>
                                                 <td>1</td>
                                                 <td>-0.298344</td>
-                                                <td>0.031787</td>
+                                                <td>0.032105</td>
                                                 <td>2.891172</td>
                                                 <td>7.835723</td>
                                                 <td>MRC-1</td>
@@ -362,7 +364,7 @@
                                             <tr>
                                                 <td>2</td>
                                                 <td>-0.357688</td>
-                                                <td>0.035337</td>
+                                                <td>0.035736</td>
                                                 <td>2.758272</td>
                                                 <td>7.176709</td>
                                                 <td>CDP</td>
@@ -370,7 +372,7 @@
                                             <tr>
                                                 <td>3</td>
                                                 <td>-0.189905</td>
-                                                <td>0.015292</td>
+                                                <td>0.015362</td>
                                                 <td>5.418302</td>
                                                 <td>13.589974</td>
                                                 <td>MRC-2</td>
@@ -378,7 +380,7 @@
                                             <tr>
                                                 <td>4</td>
                                                 <td>-0.197411</td>
-                                                <td>0.050391</td>
+                                                <td>0.051175</td>
                                                 <td>1.672876</td>
                                                 <td>5.286301</td>
                                                 <td>GASP</td>
@@ -386,7 +388,7 @@
                                             <tr>
                                                 <td>5</td>
                                                 <td>-0.199274</td>
-                                                <td>0.027064</td>
+                                                <td>0.027298</td>
                                                 <td>3.011273</td>
                                                 <td>8.920134</td>
                                                 <td>PARIS</td>
@@ -394,7 +396,7 @@
                                             <tr>
                                                 <td>6</td>
                                                 <td>0.111839</td>
-                                                <td>0.007729</td>
+                                                <td>0.007747</td>
                                                 <td>9.540439</td>
                                                 <td>20.405362</td>
                                                 <td>AMIS</td>
@@ -402,7 +404,7 @@
                                             <tr>
                                                 <td>7</td>
                                                 <td>-0.089736</td>
-                                                <td>0.000985</td>
+                                                <td>0.000986</td>
                                                 <td>74.707666</td>
                                                 <td>36.785796</td>
                                                 <td>ISIS-2</td>
@@ -418,7 +420,7 @@
                                         </p>
                                         <p>Cochran Q = 9.928487 (df = 6) P = 0.1277</p>
                                         <p>Moment-based estimate of between studies variance = 0.007437</p>
-                                        <p>I² (inconsistency) =  39.6% (95% CI = 0% to 73.3%)</p>
+                                        <p>I² (inconsistency) =  39.6% (95% CI = 0% to 76.6%)</p>
                                         <p>&#160;</p>
                                         <p><u>Random effects (DerSimonian-Laird)</u>
                                         </p>
@@ -509,12 +511,11 @@ rr_dl &lt;- exp(sum(w_dl * lrr) / sum(w_dl))
 dl_ci &lt;- exp(sum(w_dl * lrr) / sum(w_dl) + c(-1, 1) * z / sqrt(sum(w_dl)))
 x2_dl &lt;- sum(w_dl * lrr)^2 / sum(w_dl)
 
-# The report's second table: the log relative risk, its variance recovered from
-# the Koopman limits, and each study's share of the fixed and random weights
+# The report's second table: the log relative risk with its variance, and each
+# study's share of the fixed and random weights
 cat("Stratum  Standardized effect  Variance  % Weights (fixed, random)\n")
-v_ci &lt;- ((log(ci[, 2]) - log(ci[, 1])) / (2 * z))^2
 for (i in 1:k) {
-  cat(i, six(lrr[i]), six(v_ci[i]), six(100 * w_mh[i] / sum(w_mh)),
+  cat(i, six(lrr[i]), six(v_i[i]), six(100 * w_mh[i] / sum(w_mh)),
       six(100 * w_dl[i] / sum(w_dl)), study[i], "\n")
 }
 
@@ -525,21 +526,26 @@ cat("Pooled relative risk = ", six(rr_mh), " (95% CI = ",
 cat("Chi2 (test relative risk differs from 1) =", six(x2), " (df = 1) ",
     pv(pchisq(x2, 1, lower.tail = FALSE)), "\n")
 
-# I-squared, with the interval that the heterogeneity topic attributes to Hedges and
-# Pigott (2001), from the non-central chi-square distribution of Q: Q - df estimates the
-# non-centrality, and the quantiles of that distribution give the limits for H-squared
-# and so for I-squared
+# I-squared = (Q - df) / Q, with the interval that the heterogeneity topic attributes
+# to Hedges and Pigott (2001): Q is treated as non-central chi-square and its
+# distribution function at the observed Q is inverted for the non-centrality parameter
+# lambda, the lower limit where that probability is 0.975 (0 when even the central
+# distribution gives less) and the upper where it is 0.025; each limit is converted to
+# I-squared as lambda / (df + lambda)
 cat("Non-combinability of studies\n")
 cat("Cochran Q = ", six(q), "  (df = ", k - 1, ")  ",
     pv(pchisq(q, k - 1, lower.tail = FALSE)), "\n", sep = "")
 cat("Moment-based estimate of between studies variance =", six(tau2), "\n")
 i2 &lt;- max(0, 100 * (q - (k - 1)) / q)
-nc &lt;- max(0, q - (k - 1))
-h2_lower &lt;- max(1, qchisq(0.025, k - 1, ncp = nc) / (k - 1))
-h2_upper &lt;- qchisq(0.975, k - 1, ncp = nc) / (k - 1)
+lambda &lt;- function(p) {
+  if (pchisq(q, k - 1) &lt; p) 0 else
+    uniroot(function(l) pchisq(q, k - 1, ncp = l) - p, c(0, 10 * q + 100),
+            tol = 1e-10)$root
+}
+lim &lt;- c(lambda(0.975), lambda(0.025))
 cat("I2 (inconsistency) = ", one(i2), "% (95% CI = ",
-    one(100 * (h2_lower - 1) / h2_lower), "% to ",
-    one(100 * (h2_upper - 1) / h2_upper), "%)\n", sep = "")
+    one(100 * lim[1] / (k - 1 + lim[1])), "% to ",
+    one(100 * lim[2] / (k - 1 + lim[2])), "%)\n", sep = "")
 
 cat("Random effects (DerSimonian-Laird)\n")
 cat("Pooled relative risk = ", six(rr_dl), " (95% CI = ", six(dl_ci[1]), " to ",

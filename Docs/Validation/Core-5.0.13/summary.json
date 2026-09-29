@@ -1,0 +1,374 @@
+{
+  "date": "2026-09-29",
+  "macVersion": "0.3.12",
+  "engine": {
+    "repository": "https://github.com/iain-buchan/statsdirect",
+    "commit": "30fa75dc342dfe0123c6663bad1f8495f2ec9bab",
+    "version": "5.0.13"
+  },
+  "helpCommit": "5d78253cb44bb8f08bbaff72b9014e386bb6a773",
+  "engineAssemblySHA256": "e7e08c27601b8a8ac9615aa46b455efa13f3f9dade85da8bd9684849434e4b93",
+  "distributionAudit": {
+    "provenance": {
+      "candidate": {
+        "commit": "30fa75dc342dfe0123c6663bad1f8495f2ec9bab",
+        "sha256": {
+          "StatsDirectUI/Numerics/BetaDistributions.cs": "c12347cac6a22e5faf011695a1d2d31d75e1e1ecf93a58631ac0b3d693e476f0",
+          "StatsDirectUI/Numerics/BetaInverse.cs": "474ba0d1184f198a378e574b9aca442a3e51293d6a4ae0f9bacabbed1747fd9a",
+          "StatsDirectUI/Numerics/DiscreteTails.cs": "fead76a5226e02209d42c3c93278584e39dfca766b41e4c2e6ff8b127b9e208d",
+          "StatsDirectUI/Numerics/NoncentralTIntegral.cs": "276ee81ebfc70f37024478676b6c2f2529b33c02c9811aafc7a4214af5bfa3df",
+          "StatsDirectUI/Numerics/Numerics.cs": "ad15958b341675e917c7494ad27a7deb5358cdf44c8840f7fd1847b506878104",
+          "StatsDirectUI/Numerics/SpecialFunctions/GammaCoefficients.cs": "bd5c7f7a758275988e685b974156bdbb467994775ccee387b8fbda6ff1494ce3",
+          "StatsDirectUI/Numerics/SpecialFunctions/IncompleteBeta708.cs": "b9f9e6bc9196e7bd9616dcd2bc91dda43bde8a78d0963956be2746ec84c0d409",
+          "StatsDirectUI/Numerics/SpecialFunctions/MathSupport.cs": "a64c14ab25f34323a4bbdf9bc6a959999c7736de762e6c667b82294657b40fff"
+        }
+      },
+      "baseline": {
+        "commit": "dcc2af8f0ec55d736a98acac029297510195e2df",
+        "sha256": {
+          "StatsDirectUI/Numerics/BetaDistributions.cs": "c12347cac6a22e5faf011695a1d2d31d75e1e1ecf93a58631ac0b3d693e476f0",
+          "StatsDirectUI/Numerics/BetaInverse.cs": "474ba0d1184f198a378e574b9aca442a3e51293d6a4ae0f9bacabbed1747fd9a",
+          "StatsDirectUI/Numerics/Numerics.cs": "72e3b97cfa13a32858c8a124ffb2f68a64203043f23cf9ae3e93eb26fb2b41b7",
+          "StatsDirectUI/Numerics/SpecialFunctions/GammaCoefficients.cs": "bd5c7f7a758275988e685b974156bdbb467994775ccee387b8fbda6ff1494ce3",
+          "StatsDirectUI/Numerics/SpecialFunctions/IncompleteBeta708.cs": "b9f9e6bc9196e7bd9616dcd2bc91dda43bde8a78d0963956be2746ec84c0d409",
+          "StatsDirectUI/Numerics/SpecialFunctions/MathSupport.cs": "a64c14ab25f34323a4bbdf9bc6a959999c7736de762e6c667b82294657b40fff"
+        }
+      },
+      "R": "R version 4.6.1 (2026-06-24)"
+    },
+    "caseCount": 4902,
+    "results": {
+      "baseline": {
+        "pbeta": {
+          "tested": 900,
+          "agree": 900,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qbeta": {
+          "tested": 1000,
+          "agree": 995,
+          "differ": 5,
+          "faults": 0,
+          "rWarnings": 10
+        },
+        "pf": {
+          "tested": 1100,
+          "agree": 1070,
+          "differ": 30,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qf": {
+          "tested": 1000,
+          "agree": 750,
+          "differ": 250,
+          "faults": 0,
+          "rWarnings": 4
+        },
+        "pt": {
+          "tested": 110,
+          "agree": 110,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qt": {
+          "tested": 90,
+          "agree": 82,
+          "differ": 8,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pchisq": {
+          "tested": 70,
+          "agree": 70,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pgamma": {
+          "tested": 140,
+          "agree": 140,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qchisq": {
+          "tested": 180,
+          "agree": 180,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pf_direct": {
+          "tested": 72,
+          "agree": 68,
+          "differ": 4,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qf_direct": {
+          "tested": 84,
+          "agree": 60,
+          "differ": 24,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pt_direct": {
+          "tested": 72,
+          "agree": 72,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qt_direct": {
+          "tested": 84,
+          "agree": 83,
+          "differ": 1,
+          "faults": 0,
+          "rWarnings": 0
+        }
+      },
+      "candidate": {
+        "pbeta": {
+          "tested": 900,
+          "agree": 900,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qbeta": {
+          "tested": 1000,
+          "agree": 995,
+          "differ": 5,
+          "faults": 0,
+          "rWarnings": 10
+        },
+        "pf": {
+          "tested": 1100,
+          "agree": 1070,
+          "differ": 30,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qf": {
+          "tested": 1000,
+          "agree": 750,
+          "differ": 250,
+          "faults": 0,
+          "rWarnings": 4
+        },
+        "pt": {
+          "tested": 110,
+          "agree": 110,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qt": {
+          "tested": 90,
+          "agree": 82,
+          "differ": 8,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pchisq": {
+          "tested": 70,
+          "agree": 70,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pgamma": {
+          "tested": 140,
+          "agree": 140,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qchisq": {
+          "tested": 180,
+          "agree": 180,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pf_direct": {
+          "tested": 72,
+          "agree": 68,
+          "differ": 4,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qf_direct": {
+          "tested": 84,
+          "agree": 60,
+          "differ": 24,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pt_direct": {
+          "tested": 72,
+          "agree": 72,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qt_direct": {
+          "tested": 84,
+          "agree": 83,
+          "differ": 1,
+          "faults": 0,
+          "rWarnings": 0
+        }
+      }
+    }
+  },
+  "reusedEvidence": {
+    "cases.tsv": {
+      "identicalTo": "../Core-5.0.8/cases.tsv.gz",
+      "sha256": "af487fffda7fc850758d4c3afaec6b05c04ef2be03c7b6c694956ee642db2806"
+    },
+    "candidate.tsv": {
+      "identicalTo": "../Core-5.0.8/candidate.tsv.gz",
+      "sha256": "3e8b4b1841efd3d6fb3ecf8922049f9dd5e07eb5183d899963f985de4b9709ac"
+    },
+    "R.tsv": {
+      "identicalTo": "../Core-5.0.8/R.tsv.gz",
+      "sha256": "dcd1082e9c93b6f568b252a29ff0034ffa876b1122189262e95341b2fb9948cc"
+    }
+  },
+  "identicalCandidateDiscrepancies": 322,
+  "upstreamSuites": [
+    {
+      "suite": "GlmFitRegression",
+      "exitCode": 0,
+      "seconds": 1.06,
+      "log": "GlmFitRegression.log.gz",
+      "summary": "ok    glsqr: a record whose weight is missing is passed over and counted: the fit is that of the other records: worst difference 4.44E-016 (tolerance 1E-012)\nok    glsqr: a negative weight stops the fit, with fault 6: worst difference 0.00E+000 (tolerance 0E+000)\nALL CHECKS PASS"
+    },
+    {
+      "suite": "CorrelationRegression",
+      "exitCode": 0,
+      "seconds": 34.49,
+      "log": "CorrelationRegression.log.gz",
+      "summary": "      Kendall's score, 100 pairs, by the series: worst difference 2.67E-008, and 0.000% of a P from 0.001 to 0.05\nthe distribution of Kendall's score: 9 checks, 0 failed\nALL 605 CHECKS PASS"
+    },
+    {
+      "suite": "CoxRegression",
+      "exitCode": 0,
+      "seconds": 5.29,
+      "log": "CoxRegression.log.gz",
+      "summary": "ok    no warning of an infinite coefficient in any of them (0 given)\n\nALL 2217 CHECKS PASS"
+    },
+    {
+      "suite": "Agreement",
+      "exitCode": 0,
+      "seconds": 9.93,
+      "log": "Agreement.log.gz",
+      "summary": "ok    reports 46 and 47 (R = 0.2263 and 0.2845)\n\nALL 3458 CHECKS PASS"
+    },
+    {
+      "suite": "Survival",
+      "exitCode": 0,
+      "seconds": 7.4,
+      "log": "Survival.log.gz",
+      "summary": "ok    follow-up, everybody dead in the first interval: survivors of 100, 0 and 0 per cent: worst difference 0.00E+000 (tolerance 0E+000)\n\nALL 3654 CHECKS PASS"
+    },
+    {
+      "suite": "MetaAnalysis",
+      "exitCode": 0,
+      "seconds": 6.15,
+      "log": "MetaAnalysis.log.gz",
+      "summary": "Largest absolute differences from independent integration: CDF 2.58E-13; noncentrality limits 2.88E-12\n\nALL 786 CHECKS PASS"
+    },
+    {
+      "suite": "NoncentralTRegression",
+      "exitCode": 0,
+      "seconds": 25.86,
+      "log": "NoncentralTRegression.log.gz",
+      "summary": "Time Elapsed 00:00:00.68\n6360 reference cases; 31541 checks; 0 failures.\nLargest probability difference 2.297E-13; largest relative difference in tails between 1e-280 and 1e-8: 8.292E-12."
+    },
+    {
+      "suite": "Crosstabs",
+      "exitCode": 0,
+      "seconds": 53.53,
+      "log": "Crosstabs.log.gz",
+      "summary": "ok    the scores of the user, the questions, the categories, the tables in strata, the random tables, the scores from the counts\n\nALL 9003 CHECKS PASS"
+    },
+    {
+      "suite": "Frequencies",
+      "exitCode": 0,
+      "seconds": 1.42,
+      "log": "Frequencies.log.gz",
+      "summary": "ok    60 charts\n\nALL 3603 CHECKS PASS"
+    },
+    {
+      "suite": "ExactTests",
+      "exitCode": 0,
+      "seconds": 77.07,
+      "log": "ExactTests.log.gz",
+      "summary": "ok    the estimate, the four limits and the four P values of 10 tables and pairs of rates, of which 8 are worked out on the scale of logarithms; the one that takes longest takes 0.42 seconds\n\nALL 5376 CHECKS PASS"
+    },
+    {
+      "suite": "ChiSquare",
+      "exitCode": 0,
+      "seconds": 21.74,
+      "log": "ChiSquare.log.gz",
+      "summary": "ok    what is refused, what the reports say when there is no test, counts that are not whole numbers, tables of very many subjects\n\nALL 462 CHECKS PASS"
+    },
+    {
+      "suite": "Proportions",
+      "exitCode": 0,
+      "seconds": 4.49,
+      "log": "Proportions.log.gz",
+      "summary": "ok    two independent proportions\n\nALL 137 CHECKS PASS"
+    },
+    {
+      "suite": "Rates",
+      "exitCode": 0,
+      "seconds": 11.09,
+      "log": "Rates.log.gz",
+      "summary": "ok    millions of events, against the definitions\n\nALL 234 CHECKS PASS"
+    }
+  ],
+  "artifacts": [
+    {
+      "file": "mac-build.log.gz",
+      "sourceSHA256": "1a67d259e0e0b595b24469392edd19ca2c5114085e16a2389b8ea87e74c57b98",
+      "gzipSHA256": "94d3806c8671e3740801a95aedfcdaa0b90a117c1ea5fa2749d08806b4e40118"
+    },
+    {
+      "file": "report-export.log.gz",
+      "sourceSHA256": "cf9c063489211a16950661e7e361f9a09a54769fe78383ebf3363ab207d887d7",
+      "gzipSHA256": "101d566192be0388f9c39419057d7885ef0a3663643f0513660a3bd38ed19ee3"
+    },
+    {
+      "file": "learning-context.log.gz",
+      "sourceSHA256": "8b11e081d3214732d40cce130c92e09cd8fbe734462364af05c7bcc59548cd3e",
+      "gzipSHA256": "3f7823b5a1e88bb74821c3484aecc96bac2a1434e2cc96403ca77a6efa501143"
+    },
+    {
+      "file": "fresh-R-noncentral-t.tsv.gz",
+      "sourceSHA256": "443743f5a1ac7a255a8193226eaab266f33bdc4b0d3edbe05fdd35a3970d97fe",
+      "gzipSHA256": "255d5a3819e594027d95f17e34ca3980d6e95f7ff5f30a6dd1f134b37b4bf407"
+    },
+    {
+      "file": "fresh-R-rates.tsv.gz",
+      "sourceSHA256": "42c416751455431f3787c176a5b18fd6985f1657b436471ddf7eff1a18e08ee8",
+      "gzipSHA256": "7ccf044aec91c61f669cff921aa88c4e255fc1c4d370d4c482423bd0ea6f0c03"
+    },
+    {
+      "file": "fresh-R-noncentral-t.log.gz",
+      "sourceSHA256": "c9b129dbe03d3b937efbad202f35823ea432720191216843ee72281c5a521419",
+      "gzipSHA256": "5a8005a9c7184e445aa9154fdad39b4c776062d16062808fefa7c3e6f3ac90db"
+    },
+    {
+      "file": "fresh-R-rates.log.gz",
+      "sourceSHA256": "e42f89c96f8ad28579da72470ef4f171539f40eed89ea91f76182479c284f7dc",
+      "gzipSHA256": "0dde8441be0e210bf8ca9755475932579988a5a08f36bb25657d1a6b2c310170"
+    }
+  ]
+}

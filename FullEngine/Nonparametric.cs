@@ -387,6 +387,34 @@ namespace StatsDirect.Builtins
             d = Math.Max(dp, dn);
         }
 
+        /// <summary>
+        /// Kendall's rank correlation: the counts of pairs, the score with its variance, tau b and its confidence interval.
+        /// </summary>
+        /// <param name="host">Where progress is shown.</param>
+        /// <param name="cit">The normal deviate for the confidence interval, or 0 for no interval.</param>
+        /// <param name="nx">The number of pairs of observations.</param>
+        /// <param name="x">The first variable, from element 1.</param>
+        /// <param name="y">The second variable, from element 1.</param>
+        /// <param name="nxx">On return, nx.</param>
+        /// <param name="p">On return, the number of concordant pairs of points: those in which the point with the greater x has the greater y.</param>
+        /// <param name="q">On return, the number of discordant pairs: those in which the point with the greater x has the lesser y.</param>
+        /// <param name="s">On return, the score: p - q.</param>
+        /// <param name="hn">On return, the number of pairs of points: n (n - 1) / 2.</param>
+        /// <param name="siga">On return, the number of pairs of points that are tied in x.</param>
+        /// <param name="sigb">On return, the number of pairs of points that are tied in y.</param>
+        /// <param name="varf">On return, the variance of the score when there is no association.</param>
+        /// <param name="tau">On return, tau b: s / sqrt((hn - siga)(hn - sigb)), which without ties is s / hn.</param>
+        /// <param name="ll">On return, the lower confidence limit of tau, or the missing value.</param>
+        /// <param name="ul">On return, the upper confidence limit of tau, or the missing value.</param>
+        /// <param name="fault">On return, false.</param>
+        /// <remarks>
+        /// Without ties the variance of the score is n (n - 1)(2n + 5) / 18.  With t the size of each group of values tied in x, u the same for
+        /// y, and the sums taken over the groups, it is
+        ///     (n (n - 1)(2n + 5) - sum of t (t - 1)(2t + 5) - sum of u (u - 1)(2u + 5)) / 18
+        ///     + (sum of t (t - 1)(t - 2)) (sum of u (u - 1)(u - 2)) / (9 n (n - 1)(n - 2))
+        ///     + (sum of t (t - 1)) (sum of u (u - 1)) / (2 n (n - 1))
+        /// A pair that is tied in x or in y is neither concordant nor discordant.
+        /// </remarks>
         private static void XDokend(IProgressBarHost host, double cit, int nx, double[] x, double[] y, ref int nxx, out double p, out double q, ref double s, ref double hn, out double siga, out double sigb, ref double varf, ref double tau, ref double ll, ref double ul, out bool fault)
         {
             double sigbt3 = 0; double sigbt2 = 0; double sigbt1 = 0;
@@ -427,6 +455,10 @@ namespace StatsDirect.Builtins
                         if (y[pn] == y[n])
                             ytie += 1;
                     }
+                    // xtie is the number of later points with the x of this one.  If there are any, and this value of x has not been met
+                    // before (the values met are kept in xtv), this is the first of a group of count tied values, and the group is added
+                    // to the four sums for x: siga, of t (t - 1) / 2; sigat1, of t (t - 1); sigat2, of t (t - 1)(t - 2); and sigat3, of
+                    // t (t - 1)(2t + 5).  The same is then done for y.
                     int count = xtie + 1;
                     bool ok;
                     if (count > 1)
@@ -487,6 +519,9 @@ namespace StatsDirect.Builtins
                 {
                     // Hollander & Wolfe P383 - Samara-Randles confidence interval
                     double dnx = Convert.ToDouble(nxx);
+                    // c[i] is the score of point i against all the others, concordant less discordant, and cbar is the mean of the c.  The
+                    // variance of tau is taken as 2 / (n (n - 1)) times (2 (n - 2) / (n (n - 1)^2) times the sum of (c[i] - cbar)^2, + 1 - tau^2),
+                    // and the limits, tau less and plus cit standard errors, are kept within -1 and 1.
                     double cbar = 2.0 * s / dnx;
                     double cix = 0;
                     for (pn = 1; pn <= nxx; pn++)
@@ -1766,6 +1801,16 @@ namespace StatsDirect.Builtins
             return true;
         }
 
+        /// <summary>
+        /// Spearman's rank correlation coefficient, with its confidence interval and P values.
+        /// </summary>
+        /// <remarks>
+        /// A pair is left out if either of its values is missing.  Each variable is ranked, tied values sharing the mean of the ranks that they
+        /// take up, and rho is the correlation coefficient of the two sets of ranks.  Without ties the P values are from the distribution of
+        /// the sum of the squared differences between the ranks (prho): exact for 10 pairs or fewer, for which every ordering is taken in turn,
+        /// and from a series for more, which is within 0.0004 of the exact distribution at 11 pairs and nearer with more.  With ties they are
+        /// from t = rho sqrt((n - 2) / (1 - rho^2)) on n - 2 degrees of freedom.
+        /// </remarks>
         public static StepOutput RptSpearman(ParameterBag parameters)
         {
             double gamma = parameters["gamma"].AsDouble;
@@ -1813,6 +1858,8 @@ namespace StatsDirect.Builtins
                 srksqa += rka[n] * rka[n];
                 srksqb += rkb[n] * rkb[n];
             }
+            // The mean of n ranks is (n + 1) / 2, so corr, n times its square, takes the sums of squares and products of the ranks to sums about
+            // their means
             double corr = nx * Math.Pow((nx + 1.0) / 2.0, 2.0);
             double sr = (srksq - corr) / (Math.Sqrt(srksqa - corr) * Math.Sqrt(srksqb - corr));
             double cit = PDF.gauinv(gamma + (1 - gamma) / 2);
@@ -1846,6 +1893,8 @@ namespace StatsDirect.Builtins
                 ParameterBag ciParameters = new();
                 ciList.Add(ciParameters);
                 outputParameters.AddOutput("*ci", ciList);
+                // Fisher's interval: fz = (1/2) ln((1 + rho) / (1 - rho)) is taken to be normal with standard deviation 1 / sqrt(n - 3), and
+                // the limits of fz are turned back into limits of rho
                 double fz = 0.5 * Math.Log((1.0 + sr) / (1.0 - sr));
                 double fz1 = fz - cit / Math.Sqrt(nx - 3.0);
                 double fz2 = fz + cit / Math.Sqrt(nx - 3.0);
@@ -1869,6 +1918,9 @@ namespace StatsDirect.Builtins
                 ParameterBag resultsParameters = new();
                 resultsList.Add(resultsParameters);
                 outputParameters.AddOutput("*results", resultsList);
+                // Without ties rho is 1 - 6 S / (n (n^2 - 1)), where S is the sum of the squared differences between the ranks.  dix is S, got
+                // back from rho, and qix is the greatest that S can be, which belongs to rho of -1.  A large S is a low rho, so P(S >= ix) is
+                // the lower side of rho.
                 double nxs = nnx;
                 double dix = (1.0 - sr) * (nxs * (nxs * nxs - 1.0)) / 6.0;
                 outputParameters.AddOutput("ix", dix);
@@ -1931,6 +1983,17 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// Nonparametric linear regression: a slope and an intercept that do not depend on the distribution of the outcome, the confidence
+        /// interval of the slope, and Kendall's rank correlation between the two variables.
+        /// </summary>
+        /// <remarks>
+        /// A pair is left out if either of its values is missing.  Every two points with different x give a slope, that of the line through
+        /// them.  The slope of the regression is the median of those slopes, and the intercept is the median of y less that slope times the
+        /// median of x, so that the line passes through the medians.  The confidence limits are two of the slopes, counted in from each end
+        /// of the slopes in order (see the comment where they are taken).  The P value given with tau b is two sided, from the normal
+        /// approximation to the score with the continuity correction.
+        /// </remarks>
         public static StepOutput RptNpRegression(IProgressBarHost host, ParameterBag parameters)
         {
             double intercept = 0;
@@ -1960,6 +2023,7 @@ namespace StatsDirect.Builtins
             // Exit Function
             // End If
 
+            // index is always 0 here: the branch for index 2, which reads the predictor alone, is not taken
             double[] x = new double[rows + 1];
             double[] y = new double[rows + 1];
             int ctr = 0;
@@ -2049,8 +2113,13 @@ namespace StatsDirect.Builtins
             double p = (1.0 - gamma) / 2.0;
             if (p < 0 || p > 1)
                 p = 0.025;
+            // ix is the greatest score of Kendall's statistic for this number of points whose upper tail is at least p.  The slopes are not
+            // worked out if there would be 2,000,000 of them or more, which is 2,001 points or more.
             MathDbl.taufromp(p, out double _, out int ix, ref rows, out ifault);
-            int cnt = Convert.ToInt32(rows * (rows - 1) / 2);
+            // the number of pairs of points is worked out in floating point: as a 32-bit integer n (n - 1) is more than can be held when n is
+            // above 46,341
+            double pairs = rows * (rows - 1.0) / 2.0;
+            int cnt = pairs < 2000000 ? Convert.ToInt32(pairs) : int.MaxValue;
             if (cnt < 2000000)
             {
                 double[] pws = new double[cnt + 1];
@@ -2077,6 +2146,7 @@ namespace StatsDirect.Builtins
                     // short at the top and its coverage fell below the level asked for (94.6% for a 95% interval with 12 pairs).
                     int ri = (int)Math.Floor(0.5 * (cnt - ix));
                     int si = cnt + 1 - ri;
+                    // the median of the cnt slopes: the middle one, or half way between the middle two
                     imdn = 0.5 * (cnt + 1);
                     fiximdn = (int)Math.Floor(imdn);
                     if (imdn < 1)
@@ -2828,6 +2898,17 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// Kendall's rank correlation: tau b with its confidence interval, gamma, and the P values of the score.
+        /// </summary>
+        /// <remarks>
+        /// A pair is left out if either of its values is missing.  The counts, the score, its variance, tau b and the interval are from
+        /// XDokend.  Gamma is the score over the number of pairs that are concordant or discordant, tied pairs being left out of the count.
+        /// Three sets of P values are given: from the score over its standard error taken as a normal deviate; from the same with the
+        /// continuity correction; and those called exact, from the distribution of the score without ties (kendp: by counting the orderings
+        /// for 50 pairs or fewer, and by a series for more, which is within 0.0000004 of the count at 51 pairs), which takes no account of
+        /// ties if there are any.
+        /// </remarks>
         public static StepOutput RptKendall(IProgressBarHost host, ParameterBag parameters)
         {
             int nxx = 0; int n;
@@ -2896,6 +2977,7 @@ namespace StatsDirect.Builtins
             outputParameters.AddOutput("*smallsample", smallSampleList);
             // not used simpler variance in Conover
             // kzl = ((s - 1#) * Sqr(18#)) / Sqr(CDbl(nxx) * (CDbl(nxx) - 1#) * (2# * CDbl(nxx) + 5#))
+            // pl is the lower tail of the normal deviate, and ps the smaller of the two tails
             double kz = s / Math.Sqrt(varf);
             double pl = PDF.alnorm(kz);
             if (pl < 1.0 - pl)

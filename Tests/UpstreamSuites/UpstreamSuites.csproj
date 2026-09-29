@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <AssemblyName>Upstream$(Suite)</AssemblyName>
+    <SuiteSource>$(MSBuildThisFileDirectory)../../FullEngine/Upstream/tests/$(Suite)</SuiteSource>
+    <EngineBin>$(MSBuildThisFileDirectory)../../FullEngine/publish</EngineBin>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(SuiteSource)/*.cs" Exclude="$(SuiteSource)/Reports.cs" Condition="'$(Suite)' != 'Frequencies'" />
+    <Compile Include="$(MacFrequency)" Condition="'$(Suite)' == 'Frequencies'" />
+    <Compile Include="$(SuiteSource)/Reports.cs" Condition="'$(Suite)' != 'Crosstabs' And Exists('$(SuiteSource)/Reports.cs')" />
+    <Compile Include="$(MacReports)" Condition="'$(Suite)' == 'Crosstabs'" />
+    <Reference Include="$(EngineBin)/*.dll" />
+    <Content Include="$(EngineBin)/*.dll;$(EngineBin)/*.dylib"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>%(Filename)%(Extension)</Link></Content>
+    <Content Include="$(SuiteSource)/benchmarks/*.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>benchmarks/%(Filename)%(Extension)</Link></Content>
+    <Content Include="$(SuiteSource)/references.tsv" Condition="Exists('$(SuiteSource)/references.tsv')"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>references.tsv</Link></Content>
+  </ItemGroup>
+</Project>

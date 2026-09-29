@@ -31,3 +31,5 @@ python3 Tests/test_sessions.py Tests/operation-driver
 python3 Tests/test_analysis_defaults.py Tests/operation-driver
 python3 Tests/test_upstream_update.py Tests/operation-driver
 python3 Tests/test_distribution_update.py Tests/operation-driver
+
+python3 Tests/test_core_5_0_13.py Tests/operation-driver

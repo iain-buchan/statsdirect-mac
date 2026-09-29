@@ -95,7 +95,7 @@ for label, revision in [('candidate', args.candidate), ('baseline', args.baselin
     paths = subprocess.check_output(['git', '-C', str(upstream), 'ls-tree', '-r', '--name-only', commit,
                                     'StatsDirectUI/Numerics'], text=True).splitlines()
     selected = [p for p in paths if p.endswith('/Numerics.cs') or p.endswith('/BetaDistributions.cs')
-                or p.endswith('/BetaInverse.cs') or '/SpecialFunctions/' in p and p.endswith('.cs')]
+                or p.endswith('/BetaInverse.cs') or p.endswith('/NoncentralTIntegral.cs') or p.endswith('/DiscreteTails.cs') or '/SpecialFunctions/' in p and p.endswith('.cs')]
     hashes = {}
     for path in selected:
         content = subprocess.check_output(['git', '-C', str(upstream), 'show', commit + ':' + path])

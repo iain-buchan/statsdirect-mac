@@ -1,6 +1,6 @@
 # Full headless calculation engine
 
-This project compiles the StatsDirect 5.0.8 calculation source, rather than extracting a single procedure. `Upstream` is a Git submodule of [iain-buchan/statsdirect](https://github.com/iain-buchan/statsdirect), tracking its primary **main** branch for explicit updates and pinned to the tested commit recorded in `upstream-manifest.json`. The project compiles the calculation source directly from that checkout: all Builtins (apart from the dialog-dependent ImportExport implementation), Numerics, Data, Templates, expression parsers, template processing, chart definitions/renderers, utilities, configuration, CSV and R support. All 284 operation definitions and their report templates are included. Numerical algorithms are unchanged.
+This project compiles the StatsDirect 5.0.13 calculation source, rather than extracting a single procedure. `Upstream` is a Git submodule of [iain-buchan/statsdirect](https://github.com/iain-buchan/statsdirect), tracking its primary **main** branch for explicit updates and pinned to the tested commit recorded in `upstream-manifest.json`. The project compiles the calculation source directly from that checkout: all Builtins (apart from the dialog-dependent ImportExport implementation), Numerics, Data, Templates, expression parsers, template processing, chart definitions/renderers, utilities, configuration, CSV and R support. All 284 operation definitions and their report templates are included. Numerical algorithms are unchanged.
 
 The original `OperationTestHost` and `OperationsTester` are compiled unchanged. This source revision contains **two populated operation tests**, covering paired t and exact sign, plus one empty test. Both populated tests pass, checking 26 expected outputs in total. Loading 284 definitions does not mean all 284 procedures have been exercised.
 
@@ -32,7 +32,7 @@ These are hosting/rendering boundaries, not numerical rewrites. Do not interpret
 
 Run `../build.sh` to build, run the original operation tests, verify the live bridge, and package the app. Requirements: Apple Silicon Mac, Xcode command line tools, Python 3, .NET 10 SDK and R for the independent numerical checks. The .NET runtime is bundled with the app, so the resulting app does not require a separate .NET installation.
 
-An existing clone needs `git submodule update --init --recursive`. The build verifies the submodule revision and all 879 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build. It also runs the upstream distribution regression suite (1,552 checks in 5.0.8).
+An existing clone needs `git submodule update --init --recursive`. The build verifies the submodule revision and all 881 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build. It also runs the upstream distribution regression suite (1,552 checks in 5.0.13).
 
 ## Updating the calculation engine
 
@@ -61,6 +61,8 @@ git add FullEngine/Upstream FullEngine/upstream-manifest.json Content/engine-inf
 `import_upstream.py` records provenance only; it neither copies engine files nor reapplies platform adaptations. It also writes `Content/engine-info.json`, which supplies the engine version shown in About and report footers. `--check` verifies that metadata, the revision and hashes without writing. The help importer records its source revision and all bundled help hashes in `Content/help-manifest.json`. Commit the submodule pointer, provenance and any reviewed host changes together after the regression checks pass. Push the Mac repository to `iain-buchan/statsdirect-mac`; ordinary Mac work does not require pushing to or changing `iain-buchan/statsdirect`.
 
 ## Analysis checks
+
+The [5.0.13 integration audit](../Docs/Validation/Core-5.0.13/README.md) runs 13 additional upstream suites on Mac, the distribution comparison, fresh R noncentral-t/rates references and the Mac form/report bridge. Run `python3 Tests/UpstreamSuites/run.py --dotnet /path/to/dotnet` after building to repeat those upstream suites. The test harness substitutes the Mac worksheet reader for the Windows Frequencies helper and explicitly omits the Windows-only DataGridView control check; numerical assertions and references are retained. `Tests/test_core_5_0_13.py` checks new operation definitions, integer validation, Cox precision and rate reports through Mac forms.
 
 `Tests/CoreDistributions` compares unmodified Windows distribution source from two Git revisions with R, independently of this host. The [5.0.8 audit](../Docs/Validation/Core-5.0.8/README.md) includes 4,902 candidate cases and independent high-precision resolution of 322 R discrepancies. Use this comparison before accepting future numerical updates; differences need adjudication, not automatic replacement by R results.
 

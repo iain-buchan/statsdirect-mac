@@ -109,9 +109,6 @@
         <loc>https://iain-buchan.github.io/statisticalhelp/basics/example.htm</loc>
     </url>
     <url>
-        <loc>https://iain-buchan.github.io/statisticalhelp/basics/excel.htm</loc>
-    </url>
-    <url>
         <loc>https://iain-buchan.github.io/statisticalhelp/basics/intention_to_treat.htm</loc>
     </url>
     <url>
@@ -1814,6 +1811,9 @@
     </url>
     <url>
         <loc>https://iain-buchan.github.io/statisticalhelp/resources/images/fcurves.png</loc>
+    </url>
+    <url>
+        <loc>https://iain-buchan.github.io/statisticalhelp/resources/images/fcurves.svg</loc>
     </url>
     <url>
         <loc>https://iain-buchan.github.io/statisticalhelp/resources/images/forest.png</loc>

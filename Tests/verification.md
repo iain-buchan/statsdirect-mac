@@ -361,3 +361,12 @@ swiftc Sources/UpdateService.swift Tests/update-service-test.swift -o .build/upd
 node --test Report/clipboard.test.mjs
 Scripts/test-report-export.sh "$PWD/StatsDirect Viewer.app"
 ```
+
+## 2026-09-29 — 0.3.12: Engine 5.0.13 and matching help
+
+- Advanced the pinned core from 5.0.8 to 5.0.13 (`30fa75dc342d`), imported 881 verified source/asset hashes and 399 help topics (`5d78253cb44b`). Reviewed every changed Mac platform copy; refreshed Nonparametric with only its two unused DevExpress imports removed. Calculation algorithms are the Windows source.
+- Full Mac build and regression tests pass. Thirteen additional upstream suites pass on Mac, including 61,076 numbered checks plus GLM fitting. The Frequencies suite exercises the actual Mac worksheet converter; the single Windows-only DataGridView test block is explicitly omitted. The 4,902-case distribution results and all 322 previously adjudicated R discrepancies are unchanged. Fresh R noncentral-t and rates references also pass.
+- New native bridge checks verify rate-difference confidence limits against R, valid direct-standardisation input with more events than person-time, matching screen/worksheet results, updated Cox precision and removal of the splitting-ratio prompt, Cox results against R survival, and integer-count validation in the single-proportion form.
+- Packaged-app HTML/PDF/DOCX, report clipboard and tutor/workbook-context tests pass with the new engine. About visibly reports Mac 0.3.12 and calculation engine 5.0.13. Detailed scope, provenance, references and raw suite logs are in [the integration audit](../Docs/Validation/Core-5.0.13/README.md).
+
+- Canonical, versioned and re-extracted ZIP applications pass deep/strict ad-hoc signature verification. Release ZIP: 153,622,445 bytes; SHA-256 `dc611d30b51d44a514ecc41e1226b2e8c9a4d65a9aa7e533dad907cc71f09b1f`. The extracted assembly is byte-identical to the tested engine.

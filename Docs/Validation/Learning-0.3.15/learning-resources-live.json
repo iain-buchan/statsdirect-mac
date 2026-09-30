@@ -1,0 +1,57 @@
+[
+  {
+    "characters" : 3361,
+    "linkedPDFs" : [
+      "https:\/\/www.open.edu\/openlearn\/mod\/resource\/view.php?id=71913"
+    ],
+    "pages" : 1,
+    "status" : "loaded",
+    "url" : "https:\/\/www.open.edu\/openlearn\/science-maths-technology\/medical-statistics\/content-section-0?intro=1"
+  },
+  {
+    "characters" : 9138,
+    "linkedPDFs" : [
+
+    ],
+    "pages" : 1,
+    "status" : "loaded",
+    "url" : "https:\/\/archive.cdc.gov\/www_cdc_gov\/csels\/dsepd\/ss1978\/lesson1\/section1.html"
+  },
+  {
+    "characters" : 2737,
+    "linkedPDFs" : [
+
+    ],
+    "pages" : 1,
+    "status" : "loaded",
+    "url" : "https:\/\/online.stat.psu.edu\/stat507\/index"
+  },
+  {
+    "characters" : 58836,
+    "linkedPDFs" : [
+
+    ],
+    "pages" : 1,
+    "status" : "loaded",
+    "url" : "https:\/\/openintro-ims.netlify.app\/data-design"
+  },
+  {
+    "characters" : 38693,
+    "linkedPDFs" : [
+
+    ],
+    "pages" : 1,
+    "status" : "loaded",
+    "url" : "https:\/\/openintro-ims.netlify.app\/inference-paired-means"
+  },
+  {
+    "characters" : 1348,
+    "linkedPDFs" : [
+      "https:\/\/miguelhernan.org\/s\/hernanrobins_WhatIf_19aug26.pdf",
+      "https:\/\/miguelhernan.org\/s\/hernanrobins_WhatIf_2jan25.pdf"
+    ],
+    "pages" : 1,
+    "status" : "loaded",
+    "url" : "https:\/\/miguelhernan.org\/whatifbook"
+  }
+]

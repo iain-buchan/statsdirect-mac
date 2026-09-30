@@ -1,3 +1,11 @@
+# Provider courses and learning resources — 30 September 2026
+
+Mac 0.3.15 adds a configurable learning URL list, provider course packs, practical submissions, report/R text evidence, provider-addressed review drafts and returned assessment records. The six starter links cover OpenLearn, CDC, Penn State, OpenIntro and Hernán/Robins. A three-lesson provider example and author/response templates are included. See the [feature validation](../Docs/Validation/Learning-0.3.15/README.md) and [author guide](../Docs/Learn/CoursePack/README.md).
+
+Seventeen learning tests, native resource/parser tests, real downloads of all six pages and both linked PDFs, provider WKWebView integration, existing workspace integration and the normal engine build checks passed. The native tutor request was verified with a local protocol fixture; no live AI reply or assessment email was sent. Native UI inspection confirmed the source list, and the packaged app successfully loaded all six pages. The engine stays at 5.0.14.
+
+The release ZIP contains the verified 0.3.15 bundle, with matching tested executable, engine and content. Deep, strict local signature verification passed after extraction. ZIP size: 153759575 bytes; SHA-256: `2e24566a89bb8b8d8ffadc9d412591ce553dd3bc77e1efda8b605cdb171521c5`. This remains an ad-hoc-signed, non-notarised Apple Silicon beta. Provider review, not StatsDirect, determines any CPD award.
+
 # Published Mac update — 26 September 2026
 
 Published [v0.3.10](https://github.com/iain-buchan/statsdirect-mac/releases/tag/v0.3.10), targeting commit `36bc277e5b9f0500e859e83ef7c3c5fa12f68c3f`, with the Apple Silicon application ZIP and SHA256SUMS.txt. Both assets were uploaded and verified before the draft was made public and latest. The ZIP is 153,314,538 bytes; SHA-256 `7484d55956fc7b8cda5d3f63abaf28339e221ee404ec1571a2db3f3e5739cd48`, also confirmed by GitHub asset metadata. Archive integrity and the extracted app’s deep, strict local signature verification passed. The release notes identify its ad-hoc signing/notarisation limitation and manual installation.

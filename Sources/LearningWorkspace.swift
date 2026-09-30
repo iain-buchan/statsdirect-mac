@@ -149,7 +149,7 @@ extension Viewer {
         doc.learningContextRevision += 1; let revision = doc.learningContextRevision
         let sourceID = doc.learningSourceID.isEmpty ? learningLastDocumentID : doc.learningSourceID
         let source = documents.first(where:{$0.id == sourceID})
-        let choices = documents.filter{$0.kind != "learn"}.map{["id":$0.id,"title":$0.title]}
+        let choices = documents.filter{$0.kind != "learn"}.map{["id":$0.id,"title":$0.title,"kind":$0.kind]}
         Task { @MainActor in
             var label = doc.learningSourceID == "__none__" ? "Lessons only · open documents are not shared" : source.map{"Using: " + $0.title} ?? "No document selected · open documents are available to the tutor"
             if let source, source.kind == "grid", doc.learningSourceID != "__none__" {

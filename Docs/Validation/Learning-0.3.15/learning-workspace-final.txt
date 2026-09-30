@@ -1,0 +1,3 @@
+PASS: real test.xlsx → exact nine PEFR pairs → engine → one active report with SVG and R link; repeated request reuses result
+PASS: stale data, closed scope, lesson-only sharing and cancelled questions rejected; help/report/R context readable
+PASS: native WKWebView context integration

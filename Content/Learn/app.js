@@ -225,17 +225,20 @@
   );
 
   // Learn/quiz.mjs
-  function createSession(track, mode, id = crypto.randomUUID()) {
+  function createSession(track, mode, id = crypto.randomUUID(), providerPack = null) {
     if (!tracks[track] || !["learn", "test"].includes(mode)) throw new Error("Choose a valid learning path and mode.");
+    const selected = providerPack?.questions ?? questions.filter((q) => q.track === track || q.track === "core");
+    if (!selected.length) throw Error("This course has no practice questions.");
     return {
       id,
       track,
       mode,
-      bankVersion,
+      bankVersion: providerPack?.version ?? bankVersion,
+      course: providerPack?.course ?? null,
       startedAt: (/* @__PURE__ */ new Date()).toISOString(),
       completedAt: null,
-      questionIds: questions.filter((q) => q.track === track || q.track === "core").map((q) => q.id),
-      questionSnapshots: structuredClone(questions.filter((q) => q.track === track || q.track === "core")),
+      questionIds: selected.map((q) => q.id),
+      questionSnapshots: structuredClone(selected),
       answers: [],
       hints: [],
       explanations: [],
@@ -286,15 +289,52 @@
     return session.questionSnapshots?.find((q) => q.id === id) ?? questions.find((q) => q.id === id);
   }
 
+  // Learn/provider-course.mjs
+  var trainingDefaults = () => ({ providerName: "", courseTitle: "", courseVersion: "", reviewEmail: "support@statsdirect.com", requirements: "", cpdStatement: "" });
+  var safeURL = (s) => {
+    try {
+      const u = new URL(s);
+      return u.protocol === "https:" && !u.username && !u.password && (!u.port || u.port === "443") ? u.href : "";
+    } catch {
+      return "";
+    }
+  };
+  var validEmail = (s) => typeof s === "string" && s.length <= 254 && !/\s/.test(s) && /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}$/.test(s);
+  var courseKey = (p) => p?.schemaVersion === 2 ? `${p.id}:${p.version}` : "";
+  function courseLessons(pack) {
+    return (pack?.lessons ?? []).map((l) => ({ ...l, id: `course:${courseKey(pack)}:${l.id}`, topic: l.topic || pack.title, steps: l.steps || "", challenge: l.challenge || "Explain what you have learned and how you would use it in your work.", providerCourse: true }));
+  }
+  function courseQuestions(pack) {
+    return (pack?.questions ?? []).map((q) => ({ ...q, id: `course:${courseKey(pack)}:${q.id}`, track: "core", version: pack.version, topic: q.topic || pack.title, objective: q.objective || "", hint: q.hint || "Explain the population, variables and comparison before choosing.", lesson: q.lesson || "Use the course notes and explain your reasoning.", help: q.help || "", options: q.options.map((o) => ({ ...o, feedback: o.feedback || q.explanation })) }));
+  }
+  function adoptCourse(state2, pack) {
+    const key = courseKey(pack);
+    if (!key || key === state2.courseKey) return;
+    state2.courseKey = key;
+    state2.training = { providerName: pack.provider.name, courseTitle: pack.title, courseVersion: pack.version, reviewEmail: pack.provider.reviewEmail, requirements: pack.provider.assessmentRequirements || "", cpdStatement: pack.provider.cpdStatement || "" };
+  }
+  function submitCourseWork(state2, lesson2, text) {
+    if (!lesson2?.providerCourse || !text.trim()) throw Error("Write your answer or practical findings before saving.");
+    const attempt = { id: crypto.randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), courseKey: state2.courseKey, training: structuredClone(state2.training), lessonID: lesson2.id, lessonTitle: lesson2.title, objective: lesson2.objective, task: lesson2.challenge, text: text.trim().slice(0, 2e4), status: "Submitted locally for review; not marked" };
+    state2.courseWork.push(attempt);
+    return attempt;
+  }
+  function addProviderReview(state2, value) {
+    if (value?.schemaVersion !== 1 || value.portfolioID !== state2.id || !["provider", "reviewer", "reviewedAt", "decision", "feedback"].every((k) => typeof value[k] === "string" && value[k].trim() && value[k].length <= 2e4)) throw Error("This assessment response does not match the learning record or is incomplete.");
+    const review = { schemaVersion: 1, portfolioID: state2.id, provider: value.provider, reviewer: value.reviewer, reviewedAt: value.reviewedAt, decision: value.decision, feedback: value.feedback, courseKey: String(value.courseKey || ""), creditStatement: String(value.creditStatement || "").slice(0, 3e3), reference: String(value.reference || "").slice(0, 1e3), importedAt: (/* @__PURE__ */ new Date()).toISOString(), verification: "Imported provider response; authenticity not independently verified by StatsDirect." };
+    state2.providerReviews.push(review);
+    return review;
+  }
+
   // Learn/portfolio.mjs
   var stages = { menus: "Start with menus", bridge: "Connect menus to R", coding: "Practise R coding" };
   function newPortfolio() {
-    return { schemaVersion: 2, id: crypto.randomUUID(), startedAt: (/* @__PURE__ */ new Date()).toISOString(), profile: "foundation", stage: "menus", lesson: "epidemiology", view: "study", identity: { name: "", email: "", goal: "" }, learning: { needs: "", qualifications: "", priorKnowledge: "", targetDate: "", focus: ["epidemiology", "causal"], style: "Worked examples and questions" }, conversation: [], activities: [], attempts: [], quiz: null, reflection: "", draft: "" };
+    return { schemaVersion: 2, id: crypto.randomUUID(), startedAt: (/* @__PURE__ */ new Date()).toISOString(), profile: "foundation", stage: "menus", lesson: "epidemiology", view: "study", identity: { name: "", email: "", goal: "" }, learning: { needs: "", qualifications: "", priorKnowledge: "", targetDate: "", focus: ["epidemiology", "causal"], style: "Worked examples and questions" }, training: trainingDefaults(), courseKey: "", courseWork: [], workDrafts: {}, providerReviews: [], evidence: [], conversation: [], activities: [], attempts: [], quiz: null, reflection: "", draft: "" };
   }
   function restorePortfolio(value) {
     const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
     const strings = (v, keys) => object(v) && keys.every((k) => typeof v[k] === "string");
-    const validQuestion = (q) => strings(q, ["id", "topic", "stem", "correct", "explanation", "hint", "lesson", "help"]) && Array.isArray(q.options) && q.options.length === 5 && q.options.every((o) => strings(o, ["id", "text", "feedback"])) && q.options.filter((o) => o.id === q.correct).length === 1;
+    const validQuestion = (q) => strings(q, ["id", "topic", "stem", "correct", "explanation", "hint", "lesson", "help"]) && Array.isArray(q.options) && q.options.length >= 2 && q.options.length <= 8 && q.options.every((o) => strings(o, ["id", "text", "feedback"])) && q.options.filter((o) => o.id === q.correct).length === 1;
     const validSession = (s) => {
       if (!strings(s, ["id", "track", "mode", "startedAt"]) || !tracks[s.track] || !["learn", "test"].includes(s.mode) || !Array.isArray(s.questionIds) || !s.questionIds.length || new Set(s.questionIds).size !== s.questionIds.length || !Array.isArray(s.answers) || s.answers.length > s.questionIds.length || !["hints", "explanations"].every((k) => Array.isArray(s[k]) && s[k].every((id) => s.questionIds.includes(id)))) return false;
       if (s.questionSnapshots !== void 0 && (!Array.isArray(s.questionSnapshots) || s.questionSnapshots.length !== s.questionIds.length || !s.questionSnapshots.every(validQuestion) || new Set(s.questionSnapshots.map((q) => q.id)).size !== s.questionIds.length)) return false;
@@ -304,6 +344,7 @@
     };
     const defaults = newPortfolio();
     const learning = value?.learning === void 0 ? defaults.learning : value.learning;
+    if (value?.training !== void 0 && !strings(value.training, Object.keys(trainingDefaults())) || value?.courseKey !== void 0 && typeof value.courseKey !== "string" || value?.courseWork !== void 0 && (!Array.isArray(value.courseWork) || !value.courseWork.every((w) => strings(w, ["id", "at", "courseKey", "lessonID", "lessonTitle", "objective", "task", "text", "status"]) && strings(w.training, Object.keys(trainingDefaults())))) || value?.workDrafts !== void 0 && (!object(value.workDrafts) || !Object.values(value.workDrafts).every((x) => typeof x === "string")) || value?.providerReviews !== void 0 && (!Array.isArray(value.providerReviews) || !value.providerReviews.every((r) => strings(r, ["portfolioID", "provider", "reviewer", "reviewedAt", "decision", "feedback", "verification"]))) || value?.evidence !== void 0 && (!Array.isArray(value.evidence) || !value.evidence.every((r) => strings(r, ["title", "at", "text"])))) throw Error("The saved course record is incompatible. It has not been overwritten.");
     if (!strings(value, ["id", "startedAt", "profile", "stage", "lesson", "view", "reflection", "draft"]) || value.schemaVersion !== 2 || !tracks[value.profile] || !stages[value.stage] || !["study", "options", "sources", "practice", "record"].includes(value.view) || !strings(value.identity, ["name", "email", "goal"]) || !strings(learning, ["needs", "qualifications", "priorKnowledge", "targetDate", "style"]) || !Array.isArray(learning.focus) || !learning.focus.every((x) => typeof x === "string") || !Array.isArray(value.conversation) || !value.conversation.every((c) => strings(c, ["id", "at", "role", "text", "source"]) && ["user", "assistant"].includes(c.role) && ["lessonId", "lessonTitle"].every((k) => c[k] === void 0 || typeof c[k] === "string") && (c.lessonPrompt === void 0 || typeof c.lessonPrompt === "boolean") && (!c.workspaceSources || Array.isArray(c.workspaceSources) && c.workspaceSources.every((s) => typeof s === "string")) && (!c.courseSources || Array.isArray(c.courseSources) && c.courseSources.every((s) => strings(s, ["id", "title"])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz !== null && !validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every((a) => strings(a, ["at", "text"]))) throw new Error("The saved learning record is incompatible. It has not been overwritten.");
     return { ...defaults, ...value, learning: { ...learning, focus: [.../* @__PURE__ */ new Set(["epidemiology", "causal", ...learning.focus])] } };
   }
@@ -344,9 +385,14 @@
       pathway: tracks[state2.profile].title,
       rExperience: stages[state2.stage],
       bankVersion,
-      questionSource: "Original StatsDirect teaching drafts; subject-expert review pending. Not official examination questions.",
+      questionSource: "StatsDirect items are original teaching drafts with subject-expert review pending. Provider items retain the course and version recorded with each attempt. These are not official examination questions.",
       marking: "Provisional fixed-key MCQ scoring: 1 correct, 0 otherwise. First answers retained. Confidence and free-text reasoning are not graded. Independent practice is unsupervised and cannot certify exam readiness.",
-      reviewStatus: "Not independently reviewed. No accreditation or CPD points awarded. Email preparation does not confirm delivery or acceptance.",
+      reviewStatus: "No accreditation or CPD points awarded by StatsDirect. Imported provider responses are recorded separately and are not authenticated. Email preparation does not confirm delivery or acceptance.",
+      training: structuredClone(state2.training),
+      courseKey: state2.courseKey,
+      courseWork: structuredClone(state2.courseWork),
+      providerReviews: structuredClone(state2.providerReviews),
+      evidence: structuredClone(state2.evidence),
       attempts,
       conversation: structuredClone(state2.conversation),
       activities: structuredClone(state2.activities),
@@ -356,14 +402,21 @@
   function reviewText(record) {
     const lines = ["STATSDIRECT \u2014 LEARNING RECORD", "External review request", `Prepared: ${record.exportedAt}`, `Record: ${record.portfolioID}`, `Started: ${record.startedAt}`, "", `Learner: ${record.learner.name || "(not supplied)"}`, `Reply email: ${record.learner.email || "(not supplied)"}`, `Learning goal: ${record.learner.goal || "(not supplied)"}`, `Pathway: ${record.pathway}`, `R experience: ${record.rExperience}`, `Exams / qualifications: ${record.learningOptions?.qualifications || "(not supplied)"}`, `Learning needs: ${record.learningOptions?.needs || "(not supplied)"}`, `Prior knowledge: ${record.learningOptions?.priorKnowledge || "(not supplied)"}`, `Target date: ${record.learningOptions?.targetDate || "(not supplied)"}`, `Focus: ${(record.learningOptions?.focus || []).join(", ")}`, `Preferred teaching style: ${record.learningOptions?.style || ""}`, "", record.questionSource, record.marking, record.reviewStatus, "", "PRACTICE ATTEMPTS"];
     for (const a of record.attempts) {
+      if (a.course) lines.push(`Provider assessment: ${a.course.title} \xB7 ${a.course.provider} \xB7 version ${a.course.version}`);
       lines.push("", `${tracks[a.track].title} \u2014 ${a.mode === "test" ? "Independent practice (unsupervised)" : "Supported practice"} \u2014 ${a.status}`, `Started: ${a.startedAt} | Completed: ${a.completedAt || "not completed"}`, a.result ? `Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted` : `Answered: ${a.answers.length}/${a.questionIds.length}`);
       for (const q of a.questionSnapshots) {
         const answer = a.answers.find((x) => x.questionId === q.id);
-        lines.push("", `${q.id} v${q.version} \u2014 ${q.topic}`, q.stem, ...q.options.map((o) => `${o.id}. ${o.text}`), `First answer: ${answer?.choice || "not answered"} | Key: ${q.correct || "withheld until the attempt ends"}`, `Confidence: ${answer?.confidence || "not recorded"} | Assisted: ${answer?.assisted ?? false}`, `Reasoning: ${answer?.reasoning || "(none)"}`, `Feedback: ${q.explanation || "withheld until the attempt ends"}`, `Help: https://www.statsdirect.com/help/${q.help}`);
+        lines.push("", `${q.id} v${q.version} \u2014 ${q.topic}`, q.stem, ...q.options.map((o) => `${o.id}. ${o.text}`), `First answer: ${answer?.choice || "not answered"} | Key: ${q.correct || "withheld until the attempt ends"}`, `Confidence: ${answer?.confidence || "not recorded"} | Assisted: ${answer?.assisted ?? false}`, `Reasoning: ${answer?.reasoning || "(none)"}`, `Feedback: ${q.explanation || "withheld until the attempt ends"}`, q.help ? `Help: https://www.statsdirect.com/help/${q.help}` : "");
       }
     }
     lines.push("", "COMPLETE LEARNING CONVERSATION");
-    for (const c of record.conversation) lines.push("", `[${c.at}] ${c.role === "user" ? "Learner" : "Tutor"} \u2014 ${c.source}${c.lessonTitle ? " \xB7 " + c.lessonTitle : ""}${c.model ? " / " + c.model : ""}`, c.text, ...(c.courseSources ?? []).map((s) => "Course reference: " + s.id + " \u2014 " + s.title), ...(c.workspaceSources ?? []).map((s) => "StatsDirect context: " + s));
+    for (const c of record.conversation) lines.push("", `[${c.at}] ${c.role === "user" ? "Learner" : "Tutor"} \u2014 ${c.source}${c.lessonTitle ? " \xB7 " + c.lessonTitle : ""}${c.model ? " / " + c.model : ""}`, c.text, ...(c.courseSources ?? []).map((s) => "Course reference: " + s.id + " \u2014 " + s.title + (s.url ? " \xB7 " + s.url : "") + (s.retrievedAt ? " \xB7 retrieved " + s.retrievedAt : "")), ...(c.workspaceSources ?? []).map((s) => "StatsDirect context: " + s));
+    lines.push("", "PROVIDER AND COURSE", ...Object.entries(record.training ?? {}).map(([k, v]) => `${k}: ${v}`), "", "PRACTICAL SUBMISSIONS");
+    for (const w of record.courseWork ?? []) lines.push("", `${w.at} \xB7 ${w.training.courseTitle} v${w.training.courseVersion} \xB7 ${w.lessonTitle}`, `Objective: ${w.objective}`, `Task: ${w.task}`, w.text, w.status);
+    lines.push("", "ATTACHED ANALYSIS EVIDENCE");
+    for (const e of record.evidence ?? []) lines.push("", `${e.at} \xB7 ${e.title}`, e.text);
+    lines.push("", "RETURNED PROVIDER ASSESSMENTS");
+    for (const r of record.providerReviews ?? []) lines.push("", `${r.provider} \xB7 ${r.reviewer} \xB7 ${r.reviewedAt}`, `Decision: ${r.decision}`, r.feedback, `Credit statement supplied: ${r.creditStatement || "(none)"}`, `Reference: ${r.reference || "(none)"}`, r.verification);
     lines.push("", "LEARNING ACTIVITIES");
     for (const a of record.activities) lines.push(`[${a.at}] ${a.text}`);
     lines.push("", "LEARNER REFLECTION", record.reflection || "(not supplied)");
@@ -600,9 +653,93 @@ ${c.text}` : c.text }));
     }
   ];
 
+  // Content/Learn/resources.json
+  var resources_default = [
+    {
+      title: "OpenLearn \u2014 Medical statistics",
+      url: "https://www.open.edu/openlearn/science-maths-technology/medical-statistics/content-section-0?intro=1",
+      note: "Cohort and case-control studies, relative risks, odds ratios and tests of association. Teaching is supplied in a linked PDF, available after loading this page."
+    },
+    {
+      title: "CDC \u2014 Principles of Epidemiology: definition and scope",
+      url: "https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson1/section1.html",
+      note: "Foundations of public-health epidemiology. Archived third-edition teaching text; CDC continuing-education credit for this course is no longer available."
+    },
+    {
+      title: "Penn State \u2014 Epidemiological Research Methods",
+      url: "https://online.stat.psu.edu/stat507/index",
+      note: "Open STAT 507 course notes. Start here and add the chapter URLs relevant to your course."
+    },
+    {
+      title: "OpenIntro \u2014 Study design",
+      url: "https://openintro-ims.netlify.app/data-design",
+      note: "Sampling, experiments and observational studies. Open textbook chapter from Introduction to Modern Statistics."
+    },
+    {
+      title: "OpenIntro \u2014 Paired measurements",
+      url: "https://openintro-ims.netlify.app/inference-paired-means",
+      note: "Within-person or matched differences, inference and interpretation. Useful alongside the StatsDirect paired analysis."
+    },
+    {
+      title: "Hern\xE1n and Robins \u2014 Causal Inference: What If",
+      url: "https://miguelhernan.org/whatifbook",
+      note: "Author-hosted open book and data/code. Load this page to discover the book PDF; begin with Part I for causal principles."
+    }
+  ];
+
+  // Learn/course-ui.mjs
+  var esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  function trainingHTML(state2, resources2) {
+    const t = state2.training;
+    return `
+<section class="card"><h2>Your training provider</h2><p>Course packs can fill these details. You can also enter the organisation providing your training.</p>
+<div class="form-row"><div><label for="providerName">Provider or university</label><input id="providerName" maxlength="200" value="${esc(t.providerName)}"></div><div><label for="reviewEmail">Assessment email address</label><input id="reviewEmail" type="email" maxlength="254" value="${esc(t.reviewEmail)}"></div></div>
+<div class="form-row"><div><label for="courseTitle">Course title</label><input id="courseTitle" maxlength="200" value="${esc(t.courseTitle)}"></div><div><label for="courseVersion">Course version</label><input id="courseVersion" maxlength="80" value="${esc(t.courseVersion)}"></div></div>
+<label for="requirements">Assessment requirements</label><textarea id="requirements" rows="2" maxlength="5000">${esc(t.requirements)}</textarea>
+<label for="cpdStatement">Provider\u2019s CPD or recognition conditions</label><textarea id="cpdStatement" rows="2" maxlength="2000" placeholder="For example: practical work and reflection reviewed by the course tutor before a completion certificate is issued.">${esc(t.cpdStatement)}</textarea>
+<p class="small">These are course details, not confirmation of an award. Email is prepared only from My learning record after you review the contents.</p>
+</section><section class="card"><h2>My learning resources</h2><p>Add the pages or PDFs your course uses. The starter list includes open medical statistics, epidemiology and causal-inference resources. Enable the ones relevant to you.</p>
+<p class="small">Load resources to read them on this Mac. Relevant downloaded excerpts and their source links accompany your next tutor question. A chapter page is loaded individually; a course home page does not import its whole website. Scanned figures and equations may need checking against the original.</p>
+<div class="actions"><button id="loadResources" ${resources2.busy ? "disabled" : ""}>${resources2.busy ? "Loading resources\u2026" : "Load / refresh enabled resources"}</button></div>
+<div class="resource-list">${resources2.entries.map((e) => `<article class="resource-row"><label class="resource-heading"><input type="checkbox" data-resource-enable="${esc(e.id)}" ${e.enabled ? "checked" : ""} ${resources2.busy ? "disabled" : ""}><strong>${esc(e.title)}</strong></label><a href="${esc(safeURL(e.url))}" target="_blank" rel="noopener">${esc(e.url)} \u2197</a><p>${esc(e.note)}</p><p class="small resource-status">${esc(e.status)}${e.fetchedAt ? " \xB7 " + esc(new Date(e.fetchedAt).toLocaleString()) : ""}</p><div class="actions"><button data-resource-load="${esc(e.id)}" ${resources2.busy ? "disabled" : ""}>${e.pages ? "Refresh" : "Load"}</button><button class="link-button" data-resource-remove="${esc(e.id)}" ${resources2.busy ? "disabled" : ""}>Remove</button></div>${e.linkedPDFs?.length ? `<details><summary>Linked PDFs \u2014 add one to read its contents</summary>${e.linkedPDFs.map((u) => `<p class="small"><a href="${esc(safeURL(u))}" target="_blank" rel="noopener">${esc(u)}</a> <button data-resource-add="${esc(u)}" ${resources2.busy ? "disabled" : ""}>Add PDF</button></p>`).join("")}</details>` : ""}</article>`).join("")}</div>
+<label for="resourceURLs">Add URLs \u2014 one per line</label><textarea id="resourceURLs" rows="3" placeholder="https://\u2026" ${resources2.busy ? "disabled" : ""}></textarea><button id="addResources" ${resources2.busy ? "disabled" : ""}>Add to my resources</button>
+</section>`;
+  }
+  function bindTraining(state2, resources2, { save: save2, post: post2, notice: notice2, native: native2 }) {
+    const $2 = (id) => document.getElementById(id);
+    for (const key of ["providerName", "courseTitle", "courseVersion", "reviewEmail", "requirements", "cpdStatement"]) $2(key).oninput = () => {
+      state2.training[key] = $2(key).value;
+      save2();
+    };
+    const send2 = (b) => native2 ? post2(b) : notice2("Resource downloads are available in the Mac app. The browser preview does not fetch external content.");
+    $2("loadResources").onclick = () => send2({ action: "loadResources" });
+    $2("addResources").onclick = () => {
+      const urls = $2("resourceURLs").value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+      if (!urls.length || urls.some((u) => !safeURL(u))) {
+        notice2("Enter one HTTPS learning page or PDF per line.");
+        return;
+      }
+      send2({ action: "addResources", urls });
+    };
+    document.querySelectorAll("[data-resource-enable]").forEach((e) => e.onchange = () => send2({ action: "toggleResource", id: e.dataset.resourceEnable, enabled: e.checked }));
+    document.querySelectorAll("[data-resource-remove]").forEach((e) => e.onclick = () => send2({ action: "removeResource", id: e.dataset.resourceRemove }));
+    document.querySelectorAll("[data-resource-load]").forEach((e) => e.onclick = () => send2({ action: "loadResources", ids: [e.dataset.resourceLoad] }));
+    document.querySelectorAll("[data-resource-add]").forEach((e) => e.onclick = () => send2({ action: "addResources", urls: [e.dataset.resourceAdd] }));
+  }
+  function courseWorkHTML(state2, l) {
+    if (!l.providerCourse) return "";
+    const saved = state2.courseWork.filter((w) => w.lessonID === l.id);
+    return `<details class="lesson-guide course-work"><summary>Practical work and course submission${saved.length ? " \xB7 " + saved.length + " saved" : ""}</summary><p><strong>Learning objective:</strong> ${esc(l.objective)}</p><p>${esc(l.challenge)}</p>${(l.readingURLs ?? []).map((u) => `<p><a href="${esc(safeURL(u))}" target="_blank" rel="noopener">Read course resource \u2197</a></p>`).join("")}<label for="courseAnswer">Your answer, interpretation or practical findings</label><textarea id="courseAnswer" rows="4" maxlength="20000">${esc(state2.workDrafts[l.id] ?? "")}</textarea><button id="saveCourseWork">Save submission to my learning record</button><p class="small">Each saved submission is retained for your provider to review. Attach report or R snapshots from My learning record.</p></details>`;
+  }
+  function providerRecordHTML(state2, workspace2) {
+    return `<section class="card"><h2>Course work and analysis evidence</h2><p>${esc(state2.training.courseTitle || "No named course")} ${state2.training.courseVersion ? "\xB7 " + esc(state2.training.courseVersion) : ""} \xB7 ${state2.courseWork.length} practical submission(s)</p>${state2.courseWork.map((w) => `<details><summary>${esc(w.lessonTitle)} \xB7 ${esc(new Date(w.at).toLocaleString())}</summary><p>${esc(w.text)}</p><p class="small">${esc(w.status)}</p></details>`).join("")}
+<label for="evidenceDocument">Attach an open report or R session to this record</label><select id="evidenceDocument"><option value="">Choose a document\u2026</option>${workspace2.choices.filter((d) => d.kind === "report" || d.kind === "r").map((d) => `<option value="${esc(d.id)}">${esc(d.title)}</option>`).join("")}</select><button id="captureEvidence">Attach text snapshot</button><p class="small">The snapshot is stored locally in the record. Review it before emailing; original workbooks and chart images are not attached.</p>${state2.evidence.map((e) => `<details><summary>${esc(e.title)} \xB7 ${esc(new Date(e.at).toLocaleString())}</summary><pre>${esc(e.text)}</pre></details>`).join("")}</section>
+<section class="card"><h2>Returned assessments</h2><button id="importProviderReview">Import provider response\u2026</button><p class="small">Import a response file returned by your provider for this learning record. StatsDirect records the supplied decision and feedback; it does not authenticate certificates or award credit.</p>${state2.providerReviews.map((r) => `<article class="review-line"><strong>${esc(r.provider)} \u2014 ${esc(r.decision)}</strong><p>${esc(r.feedback)}</p><p>${esc(r.creditStatement)}</p><p class="small">${esc(r.reviewer)} \xB7 ${esc(r.reviewedAt)} \xB7 ${esc(r.verification)}</p></article>`).join("")}</section>`;
+  }
+
   // Learn/app.mjs
   var $ = (id) => document.getElementById(id);
-  var esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  var esc2 = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   var state = newPortfolio();
   var loaded = false;
   var settings = { configured: false, service: "", label: "Not connected" };
@@ -611,10 +748,12 @@ ${c.text}` : c.text }));
   var feedback = null;
   var reviewApproved = false;
   var coursePack = null;
+  var resources = { entries: resources_default.map((s, i) => ({ ...s, id: "seed-" + i, enabled: true, status: "Not downloaded", pages: 0, linkedPDFs: [] })), busy: false };
   var workspace = { choice: "", choices: [], label: "Open documents are available to the tutor" };
   var native = Boolean(window.webkit?.messageHandlers?.statsDirectLearn);
   var post = (body) => window.webkit?.messageHandlers?.statsDirectLearn?.postMessage(body);
-  var lesson = () => lessons_default.find((x) => x.id === state.lesson) ?? lessons_default[0];
+  var allLessons = () => [...lessons_default, ...courseLessons(coursePack)];
+  var lesson = () => allLessons().find((x) => x.id === state.lesson) ?? lessons_default[0];
   var independent = () => state.quiz?.mode === "test" && !state.quiz.completedAt;
   var notice = (text) => {
     $("notice").textContent = text;
@@ -649,17 +788,17 @@ ${c.text}` : c.text }));
   function render() {
     document.body.classList.toggle("study-mode", state.view === "study");
     $("workspaceContext").hidden = state.view !== "study";
-    $("profile").innerHTML = Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc(t.title)}</option>`).join("");
-    $("stage").innerHTML = Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc(t)}</option>`).join("");
+    $("profile").innerHTML = Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc2(t.title)}</option>`).join("");
+    $("stage").innerHTML = Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc2(t)}</option>`).join("");
     $("profile").disabled = Boolean(state.quiz && !state.quiz.completedAt) || Boolean(pending);
     $("stage").disabled = independent() || Boolean(pending);
-    $("lessons").innerHTML = lessons_default.map((l, i) => `<button data-lesson="${l.id}" class="${state.view === "study" && state.lesson === l.id ? "current" : ""}" ${independent() || pending ? "disabled" : ""}>${i + 1}. ${esc(l.title)}</button>`).join("");
+    $("lessons").innerHTML = allLessons().map((l, i) => `<button data-lesson="${esc2(l.id)}" class="${state.view === "study" && state.lesson === l.id ? "current" : ""}" ${independent() || pending ? "disabled" : ""}>${i + 1}. ${esc2(l.title)}</button>`).join("");
     $("practiceNav").classList.toggle("current", state.view === "practice");
     $("practiceNav").disabled = Boolean(pending);
     $("recordNav").classList.toggle("current", state.view === "record");
     $("sourcesNav").classList.toggle("current", state.view === "sources");
     $("sourcesNav").disabled = independent();
-    $("practiceNav").querySelector("span").textContent = questions.length;
+    $("practiceNav").querySelector("span").textContent = questions.length + courseQuestions(coursePack).length;
     $("options").disabled = independent() || Boolean(pending);
     $("settings").disabled = Boolean(pending);
     if (state.view === "options") renderOptions();
@@ -669,18 +808,34 @@ ${c.text}` : c.text }));
     else renderStudy();
   }
   function bodyHTML(text) {
-    return text.split(/```(?:[A-Za-z0-9_-]+)?\n?/).map((s, i) => i % 2 ? `<pre><code>${esc(s)}</code></pre>` : esc(s)).join("");
+    return text.split(/```(?:[A-Za-z0-9_-]+)?\n?/).map((s, i) => i % 2 ? `<pre><code>${esc2(s)}</code></pre>` : esc2(s)).join("");
   }
   function renderStudy() {
     const l = lesson();
-    if (ensureLessonPrompt(state, lessons_default)) save();
-    $("main").innerHTML = `<section class="intro"><div class="eyebrow">${esc(l.topic)}</div><h1>${esc(l.title)}</h1></section><div class="actions"><button class="primary" data-action="example">Try in StatsDirect</button><button data-action="r">Explore in R</button><button class="link-button" data-action="help">Read help \u2197</button></div><details class="lesson-guide"><summary>Lesson guide and worked example</summary><p>${esc(l.summary)}</p><p>${esc(l.steps)}</p></details><section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><span id="tutorBadge" class="badge">${esc(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending ? "disabled" : ""}>${esc(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${settings.configured ? "Send shares learning context, up to 40 recent messages and requested open document content with OpenAI. Choose Lessons only to exclude documents. Avoid identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply."}</small><button id="send" class="primary" ${pending ? "disabled" : ""}>${settings.configured ? "Send" : settings.signingIn ? "Finish sign-in" : "Use my ChatGPT"}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
+    if (ensureLessonPrompt(state, allLessons())) save();
+    $("main").innerHTML = `<section class="intro"><div class="eyebrow">${esc2(l.topic)}</div><h1>${esc2(l.title)}</h1></section><div class="actions">${l.operation ? '<button class="primary" data-action="example">Try in StatsDirect</button>' : ""}${l.r ? '<button data-action="r">Explore in R</button>' : ""}${l.help ? '<button class="link-button" data-action="help">Read help \u2197</button>' : ""}</div><details class="lesson-guide"><summary>Lesson guide and worked example</summary><p>${esc2(l.summary)}</p><p>${esc2(l.steps)}</p></details>${courseWorkHTML(state, l)}<section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><span id="tutorBadge" class="badge">${esc2(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending ? "disabled" : ""}>${esc2(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${settings.configured ? "Send shares learning context, up to 40 recent messages and requested open document content with OpenAI. Choose Lessons only to exclude documents. Avoid identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply."}</small><button id="send" class="primary" ${pending ? "disabled" : ""}>${settings.configured ? "Send" : settings.signingIn ? "Finish sign-in" : "Use my ChatGPT"}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
     $("messages").innerHTML = state.conversation.map((c) => {
       const guide = guidePresentation(c, l);
-      const content = `<div class="message-body">${bodyHTML(c.text)}</div>${c.workspaceSources?.length ? `<div class="small context-used">Used: ${c.workspaceSources.map(esc).join("; ")}</div>` : ""}`;
-      if (guide.earlier) return `<details class="earlier-guide"><summary>${esc(guide.label)}</summary>${content}</details>`;
-      return `<article class="message ${c.role === "user" ? "user" : ""}"><div class="message-label">${c.role === "user" ? "YOU" : esc(guide.label.toUpperCase())}${c.model ? " \xB7 " + esc(c.model) : ""}</div>${content}</article>`;
+      const content = `<div class="message-body">${bodyHTML(c.text)}</div>${c.courseSources?.length ? `<div class="small context-used">References: ${c.courseSources.map((s) => safeURL(s.url) ? `<a href="${esc2(safeURL(s.url))}" target="_blank" rel="noopener">${esc2(s.title)}</a>` : esc2(s.title)).join("; ")}</div>` : ""}${c.workspaceSources?.length ? `<div class="small context-used">Used: ${c.workspaceSources.map(esc2).join("; ")}</div>` : ""}`;
+      if (guide.earlier) return `<details class="earlier-guide"><summary>${esc2(guide.label)}</summary>${content}</details>`;
+      return `<article class="message ${c.role === "user" ? "user" : ""}"><div class="message-label">${c.role === "user" ? "YOU" : esc2(guide.label.toUpperCase())}${c.model ? " \xB7 " + esc2(c.model) : ""}</div>${content}</article>`;
     }).join("");
+    if ($("courseAnswer")) {
+      $("courseAnswer").oninput = () => {
+        state.workDrafts[l.id] = $("courseAnswer").value;
+        save();
+      };
+      $("saveCourseWork").onclick = () => {
+        try {
+          submitCourseWork(state, l, $("courseAnswer").value);
+          activity("Saved practical submission: " + l.title);
+          notice("Submission saved to My learning record.");
+          renderStudy();
+        } catch (e) {
+          notice(e.message);
+        }
+      };
+    }
     renderWorkspace();
     $("messages").scrollTop = $("messages").scrollHeight;
     $("question").oninput = () => {
@@ -714,7 +869,7 @@ ${c.text}` : c.text }));
   function renderWorkspace() {
     const element = $("workspaceContext");
     if (!element) return;
-    element.innerHTML = `<label for="workspaceChoice">Tutor context</label><div class="workspace-controls"><select id="workspaceChoice" ${pending || independent() ? "disabled" : ""}><option value="">Follow my active document</option><option value="__none__">Lessons only</option>${workspace.choices.map((d) => `<option value="${esc(d.id)}">${esc(d.title)}</option>`).join("")}</select><button id="refreshWorkspace" class="link-button" ${pending ? "disabled" : ""}>Refresh</button></div><small id="workspaceLabel" role="status" title="${esc(workspace.label)}">${esc(workspace.label)}</small>`;
+    element.innerHTML = `<label for="workspaceChoice">Tutor context</label><div class="workspace-controls"><select id="workspaceChoice" ${pending || independent() ? "disabled" : ""}><option value="">Follow my active document</option><option value="__none__">Lessons only</option>${workspace.choices.map((d) => `<option value="${esc2(d.id)}">${esc2(d.title)}</option>`).join("")}</select><button id="refreshWorkspace" class="link-button" ${pending ? "disabled" : ""}>Refresh</button></div><small id="workspaceLabel" role="status" title="${esc2(workspace.label)}">${esc2(workspace.label)}</small>`;
     $("workspaceChoice").value = workspace.choice;
     $("workspaceChoice").onchange = () => post({ action: "workspace", choice: $("workspaceChoice").value });
     $("refreshWorkspace").onclick = () => post({ action: "workspace" });
@@ -748,10 +903,10 @@ ${c.text}` : c.text }));
     render();
     post({ action: "ask", id: pending, lesson: lesson().id, profile: tracks[state.profile].title, stage: stages[state.stage], practiceContext: practiceContext(state), learningGoals: state.learning, messages: conversationForTutor(state) });
   }
-  function startQuiz(mode) {
+  function startQuiz(mode, provider = false) {
     if (pending || state.quiz && !state.quiz.completedAt) return;
     if (state.quiz) state.attempts.push(state.quiz);
-    state.quiz = createSession(state.profile, mode);
+    state.quiz = createSession(state.profile, mode, crypto.randomUUID(), provider ? { version: coursePack.version, questions: courseQuestions(coursePack), course: { key: courseKey(coursePack), title: coursePack.title, version: coursePack.version, provider: coursePack.provider.name } } : null);
     feedback = null;
     state.view = "practice";
     activity(`Started ${mode === "test" ? "independent" : "supported"} practice for ${tracks[state.profile].title}`);
@@ -759,18 +914,18 @@ ${c.text}` : c.text }));
   }
   function renderPractice() {
     const qz = state.quiz;
-    $("main").innerHTML = `<div class="eyebrow">PRACTICE WITH PURPOSE</div><h1>Put your understanding to work</h1><p class="subtle">${esc(tracks[state.profile].title)} \xB7 ${questions.filter((q2) => q2.track === state.profile || q2.track === "core").length} original questions in this pathway. These short practice sets do not establish exam readiness.</p>`;
+    $("main").innerHTML = `<div class="eyebrow">PRACTICE WITH PURPOSE</div><h1>Put your understanding to work</h1><p class="subtle">${esc2(qz?.course?.title || tracks[state.profile].title)} \xB7 ${qz?.course ? qz.questionIds.length : questions.filter((q2) => q2.track === state.profile || q2.track === "core").length} questions.${!qz && courseQuestions(coursePack).length ? ` The provider course adds ${courseQuestions(coursePack).length} questions; choose your question set below.` : ""} These short practice sets do not establish exam readiness.</p>`;
     if (!qz) {
-      $("main").insertAdjacentHTML("beforeend", `<section class="card"><h2>Choose how to practise</h2><p>Supported practice gives feedback after each answer. Independent practice pauses the tutor and withholds feedback until the end.</p><div class="actions"><button class="primary" id="supported">Supported practice</button><button id="independent">Independent practice</button></div><p class="small">First answers are retained. Confidence and reasoning help you reflect; they do not alter the score. Question bank: teaching drafts awaiting expert review.</p></section>`);
-      $("supported").onclick = () => startQuiz("learn");
-      $("independent").onclick = () => startQuiz("test");
+      $("main").insertAdjacentHTML("beforeend", `<section class="card"><h2>Choose how to practise</h2><p>Supported practice gives feedback after each answer. Independent practice pauses the tutor and withholds feedback until the end.</p>${courseQuestions(coursePack).length ? `<label for="questionSource">Question set</label><select id="questionSource"><option value="course">${esc2(coursePack.title)} \u2014 provider questions</option><option value="builtin">StatsDirect foundation / pathway questions</option></select>` : ""}<div class="actions"><button class="primary" id="supported">Supported practice</button><button id="independent">Independent practice</button></div><p class="small">First answers are retained. Confidence and reasoning help you reflect; they do not alter the score. Question bank: teaching drafts awaiting expert review.</p></section>`);
+      $("supported").onclick = () => startQuiz("learn", $("questionSource")?.value === "course");
+      $("independent").onclick = () => startQuiz("test", $("questionSource")?.value === "course");
       return;
     }
     if (qz.completedAt) {
       const r = learnerResult(qz);
       $("main").insertAdjacentHTML("beforeend", `<section class="card"><div class="eyebrow">${qz.mode === "test" ? "INDEPENDENT PRACTICE \xB7 UNSUPERVISED" : "SUPPORTED PRACTICE"}</div><p class="score">${r.score}<small> / ${r.total} \xB7 provisional score</small></p><p>${r.assisted ? `${r.assisted} answer(s) used recorded teaching support.` : "No in-app assistance was recorded for these answers."}</p><p class="small">This score has not been independently verified. Prior exposure or help outside this app cannot be ruled out.</p>${qz.answers.map((a) => {
         const q2 = sessionQuestion(qz, a.questionId);
-        return `<div class="review-line"><strong>${a.correct ? "\u2713" : "\u21BB"} ${esc(q2.topic)}</strong><p>Your answer: ${a.choice} \xB7 Key: ${q2.correct} \xB7 Confidence: ${esc(a.confidence)}${a.assisted ? " \xB7 Assisted" : ""}</p><p>${esc(q2.explanation)}</p></div>`;
+        return `<div class="review-line"><strong>${a.correct ? "\u2713" : "\u21BB"} ${esc2(q2.topic)}</strong><p>Your answer: ${a.choice} \xB7 Key: ${q2.correct} \xB7 Confidence: ${esc2(a.confidence)}${a.assisted ? " \xB7 Assisted" : ""}</p><p>${esc2(q2.explanation)}</p></div>`;
       }).join("")}<div class="actions"><button id="reviewResults" class="primary">Review my learning record</button><button id="morePractice">New practice attempt</button><button id="discussResults">Discuss with the tutor</button></div></section>`);
       $("reviewResults").onclick = () => navigate("record");
       $("morePractice").onclick = () => {
@@ -789,7 +944,7 @@ ${c.text}` : c.text }));
       return;
     }
     const q = sessionQuestion(qz, qz.questionIds[qz.answers.length]);
-    $("main").insertAdjacentHTML("beforeend", `<section class="card"><div class="eyebrow">${qz.mode === "test" ? "INDEPENDENT" : "SUPPORTED"} \xB7 QUESTION ${qz.answers.length + 1} OF ${qz.questionIds.length}</div><p class="question">${esc(q.stem)}</p><form id="answerForm"><div class="options">${q.options.map((o) => `<label class="option"><input type="radio" name="answer" value="${o.id}" required><span><b>${o.id}.</b> ${esc(o.text)}</span></label>`).join("")}</div><div class="form-row"><div><label for="confidence">How confident are you?</label><select id="confidence" required><option value="">Choose confidence</option value="unsure">Unsure</option><option value="fairly">Fairly confident</option><option value="confident">Confident</option></select></div><div><label for="reasoning">Your reasoning (optional)</label><textarea id="reasoning" rows="2" maxlength="1500" placeholder="What led you to this answer?"></textarea></div></div><div class="actions"><button class="primary" type="submit">Submit first answer</button>${qz.mode === "learn" ? '<button id="hint" type="button">Give me a hint</button><button id="teach" type="button">Explain the principle</button>' : ""}</div></form><div id="hintText" class="small"></div><button id="endPractice" class="link-button">End this attempt early</button></section><div id="feedback"></div>`);
+    $("main").insertAdjacentHTML("beforeend", `<section class="card"><div class="eyebrow">${qz.mode === "test" ? "INDEPENDENT" : "SUPPORTED"} \xB7 QUESTION ${qz.answers.length + 1} OF ${qz.questionIds.length}</div>${qz.course ? `<p class="small">${esc2(qz.course.title)} \xB7 version ${esc2(qz.course.version)}</p>` : ""}<p class="question">${esc2(q.stem)}</p><form id="answerForm"><div class="options">${q.options.map((o) => `<label class="option"><input type="radio" name="answer" value="${o.id}" required><span><b>${o.id}.</b> ${esc2(o.text)}</span></label>`).join("")}</div><div class="form-row"><div><label for="confidence">How confident are you?</label><select id="confidence" required><option value="">Choose confidence</option value="unsure">Unsure</option><option value="fairly">Fairly confident</option><option value="confident">Confident</option></select></div><div><label for="reasoning">Your reasoning (optional)</label><textarea id="reasoning" rows="2" maxlength="1500" placeholder="What led you to this answer?"></textarea></div></div><div class="actions"><button class="primary" type="submit">Submit first answer</button>${qz.mode === "learn" ? '<button id="hint" type="button">Give me a hint</button><button id="teach" type="button">Explain the principle</button>' : ""}</div></form><div id="hintText" class="small"></div><button id="endPractice" class="link-button">End this attempt early</button></section><div id="feedback"></div>`);
     $("answerForm").onsubmit = (e) => {
       e.preventDefault();
       const choice = new FormData(e.target).get("answer");
@@ -829,7 +984,7 @@ ${c.text}` : c.text }));
     const option = q.options.find((o) => o.id === choice);
     $("answerForm").querySelectorAll("input,select,textarea,button").forEach((x) => x.disabled = true);
     $("endPractice").disabled = true;
-    $("feedback").innerHTML = `<div class="feedback ${choice === q.correct ? "" : "wrong"}"><h2>${choice === q.correct ? "Correct \u2014 now explain why" : "A useful point to revisit"}</h2><p>${esc(option.feedback)}</p><p>${esc(q.explanation)}</p><button id="nextQuestion" class="primary">${state.quiz.completedAt ? "See my results" : "Next question"}</button></div>`;
+    $("feedback").innerHTML = `<div class="feedback ${choice === q.correct ? "" : "wrong"}"><h2>${choice === q.correct ? "Correct \u2014 now explain why" : "A useful point to revisit"}</h2><p>${esc2(option.feedback)}</p><p>${esc2(q.explanation)}</p><button id="nextQuestion" class="primary">${state.quiz.completedAt ? "See my results" : "Next question"}</button></div>`;
     $("nextQuestion").onclick = () => {
       feedback = null;
       render();
@@ -839,7 +994,7 @@ ${c.text}` : c.text }));
   function renderRecord() {
     const record = reviewRecord(state), text = reviewText(record);
     reviewApproved = false;
-    $("main").innerHTML = `<div class="eyebrow">YOUR LEARNING PORTFOLIO</div><h1>A record you can reflect on and share</h1><p class="subtle">Your answers, explanations, confidence, learning conversation and practical activities stay together. Prepare a review request when you are ready.</p><section class="card"><h2>About you and your learning</h2><div class="form-row"><div><label for="learnerName">Name for the reviewer</label><input id="learnerName" maxlength="120" value="${esc(state.identity.name)}" autocomplete="name"></div><div><label for="learnerEmail">Reply email</label><input id="learnerEmail" type="email" maxlength="180" value="${esc(state.identity.email)}" autocomplete="email"></div></div><label for="goal">Course, professional role or learning goal</label><input id="goal" maxlength="500" value="${esc(state.identity.goal)}"><label for="reflection">Reflection and next learning step</label><textarea id="reflection" rows="3" maxlength="3000" placeholder="What did you learn, and what will you practise next?">${esc(state.reflection)}</textarea><p class="small">Identity fields are kept locally and included in your review record. They are not automatically sent to the AI tutor.</p></section><section class="card"><h2>Review before sharing</h2><p>${record.attempts.filter((a) => a.completedAt).length} completed practice attempt(s) \xB7 ${state.conversation.length} conversation entries \xB7 ${state.activities.length} practical activities</p><p class="small">Original draft questions, provisional fixed-key scoring and AI teaching need external review. These are unsupervised learning records, not certificates. Neither recipient has reviewed this record; any accreditation or CPD award is their decision.</p><details><summary>Preview the complete record to be attached</summary><pre id="recordPreview" class="record-preview">${esc(text)}</pre></details><div class="actions"><button id="exportRecord">Export learning record\u2026</button></div><label for="recipient">Ask for external review</label><select id="recipient"><option>support@statsdirect.com</option><option>chil@liverpool.ac.uk</option></select><label id="mailConsent"><input id="consent" type="checkbox"><span>I have reviewed the record and want to include the full conversation and practice answers in an email to this recipient.</span></label><div class="actions"><button id="emailRecord" class="primary" disabled>Prepare email draft\u2026</button></div><p class="small">Opens Mail with the record attached. You review and send the message. No automatic submission, University marking service or CPD award is connected.</p></section>`;
+    $("main").innerHTML = `<div class="eyebrow">YOUR LEARNING PORTFOLIO</div><h1>A record you can reflect on and share</h1><p class="subtle">Your answers, explanations, confidence, learning conversation and practical activities stay together. Prepare a review request when you are ready.</p><section class="card"><h2>About you and your learning</h2><div class="form-row"><div><label for="learnerName">Name for the reviewer</label><input id="learnerName" maxlength="120" value="${esc2(state.identity.name)}" autocomplete="name"></div><div><label for="learnerEmail">Reply email</label><input id="learnerEmail" type="email" maxlength="180" value="${esc2(state.identity.email)}" autocomplete="email"></div></div><label for="goal">Course, professional role or learning goal</label><input id="goal" maxlength="500" value="${esc2(state.identity.goal)}"><label for="reflection">Reflection and next learning step</label><textarea id="reflection" rows="3" maxlength="3000" placeholder="What did you learn, and what will you practise next?">${esc2(state.reflection)}</textarea><p class="small">Identity fields are kept locally and included in your review record. They are not automatically sent to the AI tutor.</p></section>${providerRecordHTML(state, workspace)}<section class="card"><h2>Review before sharing</h2><p>${record.attempts.filter((a) => a.completedAt).length} completed practice attempt(s) \xB7 ${state.conversation.length} conversation entries \xB7 ${state.activities.length} practical activities</p><p class="small">Original draft questions, provisional fixed-key scoring and AI teaching need external review. These are unsupervised learning records, not certificates. Any assessment decision or CPD recognition comes from your provider under their stated conditions.</p><details><summary>Preview the complete record to be attached</summary><pre id="recordPreview" class="record-preview">${esc2(text)}</pre></details><div class="actions"><button id="exportRecord">Export learning record\u2026</button></div><label for="recipient">Ask for external review</label><input id="recipient" type="email" maxlength="254" value="${esc2(state.training.reviewEmail)}" list="reviewRecipients"><datalist id="reviewRecipients"><option value="support@statsdirect.com"><option value="chil@liverpool.ac.uk"></datalist><label id="mailConsent"><input id="consent" type="checkbox"><span>I have reviewed the record and want to include the full conversation and practice answers in an email to this recipient.</span></label><div class="actions"><button id="emailRecord" class="primary" disabled>Prepare email draft\u2026</button></div><p class="small">Opens Mail with the record attached. You review and send the message. No automatic submission, University marking service or CPD award is connected.</p></section>`;
     for (const [id, key] of [["learnerName", "name"], ["learnerEmail", "email"], ["goal", "goal"]]) $(id).oninput = () => {
       state.identity[key] = $(id).value;
       save();
@@ -850,12 +1005,23 @@ ${c.text}` : c.text }));
       save();
       updatePreview();
     };
+    $("captureEvidence").onclick = () => {
+      if (native) post({ action: "captureLearningEvidence", documentID: $("evidenceDocument").value });
+      else notice("Open the Mac app to attach analysis evidence.");
+    };
+    $("importProviderReview").onclick = () => {
+      if (native) post({ action: "importProviderReview" });
+      else notice("Provider response import is available in the Mac app.");
+    };
     $("exportRecord").onclick = exportRecord;
     $("consent").onchange = () => {
       reviewApproved = $("consent").checked;
       $("emailRecord").disabled = !reviewApproved;
     };
-    $("recipient").onchange = () => {
+    $("recipient").oninput = () => {
+      state.training.reviewEmail = $("recipient").value;
+      save();
+      updatePreview();
       reviewApproved = false;
       $("consent").checked = false;
       $("emailRecord").disabled = true;
@@ -866,14 +1032,18 @@ ${c.text}` : c.text }));
         $("learnerEmail").reportValidity();
         return;
       }
-      const recipient = $("recipient").value;
+      const recipient = $("recipient").value.trim();
+      if (!validEmail(recipient)) {
+        notice("Enter a single valid assessment email address.");
+        return;
+      }
       if (native) post({ action: "email", recipient, ...exportPayload() });
       else notice("Email drafts with attachments are available in the Mac application. Export the record here and attach it yourself.");
     };
   }
   function renderOptions() {
     const o = state.learning;
-    $("main").innerHTML = `<div class="eyebrow">LEARNING OPTIONS</div><h1>Make this teaching fit your needs</h1><p class="subtle">Describe where you are starting and what you want to achieve. You can change these options as your confidence grows.</p><section class="card"><h2>Your goals and qualifications</h2><label for="optionProfile">Learning pathway</label><select id="optionProfile">${Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc(t.title)}</option>`).join("")}</select><label for="qualifications">Exams, courses or qualifications you are studying for</label><textarea id="qualifications" rows="2" maxlength="1200" placeholder="For example: MRCP Part 1, MRCGP AKT, DFPH/MFPH, MPH, an undergraduate module, or a professional qualification">${esc(o.qualifications)}</textarea><label for="needs">What do you need help learning?</label><textarea id="needs" rows="3" maxlength="2500" placeholder="Describe concepts you find difficult, analyses you want to understand, and what you would like to be able to do.">${esc(o.needs)}</textarea><label for="priorKnowledge">Your previous experience with statistics and epidemiology</label><textarea id="priorKnowledge" rows="2" maxlength="1500" placeholder="A starting point helps the tutor pitch explanations at the right level.">${esc(o.priorKnowledge)}</textarea><div class="form-row"><div><label for="targetDate">Target exam or completion date (optional)</label><input id="targetDate" type="date" value="${esc(o.targetDate)}"></div><div><label for="optionStage">Confidence with R</label><select id="optionStage">${Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></div></div></section><section class="card"><h2>A course pack from your tutor</h2><p>Import course notes, learning outcomes, worked examples and terminology. The tutor will consult relevant extracts and cite their document or page.</p><p>${coursePack ? `<strong>${esc(coursePack.title)}</strong> \xB7 ${coursePack.documents.length} document(s) or pages imported` : "No course pack is attached."}</p>${coursePack ? `<details><summary>Included materials</summary><ul>${coursePack.documents.map((d) => `<li>${esc(d.title)}</li>`).join("")}</ul></details>` : ""}<button id="importCourse">${coursePack ? "Replace course pack\u2026" : "Import course pack\u2026"}</button><p class="small">PDF, Markdown, plain text or a StatsDirect JSON pack. Notes stay on this Mac; relevant text excerpts are included when you send a question to OpenAI using your ChatGPT account. Importing does not retrain the model or turn course marking guidance into accredited assessment.</p></section><section class="card"><h2>Foundations and priorities</h2><p>Epidemiological principles and causal inference are included in every learning pathway and practice set.</p><div class="focus-grid">${[["epidemiology", "Epidemiology and study design"], ["causal", "Causal inference and bias"], ["interpretation", "Interpreting results and uncertainty"], ["methods", "Choosing and checking statistical methods"], ["r", "R coding and reproducible analysis"], ["communication", "Explaining evidence to others"]].map(([id, title]) => `<label class="option"><input type="checkbox" name="focus" value="${id}" ${o.focus.includes(id) ? "checked" : ""} ${["epidemiology", "causal"].includes(id) ? "disabled" : ""}><span>${title}</span></label>`).join("")}</div><label for="style">How would you like the tutor to help?</label><select id="style">${["Worked examples and questions", "Step-by-step explanations", "Exam-style questions with feedback", "Discuss my reasoning", "Connect StatsDirect to R"].map((t) => `<option ${o.style === t ? "selected" : ""}>${t}</option>`).join("")}</select><p class="small">These learning needs and exam goals are included with questions you send to OpenAI using your ChatGPT account. Your name and reply email in the review record are not automatically attached.</p><div class="actions"><button id="applyOptions" class="primary">Save options and return to learning</button></div><p id="optionSaved" class="small" role="status">Changes are saved on this device as you edit.</p></section>`;
+    $("main").innerHTML = `<div class="eyebrow">LEARNING OPTIONS</div><h1>Make this teaching fit your needs</h1><p class="subtle">Describe where you are starting and what you want to achieve. You can change these options as your confidence grows.</p><section class="card"><h2>Your goals and qualifications</h2><label for="optionProfile">Learning pathway</label><select id="optionProfile">${Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc2(t.title)}</option>`).join("")}</select><label for="qualifications">Exams, courses or qualifications you are studying for</label><textarea id="qualifications" rows="2" maxlength="1200" placeholder="For example: MRCP Part 1, MRCGP AKT, DFPH/MFPH, MPH, an undergraduate module, or a professional qualification">${esc2(o.qualifications)}</textarea><label for="needs">What do you need help learning?</label><textarea id="needs" rows="3" maxlength="2500" placeholder="Describe concepts you find difficult, analyses you want to understand, and what you would like to be able to do.">${esc2(o.needs)}</textarea><label for="priorKnowledge">Your previous experience with statistics and epidemiology</label><textarea id="priorKnowledge" rows="2" maxlength="1500" placeholder="A starting point helps the tutor pitch explanations at the right level.">${esc2(o.priorKnowledge)}</textarea><div class="form-row"><div><label for="targetDate">Target exam or completion date (optional)</label><input id="targetDate" type="date" value="${esc2(o.targetDate)}"></div><div><label for="optionStage">Confidence with R</label><select id="optionStage">${Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc2(t)}</option>`).join("")}</select></div></div></section><section class="card"><h2>A course pack from your tutor</h2><p>Import course notes, learning outcomes, worked examples and terminology. The tutor will consult relevant extracts and cite their document or page.</p><p>${coursePack ? `<strong>${esc2(coursePack.title)}</strong> \xB7 ${coursePack.documents.length} document(s) or pages imported` : "No course pack is attached."}</p>${coursePack ? `<details><summary>Included materials</summary><ul>${coursePack.documents.map((d) => `<li>${esc2(d.title)}</li>`).join("")}</ul></details>` : ""}<button id="importCourse">${coursePack ? "Replace course pack\u2026" : "Import course pack\u2026"}</button> <button id="exampleCourse">Use example provider course</button><p class="small">PDF, Markdown, plain text or a StatsDirect JSON pack. Provider packs can add lessons, example data and questions. Replacing a pack keeps your saved answers and archives the old pack. Notes stay on this Mac; relevant text excerpts are included when you send a question to OpenAI using your ChatGPT account. Importing does not retrain the model or turn course marking guidance into accredited assessment.</p></section>${trainingHTML(state, resources)}<section class="card"><h2>Foundations and priorities</h2><p>Epidemiological principles and causal inference are included in every learning pathway and practice set.</p><div class="focus-grid">${[["epidemiology", "Epidemiology and study design"], ["causal", "Causal inference and bias"], ["interpretation", "Interpreting results and uncertainty"], ["methods", "Choosing and checking statistical methods"], ["r", "R coding and reproducible analysis"], ["communication", "Explaining evidence to others"]].map(([id, title]) => `<label class="option"><input type="checkbox" name="focus" value="${id}" ${o.focus.includes(id) ? "checked" : ""} ${["epidemiology", "causal"].includes(id) ? "disabled" : ""}><span>${title}</span></label>`).join("")}</div><label for="style">How would you like the tutor to help?</label><select id="style">${["Worked examples and questions", "Step-by-step explanations", "Exam-style questions with feedback", "Discuss my reasoning", "Connect StatsDirect to R"].map((t) => `<option ${o.style === t ? "selected" : ""}>${t}</option>`).join("")}</select><p class="small">These learning needs and exam goals are included with questions you send to OpenAI using your ChatGPT account. Your name and reply email in the review record are not automatically attached.</p><div class="actions"><button id="applyOptions" class="primary">Save options and return to learning</button></div><p id="optionSaved" class="small" role="status">Changes are saved on this device as you edit.</p></section>`;
     for (const id of ["qualifications", "needs", "priorKnowledge", "targetDate", "style"]) $(id).oninput = () => {
       o[id] = $(id).value;
       save();
@@ -890,17 +1060,22 @@ ${c.text}` : c.text }));
       o.focus = Array.from(document.querySelectorAll("[name=focus]:checked")).map((x) => x.value);
       save();
     });
+    $("exampleCourse").onclick = () => {
+      if (native) post({ action: "exampleCourse" });
+      else notice("Open the Mac app to load the example provider course.");
+    };
     $("importCourse").onclick = () => {
       if (native) post({ action: "importCoursePack" });
       else notice("Course pack import is available in the Mac application.");
     };
+    bindTraining(state, resources, { save, post, notice, native });
     $("applyOptions").onclick = () => {
       activity("Updated learning needs and exam/qualification goals");
       navigate("study");
     };
   }
   function renderSources() {
-    $("main").innerHTML = `<div class="eyebrow">EXAMINATION EXAMPLES</div><h1>Learn from the way questions are asked</h1><p class="subtle">Published examples inform our choice of topics and question styles. Our practice questions use original wording and fictional data; they are not endorsed by the examining bodies.</p><section class="card">${examSources.map((source) => `<div class="review-line"><h2><a href="${esc(source.url)}" target="_blank" rel="noopener">${esc(source.title)} \u2197</a></h2><p>${esc(source.note)}</p></div>`).join("")}</section><section class="card"><h2>Practise explaining a result</h2><p>For public-health examinations, build the ability to discuss evidence with a colleague or member of the public as well as answering knowledge questions. The tutor can role-play a fictional service manager and give formative feedback.</p><button id="communication" class="primary">Prepare a conversation exercise</button></section>`;
+    $("main").innerHTML = `<div class="eyebrow">EXAMINATION EXAMPLES</div><h1>Learn from the way questions are asked</h1><p class="subtle">Published examples inform our choice of topics and question styles. Our practice questions use original wording and fictional data; they are not endorsed by the examining bodies.</p><section class="card">${examSources.map((source) => `<div class="review-line"><h2><a href="${esc2(source.url)}" target="_blank" rel="noopener">${esc2(source.title)} \u2197</a></h2><p>${esc2(source.note)}</p></div>`).join("")}</section><section class="card"><h2>Practise explaining a result</h2><p>For public-health examinations, build the ability to discuss evidence with a colleague or member of the public as well as answering knowledge questions. The tutor can role-play a fictional service manager and give formative feedback.</p><button id="communication" class="primary">Prepare a conversation exercise</button></section>`;
     $("communication").onclick = () => {
       state.draft = communicationPrompt;
       state.lesson = "precision";
@@ -952,7 +1127,7 @@ ${c.text}` : c.text }));
     teachingSupport();
     state.lesson = button.dataset.lesson;
     state.view = "study";
-    ensureLessonPrompt(state, lessons_default);
+    ensureLessonPrompt(state, allLessons());
     activity("Opened lesson: " + lesson().title);
     render();
   };
@@ -964,7 +1139,7 @@ ${c.text}` : c.text }));
       try {
         loaded = false;
         state = value ? restorePortfolio(value) : newPortfolio();
-        if (!lessons_default.some((l) => l.id === state.lesson)) state.lesson = "epidemiology";
+        if (!state.lesson.startsWith("course:") && !lessons_default.some((l) => l.id === state.lesson)) state.lesson = "epidemiology";
         labelStudyGuides(state, lessons_default);
         if (independent()) state.view = "practice";
         welcome();
@@ -1020,7 +1195,36 @@ ${c.text}` : c.text }));
     exportRecord,
     coursePack(value) {
       coursePack = value;
-      if (loaded && state.view === "options") renderOptions();
+      adoptCourse(state, value);
+      if (loaded) {
+        if (!allLessons().some((l) => l.id === state.lesson)) state.lesson = "epidemiology";
+        save();
+        render();
+      }
+    },
+    resources(value) {
+      const draft = $("resourceURLs")?.value;
+      const top = $("main").scrollTop;
+      resources = value;
+      if (loaded && state.view === "options") {
+        renderOptions();
+        if (draft) $("resourceURLs").value = draft;
+        $("main").scrollTop = top;
+      }
+    },
+    providerReview(value) {
+      try {
+        addProviderReview(state, value);
+        activity("Imported provider assessment response (not authenticated)");
+        render();
+      } catch (e) {
+        notice(e.message);
+      }
+    },
+    evidence(value) {
+      state.evidence.push(value);
+      activity("Attached analysis evidence: " + value.title);
+      renderRecord();
     },
     showOptions() {
       if (loaded) navigate("options");

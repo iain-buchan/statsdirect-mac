@@ -1,4 +1,4 @@
-# StatsDirect Learning (macOS prototype 0.3.8)
+# StatsDirect Learning (macOS prototype 0.3.15)
 
 Open **Help → Learning** or **Help → Learning Options**. This is an integrated closable Mac document: original Windows artwork, seven lessons, five learner pathways, 30 original draft MCQs, local persistence, real StatsDirect analysis forms and seven runnable base-R examples with plots. Epidemiology and causal inference are shared foundations. Options include learning needs, named exams/qualifications, prior knowledge, R experience, target date, priorities and teaching style.
 
@@ -33,13 +33,13 @@ Study-guide questions carry their lesson title. Prompts from another lesson are 
 
 Supported practice gives feedback after each answer, recording hints and in-app assistance. Independent practice disables in-app tutoring and withholds keys/results until completion or early termination. First answers, reasoning, confidence, question snapshots and provisional scores are saved, together with the complete teaching conversation, activity log and reflection. Existing sessions freeze their question version when created. This is unsupervised practice, not a secure examination. Fixed answer keys score MCQs; free-text reasoning and AI explanations are not independently marked.
 
-**My learning record** previews the exact attachment, exports TXT or JSON and opens a native Mail draft addressed to the learner's choice of support@statsdirect.com or chil@liverpool.ac.uk. Sending is completed in Mail. If no Mail sharing service is available, Finder reveals the attachment for manual email. The app cannot verify dispatch, delivery, independent review or CPD accreditation. No email is sent during automated verification.
+**My learning record** previews the record, exports TXT or JSON, and opens a native Mail draft with both formats attached, addressed to the learner's chosen assessment recipient (including a course provider). Sending is completed in Mail. If no Mail sharing service is available, Finder reveals the attachment for manual email. The app cannot verify dispatch, delivery, independent review or CPD accreditation. No email is sent during automated verification.
 
 Records and course packs are stored in `~/Library/Application Support/<bundle-id>/Learning/` with private file permissions. A malformed existing record is not overwritten. Browser preview uses separate browser-local storage and does not sign in or connect to ChatGPT. Test builds use a separate bundle ID and storage.
 
 ## Course packs and sources
 
-See [the tutor pack guide](../Docs/Learn/CoursePack/README.md) and its JSON template. Import searchable PDF, UTF-8 Markdown/text or JSON. Retrieval uses local keyword ranking, so relevance and source coverage need review; this is not model fine-tuning. See [the examination-source notes](../Docs/Learn/EXAM-SOURCES.md) for precise access limits and the original-question policy.
+See [the tutor pack guide](../Docs/Learn/CoursePack/README.md), working provider-course example and returned-assessment template. Learning Options includes provider details and six starter open-resource URLs. Provider packs add ordered lessons, numeric examples, R scripts opened without execution and original MCQs. Practical submissions, question versions, attached report/R text snapshots and provider-supplied responses are retained in the record. Returned files are matched by portfolio ID and labelled unauthenticated. Import searchable PDF, UTF-8 Markdown/text or JSON. Retrieval uses local keyword ranking, so relevance and source coverage need review; this is not model fine-tuning. See [the examination-source notes](../Docs/Learn/EXAM-SOURCES.md) for precise access limits and the original-question policy.
 
 ## Build and check
 

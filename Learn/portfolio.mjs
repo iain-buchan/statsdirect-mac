@@ -1,13 +1,14 @@
 import {questions,tracks,bankVersion} from './bank.mjs';
 import {learnerResult,sessionQuestion} from './quiz.mjs';
+import {trainingDefaults} from './provider-course.mjs';
 export const stages = {menus:'Start with menus',bridge:'Connect menus to R',coding:'Practise R coding'};
 export function newPortfolio() {
-  return {schemaVersion:2,id:crypto.randomUUID(),startedAt:new Date().toISOString(),profile:'foundation',stage:'menus',lesson:'epidemiology',view:'study',identity:{name:'',email:'',goal:''},learning:{needs:'',qualifications:'',priorKnowledge:'',targetDate:'',focus:['epidemiology','causal'],style:'Worked examples and questions'},conversation:[],activities:[],attempts:[],quiz:null,reflection:'',draft:''};
+  return {schemaVersion:2,id:crypto.randomUUID(),startedAt:new Date().toISOString(),profile:'foundation',stage:'menus',lesson:'epidemiology',view:'study',identity:{name:'',email:'',goal:''},learning:{needs:'',qualifications:'',priorKnowledge:'',targetDate:'',focus:['epidemiology','causal'],style:'Worked examples and questions'},training:trainingDefaults(),courseKey:'',courseWork:[],workDrafts:{},providerReviews:[],evidence:[],conversation:[],activities:[],attempts:[],quiz:null,reflection:'',draft:''};
 }
 export function restorePortfolio(value) {
   const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
   const strings=(v,keys)=>object(v)&&keys.every(k=>typeof v[k]==='string');
-  const validQuestion=q=>strings(q,['id','topic','stem','correct','explanation','hint','lesson','help'])&&Array.isArray(q.options)&&q.options.length===5&&q.options.every(o=>strings(o,['id','text','feedback']))&&q.options.filter(o=>o.id===q.correct).length===1;
+  const validQuestion=q=>strings(q,['id','topic','stem','correct','explanation','hint','lesson','help'])&&Array.isArray(q.options)&&q.options.length>=2&&q.options.length<=8&&q.options.every(o=>strings(o,['id','text','feedback']))&&q.options.filter(o=>o.id===q.correct).length===1;
   const validSession=s=>{
     if(!strings(s,['id','track','mode','startedAt'])||!tracks[s.track]||!['learn','test'].includes(s.mode)||!Array.isArray(s.questionIds)||!s.questionIds.length||new Set(s.questionIds).size!==s.questionIds.length||!Array.isArray(s.answers)||s.answers.length>s.questionIds.length||!['hints','explanations'].every(k=>Array.isArray(s[k])&&s[k].every(id=>s.questionIds.includes(id))))return false;
     if(s.questionSnapshots!==undefined&&(!Array.isArray(s.questionSnapshots)||s.questionSnapshots.length!==s.questionIds.length||!s.questionSnapshots.every(validQuestion)||new Set(s.questionSnapshots.map(q=>q.id)).size!==s.questionIds.length))return false;
@@ -17,6 +18,7 @@ export function restorePortfolio(value) {
   };
   const defaults=newPortfolio();
   const learning=value?.learning===undefined?defaults.learning:value.learning;
+  if(value?.training!==undefined&&!strings(value.training,Object.keys(trainingDefaults()))||value?.courseKey!==undefined&&typeof value.courseKey!=='string'||value?.courseWork!==undefined&&(!Array.isArray(value.courseWork)||!value.courseWork.every(w=>strings(w,['id','at','courseKey','lessonID','lessonTitle','objective','task','text','status'])&&strings(w.training,Object.keys(trainingDefaults()))))||value?.workDrafts!==undefined&&(!object(value.workDrafts)||!Object.values(value.workDrafts).every(x=>typeof x==='string'))||value?.providerReviews!==undefined&&(!Array.isArray(value.providerReviews)||!value.providerReviews.every(r=>strings(r,['portfolioID','provider','reviewer','reviewedAt','decision','feedback','verification'])) )||value?.evidence!==undefined&&(!Array.isArray(value.evidence)||!value.evidence.every(r=>strings(r,['title','at','text']))))throw Error('The saved course record is incompatible. It has not been overwritten.');
   if (!strings(value,['id','startedAt','profile','stage','lesson','view','reflection','draft']) || value.schemaVersion!==2 || !tracks[value.profile] || !stages[value.stage] || !['study','options','sources','practice','record'].includes(value.view) || !strings(value.identity,['name','email','goal']) || !strings(learning,['needs','qualifications','priorKnowledge','targetDate','style']) || !Array.isArray(learning.focus) || !learning.focus.every(x=>typeof x==='string') || !Array.isArray(value.conversation) || !value.conversation.every(c=>strings(c,['id','at','role','text','source'])&&['user','assistant'].includes(c.role)&&['lessonId','lessonTitle'].every(k=>c[k]===undefined||typeof c[k]==='string')&&(c.lessonPrompt===undefined||typeof c.lessonPrompt==='boolean')&&(!c.workspaceSources||Array.isArray(c.workspaceSources)&&c.workspaceSources.every(s=>typeof s==='string'))&&(!c.courseSources||Array.isArray(c.courseSources)&&c.courseSources.every(s=>strings(s,['id','title'])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz!==null&&!validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every(a=>strings(a,['at','text']))) throw new Error('The saved learning record is incompatible. It has not been overwritten.');
   return {...defaults,...value,learning:{...learning,focus:[...new Set(['epidemiology','causal',...learning.focus])]}};
 }
@@ -33,22 +35,28 @@ export function reviewRecord(state) {
   }));
   return {schemaVersion:2,exportedAt:new Date().toISOString(),portfolioID:state.id,startedAt:state.startedAt,
     learner:structuredClone(state.identity),learningOptions:structuredClone(state.learning),pathway:tracks[state.profile].title,rExperience:stages[state.stage],
-    bankVersion,questionSource:'Original StatsDirect teaching drafts; subject-expert review pending. Not official examination questions.',
+    bankVersion,questionSource:'StatsDirect items are original teaching drafts with subject-expert review pending. Provider items retain the course and version recorded with each attempt. These are not official examination questions.',
     marking:'Provisional fixed-key MCQ scoring: 1 correct, 0 otherwise. First answers retained. Confidence and free-text reasoning are not graded. Independent practice is unsupervised and cannot certify exam readiness.',
-    reviewStatus:'Not independently reviewed. No accreditation or CPD points awarded. Email preparation does not confirm delivery or acceptance.',
+    reviewStatus:'No accreditation or CPD points awarded by StatsDirect. Imported provider responses are recorded separately and are not authenticated. Email preparation does not confirm delivery or acceptance.',
+    training:structuredClone(state.training),courseKey:state.courseKey,courseWork:structuredClone(state.courseWork),providerReviews:structuredClone(state.providerReviews),evidence:structuredClone(state.evidence),
     attempts,conversation:structuredClone(state.conversation),activities:structuredClone(state.activities),reflection:state.reflection};
 }
 export function reviewText(record) {
   const lines=['STATSDIRECT — LEARNING RECORD','External review request',`Prepared: ${record.exportedAt}`,`Record: ${record.portfolioID}`,`Started: ${record.startedAt}`,'',`Learner: ${record.learner.name || '(not supplied)'}`,`Reply email: ${record.learner.email || '(not supplied)'}`,`Learning goal: ${record.learner.goal || '(not supplied)'}`,`Pathway: ${record.pathway}`,`R experience: ${record.rExperience}`,`Exams / qualifications: ${record.learningOptions?.qualifications || '(not supplied)'}`,`Learning needs: ${record.learningOptions?.needs || '(not supplied)'}`,`Prior knowledge: ${record.learningOptions?.priorKnowledge || '(not supplied)'}`,`Target date: ${record.learningOptions?.targetDate || '(not supplied)'}`,`Focus: ${(record.learningOptions?.focus || []).join(', ')}`,`Preferred teaching style: ${record.learningOptions?.style || ''}`,'',record.questionSource,record.marking,record.reviewStatus,'','PRACTICE ATTEMPTS'];
   for(const a of record.attempts) {
+    if(a.course)lines.push(`Provider assessment: ${a.course.title} · ${a.course.provider} · version ${a.course.version}`);
     lines.push('',`${tracks[a.track].title} — ${a.mode==='test'?'Independent practice (unsupervised)':'Supported practice'} — ${a.status}`,`Started: ${a.startedAt} | Completed: ${a.completedAt || 'not completed'}`,a.result?`Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted`:`Answered: ${a.answers.length}/${a.questionIds.length}`);
     for(const q of a.questionSnapshots) {
       const answer=a.answers.find(x=>x.questionId===q.id);
-      lines.push('',`${q.id} v${q.version} — ${q.topic}`,q.stem,...q.options.map(o=>`${o.id}. ${o.text}`),`First answer: ${answer?.choice || 'not answered'} | Key: ${q.correct || 'withheld until the attempt ends'}`,`Confidence: ${answer?.confidence || 'not recorded'} | Assisted: ${answer?.assisted??false}`,`Reasoning: ${answer?.reasoning || '(none)'}`,`Feedback: ${q.explanation || 'withheld until the attempt ends'}`,`Help: https://www.statsdirect.com/help/${q.help}`);
+      lines.push('',`${q.id} v${q.version} — ${q.topic}`,q.stem,...q.options.map(o=>`${o.id}. ${o.text}`),`First answer: ${answer?.choice || 'not answered'} | Key: ${q.correct || 'withheld until the attempt ends'}`,`Confidence: ${answer?.confidence || 'not recorded'} | Assisted: ${answer?.assisted??false}`,`Reasoning: ${answer?.reasoning || '(none)'}`,`Feedback: ${q.explanation || 'withheld until the attempt ends'}`,q.help?`Help: https://www.statsdirect.com/help/${q.help}`:'');
     }
   }
   lines.push('','COMPLETE LEARNING CONVERSATION');
-  for(const c of record.conversation) lines.push('',`[${c.at}] ${c.role==='user'?'Learner':'Tutor'} — ${c.source}${c.lessonTitle?' · '+c.lessonTitle:''}${c.model?' / '+c.model:''}`,c.text,...(c.courseSources??[]).map(s=>'Course reference: '+s.id+' — '+s.title),...(c.workspaceSources??[]).map(s=>'StatsDirect context: '+s));
+  for(const c of record.conversation) lines.push('',`[${c.at}] ${c.role==='user'?'Learner':'Tutor'} — ${c.source}${c.lessonTitle?' · '+c.lessonTitle:''}${c.model?' / '+c.model:''}`,c.text,...(c.courseSources??[]).map(s=>'Course reference: '+s.id+' — '+s.title+(s.url?' · '+s.url:'')+(s.retrievedAt?' · retrieved '+s.retrievedAt:'')),...(c.workspaceSources??[]).map(s=>'StatsDirect context: '+s));
+  lines.push('','PROVIDER AND COURSE',...Object.entries(record.training??{}).map(([k,v])=>`${k}: ${v}`),'','PRACTICAL SUBMISSIONS');
+  for(const w of record.courseWork??[])lines.push('',`${w.at} · ${w.training.courseTitle} v${w.training.courseVersion} · ${w.lessonTitle}`,`Objective: ${w.objective}`,`Task: ${w.task}`,w.text,w.status);
+  lines.push('','ATTACHED ANALYSIS EVIDENCE');for(const e of record.evidence??[])lines.push('',`${e.at} · ${e.title}`,e.text);
+  lines.push('','RETURNED PROVIDER ASSESSMENTS');for(const r of record.providerReviews??[])lines.push('',`${r.provider} · ${r.reviewer} · ${r.reviewedAt}`,`Decision: ${r.decision}`,r.feedback,`Credit statement supplied: ${r.creditStatement||'(none)'}`,`Reference: ${r.reference||'(none)'}`,r.verification);
   lines.push('','LEARNING ACTIVITIES');
   for(const a of record.activities) lines.push(`[${a.at}] ${a.text}`);
   lines.push('','LEARNER REFLECTION',record.reflection || '(not supplied)');

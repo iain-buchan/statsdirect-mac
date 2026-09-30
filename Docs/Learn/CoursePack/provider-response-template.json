@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "portfolioID": "COPY THE RECORD IDENTIFIER HERE",
+  "courseKey": "service-improvement-demo:1.0",
+  "provider": "Your training organisation",
+  "reviewer": "Reviewer name",
+  "reviewedAt": "2026-09-30",
+  "decision": "Further work requested",
+  "feedback": "Explain the decision and the next learning step.",
+  "creditStatement": "State any actual award and scheme, or leave blank.",
+  "reference": "Your assessment reference"
+}

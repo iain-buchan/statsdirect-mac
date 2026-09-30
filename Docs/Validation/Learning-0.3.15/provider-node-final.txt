@@ -1,0 +1,25 @@
+✔ published lessons and archived questions use the maintained content (3.333417ms)
+✔ reviewed numerical choices agree with independently expressed R calculations (186.878917ms)
+✔ 30 original draft questions map to five pathways, valid choices, real help and engine operations (1.212792ms)
+✔ independent practice hides answer keys and feedback from record previews until ended (3.724333ms)
+✔ provisional scores, support, first answers and full conversation survive reopen and export (1.160042ms)
+✔ bundled R examples run without packages, use exact fictional rows, and produce plots (1125.632583ms)
+✔ saved goals round trip; malformed nested records are rejected before replacement (1.578083ms)
+✔ a saved attempt keeps its wording and answer key when the question bank changes (0.560125ms)
+✔ worksheet provenance survives portfolio restore and text export (0.515042ms)
+✔ reopening paired lesson labels and collapses a legacy epidemiology prompt without deleting history (12.661041ms)
+✔ switching lessons supplies the right prompt and tags model history with its original topic (0.47075ms)
+✔ the paired lesson establishes actual pairing and upgrades its older prompt without rewriting it (0.177583ms)
+✔ provider lessons, submissions, keys and metadata survive changes to the active pack (14.85025ms)
+✔ provider independent practice withholds keys and hints from exports until finished (0.610667ms)
+✔ provider feedback binds to the learner record without asserting authenticity or an award (0.236334ms)
+✔ resource provenance and attached R evidence persist in the complete review record (0.330792ms)
+✔ old records migrate; unsafe recipient and link formats cannot be used (1.11675ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1403.646709

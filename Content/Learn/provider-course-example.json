@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 2,
+  "id": "service-improvement-demo",
+  "version": "1.0",
+  "title": "Data skills for a public-health service team \u2014 example course",
+  "provider": {
+    "name": "Example training provider (demonstration)",
+    "reviewEmail": "support@statsdirect.com",
+    "assessmentRequirements": "Complete the three practical tasks and the independent question set. Submit your interpretation, relevant report/R output and a reflection for tutor review. This demonstration is not an accredited course.",
+    "cpdStatement": "No CPD credit is attached to this example. A real provider must specify its own recognised scheme and assessment conditions."
+  },
+  "documents": [
+    {
+      "id": "course-notes",
+      "title": "Example provider notes: interpreting service data",
+      "text": "Start with a defined population, outcome and time period. Check how the observations were collected. Repeated measurements on the same people are paired; different people measured in two periods are not automatically paired. A change after training is an association in a before-and-after study. Without a suitable comparison, other changes, selection or regression to the mean can explain it. Report the size and uncertainty of a change and its practical implications, not only a P value."
+    }
+  ],
+  "resourceURLs": [
+    "https://openintro-ims.netlify.app/data-design",
+    "https://openintro-ims.netlify.app/inference-paired-means"
+  ],
+  "lessons": [
+    {
+      "id": "question",
+      "title": "Define a useful service question",
+      "topic": "Study design and epidemiology",
+      "objective": "Define an outcome, target population, unit of observation and comparison before choosing an analysis.",
+      "summary": "A public-health team wants to reduce the time needed to prepare a weekly service report. The same eight staff members time one comparable report before and one after training. These are fictional data.",
+      "steps": "Identify the measured unit and why the observations form pairs. Consider whether one report per staff member represents routine performance.",
+      "challenge": "Specify the population, outcome, units and comparison. Give one limitation of using these eight staff members to generalise to other teams.",
+      "readingURLs": [
+        "https://openintro-ims.netlify.app/data-design"
+      ]
+    },
+    {
+      "id": "paired",
+      "title": "From a worksheet to a paired analysis",
+      "topic": "Paired measurements",
+      "objective": "Analyse within-person differences and explain the estimated change and confidence interval.",
+      "summary": "Each row represents the same staff member before and after training. Times are minutes per report. Positive before-minus-after differences represent shorter report preparation after training.",
+      "steps": "Choose Try in StatsDirect and run the paired t test. Inspect the differences, consider the assumptions, and report the mean reduction with its confidence interval. Eight pairs provide limited information about the distribution of differences.",
+      "challenge": "Record the estimated mean reduction and 95% confidence interval. Explain the meaning of pairing and one reason to be cautious about interpretation.",
+      "operation": "TPaired",
+      "columns": [
+        {
+          "title": "Before training (minutes)",
+          "values": [
+            12,
+            11,
+            15,
+            14,
+            10,
+            13,
+            16,
+            12
+          ]
+        },
+        {
+          "title": "After training (minutes)",
+          "values": [
+            10,
+            10,
+            11,
+            13,
+            9,
+            10,
+            14,
+            10
+          ]
+        }
+      ],
+      "r": "before <- c(12,11,15,14,10,13,16,12)\nafter <- c(10,10,11,13,9,10,14,10)\ndata <- data.frame(before, after)\nprint(data)\nprint(t.test(data$before, data$after, paired=TRUE, conf.level=0.95))\nplot(data$before-data$after, ylab=\"Reduction in minutes\", xlab=\"Staff member\")\nabline(h=0, lty=2)\n",
+      "help": "parametric_methods/paired_t.htm",
+      "readingURLs": [
+        "https://openintro-ims.netlify.app/inference-paired-means"
+      ]
+    },
+    {
+      "id": "interpret",
+      "title": "Separate improvement from a causal claim",
+      "topic": "Causal inference and communication",
+      "objective": "Distinguish an observed change from evidence that training caused it.",
+      "summary": "A before-and-after comparison can show a change within staff. A paired t test alone does not establish why it occurred. Changes in report complexity, software or workload could also matter.",
+      "steps": "Consider a concurrent comparison group, consistent outcome measurement and a suitable allocation design for a future evaluation. Explain the implications in language a service manager can use.",
+      "challenge": "Write a short recommendation to the manager, including uncertainty, one alternative explanation and a stronger design for evaluating the training. Add a reflection on how this changes your usual use of Excel."
+    }
+  ],
+  "questions": [
+    {
+      "id": "pairing",
+      "topic": "Service evaluation",
+      "stem": "Which analysis directly uses the matching in the report-preparation example?",
+      "options": [
+        {
+          "id": "A",
+          "text": "A paired analysis of each staff member\u2019s before-minus-after difference"
+        },
+        {
+          "id": "B",
+          "text": "An unpaired analysis treating the two sets as unrelated"
+        },
+        {
+          "id": "C",
+          "text": "A chi-square test of the two means"
+        }
+      ],
+      "correct": "A",
+      "explanation": "Each staff member is measured twice. The paired analysis uses the within-person difference. Pairing depends on the design, not whether the two columns have the same length.",
+      "objective": "Interpret a paired service evaluation with appropriate uncertainty and causal caution."
+    },
+    {
+      "id": "cause",
+      "topic": "Service evaluation",
+      "stem": "The mean preparation time is lower after training. Which conclusion is justified by this before-and-after study alone?",
+      "options": [
+        {
+          "id": "A",
+          "text": "Training must have caused the reduction"
+        },
+        {
+          "id": "B",
+          "text": "An observed reduction is compatible with training having an effect, but other explanations remain"
+        },
+        {
+          "id": "C",
+          "text": "A small P value rules out all sources of bias"
+        }
+      ],
+      "correct": "B",
+      "explanation": "The observed change does not by itself identify a causal effect. A statistical test does not remove confounding or other systematic differences between time periods.",
+      "objective": "Interpret a paired service evaluation with appropriate uncertainty and causal caution."
+    },
+    {
+      "id": "uncertainty",
+      "topic": "Service evaluation",
+      "stem": "What should accompany the estimated average reduction when reporting the result?",
+      "options": [
+        {
+          "id": "A",
+          "text": "Only whether P is less than 0.05"
+        },
+        {
+          "id": "B",
+          "text": "A claim that every staff member will improve by exactly the average"
+        },
+        {
+          "id": "C",
+          "text": "The confidence interval, units, study limitations and practical meaning"
+        }
+      ],
+      "correct": "C",
+      "explanation": "An estimate with its confidence interval communicates magnitude and uncertainty under the analysis assumptions. The mean is not a promise about each individual.",
+      "objective": "Interpret a paired service evaluation with appropriate uncertainty and causal caution."
+    }
+  ]
+}

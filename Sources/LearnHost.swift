@@ -47,6 +47,7 @@ extension Viewer {
                     catch { self.learningScript(doc,"notice",error.localizedDescription) }
                 }
                 coursePackInfo(doc)
+                learningResourcesInfo(doc)
                 if doc.initialLearningView == "options" { doc.initialLearningView = nil; learningScript(doc,"showOptions",NSNull()) }
             } catch { learningScript(doc,"loadError",error.localizedDescription) }
         case "save":
@@ -61,6 +62,10 @@ extension Viewer {
                 learningScript(doc,"saved",body["revision"] ?? 0)
             } catch { learningScript(doc,"notice","Learning record was not saved: " + error.localizedDescription) }
         case "importCoursePack": importCoursePack(doc)
+        case "exampleCourse": useExampleCourse(doc)
+        case "importProviderReview": importProviderReview(doc)
+        case "captureLearningEvidence": captureLearningEvidence(doc,documentID:body["documentID"] as? String ?? "")
+        case "addResources", "removeResource", "toggleResource", "loadResources": handleLearningResources(doc,body:body)
         case "workspace":
             guard doc.learningTask == nil else { return }
             if let choice = body["choice"] as? String, choice.isEmpty || choice == "__none__" || documents.contains(where:{$0.id == choice && $0.kind != "learn"}) { doc.learningSourceID = choice; UserDefaults.standard.set(choice == "__none__",forKey:"learningLessonsOnly") }
@@ -69,11 +74,11 @@ extension Viewer {
         case "ask": askLearningTutor(doc,body)
         case "cancel": doc.learningTask?.cancel(); doc.learningTask = nil; doc.learningRequestID = nil; chatGPTTutor.cancelReply(); learningScript(doc,"tutorError",["id":body["id"] ?? "","message":"Reply stopped. You can send another question."])
         case "help":
-            if let id = body["lesson"] as? String, let lesson = learningLessons.first(where:{$0["id"] as? String == id}), let help = lesson["help"] as? String {
+            if let id = body["lesson"] as? String, let lesson = (learningLessons + providerLessons).first(where:{$0["id"] as? String == id}), let help = lesson["help"] as? String, !help.isEmpty {
                 openHelp(root.appendingPathComponent("Help/" + help),title:lesson["title"] as? String ?? "Learning")
             }
         case "example", "r":
-            if let id = body["lesson"] as? String, let lesson = learningLessons.first(where:{$0["id"] as? String == id}) { openLearningExample(lesson,inR:action == "r") }
+            if let id = body["lesson"] as? String, let lesson = (learningLessons + providerLessons).first(where:{$0["id"] as? String == id}) { openLearningExample(lesson,inR:action == "r") }
         case "export": exportLearningRecord(doc,body:body,email:false)
         case "email": exportLearningRecord(doc,body:body,email:true)
         default: break
@@ -132,22 +137,36 @@ extension Viewer {
         func failure(_ message: String) { learningScript(doc,"tutorError",["id":id,"message":message]) }
         if let quiz = doc.learningState?["quiz"] as? [String:Any], quiz["mode"] as? String == "test", quiz["completedAt"] is NSNull { failure("Finish or end the independent practice before asking the tutor."); return }
         guard chatGPTTutor.account != nil else { failure("Choose Use my ChatGPT to connect your account, then send your question."); return }
-        guard let lessonID = body["lesson"] as? String, let lesson = learningLessons.first(where:{$0["id"] as? String == lessonID}),
+        guard let lessonID = body["lesson"] as? String, let lesson = (learningLessons + providerLessons).first(where:{$0["id"] as? String == lessonID}),
               let messages = body["messages"] as? [[String:String]], let profile = body["profile"] as? String, let stage = body["stage"] as? String else { return }
         var context = "Learner pathway: \(profile.prefix(100)). R experience: \(stage.prefix(100)).\n"
-        for field in ["title","objective","summary","challenge","steps","r"] { context += "\(field): \(lesson[field] as? String ?? "")\n" }
+        for field in ["title","objective","summary","challenge","steps","r"] { context += "\(field): \((lesson[field] as? String ?? "").prefix(field == "title" ? 200 : 1500))\n" }
         if let question = body["practiceContext"] as? String { context += "Practice discussion: \(question.prefix(6000))\n" }
         if let goals = body["learningGoals"] as? [String:Any] {
-            for field in ["needs","qualifications","priorKnowledge","targetDate","style"] { if let text = goals[field] as? String { context += "Learner \(field): \(text.prefix(2500))\n" } }
+            for field in ["needs","qualifications","priorKnowledge","targetDate","style"] { if let text = goals[field] as? String { context += "Learner \(field): \(text.prefix(1000))\n" } }
             if let focus = goals["focus"] as? [String] { context += "Learning priorities: " + focus.prefix(10).joined(separator:", ") + "\n" }
         }
+        if let training = doc.learningState?["training"] as? [String:Any] {
+            for key in ["providerName","courseTitle","courseVersion","requirements","cpdStatement"] {
+                if let value = training[key] as? String { context += "Course \(key): \(value.prefix(500))\n" }
+            }
+        }
         var courseSources: [[String:String]] = []
+        if context.count > 14000 { context = String(context.prefix(13900)) + "\n[Course/lesson context is a bounded excerpt.]\n" }
+        var materials: [CoursePack.Material] = []
         if let pack = loadCoursePack() {
-            let excerpts = pack.excerpts(for:(messages.last?["text"] ?? "") + " " + (lesson["topic"] as? String ?? ""))
-            context += "\nCOURSE REFERENCE EXCERPTS from " + pack.title + ":\n"
+            materials += pack.documents
+        }
+        if let resources = try? loadLearningResources() { materials += resources.filter(\.enabled).flatMap(\.documents) }
+        if !materials.isEmpty {
+            let reference = CoursePack(schemaVersion:1,title:"Course and selected web resources",documents:materials)
+            let excerpts = reference.excerpts(for:(messages.last?["text"] ?? "") + " " + (lesson["topic"] as? String ?? ""))
+            context += "\nRETRIEVED COURSE/WEB EXCERPTS (only these extracts have been read; cite source IDs, URLs and page titles):\n"
             for excerpt in excerpts {
-                context += "[Course: " + excerpt.id + "] " + excerpt.title + "\n" + excerpt.text + "\n\n"
-                courseSources.append(["id":excerpt.id,"title":excerpt.title])
+                let block = "[Course: \(excerpt.id)] \(excerpt.title)\nURL: \(excerpt.url ?? "local course pack")\nRetrieved: \(excerpt.retrievedAt ?? "local import")\n\(excerpt.text)\n\n"
+                guard context.count + block.count <= 25000 else { break }
+                context += block
+                courseSources.append(["id":excerpt.id,"title":excerpt.title,"url":excerpt.url ?? "","retrievedAt":excerpt.retrievedAt ?? ""])
             }
         }
         doc.learningRequestID = id
@@ -160,7 +179,7 @@ extension Viewer {
                 let metadata = String(decoding:try JSONSerialization.data(withJSONObject:overview,options:[.sortedKeys]),as:UTF8.self)
                 let methods = self.analysisCatalog.keys.sorted().map { $0 + ": " + (self.analysisCatalog[$0]?["title"] as? String ?? $0) }.joined(separator:"\n")
                 let tools = TutorTools.definitions.filter { !workspace.allowed.isEmpty || ["statsdirect_method_help","statsdirect_workspace"].contains($0["name"] as? String ?? "") }
-                let result = try await self.chatGPTTutor.converse(context:"CURRENT STATSDIRECT WORKSPACE (metadata, not cell values):\n" + String(metadata.prefix(18000)) + "\nBUNDLED LESSON AND LEARNING CONTEXT (separate from open data):\n" + context + "\nMETHOD CATALOGUE:\n" + methods,messages:messages,tools:tools) { name, arguments in
+                let result = try await self.chatGPTTutor.converse(context:"COURSE, LESSON AND LEARNING CONTEXT (separate from open data):\n" + context + "\nCURRENT STATSDIRECT WORKSPACE (metadata, not cell values):\n" + String(metadata.prefix(6000)) + "\nMETHOD CATALOGUE:\n" + methods,messages:messages,tools:tools) { name, arguments in
                     try await workspace.call(name,arguments)
                 }
                 try Task.checkCancellation()
@@ -173,12 +192,32 @@ extension Viewer {
             }
         }
     }
+    func captureLearningEvidence(_ doc: Document, documentID: String) {
+        guard doc.learningTask == nil, let source = documents.first(where:{$0.id == documentID}), ["report","r"].contains(source.kind) else {
+            learningScript(doc,"notice","Choose an open report or R session to attach."); return
+        }
+        Task { @MainActor in
+            do {
+                let text: String
+                if let pane = source.rPane {
+                    text = "R SCRIPT\n" + pane.editor.string + "\nR OUTPUT\n" + pane.console.string
+                } else {
+                    let value = try await self.learningJavaScript(source,"({text:document.body.innerText})")
+                    text = value["text"] as? String ?? ""
+                }
+                guard self.documents.contains(where:{$0 === source}), text.utf8.count <= 200_000 else { throw LearningTutor.Failure(message:"This document is too large to attach as a text snapshot, or has closed. Export it separately.") }
+                self.learningScript(doc,"evidence",["title":source.title,"at":ISO8601DateFormatter().string(from:Date()),"text":text])
+            } catch { self.learningScript(doc,"notice",error.localizedDescription) }
+        }
+    }
 
     func openLearningExample(_ lesson: [String:Any], inR: Bool) {
         let title = lesson["title"] as? String ?? "Learning example"
         if inR, let script = lesson["r"] as? String {
             let doc = newDocument(kind:"r",title:"R · " + title)
-            let pane = RPane(script:script); doc.rPane = pane; doc.item.view = pane.view; pane.runScript(); return
+            let pane = RPane(script:script); doc.rPane = pane; doc.item.view = pane.view
+            if lesson["providerCourse"] as? Bool != true { pane.runScript() }
+            return
         }
         guard let operation = lesson["operation"] as? String, let definition = analysisCatalog[operation] else { return }
         var source: [String:Any]?
@@ -202,19 +241,22 @@ extension Viewer {
               let json = try? JSONSerialization.data(withJSONObject:record,options:[.prettyPrinted,.sortedKeys]), json.count <= 10_000_000 else { return }
         let filename = "StatsDirect-learning-" + ISO8601DateFormatter().string(from:Date()).replacingOccurrences(of:":",with:"-")
         if email {
-            guard let recipient = body["recipient"] as? String, ["support@statsdirect.com","chil@liverpool.ac.uk"].contains(recipient) else { return }
+            guard let recipient = body["recipient"] as? String, LearningLinks.email(recipient) else { learningScript(doc,"notice","Enter a single valid review email address."); return }
             do {
                 let folder = learningFolder.appendingPathComponent("Review drafts").appendingPathComponent(UUID().uuidString)
                 try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
                 let attachment = folder.appendingPathComponent(filename + ".txt")
+                let structured = folder.appendingPathComponent(filename + ".json")
                 try Data(text.utf8).write(to:attachment,options:.atomic)
+                try json.write(to:structured,options:.atomic)
                 try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:attachment.path)
+                try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:structured.path)
                 guard let service = NSSharingService(named:.composeEmail), service.canPerform(withItems:[attachment]) else {
                     NSWorkspace.shared.activateFileViewerSelecting([attachment])
                     learningScript(doc,"notice","Mail is not configured. The review record is ready in Finder; attach it to your own email to " + recipient + "."); return
                 }
                 service.recipients = [recipient]; service.subject = "StatsDirect learning record — external review request"
-                service.perform(withItems:["Please review my attached StatsDirect learning record, including practice answers and the teaching conversation, and advise whether it can support external accreditation or CPD. The provisional score has not been independently verified and no credit has been awarded.",attachment])
+                service.perform(withItems:["Please review my attached StatsDirect learning record, including practice answers, practical submissions and the teaching conversation, and advise whether it meets your assessment or CPD requirements. TXT and JSON versions contain the same record. The provisional score has not been independently verified by the provider.",attachment,structured])
                 learningScript(doc,"notice","Email draft opened with the complete learning record attached. Review it and send it in Mail. StatsDirect cannot confirm delivery or accreditation.")
             } catch { learningScript(doc,"notice","Could not prepare the email attachment: " + error.localizedDescription) }
         } else {

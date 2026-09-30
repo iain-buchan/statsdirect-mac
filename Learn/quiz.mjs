@@ -1,10 +1,12 @@
 import {bankVersion, questions, tracks} from './bank.mjs';
 
-export function createSession(track, mode, id = crypto.randomUUID()) {
+export function createSession(track, mode, id = crypto.randomUUID(), providerPack = null) {
   if (!tracks[track] || !['learn','test'].includes(mode)) throw new Error('Choose a valid learning path and mode.');
-  return {id, track, mode, bankVersion, startedAt:new Date().toISOString(), completedAt:null,
-    questionIds:questions.filter(q=>q.track===track || q.track==='core').map(q=>q.id),
-    questionSnapshots:structuredClone(questions.filter(q=>q.track===track || q.track==='core')), answers:[], hints:[], explanations:[], reflection:''};
+  const selected=providerPack?.questions ?? questions.filter(q=>q.track===track || q.track==='core');
+  if(!selected.length)throw Error('This course has no practice questions.');
+  return {id, track, mode, bankVersion:providerPack?.version??bankVersion, course:providerPack?.course??null, startedAt:new Date().toISOString(), completedAt:null,
+    questionIds:selected.map(q=>q.id),
+    questionSnapshots:structuredClone(selected), answers:[], hints:[], explanations:[], reflection:''};
 }
 
 export function recordAssistance(session, questionId, kind) {

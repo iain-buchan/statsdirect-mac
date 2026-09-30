@@ -1,0 +1,32 @@
+[
+  {
+    "title": "OpenLearn \u2014 Medical statistics",
+    "url": "https://www.open.edu/openlearn/science-maths-technology/medical-statistics/content-section-0?intro=1",
+    "note": "Cohort and case-control studies, relative risks, odds ratios and tests of association. Teaching is supplied in a linked PDF, available after loading this page."
+  },
+  {
+    "title": "CDC \u2014 Principles of Epidemiology: definition and scope",
+    "url": "https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson1/section1.html",
+    "note": "Foundations of public-health epidemiology. Archived third-edition teaching text; CDC continuing-education credit for this course is no longer available."
+  },
+  {
+    "title": "Penn State \u2014 Epidemiological Research Methods",
+    "url": "https://online.stat.psu.edu/stat507/index",
+    "note": "Open STAT 507 course notes. Start here and add the chapter URLs relevant to your course."
+  },
+  {
+    "title": "OpenIntro \u2014 Study design",
+    "url": "https://openintro-ims.netlify.app/data-design",
+    "note": "Sampling, experiments and observational studies. Open textbook chapter from Introduction to Modern Statistics."
+  },
+  {
+    "title": "OpenIntro \u2014 Paired measurements",
+    "url": "https://openintro-ims.netlify.app/inference-paired-means",
+    "note": "Within-person or matched differences, inference and interpretation. Useful alongside the StatsDirect paired analysis."
+  },
+  {
+    "title": "Hern\u00e1n and Robins \u2014 Causal Inference: What If",
+    "url": "https://miguelhernan.org/whatifbook",
+    "note": "Author-hosted open book and data/code. Load this page to discover the book PDF; begin with Part I for causal principles."
+  }
+]

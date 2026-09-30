@@ -31,6 +31,7 @@ final class Document {
     var operationStarting = false
     var operationRevision = 0
     var learningTask: Task<Void, Never>?
+    var learningResourceTask: Task<Void, Never>?
     var learningRequestID: String?
     var learningSourceID = UserDefaults.standard.bool(forKey:"learningLessonsOnly") ? "__none__" : ""
     var learningContextRevision = 0
@@ -412,6 +413,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectOperation")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectLearn")
         doc.learningTask?.cancel(); doc.learningTask = nil
+        doc.learningResourceTask?.cancel(); doc.learningResourceTask = nil
         doc.rPane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }
         tabs.removeTabViewItem(doc.item)

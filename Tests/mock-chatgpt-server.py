@@ -58,6 +58,13 @@ for line in sys.stdin:
         assert params['environments'] == []
         assert params['sandboxPolicy'] == {'type':'readOnly','networkAccess':False}
         text = params['input'][0]['text']; thread = params['threadId']; turn = 'turn-' + thread
+        if 'RESOURCE_TEST' in text:
+            context = json.loads(text.split('\n',1)[1])['referenceContext']
+            assert 'https://example.org/course-cohort' in context
+            assert 'retrieved-cohort-evidence' in context
+            assert 'Example training provider' in context
+            assert 'disabled-source-must-not-leak' not in context
+            assert 'private-learner-identity' not in context
         if 'CANCEL_TEST' in text: time.sleep(.5)
         if 'DISCONNECT_TEST' in text: os._exit(0)
         # Unrelated events must never appear in the learner's reply.

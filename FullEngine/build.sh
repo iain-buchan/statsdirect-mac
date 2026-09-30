@@ -33,3 +33,6 @@ python3 Tests/test_upstream_update.py Tests/operation-driver
 python3 Tests/test_distribution_update.py Tests/operation-driver
 
 python3 Tests/test_core_5_0_13.py Tests/operation-driver
+
+python3 Tests/test_core_2026_09_30.py Tests/operation-driver
+python3 Tests/test_distribution_menu.py Tests/operation-driver

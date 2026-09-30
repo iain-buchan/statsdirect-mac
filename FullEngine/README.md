@@ -32,7 +32,7 @@ These are hosting/rendering boundaries, not numerical rewrites. Do not interpret
 
 Run `../build.sh` to build, run the original operation tests, verify the live bridge, and package the app. Requirements: Apple Silicon Mac, Xcode command line tools, Python 3, .NET 10 SDK and R for the independent numerical checks. The .NET runtime is bundled with the app, so the resulting app does not require a separate .NET installation.
 
-An existing clone needs `git submodule update --init --recursive`. The build verifies the submodule revision and all 881 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build. It also runs the upstream distribution regression suite (1,552 checks in 5.0.13).
+An existing clone needs `git submodule update --init --recursive`. The build verifies the submodule revision and all 882 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build. It also runs the upstream distribution regression suite (1,552 checks in 5.0.13).
 
 ## Updating the calculation engine
 
@@ -62,7 +62,7 @@ git add FullEngine/Upstream FullEngine/upstream-manifest.json Content/engine-inf
 
 ## Analysis checks
 
-The [5.0.13 integration audit](../Docs/Validation/Core-5.0.13/README.md) runs 13 additional upstream suites on Mac, the distribution comparison, fresh R noncentral-t/rates references and the Mac form/report bridge. Run `python3 Tests/UpstreamSuites/run.py --dotnet /path/to/dotnet` after building to repeat those upstream suites. The test harness substitutes the Mac worksheet reader for the Windows Frequencies helper and explicitly omits the Windows-only DataGridView control check; numerical assertions and references are retained. `Tests/test_core_5_0_13.py` checks new operation definitions, integer validation, Cox precision and rate reports through Mac forms.
+The [30 September integration audit](../Docs/Validation/Core-176eef7/README.md) covers the newer 5.0.13 revision `176eef77b986`: 21 additional upstream suites, 1,156 supported forward-calculator cases through Mac forms, the distribution comparison and fresh R references for six newly audited menus. The upstream version label is unchanged; About also shows the engine revision. Run `python3 Tests/UpstreamSuites/run.py --dotnet /path/to/dotnet` after building to repeat those upstream suites. The test harness substitutes the Mac worksheet reader for the Windows Frequencies helper and explicitly omits the Windows-only DataGridView and calculator-control checks. `Tests/test_distribution_menu.py` instead replays supported forward-calculator fixtures through Mac forms, retaining upstream expected values and tolerances. Inverse-probability and rank-score input routes are not present in those Mac forms; the upstream numerical inverse tests still run. All other numerical assertions and references are retained. `Tests/test_core_5_0_13.py` checks integer validation, Cox precision and rate reports. `Tests/test_core_2026_09_30.py` adds one-observation summaries, two-way ANOVA at a large offset, subnormal signed ranks and reproducible bootstrap seeds through Mac forms.
 
 `Tests/CoreDistributions` compares unmodified Windows distribution source from two Git revisions with R, independently of this host. The [5.0.8 audit](../Docs/Validation/Core-5.0.8/README.md) includes 4,902 candidate cases and independent high-precision resolution of 322 R discrepancies. Use this comparison before accepting future numerical updates; differences need adjudication, not automatic replacement by R results.
 

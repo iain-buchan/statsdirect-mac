@@ -1,0 +1,770 @@
+{
+  "date": "2026-09-30",
+  "macVersion": "0.3.13",
+  "engine": {
+    "repository": "https://github.com/iain-buchan/statsdirect",
+    "commit": "176eef77b9868a485de19e382db90fe36219c239",
+    "version": "5.0.13"
+  },
+  "engineAssemblySHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+  "helpCommit": "9894a2641329159fb0e251e5b6bb657b9171f5ba",
+  "upstreamSuites": [
+    {
+      "suite": "GlmFitRegression",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 1.02,
+      "log": "GlmFitRegression.log.gz",
+      "summary": "ok    glsqr: a record whose weight is missing is passed over and counted: the fit is that of the other records: worst difference 4.44E-016 (tolerance 1E-012)\nok    glsqr: a negative weight stops the fit, with fault 6: worst difference 0.00E+000 (tolerance 0E+000)\nALL CHECKS PASS"
+    },
+    {
+      "suite": "CorrelationRegression",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 35.85,
+      "log": "CorrelationRegression.log.gz",
+      "summary": "ok    Kendall's score, 100 pairs: worst difference 2.59E-014 from the count of the orderings\nthe distribution of Kendall's score: 6 checks, 0 failed\nALL 602 CHECKS PASS"
+    },
+    {
+      "suite": "CoxRegression",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 5.88,
+      "log": "CoxRegression.log.gz",
+      "summary": "ok    no warning of an infinite coefficient in any of them (0 given)\n\nALL 2217 CHECKS PASS"
+    },
+    {
+      "suite": "Agreement",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 10.2,
+      "log": "Agreement.log.gz",
+      "summary": "ok    reports 46 and 47 (R = 0.2263 and 0.2845)\n\nALL 3458 CHECKS PASS"
+    },
+    {
+      "suite": "Survival",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 7.55,
+      "log": "Survival.log.gz",
+      "summary": "ok    follow-up, everybody dead in the first interval: survivors of 100, 0 and 0 per cent: worst difference 0.00E+000 (tolerance 0E+000)\n\nALL 3654 CHECKS PASS"
+    },
+    {
+      "suite": "MetaAnalysis",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 6.56,
+      "log": "MetaAnalysis.log.gz",
+      "summary": "Largest absolute differences from independent integration: CDF 2.58E-13; noncentrality limits 2.88E-12\n\nALL 786 CHECKS PASS"
+    },
+    {
+      "suite": "NoncentralTRegression",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 26.47,
+      "log": "NoncentralTRegression.log.gz",
+      "summary": "Time Elapsed 00:00:00.68\n6360 reference cases; 31541 checks; 0 failures.\nLargest probability difference 2.297E-13; largest relative difference in tails between 1e-280 and 1e-8: 8.292E-12."
+    },
+    {
+      "suite": "Crosstabs",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 53.88,
+      "log": "Crosstabs.log.gz",
+      "summary": "ok    the scores of the user, the questions, the categories, the tables in strata, the random tables, the scores from the counts\n\nALL 9003 CHECKS PASS"
+    },
+    {
+      "suite": "Frequencies",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 1.43,
+      "log": "Frequencies.log.gz",
+      "summary": "ok    60 charts\n\nALL 3603 CHECKS PASS"
+    },
+    {
+      "suite": "ExactTests",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 79.47,
+      "log": "ExactTests.log.gz",
+      "summary": "ok    the estimate, the four limits and the four P values of 10 tables and pairs of rates, of which 8 are worked out on the scale of logarithms; the one that takes longest takes 0.43 seconds\n\nALL 5376 CHECKS PASS"
+    },
+    {
+      "suite": "ChiSquare",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 20.77,
+      "log": "ChiSquare.log.gz",
+      "summary": "ok    what is refused, what the reports say when there is no test, counts that are not whole numbers, tables of very many subjects\n\nALL 462 CHECKS PASS"
+    },
+    {
+      "suite": "Proportions",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 4.3,
+      "log": "Proportions.log.gz",
+      "summary": "ok    two independent proportions\n\nALL 137 CHECKS PASS"
+    },
+    {
+      "suite": "Rates",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 11.24,
+      "log": "Rates.log.gz",
+      "summary": "ok    millions of events, against the definitions\n\nALL 234 CHECKS PASS"
+    },
+    {
+      "suite": "Randomization",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 4.57,
+      "log": "Randomization.log.gz",
+      "summary": "ok    the seed of the report, the names of the treatments, what is refused, places and capacities, a million subjects\n\nALL 4501 CHECKS PASS"
+    },
+    {
+      "suite": "SampleSize",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 3.04,
+      "log": "SampleSize.log.gz",
+      "summary": "ok    against the benchmarks: 3444 cases, 15467 figures compared, in 38 kinds; the case that takes longest takes 0.59 seconds\n\nALL 39 CHECKS PASS"
+    },
+    {
+      "suite": "ClinicalEpidemiology",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 1.05,
+      "log": "ClinicalEpidemiology.log.gz",
+      "summary": "ok    against the benchmarks: 435 cases, 5120 figures compared, in 110 kinds; the case that takes longest takes 0.04 seconds\n\nALL 111 CHECKS PASS"
+    },
+    {
+      "suite": "Parametric",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 1.59,
+      "log": "Parametric.log.gz",
+      "summary": "ok    against the benchmarks: 392 cases, 4122 figures compared, in 141 kinds; the case that takes longest takes 0.06 seconds\n\nALL 142 CHECKS PASS"
+    },
+    {
+      "suite": "Descriptive",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 2.52,
+      "log": "Descriptive.log.gz",
+      "summary": "ok    the bootstrap: 4 cases, 26 figures compared; the furthest is 1.46 standard deviations from its benchmark; the case that takes longest takes 0.55 seconds\n\nALL 137 CHECKS PASS"
+    },
+    {
+      "suite": "Nonparametric",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 4.46,
+      "log": "Nonparametric.log.gz",
+      "summary": "ok    the distribution of Kendall's score\n\nALL 234 CHECKS PASS"
+    },
+    {
+      "suite": "AnalysisOfVariance",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 1.37,
+      "log": "AnalysisOfVariance.log.gz",
+      "summary": "ok    against the benchmarks: 90 cases, 1835 figures compared, in 212 kinds; the case that takes longest takes 0.11 seconds\n\nALL 213 CHECKS PASS"
+    },
+    {
+      "suite": "Distributions",
+      "revision": "176eef77b9868a485de19e382db90fe36219c239",
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "exitCode": 0,
+      "seconds": 27.67,
+      "log": "Distributions.log.gz",
+      "summary": "ok    the small lower tails\n\nALL 105 CHECKS PASS"
+    }
+  ],
+  "freshRGeneration": [
+    {
+      "suite": "ClinicalEpidemiology",
+      "exitCode": 0,
+      "seconds": 1.11
+    },
+    {
+      "suite": "Parametric",
+      "exitCode": 0,
+      "seconds": 0.73
+    },
+    {
+      "suite": "Nonparametric",
+      "exitCode": 0,
+      "seconds": 36.83
+    },
+    {
+      "suite": "Descriptive",
+      "exitCode": 0,
+      "seconds": 4.58
+    },
+    {
+      "suite": "AnalysisOfVariance",
+      "exitCode": 0,
+      "seconds": 24.2
+    },
+    {
+      "suite": "SampleSize",
+      "exitCode": 0,
+      "seconds": 1.36
+    }
+  ],
+  "freshRValidation": [
+    {
+      "suite": "ClinicalEpidemiology",
+      "exitCode": 0,
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00"
+    },
+    {
+      "suite": "Parametric",
+      "exitCode": 0,
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00"
+    },
+    {
+      "suite": "Nonparametric",
+      "exitCode": 0,
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00"
+    },
+    {
+      "suite": "Descriptive",
+      "exitCode": 1,
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00",
+      "adjudication": "fresh-R-Descriptive-adjudication.json.gz"
+    },
+    {
+      "suite": "AnalysisOfVariance",
+      "exitCode": 0,
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00"
+    },
+    {
+      "suite": "SampleSize",
+      "exitCode": 0,
+      "engineSHA256": "6b0565b6afd1bf521129a47b7f5a9371449955d5e9e3d668c3995ae382349a00"
+    }
+  ],
+  "distributionAudit": {
+    "provenance": {
+      "candidate": {
+        "commit": "176eef77b9868a485de19e382db90fe36219c239",
+        "sha256": {
+          "StatsDirectUI/Numerics/BetaDistributions.cs": "c12347cac6a22e5faf011695a1d2d31d75e1e1ecf93a58631ac0b3d693e476f0",
+          "StatsDirectUI/Numerics/BetaInverse.cs": "474ba0d1184f198a378e574b9aca442a3e51293d6a4ae0f9bacabbed1747fd9a",
+          "StatsDirectUI/Numerics/DiscreteTails.cs": "fead76a5226e02209d42c3c93278584e39dfca766b41e4c2e6ff8b127b9e208d",
+          "StatsDirectUI/Numerics/NoncentralTIntegral.cs": "276ee81ebfc70f37024478676b6c2f2529b33c02c9811aafc7a4214af5bfa3df",
+          "StatsDirectUI/Numerics/Numerics.cs": "f41bde2bf732a2d6c0926f2d354da12243278bab766f3f4523a055f56acd3e61",
+          "StatsDirectUI/Numerics/SpecialFunctions/GammaCoefficients.cs": "bd5c7f7a758275988e685b974156bdbb467994775ccee387b8fbda6ff1494ce3",
+          "StatsDirectUI/Numerics/SpecialFunctions/IncompleteBeta708.cs": "b9f9e6bc9196e7bd9616dcd2bc91dda43bde8a78d0963956be2746ec84c0d409",
+          "StatsDirectUI/Numerics/SpecialFunctions/MathSupport.cs": "a64c14ab25f34323a4bbdf9bc6a959999c7736de762e6c667b82294657b40fff"
+        }
+      },
+      "baseline": {
+        "commit": "30fa75dc342dfe0123c6663bad1f8495f2ec9bab",
+        "sha256": {
+          "StatsDirectUI/Numerics/BetaDistributions.cs": "c12347cac6a22e5faf011695a1d2d31d75e1e1ecf93a58631ac0b3d693e476f0",
+          "StatsDirectUI/Numerics/BetaInverse.cs": "474ba0d1184f198a378e574b9aca442a3e51293d6a4ae0f9bacabbed1747fd9a",
+          "StatsDirectUI/Numerics/DiscreteTails.cs": "fead76a5226e02209d42c3c93278584e39dfca766b41e4c2e6ff8b127b9e208d",
+          "StatsDirectUI/Numerics/NoncentralTIntegral.cs": "276ee81ebfc70f37024478676b6c2f2529b33c02c9811aafc7a4214af5bfa3df",
+          "StatsDirectUI/Numerics/Numerics.cs": "ad15958b341675e917c7494ad27a7deb5358cdf44c8840f7fd1847b506878104",
+          "StatsDirectUI/Numerics/SpecialFunctions/GammaCoefficients.cs": "bd5c7f7a758275988e685b974156bdbb467994775ccee387b8fbda6ff1494ce3",
+          "StatsDirectUI/Numerics/SpecialFunctions/IncompleteBeta708.cs": "b9f9e6bc9196e7bd9616dcd2bc91dda43bde8a78d0963956be2746ec84c0d409",
+          "StatsDirectUI/Numerics/SpecialFunctions/MathSupport.cs": "a64c14ab25f34323a4bbdf9bc6a959999c7736de762e6c667b82294657b40fff"
+        }
+      },
+      "R": "R version 4.6.1 (2026-06-24)"
+    },
+    "caseCount": 4902,
+    "results": {
+      "baseline": {
+        "pbeta": {
+          "tested": 900,
+          "agree": 900,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qbeta": {
+          "tested": 1000,
+          "agree": 995,
+          "differ": 5,
+          "faults": 0,
+          "rWarnings": 10
+        },
+        "pf": {
+          "tested": 1100,
+          "agree": 1070,
+          "differ": 30,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qf": {
+          "tested": 1000,
+          "agree": 750,
+          "differ": 250,
+          "faults": 0,
+          "rWarnings": 4
+        },
+        "pt": {
+          "tested": 110,
+          "agree": 110,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qt": {
+          "tested": 90,
+          "agree": 82,
+          "differ": 8,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pchisq": {
+          "tested": 70,
+          "agree": 70,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pgamma": {
+          "tested": 140,
+          "agree": 140,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qchisq": {
+          "tested": 180,
+          "agree": 180,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pf_direct": {
+          "tested": 72,
+          "agree": 68,
+          "differ": 4,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qf_direct": {
+          "tested": 84,
+          "agree": 60,
+          "differ": 24,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pt_direct": {
+          "tested": 72,
+          "agree": 72,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qt_direct": {
+          "tested": 84,
+          "agree": 83,
+          "differ": 1,
+          "faults": 0,
+          "rWarnings": 0
+        }
+      },
+      "candidate": {
+        "pbeta": {
+          "tested": 900,
+          "agree": 900,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qbeta": {
+          "tested": 1000,
+          "agree": 995,
+          "differ": 5,
+          "faults": 0,
+          "rWarnings": 10
+        },
+        "pf": {
+          "tested": 1100,
+          "agree": 1070,
+          "differ": 30,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qf": {
+          "tested": 1000,
+          "agree": 750,
+          "differ": 250,
+          "faults": 0,
+          "rWarnings": 4
+        },
+        "pt": {
+          "tested": 110,
+          "agree": 110,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qt": {
+          "tested": 90,
+          "agree": 82,
+          "differ": 8,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pchisq": {
+          "tested": 70,
+          "agree": 70,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pgamma": {
+          "tested": 140,
+          "agree": 140,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qchisq": {
+          "tested": 180,
+          "agree": 180,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pf_direct": {
+          "tested": 72,
+          "agree": 68,
+          "differ": 4,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qf_direct": {
+          "tested": 84,
+          "agree": 60,
+          "differ": 24,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "pt_direct": {
+          "tested": 72,
+          "agree": 72,
+          "differ": 0,
+          "faults": 0,
+          "rWarnings": 0
+        },
+        "qt_direct": {
+          "tested": 84,
+          "agree": 83,
+          "differ": 1,
+          "faults": 0,
+          "rWarnings": 0
+        }
+      }
+    }
+  },
+  "reusedEvidence": {
+    "cases.tsv": {
+      "identicalTo": "../Core-5.0.8/cases.tsv.gz",
+      "sha256": "af487fffda7fc850758d4c3afaec6b05c04ef2be03c7b6c694956ee642db2806"
+    },
+    "candidate.tsv": {
+      "identicalTo": "../Core-5.0.8/candidate.tsv.gz",
+      "sha256": "3e8b4b1841efd3d6fb3ecf8922049f9dd5e07eb5183d899963f985de4b9709ac"
+    },
+    "R.tsv": {
+      "identicalTo": "../Core-5.0.8/R.tsv.gz",
+      "sha256": "dcd1082e9c93b6f568b252a29ff0034ffa876b1122189262e95341b2fb9948cc"
+    }
+  },
+  "identicalCandidateDiscrepancies": 322,
+  "macCalculator": {
+    "completedCases": 1133,
+    "probabilities": 2327,
+    "rejections": 23,
+    "unsupportedWindowsInputRoutes": 894
+  },
+  "artifacts": [
+    {
+      "file": "GlmFitRegression.log.gz",
+      "sourceSHA256": "ce0ce9f04925dbd6cd7074acd5f94aef1aefb1932a3a27654c18161f862c6bd5",
+      "gzipSHA256": "222439f5acf1b421d08c1084083ae5ae71ea38e648e9db54388e77a34560a7cc"
+    },
+    {
+      "file": "CorrelationRegression.log.gz",
+      "sourceSHA256": "b73826f86282313b42807cc9a9dc5aacc1c2887a2a8c698be4aa4876e5b9ce65",
+      "gzipSHA256": "a0ecf83155af47865722bc42175a82eb4b5297bd0cb84e6590c9335372e2011a"
+    },
+    {
+      "file": "CoxRegression.log.gz",
+      "sourceSHA256": "62c5d06e9ee59f9ee31b5a2a2e7a28e93486561f99049ede02b3f1fd07341715",
+      "gzipSHA256": "31b5af357b943887f3a18730f0cdd903d0bb55fefc37bd0fa477474028ab6b3b"
+    },
+    {
+      "file": "Agreement.log.gz",
+      "sourceSHA256": "dbc95e86539542668435a4cfb25b5ac3b36488fa2efe6d94a5abde8baeb09e86",
+      "gzipSHA256": "98ede77c462912e37c4babe7df2c353236bec51a8097cc31dc77b544c80e9d15"
+    },
+    {
+      "file": "Survival.log.gz",
+      "sourceSHA256": "b52ba6d9ea86bfaedcf6561febb33809d62e940c4a13ae8f09a3e3ed8aa3b59d",
+      "gzipSHA256": "909cc1839ef4ce090cfc79136d85abb60ded65f828da880a1c1286dfb39d2ab1"
+    },
+    {
+      "file": "MetaAnalysis.log.gz",
+      "sourceSHA256": "1dfcd8cb48d853741a0dc29c87046008dd57d6a35c178de0d7a0064e6377b930",
+      "gzipSHA256": "456fb6068a79b39c1d8f1e1384f6d1a3e3d82cd1df7d5892692a8851d399474d"
+    },
+    {
+      "file": "NoncentralTRegression.log.gz",
+      "sourceSHA256": "23f85823f24adced1115a0ccbfc210e6f06ca610618fb7fb04119add50b8a8c8",
+      "gzipSHA256": "5eef9ec692945e70532e3156c7133d7dab24d5cb6396c4c75ca1c58d28e32e6b"
+    },
+    {
+      "file": "Crosstabs.log.gz",
+      "sourceSHA256": "fe7b28152fb5911f0b5a93a7cf8cb3c4bc805fc3914dbeb43bb8aaad721f0437",
+      "gzipSHA256": "50674b81b2fa442b1153de1c0f070d198f40362546162e12d4149db12202c2a2"
+    },
+    {
+      "file": "Frequencies.log.gz",
+      "sourceSHA256": "eef1358e2fdf7a1aaaa3484aa102222f769c8f69150d46a192d356933a882d68",
+      "gzipSHA256": "a697e6ebc537ddb1ad29cc45790f1f96718880f0eb5d0a1fd92e8deb880a7346"
+    },
+    {
+      "file": "ExactTests.log.gz",
+      "sourceSHA256": "38d37742c0c2c16e099171a9c47532a396948573bd26ebf7d957c53f6c4f9ab2",
+      "gzipSHA256": "564c36133464c05232b6f63a9f20de1f8e8eef9fbd9f567ae75a3892d41d898d"
+    },
+    {
+      "file": "ChiSquare.log.gz",
+      "sourceSHA256": "30bb7c624f153152dd7ed2120f6ee10045b70f97b51d7325319effdeeedca211",
+      "gzipSHA256": "e8fd412b097cc2db36627fee0de26bbd7d42a559414263909b9dce83d81aa4a5"
+    },
+    {
+      "file": "Proportions.log.gz",
+      "sourceSHA256": "2af72bdc5d139dd1585153c3ada5eafda371f80e1f0085648b82592294649839",
+      "gzipSHA256": "73dc25d85f5ee16cdd292fb10252f9c5f9a74192e9341b72c1ef91b3b7b1bef4"
+    },
+    {
+      "file": "Rates.log.gz",
+      "sourceSHA256": "2108ccbad52622748186e04124c2358eec743d04da5bd3e326d53613dd565612",
+      "gzipSHA256": "aea5d7e9d00edcfcb0141cba4dd92dfa34bab2b5a09de46df3769ed5975541a8"
+    },
+    {
+      "file": "Randomization.log.gz",
+      "sourceSHA256": "0045a778c55553b42c1a8bf3d3e119989d25094d400f3230e74ff7e3019ea2ca",
+      "gzipSHA256": "e0be80279c10bf3c428d8b35d7b499f9917dfcec8464c823fa143ab89c3248c4"
+    },
+    {
+      "file": "SampleSize.log.gz",
+      "sourceSHA256": "d801cbba660e8ae06dd581bb092f7086eed4990c9d6247dd5703baf2891619ee",
+      "gzipSHA256": "95902c03d7bf9b521c6a52bfbd7f5a4a7af2574a191f40a0e004a72595e8265c"
+    },
+    {
+      "file": "ClinicalEpidemiology.log.gz",
+      "sourceSHA256": "5e5e73a9d525b99ce91e9a41c94090788cc73a67693479ebba15256cd890c4cc",
+      "gzipSHA256": "f53ab9bb4de8c2e9b9f04c77827e6cd0a6b44b89254b850dd0ae75d14db3f8f9"
+    },
+    {
+      "file": "Parametric.log.gz",
+      "sourceSHA256": "e56e5e9a1c229cf821d6dbabeeb3b75aeaf4f90b637363f97c8f1fa7d6d53f1c",
+      "gzipSHA256": "e6035275e98183c8a1e3757d6962286c668ba9a81f779caa826cd04763c25aed"
+    },
+    {
+      "file": "Descriptive.log.gz",
+      "sourceSHA256": "2bbec5a1b19727ff7a3a01824a1d9dc2f92a2b6162a543047a947d0858bdf71f",
+      "gzipSHA256": "bc9a2b4a37790e140f59a1575889b1542a6bdeb3505d71e9bd14dfca5733c12d"
+    },
+    {
+      "file": "Nonparametric.log.gz",
+      "sourceSHA256": "b456c63179d8a40abf1a745d20e67732d2c15feab72883cd1d9247774376a8a5",
+      "gzipSHA256": "a8dbd645ad0ef3ac44f75031ebaf366932c20bb7830df8e9d120607cc8014546"
+    },
+    {
+      "file": "AnalysisOfVariance.log.gz",
+      "sourceSHA256": "36d2ce956288163215d6d85a36f85493f39d0b4c22a05bb8bb7fa0097b19ceb5",
+      "gzipSHA256": "a9efd80ee7235265789f847a4571405387f9e894f0ec72bfa0167cb7f493a1ab"
+    },
+    {
+      "file": "Distributions.log.gz",
+      "sourceSHA256": "a080c125326d207b4b0ae57299515975315ea7c693ce642e32c9cafa72f07d03",
+      "gzipSHA256": "3d92f2094c2800f2b1c7ff01b4ef97cbe46bfc491ce791a611ea938345f9ff0d"
+    },
+    {
+      "file": "fresh-R-ClinicalEpidemiology-validation.log.gz",
+      "sourceSHA256": "fec5bbd64a103bba16cb737128515cdffff424f71acc5be8584c9fdf7c44a3c5",
+      "gzipSHA256": "20c6e2ca72b8948a0fcfa139666a14bb1f90eb4e90a4618949fe7455cbabefa6"
+    },
+    {
+      "file": "fresh-R-ClinicalEpidemiology-expected.txt.gz",
+      "sourceSHA256": "58ba2d93149546b3cd8db197a1c86f24f5a7d867fef85ae9af6d21db38d80e82",
+      "gzipSHA256": "2f6a6bfdac553d893cbb1166cbd0852b0108d7913ce3337c353839b811e4a4d7"
+    },
+    {
+      "file": "fresh-R-ClinicalEpidemiology-generation.log.gz",
+      "sourceSHA256": "cd7c78484926fa661ce7059d58c6bb7911d6d181e34fd2032757abdd32e540b0",
+      "gzipSHA256": "c02bbf355832d8a10cd52ff18e2b0b0fc74afab4201b8909284162f67bc1c86b"
+    },
+    {
+      "file": "fresh-R-ClinicalEpidemiology-cases.txt.gz",
+      "sourceSHA256": "5843b1f7794e7837d31c69543223a70d844d5ae6000907d05cb0e4750e92bfc1",
+      "gzipSHA256": "bcdce1e1b6dae11713a899e0fe04e22bf5afadafa15f395744f9c283140452c8"
+    },
+    {
+      "file": "fresh-R-Parametric-validation.log.gz",
+      "sourceSHA256": "e4f97cc631186bcc5a6f6c22b0921ba6260c9034925b16ee1a8c61efe3e0d635",
+      "gzipSHA256": "3eaed07a04bfbdfb2a9623736fa7d2d075d3173a65755c9e385e539bfccbf60e"
+    },
+    {
+      "file": "fresh-R-Parametric-expected.txt.gz",
+      "sourceSHA256": "7a0b61c63a8eb3ae30588a5462e033347a72768d817eea1c17c61e4c7b93ea6d",
+      "gzipSHA256": "dcd6b3e2fd59e4a536d00a807e8d55af09937d763ab2b223d838c6fa300939e6"
+    },
+    {
+      "file": "fresh-R-Parametric-generation.log.gz",
+      "sourceSHA256": "72f6ff8e7a1505ad584497781f8a0fa5022e59521f919711d3dc5e0dd25c60c8",
+      "gzipSHA256": "266c1ab2e870a12121c9c297af67f74e37baaab805b8de6608c9c8a99bfb2500"
+    },
+    {
+      "file": "fresh-R-Parametric-cases.txt.gz",
+      "sourceSHA256": "35332947e7ae67c144bb98706c24645789ec2fa97402c480b860043f24a3dce0",
+      "gzipSHA256": "fdce41f7cebad94d813569b4173987378cb512288d090a4c3555a291b30d2372"
+    },
+    {
+      "file": "fresh-R-Nonparametric-validation.log.gz",
+      "sourceSHA256": "4918dbcf4b6af5849889302e498fa097c89acca2629e3d70953d79cc228ddd08",
+      "gzipSHA256": "93aea17bb5634635bd26d4af9de6d1e2f9e3b70e4499b336cd119c0f03a28971"
+    },
+    {
+      "file": "fresh-R-Nonparametric-expected.txt.gz",
+      "sourceSHA256": "f211ae4419ec40e02b1a894287a09d46c45fbc7fa4e1bbdcfd65cdbf24ea575a",
+      "gzipSHA256": "887eca0cd0c916bbe8040a079a738663748744b1fff0aac3a2a16437069bfb4d"
+    },
+    {
+      "file": "fresh-R-Nonparametric-generation.log.gz",
+      "sourceSHA256": "44d9971d36d03c826fdaa401860ca7c891c5a26930a1c049104ec250f9da757e",
+      "gzipSHA256": "270bbfefbda926542e301b3100a2b6b27be0083e7b58423b7234629a0f831649"
+    },
+    {
+      "file": "fresh-R-Nonparametric-cases.txt.gz",
+      "sourceSHA256": "ba401d474a3c866514952b46ef4ee15a414edf21a711b8b213c19da4724ea15e",
+      "gzipSHA256": "0c3c68f24082171a05f98e2e025943bcf7a0e15451e216d4242435868c00f16d"
+    },
+    {
+      "file": "fresh-R-Descriptive-validation.log.gz",
+      "sourceSHA256": "35e08732f9d598dc0c191ae2d83bca9efb39516dd12f71a1da054e1d34eff479",
+      "gzipSHA256": "24f6385597a082e15c39f69aef684cb3c84cccbc9263bde89c1067ec3b355953"
+    },
+    {
+      "file": "fresh-R-Descriptive-bootstrap-expected.txt.gz",
+      "sourceSHA256": "adef5cd62a23f46bf72a8e908cc66d707b599fa8f56e7fd896ffe20b6be312b5",
+      "gzipSHA256": "4cee9ee71a94ff4518b079abb9fdde1a24d8ad929e48fb99dc1cdb3f3f269ec8"
+    },
+    {
+      "file": "fresh-R-Descriptive-expected.txt.gz",
+      "sourceSHA256": "923f5500de444ae0e8246319a95505b3a91c9fe37cc9440cfc9eed3cf3fa7b24",
+      "gzipSHA256": "2152d191377cbe734671fba3068f30948332759c89a4638f579682ddfde6e6c7"
+    },
+    {
+      "file": "fresh-R-Descriptive-bootstrap-cases.txt.gz",
+      "sourceSHA256": "5f0c9e168698a3432c0d25a9e8a73bbad5c8b030f922139e109cda3583c62f06",
+      "gzipSHA256": "538f328e9ad4b63b02365bbaca5b83b06efcbf6126c2798f638ef097bf929647"
+    },
+    {
+      "file": "fresh-R-Descriptive-adjudication.json.gz",
+      "sourceSHA256": "a7381cdd7e3b177214ae1e87aab33e7da94df295738a6459163c31f50d8466f7",
+      "gzipSHA256": "c1207de46541e510e8dfd06f77c6ef95ae13ea1431ca067caa4e873822afd529"
+    },
+    {
+      "file": "fresh-R-Descriptive-adjudication-raw.log.gz",
+      "sourceSHA256": "3e77adf8a44938c83ad0b271c5930fd6d009d4f4ad295575c1f67e1551310edc",
+      "gzipSHA256": "6fd6ab6c72e94beec5439558f2d4b1e0117237b9240ee3796d0d5b6b9cbd20f7"
+    },
+    {
+      "file": "fresh-R-Descriptive-generation.log.gz",
+      "sourceSHA256": "80f6fd73d4f71e472a34735546025b4c61c51ea9a878156df8d79537e343cf84",
+      "gzipSHA256": "ef5354713796b71870d6c4ba76a17ad3a3467abbbf91ebae234e6170a0d61d91"
+    },
+    {
+      "file": "fresh-R-Descriptive-cases.txt.gz",
+      "sourceSHA256": "701e0900ea710da00e8b5db78aaa1676a99e0cbf8b358807f15eb13c89e56b52",
+      "gzipSHA256": "13c8ba978fb5ae50e4b98a424243c4db8ad6739b2addae608054d5b17e9a9ffe"
+    },
+    {
+      "file": "fresh-R-AnalysisOfVariance-validation.log.gz",
+      "sourceSHA256": "d8d864d122e35e7a16e1cdebabff094548fb75c6811552cf1a87f5394130e3d6",
+      "gzipSHA256": "c60f98b67c2a3090cc1aa9e4c92f1bd9fc28399b74039e37e7251b1cd95bdd21"
+    },
+    {
+      "file": "fresh-R-AnalysisOfVariance-expected.txt.gz",
+      "sourceSHA256": "957f96dd98590ced0f290af8c1164f7c137b236d9a62024587a6168d771fd9cc",
+      "gzipSHA256": "b4ec61a6c5e060b01ac9b60b3566d0dc1f4f5f9cbc1eaed0d84e98c9784042d0"
+    },
+    {
+      "file": "fresh-R-AnalysisOfVariance-generation.log.gz",
+      "sourceSHA256": "09229ee13845524dde98c6a6f3e053a409a25575449ee3493cf5bf3ac7c74272",
+      "gzipSHA256": "cea6ade9080ccd3fa5ba5ff975b01bceeb48d13561a26de7599071e6fc8bc32f"
+    },
+    {
+      "file": "fresh-R-AnalysisOfVariance-cases.txt.gz",
+      "sourceSHA256": "0338a9dda28ab1696ece7dc66819e05d53cd5f91e3afa04e045aea0e732ae406",
+      "gzipSHA256": "890d9ca605501cd9c01df15ab13c308c9aa41e10bff4f6d09b25b2558f9da413"
+    },
+    {
+      "file": "fresh-R-SampleSize-validation.log.gz",
+      "sourceSHA256": "adf391183acbaeeac64bd96738536b5510d0a143c500559ce5e0793336de044a",
+      "gzipSHA256": "05ee7e439766eb15c98f455636a4adfea242388c3593bd9f7efce008bc8b19d0"
+    },
+    {
+      "file": "fresh-R-SampleSize-expected.txt.gz",
+      "sourceSHA256": "01c63a454eaa63900a4267d0145b815372441cff1c5505c2ac30b5de35f32167",
+      "gzipSHA256": "3928969996c7e3e2d320c4163d74b7c674314806e680908b7ae8a0e6ad91fa1c"
+    },
+    {
+      "file": "fresh-R-SampleSize-generation.log.gz",
+      "sourceSHA256": "66ccb9594e3f0b96722e0d5059d3e6af588031c8e5b03c4508f1c118e9d8b106",
+      "gzipSHA256": "f19acb4c05b43cfc4084412218284a703aa2320239835d988e8a67a31ae9ff8e"
+    },
+    {
+      "file": "fresh-R-SampleSize-cases.txt.gz",
+      "sourceSHA256": "e8d4a13bd327d016566e320210736c7f20a6fae6028c04ee5a68a44bf934b5a7",
+      "gzipSHA256": "3f96e2991c40ccf3ec3f081ab4bb5415b4fb8f04870499aa76be9e9fa4642bc2"
+    },
+    {
+      "file": "mac-build.log.gz",
+      "sourceSHA256": "302cd37bf8089b4c96e88277334d4172b178859fd6f82970a68f54eed0e3d060",
+      "gzipSHA256": "05185c880d60b6e20161514a722bbec3a31e0465c655ca685b86f30ea717ff63"
+    },
+    {
+      "file": "report-export.log.gz",
+      "sourceSHA256": "aac3a8fd276a996ce5e3222f675a6a64ddcee3064f1bfac3465e0d49c36d54fc",
+      "gzipSHA256": "8705cdcde67b6cba1b0a72d55dcd6134540cab69b649cade81b90fec454db26e"
+    },
+    {
+      "file": "learning-context.log.gz",
+      "sourceSHA256": "7a6ad4b2ec8c9e978b2500a8fc03ed2a92871e13f9df68533c8e6865830f88ba",
+      "gzipSHA256": "5a61dc9c2724eb02dcbd5fecbf1490d619ecb3a03c91dc12f8df58e4719b86b7"
+    }
+  ]
+}

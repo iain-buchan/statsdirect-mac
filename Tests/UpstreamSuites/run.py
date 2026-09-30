@@ -3,7 +3,9 @@
 Upstream suite source and reference fixtures are compiled/read in place. Only the
 Crosstabs test of the Windows DataGridView control is explicitly omitted. The
 Frequencies input helper uses the Mac worksheet converter in place of the Windows
-cell-selection helper. All calculation checks and expected values are unchanged.
+cell-selection helper. Distributions omits the Windows control checks, covered
+separately for supported inputs by test_distribution_menu.py. Retained numerical
+checks and expected values are unchanged.
 """
 import argparse
 import hashlib
@@ -13,7 +15,7 @@ import subprocess
 import time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
-DEFAULT=['GlmFitRegression','CorrelationRegression','CoxRegression','Agreement','Survival','MetaAnalysis','NoncentralTRegression','Crosstabs','Frequencies','ExactTests','ChiSquare','Proportions','Rates']
+DEFAULT=['GlmFitRegression','CorrelationRegression','CoxRegression','Agreement','Survival','MetaAnalysis','NoncentralTRegression','Crosstabs','Frequencies','ExactTests','ChiSquare','Proportions','Rates','Randomization','SampleSize','ClinicalEpidemiology','Parametric','Descriptive','Nonparametric','AnalysisOfVariance','Distributions']
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--dotnet',required=True)
 p.add_argument('--suite',nargs='+',default=DEFAULT,choices=DEFAULT)
@@ -33,6 +35,19 @@ end=source.index('        return frame;',start)+len('        return frame;')
 source=source[:start]+'        var input = System.Text.Json.JsonSerializer.SerializeToElement(new {\n            columns = columns.Select((values, i) => new { title = titles[i], values }).ToArray()\n        });\n        var reader = typeof(Describe).Assembly.GetType("HostParameters");\n        return (DataFrame)reader.GetMethod("ReadFrame", BindingFlags.NonPublic | BindingFlags.Static)\n            .Invoke(null, new object[] { input, DataAcquisitionMode.CategoryReplaceMissing, null });'+source[end:]
 frequency=work/'FrequenciesProgram.cs';frequency.write_text(source)
 
+# The Windows calculator control is absent on Mac. Retain the unchanged numerical
+# range/comparison/inversion tests; test its forward fixtures through Mac forms
+# separately in Tests/test_distribution_menu.py.
+source=(ROOT/'FullEngine/Upstream/tests/Distributions/Program.cs').read_text()
+start=source.index('    // ---- the calculator:')
+end=source.index('    // ---- the studentized range over',start)
+source=source[:start]+source[end:]
+source=source.replace('using System.Windows.Forms;\n','')
+source=source.replace('if (which is "all" or "benchmarks") Benchmarks(folder);',
+    'Console.WriteLine("SKIP: Windows ctlPDF control; supported forward fixtures are checked through Mac forms separately.");')
+distributions=work/'DistributionsProgram.cs';distributions.write_text(source)
+
+
 env=dict(os.environ,DOTNET_CLI_HOME=str(ROOT/'.build/dotnet-home'),NUGET_PACKAGES=str(ROOT/'.build/nuget'),DOTNET_CLI_TELEMETRY_OPTOUT='1')
 summary=work/'summary.json'
 engine_hash=hashlib.sha256((ROOT/'FullEngine/publish/StatsDirect.Headless.dll').read_bytes()).hexdigest()
@@ -47,7 +62,7 @@ for suite in a.suite:
     log=output/'result.log'
     with log.open('w') as f:
         command=[a.dotnet,'build',str(project),'-c','Release','--nologo','-o',str(output/'bin')]
-        if suite!='GlmFitRegression':command += ['-p:Suite='+suite,'-p:MacReports='+str(mac),'-p:MacFrequency='+str(frequency),'-p:BaseIntermediateOutputPath='+str(output/'obj')+'/']
+        if suite!='GlmFitRegression':command += ['-p:Suite='+suite,'-p:MacReports='+str(mac),'-p:MacFrequency='+str(frequency),'-p:MacDistributions='+str(distributions),'-p:BaseIntermediateOutputPath='+str(output/'obj')+'/']
         build=subprocess.run(command,cwd=ROOT,env=env,stdout=f,stderr=subprocess.STDOUT)
         code=build.returncode
         if code==0:

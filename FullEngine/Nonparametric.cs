@@ -8,6 +8,17 @@ using System.Collections.Generic;
 
 namespace StatsDirect.Builtins
 {
+    /// <summary>
+    /// The reports of the Nonparametric menu: the Mann-Whitney and Wilcoxon signed ranks tests with their confidence intervals,
+    /// Kendall's and Spearman's rank correlation, nonparametric linear regression, Cuzick's test for trend, the Smirnov test, the
+    /// confidence interval of a quantile, the Kruskal-Wallis test with its comparisons and the squared ranks test, the Friedman and
+    /// Cochran Q tests with their comparisons and simulated exact P values, the Gini coefficient and the diversity indices.
+    /// </summary>
+    /// <remarks>
+    /// Most of the working arrays are used from element 1, as the comments of the routines say. A confidence level that is not above
+    /// 0 and below 1 is taken as 95% (XLevel). Each report leaves out a missing value, or a row with one where the rows are pairs or
+    /// blocks, and says in the report what it refuses.
+    /// </remarks>
     public static class Nonparametric
     {
 
@@ -16,36 +27,40 @@ namespace StatsDirect.Builtins
         ///  </summary>
         private static IList<ParameterBag> OneOutputElement() => new List<ParameterBag> { new ParameterBag() };
 
-        ///  <summary>
-        ///  
-        ///  </summary>
-        ///  <param name="x">Input 1-dimensional 1-based array of values.</param>
-        ///  <param name="lx">Number of values in x</param>
-        ///  <param name="l">Input 1-based array containing lengths of columns</param>
-        ///  <param name="cols">Number of columns in L</param>
-        ///  <param name="h"></param>
-        ///  <param name="ha"></param>
-        ///  <param name="t"></param>
-        ///  <param name="w1">Output 1-based ranked array (x, ranked)</param>
-        ///  <param name="fault">0: Success. 1: At least 2 columns required. 2: Negative column length.3: column lengths don't add up to lx.</param>
-        ///  <remarks></remarks>
+        /// <summary>
+        /// The Kruskal-Wallis statistic H of the values x, which are the columns one after another in the lengths l: the values are
+        /// ranked together (XPreprocessKwt) and H is found from the rank sums of the columns (XRunKwt), with and without the
+        /// correction for ties.
+        /// </summary>
+        /// <param name="x">Input 1-dimensional 1-based array of values.</param>
+        /// <param name="lx">Number of values in x</param>
+        /// <param name="l">Input 1-based array containing lengths of columns</param>
+        /// <param name="cols">Number of columns in L</param>
+        /// <param name="h">H without the correction for ties</param>
+        /// <param name="ha">H with the correction for ties, when there are ties</param>
+        /// <param name="t">The correction for ties, the sum of t^3 - t over 12, t being the size of each set of tied values</param>
+        /// <param name="w1">Output 1-based ranked array (x, ranked)</param>
+        /// <param name="fault">0: success; 1: fewer than 2 columns; 2: a column without values; 3: the lengths do not add up
+        /// to lx; 4: every value the same</param>
         private static void XKwt(double[] x, int lx, int[] l, int cols, out double h, ref double ha, ref double t, ref double[] w1, out int fault)
         {
             XPreprocessKwt(x, lx, l, cols, ref t, ref w1, out fault);
             XRunKwt(w1, lx, l, cols, out h, ref ha, t);
         }
 
-        ///  <summary>
-        ///  
-        ///  </summary>
-        ///  <param name="w1">Input 1-dimensional 1-based array of ranks.</param>
-        ///  <param name="lx">Number of values in x</param>
-        ///  <param name="l">Input 1-based array containing lengths of columns</param>
-        ///  <param name="cols">Number of columns in L</param>
-        ///  <param name="h"></param>
-        ///  <param name="ha">h, adjusted for ties</param>
-        ///  <param name="t">Input correction factor from Rank</param>
-        ///  <remarks></remarks>
+        /// <summary>
+        /// H from the ranks w1 of the values, the columns following one another in the lengths l: 12 / (N (N + 1)) times the sum over
+        /// the columns of the squared rank sum over the column's size, less 3 (N + 1). With ties H is divided by
+        /// 1 - 12 t / (N^3 - N), which is 1 - (sum of t^3 - t) / (N^3 - N) with t the size of each set of tied values; it has no
+        /// value if that divisor is 0 or below, which it is only when every value is the same.
+        /// </summary>
+        /// <param name="w1">Input 1-dimensional 1-based array of ranks.</param>
+        /// <param name="lx">Number of values in x</param>
+        /// <param name="l">Input 1-based array containing lengths of columns</param>
+        /// <param name="cols">Number of columns in L</param>
+        /// <param name="h">H without the correction for ties</param>
+        /// <param name="ha">h, adjusted for ties</param>
+        /// <param name="t">Input correction factor from Rank</param>
         private static void XRunKwt(double[] w1, int lx, int[] l, int cols, out double h, ref double ha, double t)
         {
             double rs = 0.0;
@@ -79,17 +94,19 @@ namespace StatsDirect.Builtins
             }
         }
 
-        ///  <summary>
-        ///  
-        ///  </summary>
-        ///  <param name="x">Input 1-dimensional 1-based array of values.</param>
-        ///  <param name="lx">Number of values in x</param>
-        ///  <param name="l">Input 1-based array containing lengths of columns</param>
-        ///  <param name="cols">Number of columns in L</param>
-        ///  <param name="t"></param>
-        ///  <param name="w1">Output 1-based ranked array (x, ranked)</param>
-        ///  <param name="fault">0: Success. 1: At least 2 columns required. 2: Negative column length.3: column lengths don't add up to lx. 4: Unknown.</param>
-        ///  <remarks></remarks>
+        /// <summary>
+        /// Ranks the values of the columns together, tied values sharing the mean of the ranks that they take up, and gives the
+        /// correction for ties; first looks that there are two columns or more, that no column is without values, that the lengths
+        /// of the columns add up to the number of values, and that the values are not all the same, and gives a fault for each.
+        /// </summary>
+        /// <param name="x">Input 1-dimensional 1-based array of values.</param>
+        /// <param name="lx">Number of values in x</param>
+        /// <param name="l">Input 1-based array containing lengths of columns</param>
+        /// <param name="cols">Number of columns in L</param>
+        /// <param name="t">The correction for ties, the sum of t^3 - t over 12</param>
+        /// <param name="w1">Output 1-based ranked array (x, ranked)</param>
+        /// <param name="fault">0: success; 1: fewer than 2 columns; 2: a column without values; 3: the lengths do not add up
+        /// to lx; 4: every value the same</param>
         private static void XPreprocessKwt(double[] x, int lx, int[] l, int cols, ref double t, ref double[] w1, out int fault)
         {
             int i;
@@ -130,6 +147,18 @@ namespace StatsDirect.Builtins
             fault = 0;
         }
 
+        /// <summary>
+        /// The quantile of the sorted values r[1..rx] and its confidence interval. The quantile is the value at the place qc (rx + 1)
+        /// in order, between two values in proportion when the place is not whole, and the smallest or the largest value when the
+        /// place falls outside them. The limits are two of the values in order: with Y the number of values below the quantile of the
+        /// population, which is binomial with rx trials and probability qc, the lower limit is the value numbered j + 1 for the j at
+        /// which P(Y &lt;= j) is nearest to (1 - gamma) / 2, and the upper limit the value numbered j + 1 for the j at which P(Y &lt;= j)
+        /// is nearest to 1 - (1 - gamma) / 2; conservative, the nearest of those at least as far out. Above 200 values j is from
+        /// the normal approximation to the binomial (the mean rx qc, less or plus z standard deviations), moved outwards if
+        /// conservative until the tail beyond it is within (1 - gamma) / 2. cover is the probability between the two order
+        /// statistics, P(Y &lt;= upper j) - P(Y &lt;= lower j), as a percentage. A limit that would fall outside the sample is the
+        /// smallest or the largest value, and capLower or capUpper says so.
+        /// </summary>
         public static void XQci(double qc, int rx, double[] r, ref double xq, double gamma, out double ll, out double ul, out double cover, bool conservative, out bool capUpper, out bool capLower, out int fault)
         {
             // get 100*qc'th quantile from sorted vector r
@@ -305,6 +334,13 @@ namespace StatsDirect.Builtins
             }
         }
 
+        /// <summary>
+        /// The Smirnov statistics of two samples, which are sorted here: dp is the greatest amount by which the empirical distribution
+        /// function of the first sample exceeds that of the second, dn the greatest by which the second exceeds the first, and d the
+        /// greater of the two. The two functions are stepped through together, the smaller value next raising its own function; at a
+        /// value that both samples have, every value tied at it in either sample is taken before the functions are compared, so that
+        /// a step at a tie is compared after both functions have risen.
+        /// </summary>
         private static void XKstwo(double[] d1, int n1, double[] d2, int n2, out double d, out double dp, out double dn)
         {
             Array.Sort(d1, 1, n1);
@@ -557,6 +593,14 @@ namespace StatsDirect.Builtins
             fault = false;
         }
 
+        /// <summary>
+        /// K for the confidence interval of the difference between the Mann-Whitney samples: the number of differences counted in
+        /// from each end of the differences in order to the limits. K is the least u for which P(U &lt;= u) is above (1 - gamma) / 2,
+        /// from the distribution of U without ties (XUdist), and lev is P(U &lt;= K - 1), the tail that the interval leaves at each
+        /// end. With both samples above 30, or either above 100, K is first taken from the normal approximation to U and lev as
+        /// the tail asked for; that K is kept, with fault true, if the distribution would need too much room (n1 n2 of 200,000 or
+        /// more). K is 0 when even the widest interval falls short of the confidence asked for.
+        /// </summary>
         private static void XInvu(int n2, int n1, double gamma, ref double lev, ref int k, out bool fault)
         {
             double pcum = 0;
@@ -602,6 +646,12 @@ namespace StatsDirect.Builtins
             k = q;
         }
 
+        /// <summary>
+        /// The frequencies of the Mann-Whitney U from 0 to m n for samples of m and n without ties: frqncy[u + 1] is the number of
+        /// ways of choosing which n of the m + n ranks are one sample's that give that U, built up a rank at a time in work, which is
+        /// the working space. fault is true if the arrays are too small (lfr must be m n + 1 or more, lwrk at least (min + 1) / 2 +
+        /// min) or a count overflows.
+        /// </summary>
         private static void XUdist(int m, int n, ref double[] frqncy, ref int lfr, ref double[] work, ref int lwrk, out bool fault)
         {
             fault = true;
@@ -823,6 +873,19 @@ namespace StatsDirect.Builtins
             }
         }
 
+        /// <summary>
+        /// The confidence interval of the difference between the samples and the median difference, which is the Hodges-Lehmann
+        /// estimate: of the n1 n2 differences of a value of the first sample less a value of the second, in order, the K-th smallest
+        /// is the lower limit, the K-th largest the upper limit, and the middle one, or the mean of the two middle ones, is the median.
+        /// </summary>
+        /// <remarks>
+        /// The differences are not listed: findnext walks up them in order from the smallest, giving the next larger difference and
+        /// how many pairs have it, so that the K-th and the middle are reached in the order of n1 n2 / 2 steps. The values are
+        /// taken in whole numbers of up to 16 figures, each divided by the largest size among them and multiplied by 9e15, and
+        /// the larger differences are the smaller
+        /// of the values with their signs changed. The progress bar can stop the count, which then gives asterisks. K of -99 is
+        /// a sample too large for the count.
+        /// </remarks>
         private static ParameterBag MannWhitneyExactConfidence(ITemplateHost host, double[] x, int k, int n1, int n2)
         {
             double median = 0; double kl = 0;
@@ -850,30 +913,31 @@ namespace StatsDirect.Builtins
             }
             using (IProgressBar progress = host.StartProgress("Calculating Confidence Interval", true))
             {
-                int[] xx = new int[n1 + 1];
-                int[] yy = new int[n2 + 1];
+                long[] xx = new long[n1 + 1];
+                long[] yy = new long[n2 + 1];
                 Array.Sort(x, n1 + 1, n2);
                 Array.Sort(x, 1, n1);
 
                 //  Find the largest value in size (both samples are sorted, so it is at an end of one of them)...
                 double bigx = Math.Max(Math.Max(Math.Abs(x[1]), Math.Abs(x[n1])), Math.Max(Math.Abs(x[n1 + 1]), Math.Abs(x[n1 + n2])));
-                //  ... and set a scale so that every value fits within the range of an Integer. Only the largest value used to be
-                //  looked at, not the largest in size, so negative values below about -21,000 overflowed and the whole report was
-                //  lost; the scale could not go below 1, so values above about 2e8 gave no interval; and it could not go above
-                //  100000, so very small values gave limits of 0.
-                double scaler = 100000.0;
-                while (bigx * scaler >= int.MaxValue / 10.0)
-                    scaler /= 10.0;
-                while (bigx > 0.0 && bigx * scaler < 1000.0 && scaler < 1e300)
-                    scaler *= 10.0;
+                //  ... and turn the values into whole numbers of up to 16 figures, within which every difference of two values
+                //  fits a long: each value is divided by the largest size (a quotient from -1 to 1, whatever the scale of the
+                //  values, down to the smallest doubles) and multiplied by 9e15, and a result is taken back through the same
+                //  steps. (The differences were in whole numbers of a hundred thousandth, so that limits of values of about 1
+                //  had 5 decimal places; only the largest value used to be looked at, not the largest in size, so negative
+                //  values below about -21,000 overflowed and the whole report was lost; and a multiplier in place of the
+                //  quotient could not go above 1e290, so that values below about 1e-290 gave limits of 0.)
+                double unit = bigx > 0.0 ? bigx : 1.0;
+                const double whole = 9.0e15;
+                double Unscaled(long c) => c / whole * unit;
                 for (int j = 1; j <= n1; j++)
-                    xx[j] = Convert.ToInt32(x[j] * scaler);
+                    xx[j] = Convert.ToInt64(x[j] / unit * whole);
                 for (int j = 1; j <= n2; j++)
-                    yy[j] = Convert.ToInt32(x[n1 + j] * scaler);
+                    yy[j] = Convert.ToInt64(x[n1 + j] / unit * whole);
                 bool domed = true;
                 bool dokl = true;
                 int goal = midu + k;
-                int c = xx[1] - yy[n2] - 1;
+                long c = xx[1] - yy[n2] - 1;
                 int i = 0;
                 while (i < midu)
                 {
@@ -891,7 +955,7 @@ namespace StatsDirect.Builtins
                         if (dokl)
                         {
                             dokl = false;
-                            kl = c / (double)scaler;
+                            kl = Unscaled(c);
                         }
                     }
                     if (i >= midl)
@@ -899,12 +963,12 @@ namespace StatsDirect.Builtins
                         if (domed)
                         {
                             domed = false;
-                            median = c / (double)scaler;
+                            median = Unscaled(c);
                         }
                     }
                 }
                 if (midu != midl)
-                    median = domed ? c / (double)scaler : (median + c / (double)scaler) / 2;
+                    median = domed ? Unscaled(c) : (median + Unscaled(c)) / 2;
                 for (int j = 1; j <= n1; j++)
                     xx[j] = -xx[j];
                 for (int j = 1; j <= n2; j++)
@@ -925,7 +989,7 @@ namespace StatsDirect.Builtins
                         return outputParameters;
                     }
                 }
-                double ku = -c / (double)scaler;
+                double ku = -Unscaled(c);
                 outputParameters.AddOutput("median", median);
                 outputParameters.AddOutput("from", kl);
                 outputParameters.AddOutput("to", ku);
@@ -933,37 +997,32 @@ namespace StatsDirect.Builtins
             return outputParameters;
         }
 
-        private static double XXmdn(double[] x, int nx, int n1, int n2)
-        {
-            int n;
-            double[] ax;
+        //  A confidence level that is not above 0 and below 1 (0% or 100%, which the form allows) is taken as 95%, as the other
+        //  reports of the program take it; the level that is used is the one that is printed.
+        private static double XLevel(double level) => level > 0.0 && level < 1.0 ? level : 0.95;
 
-            if (n2 == 1)
-            {
-                ax = new double[n1 + 1];
-                for (int j = 1; j <= n1; j++)
-                    ax[j] = x[j];
-                n = n1;
-            }
-            else
-            {
-                ax = new double[n2 + 1];
-                for (int j = n1 + 1; j <= nx; j++)
-                    ax[j - n1] = x[j];
-                n = n2;
-            }
-            if (n >= 2)
-            {
-                Array.Sort(ax, 1, n);
-                double mdn = 0.5 * (n + 1);
-                if (mdn - Math.Floor(mdn) != 0)
-                    return (ax[Convert.ToInt32(mdn - 0.5)] + ax[Convert.ToInt32(mdn + 0.5)]) / 2.0;
-                else
-                    return ax[Convert.ToInt32(mdn)];
-            }
-            return 0;
+        //  The median of the n values of x from x[first]: the middle value in order, or the mean of the two middle values. A
+        //  sample of one value is its own median, and a sample of none has none. (The second sample used to be given the median
+        //  of the first when it has one value, and a sample of one value the median 0.)
+        private static double XXmdn(double[] x, int first, int n)
+        {
+            if (n < 1)
+                return Constant.MISSING;
+            double[] ax = new double[n];
+            Array.Copy(x, first, ax, 0, n);
+            Array.Sort(ax);
+            return n % 2 == 1 ? ax[n / 2] : (ax[n / 2 - 1] + ax[n / 2]) / 2.0;
         }
 
+        /// <summary>
+        /// Cuzick's test for a trend across ordered groups, the columns being the groups in order. The values are ranked together
+        /// and T is the sum over the groups of the group's score times the sum of the ranks in the group; the scores are 1, 2, ...
+        /// in the order of the columns unless scores are given. Under no trend T has mean N (N + 1) / 2 times the mean score and
+        /// variance N^2 (N + 1) / 12 times the variance of the scores, each group's score being weighted by its share of the
+        /// values, and z is T less its mean over its standard deviation; with ties the variance is multiplied by
+        /// 1 - (sum of t^3 - t) / (N^3 - N), t being the size of each set of tied values, and z is given again. The one sided P is
+        /// the tail beyond |z| and the two sided P twice it.
+        /// </summary>
         public static StepOutput RptCuzick(ParameterBag parameters)
         {
             double varz = 0; double ez = 0; double st = 0; int n = 0; int count = 0;
@@ -1042,9 +1101,8 @@ namespace StatsDirect.Builtins
             outputParameters.AddOutput("et", et);
             outputParameters.AddOutput("vart", vart);
             outputParameters.AddOutput("z", stat);
-            double p = 1.0 - PDF.alnorm(Math.Abs(stat));
-            if (p > 1.0 - p)
-                p = 1.0 - p;
+            //  the tail beyond |z|, worked out as itself: 1 less the other tail is 0 below 1e-16 (a z of 8.6 gave P = 0)
+            double p = PDF.alnorm(-Math.Abs(stat));
             outputParameters.AddOutput("p_1", p);
             outputParameters.AddOutput("p_2", p * 2.0);
             if (tie != 0)
@@ -1056,9 +1114,7 @@ namespace StatsDirect.Builtins
                 stat = (st - et) / Math.Sqrt(vart);
                 tiesParameters.AddOutput("varttie", vart);
                 tiesParameters.AddOutput("ztie", stat);
-                p = 1.0 - PDF.alnorm(Math.Abs(stat));
-                if (p > 1.0 - p)
-                    p = 1.0 - p;
+                p = PDF.alnorm(-Math.Abs(stat));
                 tiesParameters.AddOutput("p_1tie", p);
                 tiesParameters.AddOutput("p_2tie", p * 2.0);
             }
@@ -1069,20 +1125,36 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// Diversity indices of the counts in each column, one count for each class: whole numbers above 0, anything else being
+        /// left out and counted as not used. With n the count of a class, N the sum of the counts, s the number of classes and
+        /// p = n / N: Simpson's index D = 1 - (sum of n (n - 1)) / (N (N - 1)), with 1 - D as the dominance and 1 / (1 - D);
+        /// Shannon's H = (N ln N - sum of n ln n) / N. Each has its large sample standard error, from the variance
+        /// 4 (sum of p^3 - (sum of p^2)^2) / N for D and (sum of n (ln n)^2 - (sum of n ln n)^2 / N) / N^2 for H, a second
+        /// standard error (the unbiased variant of the variance of D, and that of H with (s - 1) / (2 N^2) added), and normal
+        /// limits from the first. A bootstrap draws the N individuals with the chance of their classes the number of times asked
+        /// for, and gives the bias and the standard error of each index over the re-samples, normal limits from that standard
+        /// error, and bootstrap-t limits made symmetric about the index. The number of classes is also estimated with those not
+        /// seen: f1^2 / (2 f2) more, f1 and f2 being the numbers of classes seen once and twice (each taken as 1 if 0), with its
+        /// log-normal interval (see the comment there).
+        /// </summary>
+        /// <remarks>
+        /// The random numbers are from the seed given, or from the clock if none is, and the report gives the seed, so that the
+        /// same re-samples can be drawn again. Fewer than three classes are refused.
+        /// </remarks>
         public static StepOutput RptDiversity(IPreferencesAndProgressBar host, ParameterBag parameters)
         {
             double bias = 0; double biasx = 0;
             double thetase = 0; double thetasex = 0;
 
             DataFrame frame = parameters["data"].AsDataFrame;
-            double gamma = parameters["gamma"].AsDouble;
+            double gamma = XLevel(parameters["gamma"].AsDouble);
             int boots = parameters["boots"].AsInt32;
             int bootsDivisor = Math.Max(1, boots / 1000);
-            if (gamma <= 0)
-                throw new TemplateOperationCancelledException();
 
             MathDbl.civ(0, out double cit, gamma, out _);
-            MersenneTwister rnd = new(); //  Self-seeded
+            int seed = Formula.AutoSeed(parameters);   //  the seed given, or one from the clock; the report gives it
+            MersenneTwister rnd = new(seed);
             double[] r = new double[frame.MaxRows + 1];
 
             ParameterBag outputParameters = new();
@@ -1130,39 +1202,17 @@ namespace StatsDirect.Builtins
                     sumnp3 += Math.Pow(np, 3.0);
                 }
                 double simvars = (4.0 * sumn * (sumn - 1.0) * (sumn - 2.0) * sumnp3 + 2.0 * sumn * (sumn - 1.0) * sumnp2 - 2.0 * sumn * (sumn - 1.0) * (2.0 * sumn - 3.0) * Math.Pow(sumnp2, 2.0)) / Math.Pow(sumn * (sumn - 1.0), 2.0);
-                double simvar = (sumnp3 - Math.Pow(sumnp2, 2.0)) / (0.25 * sumn);
-                double simcl;
-                double simcu;
-                double simse;
-                if (simvar < 0.0)
-                {
-                    simse = Constant.MISSING;
-                    simcl = Constant.MISSING;
-                    simcu = Constant.MISSING;
-                }
-                else
-                {
-                    simse = Math.Sqrt(simvar);
-                    simcl = simpson - cit * simse;
-                    simcu = simpson + cit * simse;
-                }
+                //  each large sample variance is a sum of squares about a mean, which is 0 with equal counts and can then come
+                //  out a little below 0 by rounding: it is taken as 0 (the standard error and the limits used to be asterisks)
+                double simvar = Math.Max(0.0, (sumnp3 - Math.Pow(sumnp2, 2.0)) / (0.25 * sumn));
+                double simse = Math.Sqrt(simvar);
+                double simcl = simpson - cit * simse;
+                double simcu = simpson + cit * simse;
                 double shanvars = (sumnlognsq - Math.Pow(sumnlogn, 2.0) / sumn) / Math.Pow(sumn, 2.0) + Convert.ToDouble(rx - 1) / (2.0 * Math.Pow(sumn, 2.0));
-                double shanvar = (sumnlognsq - Math.Pow(sumnlogn, 2.0) / sumn) / Math.Pow(sumn, 2.0);
-                double shancl;
-                double shancu;
-                double shanse;
-                if (shanvar < 0.0)
-                {
-                    shanse = Constant.MISSING;
-                    shancl = Constant.MISSING;
-                    shancu = Constant.MISSING;
-                }
-                else
-                {
-                    shanse = Math.Sqrt(shanvar);
-                    shancl = shannon - cit * shanse;
-                    shancu = shannon + cit * shanse;
-                }
+                double shanvar = Math.Max(0.0, (sumnlognsq - Math.Pow(sumnlogn, 2.0) / sumn) / Math.Pow(sumn, 2.0));
+                double shanse = Math.Sqrt(shanvar);
+                double shancl = shannon - cit * shanse;
+                double shancu = shannon + cit * shanse;
                 int gtot = Convert.ToInt32(sumn);
 
                 double[] rb = new double[rx + 1];
@@ -1523,11 +1573,12 @@ namespace StatsDirect.Builtins
                         simpson != 1.0
                             ? 1.0 / (1.0 - simpson)
                             : Constant.MISSING);
-                varParameters.AddOutput("se-simpson-largeSample", Base.SafeSqrt(simvar));
+                varParameters.AddOutput("se-simpson-largeSample", simse);
                 varParameters.AddOutput("ses-simpson", Base.SafeSqrt(simvars));
                 varParameters.AddOutput("from-simpson-largeSample", simcl);
                 varParameters.AddOutput("to-simpson-largeSample", simcu);
                 varParameters.AddOutput("boots", boots);
+                varParameters.AddOutput("seed", seed);
                 varParameters.AddOutput("bias-simpson", bias);
                 varParameters.AddOutput("se-simpson-bootstrap", thetase);
                 varParameters.AddOutput("from-simpson-bootstrap", nbcl);
@@ -1536,7 +1587,7 @@ namespace StatsDirect.Builtins
                 varParameters.AddOutput("to-simpson-bootstrap-t", but);
 
                 varParameters.AddOutput("shannon", shannon);
-                varParameters.AddOutput("se-shannon-largeSample", Base.SafeSqrt(shanvar));
+                varParameters.AddOutput("se-shannon-largeSample", shanse);
                 varParameters.AddOutput("ses-shannon", Base.SafeSqrt(shanvars));
                 varParameters.AddOutput("from-shannon-largeSample", shancl);
                 varParameters.AddOutput("to-shannon-largeSample", shancu);
@@ -1551,11 +1602,21 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// The Mann-Whitney U test of two samples, the two columns. U is the number of pairs of a value of the first sample with a
+        /// value of the second in which the first is the greater, a tie counting a half (MannWhitneyUTest, which also ranks the
+        /// pooled values and gives the normal deviate of U), and U' is n1 n2 - U. The P values are exact, from every way of
+        /// choosing which of the pooled values are the first sample's (XMwupNt without ties, XMwupTi with ties), unless both
+        /// samples are above 100 or the exact distribution would need more than a million cells, when they are from the normal
+        /// deviate: the lower side is P(U &lt;= u), for a first sample that tends to be the smaller, the upper P(U &gt;= u), and the
+        /// two sided P twice the smaller. Theta, U' / (n1 n2), is the probability that a value of the second sample exceeds one of
+        /// the first, with the limits of Newcombe's fifth method (ThetaLl, ThetaUl). The confidence interval of the difference
+        /// between the samples and the median difference (MannWhitneyExactConfidence) need four values in each sample, and are
+        /// left out, with the reason, when even the widest interval falls short of the confidence asked for (XInvu).
+        /// </summary>
         public static StepOutput RptMannWhitney(ITemplateHost host, ParameterBag parameters)
         {
-            double gamma = parameters["gamma"].AsDouble;
-            if (gamma <= 0)
-                return StepOutput.Empty();
+            double gamma = XLevel(parameters["gamma"].AsDouble);
 
             DataFrame frame = parameters["data"].AsDataFrame;
             DoubleVariable v0 = (DoubleVariable)frame.Variables[0];
@@ -1590,12 +1651,12 @@ namespace StatsDirect.Builtins
 
             outputParameters.AddOutput("sample_1", v0.Title);
             outputParameters.AddOutput("obs_1", n1);
-            outputParameters.AddOutput("median_1", XXmdn(x, n, n1, 1));
+            outputParameters.AddOutput("median_1", XXmdn(x, 1, n1));
             outputParameters.AddOutput("ranksum", r1);
 
             outputParameters.AddOutput("sample_2", v1.Title);
             outputParameters.AddOutput("obs_2", n2);
-            outputParameters.AddOutput("median_2", XXmdn(x, n, n1, n2));
+            outputParameters.AddOutput("median_2", XXmdn(x, n1 + 1, n2));
 
             outputParameters.AddOutput("u", u);
             outputParameters.AddOutput("u_prime", uprime);
@@ -1611,13 +1672,12 @@ namespace StatsDirect.Builtins
                 if (n1 > 100 && n2 > 100 || xf != 0 && dimlim > 1000000 || xf == 0 && n1 * ((int)Math.Floor((double)n2 / 2) + 1) > 1000000)
                 {
                     outputParameters.AddOutput("stats", "Normalised statistic = " + host.RoundU(z) + adj);
+                    //  each tail is worked out as itself: 1 less the other tail is 0 below 1e-16
                     pl = PDF.alnorm(z);
-                    if (pl > 1.0 - pl)
-                        p = 1.0 - pl;
-                    else
-                        p = pl;
+                    double pu = PDF.alnorm(-z);
+                    p = Math.Min(pl, pu);
                     outputParameters.AddOutput("p_l", pl);
-                    outputParameters.AddOutput("p_u", 1.0 - pl);
+                    outputParameters.AddOutput("p_u", pu);
                     outputParameters.AddOutput("p_2", p * 2.0);
                 }
                 else
@@ -1681,18 +1741,20 @@ namespace StatsDirect.Builtins
         }
 
         /// <summary>
-        /// Newcombe's Method 5 quadratic minimization for the Mann-Whitney theta (U/mn)
+        /// Newcombe's Method 5 quadratic minimization for the Mann-Whitney theta (U/mn): the root in y of ThetaTzfn between lp,
+        /// where the function is positive, and ln, where it is negative, by bisection from ypre, up to 100 times or until the
+        /// function is within 10 epsilon of 0.
         /// </summary>
-        /// <param name="upper"></param>
-        /// <param name="tzpre"></param>
-        /// <param name="ypre"></param>
-        /// <param name="lp"></param>
-        /// <param name="ln"></param>
-        /// <param name="z"></param>
-        /// <param name="t"></param>
-        /// <param name="m"></param>
-        /// <param name="n"></param>
-        /// <returns></returns>
+        /// <param name="upper">True for the upper limit</param>
+        /// <param name="tzpre">The function at ypre</param>
+        /// <param name="ypre">The last point tried</param>
+        /// <param name="lp">A point at which the function is positive</param>
+        /// <param name="ln">A point at which the function is negative</param>
+        /// <param name="z">The normal deviate of the confidence level</param>
+        /// <param name="t">Theta, U' / (m n)</param>
+        /// <param name="m">The size of the first sample</param>
+        /// <param name="n">The size of the second sample</param>
+        /// <returns>The root</returns>
         private static double ThetaTzmin(bool upper, double tzpre, double ypre, double lp, double ln, double z, double t, int m, int n)
         {
             const double prec = double.Epsilon * 10;
@@ -1713,6 +1775,11 @@ namespace StatsDirect.Builtins
             return y;
         }
 
+        /// <summary>
+        /// The function whose root in y is a confidence limit of theta by Newcombe's method 5: y less (for the upper limit) or plus
+        /// (for the lower) z times sqrt(y (1 - y) (1 + ((m + n) / 2 - 1) ((1 - y) / (2 - y) + y / (1 + y))) / (m n)), less the
+        /// observed theta. A true theta of y would put the observed theta at that edge of its interval.
+        /// </summary>
         private static double ThetaTzfn(bool upper, double y, double z, double t, int m, int n)
         {
             double offset = z * Math.Sqrt(y * (1.0 - y) * (1.0 + (0.5 * (m + n) - 1.0) * ((1.0 - y) / (2.0 - y) + y / (1.0 + y))) / (m * n));
@@ -1813,9 +1880,7 @@ namespace StatsDirect.Builtins
         /// </remarks>
         public static StepOutput RptSpearman(ParameterBag parameters)
         {
-            double gamma = parameters["gamma"].AsDouble;
-            if (gamma <= 0)
-                throw new Exception("Gamma must be greater than zero");
+            double gamma = XLevel(parameters["gamma"].AsDouble);
 
             DataFrame frame = parameters["data"].AsDataFrame;
             DoubleVariable v0 = (DoubleVariable)frame.Variables[0];
@@ -2004,9 +2069,7 @@ namespace StatsDirect.Builtins
             string taulab;
 
 
-            double gamma = parameters["gamma"].AsDouble;
-            if (gamma <= 0.0)
-                gamma = 0.95;
+            double gamma = XLevel(parameters["gamma"].AsDouble);
             double cit = PDF.gauinv(1.0 - (1.0 - gamma) / 2.0, out int ifault);
 
             DataFrame outcomeFrame = parameters["outcome"].AsDataFrame;
@@ -2102,10 +2165,7 @@ namespace StatsDirect.Builtins
                 double kz = s < 0
                     ? (s + 1.0) / Math.Sqrt(varf)
                     : s > 0 ? (s - 1.0) / Math.Sqrt(varf) : 0.0;
-                double pl = PDF.alnorm(kz);
-                ptau = pl < 1.0 - pl
-                    ? pl * 2.0
-                    : (1.0 - pl) * 2.0;
+                ptau = 2.0 * PDF.alnorm(-Math.Abs(kz));   //  twice the tail beyond |z|, worked out as itself
             }
 
             string ciNote = string.Empty;
@@ -2223,11 +2283,18 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// The Wilcoxon signed ranks test of paired values, the two columns, or of one column of differences. The differences that
+        /// are not 0 are ranked without their signs, and W is the sum of the ranks of the positive ones (XWilcoxonSignedRanks);
+        /// the P values are exact, from every assignment of signs to the ranks, with up to 200 differences, and from the normal
+        /// deviate of the sum of the signed ranks with more. The confidence interval of the median difference is of the averages
+        /// of every two differences (XSrcon), with K from the distribution of W for all n pairs, zero differences among them
+        /// (Xsrk); it needs four differences that are not 0, and is left out, with the reason, when even the widest interval
+        /// falls short of the confidence asked for.
+        /// </summary>
         public static StepOutput RptWilcoxon(ITemplateHost host, ParameterBag parameters)
         {
-            double gamma = parameters["gamma"].AsDouble;
-            if (gamma <= 0)
-                throw new Exception("Gamma must be greater than zero");
+            double gamma = XLevel(parameters["gamma"].AsDouble);
 
             DataFrame frame = parameters["data"].AsDataFrame;
             DoubleVariable v0 = (DoubleVariable)frame.Variables[0];
@@ -2341,18 +2408,24 @@ namespace StatsDirect.Builtins
         }
 
         /// <summary>
-        /// Calculate Wilcoxon signed ranks.
+        /// Wilcoxon signed ranks: the differences x - y that are not 0 are ranked without their signs, tied differences sharing the
+        /// mean of the ranks that they take up, and w is the sum of the ranks of the positive differences. With up to 200
+        /// differences the P values are exact, from every assignment of signs to the ranks
+        /// (XWilcoxonSignedRankLowerTailProbability, the ranks doubled when there are ties so that they are whole numbers): the
+        /// lower side P(W &lt;= w), the upper P(W &gt;= w), each including w, found on whichever side of the middle w is from the
+        /// symmetry of W about n1 (n1 + 1) / 4, and the two sided P twice the smaller. With more the sum of the signed ranks over
+        /// the root of the sum of the squared ranks is taken as a normal deviate. A run of no differences that are not 0 is refused.
         /// </summary>
         /// <param name="x">1-based array of values</param>
         /// <param name="y">1-based array of values</param>
         /// <param name="n">Number of values in x and y</param>
-        /// <param name="w"></param>
-        /// <param name="nonzero"></param>
-        /// <param name="ned"></param>
-        /// <param name="xf"></param>
-        /// <param name="pLower"></param>
-        /// <param name="pUpper"></param>
-        /// <param name="p2"></param>
+        /// <param name="w">The sum of the ranks of the positive differences</param>
+        /// <param name="nonzero">The number of differences that are not 0</param>
+        /// <param name="ned">The normal deviate, with more than 200 differences; 0 otherwise</param>
+        /// <param name="xf">The correction for ties from Rank, 0 without ties</param>
+        /// <param name="pLower">P(W &lt;= w)</param>
+        /// <param name="pUpper">P(W &gt;= w)</param>
+        /// <param name="p2">The two sided P</param>
         private static void XWilcoxonSignedRanks(double[] x, double[] y, int n, out double w, out int nonzero, out double ned, out double xf, out double pLower, out double pUpper, out double p2)
         {
 
@@ -2530,6 +2603,13 @@ namespace StatsDirect.Builtins
             return p;
         }
 
+        /// <summary>
+        /// K for the confidence interval of the median difference: the number of averages of two differences counted in from each
+        /// end of the averages in order to the limits. K is the least w with P(W &lt;= w) at least (1 - gamma) / 2 in the
+        /// distribution of W for sizei pairs without ties (WilcoxonSignedRankInverse), or from the normal approximation from 200
+        /// pairs; lev is the confidence that the interval has, 1 - 2 P(W &lt;= K - 1), or the level asked for above 1000 pairs.
+        /// K and lev are -99 with fewer than 4 pairs.
+        /// </summary>
         private static void Xsrk(int sizei, double gamma, out int k, out double lev)
         {
             double alpha = (1 - gamma) / 2;
@@ -2559,11 +2639,13 @@ namespace StatsDirect.Builtins
         }
 
         /// <summary>
-        /// upper tail P for Wilcoxon signed rank statistic x and sample size n
+        /// A tail of the distribution of the Wilcoxon signed ranks statistic W for n pairs without ties: P(W &lt;= x) when x is at or
+        /// below the middle, n (n + 1) / 4, and otherwise P(W &gt; x), from the symmetry of W about the middle. The counts of the
+        /// sums of ranks are from WsrEnum, and each is divided by 2^n.
         /// </summary>
-        /// <param name="x"></param>
-        /// <param name="n"></param>
-        /// <returns></returns>
+        /// <param name="x">The statistic, taken as a whole number</param>
+        /// <param name="n">The number of pairs</param>
+        /// <returns>The tail</returns>
         private static double WilcoxonSignedRankP(double x, int n)
         {
             if (n <= 0)
@@ -2594,11 +2676,13 @@ namespace StatsDirect.Builtins
         }
 
         /// <summary>
-        /// Inverse of Wilcoxon signed ranks statistic distribution for sample size n and upper tail probability p.
+        /// The least w with P(W &lt;= w) at least x in the distribution of the Wilcoxon signed ranks statistic for n pairs without
+        /// ties, for x up to a half; above a half, the same from the other end by the symmetry of W about n (n + 1) / 4. x is
+        /// moved by 10 epsilon so that a probability that is x within rounding counts as reaching it.
         /// </summary>
-        /// <param name="x"></param>
-        /// <param name="n"></param>
-        /// <returns></returns>
+        /// <param name="x">The probability</param>
+        /// <param name="n">The number of pairs</param>
+        /// <returns>The statistic; -99 if n is not above 0</returns>
         private static int WilcoxonSignedRankInverse(double x, int n)
         {
             if (n <= 0)
@@ -2643,12 +2727,14 @@ namespace StatsDirect.Builtins
         }
 
         /// <summary>
-        /// enumeration within the Wilcoxon signed ranks statistic distribution
+        /// The number of ways of choosing ranks from 1 to n that add up to k, which is the number of assignments of signs that give
+        /// a Wilcoxon signed ranks statistic of k. The counts up to the middle are built up a rank at a time on the first call and
+        /// kept in w; the distribution is symmetric about n (n + 1) / 4, so a k above the middle is taken from the other end.
         /// </summary>
-        /// <param name="k"></param>
-        /// <param name="n"></param>
-        /// <param name="w"></param>
-        /// <returns></returns>
+        /// <param name="k">The sum of ranks</param>
+        /// <param name="n">The number of ranks</param>
+        /// <param name="w">The counts, made on the first call: w[0] is 1 once they are made</param>
+        /// <returns>The count</returns>
         private static double WsrEnum(int k, int n, ref double[] w)
         {
             int u = n * (n + 1) / 2;
@@ -2673,6 +2759,20 @@ namespace StatsDirect.Builtins
             return w[k];
         }
 
+        /// <summary>
+        /// The confidence interval of the median difference and the median difference itself, which is the Hodges-Lehmann estimate:
+        /// of the n (n + 1) / 2 averages of every two differences, each difference with itself among them, in order, the K-th
+        /// smallest is the lower limit, the K-th largest the upper limit, and the middle one, or the mean of the two middle ones,
+        /// is the median.
+        /// </summary>
+        /// <remarks>
+        /// The averages are not listed: pairnext walks up the sums of two differences in order from the smallest, giving the next
+        /// larger sum and how many pairs have it, so that the K-th and the middle are reached in the order of n^2 / 4 steps. The
+        /// differences are taken in whole numbers of up to 16 figures, each divided by the largest size among them and multiplied
+        /// by 9e15, and the larger sums are the
+        /// smaller of the differences with their signs changed. The progress bar can stop the count, which then gives asterisks;
+        /// more averages than a 32-bit count holds are refused with a message.
+        /// </remarks>
         private static ParameterBag XSrcon(ITemplateHost host, int size, int k, double[] x, double[] y)
         {
             ParameterBag outputParameters = new();
@@ -2700,21 +2800,19 @@ namespace StatsDirect.Builtins
                 // large negative values overflowed)
                 for (int j = 1; j <= size; j++)
                     bigx = Math.Max(bigx, Math.Max(Math.Max(Math.Abs(x[j]), Math.Abs(y[j])), Math.Abs(x[j] - y[j])));
-                double scaler = 100000;
-                do
-                {
-                    if (bigx * scaler < Convert.ToDouble(long.MaxValue) / 10.0)
-                        break;
-                    scaler /= 10;
-                }
-                while (true);
-                // very small values used to give limits of 0, because the scale could not go above 100000
-                while (bigx > 0.0 && bigx * scaler < 1000.0 && scaler < 1e300)
-                    scaler *= 10;
+                // the differences are turned into whole numbers of up to 16 figures, within which every sum of two of them fits a
+                // long: each is divided by the largest size (a quotient from -1 to 1, whatever the scale of the values, down to
+                // the smallest doubles) and multiplied by 9e15, and a result is taken back through the same steps (the
+                // differences were in whole numbers of a hundred thousandth, so that limits of values of about 1 had 5 decimal
+                // places; very small values used to give limits of 0, because the scale could not go above 100000, and later
+                // because a multiplier in place of the quotient could not go above 1e290)
+                double unit = bigx > 0.0 ? bigx : 1.0;
+                const double whole = 9.0e15;
+                double Unscaled(long c) => c / whole * unit;
 
                 long[] xx = new long[size + 1];
                 for (int j = 1; j <= size; j++)
-                    xx[j] = Convert.ToInt64((x[j] - y[j]) * scaler);
+                    xx[j] = Convert.ToInt64((x[j] - y[j]) / unit * whole);
                 Array.Sort(xx, 1, size);
                 int midu, midl;
                 if (limit % 2 == 0)
@@ -2750,7 +2848,7 @@ namespace StatsDirect.Builtins
                         if (dokl)
                         {
                             dokl = false;
-                            kl = c / scaler / 2.0;
+                            kl = Unscaled(c) / 2.0;
                         }
                     }
                     if (i >= midl)
@@ -2758,16 +2856,16 @@ namespace StatsDirect.Builtins
                         if (domed)
                         {
                             domed = false;
-                            median = c / scaler / 2.0;
+                            median = Unscaled(c) / 2.0;
                         }
                     }
                 }
                 if (midu != midl)
                 {
                     if (domed)
-                        median = c / scaler / 2.0;
+                        median = Unscaled(c) / 2.0;
                     else
-                        median = (median + c / scaler / 2.0) / 2.0;
+                        median = (median + Unscaled(c) / 2.0) / 2.0;
                 }
                 for (int j = 1; j <= size; j++)
                     xx[j] = -xx[j];
@@ -2786,7 +2884,7 @@ namespace StatsDirect.Builtins
                         return outputParameters;
                     }
                 }
-                double ku = -c / scaler / 2.0;
+                double ku = -Unscaled(c) / 2.0;
                 outputParameters.AddOutput("from", kl);
                 outputParameters.AddOutput("to", ku);
                 outputParameters.AddOutput("med_diff", median);
@@ -2794,6 +2892,12 @@ namespace StatsDirect.Builtins
             return outputParameters;
         }
 
+        /// <summary>
+        /// The Smirnov test of two samples, the two columns: D, the greatest difference between their empirical distribution
+        /// functions, and D+ and D-, the greatest by which the first exceeds the second and the second the first (XKstwo). The
+        /// P values are exact, from every way of choosing which of the pooled values are the first sample's, with the ties as they
+        /// are (KsTies); the one sided P values are the tails of D+ and D- themselves.
+        /// </summary>
         public static StepOutput RptSmirnov(ParameterBag parameters)
         {
             int n1 = 0; int n2 = 0;
@@ -2847,10 +2951,15 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// The quantile of each column, the median unless another is asked for (a quantile that is not between 0 and 1 is taken as
+        /// the median), with its confidence interval and the confidence that the interval has (XQci), conservative or not as
+        /// asked. A limit that is the smallest or the largest value because no value lies far enough out is marked with an asterisk.
+        /// </summary>
         public static StepOutput RptQuantile(ParameterBag parameters)
         {
             bool doConservative = parameters["conservative-ci"].AsBoolean;
-            double gamma = parameters["gamma"].AsDouble;
+            double gamma = XLevel(parameters["gamma"].AsDouble);
             double qc = parameters["quantile"].AsDouble;
             if (qc >= 1 || qc <= 0)
                 qc = 0.5;
@@ -2906,8 +3015,7 @@ namespace StatsDirect.Builtins
         /// XDokend.  Gamma is the score over the number of pairs that are concordant or discordant, tied pairs being left out of the count.
         /// Three sets of P values are given: from the score over its standard error taken as a normal deviate; from the same with the
         /// continuity correction; and those called exact, from the distribution of the score without ties (kendp: by counting the orderings
-        /// for 50 pairs or fewer, and by a series for more, which is within 0.0000004 of the count at 51 pairs), which takes no account of
-        /// ties if there are any.
+        /// for 1000 pairs or fewer, and by a series for more), which takes no account of ties if there are any.
         /// </remarks>
         public static StepOutput RptKendall(IProgressBarHost host, ParameterBag parameters)
         {
@@ -2915,9 +3023,7 @@ namespace StatsDirect.Builtins
             double ps;
             double gam; double tauUl = 0; double tauLl = 0; double tau = 0;
             double varf = 0; double hn = 0; double s = 0;
-            double gamma = parameters["gamma"].AsDouble;
-            if (gamma <= 0.0)
-                gamma = 0.95;
+            double gamma = XLevel(parameters["gamma"].AsDouble);
             double cit = PDF.gauinv(1.0 - (1.0 - gamma) / 2.0, out int ifault);
 
             DataFrame frame = parameters["data"].AsDataFrame;
@@ -2980,12 +3086,10 @@ namespace StatsDirect.Builtins
             // pl is the lower tail of the normal deviate, and ps the smaller of the two tails
             double kz = s / Math.Sqrt(varf);
             double pl = PDF.alnorm(kz);
-            if (pl < 1.0 - pl)
-                ps = pl;
-            else
-                ps = 1.0 - pl;
+            double pu = PDF.alnorm(-kz);   //  each tail as itself: 1 less the other tail is 0 below 1e-16
+            ps = Math.Min(pl, pu);
             outputParameters.AddOutput("kz", kz);
-            outputParameters.AddOutput("p_u", 1.0 - pl);
+            outputParameters.AddOutput("p_u", pu);
             outputParameters.AddOutput("p_l", pl);
             outputParameters.AddOutput("p_2", ps * 2.0);
             // the continuity correction moves the score one step towards zero, and leaves a score of zero where it is (it used to
@@ -2997,12 +3101,10 @@ namespace StatsDirect.Builtins
             else
                 kz = 0.0;
             pl = PDF.alnorm(kz);
-            if (pl < 1.0 - pl)
-                ps = pl;
-            else
-                ps = 1.0 - pl;
+            pu = PDF.alnorm(-kz);
+            ps = Math.Min(pl, pu);
             outputParameters.AddOutput("kzcc", kz);
-            outputParameters.AddOutput("p_ucc", 1.0 - pl);
+            outputParameters.AddOutput("p_ucc", pu);
             outputParameters.AddOutput("p_lcc", pl);
             outputParameters.AddOutput("p_2cc", ps * 2.0);
 
@@ -3041,6 +3143,13 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// The simulated exact P of the Friedman test, or of Cochran's Q when every value is 0 or 1: the values of each block are
+        /// put into a random order among the treatments (ShuffleValuesWithinRows) the number of times asked for, from the seed
+        /// given, and P is the proportion of the orders whose statistic (T2, or T1 which is Q for values of 0 and 1) is at least
+        /// the observed one, with a binomial confidence interval for it (binci) at the level asked for. A run that the progress
+        /// bar stops gives the proportion of the draws made, and says how many.
+        /// </summary>
         public static StepOutput RptFriedmanSimulateExactP(IProgressBarHost host, ParameterBag parameters)
         {
             DataFrame frame = parameters["data"].AsDataFrame;
@@ -3059,6 +3168,7 @@ namespace StatsDirect.Builtins
             double nd = 0;
             double[] w2 = new double[treatments + 1];
             CalcFriedman(x, w2, n, treatments, ref a2, ref b2, ref t1, ref t2, ref nd);
+            XCheckFriedman(n, treatments, a2, "Friedman");
             double actualT = allAreBinary ? t1 : t2;
 
             int q = 0;
@@ -3092,7 +3202,8 @@ namespace StatsDirect.Builtins
         }
 
         ///  <summary>
-        ///  Randomly move values in each row of x between columns.  Values will never be moved between rows.
+        ///  Puts the values of each row of x into a random order among the columns, in which every order is equally likely (a
+        ///  Fisher-Yates shuffle, as Formula.Shuffle makes it).  Values are never moved between rows.
         ///  </summary>
         ///  <param name="x">The (1,1)-based array whose values are to be shuffled</param>
         ///  <param name="rnd">The random number generator from which to take values</param>
@@ -3100,21 +3211,20 @@ namespace StatsDirect.Builtins
         /// <param name="rows"></param>
         public static void ShuffleValuesWithinRows(double[,] x, MersenneTwister rnd, int cols, int rows)
         {
+            //  from the last column to the second, a column is exchanged with one drawn from the columns up to it (it used to
+            //  exchange each column with one drawn from all the columns, which leaves the orders with chances that differ)
             for (int row = 1; row <= rows; row++)
             {
-                //  TODO: Is there a "better" shuffle than this?
-                for (int col = 1; col <= cols; col++)
+                for (int col = cols; col > 1; col--)
                 {
-                    int from = rnd.NextInteger(1, cols);
-                    double tmp = x[col, row];
-                    x[col, row] = x[from, row];
-                    x[from, row] = tmp;
+                    int from = 1 + (int)Math.Floor(col * rnd.NextDouble());
+                    (x[col, row], x[from, row]) = (x[from, row], x[col, row]);
                 }
             }
         }
 
         ///  <summary>
-        ///  Randomly shuffle values between lowerBound and upperBound in x.
+        ///  Puts x[lowerBound] to x[upperBound] into a random order in which every order is equally likely (Formula.Shuffle).
         ///  </summary>
         ///  <param name="x">The lowerBound-based array whose values are to be shuffled</param>
         ///  <param name="rnd">The random number generator from which to take values</param>
@@ -3122,15 +3232,18 @@ namespace StatsDirect.Builtins
         /// <param name="upperBound"></param>
         public static void ShuffleValuesWithinArray(double[] x, MersenneTwister rnd, int lowerBound, int upperBound)
         {
-            for (int i = lowerBound; i <= upperBound; i++)
-            {
-                int from = rnd.NextInteger(lowerBound, upperBound);
-                double tmp = x[i];
-                x[i] = x[from];
-                x[from] = tmp;
-            }
+            Formula.Shuffle(rnd, x, lowerBound, upperBound);
         }
 
+        /// <summary>
+        /// The Friedman test of k treatments in n blocks, the columns being the treatments and the rows the blocks (a row with a
+        /// missing value is left out), and Cochran's Q when every value is 0 or 1. The values of each block are ranked, tied values
+        /// sharing the mean rank (CalcFriedman); with A the sum of the squared ranks, B the sum over the treatments of the squared
+        /// rank sums over n, and C = n k (k + 1)^2 / 4: T1 = (k - 1)(n B - n C) / (A - C), which is Q for values of 0 and 1 and is
+        /// then tested against chi-square on k - 1 degrees of freedom; and T2 = (n - 1)(B - C) / (A - B), tested against F on
+        /// k - 1 and (n - 1)(k - 1) degrees of freedom, for other values. The rank sums, n, A and B are kept for the comparisons.
+        /// "Numbers are small" is shown with fewer than 25 blocks, or, with values of 0 and 1, fewer than 25 blocks that have a 1.
+        /// </summary>
         public static StepOutput RptFriedman(ParameterBag parameters)
         {
             DataFrame frame = parameters["data"].AsDataFrame;
@@ -3141,6 +3254,7 @@ namespace StatsDirect.Builtins
             double t2 = 0;
             double nd = 0;
             CalcFriedman(frame, out double[] w2, out int n, ref a2, ref b2, ref t1, ref t2, ref nd, out bool allAreBinary, out bool numbersAreSmall);
+            XCheckFriedman(n, frame.VariableCount, a2, "Friedman");
 
             string tlist = string.Empty; string rlist = string.Empty;
             for (int d = 0; d < frame.VariableCount; d++)
@@ -3196,7 +3310,7 @@ namespace StatsDirect.Builtins
                 outputParameters.AddOutput("*message", null);
             }
 
-            if (p <= 0.05)
+            if (numbersAreSmall)
             {
                 ParameterBag warnParameters = new();
                 warnParameters.AddOutput("warning", "Numbers are small: use simulated exact probability instead.");
@@ -3218,12 +3332,17 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// The table of the values, x[treatment, block], from the columns, a row with a missing value left out; n is the number of
+        /// blocks kept; allAreBinary is true when every value is 0 or 1; numbersAreSmall is true with fewer than 25 blocks, or,
+        /// with values of 0 and 1, fewer than 25 blocks that have a 1.
+        /// </summary>
         private static void PreprocessFriedman(DataFrame frame, out double[,] x, out int n, out int treatments, out bool allAreBinary, out bool numbersAreSmall)
         {
             x = new double[frame.VariableCount + 1, frame.Variables[0].Length + 1];
             allAreBinary = true;
             int qty = 0;
-            int positiveCellCount = 0;
+            int blocksWithAPositive = 0;
             for (int j = 0; j < frame.Variables[0].Length; j++)
             {
                 bool skip = false;
@@ -3235,21 +3354,37 @@ namespace StatsDirect.Builtins
                 if (!skip)
                 {
                     qty += 1;
+                    bool positive = false;
                     for (int d = 0; d < frame.VariableCount; d++)
                     {
                         double dat = ((DoubleVariable)frame.Variables[d]).Data[j];
                         x[d + 1, qty] = dat;
                         if (dat > 0)
-                            positiveCellCount += 1;
+                            positive = true;
                         if (allAreBinary && !(dat == 1.0 || dat == 0.0))
                             allAreBinary = false;
                     }
+                    if (positive)
+                        blocksWithAPositive += 1;
                 }
             }
 
             n = qty;
             treatments = frame.VariableCount;
-            numbersAreSmall = positiveCellCount < 25;
+            //  the numbers are small with fewer than 25 blocks, or, with values of 0 and 1 only (Cochran's Q), fewer than 25
+            //  blocks that have a 1, a block of 0s adding nothing to Q
+            numbersAreSmall = (allAreBinary ? blocksWithAPositive : n) < 25;
+        }
+
+        //  What the Friedman test cannot be made of: fewer than two blocks, and observations that are the same within every
+        //  block, for which the sum of the squared ranks is that of ranks that are all the mean rank, and the statistic 0 over 0
+        private static void XCheckFriedman(int n, int treatments, double a2, string function)
+        {
+            if (n < 2)
+                throw new TemplateOperationCancelledException("Too few blocks: at least two rows with a value in every column are needed.", function);
+            double kd = treatments;
+            if (a2 == n * kd * (kd + 1.0) * (kd + 1.0) / 4.0)
+                throw new TemplateOperationCancelledException("The test cannot be calculated when the observations within every block are the same.", function);
         }
 
         ///  <summary>
@@ -3336,10 +3471,16 @@ namespace StatsDirect.Builtins
             }
         }
 
+        /// <summary>
+        /// All pairwise comparisons of the treatments after the Friedman test: the difference of two treatments' rank sums is
+        /// compared with t on (n - 1)(k - 1) degrees of freedom times sqrt(2 n (A - B) / ((n - 1)(k - 1))), two sided at the level
+        /// of the confidence given (t at half of 1 - confidence), or one sided (the direction of the difference is given), with
+        /// the P of each difference. The rank sums, n, A and B are those that the test cached, or are worked out again.
+        /// </summary>
         public static StepOutput RptFrMultiple(ParameterBag parameters)
         {
             DataFrame frame = parameters["data"].AsDataFrame;
-            double confidence = parameters["confidence"].AsDouble;
+            double confidence = XLevel(parameters["confidence"].AsDouble);
 
             double[] w2;
             int n;
@@ -3366,6 +3507,7 @@ namespace StatsDirect.Builtins
 
                 CalcFriedman(frame, out w2, out n, ref a2, ref b2, ref t1, ref t2, ref nd, out bool allAreBinary, out bool numbersAreSmall);
             }
+            XCheckFriedman(n, frame.VariableCount, a2, "Friedman");
 
             ParameterBag outputParameters = new();
             double dfq = (n - 1) * (frame.VariableCount - 1);
@@ -3467,6 +3609,11 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// The Kruskal-Wallis test of the values in the columns, which are the groups: the values are ranked together and H is
+        /// from the rank sums (XKwt), with and without the correction for ties, each tested against chi-square on k - 1 degrees of
+        /// freedom; the mean rank of each group is listed. Values that are all the same are refused.
+        /// </summary>
         public static StepOutput RptKruskal(ParameterBag parameters)
         {
             DataFrame frame = parameters["data"].AsDataFrame;
@@ -3580,6 +3727,13 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// The simulated exact P of the Kruskal-Wallis test: the ranks of the values are put into a random order among the groups
+        /// (ShuffleValuesWithinArray) the number of times asked for, from the seed given, and P is the proportion of the orders
+        /// whose H (with the correction for ties when there are ties, which is the same for every order) is at least the observed
+        /// one, with a binomial confidence interval for it (binci) at the level asked for. A run that the progress bar stops
+        /// gives the proportion of the draws made, and says how many.
+        /// </summary>
         public static StepOutput RptKruskalSimulateExactP(IProgressBarHost host, ParameterBag parameters)
         {
             DataFrame frame = parameters["data"].AsDataFrame;
@@ -3656,13 +3810,22 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// All pairwise comparisons of the groups after the Kruskal-Wallis test. Two sided, the Dwass-Steel-Critchlow-Fligner test:
+        /// each pair of groups is ranked on its own, the rank sum of the smaller group less its mean under no difference, over its
+        /// standard deviation with the correction for ties, is a deviate that is compared with the point of the range of k means
+        /// with degrees of freedom without end at the level (the confidence given, or 0.05 taken as a 5% test), and the P of the
+        /// deviate is the tail of that range. Two sided or one sided, the Conover-Iman comparisons: the difference of two groups'
+        /// mean ranks over its standard error (see the comment at the variance of the ranks) is compared with t on N - k degrees
+        /// of freedom, with the P of each difference. Values that are all the same are refused.
+        /// </summary>
         public static StepOutput RptKwMultiple(ParameterBag parameters)
         {
             double[] ri;
             double[] x;
 
             DataFrame frame = parameters["data"].AsDataFrame;
-            double confidence = parameters["confidence"].AsDouble;
+            double confidence = XLevel(parameters["confidence"].AsDouble);
 
            ParameterBag outputParameters = new();
 
@@ -3729,9 +3892,11 @@ namespace StatsDirect.Builtins
             // Steel-Dwass-Critchlow-Fligner method
             if (sided != 1)
             {
-                if (p == 0)
-                    p = 0.95;
-                double qval = PDF.quantsr(p, k, 1000000.0);
+                //  the point of the range at the level: a confidence of 0.05 is a 5% test, as it is for the Conover-Iman
+                //  comparisons below (it used to give the 5% point of the range, at which every pair was significant)
+                if (p > 1.0 - p)
+                    p = 1.0 - p;
+                double qval = PDF.quantsr(1.0 - p, k, 1000000.0);
 
                 outputParameters.AddOutput("q", qval);
 
@@ -3894,13 +4059,23 @@ namespace StatsDirect.Builtins
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// The squared ranks test for equal variances of the groups in the columns: each value less the mean of its group, without
+        /// its sign, is ranked among all the values. With two groups the statistic is the sum of the squared ranks of the first
+        /// group less its mean under equal variances, over its standard deviation, taken as a normal deviate, with the tail beyond
+        /// it as the one sided P and twice that two sided. With more groups the statistic is a sum over the groups of the squared
+        /// sums of the squared ranks over the group sizes, less N times the square of the mean squared rank, over the variance of
+        /// the squared ranks, tested against chi-square on k - 1 degrees of freedom; when it rejects at the level (the confidence
+        /// given, or 0.05 taken as a 5% test) the mean squared ranks of every two groups are compared with t on N - k degrees of
+        /// freedom, with the P of each difference.
+        /// </summary>
         public static StepOutput RptSqRank(ParameterBag parameters)
         {
             double ru = 0;
 
             DataFrame frame = parameters["data"].AsDataFrame;
 
-            double confidence = parameters["confidence"].AsDouble;
+            double confidence = XLevel(parameters["confidence"].AsDouble);
 
             double[] mean = new double[frame.VariableCount];
             int[] l = new int[frame.VariableCount];
@@ -4044,22 +4219,33 @@ namespace StatsDirect.Builtins
                 double t1 = (ru - l[0] * sbar) / Math.Sqrt(Convert.ToDouble(nm) / Convert.ToDouble(nx * (nx - 1)) * r4 - nm / (nx - 1.0) * sbar * sbar);
                 double z = t1;
                 outputParameters.AddOutput("z", z);
-                double p = 1.0 - PDF.alnorm(Math.Abs(z));
-                if (p > 1 - p)
-                    p = 1 - p;
+                //  the tail beyond |z|, worked out as itself: 1 less the other tail is 0 below 1e-16
+                double p = PDF.alnorm(-Math.Abs(z));
                 outputParameters.AddOutput("p2", p * 2);
                 outputParameters.AddOutput("p1", p);
             }
             return new StepOutput(outputParameters);
         }
 
+        /// <summary>
+        /// The Gini coefficient of the positive values of each column; a weight repeats a value, and missing values, zeros and
+        /// values below zero are left out and counted as not used. Of the n values in order, the coefficient is the sum of
+        /// (2 j - n - 1) x_j over n times the sum of the values, and n / (n - 1) times it is given as the unbiased coefficient;
+        /// the coefficient of variation is with n - 1. A bootstrap draws n values with replacement the number of times asked for
+        /// and gives the bias and the standard error of the coefficient over the re-samples, the percentile limits, and the BCa
+        /// limits with the acceleration from the jackknife (see the comment there), each also for the unbiased coefficient. With
+        /// one column the Lorenz curve, the running share of the values against the share of the values in order, is given for the
+        /// chart.
+        /// </summary>
+        /// <remarks>
+        /// The random numbers are from the seed given, or from the clock if none is, and the report gives the seed, so that the
+        /// same re-samples can be drawn again.
+        /// </remarks>
         public static StepOutput RptGini(IProgressBarHost host, ParameterBag parameters)
         {
             DataFrame dataFrame = parameters["data"].AsDataFrame;
             DataFrame weightsFrame = parameters.ContainsKey("weights") ? parameters["weights"].AsDataFrame : null;
-            double gamma = parameters["gamma"].AsDouble;
-            if (gamma <= 0)
-                throw new TemplateOperationCancelledException();
+            double gamma = XLevel(parameters["gamma"].AsDouble);
             int boots = parameters["boots"].AsInt32;
             int bootsDivisor = Math.Max(1, boots / 1000);
 
@@ -4069,7 +4255,8 @@ namespace StatsDirect.Builtins
             List<ParameterBag> outputList = new();
             outputParameters.AddOutput("*data", outputList);
 
-            MersenneTwister rng = new(); // Seeds itself
+            int seed = Formula.AutoSeed(parameters);   //  the seed given, or one from the clock; the report gives it
+            MersenneTwister rng = new(seed);
             for (int k = 0; k < dataFrame.VariableCount; k++)
             {
                 DoubleVariable v = (DoubleVariable)dataFrame.Variables[k];
@@ -4281,6 +4468,7 @@ namespace StatsDirect.Builtins
                     varParameters.AddOutput("msg", bcaNote.TrimStart());
                 varParameters.AddOutput("cv", cv);
                 varParameters.AddOutput("boots", boots);
+                varParameters.AddOutput("seed", seed);
                 varParameters.AddOutput("bias", bias);
                 varParameters.AddOutput("se", thetase);
 

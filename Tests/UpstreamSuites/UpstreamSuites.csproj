@@ -10,7 +10,8 @@
     <EngineBin>$(MSBuildThisFileDirectory)../../FullEngine/publish</EngineBin>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(SuiteSource)/*.cs" Exclude="$(SuiteSource)/Reports.cs" Condition="'$(Suite)' != 'Frequencies'" />
+    <Compile Include="$(SuiteSource)/*.cs" Exclude="$(SuiteSource)/Reports.cs" Condition="'$(Suite)' != 'Frequencies' And '$(Suite)' != 'Distributions'" />
+    <Compile Include="$(MacDistributions)" Condition="'$(Suite)' == 'Distributions'" />
     <Compile Include="$(MacFrequency)" Condition="'$(Suite)' == 'Frequencies'" />
     <Compile Include="$(SuiteSource)/Reports.cs" Condition="'$(Suite)' != 'Crosstabs' And Exists('$(SuiteSource)/Reports.cs')" />
     <Compile Include="$(MacReports)" Condition="'$(Suite)' == 'Crosstabs'" />

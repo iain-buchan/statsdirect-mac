@@ -1,0 +1,34 @@
+{
+  "date": "2026-09-30",
+  "macVersion": "0.3.14",
+  "engine": {
+    "repository": "https://github.com/iain-buchan/statsdirect",
+    "commit": "b10edfefa54bb9ebcdb36b9019b428f75c7d136d",
+    "version": "5.0.14"
+  },
+  "engineAssemblySHA256": "139e4b62100e8308a83861ae0717503e7b3ab1beb4631e3f1b95fcd88bf97941",
+  "buildExitCode": 0,
+  "buildLogSHA256": "8f03e5dda29f09c9ddced4a259183983bf15fa1efd76a04a0bf3babcdb4551cb",
+  "sourceComparison": {
+    "baseline": "176eef77b9868a485de19e382db90fe36219c239",
+    "changedManifestPaths": [
+      "StatsDirectUI/StatsDirectUI.csproj"
+    ],
+    "unchangedManifestHashes": 881
+  },
+  "helpCommit": "9894a2641329159fb0e251e5b6bb657b9171f5ba",
+  "helpAssetsVerified": 979,
+  "priorNumericalEvidence": "../Core-176eef7/summary.json",
+  "priorNumericalEvidenceRerun": false,
+  "signatureVerification": "canonical, versioned and extracted bundles: codesign --verify --deep --strict passed",
+  "releaseZIP": {
+    "name": "StatsDirect-0.3.14-macOS-arm64.zip",
+    "bytes": 153631869,
+    "sha256": "234051b29f0de0530432843b897e5a638666ced29fb00bdc7e84d4e95c9634c5"
+  },
+  "aboutUIVerified": {
+    "macVersion": "0.3.14",
+    "engineVersion": "5.0.14",
+    "engineRevision": "b10edfefa54b"
+  }
+}

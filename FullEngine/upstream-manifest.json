@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "176eef77b9868a485de19e382db90fe36219c239",
-  "version": "5.0.13",
+  "commit": "b10edfefa54bb9ebcdb36b9019b428f75c7d136d",
+  "version": "5.0.14",
   "sha256": {
     "Layout/Axis.cs": "37b781cfd82f963f5ba9f24295b008af80fe12d9a4e3ddd0649140c14e8785ef",
     "Layout/AxisLabelers/AxisLabeler.cs": "8b8b1be2b41f977553a9d2c39bee53268fe6e31dbe7f59b22080fbf50c19044a",
@@ -745,7 +745,7 @@
     "StatsDirectUI/R/RResults.g4.parser.cs": "701d5d19ebd13b68560a33ca9f0528094dada3bf8f2e90666c7096a74e5125e8",
     "StatsDirectUI/R/RResultsParserPartial.cs": "47ad52a9b5c4af7098d1639615095b5412264722f7dfafd1f6d9293f3ea44fb6",
     "StatsDirectUI/R/RVersion.cs": "c8866ea2fc494ccfc1ebf62c3e475ec0e9d6170a432cbe0a2552b47bf263acc6",
-    "StatsDirectUI/StatsDirectUI.csproj": "763d7c78e03a3bdd801dd2fc8d4ecb8ed276a2f9ed37a2ff1c048f75c91ebc7b",
+    "StatsDirectUI/StatsDirectUI.csproj": "890d32a8450706fe675b761781e210d6042880d7d850ca95e2b05d87a9f6c8e3",
     "StatsDirectUI/TemplateProcessing/CreoleHtmlReportRenderer.cs": "93b30f184f9915157c411c59e0e0e3ebcd59d7c3698868b50ec7eede5afcc9ad",
     "StatsDirectUI/TemplateProcessing/CreoleRtfReportRenderer.cs": "330bb2df6a85ae0930a9d0bf4c384bb1bcf042a7f20b902484de51d73942a6da",
     "StatsDirectUI/TemplateProcessing/HtmlImageRenderer.cs": "c1c2a6491045d1a7a59ea13efede1574994d2afbf77d82c3f83160b48944ecb2",

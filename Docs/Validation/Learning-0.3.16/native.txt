@@ -1,0 +1,3 @@
+PASS: simplified options and saved skills, provider import, three course lessons, saved practical work, non-executing R example, attached R snapshot, returned response and three provider MCQs
+PASS: skills, assessment preference and imported course reference reach the tutor request; retired web caches excluded; cited reply, practical work, evidence and external response survive export and restore. No email sent, no live AI reply claimed.
+PASS: provider course and resource integration in native WKWebView

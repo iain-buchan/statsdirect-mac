@@ -1,3 +1,9 @@
+# Simplified Learning Options — 1 October 2026
+
+Mac 0.3.16 uses two main form sections, adds statistical skill level and assessment type, groups course-pack controls with the training provider, and removes the learner web-resource list. Optional preferences and provider conditions remain expandable. Existing records, custom recipients and immutable submissions are retained. The default assessment email is support@statisticalhelp.org.
+
+All 19 learning tests, the native provider/tutor-context workflow and Swift compatibility checks passed. Native visual inspection confirmed the new layout and CPD selector. Retired web caches are preserved but excluded from new tutor requests. No live AI assessment or email submission was made. The extracted release is locally signed and retains byte-identical core 5.0.14 engine files; numerical suites were not repeated. See [validation](../Docs/Validation/Learning-0.3.16/README.md).
+
 # Provider courses and learning resources — 30 September 2026
 
 Mac 0.3.15 adds a configurable learning URL list, provider course packs, practical submissions, report/R text evidence, provider-addressed review drafts and returned assessment records. The six starter links cover OpenLearn, CDC, Penn State, OpenIntro and Hernán/Robins. A three-lesson provider example and author/response templates are included. See the [feature validation](../Docs/Validation/Learning-0.3.15/README.md) and [author guide](../Docs/Learn/CoursePack/README.md).

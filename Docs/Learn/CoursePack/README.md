@@ -1,10 +1,10 @@
 # Courses and reading lists for StatsDirect Learning
 
-Open **Help → Learning Options**. Learners can enter their training organisation, course/version, assessment email and the provider’s assessment/CPD conditions. A provider course can fill these fields. The provider decides whether submitted work meets its requirements; StatsDirect does not award or authenticate credit.
+Open **Help → Learning Options**. The main provider fields are Course (name or URL), Assessment email address, Assessment type and A course pack from your tutor. Additional provider/version and assessment/CPD conditions are available in expandable details. A provider course can fill these fields. The provider decides whether submitted work meets its requirements; StatsDirect does not award or authenticate credit.
 
 ## Start with an example
 
-Choose **Use example provider course** to try a three-lesson public-health service evaluation, paired data, an R example and three original practice questions. It replaces the active pack and archives the previous one; saved submissions and question attempts remain in the portfolio. The example has no accreditation attached.
+Choose **Try example course** to try a three-lesson public-health service evaluation, paired data, an R example and three original practice questions. It replaces the active pack and archives the previous one; saved submissions and question attempts remain in the portfolio. The example has no accreditation attached.
 
 Providers can edit [provider-course-example.json](provider-course-example.json) and import it with **Import course pack**. No programming or model training is required to use a pack, although authoring the structured JSON currently requires editing a file. Searchable PDF, UTF-8 Markdown/text and the original schemaVersion 1 JSON packs remain supported as reference notes.
 
@@ -12,24 +12,22 @@ Providers can edit [provider-course-example.json](provider-course-example.json) 
 
 Schema version 2 has `id`, `version`, `title`, `provider`, `documents`, `lessons`, `questions` and `resourceURLs`. The example is the complete working template.
 
-- `provider`: name, a single `reviewEmail`, `assessmentRequirements` and `cpdStatement`. The learner sees and can amend these details before preparing a submission.
+- `provider`: name, a single `reviewEmail`, `assessmentRequirements` and `cpdStatement`, and optional `assessmentType` (`none`, `cpd` or `self`). The learner sees and can amend these details before preparing a submission.
 - `documents`: unique IDs, titles and teaching text. References are retrieved from these documents when relevant.
 - `lessons`: an ordered sequence of unique IDs, titles, objectives, summaries, practical steps and a challenge. Optional reading URLs link to the prescribed material. The shared StatsDirect foundation lessons, including epidemiology and causal inference, remain available.
 - A lesson may include an existing StatsDirect `operation` ID and numeric example `columns`. Each column has a title and values. The regular analysis form opens with these data. Optional `r` text opens in an R tab **without running**; the learner can inspect it and press Run. Importing a course never executes code.
 - `questions`: original provider-authored MCQs with 2–8 labelled choices, one correct choice and an explanation. Optional hints, teaching notes, objectives and choice-specific feedback are supported. These are local, unsupervised practice questions, not a secure examination; do not put secret examination keys in learner packs.
-- `resourceURLs`: public HTTPS pages or PDFs added to the learner’s resource list. They are not automatically downloaded during course import.
+- `resourceURLs`: optional HTTPS reference metadata retained for compatibility. The learner reading list is retired in 0.3.16; these links are not fetched or added to tutor context. Supply reference text in `documents` and reading links in lessons.
 
 Pack IDs and lesson/question IDs use letters, digits, hyphens and underscores. Limits: 100 lessons, 300 questions, 30 resource URLs, 500 reference documents/pages and 1 MB of reference text. Each local import file is at most 16 MB. Provider examples allow up to 32 columns / 20,000 numeric values per lesson. Invalid imports leave the current pack unchanged. A provider pack must be imported on its own; notes-only files can be imported together.
 
-## Web resources
+## Curated content and reference notes
 
-The starter list includes OpenLearn medical statistics; CDC’s archived Principles of Epidemiology; Penn State STAT 507; two OpenIntro chapters; and Hernán and Robins’ What If book page. Links and short descriptions are bundled; third-party teaching text is downloaded only when the learner presses **Load** or **Load / refresh enabled resources**.
+The learner web-resource list was removed in 0.3.16. Core lessons and questions are curated in the application between releases. Tutors can still import PDF/text/JSON materials or distribute provider course packs. A Course field containing a URL identifies the course; it does not download the site or claim that its content has been read.
 
-Add one URL per line. Each row shows whether it is enabled, what was downloaded and when, or the actual error. Loading a page reads that page, not an entire course website. Recognised PDF links can be added and loaded separately. For a protected or blocked site, use its browser download and import a permitted searchable PDF/text copy. Figures, scanned pages and complex mathematical notation need checking against the original.
+Old downloaded resource caches remain on disk but are no longer used for new tutor requests. Existing conversations retain their original source citations. The downloader and seed catalogue remain in source control for future editorial work, without learner-facing download controls.
 
-Only enabled, successfully downloaded material is available to the tutor. A failed refresh retains the earlier text and date with a visible failure status. Removing a resource removes its cached text from future retrieval; sources already recorded in conversations remain in the record. The downloader uses public HTTPS, checks destinations and redirects, sends no browser cookies/account credentials, does not execute page scripts, and limits downloads to 16 MB, PDFs to 700 pages and extracted text to 2 MB per resource. The local library is limited to 30 resources / 20 MB.
-
-Local keyword ranking chooses up to five overlapping extracts, each at most 1,700 characters, based on the learner’s question and lesson topic. Unrelated extracts are excluded. References include the original URL, retrieval date and PDF page/title. This is retrieval, not fine-tuning. The tutor receives selected excerpts through the existing ChatGPT connection when the learner sends a question. Links alone do not give the tutor access to material. The application does not grant redistribution rights to third-party course content.
+Local keyword ranking selects up to five relevant course-pack extracts of up to 1,700 characters for each tutor question, with document/page references and any supplied source URL/date. Figures, scanned pages and complex notation need checking against the original. Import does not fine-tune the model or confer redistribution rights.
 
 ## Assessment and evidence
 

@@ -1,4 +1,13 @@
-export const trainingDefaults=()=>({providerName:'',courseTitle:'',courseVersion:'',reviewEmail:'support@statsdirect.com',requirements:'',cpdStatement:''});
+export const statisticalSkills={beginner:'Beginner',intermediate:'Intermediate',advanced:'Advanced'};
+export const assessmentTypes={none:'None',cpd:'Continued professional development credits',self:'AI supported self-assessment'};
+export const assessmentNotes={none:'Learn at your own pace.',cpd:'Keep a learning record for your provider to review for credit.',self:'Use the tutor for practice questions and feedback on your reasoning.'};
+export const trainingDefaults=()=>({providerName:'',courseTitle:'',courseVersion:'',reviewEmail:'support@statisticalhelp.org',assessmentType:'none',requirements:'',cpdStatement:''});
+export function currentTraining(value){
+ const t={...trainingDefaults(),...value};
+ // Update only the previous untouched default. Provider and saved submission addresses stay intact.
+ if(value?.assessmentType===undefined&&t.reviewEmail==='support@statsdirect.com'&&!t.providerName&&!t.courseTitle&&!t.courseVersion&&!t.requirements&&!t.cpdStatement)t.reviewEmail='support@statisticalhelp.org';
+ return t;
+}
 export const safeURL=s=>{try{const u=new URL(s);return u.protocol==='https:'&&!u.username&&!u.password&&(!u.port||u.port==='443')?u.href:'';}catch{return '';}};
 export const validEmail=s=>typeof s==='string'&&s.length<=254&&!/\s/.test(s)&&/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}$/.test(s);
 export const courseKey=p=>p?.schemaVersion===2?`${p.id}:${p.version}`:'';
@@ -6,7 +15,7 @@ export function courseLessons(pack){return (pack?.lessons??[]).map(l=>({...l,id:
 export function courseQuestions(pack){return (pack?.questions??[]).map(q=>({...q,id:`course:${courseKey(pack)}:${q.id}`,track:'core',version:pack.version,topic:q.topic||pack.title,objective:q.objective||'',hint:q.hint||'Explain the population, variables and comparison before choosing.',lesson:q.lesson||'Use the course notes and explain your reasoning.',help:q.help||'',options:q.options.map(o=>({...o,feedback:o.feedback||q.explanation}))}));}
 export function adoptCourse(state,pack){
   const key=courseKey(pack);if(!key||key===state.courseKey)return;
-  state.courseKey=key;state.training={providerName:pack.provider.name,courseTitle:pack.title,courseVersion:pack.version,reviewEmail:pack.provider.reviewEmail,requirements:pack.provider.assessmentRequirements||'',cpdStatement:pack.provider.cpdStatement||''};
+  state.courseKey=key;state.training={providerName:pack.provider.name,courseTitle:pack.title,courseVersion:pack.version,reviewEmail:pack.provider.reviewEmail,assessmentType:pack.provider.assessmentType??state.training.assessmentType??'none',requirements:pack.provider.assessmentRequirements||'',cpdStatement:pack.provider.cpdStatement||''};
 }
 export function submitCourseWork(state,lesson,text){
   if(!lesson?.providerCourse||!text.trim())throw Error('Write your answer or practical findings before saving.');

@@ -3,7 +3,7 @@ import Foundation
 /// Local, text-only course material. Referenced excerpts are supplied as context, never executed.
 struct CoursePack: Codable {
     struct Material: Codable { let id: String; let title: String; let text: String; var url: String? = nil; var retrievedAt: String? = nil }
-    struct Provider: Codable { let name: String; let reviewEmail: String; var assessmentRequirements: String?; var cpdStatement: String? }
+    struct Provider: Codable { let name: String; let reviewEmail: String; var assessmentRequirements: String?; var cpdStatement: String?; var assessmentType: String? = nil }
     struct Column: Codable { let title: String; let values: [Double] }
     struct Lesson: Codable {
         let id: String; let title: String; let objective: String; let summary: String
@@ -36,6 +36,7 @@ struct CoursePack: Codable {
             let lessons = lessons ?? [], questions = questions ?? []
             guard Self.identifier(id ?? ""), !(version ?? "").isEmpty, (version ?? "").count <= 80,
                   let provider, !provider.name.isEmpty, provider.name.count <= 200, LearningLinks.email(provider.reviewEmail),
+                  provider.assessmentType == nil || ["none","cpd","self"].contains(provider.assessmentType!),
                   (provider.assessmentRequirements ?? "").count <= 5000, (provider.cpdStatement ?? "").count <= 2000,
                   lessons.count <= 100, Set(lessons.map(\.id)).count == lessons.count,
                   questions.count <= 300, Set(questions.map(\.id)).count == questions.count,

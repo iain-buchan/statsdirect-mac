@@ -1,0 +1,2 @@
+Course pack: validation, persistence and relevant excerpt selection passed.
+Managed learning client: HTTPS/session boundary, bounded context, no provider controls, reply parsing and safe errors passed.

@@ -1,13 +1,14 @@
 {
   "schemaVersion": 2,
   "id": "service-improvement-demo",
-  "version": "1.0",
+  "version": "1.1",
   "title": "Data skills for a public-health service team \u2014 example course",
   "provider": {
     "name": "Example training provider (demonstration)",
-    "reviewEmail": "support@statsdirect.com",
+    "reviewEmail": "support@statisticalhelp.org",
     "assessmentRequirements": "Complete the three practical tasks and the independent question set. Submit your interpretation, relevant report/R output and a reflection for tutor review. This demonstration is not an accredited course.",
-    "cpdStatement": "No CPD credit is attached to this example. A real provider must specify its own recognised scheme and assessment conditions."
+    "cpdStatement": "No CPD credit is attached to this example. A real provider must specify its own recognised scheme and assessment conditions.",
+    "assessmentType": "self"
   },
   "documents": [
     {

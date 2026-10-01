@@ -290,7 +290,15 @@
   }
 
   // Learn/provider-course.mjs
-  var trainingDefaults = () => ({ providerName: "", courseTitle: "", courseVersion: "", reviewEmail: "support@statsdirect.com", requirements: "", cpdStatement: "" });
+  var statisticalSkills = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
+  var assessmentTypes = { none: "None", cpd: "Continued professional development credits", self: "AI supported self-assessment" };
+  var assessmentNotes = { none: "Learn at your own pace.", cpd: "Keep a learning record for your provider to review for credit.", self: "Use the tutor for practice questions and feedback on your reasoning." };
+  var trainingDefaults = () => ({ providerName: "", courseTitle: "", courseVersion: "", reviewEmail: "support@statisticalhelp.org", assessmentType: "none", requirements: "", cpdStatement: "" });
+  function currentTraining(value) {
+    const t = { ...trainingDefaults(), ...value };
+    if (value?.assessmentType === void 0 && t.reviewEmail === "support@statsdirect.com" && !t.providerName && !t.courseTitle && !t.courseVersion && !t.requirements && !t.cpdStatement) t.reviewEmail = "support@statisticalhelp.org";
+    return t;
+  }
   var safeURL = (s) => {
     try {
       const u = new URL(s);
@@ -311,7 +319,7 @@
     const key = courseKey(pack);
     if (!key || key === state2.courseKey) return;
     state2.courseKey = key;
-    state2.training = { providerName: pack.provider.name, courseTitle: pack.title, courseVersion: pack.version, reviewEmail: pack.provider.reviewEmail, requirements: pack.provider.assessmentRequirements || "", cpdStatement: pack.provider.cpdStatement || "" };
+    state2.training = { providerName: pack.provider.name, courseTitle: pack.title, courseVersion: pack.version, reviewEmail: pack.provider.reviewEmail, assessmentType: pack.provider.assessmentType ?? state2.training.assessmentType ?? "none", requirements: pack.provider.assessmentRequirements || "", cpdStatement: pack.provider.cpdStatement || "" };
   }
   function submitCourseWork(state2, lesson2, text) {
     if (!lesson2?.providerCourse || !text.trim()) throw Error("Write your answer or practical findings before saving.");
@@ -329,7 +337,7 @@
   // Learn/portfolio.mjs
   var stages = { menus: "Start with menus", bridge: "Connect menus to R", coding: "Practise R coding" };
   function newPortfolio() {
-    return { schemaVersion: 2, id: crypto.randomUUID(), startedAt: (/* @__PURE__ */ new Date()).toISOString(), profile: "foundation", stage: "menus", lesson: "epidemiology", view: "study", identity: { name: "", email: "", goal: "" }, learning: { needs: "", qualifications: "", priorKnowledge: "", targetDate: "", focus: ["epidemiology", "causal"], style: "Worked examples and questions" }, training: trainingDefaults(), courseKey: "", courseWork: [], workDrafts: {}, providerReviews: [], evidence: [], conversation: [], activities: [], attempts: [], quiz: null, reflection: "", draft: "" };
+    return { schemaVersion: 2, id: crypto.randomUUID(), startedAt: (/* @__PURE__ */ new Date()).toISOString(), profile: "foundation", stage: "menus", lesson: "epidemiology", view: "study", identity: { name: "", email: "", goal: "" }, learning: { statisticalSkills: "beginner", needs: "", qualifications: "", priorKnowledge: "", targetDate: "", focus: ["epidemiology", "causal"], style: "Worked examples and questions" }, training: trainingDefaults(), courseKey: "", courseWork: [], workDrafts: {}, providerReviews: [], evidence: [], conversation: [], activities: [], attempts: [], quiz: null, reflection: "", draft: "" };
   }
   function restorePortfolio(value) {
     const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -343,10 +351,11 @@
       return s.answers.every((a, i) => strings(a, ["questionId", "choice", "confidence", "reasoning", "answeredAt"]) && a.questionId === s.questionIds[i] && ["unsure", "fairly", "confident"].includes(a.confidence) && typeof a.assisted === "boolean" && typeof a.correct === "boolean" && sessionQuestion(s, a.questionId).options.some((o) => o.id === a.choice) && a.correct === (a.choice === sessionQuestion(s, a.questionId).correct));
     };
     const defaults = newPortfolio();
-    const learning = value?.learning === void 0 ? defaults.learning : value.learning;
-    if (value?.training !== void 0 && !strings(value.training, Object.keys(trainingDefaults())) || value?.courseKey !== void 0 && typeof value.courseKey !== "string" || value?.courseWork !== void 0 && (!Array.isArray(value.courseWork) || !value.courseWork.every((w) => strings(w, ["id", "at", "courseKey", "lessonID", "lessonTitle", "objective", "task", "text", "status"]) && strings(w.training, Object.keys(trainingDefaults())))) || value?.workDrafts !== void 0 && (!object(value.workDrafts) || !Object.values(value.workDrafts).every((x) => typeof x === "string")) || value?.providerReviews !== void 0 && (!Array.isArray(value.providerReviews) || !value.providerReviews.every((r) => strings(r, ["portfolioID", "provider", "reviewer", "reviewedAt", "decision", "feedback", "verification"]))) || value?.evidence !== void 0 && (!Array.isArray(value.evidence) || !value.evidence.every((r) => strings(r, ["title", "at", "text"])))) throw Error("The saved course record is incompatible. It has not been overwritten.");
-    if (!strings(value, ["id", "startedAt", "profile", "stage", "lesson", "view", "reflection", "draft"]) || value.schemaVersion !== 2 || !tracks[value.profile] || !stages[value.stage] || !["study", "options", "sources", "practice", "record"].includes(value.view) || !strings(value.identity, ["name", "email", "goal"]) || !strings(learning, ["needs", "qualifications", "priorKnowledge", "targetDate", "style"]) || !Array.isArray(learning.focus) || !learning.focus.every((x) => typeof x === "string") || !Array.isArray(value.conversation) || !value.conversation.every((c) => strings(c, ["id", "at", "role", "text", "source"]) && ["user", "assistant"].includes(c.role) && ["lessonId", "lessonTitle"].every((k) => c[k] === void 0 || typeof c[k] === "string") && (c.lessonPrompt === void 0 || typeof c.lessonPrompt === "boolean") && (!c.workspaceSources || Array.isArray(c.workspaceSources) && c.workspaceSources.every((s) => typeof s === "string")) && (!c.courseSources || Array.isArray(c.courseSources) && c.courseSources.every((s) => strings(s, ["id", "title"])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz !== null && !validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every((a) => strings(a, ["at", "text"]))) throw new Error("The saved learning record is incompatible. It has not been overwritten.");
-    return { ...defaults, ...value, learning: { ...learning, focus: [.../* @__PURE__ */ new Set(["epidemiology", "causal", ...learning.focus])] } };
+    const learning = value?.learning === void 0 ? defaults.learning : object(value.learning) ? { statisticalSkills: "beginner", ...value.learning } : value.learning;
+    const validTraining = (v) => strings(v, Object.keys(trainingDefaults()).filter((k) => k !== "assessmentType")) && (v.assessmentType === void 0 || Object.hasOwn(assessmentTypes, v.assessmentType));
+    if (value?.training !== void 0 && !validTraining(value.training) || value?.courseKey !== void 0 && typeof value.courseKey !== "string" || value?.courseWork !== void 0 && (!Array.isArray(value.courseWork) || !value.courseWork.every((w) => strings(w, ["id", "at", "courseKey", "lessonID", "lessonTitle", "objective", "task", "text", "status"]) && validTraining(w.training))) || value?.workDrafts !== void 0 && (!object(value.workDrafts) || !Object.values(value.workDrafts).every((x) => typeof x === "string")) || value?.providerReviews !== void 0 && (!Array.isArray(value.providerReviews) || !value.providerReviews.every((r) => strings(r, ["portfolioID", "provider", "reviewer", "reviewedAt", "decision", "feedback", "verification"]))) || value?.evidence !== void 0 && (!Array.isArray(value.evidence) || !value.evidence.every((r) => strings(r, ["title", "at", "text"])))) throw Error("The saved course record is incompatible. It has not been overwritten.");
+    if (!strings(value, ["id", "startedAt", "profile", "stage", "lesson", "view", "reflection", "draft"]) || value.schemaVersion !== 2 || !tracks[value.profile] || !stages[value.stage] || !["study", "options", "sources", "practice", "record"].includes(value.view) || !strings(value.identity, ["name", "email", "goal"]) || !Object.hasOwn(statisticalSkills, learning?.statisticalSkills) || !strings(learning, ["needs", "qualifications", "priorKnowledge", "targetDate", "style"]) || !Array.isArray(learning.focus) || !learning.focus.every((x) => typeof x === "string") || !Array.isArray(value.conversation) || !value.conversation.every((c) => strings(c, ["id", "at", "role", "text", "source"]) && ["user", "assistant"].includes(c.role) && ["lessonId", "lessonTitle"].every((k) => c[k] === void 0 || typeof c[k] === "string") && (c.lessonPrompt === void 0 || typeof c.lessonPrompt === "boolean") && (!c.workspaceSources || Array.isArray(c.workspaceSources) && c.workspaceSources.every((s) => typeof s === "string")) && (!c.courseSources || Array.isArray(c.courseSources) && c.courseSources.every((s) => strings(s, ["id", "title"])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz !== null && !validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every((a) => strings(a, ["at", "text"]))) throw new Error("The saved learning record is incompatible. It has not been overwritten.");
+    return { ...defaults, ...value, training: currentTraining(value.training), learning: { ...learning, focus: [.../* @__PURE__ */ new Set(["epidemiology", "causal", ...learning.focus])] } };
   }
   function transcriptEntry(state2, role, text, source = "study guide", details = {}) {
     const entry = { id: crypto.randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), role, text, source, ...details };
@@ -400,7 +409,7 @@
     };
   }
   function reviewText(record) {
-    const lines = ["STATSDIRECT \u2014 LEARNING RECORD", "External review request", `Prepared: ${record.exportedAt}`, `Record: ${record.portfolioID}`, `Started: ${record.startedAt}`, "", `Learner: ${record.learner.name || "(not supplied)"}`, `Reply email: ${record.learner.email || "(not supplied)"}`, `Learning goal: ${record.learner.goal || "(not supplied)"}`, `Pathway: ${record.pathway}`, `R experience: ${record.rExperience}`, `Exams / qualifications: ${record.learningOptions?.qualifications || "(not supplied)"}`, `Learning needs: ${record.learningOptions?.needs || "(not supplied)"}`, `Prior knowledge: ${record.learningOptions?.priorKnowledge || "(not supplied)"}`, `Target date: ${record.learningOptions?.targetDate || "(not supplied)"}`, `Focus: ${(record.learningOptions?.focus || []).join(", ")}`, `Preferred teaching style: ${record.learningOptions?.style || ""}`, "", record.questionSource, record.marking, record.reviewStatus, "", "PRACTICE ATTEMPTS"];
+    const lines = ["STATSDIRECT \u2014 LEARNING RECORD", "External review request", `Prepared: ${record.exportedAt}`, `Record: ${record.portfolioID}`, `Started: ${record.startedAt}`, "", `Learner: ${record.learner.name || "(not supplied)"}`, `Reply email: ${record.learner.email || "(not supplied)"}`, `Learning goal: ${record.learner.goal || "(not supplied)"}`, `Pathway: ${record.pathway}`, `Statistical skills: ${statisticalSkills[record.learningOptions?.statisticalSkills] || "Not recorded"}`, `R experience: ${record.rExperience}`, `Exams / qualifications: ${record.learningOptions?.qualifications || "(not supplied)"}`, `Learning needs: ${record.learningOptions?.needs || "(not supplied)"}`, `Prior knowledge: ${record.learningOptions?.priorKnowledge || "(not supplied)"}`, `Target date: ${record.learningOptions?.targetDate || "(not supplied)"}`, `Focus: ${(record.learningOptions?.focus || []).join(", ")}`, `Preferred teaching style: ${record.learningOptions?.style || ""}`, "", record.questionSource, record.marking, record.reviewStatus, "", "PRACTICE ATTEMPTS"];
     for (const a of record.attempts) {
       if (a.course) lines.push(`Provider assessment: ${a.course.title} \xB7 ${a.course.provider} \xB7 version ${a.course.version}`);
       lines.push("", `${tracks[a.track].title} \u2014 ${a.mode === "test" ? "Independent practice (unsupervised)" : "Supported practice"} \u2014 ${a.status}`, `Started: ${a.startedAt} | Completed: ${a.completedAt || "not completed"}`, a.result ? `Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted` : `Answered: ${a.answers.length}/${a.questionIds.length}`);
@@ -411,7 +420,7 @@
     }
     lines.push("", "COMPLETE LEARNING CONVERSATION");
     for (const c of record.conversation) lines.push("", `[${c.at}] ${c.role === "user" ? "Learner" : "Tutor"} \u2014 ${c.source}${c.lessonTitle ? " \xB7 " + c.lessonTitle : ""}${c.model ? " / " + c.model : ""}`, c.text, ...(c.courseSources ?? []).map((s) => "Course reference: " + s.id + " \u2014 " + s.title + (s.url ? " \xB7 " + s.url : "") + (s.retrievedAt ? " \xB7 retrieved " + s.retrievedAt : "")), ...(c.workspaceSources ?? []).map((s) => "StatsDirect context: " + s));
-    lines.push("", "PROVIDER AND COURSE", ...Object.entries(record.training ?? {}).map(([k, v]) => `${k}: ${v}`), "", "PRACTICAL SUBMISSIONS");
+    lines.push("", "PROVIDER AND COURSE", ...Object.entries(record.training ?? {}).map(([k, v]) => `${k === "assessmentType" ? "Assessment type" : k}: ${k === "assessmentType" ? assessmentTypes[v] ?? v : v}`), "", "PRACTICAL SUBMISSIONS");
     for (const w of record.courseWork ?? []) lines.push("", `${w.at} \xB7 ${w.training.courseTitle} v${w.training.courseVersion} \xB7 ${w.lessonTitle}`, `Objective: ${w.objective}`, `Task: ${w.task}`, w.text, w.status);
     lines.push("", "ATTACHED ANALYSIS EVIDENCE");
     for (const e of record.evidence ?? []) lines.push("", `${e.at} \xB7 ${e.title}`, e.text);
@@ -653,78 +662,37 @@ ${c.text}` : c.text }));
     }
   ];
 
-  // Content/Learn/resources.json
-  var resources_default = [
-    {
-      title: "OpenLearn \u2014 Medical statistics",
-      url: "https://www.open.edu/openlearn/science-maths-technology/medical-statistics/content-section-0?intro=1",
-      note: "Cohort and case-control studies, relative risks, odds ratios and tests of association. Teaching is supplied in a linked PDF, available after loading this page."
-    },
-    {
-      title: "CDC \u2014 Principles of Epidemiology: definition and scope",
-      url: "https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson1/section1.html",
-      note: "Foundations of public-health epidemiology. Archived third-edition teaching text; CDC continuing-education credit for this course is no longer available."
-    },
-    {
-      title: "Penn State \u2014 Epidemiological Research Methods",
-      url: "https://online.stat.psu.edu/stat507/index",
-      note: "Open STAT 507 course notes. Start here and add the chapter URLs relevant to your course."
-    },
-    {
-      title: "OpenIntro \u2014 Study design",
-      url: "https://openintro-ims.netlify.app/data-design",
-      note: "Sampling, experiments and observational studies. Open textbook chapter from Introduction to Modern Statistics."
-    },
-    {
-      title: "OpenIntro \u2014 Paired measurements",
-      url: "https://openintro-ims.netlify.app/inference-paired-means",
-      note: "Within-person or matched differences, inference and interpretation. Useful alongside the StatsDirect paired analysis."
-    },
-    {
-      title: "Hern\xE1n and Robins \u2014 Causal Inference: What If",
-      url: "https://miguelhernan.org/whatifbook",
-      note: "Author-hosted open book and data/code. Load this page to discover the book PDF; begin with Part I for causal principles."
-    }
-  ];
-
   // Learn/course-ui.mjs
   var esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-  function trainingHTML(state2, resources2) {
+  function trainingHTML(state2, pack) {
     const t = state2.training;
     return `
-<section class="card"><h2>Your training provider</h2><p>Course packs can fill these details. You can also enter the organisation providing your training.</p>
-<div class="form-row"><div><label for="providerName">Provider or university</label><input id="providerName" maxlength="200" value="${esc(t.providerName)}"></div><div><label for="reviewEmail">Assessment email address</label><input id="reviewEmail" type="email" maxlength="254" value="${esc(t.reviewEmail)}"></div></div>
-<div class="form-row"><div><label for="courseTitle">Course title</label><input id="courseTitle" maxlength="200" value="${esc(t.courseTitle)}"></div><div><label for="courseVersion">Course version</label><input id="courseVersion" maxlength="80" value="${esc(t.courseVersion)}"></div></div>
+<section class="card" id="trainingProvider"><h2>Your training provider</h2>
+<label for="courseTitle">Course</label><input id="courseTitle" maxlength="200" value="${esc(t.courseTitle)}" placeholder="For example: www.statisticalhelp.org/help">
+<div class="form-row"><div><label for="reviewEmail">Assessment email address</label><input id="reviewEmail" type="email" maxlength="254" value="${esc(t.reviewEmail)}" placeholder="support@statisticalhelp.org"></div><div><label for="assessmentType">Assessment type</label><select id="assessmentType">${Object.entries(assessmentTypes).map(([id, title]) => `<option value="${id}" ${t.assessmentType === id ? "selected" : ""}>${esc(title)}</option>`).join("")}</select></div></div>
+<p class="small" id="assessmentNote">${esc(assessmentNotes[t.assessmentType])}</p>
+<div class="course-pack"><h3>A course pack from your tutor</h3>
+<p>${pack ? `<strong>${esc(pack.title)}</strong> \xB7 ${pack.documents.length} document(s) or pages` : "Add course notes, lessons, examples or practice questions."}</p>
+<div class="actions"><button id="importCourse">${pack ? "Replace course pack\u2026" : "Import course pack\u2026"}</button><button id="exampleCourse" class="link-button">Try example course</button></div>
+<p class="small">PDF, Markdown, text or a StatsDirect course pack. Relevant extracts accompany questions you send to the tutor.</p>
+${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map((d) => `<li>${esc(d.title)}</li>`).join("")}</ul></details>` : ""}</div>
+<details class="option-details"><summary>Provider details and assessment conditions</summary>
+<div class="form-row"><div><label for="providerName">Provider or university</label><input id="providerName" maxlength="200" value="${esc(t.providerName)}"></div><div><label for="courseVersion">Course version</label><input id="courseVersion" maxlength="80" value="${esc(t.courseVersion)}"></div></div>
 <label for="requirements">Assessment requirements</label><textarea id="requirements" rows="2" maxlength="5000">${esc(t.requirements)}</textarea>
-<label for="cpdStatement">Provider\u2019s CPD or recognition conditions</label><textarea id="cpdStatement" rows="2" maxlength="2000" placeholder="For example: practical work and reflection reviewed by the course tutor before a completion certificate is issued.">${esc(t.cpdStatement)}</textarea>
-<p class="small">These are course details, not confirmation of an award. Email is prepared only from My learning record after you review the contents.</p>
-</section><section class="card"><h2>My learning resources</h2><p>Add the pages or PDFs your course uses. The starter list includes open medical statistics, epidemiology and causal-inference resources. Enable the ones relevant to you.</p>
-<p class="small">Load resources to read them on this Mac. Relevant downloaded excerpts and their source links accompany your next tutor question. A chapter page is loaded individually; a course home page does not import its whole website. Scanned figures and equations may need checking against the original.</p>
-<div class="actions"><button id="loadResources" ${resources2.busy ? "disabled" : ""}>${resources2.busy ? "Loading resources\u2026" : "Load / refresh enabled resources"}</button></div>
-<div class="resource-list">${resources2.entries.map((e) => `<article class="resource-row"><label class="resource-heading"><input type="checkbox" data-resource-enable="${esc(e.id)}" ${e.enabled ? "checked" : ""} ${resources2.busy ? "disabled" : ""}><strong>${esc(e.title)}</strong></label><a href="${esc(safeURL(e.url))}" target="_blank" rel="noopener">${esc(e.url)} \u2197</a><p>${esc(e.note)}</p><p class="small resource-status">${esc(e.status)}${e.fetchedAt ? " \xB7 " + esc(new Date(e.fetchedAt).toLocaleString()) : ""}</p><div class="actions"><button data-resource-load="${esc(e.id)}" ${resources2.busy ? "disabled" : ""}>${e.pages ? "Refresh" : "Load"}</button><button class="link-button" data-resource-remove="${esc(e.id)}" ${resources2.busy ? "disabled" : ""}>Remove</button></div>${e.linkedPDFs?.length ? `<details><summary>Linked PDFs \u2014 add one to read its contents</summary>${e.linkedPDFs.map((u) => `<p class="small"><a href="${esc(safeURL(u))}" target="_blank" rel="noopener">${esc(u)}</a> <button data-resource-add="${esc(u)}" ${resources2.busy ? "disabled" : ""}>Add PDF</button></p>`).join("")}</details>` : ""}</article>`).join("")}</div>
-<label for="resourceURLs">Add URLs \u2014 one per line</label><textarea id="resourceURLs" rows="3" placeholder="https://\u2026" ${resources2.busy ? "disabled" : ""}></textarea><button id="addResources" ${resources2.busy ? "disabled" : ""}>Add to my resources</button>
-</section>`;
+<label for="cpdStatement">Provider\u2019s CPD or recognition conditions</label><textarea id="cpdStatement" rows="2" maxlength="2000">${esc(t.cpdStatement)}</textarea>
+</details></section>`;
   }
-  function bindTraining(state2, resources2, { save: save2, post: post2, notice: notice2, native: native2 }) {
+  function bindTraining(state2, { save: save2 }) {
     const $2 = (id) => document.getElementById(id);
     for (const key of ["providerName", "courseTitle", "courseVersion", "reviewEmail", "requirements", "cpdStatement"]) $2(key).oninput = () => {
       state2.training[key] = $2(key).value;
       save2();
     };
-    const send2 = (b) => native2 ? post2(b) : notice2("Resource downloads are available in the Mac app. The browser preview does not fetch external content.");
-    $2("loadResources").onclick = () => send2({ action: "loadResources" });
-    $2("addResources").onclick = () => {
-      const urls = $2("resourceURLs").value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-      if (!urls.length || urls.some((u) => !safeURL(u))) {
-        notice2("Enter one HTTPS learning page or PDF per line.");
-        return;
-      }
-      send2({ action: "addResources", urls });
+    $2("assessmentType").onchange = () => {
+      state2.training.assessmentType = $2("assessmentType").value;
+      $2("assessmentNote").textContent = assessmentNotes[state2.training.assessmentType];
+      save2();
     };
-    document.querySelectorAll("[data-resource-enable]").forEach((e) => e.onchange = () => send2({ action: "toggleResource", id: e.dataset.resourceEnable, enabled: e.checked }));
-    document.querySelectorAll("[data-resource-remove]").forEach((e) => e.onclick = () => send2({ action: "removeResource", id: e.dataset.resourceRemove }));
-    document.querySelectorAll("[data-resource-load]").forEach((e) => e.onclick = () => send2({ action: "loadResources", ids: [e.dataset.resourceLoad] }));
-    document.querySelectorAll("[data-resource-add]").forEach((e) => e.onclick = () => send2({ action: "addResources", urls: [e.dataset.resourceAdd] }));
   }
   function courseWorkHTML(state2, l) {
     if (!l.providerCourse) return "";
@@ -748,7 +716,6 @@ ${c.text}` : c.text }));
   var feedback = null;
   var reviewApproved = false;
   var coursePack = null;
-  var resources = { entries: resources_default.map((s, i) => ({ ...s, id: "seed-" + i, enabled: true, status: "Not downloaded", pages: 0, linkedPDFs: [] })), busy: false };
   var workspace = { choice: "", choices: [], label: "Open documents are available to the tutor" };
   var native = Boolean(window.webkit?.messageHandlers?.statsDirectLearn);
   var post = (body) => window.webkit?.messageHandlers?.statsDirectLearn?.postMessage(body);
@@ -994,7 +961,7 @@ ${c.text}` : c.text }));
   function renderRecord() {
     const record = reviewRecord(state), text = reviewText(record);
     reviewApproved = false;
-    $("main").innerHTML = `<div class="eyebrow">YOUR LEARNING PORTFOLIO</div><h1>A record you can reflect on and share</h1><p class="subtle">Your answers, explanations, confidence, learning conversation and practical activities stay together. Prepare a review request when you are ready.</p><section class="card"><h2>About you and your learning</h2><div class="form-row"><div><label for="learnerName">Name for the reviewer</label><input id="learnerName" maxlength="120" value="${esc2(state.identity.name)}" autocomplete="name"></div><div><label for="learnerEmail">Reply email</label><input id="learnerEmail" type="email" maxlength="180" value="${esc2(state.identity.email)}" autocomplete="email"></div></div><label for="goal">Course, professional role or learning goal</label><input id="goal" maxlength="500" value="${esc2(state.identity.goal)}"><label for="reflection">Reflection and next learning step</label><textarea id="reflection" rows="3" maxlength="3000" placeholder="What did you learn, and what will you practise next?">${esc2(state.reflection)}</textarea><p class="small">Identity fields are kept locally and included in your review record. They are not automatically sent to the AI tutor.</p></section>${providerRecordHTML(state, workspace)}<section class="card"><h2>Review before sharing</h2><p>${record.attempts.filter((a) => a.completedAt).length} completed practice attempt(s) \xB7 ${state.conversation.length} conversation entries \xB7 ${state.activities.length} practical activities</p><p class="small">Original draft questions, provisional fixed-key scoring and AI teaching need external review. These are unsupervised learning records, not certificates. Any assessment decision or CPD recognition comes from your provider under their stated conditions.</p><details><summary>Preview the complete record to be attached</summary><pre id="recordPreview" class="record-preview">${esc2(text)}</pre></details><div class="actions"><button id="exportRecord">Export learning record\u2026</button></div><label for="recipient">Ask for external review</label><input id="recipient" type="email" maxlength="254" value="${esc2(state.training.reviewEmail)}" list="reviewRecipients"><datalist id="reviewRecipients"><option value="support@statsdirect.com"><option value="chil@liverpool.ac.uk"></datalist><label id="mailConsent"><input id="consent" type="checkbox"><span>I have reviewed the record and want to include the full conversation and practice answers in an email to this recipient.</span></label><div class="actions"><button id="emailRecord" class="primary" disabled>Prepare email draft\u2026</button></div><p class="small">Opens Mail with the record attached. You review and send the message. No automatic submission, University marking service or CPD award is connected.</p></section>`;
+    $("main").innerHTML = `<div class="eyebrow">YOUR LEARNING PORTFOLIO</div><h1>A record you can reflect on and share</h1><p class="subtle">Your answers, explanations, confidence, learning conversation and practical activities stay together. Prepare a review request when you are ready.</p><section class="card"><h2>About you and your learning</h2><div class="form-row"><div><label for="learnerName">Name for the reviewer</label><input id="learnerName" maxlength="120" value="${esc2(state.identity.name)}" autocomplete="name"></div><div><label for="learnerEmail">Reply email</label><input id="learnerEmail" type="email" maxlength="180" value="${esc2(state.identity.email)}" autocomplete="email"></div></div><label for="goal">Course, professional role or learning goal</label><input id="goal" maxlength="500" value="${esc2(state.identity.goal)}"><label for="reflection">Reflection and next learning step</label><textarea id="reflection" rows="3" maxlength="3000" placeholder="What did you learn, and what will you practise next?">${esc2(state.reflection)}</textarea><p class="small">Identity fields are kept locally and included in your review record. They are not automatically sent to the AI tutor.</p></section>${providerRecordHTML(state, workspace)}<section class="card"><h2>Review before sharing</h2><p>${record.attempts.filter((a) => a.completedAt).length} completed practice attempt(s) \xB7 ${state.conversation.length} conversation entries \xB7 ${state.activities.length} practical activities</p><p class="small">Original draft questions, provisional fixed-key scoring and AI teaching need external review. These are unsupervised learning records, not certificates. Any assessment decision or CPD recognition comes from your provider under their stated conditions.</p><details><summary>Preview the complete record to be attached</summary><pre id="recordPreview" class="record-preview">${esc2(text)}</pre></details><div class="actions"><button id="exportRecord">Export learning record\u2026</button></div><label for="recipient">Ask for external review</label><input id="recipient" type="email" maxlength="254" value="${esc2(state.training.reviewEmail)}" list="reviewRecipients"><datalist id="reviewRecipients"><option value="support@statisticalhelp.org"><option value="chil@liverpool.ac.uk"></datalist><label id="mailConsent"><input id="consent" type="checkbox"><span>I have reviewed the record and want to include the full conversation and practice answers in an email to this recipient.</span></label><div class="actions"><button id="emailRecord" class="primary" disabled>Prepare email draft\u2026</button></div><p class="small">Opens Mail with the record attached. You review and send the message. No automatic submission, University marking service or CPD award is connected.</p></section>`;
     for (const [id, key] of [["learnerName", "name"], ["learnerEmail", "email"], ["goal", "goal"]]) $(id).oninput = () => {
       state.identity[key] = $(id).value;
       save();
@@ -1043,8 +1010,20 @@ ${c.text}` : c.text }));
   }
   function renderOptions() {
     const o = state.learning;
-    $("main").innerHTML = `<div class="eyebrow">LEARNING OPTIONS</div><h1>Make this teaching fit your needs</h1><p class="subtle">Describe where you are starting and what you want to achieve. You can change these options as your confidence grows.</p><section class="card"><h2>Your goals and qualifications</h2><label for="optionProfile">Learning pathway</label><select id="optionProfile">${Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc2(t.title)}</option>`).join("")}</select><label for="qualifications">Exams, courses or qualifications you are studying for</label><textarea id="qualifications" rows="2" maxlength="1200" placeholder="For example: MRCP Part 1, MRCGP AKT, DFPH/MFPH, MPH, an undergraduate module, or a professional qualification">${esc2(o.qualifications)}</textarea><label for="needs">What do you need help learning?</label><textarea id="needs" rows="3" maxlength="2500" placeholder="Describe concepts you find difficult, analyses you want to understand, and what you would like to be able to do.">${esc2(o.needs)}</textarea><label for="priorKnowledge">Your previous experience with statistics and epidemiology</label><textarea id="priorKnowledge" rows="2" maxlength="1500" placeholder="A starting point helps the tutor pitch explanations at the right level.">${esc2(o.priorKnowledge)}</textarea><div class="form-row"><div><label for="targetDate">Target exam or completion date (optional)</label><input id="targetDate" type="date" value="${esc2(o.targetDate)}"></div><div><label for="optionStage">Confidence with R</label><select id="optionStage">${Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc2(t)}</option>`).join("")}</select></div></div></section><section class="card"><h2>A course pack from your tutor</h2><p>Import course notes, learning outcomes, worked examples and terminology. The tutor will consult relevant extracts and cite their document or page.</p><p>${coursePack ? `<strong>${esc2(coursePack.title)}</strong> \xB7 ${coursePack.documents.length} document(s) or pages imported` : "No course pack is attached."}</p>${coursePack ? `<details><summary>Included materials</summary><ul>${coursePack.documents.map((d) => `<li>${esc2(d.title)}</li>`).join("")}</ul></details>` : ""}<button id="importCourse">${coursePack ? "Replace course pack\u2026" : "Import course pack\u2026"}</button> <button id="exampleCourse">Use example provider course</button><p class="small">PDF, Markdown, plain text or a StatsDirect JSON pack. Provider packs can add lessons, example data and questions. Replacing a pack keeps your saved answers and archives the old pack. Notes stay on this Mac; relevant text excerpts are included when you send a question to OpenAI using your ChatGPT account. Importing does not retrain the model or turn course marking guidance into accredited assessment.</p></section>${trainingHTML(state, resources)}<section class="card"><h2>Foundations and priorities</h2><p>Epidemiological principles and causal inference are included in every learning pathway and practice set.</p><div class="focus-grid">${[["epidemiology", "Epidemiology and study design"], ["causal", "Causal inference and bias"], ["interpretation", "Interpreting results and uncertainty"], ["methods", "Choosing and checking statistical methods"], ["r", "R coding and reproducible analysis"], ["communication", "Explaining evidence to others"]].map(([id, title]) => `<label class="option"><input type="checkbox" name="focus" value="${id}" ${o.focus.includes(id) ? "checked" : ""} ${["epidemiology", "causal"].includes(id) ? "disabled" : ""}><span>${title}</span></label>`).join("")}</div><label for="style">How would you like the tutor to help?</label><select id="style">${["Worked examples and questions", "Step-by-step explanations", "Exam-style questions with feedback", "Discuss my reasoning", "Connect StatsDirect to R"].map((t) => `<option ${o.style === t ? "selected" : ""}>${t}</option>`).join("")}</select><p class="small">These learning needs and exam goals are included with questions you send to OpenAI using your ChatGPT account. Your name and reply email in the review record are not automatically attached.</p><div class="actions"><button id="applyOptions" class="primary">Save options and return to learning</button></div><p id="optionSaved" class="small" role="status">Changes are saved on this device as you edit.</p></section>`;
-    for (const id of ["qualifications", "needs", "priorKnowledge", "targetDate", "style"]) $(id).oninput = () => {
+    $("main").innerHTML = `<div class="eyebrow">LEARNING OPTIONS</div><h1>Make learning work for you</h1>
+  <section class="card"><h2>Your experience level and goals</h2>
+  <div class="form-row"><div><label for="statisticalSkills">Statistical skills</label><select id="statisticalSkills">${Object.entries(statisticalSkills).map(([id, title]) => `<option value="${id}" ${o.statisticalSkills === id ? "selected" : ""}>${title}</option>`).join("")}</select></div><div><label for="optionStage">Confidence with R</label><select id="optionStage">${Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc2(t)}</option>`).join("")}</select></div></div>
+  <label for="qualifications">Exams or courses you are studying for</label><textarea id="qualifications" rows="2" maxlength="1200" placeholder="For example: MRCP Part 1, MRCGP AKT, DFPH/MFPH, MPH, an undergraduate module, or a professional qualification">${esc2(o.qualifications)}</textarea>
+  <label for="needs">Your learning goals</label><textarea id="needs" rows="2" maxlength="2500" placeholder="What would you like to understand or be able to do?">${esc2(o.needs)}</textarea>
+  <details class="option-details"><summary>More learning preferences</summary>
+  <label for="optionProfile">Learning pathway</label><select id="optionProfile" ${state.quiz && !state.quiz.completedAt ? "disabled" : ""}>${Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc2(t.title)}</option>`).join("")}</select>
+  <label for="priorKnowledge">Previous experience with statistics and epidemiology</label><textarea id="priorKnowledge" rows="2" maxlength="1500">${esc2(o.priorKnowledge)}</textarea>
+  <label for="targetDate">Target exam or completion date</label><input id="targetDate" type="date" value="${esc2(o.targetDate)}">
+  <p class="small">Epidemiology and causal inference are included in every pathway.</p><div class="focus-grid">${[["epidemiology", "Epidemiology and study design"], ["causal", "Causal inference and bias"], ["interpretation", "Interpreting results and uncertainty"], ["methods", "Choosing and checking statistical methods"], ["r", "R coding and reproducible analysis"], ["communication", "Explaining evidence to others"]].map(([id, title]) => `<label class="option"><input type="checkbox" name="focus" value="${id}" ${o.focus.includes(id) ? "checked" : ""} ${["epidemiology", "causal"].includes(id) ? "disabled" : ""}><span>${title}</span></label>`).join("")}</div>
+  <label for="style">How would you like the tutor to help?</label><select id="style">${["Worked examples and questions", "Step-by-step explanations", "Exam-style questions with feedback", "Discuss my reasoning", "Connect StatsDirect to R"].map((t) => `<option ${o.style === t ? "selected" : ""}>${t}</option>`).join("")}</select></details></section>
+  ${trainingHTML(state, coursePack)}
+  <div class="actions"><button id="applyOptions" class="primary">Return to learning</button><span id="optionSaved" class="small" role="status">Changes are saved as you edit.</span></div>`;
+    for (const id of ["statisticalSkills", "qualifications", "needs", "priorKnowledge", "targetDate", "style"]) $(id).oninput = () => {
       o[id] = $(id).value;
       save();
     };
@@ -1068,9 +1047,9 @@ ${c.text}` : c.text }));
       if (native) post({ action: "importCoursePack" });
       else notice("Course pack import is available in the Mac application.");
     };
-    bindTraining(state, resources, { save, post, notice, native });
+    bindTraining(state, { save });
     $("applyOptions").onclick = () => {
-      activity("Updated learning needs and exam/qualification goals");
+      activity("Updated learning options");
       navigate("study");
     };
   }
@@ -1200,16 +1179,6 @@ ${c.text}` : c.text }));
         if (!allLessons().some((l) => l.id === state.lesson)) state.lesson = "epidemiology";
         save();
         render();
-      }
-    },
-    resources(value) {
-      const draft = $("resourceURLs")?.value;
-      const top = $("main").scrollTop;
-      resources = value;
-      if (loaded && state.view === "options") {
-        renderOptions();
-        if (draft) $("resourceURLs").value = draft;
-        $("main").scrollTop = top;
       }
     },
     providerReview(value) {

@@ -13,8 +13,8 @@ test('provider lessons, submissions, keys and metadata survive changes to the ac
  for(const q of p.quiz.questionSnapshots.slice(1))recordAnswer(p.quiz,q.id,q.correct,'confident','Interpret the design.');
  pack.version='2';pack.questions[0].correct='C';adoptCourse(p,pack);
  const restored=restorePortfolio(JSON.parse(JSON.stringify(p))),record=reviewRecord(restored),text=reviewText(record);
- assert.equal(record.attempts[0].result.score,3);assert.equal(record.attempts[0].result.assisted,1);assert.equal(record.attempts[0].course.version,'1.0');assert.equal(record.attempts[0].questionSnapshots[0].correct,'A');
- assert.equal(record.courseWork[0].training.courseVersion,'1.0');assert.equal(record.training.courseVersion,'2');assert.match(text,/Same staff, repeated observations/);assert.match(text,/cannot isolate a causal effect/);
+ assert.equal(record.attempts[0].result.score,3);assert.equal(record.attempts[0].result.assisted,1);assert.equal(record.attempts[0].course.version,'1.1');assert.equal(record.attempts[0].questionSnapshots[0].correct,'A');
+ assert.equal(record.courseWork[0].training.courseVersion,'1.1');assert.equal(record.training.courseVersion,'2');assert.match(text,/Same staff, repeated observations/);assert.match(text,/cannot isolate a causal effect/);
 });
 test('provider independent practice withholds keys and hints from exports until finished',()=>{
  const p=newPortfolio(),pack=fixture();p.quiz=createSession('foundation','test','test',{version:pack.version,questions:courseQuestions(pack)});
@@ -34,7 +34,23 @@ test('resource provenance and attached R evidence persist in the complete review
  const bad=structuredClone(p);bad.courseWork=[null];assert.throws(()=>restorePortfolio(bad));
 });
 test('old records migrate; unsafe recipient and link formats cannot be used',()=>{
- const p=newPortfolio();for(const k of ['training','courseKey','courseWork','workDrafts','providerReviews','evidence'])delete p[k];const r=restorePortfolio(p);assert.equal(r.training.reviewEmail,'support@statsdirect.com');assert.deepEqual(r.courseWork,[]);
+ const p=newPortfolio();for(const k of ['training','courseKey','courseWork','workDrafts','providerReviews','evidence'])delete p[k];const r=restorePortfolio(p);assert.equal(r.training.reviewEmail,'support@statisticalhelp.org');assert.deepEqual(r.courseWork,[]);
  assert.ok(validEmail('assessment@university.example'));for(const s of ['a@b.example\n','a@b.example,b@c.example','mailto:a@b.example','a@b.example\r\nBcc:c@d.example'])assert.equal(validEmail(s),false);
  for(const s of ['javascript:alert(1)','file:///etc/passwd','https://user:password@site.example'])assert.equal(safeURL(s),'');
+});
+
+test('simplified options migrate old settings without losing history or provider details',()=>{
+ const p=newPortfolio(),pack=fixture();adoptCourse(p,pack);submitCourseWork(p,courseLessons(pack)[1],'Original submission');
+ delete p.learning.statisticalSkills;delete p.training.assessmentType;delete p.courseWork[0].training.assessmentType;
+ p.training.reviewEmail='tutor@university.example';p.training.requirements='Original provider conditions';p.learning.targetDate='2027-01-01';p.learning.focus.push('r');
+ const before=structuredClone(p.courseWork),r=restorePortfolio(p);
+ assert.equal(r.learning.statisticalSkills,'beginner');assert.equal(r.training.assessmentType,'none');assert.equal(r.training.reviewEmail,'tutor@university.example');assert.equal(r.training.requirements,'Original provider conditions');assert.equal(r.learning.targetDate,'2027-01-01');assert.ok(r.learning.focus.includes('r'));assert.deepEqual(r.courseWork,before);
+ r.learning.statisticalSkills='advanced';r.training.assessmentType='cpd';const saved=restorePortfolio(JSON.parse(JSON.stringify(r)));const text=reviewText(reviewRecord(saved));
+ assert.match(text,/Statistical skills: Advanced/);assert.match(text,/Continued professional development credits/);
+ const bad=structuredClone(r);bad.learning.statisticalSkills='expert';assert.throws(()=>restorePortfolio(bad));bad.learning.statisticalSkills='beginner';bad.training.assessmentType='guaranteed credit';assert.throws(()=>restorePortfolio(bad));
+});
+test('only an untouched old default recipient changes; historical submissions never migrate',()=>{
+ const p=newPortfolio();p.training.reviewEmail='support@statsdirect.com';delete p.training.assessmentType;
+ assert.equal(restorePortfolio(p).training.reviewEmail,'support@statisticalhelp.org');
+ p.training.courseTitle='An existing course';assert.equal(restorePortfolio(p).training.reviewEmail,'support@statsdirect.com');
 });

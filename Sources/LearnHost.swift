@@ -47,7 +47,6 @@ extension Viewer {
                     catch { self.learningScript(doc,"notice",error.localizedDescription) }
                 }
                 coursePackInfo(doc)
-                learningResourcesInfo(doc)
                 if doc.initialLearningView == "options" { doc.initialLearningView = nil; learningScript(doc,"showOptions",NSNull()) }
             } catch { learningScript(doc,"loadError",error.localizedDescription) }
         case "save":
@@ -65,7 +64,6 @@ extension Viewer {
         case "exampleCourse": useExampleCourse(doc)
         case "importProviderReview": importProviderReview(doc)
         case "captureLearningEvidence": captureLearningEvidence(doc,documentID:body["documentID"] as? String ?? "")
-        case "addResources", "removeResource", "toggleResource", "loadResources": handleLearningResources(doc,body:body)
         case "workspace":
             guard doc.learningTask == nil else { return }
             if let choice = body["choice"] as? String, choice.isEmpty || choice == "__none__" || documents.contains(where:{$0.id == choice && $0.kind != "learn"}) { doc.learningSourceID = choice; UserDefaults.standard.set(choice == "__none__",forKey:"learningLessonsOnly") }
@@ -143,12 +141,17 @@ extension Viewer {
         for field in ["title","objective","summary","challenge","steps","r"] { context += "\(field): \((lesson[field] as? String ?? "").prefix(field == "title" ? 200 : 1500))\n" }
         if let question = body["practiceContext"] as? String { context += "Practice discussion: \(question.prefix(6000))\n" }
         if let goals = body["learningGoals"] as? [String:Any] {
-            for field in ["needs","qualifications","priorKnowledge","targetDate","style"] { if let text = goals[field] as? String { context += "Learner \(field): \(text.prefix(1000))\n" } }
+            for field in ["statisticalSkills","needs","qualifications","priorKnowledge","targetDate","style"] { if let text = goals[field] as? String { context += "Learner \(field): \(text.prefix(1000))\n" } }
             if let focus = goals["focus"] as? [String] { context += "Learning priorities: " + focus.prefix(10).joined(separator:", ") + "\n" }
         }
         if let training = doc.learningState?["training"] as? [String:Any] {
             for key in ["providerName","courseTitle","courseVersion","requirements","cpdStatement"] {
                 if let value = training[key] as? String { context += "Course \(key): \(value.prefix(500))\n" }
+            }
+            switch training["assessmentType"] as? String ?? "none" {
+            case "cpd": context += "Assessment preference: continued professional development credits. Help build evidence and reflection for the provider's review; the provider decides any credit.\n"
+            case "self": context += "Assessment preference: AI supported self-assessment. Offer formative questions, wait for the learner's reasoning, then give feedback and a next learning step.\n"
+            default: context += "Assessment preference: none. Focus on teaching and the learner's goals; introduce assessment only if the learner requests it.\n"
             }
         }
         var courseSources: [[String:String]] = []
@@ -157,9 +160,10 @@ extension Viewer {
         if let pack = loadCoursePack() {
             materials += pack.documents
         }
-        if let resources = try? loadLearningResources() { materials += resources.filter(\.enabled).flatMap(\.documents) }
+        // Web-resource selection is retired from the learner form. Preserve old caches on disk,
+        // but use the shipped lessons and explicit tutor pack rather than hidden cached sources.
         if !materials.isEmpty {
-            let reference = CoursePack(schemaVersion:1,title:"Course and selected web resources",documents:materials)
+            let reference = CoursePack(schemaVersion:1,title:"Tutor course pack",documents:materials)
             let excerpts = reference.excerpts(for:(messages.last?["text"] ?? "") + " " + (lesson["topic"] as? String ?? ""))
             context += "\nRETRIEVED COURSE/WEB EXCERPTS (only these extracts have been read; cite source IDs, URLs and page titles):\n"
             for excerpt in excerpts {

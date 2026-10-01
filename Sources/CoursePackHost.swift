@@ -65,7 +65,6 @@ extension Viewer {
                 try JSONEncoder().encode(pack).write(to:self.coursePackURL,options:.atomic)
                 try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:self.coursePackURL.path)
                 self.coursePackInfo(doc)
-                if let urls = pack.resourceURLs { self.addLearningResourceURLs(urls,doc:doc) }
                 self.learningScript(doc,"notice","Course pack imported locally. Relevant excerpts will be sent with your next tutor question; no API call was made during import.")
             } catch { self.learningScript(doc,"notice","Course pack was not replaced: " + error.localizedDescription) }
         }
@@ -84,7 +83,7 @@ extension Viewer {
             }
             try JSONEncoder().encode(pack).write(to:coursePackURL,options:.atomic)
             try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:coursePackURL.path)
-            coursePackInfo(doc); addLearningResourceURLs(pack.resourceURLs ?? [],doc:doc)
+            coursePackInfo(doc)
             learningScript(doc,"notice","Example provider course loaded. Its three lessons appear after the foundation lessons. Previous course packs are archived locally.")
         } catch { learningScript(doc,"notice",error.localizedDescription) }
     }

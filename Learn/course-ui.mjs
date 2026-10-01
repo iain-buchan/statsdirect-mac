@@ -1,28 +1,24 @@
-import {safeURL,validEmail} from './provider-course.mjs';
+import {safeURL,validEmail,assessmentTypes,assessmentNotes} from './provider-course.mjs';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function trainingHTML(state,resources){const t=state.training;return `
-<section class="card"><h2>Your training provider</h2><p>Course packs can fill these details. You can also enter the organisation providing your training.</p>
-<div class="form-row"><div><label for="providerName">Provider or university</label><input id="providerName" maxlength="200" value="${esc(t.providerName)}"></div><div><label for="reviewEmail">Assessment email address</label><input id="reviewEmail" type="email" maxlength="254" value="${esc(t.reviewEmail)}"></div></div>
-<div class="form-row"><div><label for="courseTitle">Course title</label><input id="courseTitle" maxlength="200" value="${esc(t.courseTitle)}"></div><div><label for="courseVersion">Course version</label><input id="courseVersion" maxlength="80" value="${esc(t.courseVersion)}"></div></div>
+export function trainingHTML(state,pack){const t=state.training;return `
+<section class="card" id="trainingProvider"><h2>Your training provider</h2>
+<label for="courseTitle">Course</label><input id="courseTitle" maxlength="200" value="${esc(t.courseTitle)}" placeholder="For example: www.statisticalhelp.org/help">
+<div class="form-row"><div><label for="reviewEmail">Assessment email address</label><input id="reviewEmail" type="email" maxlength="254" value="${esc(t.reviewEmail)}" placeholder="support@statisticalhelp.org"></div><div><label for="assessmentType">Assessment type</label><select id="assessmentType">${Object.entries(assessmentTypes).map(([id,title])=>`<option value="${id}" ${t.assessmentType===id?'selected':''}>${esc(title)}</option>`).join('')}</select></div></div>
+<p class="small" id="assessmentNote">${esc(assessmentNotes[t.assessmentType])}</p>
+<div class="course-pack"><h3>A course pack from your tutor</h3>
+<p>${pack?`<strong>${esc(pack.title)}</strong> · ${pack.documents.length} document(s) or pages`:'Add course notes, lessons, examples or practice questions.'}</p>
+<div class="actions"><button id="importCourse">${pack?'Replace course pack…':'Import course pack…'}</button><button id="exampleCourse" class="link-button">Try example course</button></div>
+<p class="small">PDF, Markdown, text or a StatsDirect course pack. Relevant extracts accompany questions you send to the tutor.</p>
+${pack?`<details><summary>Included materials</summary><ul>${pack.documents.map(d=>`<li>${esc(d.title)}</li>`).join('')}</ul></details>`:''}</div>
+<details class="option-details"><summary>Provider details and assessment conditions</summary>
+<div class="form-row"><div><label for="providerName">Provider or university</label><input id="providerName" maxlength="200" value="${esc(t.providerName)}"></div><div><label for="courseVersion">Course version</label><input id="courseVersion" maxlength="80" value="${esc(t.courseVersion)}"></div></div>
 <label for="requirements">Assessment requirements</label><textarea id="requirements" rows="2" maxlength="5000">${esc(t.requirements)}</textarea>
-<label for="cpdStatement">Provider’s CPD or recognition conditions</label><textarea id="cpdStatement" rows="2" maxlength="2000" placeholder="For example: practical work and reflection reviewed by the course tutor before a completion certificate is issued.">${esc(t.cpdStatement)}</textarea>
-<p class="small">These are course details, not confirmation of an award. Email is prepared only from My learning record after you review the contents.</p>
-</section><section class="card"><h2>My learning resources</h2><p>Add the pages or PDFs your course uses. The starter list includes open medical statistics, epidemiology and causal-inference resources. Enable the ones relevant to you.</p>
-<p class="small">Load resources to read them on this Mac. Relevant downloaded excerpts and their source links accompany your next tutor question. A chapter page is loaded individually; a course home page does not import its whole website. Scanned figures and equations may need checking against the original.</p>
-<div class="actions"><button id="loadResources" ${resources.busy?'disabled':''}>${resources.busy?'Loading resources…':'Load / refresh enabled resources'}</button></div>
-<div class="resource-list">${resources.entries.map(e=>`<article class="resource-row"><label class="resource-heading"><input type="checkbox" data-resource-enable="${esc(e.id)}" ${e.enabled?'checked':''} ${resources.busy?'disabled':''}><strong>${esc(e.title)}</strong></label><a href="${esc(safeURL(e.url))}" target="_blank" rel="noopener">${esc(e.url)} ↗</a><p>${esc(e.note)}</p><p class="small resource-status">${esc(e.status)}${e.fetchedAt?' · '+esc(new Date(e.fetchedAt).toLocaleString()):''}</p><div class="actions"><button data-resource-load="${esc(e.id)}" ${resources.busy?'disabled':''}>${e.pages?'Refresh':'Load'}</button><button class="link-button" data-resource-remove="${esc(e.id)}" ${resources.busy?'disabled':''}>Remove</button></div>${e.linkedPDFs?.length?`<details><summary>Linked PDFs — add one to read its contents</summary>${e.linkedPDFs.map(u=>`<p class="small"><a href="${esc(safeURL(u))}" target="_blank" rel="noopener">${esc(u)}</a> <button data-resource-add="${esc(u)}" ${resources.busy?'disabled':''}>Add PDF</button></p>`).join('')}</details>`:''}</article>`).join('')}</div>
-<label for="resourceURLs">Add URLs — one per line</label><textarea id="resourceURLs" rows="3" placeholder="https://…" ${resources.busy?'disabled':''}></textarea><button id="addResources" ${resources.busy?'disabled':''}>Add to my resources</button>
-</section>`;}
-export function bindTraining(state,resources,{save,post,notice,native}){
+<label for="cpdStatement">Provider’s CPD or recognition conditions</label><textarea id="cpdStatement" rows="2" maxlength="2000">${esc(t.cpdStatement)}</textarea>
+</details></section>`;}
+export function bindTraining(state,{save}){
  const $=id=>document.getElementById(id);
  for(const key of ['providerName','courseTitle','courseVersion','reviewEmail','requirements','cpdStatement'])$(key).oninput=()=>{state.training[key]=$(key).value;save();};
- const send=b=>native?post(b):notice('Resource downloads are available in the Mac app. The browser preview does not fetch external content.');
- $('loadResources').onclick=()=>send({action:'loadResources'});
- $('addResources').onclick=()=>{const urls=$('resourceURLs').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(!urls.length||urls.some(u=>!safeURL(u))){notice('Enter one HTTPS learning page or PDF per line.');return;}send({action:'addResources',urls});};
- document.querySelectorAll('[data-resource-enable]').forEach(e=>e.onchange=()=>send({action:'toggleResource',id:e.dataset.resourceEnable,enabled:e.checked}));
- document.querySelectorAll('[data-resource-remove]').forEach(e=>e.onclick=()=>send({action:'removeResource',id:e.dataset.resourceRemove}));
- document.querySelectorAll('[data-resource-load]').forEach(e=>e.onclick=()=>send({action:'loadResources',ids:[e.dataset.resourceLoad]}));
- document.querySelectorAll('[data-resource-add]').forEach(e=>e.onclick=()=>send({action:'addResources',urls:[e.dataset.resourceAdd]}));
+ $('assessmentType').onchange=()=>{state.training.assessmentType=$('assessmentType').value;$('assessmentNote').textContent=assessmentNotes[state.training.assessmentType];save();};
 }
 export function courseWorkHTML(state,l){if(!l.providerCourse)return '';const saved=state.courseWork.filter(w=>w.lessonID===l.id);return `<details class="lesson-guide course-work"><summary>Practical work and course submission${saved.length?' · '+saved.length+' saved':''}</summary><p><strong>Learning objective:</strong> ${esc(l.objective)}</p><p>${esc(l.challenge)}</p>${(l.readingURLs??[]).map(u=>`<p><a href="${esc(safeURL(u))}" target="_blank" rel="noopener">Read course resource ↗</a></p>`).join('')}<label for="courseAnswer">Your answer, interpretation or practical findings</label><textarea id="courseAnswer" rows="4" maxlength="20000">${esc(state.workDrafts[l.id]??'')}</textarea><button id="saveCourseWork">Save submission to my learning record</button><p class="small">Each saved submission is retained for your provider to review. Attach report or R snapshots from My learning record.</p></details>`;}
 export function providerRecordHTML(state,workspace){return `<section class="card"><h2>Course work and analysis evidence</h2><p>${esc(state.training.courseTitle||'No named course')} ${state.training.courseVersion?'· '+esc(state.training.courseVersion):''} · ${state.courseWork.length} practical submission(s)</p>${state.courseWork.map(w=>`<details><summary>${esc(w.lessonTitle)} · ${esc(new Date(w.at).toLocaleString())}</summary><p>${esc(w.text)}</p><p class="small">${esc(w.status)}</p></details>`).join('')}

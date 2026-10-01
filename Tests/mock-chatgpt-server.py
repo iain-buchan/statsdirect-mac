@@ -62,6 +62,9 @@ for line in sys.stdin:
             context = json.loads(text.split('\n',1)[1])['referenceContext']
             assert 'https://example.org/course-cohort' in context
             assert 'retrieved-cohort-evidence' in context
+            assert 'Learner statisticalSkills: advanced' in context
+            assert 'Assessment preference: AI supported self-assessment' in context
+            assert 'retired-resource-must-not-leak' not in context
             assert 'Example training provider' in context
             assert 'disabled-source-must-not-leak' not in context
             assert 'private-learner-identity' not in context

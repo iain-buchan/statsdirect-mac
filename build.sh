@@ -5,10 +5,11 @@ APP="$PWD/StatsDirect Viewer.app"
 BUILD_WORK="${STATSDIRECT_BUILD_WORK:-$PWD/.build}"
 mkdir -p "$BUILD_WORK"
 BUILD_WORK="$(cd "$BUILD_WORK" && pwd -P)"
+if [[ "${STATSDIRECT_ENGINE_PREBUILT:-0}" != "1" ]]; then
 DOTNET_BIN="${DOTNET:-$(command -v dotnet || true)}"
 if [[ -z "$DOTNET_BIN" && -x "$PWD/../../work/dotnet/dotnet" ]]; then DOTNET_BIN="$PWD/../../work/dotnet/dotnet"; fi
 if [[ -z "$DOTNET_BIN" ]]; then
-  printf 'Install the .NET 10 SDK or set DOTNET to its executable.\n' >&2
+  printf 'Install the .NET 10 SDK, set DOTNET to its executable, or use ./docker-build.sh.\n' >&2
   exit 1
 fi
 export DOTNET_CLI_HOME="$BUILD_WORK/dotnet-home"
@@ -17,6 +18,12 @@ export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_GENERATE_ASPNET_CERTIFICATE=false
 DOTNET_BIN="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$DOTNET_BIN")"
 export DOTNET_BIN
+fi
+# Restore only the pinned engine revision when this clone has not initialised it.
+if [[ ! -f FullEngine/Upstream/StatsDirectUI/UI/OperationTestHost.cs ]]; then
+  git submodule sync --recursive
+  git submodule update --init --recursive
+fi
 FullEngine/build.sh
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 swiftc -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/*.swift -o "$APP/Contents/MacOS/StatsDirectViewer" -framework Cocoa -framework WebKit -framework PDFKit -framework Security

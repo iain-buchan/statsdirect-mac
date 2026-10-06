@@ -15,7 +15,8 @@ extension Viewer {
         guard message.frameInfo.isMainFrame, let web = message.webView, let doc = document(for: web),
               doc.kind == "report", doc.initialURL == nil,
               web.url?.standardizedFileURL.path == root.standardizedFileURL.path,
-              let body = message.body as? [String: Any], body["action"] as? String == "continueInR" else { return }
+              let body = message.body as? [String: Any] else { return }
+        if body["action"] as? String != "continueInR" { editReport(doc,body);return }
         guard let id = body["resultID"] as? String, let entry = doc.reportEntries?.first(where: { $0.id == id }), let plan = entry.rPlan else { return }
         openReportInR(plan, title: entry.title)
     }

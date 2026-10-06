@@ -1,3 +1,4 @@
+from r_runtime import rscript as find_rscript
 """Exercise 5.0.7 fixes through the Mac host, with independent base R references."""
 from html.parser import HTMLParser
 import math
@@ -18,7 +19,7 @@ class Text(HTMLParser):
         self.parts.append(value)
 
 
-rscript = Path('/Library/Frameworks/R.framework/Resources/bin/Rscript')
+rscript = Path(find_rscript())
 reference = subprocess.check_output([str(rscript), '--vanilla', '-e', '''
 options(digits=17)
 s <- shapiro.test(c(1,2,2,3,4,5,6,7,8,10))

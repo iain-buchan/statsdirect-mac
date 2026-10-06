@@ -12,7 +12,7 @@ The original `OperationTestHost` and `OperationsTester` are compiled unchanged. 
 
 The host-facing C functions are intentionally small; they are not a replacement calculation layer. `EngineExecution` serializes calculation segments, releasing the engine at interactive host prompts so multiple independent forms can remain open. Each generic job owns its input history, parameter recall, output frames and report. Completed history records include stable parameter names, kinds and acquisition modes for generating R scripts from the original run. The quick paired path retains a last-report buffer, retrieved by the viewer before another quick paired calculation starts.
 
-`AnalysisDefaults` snapshots the six Analysis Options for each new analysis. The native host persists them with `UserDefaults` and supplies them on startup requests. The Analysis Options form combines the original six parameter definitions, validates them as a group, and runs the original settings builtin. Confidence parameters use the saved level without asking only when `CanDefault` and `CanDefaultConfidenceInterval` are both true, matching Windows `ImmediateParameterFiller`. Automatic values are retained in the report history and generated R script. `Tests/test_analysis_defaults.py` checks this behaviour, cancellation, validation, non-defaultable inputs and independent settings for already-open forms.
+`AnalysisDefaults` snapshots the six general Analysis Options and five meta-analysis defaults for each new analysis. The general, meta-calculation and meta-plot defaults each have a complete, single-page form. The native host persists them with `UserDefaults` and supplies them on startup requests. The Analysis Options form combines the original six parameter definitions, validates them as a group, and runs the original settings builtin. Confidence parameters use the saved level without asking only when `CanDefault` and `CanDefaultConfidenceInterval` are both true, matching Windows `ImmediateParameterFiller`. Automatic values are retained in the report history and generated R script. `Tests/test_analysis_defaults.py` checks this behaviour, cancellation, validation, non-defaultable inputs and independent settings for already-open forms.
 
 ## Explicit platform boundaries
 
@@ -30,9 +30,9 @@ These are hosting/rendering boundaries, not numerical rewrites. Do not interpret
 
 ## Rebuild
 
-Run `../build.sh` to build, run the original operation tests, verify the live bridge, and package the app. Requirements: Apple Silicon Mac, Xcode command line tools, Python 3, .NET 10 SDK and R for the independent numerical checks. The .NET runtime is bundled with the app, so the resulting app does not require a separate .NET installation.
+Run `../build.sh` to compile, run the original operation and upstream distribution tests, and package the app. Requirements: Apple Silicon Mac, Xcode command line tools, Python 3 and the .NET 10 SDK. Alternatively, `../docker-build.sh` supplies the SDK in Docker. R is only required for the additional comparison suite: run `../test.sh`, or set `STATSDIRECT_RUN_TESTS=1` when building. `RSCRIPT` overrides automatic R discovery. The .NET runtime is bundled with the app, so the resulting app does not require a separate .NET installation.
 
-An existing clone needs `git submodule update --init --recursive`. The build verifies the submodule revision and all 882 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build. It also runs the upstream distribution regression suite (1,552 checks in 5.0.14).
+Missing engine submodules are initialised automatically at the pinned revision. The build verifies the submodule revision and all 882 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build. It also runs the upstream distribution regression suite (1,552 checks in 5.0.14).
 
 ## Updating the calculation engine
 

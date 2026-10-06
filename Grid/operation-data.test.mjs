@@ -22,7 +22,7 @@ test('cell rectangles preserve their exact row and column selection',()=>{
  const selected=worksheetSelection([],{x:1,y:4,width:2,height:5});
  assert.deepEqual(selected,{selection:[1,2],range:{first:5,last:9}});
  assert.deepEqual(worksheetRows({...source,rows:100,...selected},[1,2]),{first:5,last:9});
- assert.deepEqual(worksheetSelection([],{x:1,y:4,width:1,height:1}),{selection:[]});
+ assert.deepEqual(worksheetSelection([],{x:1,y:4,width:1,height:1}),{selection:[1],range:{first:5,last:5}});
  assert.deepEqual(worksheetSelection([1,0],{x:1,y:4,width:2,height:5}),{selection:[1,0]});
 });
 test('internal blank rows and explicit missing final observations survive selection',()=>{

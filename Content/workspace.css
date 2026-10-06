@@ -6,3 +6,5 @@
 .report-links{margin:24px 0 12px;font-size:13px;color:#607583}.report-links span{margin:0 8px}.report-links a:focus-visible{outline:2px solid #23695f;outline-offset:3px}@media print{.report-r-link,.report-links span{display:none}}
 
 .report-entry + .report-entry{border-top:2px solid #d7e6e2;margin-top:44px;padding-top:28px}
+
+.report-controls{display:flex;gap:12px;align-items:center;margin:8px 0;font:12px -apple-system,sans-serif}.report-controls button{background:#f4f7f8;border:1px solid #c7d4db;border-radius:5px;padding:4px 8px;color:#385461}.report-annotation{white-space:pre-wrap;min-height:34px;padding:8px;border:1px dashed #ccd8de;margin-bottom:14px}.report-annotation:empty::before{content:attr(data-placeholder);color:#748995}.report-annotation:focus{outline:2px solid #439caa}@media print{.report-controls{display:none}.report-annotation{border:0}.report-annotation:empty{display:none}}

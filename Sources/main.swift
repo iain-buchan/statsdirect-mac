@@ -39,7 +39,11 @@ final class Document {
     var initialLearningView: String?
     var initialOperationSource: [String: Any]?
     var operationSourceID: String?
+    var operationSourceSnapshot: [String: Any]?
+    var operationInputRange: [String: Any]?
+    var includeSourceColumns = true
     var reportEntries: [ReportEntry]?
+    var reportUndo: [[ReportEntry]] = []
     var pendingResult: ReportEntry?
     var scrollToResultID: String?
     var hasSVG = false
@@ -146,7 +150,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
               let source = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == title })?.submenu,
               let menu = source.copy() as? NSMenu else { return }
         // Copy at opening so document names, selection and command validation stay current.
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.minY), in: sender)
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.isFlipped ? sender.bounds.maxY + 4 : sender.bounds.minY - 4), in: sender)
     }
     func setupMenu() {
         let main = NSMenu()

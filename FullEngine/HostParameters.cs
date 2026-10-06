@@ -187,6 +187,6 @@ internal static class HostParameters {
             var v = frame.Variables[c]; cells.Add(new { col = c, row = 0, text = v.Title ?? "Column " + (c + 1), kind = "text" });
             for (int r = 0; r < v.Length; r++) { object o = v.DataAsObject(r); if (o == null || o is double missing && (missing == Constant.MISSING || !double.IsFinite(missing))) continue; cells.Add(new { col = c, row = r + 1, text = Convert.ToString(o, CultureInfo.InvariantCulture), kind = o is double || o is int ? "number" : "text" }); }
         }
-        return new { name = frame.Name ?? "Analysis data", rows = frame.MaxRows + 1, columns = frame.VariableCount, cells, hidden = false };
+        return new { name = frame.Name ?? "Analysis data", rows = frame.MaxRows + 1, columns = frame.VariableCount, cells, headerRow = true, hidden = false };
     }
 }

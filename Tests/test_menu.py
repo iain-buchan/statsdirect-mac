@@ -1,3 +1,4 @@
+from r_runtime import rscript as find_rscript
 """Interactive C ABI checks: real prompt/answer boundaries and original engine reports."""
 from pathlib import Path
 import json, subprocess, time, uuid, math, sys
@@ -135,7 +136,7 @@ if __name__=='__main__':
    result=s.run('Distribution'+name,{})
    assert result['html'];results.append({'operation':'Distribution'+name,'result':'pass'});print('PASS Distribution'+name,flush=True)
   except Exception as e:results.append({'operation':'Distribution'+name,'error':str(e)});print('FAIL',name,str(e)[:900],flush=True)
- rscript=Path('/Library/Frameworks/R.framework/Resources/bin/Rscript')
+ rscript=Path(find_rscript())
  if rscript.exists() and all('error' not in r for r in results):
   import csv,io
   reference=subprocess.check_output([str(rscript),'--vanilla',str(ROOT/'Tests/menu-references.R')],text=True)

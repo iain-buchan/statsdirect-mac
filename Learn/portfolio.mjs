@@ -36,7 +36,7 @@ export function reviewRecord(state) {
   }));
   return {schemaVersion:2,exportedAt:new Date().toISOString(),portfolioID:state.id,startedAt:state.startedAt,
     learner:structuredClone(state.identity),learningOptions:structuredClone(state.learning),pathway:tracks[state.profile].title,rExperience:stages[state.stage],
-    bankVersion,questionSource:'StatsDirect items are original teaching drafts with subject-expert review pending. Provider items retain the course and version recorded with each attempt. These are not official examination questions.',
+    diagnostics:structuredClone(state.diagnostics??{}),bankVersion,questionSource:'StatsDirect items are original teaching drafts with subject-expert review pending. Provider items retain the course and version recorded with each attempt. These are not official examination questions.',
     marking:'Provisional fixed-key MCQ scoring: 1 correct, 0 otherwise. First answers retained. Confidence and free-text reasoning are not graded. Independent practice is unsupervised and cannot certify exam readiness.',
     reviewStatus:'No accreditation or CPD points awarded by StatsDirect. Imported provider responses are recorded separately and are not authenticated. Email preparation does not confirm delivery or acceptance.',
     training:structuredClone(state.training),courseKey:state.courseKey,courseWork:structuredClone(state.courseWork),providerReviews:structuredClone(state.providerReviews),evidence:structuredClone(state.evidence),
@@ -49,17 +49,18 @@ export function reviewText(record) {
     lines.push('',`${tracks[a.track].title} — ${a.mode==='test'?'Independent practice (unsupervised)':'Supported practice'} — ${a.status}`,`Started: ${a.startedAt} | Completed: ${a.completedAt || 'not completed'}`,a.result?`Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted`:`Answered: ${a.answers.length}/${a.questionIds.length}`);
     for(const q of a.questionSnapshots) {
       const answer=a.answers.find(x=>x.questionId===q.id);
-      lines.push('',`${q.id} v${q.version} — ${q.topic}`,q.stem,...q.options.map(o=>`${o.id}. ${o.text}`),`First answer: ${answer?.choice || 'not answered'} | Key: ${q.correct || 'withheld until the attempt ends'}`,`Confidence: ${answer?.confidence || 'not recorded'} | Assisted: ${answer?.assisted??false}`,`Reasoning: ${answer?.reasoning || '(none)'}`,`Feedback: ${q.explanation || 'withheld until the attempt ends'}`,q.help?`Help: https://www.statsdirect.com/help/${q.help}`:'');
+      lines.push('',`${q.id} v${q.version} — ${q.topic}`,q.stem,...q.options.map(o=>`${o.id}. ${o.text}`),`First answer: ${answer?.choice || 'not answered'} | Key: ${q.correct || 'withheld until the attempt ends'}`,`Confidence: ${answer?.confidence || 'not recorded'} | Assisted: ${answer?.assisted??false}`,`Reasoning before answer: ${answer?.reasoning || '(none)'}`,`Reflection after feedback: ${answer?.reflection || '(none)'}`,`Feedback: ${q.explanation || 'withheld until the attempt ends'}`,q.help?`Help: https://www.statsdirect.com/help/${q.help}`:'');
     }
   }
   lines.push('','COMPLETE LEARNING CONVERSATION');
-  for(const c of record.conversation) lines.push('',`[${c.at}] ${c.role==='user'?'Learner':'Tutor'} — ${c.source}${c.lessonTitle?' · '+c.lessonTitle:''}${c.model?' / '+c.model:''}`,c.text,...(c.courseSources??[]).map(s=>'Course reference: '+s.id+' — '+s.title+(s.url?' · '+s.url:'')+(s.retrievedAt?' · retrieved '+s.retrievedAt:'')),...(c.workspaceSources??[]).map(s=>'StatsDirect context: '+s));
+  for(const c of record.conversation) lines.push('',`[${c.at}] ${c.role==='user'?'Learner':'Tutor'} — ${c.source}${c.lessonTitle?' · '+c.lessonTitle:''}${c.model?' / '+c.model:''}`,c.text,...(c.courseSources??[]).map(s=>'Lesson context supplied: '+s.id+' — '+s.title+(s.url?' · '+s.url:'')+(s.retrievedAt?' · retrieved '+s.retrievedAt:'')),...(c.workspaceSources??[]).map(s=>'StatsDirect context: '+s));
   lines.push('','PROVIDER AND COURSE',...Object.entries(record.training??{}).map(([k,v])=>`${k==='assessmentType'?'Assessment type':k}: ${k==='assessmentType'?assessmentTypes[v]??v:v}`),'','PRACTICAL SUBMISSIONS');
   for(const w of record.courseWork??[])lines.push('',`${w.at} · ${w.training.courseTitle} v${w.training.courseVersion} · ${w.lessonTitle}`,`Objective: ${w.objective}`,`Task: ${w.task}`,w.text,w.status);
   lines.push('','ATTACHED ANALYSIS EVIDENCE');for(const e of record.evidence??[])lines.push('',`${e.at} · ${e.title}`,e.text);
   lines.push('','RETURNED PROVIDER ASSESSMENTS');for(const r of record.providerReviews??[])lines.push('',`${r.provider} · ${r.reviewer} · ${r.reviewedAt}`,`Decision: ${r.decision}`,r.feedback,`Credit statement supplied: ${r.creditStatement||'(none)'}`,`Reference: ${r.reference||'(none)'}`,r.verification);
   lines.push('','LEARNING ACTIVITIES');
   for(const a of record.activities) lines.push(`[${a.at}] ${a.text}`);
+  lines.push('','DIAGNOSTICS',JSON.stringify(record.diagnostics??{},null,2));
   lines.push('','LEARNER REFLECTION',record.reflection || '(not supplied)');
   return lines.join('\n');
 }

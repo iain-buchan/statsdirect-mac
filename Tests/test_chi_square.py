@@ -1,3 +1,4 @@
+from r_runtime import rscript as find_rscript
 """Original screen-data operation through the same native bridge as the Mac form."""
 import json, math, subprocess, sys, uuid, re, xml.etree.ElementTree as ET
 from pathlib import Path
@@ -16,7 +17,7 @@ try:
     original = run(); assert 'error' not in original, original
     values = original['values']
     # Independent R calculations, using precisely the help example's counts.
-    rscript = '/Library/Frameworks/R.framework/Resources/bin/Rscript'
+    rscript = find_rscript()
     r = subprocess.check_output([rscript,'--vanilla','-e', '''x <- matrix(c(17,9,8,6,5,1,3,5,4,1,2,5),nrow=4,byrow=TRUE)
 a <- suppressWarnings(chisq.test(x,correct=FALSE)); f <- fisher.test(x)
 g <- 2*sum(x*log(x/a$expected)); cat(sprintf("%.17g",c(a$statistic,a$parameter,a$p.value,g,pchisq(g,6,lower.tail=FALSE),f$p.value)),sep=",")'''], text=True)

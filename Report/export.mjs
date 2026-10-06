@@ -1,4 +1,5 @@
 import {numericValue, clipboardText, formatClipboardTables} from './clipboard.mjs';
+import {wordEquation} from './math.mjs';
 import {Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, ExternalHyperlink, HeadingLevel, WidthType, TableLayoutType, AlignmentType, BorderStyle} from 'docx';
 
 const MAX_HTML = 30_000_000;
@@ -9,7 +10,8 @@ const text = node => (node.textContent ?? '').replace(/\s+/g,' ').trim();
 const safeLink = value => /^(https?:|mailto:|#)/i.test(value);
 
 function clean(root, helpRoot) {
-  root.querySelectorAll('script,iframe,object,embed,form,button,input,textarea,select,link,base,meta[http-equiv],.report-r-link,.report-links span').forEach(e=>e.remove());
+  root.querySelectorAll('.report-annotation:empty').forEach(e=>e.remove());
+  root.querySelectorAll('script,iframe,object,embed,form,button,input,textarea,select,link,base,meta[http-equiv],.report-r-link,.report-links span,.report-controls,.code-actions').forEach(e=>e.remove());
   for(const el of [root,...root.querySelectorAll('*')]) {
     for(const attr of [...el.attributes]) if(/^on/i.test(attr.name)||['srcdoc','action','formaction','contenteditable','nonce','integrity'].includes(attr.name.toLowerCase())) el.removeAttribute(attr.name);
     if(el.localName==='a') {
@@ -78,6 +80,7 @@ function inline(node, options={}) {
     return value?[new TextRun({...options,text:value})]:[];
   }
   if(node.nodeType!==Node.ELEMENT_NODE)return [];
+  if(node.classList.contains('katex')||node.localName==='math') { const equation=wordEquation(node);if(equation)return [equation]; }
   if(node.tagName==='BR') return [new TextRun({break:1})];
   const style={...options};
   if(['B','STRONG','TH'].includes(node.tagName))style.bold=true;

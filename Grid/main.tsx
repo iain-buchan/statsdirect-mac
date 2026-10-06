@@ -143,9 +143,9 @@ function App() {
       tutorInfo: () => tutorInfo(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
       tutorData: (options: any = {}) => tutorData(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range},options),
       analysisSource: () => {
-        const cells = [...new Set([...store.cells.keys(), ...store.metadata.keys()])].map(key=>{const [col,row]=key.split(',').map(Number);return {...store.metadata.get(key),col,row,text:store.get(col,row)};});
+        const cells = [...new Set([...store.cells.keys(), ...store.metadata.keys()])].map(key=>{const [col,row]=key.split(',').map(Number);return {...store.metadata.get(key),col,row,text:store.get(col,row),kind:cellKind(store,col,row)};});
         const usedRows = cells.filter(cell=>cell.text!=='').reduce((m,cell)=>Math.max(m,cell.row+1),store.headerRow?2:1);
-        return {name:workbook.name+' / '+workbook.sheets[sheetIndex].name,columns:store.columns.map((_:string,c:number)=>store.columnTitle(c)),cells,firstRow:store.headerRow?2:1,rows:Math.max(usedRows,selection.current?.range.y+selection.current?.range.height||0),formulasStale:store.formulasStale,...worksheetSelection(selection.columns.toArray(),selection.current?.range)};
+        return {name:workbook.name+' / '+workbook.sheets[sheetIndex].name,columns:store.columns.map((_:string,c:number)=>store.columnTitle(c)),cells,firstRow:store.headerRow?2:1,rows:Math.max(usedRows,selectionRef.current.current?.range.y+selectionRef.current.current?.range.height||0),formulasStale:store.formulasStale,...worksheetSelection(selectionRef.current.columns.toArray(),selectionRef.current.current?.range)};
       },
       csvData: () => store.csv(),
       csvSnapshot: () => ({text: store.csv(), canSaveDocument: !workbook.backed && workbook.sheets.length === 1 && !workbook.formulaCount && !workbook.sheets.some((s:any) => s.rColumns)}),

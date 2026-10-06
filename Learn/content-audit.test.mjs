@@ -66,5 +66,19 @@ export const lessonChecks={
     abs(diff(rev(events/at_risk))-0.05)<1e-12)`,
   causal:`stopifnot(sum(data$Exposed_events)==44,sum(data$Unexposed_events)==26,
     all(data$Exposed_risk==data$Unexposed_risk),all(abs(standardised-0.175)<1e-12),
-    sum(weights)==1,standardised[1]/standardised[2]==1)`
+    sum(weights)==1,standardised[1]/standardised[2]==1)`,
+  rates:`stopifnot(identical(unname(crude),c(840,360)),all(abs(standardised-400)<1e-10),
+    all(rate_a==rate_b),identical(weights,c(0.75,0.25)),sum(area_a$Events)==840)`,
+  appraisal:`stopifnot(abs(observed_rr-5/6)<1e-12,all(abs(programme_bounds-c(0.2,0.4))<1e-12),
+    all(abs(arr_bounds-c(-0.1,0.1))<1e-12),identical(unname(missing),c(20,0)))`,
+  missing:`stopifnot(sum(is.na(score))==2,length(score)==8,sum(score,na.rm=TRUE)==140,
+    abs(observed_mean-70/3)<1e-12,identical(mean_bounds,c(17.5,27.5)),
+    sd(filled)<sd(score,na.rm=TRUE),abs(mean(filled)-observed_mean)<1e-12)`,
+  validation:`stopifnot(length(observed)==8,identical(observed-predicted,c(2,-2,1,-1,1,-1,2,-2)),
+    abs(metrics[1,'Correlation']-metrics[2,'Correlation'])<1e-12,
+    abs(metrics[1,'RMSE']-sqrt(2.5))<1e-12,abs(metrics[2,'RMSE']-sqrt(102.5))<1e-12,
+    metrics[1,'Mean_error']==0,metrics[2,'Mean_error']==10)`,
+  meta:`stopifnot(identical(weight,c(2500,625,2500)),abs(pooled+0.04)<1e-12,
+    abs(pooled_se-1/75)<1e-12,abs(q-1.25)<1e-12,
+    max(abs(pooled_ci-c(-0.0661328531272007,-0.0138671468727993)))<1e-12)`
 };

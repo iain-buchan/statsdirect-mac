@@ -7,6 +7,10 @@ extension Viewer {
         FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.statsdirect.viewer.prototype").appendingPathComponent("Learning")
     }
+    var learningDiagnostics: [String:Any] {
+        let runtime = (try? JSONSerialization.jsonObject(with:Data(contentsOf:root.deletingLastPathComponent().appendingPathComponent("TutorRuntime/STATSDIRECT-RUNTIME.json")))) as? [String:Any]
+        return ["appVersion":Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development", "engineVersion":engineVersion,"engineRevision":engineRevision,"tutorRuntime":runtime?["version"] ?? "unknown","promptVersion":"statsdirect-chatgpt-tutor-v4","libraryVersion":learningLessons.first?["contentVersion"] ?? "unknown"]
+    }
     var learningLessons: [[String: Any]] {
         (try? JSONSerialization.jsonObject(with:Data(contentsOf:root.appendingPathComponent("Learn/lessons.json")))) as? [[String:Any]] ?? []
     }
@@ -41,6 +45,7 @@ extension Viewer {
                     learningScript(doc,"restore",saved)
                 } else { learningScript(doc,"restore",NSNull()) }
                 learningSettings(doc)
+                learningScript(doc,"diagnostics",learningDiagnostics)
                 refreshLearningWorkspace(doc)
                 Task { @MainActor in
                     do { try await self.chatGPTTutor.refreshAccount() }
@@ -77,6 +82,14 @@ extension Viewer {
             }
         case "example", "r":
             if let id = body["lesson"] as? String, let lesson = (learningLessons + providerLessons).first(where:{$0["id"] as? String == id}) { openLearningExample(lesson,inR:action == "r") }
+        case "copyCode":
+            if let code=body["code"] as? String, code.utf8.count<=100_000 { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(code,forType:.string) }
+        case "openRCode":
+            if let code=body["code"] as? String, code.utf8.count<=100_000 {
+                let session=newDocument(kind:"r",title:"R · Tutor example")
+                let pane=RPane(script:code);session.rPane=pane;session.item.view=pane.view
+                status.stringValue="Review the tutor's R code, then choose Run"
+            }
         case "export": exportLearningRecord(doc,body:body,email:false)
         case "email": exportLearningRecord(doc,body:body,email:true)
         default: break
@@ -154,8 +167,21 @@ extension Viewer {
             default: context += "Assessment preference: none. Focus on teaching and the learner's goals; introduce assessment only if the learner requests it.\n"
             }
         }
+        let skills = (body["learningGoals"] as? [String:Any])?["statisticalSkills"] as? String ?? "beginner"
+        context += "\nCURRENT TEACHING LEVEL (supersedes the style of older replies): " + skills + ". "
+        if skills == "advanced" { context += "Assume statistical foundations. Discuss estimands, assumptions, relevant equations and limitations; avoid repeating elementary definitions unless asked. " }
+        else if skills == "intermediate" { context += "Build on basic interpretation; explain method choice, assumptions and diagnostics. " }
+        else { context += "Start with plain-language interpretation and introduce one new idea at a time. " }
+        if stage == "Practise R coding" { context += "For analysis questions include a concise executable R example tied to the actual supplied/read data, with relevant diagnostics. Do not invent worksheet values. " }
+        else if stage == "Connect menus to R" { context += "Connect each StatsDirect menu action to its equivalent R command and explain the arguments. " }
+        context += "For the current question use these settings even when older replies were written for a beginner.\n"
         var courseSources: [[String:String]] = []
-        if context.count > 14000 { context = String(context.prefix(13900)) + "\n[Course/lesson context is a bounded excerpt.]\n" }
+        // Reserve space for complete curated material, workspace metadata and the method catalogue.
+        if context.count > 8000 { context = String(context.prefix(7900)) + "\n[Course/lesson context is a bounded excerpt.]\n" }
+        if let curated = LearningLibrary.context(for:lesson) {
+            context += curated
+            courseSources.append(LearningLibrary.source(for:lesson))
+        }
         var materials: [CoursePack.Material] = []
         if let pack = loadCoursePack() {
             materials += pack.documents
@@ -168,7 +194,7 @@ extension Viewer {
             context += "\nRETRIEVED COURSE/WEB EXCERPTS (only these extracts have been read; cite source IDs, URLs and page titles):\n"
             for excerpt in excerpts {
                 let block = "[Course: \(excerpt.id)] \(excerpt.title)\nURL: \(excerpt.url ?? "local course pack")\nRetrieved: \(excerpt.retrievedAt ?? "local import")\n\(excerpt.text)\n\n"
-                guard context.count + block.count <= 25000 else { break }
+                guard context.count + block.count <= 15500 else { break }
                 context += block
                 courseSources.append(["id":excerpt.id,"title":excerpt.title,"url":excerpt.url ?? "","retrievedAt":excerpt.retrievedAt ?? ""])
             }
@@ -176,22 +202,27 @@ extension Viewer {
         doc.learningRequestID = id
         doc.learningTask = Task { @MainActor [weak self, weak doc] in
             guard let self, let doc else { return }
-            defer { if doc.learningRequestID == id { doc.learningTask = nil; doc.learningRequestID = nil; self.refreshLearningWorkspace(doc) } }
+            var diagnostics: [String] = []
+            self.chatGPTTutor.diagnostic = { event in if diagnostics.count < 120 { diagnostics.append(event) } }
+            defer { self.chatGPTTutor.diagnostic = nil; if doc.learningRequestID == id { doc.learningTask = nil; doc.learningRequestID = nil; self.refreshLearningWorkspace(doc) } }
             do {
                 let workspace = LearningWorkspace(self,doc,id)
                 let overview = try await workspace.overview()
                 let metadata = String(decoding:try JSONSerialization.data(withJSONObject:overview,options:[.sortedKeys]),as:UTF8.self)
                 let methods = self.analysisCatalog.keys.sorted().map { $0 + ": " + (self.analysisCatalog[$0]?["title"] as? String ?? $0) }.joined(separator:"\n")
                 let tools = TutorTools.definitions.filter { !workspace.allowed.isEmpty || ["statsdirect_method_help","statsdirect_workspace"].contains($0["name"] as? String ?? "") }
-                let result = try await self.chatGPTTutor.converse(context:"COURSE, LESSON AND LEARNING CONTEXT (separate from open data):\n" + context + "\nCURRENT STATSDIRECT WORKSPACE (metadata, not cell values):\n" + String(metadata.prefix(6000)) + "\nMETHOD CATALOGUE:\n" + methods,messages:messages,tools:tools) { name, arguments in
+                let result = try await self.chatGPTTutor.converse(context:"COURSE, LESSON AND LEARNING CONTEXT (separate from open data):\n" + context + "\nCURRENT STATSDIRECT WORKSPACE (metadata, not cell values):\n" + String(metadata.prefix(6000)) + "\nMETHOD CATALOGUE:\n" + methods,messages:messages,tools:tools,progress:{ [weak self,weak doc] text in
+                    guard let self,let doc,doc.learningRequestID==id else { return }
+                    self.learningScript(doc,"partial",["id":id,"text":text])
+                },toolHandler:{ name, arguments in
                     try await workspace.call(name,arguments)
-                }
+                })
                 try Task.checkCancellation()
                 guard doc.learningRequestID == id else { return }
-                self.learningScript(doc,"reply",["id":id,"text":result.text,"model":result.model,"responseID":result.responseID,"promptVersion":result.promptVersion,"courseSources":courseSources,"workspaceSources":workspace.sources])
+                self.learningScript(doc,"reply",["id":id,"text":result.text,"model":result.model,"responseID":result.responseID,"promptVersion":result.promptVersion,"courseSources":courseSources,"workspaceSources":workspace.sources,"diagnostics":diagnostics])
             } catch {
                 if !Task.isCancelled, doc.learningRequestID == id {
-                    self.learningScript(doc,"tutorError",["id":id,"message":error is URLError ? "ChatGPT could not be reached. Check your network and try again." : error.localizedDescription])
+                    self.learningScript(doc,"tutorError",["id":id,"message":error is URLError ? "ChatGPT could not be reached. Check your network and try again." : error.localizedDescription,"diagnostics":diagnostics])
                 }
             }
         }
@@ -264,11 +295,24 @@ extension Viewer {
                 learningScript(doc,"notice","Email draft opened with the complete learning record attached. Review it and send it in Mail. StatsDirect cannot confirm delivery or accreditation.")
             } catch { learningScript(doc,"notice","Could not prepare the email attachment: " + error.localizedDescription) }
         } else {
-            let panel = NSSavePanel(); panel.allowedContentTypes = [.plainText,.json]; panel.nameFieldStringValue = filename + ".txt"
+            let format=body["format"] as? String ?? "txt"
+            guard ["txt","json","html","pdf","docx"].contains(format) else { return }
+            let panel = NSSavePanel(); panel.allowedContentTypes = [UTType(filenameExtension:format)!]; panel.nameFieldStringValue = filename + "." + format
             panel.beginSheetModal(for:window) { response in
                 guard response == .OK, let url = panel.url else { return }
-                do { try (url.pathExtension.lowercased() == "json" ? json : Data(text.utf8)).write(to:url,options:.atomic); self.learningScript(doc,"notice","Learning record exported to " + url.lastPathComponent) }
-                catch { self.showError(error.localizedDescription) }
+                Task { @MainActor in
+                    do {
+                        let data: Data
+                        if format == "json" { data=json }
+                        else if format == "txt" { data=Data(text.utf8) }
+                        else {
+                            guard let html=body["html"] as? String,html.utf8.count<=15_000_000 else { throw LearningTutor.Failure(message:"The formatted record is too large to export.") }
+                            data=try await self.learningRecordData(html,format:ReportFormat(rawValue:format)!)
+                        }
+                        try data.write(to:url,options:.atomic)
+                        self.learningScript(doc,"notice","Learning record exported to " + url.lastPathComponent)
+                    } catch { self.showError(error.localizedDescription) }
+                }
             }
         }
     }

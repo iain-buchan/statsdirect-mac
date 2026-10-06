@@ -1,7 +1,7 @@
 // Snapshot is sparse; only the chosen columns are materialised for the calculation.
 export function worksheetSelection(columns, range) {
   if (columns.length) return {selection:columns};
-  if (!range || range.width * range.height <= 1) return {selection:[]};
+  if (!range) return {selection:[]};
   return {selection:Array.from({length:range.width},(_,i)=>range.x+i),range:{first:range.y+1,last:range.y+range.height}};
 }
 export function worksheetRows(source, selected, requiredLength) {

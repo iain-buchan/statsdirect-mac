@@ -1,3 +1,4 @@
+from r_runtime import rscript as find_rscript
 """Selected worksheet rectangle -> actual form payload -> original engine and R."""
 import json, os, subprocess, math, xml.etree.ElementTree as ET
 from pathlib import Path
@@ -16,7 +17,7 @@ try:
  result=s.run('Chi2by2',dict(scrap=json.loads(payload),study_type='neither',doFisher=False))
  values=result['values']
  assert [values[k] for k in ['tab3_a1','tab3_b1','tab3_a2','tab3_b2']]==[12,3,8,17]
- r=subprocess.check_output(['/Library/Frameworks/R.framework/Resources/bin/Rscript','--vanilla','-e', 'a<-chisq.test(matrix(c(12,3,8,17),nrow=2,byrow=TRUE),correct=FALSE);cat(sprintf("%.17g",c(a$statistic,a$p.value)),sep=",")'],text=True)
+ r=subprocess.check_output([find_rscript(),'--vanilla','-e', 'a<-chisq.test(matrix(c(12,3,8,17),nrow=2,byrow=TRUE),correct=FALSE);cat(sprintf("%.17g",c(a$statistic,a$p.value)),sep=",")'],text=True)
  for actual,expected in zip([values['chi'],values['chi_p']],map(float,r.split(','))):assert math.isclose(actual,expected,rel_tol=1e-12)
  print('PASS: selected C5:D6 -> embedded grid -> original engine matches R, with unrelated data excluded')
 finally:s.finish()

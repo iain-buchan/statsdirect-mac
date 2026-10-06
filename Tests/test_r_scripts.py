@@ -1,9 +1,10 @@
+from r_runtime import rscript as find_rscript
 """Run generated R scripts from actual completed engine sessions (no mock input history)."""
 from pathlib import Path
 import json, subprocess, sys, tempfile
 from test_menu import Session, columns, ROOT
 
-R=Path('/Library/Frameworks/R.framework/Resources/bin/Rscript')
+R=Path(find_rscript())
 GEN=Path(sys.argv[2]).resolve()
 session=Session()
 cases={

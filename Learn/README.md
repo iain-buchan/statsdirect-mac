@@ -1,6 +1,6 @@
-# StatsDirect Learning (macOS prototype 0.3.16)
+# StatsDirect Learning (macOS)
 
-Open **Help → Learning** or **Help → Learning Options**. This is an integrated closable Mac document: original Windows artwork, seven lessons, five learner pathways, 30 original draft MCQs, local persistence, real StatsDirect analysis forms and seven runnable base-R examples with plots. Epidemiology and causal inference are shared foundations. Learning Options has two sections: experience/goals and training provider. Statistical skills (beginner/intermediate/advanced), R confidence, exams/courses and learning goals are prominent. Additional pathway, prior-knowledge, date, priority and teaching-style preferences remain in an expandable section. Assessment type is none, continued professional development credits, or AI supported self-assessment; this preference guides the tutor, while practice and portfolio tools remain available.
+Open **Help → Learning** or **Help → Learning Options**. This is an integrated closable Mac document: original Windows artwork, 12 lessons, five learner pathways, 35 original draft MCQs, local persistence, real StatsDirect analysis forms and 12 runnable base-R examples with plots. Epidemiology and causal inference are shared foundations. Learning Options has two sections: experience/goals and training provider. Statistical skills (beginner/intermediate/advanced), R confidence, exams/courses and learning goals are prominent. Additional pathway, prior-knowledge, date, priority and teaching-style preferences remain in an expandable section. Assessment type is none, continued professional development credits, or AI supported self-assessment; this preference guides the tutor, while practice and portfolio tools remain available.
 
 ## Use my ChatGPT
 
@@ -12,7 +12,7 @@ Each Send shares bounded recent conversation (up to 40 messages / 60,000 charact
 
 The native process owns login and token refresh. Credentials are kept by the runtime in macOS Keychain, under a separate StatsDirect runtime home; neither tokens nor login URLs enter the web view or portfolio. Runtime setup is private to `~/Library/Application Support/<bundle-id>/ChatGPT Tutor/`. It does not reuse `~/.codex`, personal API keys or project configuration. Each reply uses an ephemeral thread with **no selected computer environment**, no connected apps/plugins, shell, browser or image tools; approval requests are rejected. Only the six registered StatsDirect host tools are available; these cannot access arbitrary files, execute R/shell commands or send email. Learning conversation history is managed by the existing local portfolio. The runtime's default available model is used, rather than hardcoding an entitlement-dependent model name.
 
-The runtime is pinned because its app-server interface contains experimental fields, including disabling environment access and dynamic host tools. `Scripts/bundle-chatgpt.py` verifies the official archive's SHA-256, includes its Apache licence and notice, and signs the embedded executables. Contract tests exercise the exact pinned binary. A runtime upgrade must repeat those tests. This remains an unsigned-for-distribution Mac prototype; release signing/notarisation is still outstanding.
+The runtime is pinned because its app-server interface contains experimental fields, including disabling environment access and dynamic host tools. `Scripts/bundle-chatgpt.py` verifies the official archive's SHA-256, includes its Apache licence and notice, and preserves/verifies the vendor signatures of the embedded executables. Re-signing the connection executable would change its Keychain identity. Contract tests exercise the exact pinned binary. A runtime upgrade must repeat those tests. This remains an unsigned-for-distribution Mac prototype; release signing/notarisation is still outstanding.
 
 Native tests cover browser authentication setup/cancel with the real signed-out runtime, and completed login, answers, usage errors, cancellation/retry and logout with a local protocol fixture. A live model response requires the learner to finish browser sign-in. The optional [managed service prototype](../TutorService/README.md) remains in the repository for future institutional use; it is not the shipped tutor connection.
 
@@ -46,7 +46,9 @@ See [the tutor pack guide](../Docs/Learn/CoursePack/README.md), working provider
 The generated `Content/Learn/app.js` is committed, like the existing grid assets. After editing Learn sources, run `node Learn/build.mjs` with the Grid esbuild dependency installed. Then run:
 
 ```
-node --test Learn/learning.test.mjs Grid/tutor-data.test.mjs
+node --test Learn/learning.test.mjs Learn/lesson-context.test.mjs Learn/provider-course.test.mjs Learn/library.test.mjs Grid/tutor-data.test.mjs
+swiftc Sources/LearningLibrary.swift Tests/learning-library-test.swift -o .build/learning-library-test
+.build/learning-library-test Content/Learn/lessons.json
 swiftc Sources/ChatGPTTutor.swift Tests/chatgpt-tutor-driver.swift -o .build/chatgpt-tutor-test
 .build/chatgpt-tutor-test Tests/mock-chatgpt-server.py .build/chatgpt-mock Content/Tutor mock
 .build/chatgpt-tutor-test .build/codex-runtime/bin/codex-app-server .build/chatgpt-probe Content/Tutor probe
@@ -67,3 +69,19 @@ The build creates `StatsDirect Viewer.app` with its original calculation engine 
 `lessons.json` in this directory is the canonical catalogue. Run `python3 Learn/create-lessons.py` to publish it to `Content/Learn/lessons.json`, then rebuild with `node Learn/build.mjs`. Preserve old challenge text in `previousChallenges` so saved conversations retain their original topic. Increment changed question versions and the bank version; saved attempts retain their original wording and marking. The archived concept imports its original twelve questions from the maintained bank.
 
 The [26 September 2026 content audit](../Docs/Learn/CONTENT-AUDIT-2026-09-26.md) records the scope, corrections, independent numerical checks and sources. It is an AI-assisted audit, not external expert approval.
+
+The [curated-library guide](../Docs/Learn/CURATED-LIBRARY.md) describes the 1 October enrichment: objectives, prerequisites, concepts, misconceptions, worked interpretation, levelled discussion prompts, R progression and editorial references. Five new fixed-key questions live in the lesson JSON and join the existing practice engine. The native host supplies the complete selected enrichment to the tutor, records the lesson version with its reply, and reserves room for open-document context. The learner reading-list controls remain retired.
+
+## Mac beta feedback fixes (0.3.17)
+
+Replies stream into the conversation; Markdown, equations and highlighted R code render locally. R blocks provide Copy and Open in R, where the learner reviews the script and presses Run. Expand conversation hides secondary controls on smaller screens. Each lesson resumes its own conversation and draft.
+
+Learning Options save as edited. Professional context, statistical skill and R experience have separate purposes; current preferences override older conversational assumptions. Course question counts follow the selected question set, and reflection after feedback is stored separately from the first answer. New reports/R sessions become available to attach without reopening Learning.
+
+Learning records export as HTML, PDF, DOCX, JSON or text. Version and bounded protocol-event diagnostics accompany the record; credentials, raw tool arguments and runtime logs are excluded. Provider assessment is optional: StatsDirect does not award accreditation or send results automatically.
+
+The pinned runtime requires `features.code_mode_host = true` to deliver registered application tool calls even though `code_mode = false`. Turning the host off produced “tool host is disabled”; the fix was verified against a live ChatGPT session reading bundled example cells, calculating with the real engine and returning the correct result plus R code. No shell, arbitrary files, connected apps or computer environment are enabled.
+
+`python3 Tests/run_beta_feedback.py` exercises the native UI and exports after a build. Add `--live` to use this Mac's existing StatsDirect ChatGPT sign-in with bundled example data. Other checks use a local protocol fixture.
+
+Routine native tests inject a mock tutor before loading Learning; they never initialise the real Keychain-backed runtime. Only an explicit `--live` check uses the saved StatsDirect sign-in.

@@ -1,14 +1,14 @@
 import {safeURL,validEmail,assessmentTypes,assessmentNotes} from './provider-course.mjs';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function trainingHTML(state,pack){const t=state.training;return `
-<section class="card" id="trainingProvider"><h2>Your training provider</h2>
+<section class="card" id="trainingProvider"><h2>Your training provider</h2><p class="small">Optional: the tutor, university or organisation delivering your course and reviewing your work. Choosing an exam does not enrol you with its examining body.</p>
 <label for="courseTitle">Course</label><input id="courseTitle" maxlength="200" value="${esc(t.courseTitle)}" placeholder="For example: www.statisticalhelp.org/help">
 <div class="form-row"><div><label for="reviewEmail">Assessment email address</label><input id="reviewEmail" type="email" maxlength="254" value="${esc(t.reviewEmail)}" placeholder="support@statisticalhelp.org"></div><div><label for="assessmentType">Assessment type</label><select id="assessmentType">${Object.entries(assessmentTypes).map(([id,title])=>`<option value="${id}" ${t.assessmentType===id?'selected':''}>${esc(title)}</option>`).join('')}</select></div></div>
 <p class="small" id="assessmentNote">${esc(assessmentNotes[t.assessmentType])}</p>
 <div class="course-pack"><h3>A course pack from your tutor</h3>
 <p>${pack?`<strong>${esc(pack.title)}</strong> · ${pack.documents.length} document(s) or pages`:'Add course notes, lessons, examples or practice questions.'}</p>
 <div class="actions"><button id="importCourse">${pack?'Replace course pack…':'Import course pack…'}</button><button id="exampleCourse" class="link-button">Try example course</button></div>
-<p class="small">PDF, Markdown, text or a StatsDirect course pack. Relevant extracts accompany questions you send to the tutor.</p>
+<p class="small">PDF, Markdown, text or a StatsDirect course pack. Relevant extracts accompany questions you send to OpenAI. Only import materials you are permitted to share with that service.</p>
 ${pack?`<details><summary>Included materials</summary><ul>${pack.documents.map(d=>`<li>${esc(d.title)}</li>`).join('')}</ul></details>`:''}</div>
 <details class="option-details"><summary>Provider details and assessment conditions</summary>
 <div class="form-row"><div><label for="providerName">Provider or university</label><input id="providerName" maxlength="200" value="${esc(t.providerName)}"></div><div><label for="courseVersion">Course version</label><input id="courseVersion" maxlength="80" value="${esc(t.courseVersion)}"></div></div>

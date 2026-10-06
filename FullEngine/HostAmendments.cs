@@ -54,7 +54,14 @@ internal static class HostAmendments {
                 // need it for mixed numeric/category series such as bar-chart labels.
                 if (chart.ChartOptions.MarkerTypes == null || chart.ChartOptions.MarkerTypes.Count == 0)
                     chart.ChartOptions.MarkerTypes = ChartPreferences.MarkerTypes.Select(m=>m.Clone()).ToList();
-                var a = Form(job, "Chart labels", new[] { Field("title", "Title", chart.ChartOptions.Title ?? "", "text"), Field("x", "Horizontal axis", chart.ChartOptions.XAxisTitle ?? "", "text"), Field("y", "Vertical axis", chart.ChartOptions.YAxisTitle ?? "", "text") });
+                var fields = new List<object> { Field("title", "Title", chart.ChartOptions.Title ?? "", "text"), Field("x", "Horizontal axis", chart.ChartOptions.XAxisTitle ?? "", "text"), Field("y", "Vertical axis", chart.ChartOptions.YAxisTitle ?? "", "text") };
+                if (chart.ChartOptions is HistogramOptions) fields.Add(Field("bins","Number of bins (0 = automatic; otherwise 2–1000)",0,"integer",0,1000));
+                var a = Form(job, "Chart labels", fields.ToArray(), value => {
+                    if (value.TryGetProperty("bins",out var b)) { double n=HostParameters.Number(b); if(n<0||n==1||n>1000||n!=Math.Truncate(n))throw new ArgumentException("Use 0 for automatic bins or a whole number from 2 to 1000."); }
+                });
+                if (chart.ChartOptions is HistogramOptions histogram && a.TryGetProperty("bins",out var bins) && HostParameters.Number(bins)>1) {
+                    for(int i=0;i<histogram.HistoSeriesOptions.Count;i++) histogram.Reset(false,(int)HostParameters.Number(bins),i,(DoubleSeries)chart.YSeries[i]);
+                }
                 chart.ChartOptions.Title = a.GetProperty("title").GetString(); chart.ChartOptions.XAxisTitle = a.GetProperty("x").GetString(); chart.ChartOptions.YAxisTitle = a.GetProperty("y").GetString();
                 if (chart.IsAscii && chart.ChartOptions is ScatterXYOptions) {
                     var scale=chart.ScaleParameters;

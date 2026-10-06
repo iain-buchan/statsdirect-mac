@@ -24,5 +24,10 @@ export function guidePresentation(entry,currentLesson){
   return {label:`${earlier?'Earlier study guide':'Study guide'} · ${entry.lessonTitle}`,earlier};
 }
 export function conversationForTutor(state){
-  return state.conversation.slice(-40).map(c=>({role:c.role,text:c.lessonTitle?`[Lesson context: ${c.lessonTitle}]\n${c.text}`:c.text}));
+  return lessonConversation(state).slice(-40).map(c=>({role:c.role,text:c.lessonTitle?`[Lesson context: ${c.lessonTitle}]\n${c.text}`:c.text}));
+}
+
+// Keep a separate conversation per lesson while preserving the complete portfolio.
+export function lessonConversation(state){
+ return state.conversation.filter(c=>c.lessonId===state.lesson || (!c.lessonId && state.lesson==='epidemiology'));
 }

@@ -28,7 +28,9 @@ import Foundation
         }
         for _ in 0..<30 where tutor.account == nil { try await Task.sleep(nanoseconds:100_000_000) }
         precondition(tutor.account?.email == "learner@example.invalid")
-        let reply = try await tutor.converse(context:"Fictional paired example; [Course: paired] Paired differences",messages:[["role":"user","text":"Explain pairing"]])
+        var partials:[String]=[]
+        let reply = try await tutor.converse(context:"Fictional paired example; [Course: paired] Paired differences",messages:[["role":"user","text":"Explain pairing"]],progress:{partials.append($0)})
+        precondition(partials.contains("Analyse within-person ") && partials.last == "Analyse within-person differences.")
         precondition(reply.text == "Analyse within-person differences." && reply.model == "fixture-model")
         let tools = [["type":"function","name":"statsdirect_read_data","description":"Read selected cells","inputSchema":["type":"object","properties":["documentId":["type":"string"]],"required":["documentId"],"additionalProperties":false]]] as [[String:Any]]
         var calls = 0

@@ -3,6 +3,8 @@ import Cocoa
     @MainActor static func main() {
         let app = NSApplication.shared; app.setActivationPolicy(.regular)
         let viewer = Viewer(); app.delegate = viewer
+        let fixtureRoot=URL(fileURLWithPath:FileManager.default.currentDirectoryPath)
+        viewer.chatGPTTutor=ChatGPTTutor(executable:fixtureRoot.appendingPathComponent("Tests/mock-chatgpt-server.py"),storage:fixtureRoot.appendingPathComponent(".build/startup-chatgpt-mock"),resources:viewer.root.appendingPathComponent("Tutor"))
         DispatchQueue.main.asyncAfter(deadline:.now()+0.5) {
             Task { @MainActor in
                 do { try await run(viewer); print("PASS: provider course and resource integration in native WKWebView") }
@@ -26,7 +28,7 @@ import Cocoa
         try await wait { (d.learningState?["learning"] as? [String:Any])?["statisticalSkills"] as? String == "advanced" }
         _ = try await v.learningJavaScript(d,"({ok:document.getElementById('exampleCourse').click()===undefined})")
         try await wait { (v.loadCoursePack()?.schemaVersion == 2) && (d.learningState?["courseKey"] as? String == "service-improvement-demo:1.1") }
-        rows = try await v.learningJavaScript(d,"({count:document.querySelectorAll('[data-lesson]').length})"); precondition(rows["count"] as? Int == 10)
+        rows = try await v.learningJavaScript(d,"({count:document.querySelectorAll('[data-lesson]').length})"); precondition(rows["count"] as? Int == v.learningLessons.count + 3)
         _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-lesson=\"course:service-improvement-demo:1.1:paired\"]').click()===undefined})")
         try await wait { (try? await v.learningJavaScript(d,"({ok:!!document.getElementById('courseAnswer')})"))?["ok"] as? Bool == true }
         _ = try await v.learningJavaScript(d,"({ok:(document.getElementById('courseAnswer').value='Mean reduction 2 minutes; eight paired staff. The before-after comparison alone cannot isolate a training effect.',document.getElementById('saveCourseWork').click(),true)})")
@@ -56,6 +58,21 @@ import Cocoa
         _ = try await v.chatGPTTutor.signIn()
         try await wait { v.chatGPTTutor.account != nil }
         v.learningSettings(d)
+        // Exercise the shipped library through the same UI and native request used by learners.
+        for lesson in v.learningLessons {
+            let id = lesson["id"] as! String
+            _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-lesson=\"\(id)\"]').click()===undefined})")
+            let guide = try await v.learningJavaScript(d,"({title:document.querySelector('h1').textContent,text:document.querySelector('.lesson-guide').textContent,links:document.querySelectorAll('.lesson-guide a').length,open:document.querySelector('.lesson-guide').open})")
+            precondition(guide["title"] as? String == lesson["title"] as? String)
+            precondition((guide["text"] as! String).contains("Key ideas") && (guide["text"] as! String).contains("Common mistakes"))
+            precondition(guide["links"] as? Int == (lesson["sources"] as! [Any]).count && guide["open"] as? Bool == false)
+        }
+        _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-lesson=\"missing\"]').click()===undefined})")
+        _ = try await v.learningJavaScript(d,"({ok:(document.getElementById('question').value='LIBRARY_TEST Explain the missing-outcome bounds.',document.getElementById('send').click(),true)})")
+        try await wait { (d.learningState?["conversation"] as? [[String:Any]])?.last?["model"] as? String == "fixture-model" }
+        let libraryReply = (d.learningState!["conversation"] as! [[String:Any]]).last!
+        precondition((libraryReply["courseSources"] as! [[String:String]]).contains{$0["id"] == "library:missing"})
+        print("PASS: all 12 enriched guides display in WKWebView; complete selected lesson, fixed key and source metadata reach the native tutor request; lesson version retained with reply")
         var pack = try JSONSerialization.jsonObject(with:JSONEncoder().encode(v.loadCoursePack()!)) as! [String:Any]
         pack["documents"] = [["id":"cohort","title":"Cohort population","text":"retrieved-cohort-evidence: A cohort follows people at risk over time.","url":"https://example.org/course-cohort","retrievedAt":"2026-10-01"]]
         try JSONSerialization.data(withJSONObject:pack).write(to:v.coursePackURL)

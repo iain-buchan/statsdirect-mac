@@ -106,6 +106,7 @@ internal sealed class OperationJob {
         try {
             Check();
             var host = new OperationHost(this);
+            StatsDirect.UI.OperationHacks.Information = text => host.Warning(text,"Search results");
             // The Windows basic-search command only sends Ctrl+H to its shell. Use
             // the existing search operation and unit-conversion engine in this host.
             var engineOperation = Operation.Name switch {
@@ -115,7 +116,7 @@ internal sealed class OperationJob {
             };
             var result = ((ITemplateProcessor)new TemplateProcessor(host)).Execute(engineOperation, new ParameterBag());
             Check(); if (result == null) throw new Exception("The engine ended this operation without completing it.");
-            if (Operation.Name == "AnalysisOptions") {
+            if (Operation.Name is "AnalysisOptions" or "MetaCalculationOptions" or "MetaPlotOptions") {
                 analysisOptions = AnalysisDefaults.Values(host.Preferences);
                 AnalysisDefaults.Apply(SdApplication.SoleInstance.Preferences, JsonSerializer.SerializeToElement(analysisOptions));
             }
@@ -125,7 +126,7 @@ internal sealed class OperationJob {
             }
         } catch (Exception ex) {
             lock (sync) { state = Cancelled || ex is OperationCanceledException ? "cancelled" : "failed"; error = state == "failed" ? ex.Message : null; Finished = true; }
-        } finally { lock (sync) { prompt = null; Finished = true; Monitor.PulseAll(sync); } }
+        } finally { StatsDirect.UI.OperationHacks.Information = null; lock (sync) { prompt = null; Finished = true; Monitor.PulseAll(sync); } }
     }
 }
 
@@ -139,7 +140,7 @@ internal sealed class OperationHost : ITemplateHost {
         this.job = job;
         var snapshot = AnalysisDefaults.Snapshot(SdApplication.SoleInstance.Preferences);
         AnalysisDefaults.Apply(snapshot, job.SavedPreferences);
-        Preferences = job.Operation.Name is "MetaCalculationOptions" or "MetaPlotOptions" or "GraphicsOptions" ? SdApplication.SoleInstance.Preferences : snapshot;
+        Preferences = job.Operation.Name == "GraphicsOptions" ? SdApplication.SoleInstance.Preferences : snapshot;
     }
     public SDPreferences Preferences { get; }
     public Operation Operation { get; set; }
@@ -148,10 +149,11 @@ internal sealed class OperationHost : ITemplateHost {
     public IDictionary<string, ParameterBag> SessionParametersPerOperation => savedPerOperation;
     public ParameterBag SessionParametersAcrossOperations => savedAcrossOperations;
     readonly List<Parameter> settingsParameters = new();
-    public bool CanCombine(Parameter p) => job.Operation.Name == "AnalysisOptions" && p is BooleanParameter or OptionParameter;
+    bool IsSettings => job.Operation.Name is "AnalysisOptions" or "MetaCalculationOptions" or "MetaPlotOptions";
+    public bool CanCombine(Parameter p) => IsSettings && p is BooleanParameter or OptionParameter;
     public void PrepareParameter(ITemplateProcessor processor, Parameter p, ParameterBag context) { job.Check(); }
     public ParameterBag FillAndValidateCombinedParameters(ITemplateProcessor processor, ParameterBag context) {
-        if (job.Operation.Name != "AnalysisOptions") throw new InvalidOperationException("Unexpected combined parameter request.");
+        if (!IsSettings) throw new InvalidOperationException("Unexpected combined parameter request.");
         var fields = settingsParameters.Select(p => {
             var d=HostParameters.Describe(p,processor,context,Preferences);
             if (p.Name=="default-ci") d["prompt"]="Default confidence level";
@@ -160,7 +162,7 @@ internal sealed class OperationHost : ITemplateHost {
         }).ToArray();
         string error=null;
         while (true) {
-            var input=job.Ask(new() { ["kind"]="settings", ["name"]="analysisOptions", ["prompt"]="Analysis options", ["fields"]=fields, ["error"]=error });
+            var input=job.Ask(new() { ["kind"]="settings", ["name"]="analysisOptions", ["prompt"]=job.Operation.FriendlyName, ["fields"]=fields, ["error"]=error });
             try {
                 var filled=new ParameterBag();
                 foreach (var p in settingsParameters) {
@@ -168,7 +170,7 @@ internal sealed class OperationHost : ITemplateHost {
                     foreach (var pair in HostParameters.Parse(p,value,processor,context,this)) filled[pair.Key]=pair.Value;
                 }
                 // Validate the complete group before the original options builtin changes anything.
-                AnalysisDefaults.Apply(AnalysisDefaults.Snapshot(Preferences),input);
+                if (job.Operation.Name == "AnalysisOptions") AnalysisDefaults.Apply(AnalysisDefaults.Snapshot(Preferences),input);
                 foreach (var p in settingsParameters) job.Record(p.Prompt(processor,context),input.GetProperty(p.Name).Clone(),p.Name,p is BooleanParameter?"boolean":"option");
                 settingsParameters.Clear(); return filled;
             } catch (ArgumentException ex) { error=ex.Message; }
@@ -178,6 +180,12 @@ internal sealed class OperationHost : ITemplateHost {
         job.Check();
         if (!p.AcquireIfTrue(processor, context)) return new ParameterBag();
         if (shouldCombine && CanCombine(p)) { settingsParameters.Add(p); return new ParameterBag(); }
+        // Basic search is exact whole-cell replacement. Advanced search retains
+        // its numeric comparisons, expressions and row/cell deletion choices.
+        if (job.Operation.Name == "SearchAndReplace" && p.Name is "search-type" or "search-rule" or "action") {
+            string value = p.Name == "search-type" ? "text" : p.Name == "search-rule" ? "equal" : "replace-value";
+            return HostParameters.Parse(p,JsonSerializer.SerializeToElement(value),processor,context,this);
+        }
         if (p is FrameParameter stored && stored.Data != null) return new ParameterBag(p.Name, FilledParameterFactory.Input(stored.Data.Frame));
         if (p is SpecialParameter target && (target.SpecialType == "frame" || target.SpecialType == "report")) return new ParameterBag();
         if (p is SpecialParameter rubric && rubric.SpecialType == "rubric") {
@@ -208,6 +216,14 @@ internal sealed class OperationHost : ITemplateHost {
         while (true) {
             var descriptor = HostParameters.Describe(p, processor, context, Preferences);
             if (job.Operation.Name == "ConvertUnitsScreen" && p is FrameParameter) descriptor["screen"] = true;
+            if (job.Operation.Name == "ClearMissing" && p.Name == "missing-double") {
+                descriptor["defaultValue"] = null;
+                descriptor["rubric"] = "Missing cells are shown as *. Enter an additional numeric code (for example −999), or choose Skip.";
+            }
+            if (job.Operation.Name == "SearchAndReplace") {
+                if (p.Name == "search-expression") { descriptor["prompt"]="Find this whole-cell value"; descriptor["rubric"]="Exact, case-sensitive match. Use Advanced for expressions or numeric comparisons."; }
+                if (p.Name == "replace-expression") descriptor["prompt"]="Replace with this value";
+            }
             descriptor["error"] = error;
             // Match the Windows ImmediateParameterFiller: only parameters which
             // permit defaulting use the saved CI without displaying another form.
@@ -215,6 +231,7 @@ internal sealed class OperationHost : ITemplateHost {
             var input = useDefault ? JsonSerializer.SerializeToElement(Preferences.DefaultConfidenceInterval * 100) : job.Ask(descriptor);
             try {
                 var filled = HostParameters.Parse(p, input, processor, context, this);
+                HostInputChecks.Validate(job.Operation.Name,p.Name,filled,context);
                 var combined = new ParameterBag(); foreach (var pair in context) combined[pair.Key] = pair.Value; foreach (var pair in filled) combined[pair.Key] = pair.Value;
                 if (p.Validators != null && filled.Count > 0) foreach (var validator in p.Validators) {
                     if (validator.HasTestIfTrueExpression && !(bool)processor.Evaluate(validator.TestIfTrueExpression, combined)) continue;

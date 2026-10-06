@@ -1,6 +1,6 @@
 # Published examination examples used for inspiration
 
-Reviewed 25 September 2026. No official question stems, answer banks or images are distributed with the app. The 30 draft MCQs are original and require subject-expert review. Four shared items put epidemiology and causal reasoning into every pathway. They are brief teaching sets, not validated examinations.
+Reviewed 25 September 2026. No official question stems, answer banks or images are distributed with the app. The original 30 draft MCQs are original and require subject-expert review. Four shared items put epidemiology and causal reasoning into every pathway. They are brief teaching sets, not validated examinations.
 
 | Source | What was accessible | Application in this build |
 |---|---|---|
@@ -11,3 +11,5 @@ Reviewed 25 September 2026. No official question stems, answer banks or images a
 | [FPH final membership assessment](https://www.fph.org.uk/training-careers/the-diplomate-dfph-and-final-membership-examination-mfph/the-faculty-of-public-health-final-membership-examination/marking-results-and-feedback/) | Official description of competencies across six stations. | The tutor distinguishes MFPH practical communication from DFPH written appraisal and MCQ practice. No simulated score is an official examination grade. |
 
 Learners can open these links through **Exam examples & sources**. Examination bodies and the independent publisher have not endorsed this feature. Sources inform topics and format, not a promise of blueprint coverage or exam success. Subject experts should review wording, keys, distractors, causal assumptions and educational level before any formal pilot.
+
+On 1 October 2026 the curated library added five original method-focused questions (35 total), with sources recorded in the lesson JSON. DFPH preparation includes written appraisal and interpretation; it should not be described as exclusively MCQ-based or as excluding all possible MCQ items. See the [library maintenance and validation notes](CURATED-LIBRARY.md).

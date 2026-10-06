@@ -58,7 +58,18 @@ for line in sys.stdin:
         assert params['environments'] == []
         assert params['sandboxPolicy'] == {'type':'readOnly','networkAccess':False}
         text = params['input'][0]['text']; thread = params['threadId']; turn = 'turn-' + thread
-        if 'RESOURCE_TEST' in text:
+        latest = json.loads(text.split('\n',1)[1])['conversation'][-1]['text']
+        if 'LIBRARY_TEST' in latest:
+            context = json.loads(text.split('\n',1)[1])['referenceContext']
+            marker = 'CURATED STATSDIRECT LESSON (original teaching material; references are editorial links, not pages fetched during this conversation):\n'
+            lesson = json.loads(context.split(marker,1)[1].split('\n',1)[0])
+            assert lesson['id'] == 'missing' and lesson['contentVersion'] == '2026-10-01'
+            assert len(lesson['keyConcepts']) == 3 and len(lesson['teachingPrompts']) == 2
+            assert lesson['practiceQuestions'][0]['correct'] == 'D'
+            assert '17.5' in lesson['workedExample']['interpretation']
+            assert lesson['sources'][0]['url'] == 'https://stefvanbuuren.name/fimd/sec-MCAR.html'
+            assert 'METHOD CATALOGUE:' in context and len(context) < 32000
+        if 'RESOURCE_TEST' in latest:
             context = json.loads(text.split('\n',1)[1])['referenceContext']
             assert 'https://example.org/course-cohort' in context
             assert 'retrieved-cohort-evidence' in context
@@ -87,6 +98,8 @@ for line in sys.stdin:
             continue
         if 'LIMIT_TEST' in text:
             notify('turn/completed',{'threadId':thread,'turn':{'id':turn,'status':'failed','error':{'message':'Usage limit SECRET TOKEN'}}}); continue
+        notify('item/agentMessage/delta',{'threadId':thread,'turnId':turn,'itemId':'answer','delta':'Analyse within-person '})
+        notify('item/agentMessage/delta',{'threadId':thread,'turnId':turn,'itemId':'answer','delta':'differences.'})
         notify('item/completed',{'threadId':thread,'turnId':turn,'item':{'id':'answer','type':'agentMessage','text':'Analyse within-person differences.'}})
         notify('turn/completed',{'threadId':thread,'turn':{'id':turn,'status':'completed'}}); continue
     elif method in ['turn/interrupt','thread/unsubscribe','account/login/cancel']: pass

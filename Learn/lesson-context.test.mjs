@@ -18,10 +18,10 @@ test('reopening paired lesson labels and collapses a legacy epidemiology prompt 
   assert.match(reviewText(reviewRecord(restored)),/Study guide · Epidemiological foundations/);
   assert.equal(restored.conversation[0].text,epi.challenge);
 });
-test('switching lessons supplies the right prompt and tags model history with its original topic',()=>{
+test('switching lessons isolates tutor context while retaining all portfolio entries',()=>{
   const s=newPortfolio();ensureLessonPrompt(s,lessons);s.lesson='paired';ensureLessonPrompt(s,lessons);
   assert.equal(guidePresentation(s.conversation[0],paired).earlier,true);assert.equal(guidePresentation(s.conversation[1],paired).earlier,false);
-  const history=conversationForTutor(s);assert.match(history[0].text,/Lesson context: Epidemiological foundations/);assert.match(history[1].text,/Lesson context: Comparing paired measurements/);
+  const history=conversationForTutor(s);assert.equal(history.length,1);assert.match(history[0].text,/Lesson context: Comparing paired measurements/);assert.equal(s.conversation.length,2);
   s.lesson='epidemiology';assert.equal(ensureLessonPrompt(s,lessons),true);assert.equal(s.conversation.at(-1).text,epi.challenge);
 });
 test('the paired lesson establishes actual pairing and upgrades its older prompt without rewriting it',()=>{

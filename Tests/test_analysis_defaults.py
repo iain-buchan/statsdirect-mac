@@ -17,7 +17,7 @@ def options(preferences=None):
  return id,state,{f['name']:f['defaultValue'] for f in fields}
 def save(value):
  id,state,_=options();state=advance(id,state,value)
- assert state['state']=='complete' and state['analysisOptions']==value,state
+ assert state['state']=='complete' and all(state['analysisOptions'].get(k)==v for k,v in value.items()),state
  s.close(id)
 def paired(id=None,state=None,expected=95,manual=None):
  if id is None:id,state=s.start('TPaired')

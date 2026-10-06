@@ -1,3 +1,4 @@
+from r_runtime import rscript as find_rscript
 """Exercise the 5.0.8 distributions through Mac forms, expressions and reports."""
 import math
 import re
@@ -8,7 +9,7 @@ from test_menu import Session, columns
 def references(expressions):
     script = 'options(digits=17); cat(c(' + ','.join(expressions) + '), sep="\\n")'
     return list(map(float, subprocess.check_output([
-        '/Library/Frameworks/R.framework/Resources/bin/Rscript', '--vanilla', '-e', script
+        find_rscript(), '--vanilla', '-e', script
     ], text=True).split()))
 
 

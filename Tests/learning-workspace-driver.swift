@@ -3,6 +3,8 @@ import Cocoa
     @MainActor static func main() {
         let app=NSApplication.shared;app.setActivationPolicy(.regular)
         let viewer=Viewer();app.delegate=viewer
+        let fixtureRoot=URL(fileURLWithPath:FileManager.default.currentDirectoryPath)
+        viewer.chatGPTTutor=ChatGPTTutor(executable:fixtureRoot.appendingPathComponent("Tests/mock-chatgpt-server.py"),storage:fixtureRoot.appendingPathComponent(".build/startup-chatgpt-mock"),resources:viewer.root.appendingPathComponent("Tutor"))
         DispatchQueue.main.asyncAfter(deadline:.now()+0.5) {
             Task { @MainActor in
                 do { try await run(viewer); print("PASS: native WKWebView context integration") }

@@ -19,7 +19,7 @@ Open your data with **File → Open**, or choose **Help → Example workbook**, 
 
 ## Build
 
-Requires an Apple Silicon Mac, Xcode command line tools, Python 3 and the .NET 10 SDK.
+Requires an Apple Silicon Mac, Xcode command line tools, Python 3 and either the .NET 10 SDK or Docker Desktop.
 
 ```sh
 git clone --recurse-submodules https://github.com/iain-buchan/statsdirect-mac.git
@@ -27,7 +27,9 @@ cd statsdirect-mac
 ./build.sh
 ```
 
-The engine is pinned to a tested Git submodule revision. Prebuilt web content is included.
+For Docker, run `./docker-build.sh` instead. The build restores missing submodules at their pinned revision. Prebuilt web content is included; R is not needed to build or run StatsDirect.
+
+Run `./test.sh` for engine and R comparison tests (requires R; `RSCRIPT` can select its executable).
 
 ## Documentation
 

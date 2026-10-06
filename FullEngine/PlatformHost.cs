@@ -1,6 +1,11 @@
 using System;
 using StatsDirect.Templates;
 namespace StatsDirect.UI {
+ public static class OperationHacks {
+  [ThreadStatic] internal static Action<string> Information;
+  public static void ShowInformation(string message) => Information?.Invoke(message);
+  public static void SendKeys(string keys) => throw new PlatformNotSupportedException("Use the Mac data menu to search this worksheet.");
+ }
  public sealed class WindowInformation { }
  public sealed class SdApplication {
  public static SdApplication SoleInstance { get; } = new();

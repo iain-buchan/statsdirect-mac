@@ -107,7 +107,7 @@ extension Viewer {
 }
 
 /// WebKit's print pipeline paginates tables and retains vector charts. createPDF alone produces a single tall page.
-@MainActor private final class ReportPDFPrinter: NSObject, WKNavigationDelegate {
+@MainActor final class ReportPDFPrinter: NSObject, WKNavigationDelegate {
     private var web: WKWebView!
     private var continuation: CheckedContinuation<Data,Error>?
     private var keepAlive: ReportPDFPrinter?

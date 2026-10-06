@@ -1,9 +1,10 @@
+from r_runtime import rscript as find_rscript
 """Real native file IO -> actual grid model -> native save -> base-R/CSV reader."""
 import csv,io,json,subprocess,sys,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 driver=Path(sys.argv[1]).resolve();node=Path(sys.argv[2]).resolve()
-r='/Library/Frameworks/R.framework/Resources/bin/Rscript';script=ROOT/'Content/R/data-files.R'
+r=find_rscript();script=ROOT/'Content/R/data-files.R'
 def run(*args,ok=True):
  p=subprocess.run([str(a) for a in args],capture_output=True,text=True)
  if ok: assert p.returncode==0,p.stderr

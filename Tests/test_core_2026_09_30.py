@@ -1,3 +1,4 @@
+from r_runtime import rscript as find_rscript
 """New core behaviour through Mac input forms and the original report renderer."""
 import re
 import subprocess
@@ -17,7 +18,7 @@ try:
     for key in keys:
         near(shifted['values'][key], ordinary['values'][key])
     reference = subprocess.check_output([
-        '/Library/Frameworks/R.framework/Resources/bin/Rscript', '--vanilla', '-e',
+        find_rscript(), '--vanilla', '-e',
         'x <- matrix(c(.25,.5,1,.75,1.25,.25,1.5,.5,2),nrow=3); '
         'fit <- aov(as.vector(x) ~ factor(row(x)) + factor(col(x))); '
         'cat(sprintf("%.17g", summary(fit)[[1]][,"Sum Sq"]),sep="\\n")'

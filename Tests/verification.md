@@ -1,3 +1,9 @@
+# Mac beta feedback fixes — 6 October 2026
+
+Local build 0.3.17 includes the enriched learning library and fixes described in [the feedback validation record](../Docs/Validation/Beta-0.3.17/README.md). The full engine/R regression suite and 63 JavaScript tests passed. Native checks verified options, course flows, safe Markdown/math/R rendering, per-lesson conversations, report editing, clipboard tables and all learning/report export formats. A live ChatGPT session read nine PEFR pairs from the native worksheet, ran the unchanged engine, produced an SVG agreement chart and streamed the correct result with equivalent R.
+
+The engine remains pinned to 5.0.14. The .NET build path passed; Docker scripts were syntax checked but Docker is unavailable on this Mac. No assessment email was sent. This entry describes local verification, not a published GitHub release.
+
 # Simplified Learning Options — 1 October 2026
 
 Mac 0.3.16 uses two main form sections, adds statistical skill level and assessment type, groups course-pack controls with the training provider, and removes the learner web-resource list. Optional preferences and provider conditions remain expandable. Existing records, custom recipients and immutable submissions are retained. The default assessment email is support@statisticalhelp.org.

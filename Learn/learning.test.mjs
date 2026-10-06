@@ -9,9 +9,9 @@ import {createSession,recordAnswer,recordAssistance,learnerResult,sessionQuestio
 import {newPortfolio,restorePortfolio,reviewRecord,reviewText,transcriptEntry,practiceContext} from './portfolio.mjs';
 const root=new URL('../',import.meta.url);
 const lessons=JSON.parse(readFileSync(new URL('Content/Learn/lessons.json',root)));
-test('30 original draft questions map to five pathways, valid choices, real help and engine operations',()=>{
+test('35 original draft questions map to five pathways, valid choices, real help and engine operations',()=>{
  const operations=JSON.parse(readFileSync(new URL('Content/analysis-menu.json',root))).operations;
- assert.equal(questions.length,30);assert.equal(new Set(questions.map(q=>q.id)).size,30);
+ assert.equal(questions.length,35);assert.equal(new Set(questions.map(q=>q.id)).size,35);
  for(const t of Object.keys(tracks))assert.ok(questions.filter(q=>q.track===t).length>=4);
  for(const q of questions){assert.equal(q.options.length,5);assert.equal(q.options.filter(o=>o.id===q.correct).length,1);assert.ok(existsSync(new URL('Content/Help/'+q.help,root)),q.help);if(q.operation)assert.ok(operations[q.operation]);}
  for(const l of lessons){assert.ok(existsSync(new URL('Content/Help/'+l.help,root)),l.help);assert.ok(operations[l.operation]);}
@@ -33,7 +33,7 @@ test('provisional scores, support, first answers and full conversation survive r
  transcriptEntry(p,'assistant','A detailed answer.','OpenAI tutor',{model:'mock-model',promptVersion:'test'});
  p.identity={name:'Synthetic Student',email:'student@example.invalid',goal:'Practice only'};p.reflection='I will check paired differences.';
  const restored=restorePortfolio(JSON.parse(JSON.stringify(p))),record=reviewRecord(restored),text=reviewText(record);
- assert.equal(record.attempts[0].result.score,8);assert.equal(record.attempts[0].result.assisted,1);
+ assert.equal(record.attempts[0].result.score,p.quiz.questionIds.length-1);assert.equal(record.attempts[0].result.assisted,1);
  assert.equal(record.conversation.length,2);assert.ok(record.learningOptions.focus.includes('causal'));assert.ok(restored.quiz.questionIds.includes('CORE-MEDIATOR-01')); assert.match(text,/My reasoning 3/);assert.match(text,/Synthetic Student/);assert.match(text,/<script>not executable<\/script>/);assert.match(text,/No accreditation or CPD points awarded/);assert.match(text,/I will check paired differences/);
  assert.throws(()=>restorePortfolio({schemaVersion:999}));
 });

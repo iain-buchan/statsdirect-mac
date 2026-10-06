@@ -14,6 +14,8 @@ internal static class AnalysisDefaults {
         DelayContinuityCorrection=p.DelayContinuityCorrection, ShouldUseColour=p.ShouldUseColour
     };
     internal static Dictionary<string, object> Values(SDPreferences p) => new() {
+        ["meta-exact"]=p.MetaExact, ["meta-delay"]=p.DelayContinuityCorrection, ["meta-cc"]=p.MetaCC,
+        ["meta-plot-ci"]=p.MetaPlotCI, ["meta-plot-method"]=p.MetaPlotMethod,
         ["use-default-ci"]=p.CanDefaultConfidenceInterval,
         ["default-ci"]=(p.DefaultConfidenceInterval*100).ToString(System.Globalization.CultureInfo.InvariantCulture),
         ["selectGroupsByIdentifier"]=p.SelectGroupsByIdentifier,
@@ -32,6 +34,15 @@ internal static class AnalysisDefaults {
         if (confidence is not (80 or 85 or 90 or 95 or 99) || decimals<2 || decimals>12 || pDecimals<3 || pDecimals>7)
             throw new ArgumentException("Invalid analysis defaults. Choose a listed confidence level and decimal precision.");
         if (groups) throw new ArgumentException("Selection by group identifier is not yet available on Mac. Use separate columns.");
+        if(options.TryGetProperty("meta-cc",out var cc)) {
+            double n=HostParameters.Number(cc); if(n != -9 && n != .5 && n != .01)throw new ArgumentException("Choose a listed continuity correction.");target.MetaCC=n;
+        }
+        if(options.TryGetProperty("meta-plot-method",out var method)) {
+            double n=HostParameters.Number(method);if(n<1||n>7||n!=Math.Truncate(n))throw new ArgumentException("Choose a listed meta-analysis plot axis.");target.MetaPlotMethod=(int)n;
+        }
+        if(options.TryGetProperty("meta-exact",out var exact))target.MetaExact=exact.GetBoolean();
+        if(options.TryGetProperty("meta-delay",out var delay))target.DelayContinuityCorrection=delay.GetBoolean();
+        if(options.TryGetProperty("meta-plot-ci",out var ci))target.MetaPlotCI=ci.GetBoolean();
         target.CanDefaultConfidenceInterval=useDefault; target.DefaultConfidenceInterval=confidence/100;
         target.DisplayDecimalPlaces=decimals; target.PDecimalPlaces=pDecimals;
         target.SelectGroupsByIdentifier=false; target.UseScientificNotationForSmallPValues=scientific;

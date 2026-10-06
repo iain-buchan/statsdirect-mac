@@ -28,6 +28,13 @@ for name in ['LICENSE','NOTICE']:
     data = urllib.request.urlopen(f'https://raw.githubusercontent.com/openai/codex/rust-v{VERSION}/{name}',timeout=30).read()
     (destination/name).write_bytes(data)
 (destination/'STATSDIRECT-RUNTIME.json').write_text(json.dumps({'version':VERSION,'source':RELEASE,'sha256':SHA256,'license':'Apache-2.0'},indent=2)+'\n')
+# Preserve the vendor signature: replacing it with an ad-hoc signature changes
+# the credential owner's designated requirement and prompts Keychain again.
 for binary in ['bin/codex-app-server','bin/codex-code-mode-host','codex-path/rg','codex-resources/zsh/bin/zsh']:
-    subprocess.run(['codesign','--force','--sign','-',str(destination/binary)],check=True)
+    path = str(destination/binary)
+    subprocess.run(['codesign','--verify','--strict',path],check=True)
+    if binary == 'bin/codex-app-server':
+        signature = subprocess.run(['codesign','-dv','--verbose=4',path],capture_output=True,text=True,check=True).stderr
+        if 'TeamIdentifier=2DC432GLL2' not in signature or 'Identifier=codex-app-server\n' not in signature:
+            raise SystemExit('The ChatGPT connection component does not have the expected OpenAI signing identity.')
 print('Bundled official ChatGPT connection runtime ' + VERSION)

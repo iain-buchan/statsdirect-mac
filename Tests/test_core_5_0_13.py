@@ -1,9 +1,10 @@
+from r_runtime import rscript as find_rscript
 """Updated operation definitions and calculations through the Mac form/report bridge."""
 import math
 import subprocess
 from test_menu import Session, columns, near
 
-R = '/Library/Frameworks/R.framework/Resources/bin/Rscript'
+R = find_rscript()
 
 def reference(expression):
     output = subprocess.check_output([R, '--vanilla', '-e',

@@ -42,9 +42,11 @@ extension Viewer {
         switch action {
         case "ready":
             var config = doc.operationName.flatMap { analysisCatalog[$0] } ?? [:]; config["title"] = doc.title
+            config["derivedOutput"] = supportsDerivedWorksheet(doc.operationName ?? "")
             doc.operationReady = true
             operationScript(doc, "configure", config)
             refreshOperationSource(doc) { self.startOperation(doc) }
+        case "outputMode": doc.includeSourceColumns = body["includeSource"] as? Bool ?? true
         case "refresh": refreshOperationSource(doc)
         case "keepResult": keepResult(doc, id: body["id"] as? String)
         case "help":
@@ -57,6 +59,7 @@ extension Viewer {
             startOperation(doc)
         case "answer":
             guard let id = doc.analysisJobID, let token = body["token"], let value = body["value"] else { return }
+            if let input=value as? [String:Any], input["columns"] != nil { doc.operationInputRange=input["range"] as? [String:Any] }
             operationRequest(["action": "answer", "id": id, "token": token, "value": value], doc: doc, id: id)
         case "cancel":
             guard let id = doc.analysisJobID else { return }
@@ -68,6 +71,7 @@ extension Viewer {
     func startOperation(_ doc: Document) {
         guard let operation = doc.operationName, analysisCatalog[operation]?["unavailable"] == nil else { return }
         guard doc.analysisJobID == nil else { return }
+        doc.operationInputRange = nil
         let id = UUID().uuidString; doc.analysisJobID = id; doc.analysisCancelled = false; doc.operationStarting = true
         operationScript(doc, "update", ["state": "running", "progress": "Opening input form…"])
         var request: [String: Any] = ["action": "start", "id": id, "operation": operation]
@@ -82,13 +86,13 @@ extension Viewer {
     func operationError(_ doc: Document, _ text: String) { operationScript(doc, "error", text) }
     func refreshOperationSource(_ doc: Document, completion: (() -> Void)? = nil) {
         if let source = doc.initialOperationSource {
-            doc.initialOperationSource = nil; operationScript(doc, "setSource", source); completion?(); return
+            doc.initialOperationSource = nil; doc.operationSourceSnapshot=source; operationScript(doc, "setSource", source); completion?(); return
         }
         guard let source = documents.first(where: { $0.id == (doc.operationSourceID ?? analysisSourceID) }), source.kind == "grid" else { operationScript(doc, "setSource", NSNull()); completion?(); return }
         let script = "window.statsDirectGrid?.analysisSource()"
         source.web.evaluateJavaScript(script) { snapshot, error in
             guard self.documents.contains(where: { $0 === doc }) else { return }
-            if let snapshot, error == nil { self.operationScript(doc, "setSource", snapshot) }
+            if let snapshot=snapshot as? [String:Any], error == nil { doc.operationSourceSnapshot=snapshot; self.operationScript(doc, "setSource", snapshot) }
             else { self.operationError(doc, "The worksheet is still loading. Use Refresh worksheet when it is ready.") }
             completion?()
         }
@@ -113,7 +117,7 @@ extension Viewer {
                     self.analysisRequest(["action": "release", "id": id], entry: "statsdirect_operation") { _ in }
                     if doc.operationClosing { self.remove(doc); return }
                     if output["state"] as? String == "complete", !doc.analysisCancelled {
-                        if doc.operationName == "AnalysisOptions", let defaults = output["analysisOptions"] as? [String: Any] {
+                        if ["AnalysisOptions","MetaCalculationOptions","MetaPlotOptions"].contains(doc.operationName ?? ""), let defaults = output["analysisOptions"] as? [String: Any] {
                             UserDefaults.standard.set(defaults, forKey: "analysisDefaults")
                             self.status.stringValue = "Analysis defaults saved · Applied to new analyses"
                         } else { self.showOperationReport(doc, output) }
@@ -135,7 +139,8 @@ extension Viewer {
         let frames = output["frames"] as? [[String: Any]] ?? []
         for (index, frame) in frames.enumerated() {
             let dataDoc = newDocument(kind: "grid", title: "\(doc.title) · Data \(index + 1)", url: root.appendingPathComponent("Grid/index.html"))
-            dataDoc.pendingWorkbook = ["name": dataDoc.title, "sheets": [frame], "formulaCount": 0]
+            let combined = doc.includeSourceColumns && supportsDerivedWorksheet(doc.operationName ?? "") ? derivedWorksheet(source:doc.operationSourceSnapshot,range:doc.operationInputRange,frame:frame) : nil
+            dataDoc.pendingWorkbook = ["name": dataDoc.title, "sheets": [combined ?? frame], "formulaCount": 0]
             dataDoc.workbookName = "\(doc.title).xlsx"; dataDoc.gridDirty = true
         }
         let html = output["html"] as? String ?? ""

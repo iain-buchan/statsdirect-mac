@@ -23,7 +23,8 @@ unified_exec = false
 shell_snapshot = false
 view_image = false
 code_mode = false
-code_mode_host = false
+# The runtime routes app-owned dynamic tools through this host, even with code mode off.
+code_mode_host = true
 code_mode_only = false
 js_repl = false
 apps = false

@@ -1,0 +1,56 @@
+name: Assemble verified release ZIP
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing draft release tag
+        required: true
+      base_tag:
+        description: Previous published release tag
+        required: true
+      codex_version:
+        description: Pinned vendor runtime version
+        required: true
+      expected_sha256:
+        description: SHA-256 of the complete locally tested ZIP
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      BASE_TAG: ${{ inputs.base_tag }}
+      CODEX_VERSION: ${{ inputs.codex_version }}
+      EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validate draft and transfer inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$BASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$CODEX_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" == true ]]
+          mkdir work
+          gh release download "$RELEASE_TAG" --pattern 'transfer-manifest.json' --pattern 'transfer-payload.bin' --dir work
+          gh release download "$BASE_TAG" --pattern "StatsDirect-${BASE_TAG#v}-macOS-arm64.zip" --dir work
+          curl --fail --location --retry 3 "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-app-server-package-aarch64-apple-darwin.tar.gz" --output work/vendor.tar.gz
+      - name: Reconstruct and verify the exact tested ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="StatsDirect-${RELEASE_TAG#v}-macOS-arm64.zip"
+          python3 Scripts/release-transfer.py assemble work/transfer-manifest.json work/transfer-payload.bin "work/StatsDirect-${BASE_TAG#v}-macOS-arm64.zip" work/vendor.tar.gz "work/$package"
+          printf '%s  %s\n' "$EXPECTED_SHA256" "work/$package" | sha256sum --check --strict
+          unzip -tq "work/$package"
+          gh release upload "$RELEASE_TAG" "work/$package" --clobber

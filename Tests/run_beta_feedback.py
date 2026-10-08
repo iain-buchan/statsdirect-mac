@@ -3,14 +3,15 @@ from pathlib import Path
 import argparse,subprocess,plistlib,uuid
 root=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--app',type=Path,default=root/'StatsDirect Viewer.app',help='Use resources and engine from this app, including an extracted release ZIP')
+parser.add_argument('--app',type=Path,default=root/'StatsDirect.app',help='Use resources and engine from this app, including an extracted release ZIP')
 parser.add_argument('--live',action='store_true')
 parser.add_argument('--stay-open',action='store_true')
 parser.add_argument('--privacy-only',action='store_true',help='Run only the native tutor-sharing and policy checks')
 parser.add_argument('--groups-only',action='store_true',help='Run only the native group-selection checks')
 args=parser.parse_args()
 source_app=args.app.resolve()
-assert (source_app/'Contents/MacOS/StatsDirectViewer').is_file(), source_app
+source_info=plistlib.loads((source_app/'Contents/Info.plist').read_bytes())
+assert (source_app/'Contents/MacOS'/source_info['CFBundleExecutable']).is_file(), source_app
 out=root/'.build/feedback-native';out.mkdir(exist_ok=True)
 subprocess.run([str(root/'Grid/node_modules/esbuild/bin/esbuild'),'Tests/feedback-renderer.mjs','--bundle','--format=iife','--outfile=.build/feedback-renderer.js'],cwd=root,check=True)
 (out/'Viewer.swift').write_text((root/'Sources/main.swift').read_text().split('MainActor.assumeIsolated {')[0])

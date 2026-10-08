@@ -30,6 +30,16 @@ def compressed(data, entry):
     return start, data[start:start + entry.compress_size]
 
 
+def entry_key(name):
+    # The public app name changed in 0.3.19. ZIP headers remain literal target
+    # bytes; only byte-identical compressed file contents may be reused.
+    for prefix in ('', '__MACOSX/'):
+        old = prefix + 'StatsDirect Viewer.app/'
+        if name.startswith(old):
+            return prefix + 'StatsDirect.app/' + name[len(old):]
+    return name
+
+
 def prepare(args):
     base, target = args.base.read_bytes(), args.target.read_bytes()
     payload = bytearray()
@@ -41,19 +51,20 @@ def prepare(args):
             payload.extend(data)
 
     with ZipFile(args.base) as old, ZipFile(args.target) as new, tarfile.open(args.vendor) as vendor:
-        previous = {entry.filename: entry for entry in old.infolist()}
+        previous = {entry_key(entry.filename): entry for entry in old.infolist()}
         cursor = 0
         for entry in sorted(new.infolist(), key=lambda item: item.header_offset):
             start, data = compressed(target, entry)
             literal(target[cursor:start])
             reference = None
-            if entry.filename in previous:
-                offset, candidate = compressed(base, previous[entry.filename])
+            key = entry_key(entry.filename)
+            if key in previous:
+                offset, candidate = compressed(base, previous[key])
                 if candidate == data:
                     reference = {'source': 'base', 'offset': offset, 'length': len(data)}
-            prefix = 'StatsDirect Viewer.app/Contents/Resources/TutorRuntime/'
-            if reference is None and entry.filename.startswith(prefix) and data:
-                name = entry.filename[len(prefix):]
+            prefix = 'StatsDirect.app/Contents/Resources/TutorRuntime/'
+            if reference is None and key.startswith(prefix) and data:
+                name = key[len(prefix):]
                 try:
                     member = vendor.getmember(name)
                     if member.isfile() and member.size <= 512 * 1024 * 1024:

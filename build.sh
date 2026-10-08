@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-APP="$PWD/StatsDirect Viewer.app"
+APP="$PWD/StatsDirect.app"
 BUILD_WORK="${STATSDIRECT_BUILD_WORK:-$PWD/.build}"
 mkdir -p "$BUILD_WORK"
 BUILD_WORK="$(cd "$BUILD_WORK" && pwd -P)"
@@ -26,7 +26,7 @@ if [[ ! -f FullEngine/Upstream/StatsDirectUI/UI/OperationTestHost.cs ]]; then
 fi
 FullEngine/build.sh
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
-swiftc -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/*.swift -o "$APP/Contents/MacOS/StatsDirectViewer" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
+swiftc -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/*.swift -o "$APP/Contents/MacOS/StatsDirect" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
 cp FullEngine/publish/StatsDirectEngine.dylib "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
 ditto FullEngine/publish "$APP/Contents/Resources/Engine"
 python3 Scripts/build-icon.py "$BUILD_WORK"

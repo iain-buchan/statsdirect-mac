@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds StatsDirect Viewer.app without a local .NET SDK. The container
+# Builds StatsDirect.app without a local .NET SDK. The container
 # publishes the managed engine and stages the macOS .NET runtime; Swift, the
 # C++ dylibs, codesigning and the tests then run here, because no container
 # can produce a signed macOS application.

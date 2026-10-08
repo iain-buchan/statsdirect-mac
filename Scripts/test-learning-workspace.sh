@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
-BASE="${1:-$ROOT/StatsDirect Viewer.app}"
+BASE="${1:-$ROOT/StatsDirect.app}"
 mkdir -p .build
 TEST_WORK="$(mktemp -d "$ROOT/.build/learning-context.XXXXXX")"
 TEST_APP="$TEST_WORK/StatsDirect Context Test.app"
@@ -19,9 +19,10 @@ for source in Sources/*.swift; do
 done
 swiftc -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/learning-workspace-driver.swift -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
 cp -cR "$BASE" "$TEST_APP"
-cp "$TEST_WORK/driver" "$TEST_APP/Contents/MacOS/StatsDirectViewer"
+EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$TEST_APP/Contents/Info.plist")"
+cp "$TEST_WORK/driver" "$TEST_APP/Contents/MacOS/$EXECUTABLE"
 rsync -a Content/ "$TEST_APP/Contents/Resources/Content/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.statsdirect.viewer.contexttest.${TEST_WORK##*.}" "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Context Test' "$TEST_APP/Contents/Info.plist"
 codesign --force --sign - "$TEST_APP"
-"$TEST_APP/Contents/MacOS/StatsDirectViewer" "${@:2}"
+"$TEST_APP/Contents/MacOS/$EXECUTABLE" "${@:2}"

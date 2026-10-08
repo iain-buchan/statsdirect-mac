@@ -19,6 +19,6 @@ node --test Report/clipboard.test.mjs
 Scripts/test-report-export.sh
 ```
 
-The native test runs the real paired-t/agreement and chi-square engines, exports a combined report with a 65-row table and merged headings, checks PDF pagination, reopens HTML for DOCX export, and checks full/partial/empty clipboard selections. It uses an isolated app, leaves the user's workspace intact, and writes artifacts under `.build/report-export-output`. Add `"$PWD/StatsDirect Viewer.app" --stay-open` for native Office and save-dialog checks.
+The native test runs the real paired-t/agreement and chi-square engines, exports a combined report with a 65-row table and merged headings, checks PDF pagination, reopens HTML for DOCX export, and checks full/partial/empty clipboard selections. It uses an isolated app, leaves the user's workspace intact, and writes artifacts under `.build/report-export-output`. Add `"$PWD/StatsDirect.app" --stay-open` for native Office and save-dialog checks.
 
 Report preparation runs offline in an isolated WebKit JavaScript world. Saving is atomic; unreadable images/styles and oversized reports produce an error rather than an incomplete export. Current bounds are 30 MB source HTML, 200 images, and 80 MB base64 DOCX. Very wide tables may need page/column adjustments in Word or a smaller report.

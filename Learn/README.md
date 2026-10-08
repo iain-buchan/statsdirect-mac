@@ -62,7 +62,7 @@ Scripts/test-learning-workspace.sh
 ./build.sh
 ```
 
-The build creates `StatsDirect Viewer.app` with its original calculation engine unchanged. The icon script extracts no new art; it packages the Windows symbol for macOS.
+The build creates `StatsDirect.app` with its original calculation engine unchanged. The icon script extracts no new art; it packages the Windows symbol for macOS.
 
 ## Teaching content maintenance
 

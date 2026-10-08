@@ -53,6 +53,11 @@ extension Viewer {
         case "help":
             if let path = methodHelpPath(doc) { openHelp(root.appendingPathComponent(path), title: doc.title) } else { helpLibrary() }
         case "followOn": openFollowOn(from: doc, body)
+        case "groupsByIdentifier":
+            // As on Windows, the layout chosen during a prompt becomes the default for later analyses.
+            var defaults = UserDefaults.standard.dictionary(forKey: "analysisDefaults") ?? [:]
+            defaults["selectGroupsByIdentifier"] = body["value"] as? Bool ?? false
+            UserDefaults.standard.set(defaults, forKey: "analysisDefaults")
         case "paste":
             if let text = NSPasteboard.general.string(forType: .string) { web.evaluateJavaScript("window.statsDirectOperation?.pasteText?.(\(jsString(text)))") }
         case "start":

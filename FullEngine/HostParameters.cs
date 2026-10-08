@@ -10,7 +10,7 @@ using StatsDirect.Utilities;
 
 internal static class HostParameters {
     static object Choice(string value, string label, bool selected = false) => new { value, label, selected };
-    internal static Dictionary<string, object> Describe(Parameter p, ITemplateProcessor processor, ParameterBag context, SDPreferences preferences) {
+    internal static Dictionary<string, object> Describe(Parameter p, ITemplateProcessor processor, ParameterBag context, SDPreferences preferences, bool? groupsByIdentifier = null) {
         var d = new Dictionary<string, object> { ["name"] = p.Name, ["title"] = p.Title ?? p.Operation?.ToString() ?? "Analysis options", ["prompt"] = p.Prompt(processor, context, p.Title ?? "Enter a value"), ["rubric"] = p.Rubric(processor, context), ["skip"] = p.CancelSkipsParameter };
         switch (p) {
             case BooleanParameter b: d["kind"] = "boolean"; d["defaultValue"] = b.DefaultValue(processor, context) ?? false; break;
@@ -26,6 +26,14 @@ internal static class HostParameters {
                 d["mode"] = f.DataAcquisitionMode.ToString(); d["equalLength"] = f.ColumnsAreSameLength;
                 if (f.HasLength) d["length"] = f.Length(processor, context);
                 if (f.SameLengthAsParameter != null) foreach (string other in f.SameLengthAsParameter) if (context.ContainsKey(other)) d["length"] = context[other].AsDataFrame.MaxRows;
+                // Windows lets these frames come from long data: one data column plus group identifiers
+                // (or treatment and block identifiers), pivoted into one variable per group.
+                // Only numeric frames pivot (the Windows routine reads the data column as numbers); the layout last
+                // used in this analysis, else the saved setting, is the default.
+                if (f.ShouldAskForGroupId && f.DataAcquisitionMode is DataAcquisitionMode.NumericReplaceMissing or DataAcquisitionMode.NumericSkipMissing) {
+                    d["groupIdentifiers"] = f.GroupIdentifierMode == GroupIdentifierMode.TreatmentAndBlock ? "treatmentAndBlock" : "single";
+                    d["groupsByIdentifier"] = groupsByIdentifier ?? preferences.SelectGroupsByIdentifier;
+                }
                 break;
             case Double2By2Parameter t:
                 Grid(d, 2, 2); d["rows"] = 2; d["fixedRows"] = true; d["screen"] = true;
@@ -81,7 +89,15 @@ internal static class HostParameters {
             case OptionParameter o: text = input.GetString(); if (!o.Options.Any(x => x.Value == text && x.AvailableIf(processor, context))) throw new ArgumentException("Choose one of the available options."); value = text; break;
             case OptionsParameter o: foreach (var option in o.Options) bag.AddInput(option.Name, input.TryGetProperty(option.Name, out var flag) && flag.GetBoolean()); return bag;
             case FrameParameter f:
-                var frame = ReadFrame(input, f.DataAcquisitionMode, host); var count = input.GetProperty("columns").GetArrayLength();
+                bool longLayout = IsLongLayout(input);
+                var frame = longLayout ? PivotLongFrame(input, f, processor, context, host) : ReadFrame(input, f.DataAcquisitionMode, host);
+                var count = longLayout ? frame.VariableCount : input.GetProperty("columns").GetArrayLength();
+                // Windows pads pivoted groups of unequal size with missing values once the user accepts.
+                if (longLayout && f.ColumnsAreSameLength && frame.MinRows != frame.MaxRows) {
+                    if (host != null && host.GetBoolean("Warning: unequal length columns. If you select OK then the jagged ends of columns will be padded with missing data.", "StatsDirect Data Selection", true, out _))
+                        foreach (var v in frame.Variables) v.EnsureLengthAndPadWithMissing(frame.MaxRows);
+                    else throw new ArgumentException("The groups have different numbers of observations. Choose groups of equal size, or accept padding with missing data.");
+                }
                 if (count < f.MinimumColumns(processor, context) || count > f.MaximumColumns(processor, context)) throw new ArgumentException($"Choose {f.MinimumColumns(processor, context)} to {f.MaximumColumns(processor, context)} columns.");
                 if (f.ColumnsAreSameLength && frame.MinRows != frame.MaxRows) throw new ArgumentException("Columns must have the same number of rows. Use * for missing observations.");
                 if (f.HasLength && frame.MaxRows != f.Length(processor, context)) throw new ArgumentException($"Exactly {f.Length(processor, context)} rows are required.");
@@ -175,7 +191,106 @@ internal static class HostParameters {
         if (frame.MaxRows == 0) throw new ArgumentException("Enter at least one observation.");
         return frame;
     }
-    internal static object FrameInput(DataFrame frame) => new {columns=frame.Variables.Select(v=>new {title=v.Title,values=Enumerable.Range(0,v.Length).Select(r=>v.DataAsObject(r)).ToArray()}).ToArray()};
+    internal static bool IsLongLayout(JsonElement input) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty("layout", out var layout) && layout.ValueKind == JsonValueKind.String && layout.GetString() == "long";
+    // What the history records for a frame: the pivoted variables for long data, so the report's
+    // inputs, the R script and an instant rerun see exactly what the engine analysed.
+    internal static object Recorded(Parameter p, JsonElement input, ParameterBag filled) {
+        if (!(p is FrameParameter) || !IsLongLayout(input) || !filled.ContainsKey(p.Name)) return input;
+        // The pivoted variables, with the answer's provenance (source, rows, which columns identified the groups).
+        var record = new Dictionary<string, object>();
+        foreach (var property in input.EnumerateObject()) if (property.Name is "source" or "range" or "preserveRows" or "layout" or "roles") record[property.Name] = property.Value.Clone();
+        record["identifiers"] = IdentifierColumns(input, "groupIdentifiers").Select(c => c.title).ToArray();
+        var blocks = IdentifierColumns(input, "blockIdentifiers"); if (blocks.Length > 0) record["blocks"] = blocks.Select(c => c.title).ToArray();
+        record["columns"] = ((dynamic)FrameInput(filled[p.Name].AsDataFrame)).columns;
+        return record;
+    }
+    // Groups by identifier, as the Windows shell's Gidx1 (one identifier) and Gidx2 (treatment and
+    // block identifiers) build them: groups in order of first appearance, labelled by the identifier
+    // text (several identifier columns joined with ", "), one variable per group titled
+    // data_identifiers_label, missing data kept unless the frame skips missing values.
+    internal static DataFrame PivotLongFrame(JsonElement input, FrameParameter f, ITemplateProcessor processor, ParameterBag context, OperationHost host) {
+        if (!f.ShouldAskForGroupId || !(f.DataAcquisitionMode is DataAcquisitionMode.NumericReplaceMissing or DataAcquisitionMode.NumericSkipMissing)) throw new ArgumentException("This step takes each group in its own column.");
+        int min = f.MinimumColumns(processor, context), max = f.MaximumColumns(processor, context);
+        if (!input.TryGetProperty("columns", out var columns) || columns.ValueKind != JsonValueKind.Array || columns.GetArrayLength() != 1) throw new ArgumentException("Choose one data column for groups by identifier.");
+        string source = input.TryGetProperty("source", out var s) && s.ValueKind == JsonValueKind.String ? s.GetString() : "Worksheet";
+        var dataFrame = ReadFrame(JsonSerializer.SerializeToElement(new { source, preserveRows = true, columns = new[] { columns[0] } }), DataAcquisitionMode.NumericReplaceMissing, host);
+        var dataVariable = (DoubleVariable)dataFrame.Variables[0];
+        var identifiers = IdentifierColumns(input, "groupIdentifiers");
+        bool twoWay = f.GroupIdentifierMode == GroupIdentifierMode.TreatmentAndBlock;
+        if (identifiers.Length == 0) throw new ArgumentException(twoWay ? "Choose a treatment (column) identifier column." : "Choose at least one group identifier column.");
+        if (identifiers.Length > (twoWay ? 1 : 20)) throw new ArgumentException(twoWay ? "Choose one treatment identifier column." : "Choose up to 20 group identifier columns.");
+        int rows = Math.Max(dataVariable.Length, identifiers.Max(c => c.values.Length));
+        string groupTitle = string.Join(", ", identifiers.Select(c => c.title));
+        var groupIds = Classify(identifiers, rows, dataVariable, "group", out var groups);
+        if (!twoWay) {
+            if (groups.Count < min || groups.Count > max) throw new ArgumentException(CountMessage(min, max, groups.Count));
+            bool skipMissing = f.DataAcquisitionMode == DataAcquisitionMode.NumericSkipMissing;
+            var output = new DataFrame { Name = dataFrame.Name };
+            for (int i = 0; i < groups.Count; i++) {
+                var values = new List<double>();
+                for (int j = 0; j < rows; j++) {
+                    if (groupIds[j] != i) continue;
+                    double x = j < dataVariable.Length ? dataVariable.Data[j] : Constant.MISSING;
+                    if (skipMissing && x == Constant.MISSING) continue;
+                    values.Add(x);
+                }
+                if (values.Count == 0) throw new ArgumentException($"Group '{groups[i]}' has no numeric observations.");
+                output.Variables.Add(new DoubleVariable(values.ToArray(), groups.Count > 1 ? dataVariable.Title + "_" + groupTitle + "_" + groups[i] : dataVariable.Title));
+            }
+            return output;
+        }
+        var blocks = IdentifierColumns(input, "blockIdentifiers");
+        if (blocks.Length != 1) throw new ArgumentException("Choose one block (row) identifier column.");
+        if (groups.Count < min || groups.Count > max) throw new ArgumentException(CountMessage(min, max, groups.Count));
+        var sizes = new int[groups.Count]; for (int j = 0; j < rows; j++) if (groupIds[j] >= 0) sizes[groupIds[j]]++;
+        if (sizes.Any(n => n != sizes[0])) throw new ArgumentException("All groups must be the same size: each treatment needs one observation in every block.");
+        var blockIds = Classify(blocks, rows, dataVariable, "block", out var blockLabels);
+        var blockSizes = new int[blockLabels.Count]; for (int j = 0; j < rows; j++) if (blockIds[j] >= 0) blockSizes[blockIds[j]]++;
+        int blockMax = blockSizes.DefaultIfEmpty(0).Max();
+        if (blockMax > groups.Count) throw new ArgumentException($"Two way ANOVA requires only one observation per block - you entered {(blockMax / (double)groups.Count).ToString(CultureInfo.InvariantCulture)}. Please use a repeated/replicate measures method for repeated observations.");
+        int perTreatment = sizes.DefaultIfEmpty(0).Max();
+        if (blockLabels.Count > perTreatment) throw new ArgumentException("Each block must have one observation for every treatment.");
+        var result = new DataFrame { Name = dataFrame.Name };
+        for (int i = 0; i < groups.Count; i++) {
+            var data = Enumerable.Repeat(Constant.MISSING, perTreatment).ToArray();
+            for (int j = 0; j < rows; j++) {
+                if (groupIds[j] != i) continue;
+                if (blockIds[j] < 0) throw new ArgumentException($"Row {j + 1} has no block identifier.");
+                data[blockIds[j]] = j < dataVariable.Length ? dataVariable.Data[j] : Constant.MISSING;
+            }
+            result.Variables.Add(new DoubleVariable(data, groups.Count > 1 ? dataVariable.Title + "_" + groupTitle + "_" + groups[i] : dataVariable.Title));
+        }
+        return result;
+    }
+    static (string title, string[] values)[] IdentifierColumns(JsonElement input, string name) {
+        if (!input.TryGetProperty(name, out var list) || list.ValueKind != JsonValueKind.Array) return Array.Empty<(string, string[])>();
+        return list.EnumerateArray().Select((c, i) => (
+            c.TryGetProperty("title", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : "Column " + (i + 1),
+            c.TryGetProperty("values", out var v) && v.ValueKind == JsonValueKind.Array ? v.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.Null ? "" : x.ToString().Trim()).ToArray() : Array.Empty<string>())).ToArray();
+    }
+    // Group index per row (-1 where the row has no identifier), labels in order of first appearance.
+    static int[] Classify((string title, string[] values)[] identifiers, int rows, DoubleVariable data, string what, out List<string> labels) {
+        var ids = new int[rows]; var index = new Dictionary<string, int>(); labels = new List<string>();
+        for (int r = 0; r < rows; r++) {
+            var parts = identifiers.Select(c => r < c.values.Length ? c.values[r] : "").ToArray();
+            bool blank = parts.Any(t => t == "" || t == "*");
+            bool hasData = r < data.Length && data.Data[r] != Constant.MISSING;
+            if (blank) {
+                if (hasData) throw new ArgumentException($"Row {r + 1} has a value but no {what} identifier. Give every data row an identifier or leave the cell blank.");
+                ids[r] = -1; continue;
+            }
+            string label = string.Join(", ", parts);
+            if (!index.TryGetValue(label, out int id)) { id = labels.Count; index[label] = id; labels.Add(label); }
+            ids[r] = id;
+        }
+        return ids;
+    }
+    static string CountMessage(int min, int max, int count) =>
+        min == max ? $"The identifiers define {count} group{(count == 1 ? "" : "s")}; this method needs exactly {min}."
+        : count < min ? $"The identifiers define {count} group{(count == 1 ? "" : "s")}; this method needs at least {min}."
+        : $"The identifiers define {count} groups; this method takes at most {max}.";
+    // A missing number is written as "*", as the forms and the R script generator expect.
+    internal static object FrameInput(DataFrame frame) => new {columns=frame.Variables.Select(v=>new {title=v.Title,values=Enumerable.Range(0,v.Length).Select(r=>{var x=v.DataAsObject(r);return x is double d&&(d==Constant.MISSING||!double.IsFinite(d))?"*":x;}).ToArray()}).ToArray()};
     static DateTime ParseDate(string text) {
         if(DateTime.TryParseExact(text,new[]{"yyyy-MM-dd","yyyy-MM-dd HH:mm:ss","yyyy-MM-ddTHH:mm:ss","yyyy-MM-ddTHH:mm:ss.FFFFFFF"},CultureInfo.InvariantCulture,DateTimeStyles.None,out var date))return date;
         throw new ArgumentException("Enter the date as YYYY-MM-DD, optionally followed by HH:MM:SS.");

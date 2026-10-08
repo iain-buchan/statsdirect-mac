@@ -4,3 +4,8 @@
 
 .follow-on .choices{flex-direction:row;flex-wrap:wrap;gap:10px}
 .follow-on p{color:#50626b;margin:4px 0 12px}
+
+.layout-switch span{color:#50626b}
+.roles{display:grid;gap:12px}
+.roles fieldset{border:1px solid #e0e5e7;border-radius:6px;padding:8px 10px;margin:0}
+.roles legend{font-weight:600;padding:0 4px}

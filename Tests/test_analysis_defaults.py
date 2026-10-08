@@ -13,7 +13,7 @@ def options(preferences=None):
  id,state=s.start('AnalysisOptions',preferences)
  assert state['prompt']['kind']=='settings',state
  fields=state['prompt']['fields']
- assert len(fields)==6 and next(f for f in fields if f['name']=='selectGroupsByIdentifier')['disabled']
+ assert len(fields)==6 and not next(f for f in fields if f['name']=='selectGroupsByIdentifier').get('disabled')
  return id,state,{f['name']:f['defaultValue'] for f in fields}
 def save(value):
  id,state,_=options();state=advance(id,state,value)

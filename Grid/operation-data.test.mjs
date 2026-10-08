@@ -72,3 +72,29 @@ test('edited/rejected answers take precedence over the original worksheet snapsh
  const initial={columns:[{title:'Present',values:['9','7']},{title:'Absent',values:['4','20']}]};
  assert.deepEqual(new EntryTable(screen,block,initial).input().columns,initial.columns);
 });
+
+import {worksheetInputFrom} from './operation-data.mjs';
+test('long data: the form sends the data column, the identifiers and the block, and the application receives them by role', () => {
+  const source = {lazy: true, sheet: 0, sheetName: 'S', name: 'book / S', firstRow: 2, rows: 13, columns: ['score', 'treatment', 'block', 'other'], columnEnds: [13, 13, 13, 0]};
+  const pending = worksheetInput(source, [], 2, 13, {mode: 'treatmentAndBlock', data: 0, identifiers: [1], block: 2});
+  assert.deepEqual(pending.request.columns, [0, 1, 2]);
+  assert.deepEqual(pending.layout, {mode: 'treatmentAndBlock', identifiers: 1, block: true});
+  const data = {columns: [{title: 'score', values: ['1', '2']}, {title: 'treatment', values: ['a', 'b']}, {title: 'block', values: ['x', 'x']}]};
+  const input = worksheetInputFrom(pending, data);
+  assert.equal(input.layout, 'long');
+  assert.deepEqual(input.columns, [{title: 'score', values: ['1', '2']}]);
+  assert.deepEqual(input.groupIdentifiers, [{title: 'treatment', values: ['a', 'b']}]);
+  assert.deepEqual(input.blockIdentifiers, [{title: 'block', values: ['x', 'x']}]);
+  assert.match(input.source, /groups by identifier/);
+  assert.deepEqual(input.roles, {mode: 'treatmentAndBlock', identifiers: 1, block: true});
+  const single = worksheetInput(source, [], 2, 13, {mode: 'single', data: 0, identifiers: [1, 2]});
+  assert.deepEqual(single.request.columns, [0, 1, 2]);
+  assert.equal(worksheetInputFrom(single, data).blockIdentifiers, undefined);
+  assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'single', data: undefined, identifiers: [1]}), /data column/);
+  assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'single', data: 0, identifiers: []}), /group identifier/);
+  assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'single', data: 1, identifiers: [1]}), /different columns/);
+  assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'treatmentAndBlock', data: 0, identifiers: [1, 2]}), /one treatment/);
+  assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'treatmentAndBlock', data: 0, identifiers: [1]}), /block/);
+  // A lesson source that carries cells cannot pivot: identifiers need the live worksheet.
+  assert.throws(() => worksheetInput({...source, lazy: false, cells: []}, [], 2, 13, {mode: 'single', data: 0, identifiers: [1]}), /open worksheet/);
+});

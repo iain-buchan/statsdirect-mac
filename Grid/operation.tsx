@@ -18,12 +18,25 @@ const pendingColumns=new Map<string,{resolve:(v:any)=>void,reject:(e:Error)=>voi
 const fetchColumns=(request:any)=>new Promise<any>((resolve,reject)=>{const token=String(++columnToken);pendingColumns.set(token,{resolve,reject});native('columns',{token,...request});});
 const resolveInput=(v:any)=>v?.lazy?fetchColumns(v.request).then((data:any)=>worksheetInputFrom(v,data)):Promise.resolve(v);
 function DataInput({p,source,onChange,initial}:{p:any,source:any,onChange:(v:any)=>void,initial:any}) {
-  const [useSheet,setUseSheet]=useState(!!source && !p.screen && !initial),[selected,setSelected]=useState<number[]>(()=>source?.selection?.slice(0,p.maxColumns)??[]);
-  const [rowOverride,setRowOverride]=useState<{first:string,last:string}|null>(null);
-  const suggestedRows=worksheetRows(source,selected,p.length);
+  // A rejected long-data answer comes back as `initial` with its worksheet columns and roles, so the same choices are shown again for correction.
+  const longInitial=initial?.layout==='long'&&source?.lazy&&Array.isArray(initial.range?.columns)?initial:undefined;
+  const [useSheet,setUseSheet]=useState(!!source && !p.screen && (!initial||!!longInitial)),[selected,setSelected]=useState<number[]>(()=>source?.selection?.slice(0,p.maxColumns)??[]);
+  // Long data: one data column with group identifiers (or treatment and block identifiers), as the Windows "groups by identifier" setting.
+  // Only a live worksheet can serve it; lesson sources carry their cells and stay in separate columns.
+  const twoWay=p.groupIdentifiers==='treatmentAndBlock',canPivot=!!p.groupIdentifiers&&!!source?.lazy;
+  const [byIdentifier,setByIdentifier]=useState(!!longInitial||(canPivot&&!!p.groupsByIdentifier));
+  const [dataCol,setDataCol]=useState<number|undefined>(()=>longInitial?.range.columns[0]);
+  const [idCols,setIdCols]=useState<number[]>(()=>longInitial?longInitial.range.columns.slice(1,1+(longInitial.roles?.identifiers??1)):[]);
+  const [blockCol,setBlockCol]=useState<number|undefined>(()=>longInitial?.roles?.block?longInitial.range.columns[longInitial.range.columns.length-1]:undefined);
+  const longLayout=useSheet&&byIdentifier&&canPivot?{mode:p.groupIdentifiers,data:dataCol,identifiers:idCols,block:blockCol}:undefined;
+  const chosen=longLayout?[dataCol,...idCols,blockCol].filter((n):n is number=>Number.isInteger(n)):selected;
+  const [rowOverride,setRowOverride]=useState<{first:string,last:string}|null>(longInitial?{first:String(longInitial.range.firstRow),last:String(longInitial.range.lastRow)}:null);
+  const suggestedRows=worksheetRows(source,chosen,p.length);
   const first=rowOverride?.first??String(suggestedRows.first),last=rowOverride?.last??String(suggestedRows.last);
-  useEffect(()=>{setRowOverride(null);if(source?.selection)setSelected(source.selection.slice(0,p.maxColumns));},[source]);
-  const [table,setTable]=useState(()=>new EntryTable(p,null,initial));
+  useEffect(()=>{setRowOverride(null);if(source?.selection)setSelected(source.selection.slice(0,p.maxColumns));
+    // Columns the refreshed worksheet no longer has are dropped from the long-data choices.
+    const count=source?.columns?.length??0;setDataCol(d=>Number.isInteger(d)&&d!<count?d:undefined);setIdCols(a=>a.filter(n=>n<count));setBlockCol(b=>Number.isInteger(b)&&b!<count?b:undefined);},[source]);
+  const [table,setTable]=useState(()=>new EntryTable(p,null,longInitial?undefined:initial));
   const [revision,refresh]=useState(0),[showTitles,setShowTitles]=useState(false);
   const [selection,setSelection]=useState(empty),[cell,setCell]=useState(''),[error,setError]=useState(table.error);
   const container=useRef<HTMLDivElement>(null),[width,setWidth]=useState(700);
@@ -43,17 +56,28 @@ function DataInput({p,source,onChange,initial}:{p:any,source:any,onChange:(v:any
   useEffect(()=>{setCell(store.get(c,r));},[r,c,table,revision]);
   useEffect(()=>{const observer=new ResizeObserver(([e])=>setWidth(Math.floor(e.contentRect.width)));if(container.current)observer.observe(container.current);return()=>observer.disconnect();},[useSheet]);
   useEffect(()=>{
-    onChange(()=> useSheet ? worksheetInput(source,selected,Number(first),Number(last)) : table.input());
-  },[useSheet,source,selected,first,last,table,revision]);
+    onChange(()=> useSheet ? worksheetInput(source,selected,Number(first),Number(last),longLayout) : table.input());
+  },[useSheet,source,selected,first,last,table,revision,byIdentifier,dataCol,idCols,blockCol]);
   const apply=(change:()=>void)=>{try{if(loading)return;change();table.error='';setError('');refresh(n=>n+1);}catch(e){setError((e as Error).message);}};
   const paste=(text:string)=>apply(()=>table.paste(text,c,r));
   useEffect(()=>{window.statsDirectOperation.pasteText=paste;return()=>{delete window.statsDirectOperation.pasteText;};});
   function edit(value:string){apply(()=>store.apply([[c,r,value]]));}
   return <div className="data-input"><p className="hint">{p.mode?.startsWith('Text')?'Select labels or text for this step.':'Select measurements or counts for this step.'}</p>
     <div className="switch"><button type="button" className={useSheet?'chosen':''} disabled={!source} onClick={()=>setUseSheet(true)}>Worksheet columns</button><button type="button" className={!useSheet?'chosen':''} onClick={()=>setUseSheet(false)}>Enter / paste data</button><button type="button" onClick={()=>native('refresh')}>Refresh worksheet</button></div>
-    {useSheet&&source?<><p className="source">{source.name} · snapshot of the last selected worksheet</p><p>Choose columns in the order required by the question. {p.maxColumns<10000?`${p.minColumns}–${p.maxColumns} columns allowed.`:`At least ${p.minColumns} column(s).`}</p>
+    {useSheet&&source?<><p className="source">{source.name} · snapshot of the last selected worksheet</p>
+      {canPivot&&<div className="switch layout-switch"><span>Groups are</span><button type="button" className={!byIdentifier?'chosen':''} onClick={()=>{setByIdentifier(false);native('groupsByIdentifier',{value:false});}}>in separate columns</button><button type="button" className={byIdentifier?'chosen':''} onClick={()=>{setByIdentifier(true);native('groupsByIdentifier',{value:true});}}>{twoWay?'identified by treatment and block columns':'identified by a column of group labels'}</button></div>}
+      {longLayout?<>
+        <p>Choose the data column, then the {twoWay?'treatment (column) identifier and the block (row) identifier columns':'column(s) whose values label each observation\u2019s group'}. {p.maxColumns<10000?`${p.minColumns}–${p.maxColumns} groups allowed.`:`At least ${p.minColumns} group(s).`}</p>
+        <div className="roles">
+          <fieldset><legend>Data column</legend><div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type="radio" name="long-data" checked={dataCol===i} onChange={()=>setDataCol(i)}/><span>{columnName(i)} · {label}</span></label>)}</div></fieldset>
+          <fieldset><legend>{twoWay?'Treatment (column) identifier':'Group identifier column(s)'}</legend><div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type={twoWay?'radio':'checkbox'} name="long-ids" checked={idCols.includes(i)} onChange={e=>setIdCols(a=>twoWay?[i]:e.target.checked?[...a,i]:a.filter(n=>n!==i))}/><span>{columnName(i)} · {label}</span>{!twoWay&&idCols.includes(i)&&<b>{idCols.indexOf(i)+1}</b>}</label>)}</div></fieldset>
+          {twoWay&&<fieldset><legend>Block (row) identifier</legend><div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type="radio" name="long-block" checked={blockCol===i} onChange={()=>setBlockCol(i)}/><span>{columnName(i)} · {label}</span></label>)}</div></fieldset>}
+        </div>
+        <p className="selection">Data: {Number.isInteger(dataCol)?source.columns[dataCol!]:'None'} · {twoWay?'Treatment':'Groups'}: {idCols.map(i=>source.columns[i]).join(', ')||'None'}{twoWay&&<> · Block: {Number.isInteger(blockCol)?source.columns[blockCol!]:'None'}</>}</p>
+      </>:<>
+      <p>Choose columns in the order required by the question. {p.maxColumns<10000?`${p.minColumns}–${p.maxColumns} columns allowed.`:`At least ${p.minColumns} column(s).`}</p>
       <div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type="checkbox" checked={selected.includes(i)} onChange={e=>setSelected(a=>e.target.checked?[...a,i]:a.filter(n=>n!==i))}/><span>{columnName(i)} · {label}</span>{selected.includes(i)&&<b>{selected.indexOf(i)+1}</b>}</label>)}</div>
-      <p className="selection">Selected order: {selected.map(i=>source.columns[i]).join(' → ')||'None'}</p><div className="row-range"><label>First worksheet row<input type="number" min={source.firstRow} value={first} onChange={e=>setRowOverride({first:e.target.value,last})}/></label><label>Last worksheet row<input type="number" max={source.rows} value={last} onChange={e=>setRowOverride({first,last:e.target.value})}/></label></div><p className="hint">The row range follows the selected cells or columns. Missing cells inside this range retain their worksheet positions.</p>
+      <p className="selection">Selected order: {selected.map(i=>source.columns[i]).join(' → ')||'None'}</p></>}<div className="row-range"><label>First worksheet row<input type="number" min={source.firstRow} value={first} onChange={e=>setRowOverride({first:e.target.value,last})}/></label><label>Last worksheet row<input type="number" max={source.rows} value={last} onChange={e=>setRowOverride({first,last:e.target.value})}/></label></div><p className="hint">The row range follows the selected cells or columns. Missing cells inside this range retain their worksheet positions.</p>
     </>:<fieldset disabled={loading} aria-busy={loading}>{loading&&<p role="status">Loading selected worksheet data…</p>}<div className="grid-tools"><button type="button" onClick={()=>{window.statsDirectOperation.pasteText=paste;native('paste');}}>Paste data</button>{!p.fixedRows&&<button type="button" disabled={rows===MAX_ROWS} onClick={()=>apply(()=>table.dimensions(Math.min(MAX_ROWS,rows+10),titles.length))}>+ 10 rows</button>}{titles.length<table.maxColumns&&<button type="button" onClick={()=>apply(()=>table.dimensions(rows,titles.length+1))}>+ Column</button>}{titles.length>p.minColumns&&<button type="button" onClick={()=>apply(()=>{table.dimensions(rows,titles.length-1);setSelection(empty);})}>Remove last column</button>}<span>{rows} rows × {titles.length} columns</span></div>
       {p.rowLabels&&<p>Rows: {p.rowLabels.join(' / ')}</p>}<label className="cell-editor">Row {r+1}, column {c+1}<input value={cell} aria-label="Selected data cell" onChange={e=>{setCell(e.target.value);edit(e.target.value);}} onKeyDown={e=>{const movement=cellMovement(e);if(movement){e.preventDefault();e.stopPropagation();selectAdjacentCell([c,r],movement,titles.length,rows,setSelection,grid.current);}}}/></label>
       <div ref={container} className="grid"><div className="grid-frame"><DataEditor ref={grid} provideEditor={arrowKeyEditor} trapFocus width={Math.min(width,40+170*titles.length)} height={Math.min(300,36+34*rows+(40+170*titles.length>width?16:0))} rowMarkerWidth={40} headerHeight={36} rowHeight={34} columns={titles.map(title=>({title,width:170}))} rows={rows} rowMarkers="number" getCellsForSelection={true} getCellContent={([x,y])=>({kind:GridCellKind.Text,data:store.get(x,y),displayData:store.get(x,y),allowOverlay:!loading,readonly:loading})} gridSelection={selection} onGridSelectionChange={setSelection} onCellsEdited={items=>{apply(()=>store.apply(items.filter(({value})=>value.kind===GridCellKind.Text).map(({location:[x,y],value})=>[x,y,value.data])));return true;}} onPaste={(target,values)=>{apply(()=>table.pasteValues(values,target[0],target[1]));return false;}} smoothScrollX smoothScrollY/></div></div>

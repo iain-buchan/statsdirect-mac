@@ -195,6 +195,8 @@ internal sealed class OperationHost : ITemplateHost {
     readonly Dictionary<string, ParameterBag> savedPerOperation = new();
     readonly ParameterBag savedAcrossOperations = new();
     internal readonly List<object> Frames = new();
+    // The layout the user last chose for a pivotable frame in this analysis (Windows keeps the radio setting).
+    internal bool? GroupsByIdentifier;
     public System.Text.StringBuilder Html { get; } = new();
     public OperationHost(OperationJob job) {
         this.job = job;
@@ -217,7 +219,6 @@ internal sealed class OperationHost : ITemplateHost {
         var fields = settingsParameters.Select(p => {
             var d=HostParameters.Describe(p,processor,context,Preferences);
             if (p.Name=="default-ci") d["prompt"]="Default confidence level";
-            if (p.Name=="selectGroupsByIdentifier") { d["disabled"]=true; d["note"]="Not yet available on Mac; grouped data currently use separate columns."; }
             return d;
         }).ToArray();
         string error=null;
@@ -274,7 +275,7 @@ internal sealed class OperationHost : ITemplateHost {
         if (p is GroupedCovarianceParameter) return new ParameterBag(p.Name, FilledParameterFactory.Input(HostComplexData.GroupedCovariance(job, this)));
         string error = null;
         while (true) {
-            var descriptor = HostParameters.Describe(p, processor, context, Preferences);
+            var descriptor = HostParameters.Describe(p, processor, context, Preferences, GroupsByIdentifier);
             if (job.Operation.Name == "ConvertUnitsScreen" && p is FrameParameter) descriptor["screen"] = true;
             if (job.Operation.Name == "ClearMissing" && p.Name == "missing-double") {
                 descriptor["defaultValue"] = null;
@@ -291,6 +292,7 @@ internal sealed class OperationHost : ITemplateHost {
             var input = useDefault ? JsonSerializer.SerializeToElement(Preferences.DefaultConfidenceInterval * 100) : job.Ask(descriptor);
             try {
                 var filled = HostParameters.Parse(p, input, processor, context, this);
+                if (p is FrameParameter pivotable && descriptor.ContainsKey("groupIdentifiers")) GroupsByIdentifier = HostParameters.IsLongLayout(input);
                 HostInputChecks.Validate(job.Operation.Name,p.Name,filled,context);
                 var combined = new ParameterBag(); foreach (var pair in context) combined[pair.Key] = pair.Value; foreach (var pair in filled) combined[pair.Key] = pair.Value;
                 if (p.Validators != null && filled.Count > 0) foreach (var validator in p.Validators) {
@@ -311,7 +313,7 @@ internal sealed class OperationHost : ITemplateHost {
                     }
                 }
                 HostParameters.Commit(p, filled, context);
-                job.Record(descriptor["prompt"] as string, input, p.Name, descriptor["kind"] as string, descriptor.TryGetValue("mode", out var acquisitionMode) ? acquisitionMode as string : null);
+                job.Record(descriptor["prompt"] as string, HostParameters.Recorded(p, input, filled), p.Name, descriptor["kind"] as string, descriptor.TryGetValue("mode", out var acquisitionMode) ? acquisitionMode as string : null);
                 return filled;
             } catch (ArgumentException ex) { error = ex.Message; }
         }

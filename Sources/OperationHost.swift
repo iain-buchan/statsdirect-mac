@@ -41,7 +41,7 @@ extension Viewer {
               let body = message.body as? [String: Any], let action = body["action"] as? String else { return }
         switch action {
         case "ready":
-            var config = doc.operationName.flatMap { analysisCatalog[$0] } ?? [:]; config["title"] = doc.title
+            var config = doc.operationName.flatMap { analysisCatalog[$0] } ?? doc.followOnDefinition ?? [:]; config["title"] = doc.title
             config["derivedOutput"] = supportsDerivedWorksheet(doc.operationName ?? "")
             doc.operationReady = true
             operationScript(doc, "configure", config)
@@ -51,9 +51,8 @@ extension Viewer {
         case "columns": fetchOperationColumns(doc, body)
         case "keepResult": keepResult(doc, id: body["id"] as? String)
         case "help":
-            if let operation = doc.operationName, let path = analysisCatalog[operation]?["help"] as? String {
-                openHelp(root.appendingPathComponent(path), title: doc.title)
-            } else { helpLibrary() }
+            if let path = methodHelpPath(doc) { openHelp(root.appendingPathComponent(path), title: doc.title) } else { helpLibrary() }
+        case "followOn": openFollowOn(from: doc, body)
         case "paste":
             if let text = NSPasteboard.general.string(forType: .string) { web.evaluateJavaScript("window.statsDirectOperation?.pasteText?.(\(jsString(text)))") }
         case "start":
@@ -72,12 +71,43 @@ extension Viewer {
     func startOperation(_ doc: Document) {
         guard let operation = doc.operationName, analysisCatalog[operation]?["unavailable"] == nil else { return }
         guard doc.analysisJobID == nil else { return }
+        // A completed run stays open in the engine for follow-ons; a rerun replaces it.
+        if let previous = doc.completedJobID { doc.completedJobID = nil; analysisRequest(["action": "release", "id": previous], entry: "statsdirect_operation") { _ in } }
         doc.operationInputRange = nil
         let id = UUID().uuidString; doc.analysisJobID = id; doc.analysisCancelled = false; doc.operationStarting = true
         operationScript(doc, "update", ["state": "running", "progress": "Opening input form…"])
         var request: [String: Any] = ["action": "start", "id": id, "operation": operation]
+        if let parent = doc.parentJobID { request["parent"] = parent }
         if let defaults = UserDefaults.standard.dictionary(forKey: "analysisDefaults") { request["preferences"] = defaults }
         operationRequest(request, doc: doc, id: id)
+    }
+    func methodHelpPath(_ doc: Document) -> String? {
+        if let operation = doc.operationName, let path = analysisCatalog[operation]?["help"] as? String { return path }
+        return doc.followOnDefinition?["help"] as? String
+    }
+    // Help topics are numbered as in the Windows help file; the bundled help's alias table maps them to pages.
+    static var helpAliases: [String: String] = [:]
+    func helpPath(forTopic id: String) -> String? {
+        if Viewer.helpAliases.isEmpty, let text = try? String(contentsOf: root.appendingPathComponent("Help/Data/Alias.xml"), encoding: .utf8) {
+            let pattern = try! NSRegularExpression(pattern: #"Link="([^"]+)"\s+ResolvedId="(\d+)""#)
+            for match in pattern.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+                if let link = Range(match.range(at: 1), in: text), let topic = Range(match.range(at: 2), in: text) { Viewer.helpAliases[String(text[topic])] = "Help/" + text[link] }
+            }
+        }
+        return Viewer.helpAliases[id]
+    }
+    // A suggested operation runs on the parent analysis' inputs and results, as on Windows.
+    func openFollowOn(from parent: Document, _ body: [String: Any]) {
+        guard let operation = body["operation"] as? String else { return }
+        guard let parentJob = parent.completedJobID else { operationError(parent, "Run the analysis first, then choose a follow-on from its result."); return }
+        let title = body["title"] as? String ?? operation
+        var definition: [String: Any] = analysisCatalog[operation] ?? ["id": operation, "title": title, "instant": false]
+        if definition["help"] == nil, let topic = body["help"] as? String, let path = helpPath(forTopic: topic) { definition["help"] = path }
+        // A follow-on without a help topic of its own keeps the parent's help page, as Windows does.
+        if definition["help"] == nil, let inherited = methodHelpPath(parent) { definition["help"] = inherited }
+        let doc = newDocument(kind: "operation", title: nextAnalysisTitle(definition["title"] as? String ?? title), url: root.appendingPathComponent("Grid/operation.html"))
+        doc.operationName = operation; doc.operationSourceID = parent.operationSourceID
+        doc.parentJobID = parentJob; doc.followOnDefinition = definition
     }
     func operationScript(_ doc: Document, _ method: String, _ object: Any) {
         guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.fragmentsAllowed]) else { return }
@@ -130,7 +160,10 @@ extension Viewer {
                 switch output["state"] as? String {
                 case "complete", "cancelled", "failed":
                     doc.analysisJobID = nil
-                    self.analysisRequest(["action": "release", "id": id], entry: "statsdirect_operation") { _ in }
+                    // A completed analysis stays open in the engine so follow-ons can start from it; it is
+                    // released when the form reruns or closes.
+                    if output["state"] as? String == "complete" { doc.completedJobID = id }
+                    else { self.analysisRequest(["action": "release", "id": id], entry: "statsdirect_operation") { _ in } }
                     if doc.operationClosing { self.remove(doc); return }
                     if output["state"] as? String == "complete", !doc.analysisCancelled {
                         if ["AnalysisOptions","MetaCalculationOptions","MetaPlotOptions"].contains(doc.operationName ?? ""), let defaults = output["analysisOptions"] as? [String: Any] {
@@ -172,7 +205,7 @@ extension Viewer {
             } else { open(plan?.sheet ?? frame, snapshotID: nil) }
         }
         let html = output["html"] as? String ?? ""
-        let methodPath = doc.operationName.flatMap { analysisCatalog[$0]?["help"] as? String }
+        let methodPath = methodHelpPath(doc)
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
         let inputData = (try? JSONSerialization.data(withJSONObject: output["history"] ?? [], options: [.prettyPrinted, .sortedKeys])) ?? Data()
         let rPlan = try? RScriptGenerator.generate(operation: doc.operationName ?? "", title: doc.title, output: output, resources: root)

@@ -27,6 +27,9 @@ final class Document {
     var analysisJobID: String?
     var analysisCancelled = false
     var operationName: String?
+    var parentJobID: String?
+    var completedJobID: String?
+    var followOnDefinition: [String: Any]?
     var operationReady = false
     var operationClosing = false
     var operationStarting = false
@@ -413,6 +416,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func remove(_ doc: Document) {
         if let id = doc.workbookID { workbookRequest(["action": "close", "id": id]) { _ in } }
+        if let id = doc.completedJobID { doc.completedJobID = nil; analysisRequest(["action": "release", "id": id], entry: "statsdirect_operation") { _ in } }
         for id in doc.snapshotIDs { SnapshotStore.shared.forget(id) }; doc.snapshotIDs = []
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectReport")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectGrid")

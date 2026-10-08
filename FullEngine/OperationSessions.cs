@@ -22,7 +22,7 @@ public static class OperationSessions {
     internal static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
     static readonly ConcurrentDictionary<string, OperationJob> jobs = new();
     static readonly object gate = new();
-    public sealed record Request(string Action, string Id, string Operation, int Token, JsonElement Value, JsonElement Preferences);
+    public sealed record Request(string Action, string Id, string Operation, int Token, JsonElement Value, JsonElement Preferences, string Parent);
     public static string Execute(string input) {
         try {
             var r = JsonSerializer.Deserialize<Request>(input, Json) ?? throw new Exception("Missing operation request.");
@@ -33,11 +33,29 @@ public static class OperationSessions {
                     if (jobs.ContainsKey(r.Id)) throw new Exception("This analysis has already started.");
                     RuntimeHelpers.RunClassConstructor(typeof(Exports).TypeHandle);
                     _ = SdApplication.SoleInstance;
+                    // A follow-on starts from the inputs of a completed analysis, as the Windows
+                    // application does when the user picks a suggested operation after a result.
+                    OperationJob parent = null; ParameterBag context = null;
+                    if (!string.IsNullOrEmpty(r.Parent)) {
+                        if (!jobs.TryGetValue(r.Parent, out parent) || parent.FollowOnContext == null) throw new Exception("The analysis this follows on from is no longer open. Run it again, then choose the follow-on from its result.");
+                        context = parent.FollowOnContext.CopyWithoutOutputParameters();
+                        if (context.ContainsKey(OperationJob.MemoryName)) { var memory = new List<string>(context[OperationJob.MemoryName].AsStringList); context.Remove(OperationJob.MemoryName); context.AddInput(OperationJob.MemoryName, memory); }
+                    }
                     using var catalog = JsonDocument.Parse(File.ReadAllText(Path.Combine(Path.GetDirectoryName(typeof(OperationSessions).Assembly.Location), "AnalysisMenu.json")));
-                    if (r.Operation == null || !catalog.RootElement.GetProperty("operations").TryGetProperty(r.Operation, out var definition)) throw new Exception("Unknown menu command.");
-                    if (definition.TryGetProperty("unavailable", out var unavailable)) throw new Exception(unavailable.GetString());
+                    bool suggested = parent != null && r.Operation != null && parent.SuggestionNames.Contains(r.Operation);
+                    JsonElement definition = default;
+                    bool inCatalog = r.Operation != null && catalog.RootElement.GetProperty("operations").TryGetProperty(r.Operation, out definition);
+                    if (!inCatalog && !suggested) throw new Exception("Unknown menu command.");
+                    if (inCatalog && definition.TryGetProperty("unavailable", out var unavailable)) throw new Exception(unavailable.GetString());
                     if (!TemplateFactory.Operations.TryGetValue(r.Operation, out var operation)) throw new Exception("The operation definition could not be loaded.");
-                    var job = new OperationJob(r.Id, operation, r.Preferences); jobs[r.Id] = job;
+                    if (operation.HasPrerequisites) {
+                        var ran = context != null && context.ContainsKey(OperationJob.MemoryName) ? context[OperationJob.MemoryName].AsStringList : new List<string>();
+                        if (!operation.PrerequisiteOperationNames.Any(ran.Contains)) {
+                            var names = operation.PrerequisiteOperationNames.Select(n => TemplateFactory.Operations.TryGetValue(n, out var p) ? p.FriendlyName ?? n : n);
+                            throw new Exception($"{operation.FriendlyName ?? operation.Name} follows on from {string.Join(" or ", names)}. Run that analysis first, then choose this method from its follow-on list.");
+                        }
+                    }
+                    var job = new OperationJob(r.Id, operation, r.Preferences, context, r.Parent); jobs[r.Id] = job;
                     Task.Factory.StartNew(job.Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
                     result = job.Snapshot();
                 }
@@ -73,11 +91,43 @@ internal sealed class OperationJob {
     string state = "running", error, html;
     string progress = "Starting analysis…";
     double? fraction;
-    object frames, outputs, analysisOptions;
+    object frames, outputs, analysisOptions, suggestions;
     sealed record InputRecord(string Title, object Value, string Name = null, string Kind = null, string Mode = null);
     readonly List<InputRecord> history = new();
-    public OperationJob(string id, Operation operation, JsonElement preferences) { Id = id; Operation = operation; SavedPreferences = preferences; }
-    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray() }; }
+    // Windows keeps the names of the operations run on a set of parameters under this key.
+    public const string MemoryName = "statsdirect-operation-list";
+    readonly ParameterBag startContext; readonly string parentId;
+    readonly HashSet<string> suggestionNames = new();
+    // The inputs a follow-on starts from (set when the operation completes) and the operations suggested from the result.
+    public ParameterBag FollowOnContext { get; private set; }
+    public IReadOnlyCollection<string> SuggestionNames => suggestionNames;
+    public OperationJob(string id, Operation operation, JsonElement preferences, ParameterBag context = null, string parent = null) { Id = id; Operation = operation; SavedPreferences = preferences; startContext = context; parentId = parent; }
+    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, suggestions, parent = parentId, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray() }; }
+    static void NoteOperation(ParameterBag bag, string name) {
+        if (!bag.ContainsKey(MemoryName)) bag.AddInput(MemoryName, new List<string>());
+        var list = bag[MemoryName].AsStringList;
+        if (!list.Contains(name)) list.Add(name);
+    }
+    // The Windows rule: the operation's own suggestions whose suggest-if holds; failing that,
+    // those of the earliest operation already run on these parameters. The operation itself
+    // is left out (the form can rerun it), as are names without a definition.
+    static List<object> Suggestions(ITemplateProcessor processor, Operation operation, ParameterBag bag, HashSet<string> names) {
+        IList<SuggestedOperation> available;
+        try { available = operation.AvailableSuggestedOperations(processor, bag); } catch { available = new List<SuggestedOperation>(); }
+        if (available.Count == 0 && bag.ContainsKey(MemoryName)) {
+            foreach (var name in bag[MemoryName].AsStringList) {
+                if (!TemplateFactory.Operations.TryGetValue(name, out var previous)) continue;
+                try { var list = previous.AvailableSuggestedOperations(processor, bag); if (list.Count > 0) { available = list; break; } } catch { }
+            }
+        }
+        var result = new List<object>();
+        foreach (var su in available) {
+            if (su.Name == operation.Name || names.Contains(su.Name) || !TemplateFactory.Operations.TryGetValue(su.Name, out var target)) continue;
+            names.Add(su.Name);
+            result.Add(new { operation = su.Name, title = target.FriendlyName ?? su.Name, help = target.HelpContext?.ChmId > 0 ? target.HelpContext.ChmId.ToString() : null });
+        }
+        return result;
+    }
     public void Check() { if (Cancelled) throw new OperationCanceledException(); }
     public void Progress(string text, double? value = null) { lock (sync) { progress = text; fraction = value; } }
     public JsonElement Ask(Dictionary<string, object> descriptor) {
@@ -114,14 +164,18 @@ internal sealed class OperationJob {
                 "ConvertUnitsScreen" => TemplateFactory.Operations["ConvertUnits"],
                 _ => Operation
             };
-            var result = ((ITemplateProcessor)new TemplateProcessor(host)).Execute(engineOperation, new ParameterBag());
+            var processor = (ITemplateProcessor)new TemplateProcessor(host);
+            var result = processor.Execute(engineOperation, startContext ?? new ParameterBag());
             Check(); if (result == null) throw new Exception("The engine ended this operation without completing it.");
+            NoteOperation(result.ParameterBag, Operation.Name);
+            var available = Suggestions(processor, Operation, result.ParameterBag, suggestionNames);
             if (Operation.Name is "AnalysisOptions" or "MetaCalculationOptions" or "MetaPlotOptions") {
                 analysisOptions = AnalysisDefaults.Values(host.Preferences);
                 AnalysisDefaults.Apply(SdApplication.SoleInstance.Preferences, JsonSerializer.SerializeToElement(analysisOptions));
             }
             lock (sync) {
                 html = host.Html.ToString(); frames = host.Frames.ToArray(); outputs = HostParameters.ScalarOutputs(result.ParameterBag);
+                suggestions = available; FollowOnContext = result.ParameterBag.CopyWithoutOutputParameters();
                 state = "complete"; Finished = true; progress = "Analysis complete"; fraction = 1;
             }
         } catch (Exception ex) {

@@ -63,5 +63,36 @@ struct GroupIdentifierTests {
             throw error
         }
         print("PASS: declining the unequal-group warning preserves the original data roles and custom row range")
+
+        _=try await BetaFeedbackTests.asyncJavaScript(grid,"await statsDirectGrid.loadWorkbook({name:'Nested long data',sheets:[{name:'Nested',columns:3,rows:12,headerRow:false,cells:[[1,2,3,2,3,5,4,5,7,6,7,9],['01','01','01','01','01','01','1','1','1','1','1','1'],['east','east','east','west','west','west','north','north','north','south','south','south']].flatMap((values,col)=>values.map((text,row)=>({col,row,text:String(text),kind:col?'text':'number'})))}]});return {ok:true};")
+        let nested=v.newDocument(kind:"operation",title:"Nested identifiers fixture",url:v.root.appendingPathComponent("Grid/operation.html"))
+        defer {v.remove(nested)}
+        nested.operationSourceID=grid.id
+        try await ProviderLearningTests.wait {nested.operationReady && nested.operationSourceSnapshot != nil}
+        _=try await v.learningJavaScript(nested,"(()=>{const update=statsDirectOperation.update;statsDirectOperation.update=s=>{window.groupState=s;update(s);};return {ok:true};})()")
+        nested.operationName="TwoWayNested";v.startOperation(nested)
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(nested,"({ok:window.groupState?.prompt?.name==='layout2d'&&document.querySelectorAll('.choices input').length===2})"))?["ok"] as? Bool == true}
+        _=try await v.learningJavaScript(nested,"({ok:(document.querySelectorAll('.choices input')[1].click(),true)})")
+        try await submit(nested)
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(nested,"({ok:document.querySelectorAll('.roles fieldset').length===3})"))?["ok"] as? Bool == true}
+        // Entered data can return to the layout choice without filling a throwaway table.
+        _=try await v.learningJavaScript(nested,"({ok:(Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Enter / paste data').click(),true)})")
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(nested,"({ok:Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='Use separate columns')})"))?["ok"] as? Bool == true}
+        _=try await v.learningJavaScript(nested,"({ok:(Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Use separate columns').click(),true)})")
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(nested,"({ok:groupState.prompt?.name==='layout2d'&&document.querySelectorAll('.choices input').length===2})"))?["ok"] as? Bool == true}
+        _=try await v.learningJavaScript(nested,"({ok:(document.querySelectorAll('.choices input')[1].click(),true)})")
+        try await submit(nested)
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(nested,"({ok:document.querySelectorAll('.roles fieldset').length===3})"))?["ok"] as? Bool == true}
+        _=try await v.learningJavaScript(nested,"({ok:(document.querySelectorAll('input[name=long-data]')[0].click(),document.querySelectorAll('input[name=long-ids]')[1].click(),document.querySelectorAll('input[name=long-block]')[2].click(),true)})")
+        try await submit(nested)
+        try await ProviderLearningTests.wait {nested.completedJobID != nil}
+        let nestedResult=try await v.learningJavaScript(nested,"window.groupState")
+        let nestedHistory=nestedResult["history"] as! [[String:Any]]
+        let nestedColumns=(nestedHistory.first{$0["name"] as? String=="data2d"}!["value"] as! [String:Any])["columns"] as! [[String:Any]]
+        precondition(nestedColumns.count==3 && nestedColumns[1]["mode"] as? String=="GroupIdentifiers")
+        let nestedR=try RScriptGenerator.generate(operation:"TwoWayNested",title:"Nested fixture",output:nestedResult,resources:v.root)
+        precondition(nestedR.script.contains("c(\"01\", \"01\"") && nestedR.script.contains("\"north\""))
+        print("PASS: native nested group/subgroup selection and layout fallback; distinct subgroups calculate; numeric-looking group identifiers stay as text in R")
+
     }
 }

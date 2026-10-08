@@ -20195,7 +20195,7 @@ ${content}</tr>
       const ans = a.answers.find((x) => x.questionId === q.id);
       return `<h4>${e(q.topic)}</h4>${para(q.stem)}<ol type="A">${q.options.map((o) => `<li>${e(o.text)}</li>`).join("")}</ol>${para(`First answer: ${ans?.choice ?? "\u2014"} \xB7 Key: ${q.correct ?? "withheld"} \xB7 Confidence: ${ans?.confidence ?? "\u2014"}`)}${para("Reasoning: " + (ans?.reasoning ?? "\u2014"))}${para("Reflection: " + (ans?.reflection ?? "\u2014"))}${para(q.explanation ?? "Feedback withheld until the attempt ends")}`;
     }).join("")).join("");
-    const body = `<h1>StatsDirect learning record</h1>${para(r2.learner.name || "Learner")}${para(r2.learner.email || "")}${para(`Prepared ${r2.exportedAt}`)}${para(r2.pathway + " \xB7 " + r2.rExperience)}${para(r2.learner.goal || r2.learningOptions.needs || "")}${para(r2.marking)}${para(r2.reviewStatus)}` + section("Practice attempts", attempts || para("No practice attempts")) + section("Learning conversation", r2.conversation.map((c) => `<article><h3>${c.role === "user" ? "Learner" : "Tutor"} \xB7 ${e(c.lessonTitle ?? c.source)}</h3><small>${e(c.at)}</small>${exportRichText(c.text)}${(c.courseSources ?? []).length ? para("Lesson context supplied: " + c.courseSources.map((s) => s.title + (s.url ? " \u2014 " + s.url : "")).join("; ")) : ""}${(c.workspaceSources ?? []).length ? para("StatsDirect context: " + c.workspaceSources.join("; ")) : ""}</article>`).join("")) + section("Course and assessment", Object.entries(r2.training).map(([k, v]) => para(k + ": " + v)).join("")) + section("Practical submissions", r2.courseWork.map((w) => `<h3>${e(w.lessonTitle)}</h3>${para(w.text)}`).join("")) + section("Analysis evidence", r2.evidence.map((x) => `<h3>${e(x.title)}</h3><pre>${e(x.text)}</pre>`).join("")) + section("Provider responses", r2.providerReviews.map((x) => para(`${x.provider}: ${x.decision}
+    const body = `<h1>StatsDirect learning record</h1>${para(r2.learner.name || "Learner")}${para(r2.learner.email || "")}${para(`Prepared ${r2.exportedAt}`)}${para(r2.pathway + " \xB7 " + r2.rExperience)}${para(r2.learner.goal || r2.learningOptions.needs || "")}${para(r2.marking)}${para(r2.reviewStatus)}` + section("Practice attempts", attempts || para("No practice attempts")) + section("Document sharing confirmations", (r2.sharingConsents ?? []).map((c) => para(`${c.at} \xB7 question ${c.requestID} \xB7 ${c.policyVersion}`) + para(c.statement) + para(c.documents.map((d) => `${d.title} (${d.kind}) \xB7 revision ${d.version}`).join("; "))).join("") || para("No document sharing confirmed")) + section("Learning conversation", r2.conversation.map((c) => `<article><h3>${c.role === "user" ? "Learner" : "Tutor"} \xB7 ${e(c.lessonTitle ?? c.source)}</h3><small>${e(c.at)}</small>${exportRichText(c.text)}${(c.courseSources ?? []).length ? para("Lesson context supplied: " + c.courseSources.map((s) => s.title + (s.url ? " \u2014 " + s.url : "")).join("; ")) : ""}${(c.workspaceSources ?? []).length ? para("StatsDirect context: " + c.workspaceSources.join("; ")) : ""}</article>`).join("")) + section("Course and assessment", Object.entries(r2.training).map(([k, v]) => para(k + ": " + v)).join("")) + section("Practical submissions", r2.courseWork.map((w) => `<h3>${e(w.lessonTitle)}</h3>${para(w.text)}`).join("")) + section("Analysis evidence", r2.evidence.map((x) => `<h3>${e(x.title)}</h3><pre>${e(x.text)}</pre>`).join("")) + section("Provider responses", r2.providerReviews.map((x) => para(`${x.provider}: ${x.decision}
 ${x.feedback}
 ${x.creditStatement ?? ""}
 ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "Not supplied")) + section("Learning activities", r2.activities.map((x) => para(`${x.at} \u2014 ${x.text}`)).join("")) + section("Versions and diagnostics", `<pre>${e(JSON.stringify(r2.diagnostics ?? {}, null, 2))}</pre>`);
@@ -22109,7 +22109,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
   // Learn/portfolio.mjs
   var stages = { menus: "Start with menus", bridge: "Connect menus to R", coding: "Practise R coding" };
   function newPortfolio() {
-    return { schemaVersion: 2, id: crypto.randomUUID(), startedAt: (/* @__PURE__ */ new Date()).toISOString(), profile: "foundation", stage: "menus", lesson: "epidemiology", view: "study", identity: { name: "", email: "", goal: "" }, learning: { statisticalSkills: "beginner", needs: "", qualifications: "", priorKnowledge: "", targetDate: "", focus: ["epidemiology", "causal"], style: "Worked examples and questions" }, training: trainingDefaults(), courseKey: "", courseWork: [], workDrafts: {}, providerReviews: [], evidence: [], conversation: [], activities: [], attempts: [], quiz: null, reflection: "", draft: "" };
+    return { schemaVersion: 2, id: crypto.randomUUID(), startedAt: (/* @__PURE__ */ new Date()).toISOString(), profile: "foundation", stage: "menus", lesson: "epidemiology", view: "study", identity: { name: "", email: "", goal: "" }, learning: { statisticalSkills: "beginner", needs: "", qualifications: "", priorKnowledge: "", targetDate: "", focus: ["epidemiology", "causal"], style: "Worked examples and questions" }, training: trainingDefaults(), courseKey: "", courseWork: [], workDrafts: {}, providerReviews: [], evidence: [], conversation: [], sharingConsents: [], activities: [], attempts: [], quiz: null, reflection: "", draft: "" };
   }
   function restorePortfolio(value) {
     const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -22124,6 +22124,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     };
     const defaults2 = newPortfolio();
     const learning = value?.learning === void 0 ? defaults2.learning : object(value.learning) ? { statisticalSkills: "beginner", ...value.learning } : value.learning;
+    if (value?.sharingConsents !== void 0 && (!Array.isArray(value.sharingConsents) || !value.sharingConsents.every((c) => strings(c, ["id", "at", "requestID", "policyVersion", "statement"]) && c.noPersonIdentifiers === true && Array.isArray(c.documents) && c.documents.every((d) => strings(d, ["id", "title", "kind"]) && Number.isInteger(d.version))))) throw Error("The saved sharing confirmations are incompatible. The record has not been overwritten.");
     const validTraining = (v) => strings(v, Object.keys(trainingDefaults()).filter((k) => k !== "assessmentType")) && (v.assessmentType === void 0 || Object.hasOwn(assessmentTypes, v.assessmentType));
     if (value?.training !== void 0 && !validTraining(value.training) || value?.courseKey !== void 0 && typeof value.courseKey !== "string" || value?.courseWork !== void 0 && (!Array.isArray(value.courseWork) || !value.courseWork.every((w) => strings(w, ["id", "at", "courseKey", "lessonID", "lessonTitle", "objective", "task", "text", "status"]) && validTraining(w.training))) || value?.workDrafts !== void 0 && (!object(value.workDrafts) || !Object.values(value.workDrafts).every((x) => typeof x === "string")) || value?.providerReviews !== void 0 && (!Array.isArray(value.providerReviews) || !value.providerReviews.every((r2) => strings(r2, ["portfolioID", "provider", "reviewer", "reviewedAt", "decision", "feedback", "verification"]))) || value?.evidence !== void 0 && (!Array.isArray(value.evidence) || !value.evidence.every((r2) => strings(r2, ["title", "at", "text"])))) throw Error("The saved course record is incompatible. It has not been overwritten.");
     if (!strings(value, ["id", "startedAt", "profile", "stage", "lesson", "view", "reflection", "draft"]) || value.schemaVersion !== 2 || !tracks[value.profile] || !stages[value.stage] || !["study", "options", "sources", "practice", "record"].includes(value.view) || !strings(value.identity, ["name", "email", "goal"]) || !Object.hasOwn(statisticalSkills, learning?.statisticalSkills) || !strings(learning, ["needs", "qualifications", "priorKnowledge", "targetDate", "style"]) || !Array.isArray(learning.focus) || !learning.focus.every((x) => typeof x === "string") || !Array.isArray(value.conversation) || !value.conversation.every((c) => strings(c, ["id", "at", "role", "text", "source"]) && ["user", "assistant"].includes(c.role) && ["lessonId", "lessonTitle"].every((k) => c[k] === void 0 || typeof c[k] === "string") && (c.lessonPrompt === void 0 || typeof c.lessonPrompt === "boolean") && (!c.workspaceSources || Array.isArray(c.workspaceSources) && c.workspaceSources.every((s) => typeof s === "string")) && (!c.courseSources || Array.isArray(c.courseSources) && c.courseSources.every((s) => strings(s, ["id", "title"])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz !== null && !validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every((a) => strings(a, ["at", "text"]))) throw new Error("The saved learning record is incompatible. It has not been overwritten.");
@@ -22175,6 +22176,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
       courseWork: structuredClone(state2.courseWork),
       providerReviews: structuredClone(state2.providerReviews),
       evidence: structuredClone(state2.evidence),
+      sharingConsents: structuredClone(state2.sharingConsents ?? []),
       attempts,
       conversation: structuredClone(state2.conversation),
       activities: structuredClone(state2.activities),
@@ -22191,6 +22193,8 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
         lines.push("", `${q.id} v${q.version} \u2014 ${q.topic}`, q.stem, ...q.options.map((o) => `${o.id}. ${o.text}`), `First answer: ${answer?.choice || "not answered"} | Key: ${q.correct || "withheld until the attempt ends"}`, `Confidence: ${answer?.confidence || "not recorded"} | Assisted: ${answer?.assisted ?? false}`, `Reasoning before answer: ${answer?.reasoning || "(none)"}`, `Reflection after feedback: ${answer?.reflection || "(none)"}`, `Feedback: ${q.explanation || "withheld until the attempt ends"}`, q.help ? `Help: https://www.statsdirect.com/help/${q.help}` : "");
       }
     }
+    lines.push("", "DOCUMENT SHARING CONFIRMATIONS");
+    for (const c of record.sharingConsents ?? []) lines.push("", `${c.at} \xB7 question ${c.requestID} \xB7 ${c.policyVersion}`, c.statement, ...c.documents.map((d) => `${d.title} (${d.kind}) \xB7 revision ${d.version}`));
     lines.push("", "COMPLETE LEARNING CONVERSATION");
     for (const c of record.conversation) lines.push("", `[${c.at}] ${c.role === "user" ? "Learner" : "Tutor"} \u2014 ${c.source}${c.lessonTitle ? " \xB7 " + c.lessonTitle : ""}${c.model ? " / " + c.model : ""}`, c.text, ...(c.courseSources ?? []).map((s) => "Lesson context supplied: " + s.id + " \u2014 " + s.title + (s.url ? " \xB7 " + s.url : "") + (s.retrievedAt ? " \xB7 retrieved " + s.retrievedAt : "")), ...(c.workspaceSources ?? []).map((s) => "StatsDirect context: " + s));
     lines.push("", "PROVIDER AND COURSE", ...Object.entries(record.training ?? {}).map(([k, v]) => `${k === "assessmentType" ? "Assessment type" : k}: ${k === "assessmentType" ? assessmentTypes[v] ?? v : v}`), "", "PRACTICAL SUBMISSIONS");
@@ -23898,11 +23902,13 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   var coursePack = null;
   var streamedText = "";
   var streamTimer = null;
-  var workspace = { choice: "", choices: [], label: "Open documents are available to the tutor" };
+  var workspace = { choice: "__none__", choices: [], label: "Lessons only \xB7 open documents are not shared" };
   var native = Boolean(window.webkit?.messageHandlers?.statsDirectLearn);
   var post = (body) => window.webkit?.messageHandlers?.statsDirectLearn?.postMessage(body);
   var allLessons = () => [...lessons_default2, ...courseLessons(coursePack)];
   var lesson = () => allLessons().find((x) => x.id === state.lesson) ?? lessons_default2[0];
+  var privacyText = () => settings.disabled ? "The online tutor is disabled by this Mac\u2019s learning policy. Local lessons, practice, help and R examples remain available." : settings.configured ? "Send shares learning context and up to 40 recent messages with OpenAI. Document sharing requires confirmation for each question. Earlier shared content can remain in the conversation. Do not include person identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply.";
+  var sendLabel = () => settings.disabled ? "Online tutor disabled" : settings.configured ? "Send" : settings.signingIn ? "Finish sign-in" : "Use my ChatGPT";
   var independent = () => state.quiz?.mode === "test" && !state.quiz.completedAt;
   var notice = (text3) => {
     $("notice").textContent = text3;
@@ -23950,7 +23956,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     $("sourcesNav").disabled = independent();
     $("practiceNav").querySelector("span").textContent = state.quiz?.questionIds.length ?? (courseQuestions(coursePack).length || questions.filter((q) => q.track === state.profile || q.track === "core").length);
     $("options").disabled = independent() || Boolean(pending);
-    $("settings").disabled = Boolean(pending);
+    $("settings").disabled = Boolean(pending) || Boolean(settings.disabled);
     if (state.view === "options") renderOptions();
     else if (state.view === "sources") renderSources();
     else if (state.view === "practice") renderPractice();
@@ -23961,7 +23967,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   function renderStudy() {
     const l = lesson();
     if (ensureLessonPrompt(state, allLessons())) save();
-    $("main").innerHTML = `<section class="intro"><div class="eyebrow">${esc3(l.topic)}</div><h1>${esc3(l.title)}</h1></section><div class="actions">${l.operation ? '<button class="primary" data-action="example">Try in StatsDirect</button>' : ""}${l.r ? '<button data-action="r">Explore in R</button>' : ""}${l.help ? '<button class="link-button" data-action="help">Read help \u2197</button>' : ""}</div><details class="lesson-guide"><summary>Lesson guide and worked example</summary>${lessonGuideHTML(l, allLessons(), esc3, safeURL)}</details>${courseWorkHTML(state, l)}<section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><button id="focusConversation" class="link-button">${state.conversationFocus ? "Show lesson controls" : "Expand conversation"}</button><span id="tutorBadge" class="badge">${esc3(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending ? "disabled" : ""}>${esc3(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${settings.configured ? "Send shares learning context, up to 40 recent messages and requested open document content with OpenAI. Choose Lessons only to exclude documents. Avoid identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply."}</small><button id="send" class="primary" ${pending ? "disabled" : ""}>${settings.configured ? "Send" : settings.signingIn ? "Finish sign-in" : "Use my ChatGPT"}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
+    $("main").innerHTML = `<section class="intro"><div class="eyebrow">${esc3(l.topic)}</div><h1>${esc3(l.title)}</h1></section><div class="actions">${l.operation ? '<button class="primary" data-action="example">Try in StatsDirect</button>' : ""}${l.r ? '<button data-action="r">Explore in R</button>' : ""}${l.help ? '<button class="link-button" data-action="help">Read help \u2197</button>' : ""}</div><details class="lesson-guide"><summary>Lesson guide and worked example</summary>${lessonGuideHTML(l, allLessons(), esc3, safeURL)}</details>${courseWorkHTML(state, l)}<section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><button id="focusConversation" class="link-button">${state.conversationFocus ? "Show lesson controls" : "Expand conversation"}</button><span id="tutorBadge" class="badge">${esc3(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending ? "disabled" : ""}>${esc3(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${esc3(privacyText())}</small><button id="send" class="primary" ${pending || settings.disabled ? "disabled" : ""}>${esc3(sendLabel())}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
     $("messages").innerHTML = lessonConversation(state).map((c) => {
       const guide = guidePresentation(c, l);
       const content = `<div class="message-body">${bodyHTML(c.text)}</div>${c.courseSources?.length ? `<div class="small context-used">Lesson context supplied: ${c.courseSources.map((s) => safeURL(s.url) ? `<a href="${esc3(safeURL(s.url))}" target="_blank" rel="noopener">${esc3(s.title)}</a>` : esc3(s.title)).join("; ")}</div>` : ""}${c.workspaceSources?.length ? `<div class="small context-used">Used: ${c.workspaceSources.map(esc3).join("; ")}</div>` : ""}`;
@@ -24059,12 +24065,16 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   function renderWorkspace() {
     const element = $("workspaceContext");
     if (!element) return;
-    element.innerHTML = `<label for="workspaceChoice">Tutor context</label><div class="workspace-controls"><select id="workspaceChoice" ${pending || independent() ? "disabled" : ""}><option value="">Follow my active document</option><option value="__none__">Lessons only</option>${workspace.choices.map((d) => `<option value="${esc3(d.id)}">${esc3(d.title)}</option>`).join("")}</select><button id="refreshWorkspace" class="link-button" ${pending ? "disabled" : ""}>Refresh</button></div><small id="workspaceLabel" role="status" title="${esc3(workspace.label)}">${esc3(workspace.label)}</small>`;
+    element.innerHTML = `<label for="workspaceChoice">Tutor context</label><div class="workspace-controls"><select id="workspaceChoice" ${pending || independent() || settings.disabled ? "disabled" : ""}><option value="__none__">Lessons only \xB7 no documents</option><option value="">All open documents \xB7 focus active</option>${workspace.choices.map((d) => `<option value="${esc3(d.id)}">${esc3(d.title)}</option>`).join("")}</select><button id="refreshWorkspace" class="link-button" ${pending ? "disabled" : ""}>Refresh</button></div><small id="workspaceLabel" role="status" title="${esc3(workspace.label)}">${esc3(workspace.label)}</small>`;
     $("workspaceChoice").value = workspace.choice;
     $("workspaceChoice").onchange = () => post({ action: "workspace", choice: $("workspaceChoice").value });
     $("refreshWorkspace").onclick = () => post({ action: "workspace" });
   }
   function configure() {
+    if (settings.disabled) {
+      notice(privacyText());
+      return;
+    }
     if (native) post({ action: "settings" });
     else notice("Choose Use my ChatGPT in the Mac application to sign in through your browser. No API key is needed.");
   }
@@ -24078,7 +24088,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     else notice("Open this learning window in the Mac application to start the " + (action === "r" ? "R session" : "StatsDirect analysis") + ".");
   }
   function send() {
-    if (pending || independent()) return;
+    if (pending || independent() || settings.disabled) return;
     const text3 = $("question")?.value.trim() || state.draft.trim();
     if (!text3) return;
     if (!settings.configured) {
@@ -24381,11 +24391,22 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     settings(value) {
       const wasSigningIn = settings.signingIn;
       settings = value;
-      $("settings").textContent = value.configured ? "Tutor connection" : value.signingIn ? "Finish ChatGPT sign-in" : "Use my ChatGPT";
+      $("settings").disabled = Boolean(pending) || Boolean(value.disabled);
+      $("settings").textContent = value.disabled ? "Online tutor disabled" : value.configured ? "Tutor connection" : value.signingIn ? "Finish ChatGPT sign-in" : "Use my ChatGPT";
       if ($("tutorBadge")) $("tutorBadge").textContent = value.label;
-      if ($("send")) $("send").textContent = value.configured ? "Send" : value.signingIn ? "Finish sign-in" : "Use my ChatGPT";
-      if ($("connectionPrivacy")) $("connectionPrivacy").textContent = value.configured ? "Send shares learning context, up to 40 recent messages and requested open document content with OpenAI. Choose Lessons only to exclude documents. Avoid identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply.";
+      if ($("send")) {
+        $("send").textContent = sendLabel();
+        $("send").disabled = Boolean(pending) || Boolean(value.disabled);
+      }
+      if ($("connectionPrivacy")) $("connectionPrivacy").textContent = privacyText();
+      renderWorkspace();
       if (wasSigningIn && !value.signingIn) notice(value.configured ? "Connected to ChatGPT. Send your question when you are ready." : value.label);
+    },
+    recordSharingConsent(value) {
+      if (!loaded) throw Error("The learning record is not ready. No document context was shared.");
+      state.sharingConsents.push(value);
+      save();
+      return { state };
     },
     workspace(value) {
       workspace = value;

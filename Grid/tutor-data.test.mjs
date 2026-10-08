@@ -9,3 +9,18 @@ test('rectangular selection and column order are exact; internal blanks never sh
 test('metadata has headings and selection but no cell values',()=>{const info=tutorInfo(book(),0,{columns:[0,1]});assert.equal(info.sheets[0].columns[0].title,'Before');assert.deepEqual(info.sheets[0].selection,[0,1]);assert.equal(JSON.stringify(info).includes('312'),false);});
 test('hidden sheets, malformed arguments and oversized reads are rejected, never sampled',()=>{const w=book();for(const options of [{sheetIndex:1},{columns:'0'},{columns:[0,0]},{columns:[32]},{columns:[0,1,2],firstRow:1},{columns:[0,1,2],firstRow:2,lastRow:10000}])assert.throws(()=>tutorData(w,0,{},options));w.sheets[0].store.rows=10000;assert.throws(()=>tutorData(w,0,{}, {columns:[0,1],lastRow:3000}),/not been sampled/);assert.throws(()=>tutorData(w,0,{rows:[1,3]}),/continuous/);});
 test('formula caches and Excel errors are exposed for native engine validation',()=>{const w=book(),s=w.sheets[0].store;s.setLoaded([{col:0,row:1,text:s.get(0,1),kind:'number',formula:'SUM(A3:A4)'}]);s.formulasStale=true;assert.equal(tutorData(w,0,{columns:[0,1]}).hasStaleFormulas,true);s.formulasStale=false;s.setLoaded([{col:0,row:1,text:'',kind:'blank',formula:'SUM(A3:A4)'}]);assert.equal(tutorData(w,0,{columns:[0,1]}).hasStaleFormulas,true);s.setLoaded([{col:1,row:1,text:'#DIV/0!',kind:'error'}]);assert.equal(tutorData(w,0,{columns:[0,1]}).hasErrors,true);});
+
+test('identifier headings are withheld and their values cannot be read, including beyond the metadata preview',()=>{
+ const w=book(),s=w.sheets[0].store;
+ for(const heading of ['Name','date_of_birth','PatientID','NHS number','Post code','Hospital no.','free-text notes']){
+  s.apply([[2,0,heading],[2,1,'SYNTHETIC-IDENTIFIER']]);
+  const info=tutorInfo(w,0,{});
+  assert.equal(info.sheets[0].columns[2].withheld,true);
+  assert.equal(info.sheets[0].columns[2].title,'[Withheld: possible identifier]');
+  for(const selection of [{},{columns:[2]}])assert.throws(()=>tutorData(w,0,selection,{firstRow:2,lastRow:2}),/cannot be shared/);
+  assert.throws(()=>tutorData(w,0,{}, {columns:[0,2],firstRow:2,lastRow:2}),/cannot be shared/);
+  assert.equal(tutorData(w,0,{}, {columns:[0,1]}).rowCount,9);
+ }
+ s.growColumns(140);s.apply([[139,0,'DOB'],[139,1,'SYNTHETIC-IDENTIFIER']]);
+ assert.throws(()=>tutorData(w,0,{}, {columns:[139],firstRow:2,lastRow:2}),/cannot be shared/);
+});

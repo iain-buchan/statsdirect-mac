@@ -38,7 +38,8 @@ final class Document {
     var learningTask: Task<Void, Never>?
     var learningResourceTask: Task<Void, Never>?
     var learningRequestID: String?
-    var learningSourceID = UserDefaults.standard.bool(forKey:"learningLessonsOnly") ? "__none__" : ""
+    // Sharing is deliberately not restored across learning windows or app launches.
+    var learningSourceID = "__none__"
     var learningContextRevision = 0
     var learningState: [String: Any]?
     var initialLearningView: String?

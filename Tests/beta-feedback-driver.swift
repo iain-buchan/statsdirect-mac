@@ -12,6 +12,8 @@ import PDFKit
    do {
     if CommandLine.arguments.contains("--groups-only") {
      try await GroupIdentifierTests.run(viewer)
+    } else if CommandLine.arguments.contains("--privacy-only") {
+     try await LearningWorkspaceTests.run(viewer)
     } else {
     try await LearningWorkspaceTests.run(viewer)
     try await ProviderLearningTests.run(viewer)
@@ -205,6 +207,7 @@ import PDFKit
   let grid=v.documents.first{$0.kind=="grid" && $0.workbookName=="test.xlsx"}!,learn=v.documents.first{$0.kind=="learn"}!
   learn.learningSourceID=grid.id;learn.learningRequestID="live-feedback"
   let workspace=LearningWorkspace(v,learn,"live-feedback")
+  try await workspace.authorize()
   let overview=String(decoding:try JSONSerialization.data(withJSONObject:await workspace.overview()),as:UTF8.self)
   var calls:[String]=[],partials=0
   let reply=try await tutor.converse(context:"Fictional bundled teaching example, no patient identifiers. Current learner: advanced biostatistical skills, comfortable coding in R. Use appropriate equations and R code. Workspace: "+overview,messages:[["role":"user","text":"Read the two PEFR columns in test.xlsx, use the StatsDirect engine to run a paired t test with an agreement plot, and report the number of complete pairs and mean before-minus-after difference. Give the equivalent R paired t.test code using those actual values. Use the app tools and do not substitute illustrative data."]],tools:TutorTools.definitions,progress:{_ in partials += 1},toolHandler:{name,args in calls.append(name);return try await workspace.call(name,args)})

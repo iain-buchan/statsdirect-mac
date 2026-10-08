@@ -1,5 +1,12 @@
 import Foundation
 
+/// Deploy as a forced managed preference to prevent learners overriding institutional policy.
+enum TutorPolicy {
+    static var disabled: Bool { UserDefaults.standard.bool(forKey:"DisableOnlineTutor") }
+    static let message = "The online tutor is disabled by this Mac's learning policy. Local lessons, practice questions, help and R examples remain available."
+    static func check() throws { if disabled { throw ChatGPTTutor.Failure(message:message) } }
+}
+
 /// A private app-server process owns OAuth and refresh tokens. The web view only sees status/text.
 @MainActor
 final class ChatGPTTutor {
@@ -37,6 +44,7 @@ final class ChatGPTTutor {
     let extraArguments: [String]
     var diagnostic: DiagnosticHandler?
     private let writer = DispatchQueue(label:"com.statsdirect.tutor-writer")
+    private var policyObserver: NSObjectProtocol?
     private var process: Process?
     private var input: FileHandle?
     private var output: FileHandle?
@@ -56,7 +64,14 @@ final class ChatGPTTutor {
 
     init(executable: URL, storage: URL, resources: URL, extraArguments: [String] = []) {
         self.executable = executable; self.storage = storage; self.resources = resources; self.extraArguments = extraArguments
+        policyObserver = NotificationCenter.default.addObserver(forName:UserDefaults.didChangeNotification,object:nil,queue:.main) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, TutorPolicy.disabled else { return }
+                self.shutdown(message:TutorPolicy.message)
+            }
+        }
     }
+    deinit { if let policyObserver { NotificationCenter.default.removeObserver(policyObserver) } }
     static func bundled() -> ChatGPTTutor {
         let bundle = Bundle.main
         let folder = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
@@ -64,12 +79,14 @@ final class ChatGPTTutor {
         return ChatGPTTutor(executable:bundle.resourceURL!.appendingPathComponent("TutorRuntime/bin/codex-app-server"),storage:folder,resources:bundle.resourceURL!.appendingPathComponent("Content/Tutor"))
     }
     private func ensureStarted() async throws {
+        try TutorPolicy.check()
         if let startup { return try await startup.value }
         let task = Task { @MainActor in try await self.launch() }
         startup = task
         do { try await task.value } catch { startup = nil; throw error }
     }
     private func launch() async throws {
+        try TutorPolicy.check()
         guard FileManager.default.isExecutableFile(atPath:executable.path) else { throw Failure(message:"The ChatGPT connection component is missing. Install the latest StatsDirect build.") }
         let workspace = storage.appendingPathComponent("Workspace")
         try FileManager.default.createDirectory(at:workspace,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
@@ -111,11 +128,12 @@ final class ChatGPTTutor {
         } catch { shutdown(message:"The ChatGPT connection could not start. Reopen Tutor connection to try again."); throw error }
     }
     private func write(_ message: [String:Any]) throws {
+        try TutorPolicy.check()
         guard let input, process?.isRunning == true else { throw Failure(message:"ChatGPT is disconnected. Choose Use my ChatGPT to reconnect.") }
         var data = try JSONSerialization.data(withJSONObject:message); data.append(10)
         let bytes = data, current = generation
         writer.async { [weak self] in
-            do { try input.write(contentsOf:bytes) }
+            do { try TutorPolicy.check(); try input.write(contentsOf:bytes) }
             catch { DispatchQueue.main.async { guard let self, self.generation == current else { return }; self.shutdown(message:"ChatGPT disconnected while sending the question. Reconnect and try again.") } }
         }
     }
@@ -137,6 +155,7 @@ final class ChatGPTTutor {
     }
     private func receive(_ chunk: Data, generation current: UUID) {
         guard current == generation else { return }
+        if TutorPolicy.disabled { shutdown(message:TutorPolicy.message); return }
         buffer.append(chunk)
         guard buffer.count <= 8_000_000 else { shutdown(message:"The ChatGPT connection returned too much data. Reconnect to try again."); return }
         while let end = buffer.firstIndex(of:10) {

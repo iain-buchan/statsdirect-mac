@@ -13,11 +13,13 @@ const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let state=newPortfolio(),loaded=false,settings={configured:false,service:'',label:'Not connected'},pending=null,revision=0,feedback=null,reviewApproved=false,coursePack=null;
 let streamedText='',streamTimer=null;
-let workspace={choice:"",choices:[],label:"Open documents are available to the tutor"};
+let workspace={choice:"__none__",choices:[],label:"Lessons only · open documents are not shared"};
 const native=Boolean(window.webkit?.messageHandlers?.statsDirectLearn);
 const post=body=>window.webkit?.messageHandlers?.statsDirectLearn?.postMessage(body);
 const allLessons=()=>[...lessons,...courseLessons(coursePack)];
 const lesson=()=>allLessons().find(x=>x.id===state.lesson)??lessons[0];
+const privacyText=()=>settings.disabled?'The online tutor is disabled by this Mac’s learning policy. Local lessons, practice, help and R examples remain available.':settings.configured?'Send shares learning context and up to 40 recent messages with OpenAI. Document sharing requires confirmation for each question. Earlier shared content can remain in the conversation. Do not include person identifiers.':'Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account’s Codex access and usage allowance apply.';
+const sendLabel=()=>settings.disabled?'Online tutor disabled':settings.configured?'Send':settings.signingIn?'Finish sign-in':'Use my ChatGPT';
 const independent=()=>state.quiz?.mode==='test'&&!state.quiz.completedAt;
 const notice=text=>{ $('notice').textContent=text;$('notice').hidden=!text; };
 function save(){if(!loaded)return;state.updatedAt=new Date().toISOString();revision++;reviewApproved=false;$('saveStatus').textContent='Saving…';if(native)post({action:'save',state,revision});else{try{localStorage.setItem('statsdirect-learning-preview',JSON.stringify(state));$('saveStatus').textContent='Saved in this browser';}catch{$('saveStatus').textContent='Not saved — export before closing';}}}
@@ -35,12 +37,12 @@ function render(){
   $('practiceNav').classList.toggle('current',state.view==='practice');$('practiceNav').disabled=Boolean(pending);$('recordNav').classList.toggle('current',state.view==='record');
   $('sourcesNav').classList.toggle('current',state.view==='sources');$('sourcesNav').disabled=independent();
   $('practiceNav').querySelector('span').textContent=state.quiz?.questionIds.length??(courseQuestions(coursePack).length||questions.filter(q=>q.track===state.profile||q.track==='core').length);
-  $('options').disabled=independent()||Boolean(pending);$('settings').disabled=Boolean(pending);
+  $('options').disabled=independent()||Boolean(pending);$('settings').disabled=Boolean(pending)||Boolean(settings.disabled);
   if(state.view==='options')renderOptions();else if(state.view==='sources')renderSources();else if(state.view==='practice')renderPractice();else if(state.view==='record')renderRecord();else renderStudy();
 }
 const bodyHTML=richText;
 function renderStudy(){const l=lesson();if(ensureLessonPrompt(state,allLessons()))save();
-  $('main').innerHTML=`<section class="intro"><div class="eyebrow">${esc(l.topic)}</div><h1>${esc(l.title)}</h1></section><div class="actions">${l.operation?'<button class="primary" data-action="example">Try in StatsDirect</button>':''}${l.r?'<button data-action="r">Explore in R</button>':''}${l.help?'<button class="link-button" data-action="help">Read help ↗</button>':''}</div><details class="lesson-guide"><summary>Lesson guide and worked example</summary>${lessonGuideHTML(l,allLessons(),esc,safeURL)}</details>${courseWorkHTML(state,l)}<section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><button id="focusConversation" class="link-button">${state.conversationFocus?'Show lesson controls':'Expand conversation'}</button><span id="tutorBadge" class="badge">${esc(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending?'disabled':''}>${esc(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${settings.configured?'Send shares learning context, up to 40 recent messages and requested open document content with OpenAI. Choose Lessons only to exclude documents. Avoid identifiers.':'Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account’s Codex access and usage allowance apply.'}</small><button id="send" class="primary" ${pending?'disabled':''}>${settings.configured?'Send':settings.signingIn?'Finish sign-in':'Use my ChatGPT'}</button>${pending?'<button id="stop">Stop</button>':''}</div><p class="small" id="chatStatus" role="status">${pending?'The tutor is thinking…':''}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
+  $('main').innerHTML=`<section class="intro"><div class="eyebrow">${esc(l.topic)}</div><h1>${esc(l.title)}</h1></section><div class="actions">${l.operation?'<button class="primary" data-action="example">Try in StatsDirect</button>':''}${l.r?'<button data-action="r">Explore in R</button>':''}${l.help?'<button class="link-button" data-action="help">Read help ↗</button>':''}</div><details class="lesson-guide"><summary>Lesson guide and worked example</summary>${lessonGuideHTML(l,allLessons(),esc,safeURL)}</details>${courseWorkHTML(state,l)}<section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><button id="focusConversation" class="link-button">${state.conversationFocus?'Show lesson controls':'Expand conversation'}</button><span id="tutorBadge" class="badge">${esc(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending?'disabled':''}>${esc(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${esc(privacyText())}</small><button id="send" class="primary" ${pending||settings.disabled?'disabled':''}>${esc(sendLabel())}</button>${pending?'<button id="stop">Stop</button>':''}</div><p class="small" id="chatStatus" role="status">${pending?'The tutor is thinking…':''}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
   $('messages').innerHTML=lessonConversation(state).map(c=>{
     const guide=guidePresentation(c,l);
     const content=`<div class="message-body">${bodyHTML(c.text)}</div>${c.courseSources?.length?`<div class="small context-used">Lesson context supplied: ${c.courseSources.map(s=>safeURL(s.url)?`<a href="${esc(safeURL(s.url))}" target="_blank" rel="noopener">${esc(s.title)}</a>`:esc(s.title)).join('; ')}</div>`:''}${c.workspaceSources?.length?`<div class="small context-used">Used: ${c.workspaceSources.map(esc).join('; ')}</div>`:''}`;
@@ -81,15 +83,15 @@ function refreshEvidenceChoices(){
 }
 function renderWorkspace(){
   const element=$('workspaceContext');if(!element)return;
-  element.innerHTML=`<label for="workspaceChoice">Tutor context</label><div class="workspace-controls"><select id="workspaceChoice" ${pending||independent()?'disabled':''}><option value="">Follow my active document</option><option value="__none__">Lessons only</option>${workspace.choices.map(d=>`<option value="${esc(d.id)}">${esc(d.title)}</option>`).join('')}</select><button id="refreshWorkspace" class="link-button" ${pending?'disabled':''}>Refresh</button></div><small id="workspaceLabel" role="status" title="${esc(workspace.label)}">${esc(workspace.label)}</small>`;
+  element.innerHTML=`<label for="workspaceChoice">Tutor context</label><div class="workspace-controls"><select id="workspaceChoice" ${pending||independent()||settings.disabled?'disabled':''}><option value="__none__">Lessons only · no documents</option><option value="">All open documents · focus active</option>${workspace.choices.map(d=>`<option value="${esc(d.id)}">${esc(d.title)}</option>`).join('')}</select><button id="refreshWorkspace" class="link-button" ${pending?'disabled':''}>Refresh</button></div><small id="workspaceLabel" role="status" title="${esc(workspace.label)}">${esc(workspace.label)}</small>`;
   $('workspaceChoice').value=workspace.choice;
   $('workspaceChoice').onchange=()=>post({action:'workspace',choice:$('workspaceChoice').value});
   $('refreshWorkspace').onclick=()=>post({action:'workspace'});
 }
-function configure(){if(native)post({action:'settings'});else notice('Choose Use my ChatGPT in the Mac application to sign in through your browser. No API key is needed.');}
+function configure(){if(settings.disabled){notice(privacyText());return;}if(native)post({action:'settings'});else notice('Choose Use my ChatGPT in the Mac application to sign in through your browser. No API key is needed.');}
 function openActivity(action){if(independent())return;teachingSupport();const l=lesson();activity(`${action==='r'?'Opened bundled R example':action==='help'?'Opened help':'Opened StatsDirect analysis'}: ${l.title}`);if(native)post({action,lesson:l.id});else if(action==='help')window.open('../Help/'+l.help,'_blank');else notice('Open this learning window in the Mac application to start the '+(action==='r'?'R session':'StatsDirect analysis')+'.');}
 function send(){
-  if(pending||independent())return;
+  if(pending||independent()||settings.disabled)return;
   const text=$('question')?.value.trim()||state.draft.trim();if(!text)return;
   if(!settings.configured){configure();return;}
   teachingSupport();
@@ -164,12 +166,18 @@ window.statsDirectLearn={
   loadError(message){loaded=false;document.body.classList.remove('study-mode');$('workspaceContext').hidden=true;$('main').innerHTML='<h1>The learning record needs attention</h1><p id="loadError"></p>';$('loadError').textContent=message;notice('The existing record has not been overwritten.');},
   settings(value){
     const wasSigningIn=settings.signingIn;settings=value;
-    $('settings').textContent=value.configured?'Tutor connection':value.signingIn?'Finish ChatGPT sign-in':'Use my ChatGPT';
+    $('settings').disabled=Boolean(pending)||Boolean(value.disabled);
+    $('settings').textContent=value.disabled?'Online tutor disabled':value.configured?'Tutor connection':value.signingIn?'Finish ChatGPT sign-in':'Use my ChatGPT';
     // Account events must not replace a textarea or a partly answered practice form.
     if($('tutorBadge'))$('tutorBadge').textContent=value.label;
-    if($('send'))$('send').textContent=value.configured?'Send':value.signingIn?'Finish sign-in':'Use my ChatGPT';
-    if($('connectionPrivacy'))$('connectionPrivacy').textContent=value.configured?'Send shares learning context, up to 40 recent messages and requested open document content with OpenAI. Choose Lessons only to exclude documents. Avoid identifiers.':'Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account’s Codex access and usage allowance apply.';
+    if($('send')){$('send').textContent=sendLabel();$('send').disabled=Boolean(pending)||Boolean(value.disabled);}
+    if($('connectionPrivacy'))$('connectionPrivacy').textContent=privacyText();
+    renderWorkspace();
     if(wasSigningIn&&!value.signingIn)notice(value.configured?'Connected to ChatGPT. Send your question when you are ready.':value.label);
+  },
+  recordSharingConsent(value){
+    if(!loaded)throw Error('The learning record is not ready. No document context was shared.');
+    state.sharingConsents.push(value);save();return {state};
   },
   workspace(value){workspace=value;renderWorkspace();refreshEvidenceChoices();},
   partial(value){if(value.id!==pending)return;streamedText=value.text;if(!streamTimer)streamTimer=setTimeout(()=>{streamTimer=null;renderStream();},80);},

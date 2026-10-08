@@ -95,8 +95,14 @@ try:
     nested_long = s.run('TwoWayNested', {'layout2d': 'identifiers', 'data2d': long_input(nest_values, nest_groups, nest_subs, titles=('score', 'group', 'sub'))})
     same_numbers(nested_wide, nested_long, 'nested two-way ANOVA from group and sub-group identifiers')
     assert 'group_alpha (sub_p)' in nested_long['html'], nested_long['html'][:500]
+    # Subgroup labels need not be reused in different parents. This valid nested design
+    # previously created null holes in the frame and the engine refused the data.
+    distinct_subs = ['east'] * 3 + ['west'] * 3 + ['north'] * 3 + ['south'] * 3
+    nested_distinct = s.run('TwoWayNested', {'layout2d': 'identifiers', 'data2d': long_input(nest_values, nest_groups, distinct_subs)})
+    same_numbers(nested_wide, nested_distinct, 'nested ANOVA with distinct subgroups in each parent')
+
     wide_parent, _ = chain('TwoWayNested', {'Group 1: one column per subgroup': columns([1, 2, 3], [2, 3, 5]), 'Group 2: one column per subgroup': columns([4, 5, 7], [6, 7, 9])})
-    long_parent, _ = chain('TwoWayNested', {'layout2d': 'identifiers', 'data2d': long_input(nest_values, nest_groups, nest_subs, titles=('score', 'group', 'sub'))})
+    long_parent, _ = chain('TwoWayNested', {'layout2d': 'identifiers', 'data2d': long_input(nest_values, nest_groups, distinct_subs, titles=('score', 'group', 'sub'))})
     means_wide_id, means_wide = chain('TwoWayNestedMeans', {}, parent=wide_parent)
     means_long_id, means_long = chain('TwoWayNestedMeans', {}, parent=long_parent)
     same_numbers(means_wide, means_long, 'nested two-way means as a follow-on from identifiers')

@@ -79,6 +79,8 @@ for line in sys.stdin:
             assert 'Example training provider' in context
             assert 'disabled-source-must-not-leak' not in context
             assert 'private-learner-identity' not in context
+            overview=json.loads(context.split('CURRENT STATSDIRECT WORKSPACE (metadata, not cell values):\n',1)[1].split('\nMETHOD CATALOGUE:',1)[0])
+            assert overview['documents'] == [] and overview['focusedDocumentId'] == ''
         if 'CANCEL_TEST' in text: time.sleep(.5)
         if 'DISCONNECT_TEST' in text: os._exit(0)
         # Unrelated events must never appear in the learner's reply.

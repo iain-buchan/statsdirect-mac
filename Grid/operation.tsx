@@ -17,7 +17,7 @@ const empty:GridSelection={columns:CompactSelection.empty(),rows:CompactSelectio
 const pendingColumns=new Map<string,{resolve:(v:any)=>void,reject:(e:Error)=>void}>();let columnToken=0;
 const fetchColumns=(request:any)=>new Promise<any>((resolve,reject)=>{const token=String(++columnToken);pendingColumns.set(token,{resolve,reject});native('columns',{token,...request});});
 const resolveInput=(v:any)=>v?.lazy?fetchColumns(v.request).then((data:any)=>worksheetInputFrom(v,data)):Promise.resolve(v);
-function DataInput({p,source,onChange,initial}:{p:any,source:any,onChange:(v:any)=>void,initial:any}) {
+function DataInput({p,source,onChange,initial,onChooseColumns}:{p:any,source:any,onChange:(v:any)=>void,initial:any,onChooseColumns:()=>void}) {
   // A rejected long-data answer comes back as `initial` with its worksheet columns and roles, so the same choices are shown again for correction.
   const longInitial=initial?.layout==='long'&&source?.lazy&&Array.isArray(initial.range?.columns)?initial:undefined;
   const [useSheet,setUseSheet]=useState(!!source && !p.screen && (!initial||!!longInitial)),[selected,setSelected]=useState<number[]>(()=>source?.selection?.slice(0,p.maxColumns)??[]);
@@ -64,12 +64,13 @@ function DataInput({p,source,onChange,initial}:{p:any,source:any,onChange:(v:any
   useEffect(()=>{setCell(store.get(c,r));},[r,c,table,revision]);
   useEffect(()=>{const observer=new ResizeObserver(([e])=>setWidth(Math.floor(e.contentRect.width)));if(container.current)observer.observe(container.current);return()=>observer.disconnect();},[useSheet]);
   useEffect(()=>{
-    onChange(()=> useSheet ? worksheetInput(source,selected,Number(first),Number(last),longLayout) : table.input());
+    onChange(()=> longOnly&&!longLayout ? {layout:"columns"} : useSheet ? worksheetInput(source,selected,Number(first),Number(last),longLayout) : table.input());
   },[useSheet,source,selected,first,last,table,revision,byIdentifier,dataCol,idCols,blockCol]);
   const apply=(change:()=>void)=>{try{if(loading)return;change();table.error='';setError('');refresh(n=>n+1);}catch(e){setError((e as Error).message);}};
   const paste=(text:string)=>apply(()=>table.paste(text,c,r));
   useEffect(()=>{window.statsDirectOperation.pasteText=paste;return()=>{delete window.statsDirectOperation.pasteText;};});
   function edit(value:string){apply(()=>store.apply([[c,r,value]]));}
+  if(longOnly&&!longLayout)return <div className="data-input"><p>This layout needs a live worksheet with a data column and group identifiers. Entered data and lesson examples use separate columns.</p><button type="button" onClick={onChooseColumns}>Use separate columns</button><button type="button" onClick={()=>{setUseSheet(true);native('refresh');}}>Refresh worksheet</button></div>;
   return <div className="data-input"><p className="hint">{p.mode?.startsWith('Text')?'Select labels or text for this step.':'Select measurements or counts for this step.'}</p>
     <div className="switch"><button type="button" className={useSheet?'chosen':''} disabled={!source} onClick={()=>setUseSheet(true)}>Worksheet columns</button><button type="button" className={!useSheet?'chosen':''} onClick={()=>setUseSheet(false)}>Enter / paste data</button><button type="button" onClick={()=>native('refresh')}>Refresh worksheet</button></div>
     {useSheet&&source?<><p className="source">{source.name} · snapshot of the last selected worksheet</p>
@@ -110,7 +111,7 @@ function Prompt({p,source,onSubmit,onCancel,initial,busy,embedded=false,register
     p.kind==='options'?<div className="choices">{p.options.map((o:any)=><label key={o.value}><input type="checkbox" checked={!!value[o.value]} onChange={e=>setValue({...value,[o.value]:e.target.checked})}/>{o.label}</label>)}</div>:
     p.kind==='option'?<div className="choices">{p.options.map((o:any)=><label key={o.value}><input type="radio" name={`choice-${p.name}`} checked={value===o.value} onChange={()=>setValue(o.value)}/>{o.label}</label>)}</div>:
     p.kind==='selectList'?<div className="choices">{p.options.map((o:any)=><label key={o.value}><input type={p.multiple?'checkbox':'radio'} name={`list-${p.name}`} checked={value.includes(Number(o.value))} onChange={e=>setValue(p.multiple?(e.target.checked?[...value,Number(o.value)]:value.filter((x:number)=>x!==Number(o.value))):[Number(o.value)])}/>{o.label}</label>)}</div>:
-    p.kind==='grid'?<DataInput p={p} source={source} initial={initial??p.initial} onChange={f=>gridValue.current=f}/>:
+    p.kind==='grid'?<DataInput onChooseColumns={()=>onSubmit({layout:"columns"})} p={p} source={source} initial={initial??p.initial} onChange={f=>gridValue.current=f}/>:
     p.kind==='fields'?<div className="fields">{p.fields.map((f:any)=><label className="field" key={f.name}>{f.label}<input type={f.kind==='text'?'text':'number'} step={f.kind==='integer'?1:'any'} value={value[f.name]??''} min={f.min??undefined} max={f.max??undefined} required={f.kind!=='text'} onChange={e=>setValue({...value,[f.name]:e.target.value})}/></label>)}</div>:
     <label className="field">{p.kind==='confidence'?(p.prompt==='Enter a value'?'Confidence level (%)':'Percentage (%)'):'Value'}<input autoFocus aria-label={p.kind==='confidence'?(p.prompt==='Enter a value'?'Confidence level (%)':'Percentage (%)'):'Value'} required={p.kind!=='text'} type={p.kind==='text'?'text':'number'} step={p.kind==='integer'?1:'any'} min={p.min??undefined} max={p.max??undefined} value={value} onChange={e=>setValue(e.target.value)}/></label>}
     {error&&<p className="error" role="alert">{error}</p>}</div>{!embedded&&<div className="actions"><button className="primary" type="submit">{p.kind==='settings'?'Save defaults':'Continue →'}</button>{p.kind==='settings'&&<button type="button" onClick={onCancel}>Cancel</button>}{p.skip&&<button type="button" onClick={()=>onSubmit({skip:true})}>{p.skip}</button>}{p.kind==='settings'&&busy&&<span role="status">Saving defaults…</span>}</div>}</fieldset></Container>;

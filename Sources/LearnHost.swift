@@ -27,7 +27,7 @@ extension Viewer {
         doc.web.evaluateJavaScript("window.statsDirectLearn?.\(action)(\(String(decoding:data,as:UTF8.self)))")
     }
     func learningSettings(_ doc: Document) {
-        learningScript(doc,"settings",["configured":chatGPTTutor.account != nil,"service":"ChatGPT","label":chatGPTTutor.status,"signingIn":chatGPTTutor.loginID != nil])
+        learningScript(doc,"settings",["configured":!TutorPolicy.disabled && chatGPTTutor.account != nil,"disabled":TutorPolicy.disabled,"service":"ChatGPT","label":TutorPolicy.disabled ? "Online tutor disabled" : chatGPTTutor.status,"signingIn":!TutorPolicy.disabled && chatGPTTutor.loginID != nil])
     }
     func handleLearning(_ message: WKScriptMessage) {
         guard message.name == "statsDirectLearn", message.frameInfo.isMainFrame,
@@ -48,7 +48,7 @@ extension Viewer {
                 learningScript(doc,"diagnostics",learningDiagnostics)
                 refreshLearningWorkspace(doc)
                 Task { @MainActor in
-                    do { try await self.chatGPTTutor.refreshAccount() }
+                    do { if !TutorPolicy.disabled { try await self.chatGPTTutor.refreshAccount() } }
                     catch { self.learningScript(doc,"notice",error.localizedDescription) }
                 }
                 coursePackInfo(doc)
@@ -58,11 +58,7 @@ extension Viewer {
             guard let state = body["state"] as? [String:Any], state["schemaVersion"] as? Int == 2,
                   let data = try? JSONSerialization.data(withJSONObject:state,options:[.prettyPrinted,.sortedKeys]), data.count <= 10_000_000 else { learningScript(doc,"notice","The learning record could not be saved. Export it before closing."); return }
             do {
-                try FileManager.default.createDirectory(at:learningFolder,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
-                let url = learningFolder.appendingPathComponent("portfolio.json")
-                try data.write(to:url,options:.atomic)
-                try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:url.path)
-                doc.learningState = state
+                try persistLearningState(doc,state)
                 learningScript(doc,"saved",body["revision"] ?? 0)
             } catch { learningScript(doc,"notice","Learning record was not saved: " + error.localizedDescription) }
         case "importCoursePack": importCoursePack(doc)
@@ -71,7 +67,7 @@ extension Viewer {
         case "captureLearningEvidence": captureLearningEvidence(doc,documentID:body["documentID"] as? String ?? "")
         case "workspace":
             guard doc.learningTask == nil else { return }
-            if let choice = body["choice"] as? String, choice.isEmpty || choice == "__none__" || documents.contains(where:{$0.id == choice && $0.kind != "learn"}) { doc.learningSourceID = choice; UserDefaults.standard.set(choice == "__none__",forKey:"learningLessonsOnly") }
+            if let choice = body["choice"] as? String, choice.isEmpty || choice == "__none__" || documents.contains(where:{$0.id == choice && $0.kind != "learn"}) { doc.learningSourceID = TutorPolicy.disabled ? "__none__" : choice }
             refreshLearningWorkspace(doc)
         case "settings": configureLearningAI(doc)
         case "ask": askLearningTutor(doc,body)
@@ -96,19 +92,20 @@ extension Viewer {
         }
     }
     func configureLearningAI(_ doc: Document) {
+        guard !TutorPolicy.disabled else { learningSettings(doc); learningScript(doc,"notice",TutorPolicy.message); return }
         guard !openingTutorConnection else { return }
         openingTutorConnection = true
         Task { @MainActor in
             defer { self.openingTutorConnection = false }
-            do { try await self.chatGPTTutor.refreshAccount() }
+            do { if !TutorPolicy.disabled { try await self.chatGPTTutor.refreshAccount() } }
             catch { self.learningScript(doc,"notice",error.localizedDescription); return }
-            guard self.documents.contains(where:{$0 === doc}) else { return }
+            guard self.documents.contains(where:{$0 === doc}), !TutorPolicy.disabled else { return }
             let tutor = self.chatGPTTutor
             let alert = NSAlert()
             if let account = tutor.account {
                 alert.messageText = "Connected to ChatGPT"
                 let identity = account.email.isEmpty ? "Your ChatGPT account" : account.email
-                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\nYour tutor uses this account's Codex access and usage allowance. Each Send shares your question, recent learning conversation, learning options and relevant course excerpts with OpenAI. The tutor can read the open StatsDirect worksheets, reports, help and R output shown in Learning and request engine calculations. Choose Lessons only to exclude open documents.\n\nSigning out here leaves your local learning record and your other apps unchanged."
+                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\nYour tutor uses this account's Codex access and usage allowance. Each Send shares your question, recent learning conversation, learning options and relevant course excerpts with OpenAI. Document sharing starts off. If you select document context, each question asks you to confirm that the listed documents contain no person identifiers before any names, headings or content are sent. The tutor can then read those documents and request engine calculations.\n\nSigning out here leaves your local learning record and your other apps unchanged."
                 alert.addButton(withTitle:"Done"); alert.addButton(withTitle:"Sign Out")
                 alert.beginSheetModal(for:self.window) { response in
                     if response == .alertSecondButtonReturn {
@@ -128,7 +125,7 @@ extension Viewer {
                 }
             } else {
                 alert.messageText = "Use my ChatGPT"
-                alert.informativeText = "Sign in with your own ChatGPT account in your browser. No API key is needed.\n\nThe tutor uses the Codex access and usage allowance included with your account, subject to your plan and workspace settings. It teaches inside StatsDirect; your existing ChatGPT chats are not imported.\n\nWhen you press Send, your question, recent learning conversation, learning options, relevant course excerpts and the application context shown in Learning are shared with OpenAI. Choose Lessons only to exclude open documents."
+                alert.informativeText = "Sign in with your own ChatGPT account in your browser. No API key is needed.\n\nThe tutor uses the Codex access and usage allowance included with your account, subject to your plan and workspace settings. It teaches inside StatsDirect; your existing ChatGPT chats are not imported.\n\nWhen you press Send, your question, recent learning conversation, learning options and relevant course excerpts are shared with OpenAI. Open documents are excluded unless you choose document context and confirm sharing for that question. Do not include person identifiers in questions, conversations or course packs."
                 alert.addButton(withTitle:"Use my ChatGPT"); alert.addButton(withTitle:"Not Now")
                 alert.beginSheetModal(for:self.window) { response in
                     guard response == .alertFirstButtonReturn else { return }
@@ -147,6 +144,7 @@ extension Viewer {
         guard doc.learningTask == nil, let id = body["id"] as? String else { return }
         func failure(_ message: String) { learningScript(doc,"tutorError",["id":id,"message":message]) }
         if let quiz = doc.learningState?["quiz"] as? [String:Any], quiz["mode"] as? String == "test", quiz["completedAt"] is NSNull { failure("Finish or end the independent practice before asking the tutor."); return }
+        guard !TutorPolicy.disabled else { failure(TutorPolicy.message); learningSettings(doc); return }
         guard chatGPTTutor.account != nil else { failure("Choose Use my ChatGPT to connect your account, then send your question."); return }
         guard let lessonID = body["lesson"] as? String, let lesson = (learningLessons + providerLessons).first(where:{$0["id"] as? String == lessonID}),
               let messages = body["messages"] as? [[String:String]], let profile = body["profile"] as? String, let stage = body["stage"] as? String else { return }
@@ -207,10 +205,12 @@ extension Viewer {
             defer { self.chatGPTTutor.diagnostic = nil; if doc.learningRequestID == id { doc.learningTask = nil; doc.learningRequestID = nil; self.refreshLearningWorkspace(doc) } }
             do {
                 let workspace = LearningWorkspace(self,doc,id)
+                try await workspace.authorize()
                 let overview = try await workspace.overview()
                 let metadata = String(decoding:try JSONSerialization.data(withJSONObject:overview,options:[.sortedKeys]),as:UTF8.self)
                 let methods = self.analysisCatalog.keys.sorted().map { $0 + ": " + (self.analysisCatalog[$0]?["title"] as? String ?? $0) }.joined(separator:"\n")
                 let tools = TutorTools.definitions.filter { !workspace.allowed.isEmpty || ["statsdirect_method_help","statsdirect_workspace"].contains($0["name"] as? String ?? "") }
+                try workspace.check()
                 let result = try await self.chatGPTTutor.converse(context:"COURSE, LESSON AND LEARNING CONTEXT (separate from open data):\n" + context + "\nCURRENT STATSDIRECT WORKSPACE (metadata, not cell values):\n" + String(metadata.prefix(6000)) + "\nMETHOD CATALOGUE:\n" + methods,messages:messages,tools:tools,progress:{ [weak self,weak doc] text in
                     guard let self,let doc,doc.learningRequestID==id else { return }
                     self.learningScript(doc,"partial",["id":id,"text":text])

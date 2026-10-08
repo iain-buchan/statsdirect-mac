@@ -60,3 +60,12 @@ test('worksheet provenance survives portfolio restore and text export',()=>{
   assert.match(reviewText(reviewRecord(restored)),/StatsDirect context: test.xlsx/);
   const bad=JSON.parse(JSON.stringify(state));bad.conversation[0].workspaceSources='invalid';assert.throws(()=>restorePortfolio(bad));
 });
+
+test('sharing confirmations persist in the learning record and exports; old portfolios default to none',()=>{
+ const p=newPortfolio();delete p.sharingConsents;
+ assert.deepEqual(restorePortfolio(p).sharingConsents,[]);
+ const c={id:'consent',at:'2026-10-08T12:00:00Z',requestID:'question',policyVersion:'document-sharing-v1',noPersonIdentifiers:true,statement:'I checked that these documents contain no person identifiers.',documents:[{id:'grid',title:'Synthetic data',kind:'grid',version:3}]};
+ p.sharingConsents=[c];const restored=restorePortfolio(JSON.parse(JSON.stringify(p))),record=reviewRecord(restored);
+ assert.deepEqual(record.sharingConsents,[c]);assert.match(reviewText(record),/DOCUMENT SHARING CONFIRMATIONS/);assert.match(reviewText(record),/Synthetic data \(grid\) · revision 3/);
+ for(const bad of [{...c,noPersonIdentifiers:false},{...c,documents:[{title:'incomplete'}]}])assert.throws(()=>restorePortfolio({...p,sharingConsents:[bad]}),/sharing confirmations/);
+});

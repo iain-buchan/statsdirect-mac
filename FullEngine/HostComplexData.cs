@@ -110,8 +110,12 @@ internal static class HostComplexData {
                         var values = new List<double>();
                         for (int j = 0; j < rows; j++) if (gid[j] == g && sgid[j] == sg) values.Add(at(j));
                         if (values.Count == 0) continue;   // jagged sources end without every sub-group
-                        result.EnsureVariablesJagged(g + 1, sg + 1);
-                        result.Variables[g][sg] = new DoubleVariable(values.ToArray(), gTitle + "_" + gcat[g] + " (" + sTitle + "_" + sgcat[sg] + ")");
+                        // Subgroups are nested within their parent, not crossed with every group.
+                        // Global label indices leave null holes when parents have distinct labels;
+                        // the core correctly counts those holes as an invalid subgroup layout.
+                        int localSub = g < result.Variables.Count ? result.Variables[g].Count : 0;
+                        result.EnsureVariablesJagged(g + 1, localSub + 1);
+                        result.Variables[g][localSub] = new DoubleVariable(values.ToArray(), gTitle + "_" + gcat[g] + " (" + sTitle + "_" + sgcat[sg] + ")");
                     }
                 } else {
                     result.EnsureVariablesSquare(sgcat.Count, gcat.Count);
@@ -133,7 +137,7 @@ internal static class HostComplexData {
                 foreach (var property in input.EnumerateObject()) if (property.Name is "source" or "range" or "preserveRows" or "layout" or "roles") record[property.Name] = property.Value.Clone();
                 record["identifiers"] = new[] { gTitle }; record["blocks"] = new[] { sTitle };
                 record["columns"] = new object[] { new { title = data.Title, values = Enumerable.Range(0, data.Length).Select(r => data.Data[r] == Constant.MISSING ? (object)"*" : data.Data[r]).ToArray() },
-                    new { title = gTitle, values = (object)groups[0].values }, new { title = sTitle, values = (object)subgroups[0].values } };
+                    new { title = gTitle, mode = "GroupIdentifiers", values = (object)groups[0].values }, new { title = sTitle, mode = "GroupIdentifiers", values = (object)subgroups[0].values } };
                 job.Record(title, record, p.Name, "grid", "NumericReplaceMissing"); return result;
             } catch (ArgumentException ex) { error = ex.Message; }
         }

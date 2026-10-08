@@ -34,17 +34,17 @@ import Foundation
         precondition(reply.text == "Analyse within-person differences." && reply.model == "fixture-model")
         let tools = [["type":"function","name":"statsdirect_read_data","description":"Read selected cells","inputSchema":["type":"object","properties":["documentId":["type":"string"]],"required":["documentId"],"additionalProperties":false]]] as [[String:Any]]
         var calls = 0
-        let toolReply = try await tutor.converse(context:"",messages:[["role":"user","text":"TOOL_TEST"]],tools:tools) { name,args in
+        let toolReply = try await tutor.converse(context:"",messages:[["role":"user","text":"TOOL_TEST"]],tools:tools,toolHandler: { name,args in
             calls += 1; precondition(name == "statsdirect_read_data" && args["documentId"] as? String == "worksheet")
             try await Task.sleep(nanoseconds:100_000_000); return ["rows":9]
-        }
+        })
         precondition(calls == 1 && toolReply.text == "Tool returned nine actual rows.")
         var startedTool = false, cancelledTool = false
-        let stopTool = Task { try await tutor.converse(context:"",messages:[["role":"user","text":"TOOL_CANCEL"]],tools:tools) { _,_ in
+        let stopTool = Task { try await tutor.converse(context:"",messages:[["role":"user","text":"TOOL_CANCEL"]],tools:tools,toolHandler: { _,_ in
             startedTool = true
             do { try await Task.sleep(nanoseconds:5_000_000_000) } catch { cancelledTool = true; throw error }
             fatalError("Cancelled tool continued")
-        } }
+        }) }
         for _ in 0..<50 where !startedTool { try await Task.sleep(nanoseconds:20_000_000) }
         precondition(startedTool); stopTool.cancel()
         do { _ = try await stopTool.value; fatalError("Tool cancellation ignored") } catch is CancellationError {}

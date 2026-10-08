@@ -6,7 +6,10 @@ import WebKit
     unowned let viewer: Viewer
     weak var learner: Document?
     let requestID: String
-    let allowed: Set<String>
+    private(set) var allowed: Set<String> = []
+    private let candidates: [Document]
+    private let versions: [String:Int]
+    private var choice: String
     let sourceID: String?
     var datasets: [String:(document:String, version:Int, value:[String:Any])] = [:]
     var results: [String:[String:Any]] = [:]
@@ -14,16 +17,40 @@ import WebKit
     var calculationBusy = false
     init(_ viewer: Viewer, _ learner: Document, _ requestID: String) {
         self.viewer = viewer; self.learner = learner; self.requestID = requestID
-        allowed = learner.learningSourceID == "__none__" ? [] : Set(viewer.documents.filter{$0.kind != "learn"}.map(\.id))
+        let selected = learner.learningSourceID
+        choice = selected
+        candidates = TutorPolicy.disabled || selected == "__none__" ? [] : viewer.documents.filter{$0.kind != "learn" && (selected.isEmpty || $0.id == selected)}
+        versions = Dictionary(uniqueKeysWithValues:candidates.map{($0.id,$0.gridVersion)})
         sourceID = learner.learningSourceID.isEmpty ? viewer.learningLastDocumentID : learner.learningSourceID
     }
+    func authorize(confirm: (([Document]) async -> LearningSharingDecision)? = nil) async throws {
+        try check()
+        guard !candidates.isEmpty, allowed.isEmpty else { return }
+        let decision = if let confirm { await confirm(candidates) } else { await viewer.confirmLearningSharing(candidates) }
+        try check()
+        switch decision {
+        case .cancel: throw ChatGPTTutor.Failure(message:"Document sharing cancelled. No question or document context was sent.")
+        case .lessonsOnly:
+            choice = "__none__"; learner?.learningSourceID = choice
+        case .share:
+            for doc in candidates {
+                guard viewer.documents.contains(where:{$0 === doc}), doc.gridVersion == versions[doc.id] else { throw ChatGPTTutor.Failure(message:"A document changed while you reviewed sharing. Send again to review the current documents.") }
+            }
+            guard let learner else { throw CancellationError() }
+            try await viewer.recordLearningSharing(learner,requestID,candidates)
+            try check()
+            allowed = Set(candidates.map(\.id))
+        }
+    }
     func check() throws {
+        try TutorPolicy.check()
         try Task.checkCancellation()
-        guard let learner, viewer.documents.contains(where:{$0 === learner}), learner.learningRequestID == requestID else { throw CancellationError() }
+        guard let learner, viewer.documents.contains(where:{$0 === learner}), learner.learningRequestID == requestID, learner.learningSourceID == choice else { throw CancellationError() }
     }
     func document(_ id: String) throws -> Document {
         try check()
         guard allowed.contains(id), let doc = viewer.documents.first(where:{$0.id == id}) else { throw ChatGPTTutor.Failure(message:"That document is no longer available to this question. Use the current workspace list.") }
+        guard doc.kind != "grid" || doc.gridVersion == versions[id] else { throw ChatGPTTutor.Failure(message:"The worksheet changed after sharing was confirmed. Send a new question to review its current contents.") }
         return doc
     }
     func remember(_ text: String) { if !sources.contains(text) { sources.append(text) } }
@@ -31,6 +58,7 @@ import WebKit
         try check()
         var rows: [[String:Any]] = []
         for doc in viewer.documents where allowed.contains(doc.id) {
+            _ = try document(doc.id)
             var row: [String:Any] = ["documentId":doc.id,"title":doc.title,"kind":doc.kind,"focused":doc.id == sourceID]
             if let operation = doc.operationName { row["operation"] = operation }
             if doc.kind == "grid" {
@@ -40,7 +68,7 @@ import WebKit
             rows.append(row)
         }
         try check()
-        return ["documents":rows,"focusedDocumentId":sourceID ?? "","sharing":allowed.isEmpty ? "Lessons only: no application documents are available." : "Open StatsDirect documents only. Read values using their IDs. Bundled lesson data are separate from open worksheets."]
+        return ["documents":rows,"focusedDocumentId":allowed.contains(sourceID ?? "") ? sourceID! : "","sharing":allowed.isEmpty ? "Lessons only: no application documents are available." : "Only the listed documents were confirmed for this question. Read values using their IDs. Bundled lesson data are separate from open worksheets."]
     }
     func call(_ name: String, _ arguments: [String:Any]) async throws -> [String:Any] {
         try check()
@@ -151,12 +179,15 @@ extension Viewer {
         let source = documents.first(where:{$0.id == sourceID})
         let choices = documents.filter{$0.kind != "learn"}.map{["id":$0.id,"title":$0.title,"kind":$0.kind]}
         Task { @MainActor in
-            var label = doc.learningSourceID == "__none__" ? "Lessons only · open documents are not shared" : source.map{"Using: " + $0.title} ?? "No document selected · open documents are available to the tutor"
-            if let source, source.kind == "grid", doc.learningSourceID != "__none__" {
+            var label = TutorPolicy.disabled ? "Online tutor disabled · local learning is available" : doc.learningSourceID == "__none__" ? "Lessons only · open documents are not shared" : doc.learningSourceID.isEmpty ? "All open documents · confirmation required when you send" : source.map{"For confirmation when you send: " + $0.title} ?? "Selected document is closed · choose another context"
+            if let source, source.kind == "grid", doc.learningSourceID != "__none__", !TutorPolicy.disabled {
                 do {
-                    let data = try await learningJavaScript(source,"window.statsDirectGrid.tutorData()")
-                    label = "Using: \(data["workbook"] ?? source.title) · \(data["sheet"] ?? "") · \(data["range"] ?? "") · \(data["rowCount"] ?? 0) rows"
-                } catch { label += " · tutor can find columns by name, or use your selection" }
+                    // A local preview needs only metadata, not an unconfirmed cell read.
+                    let info = try await learningJavaScript(source,"window.statsDirectGrid.tutorInfo()")
+                    if let sheets = info["sheets"] as? [[String:Any]], let index = info["activeSheet"] as? Int, sheets.indices.contains(index) {
+                        label += " · " + (sheets[index]["name"] as? String ?? "Worksheet")
+                    }
+                } catch { label += " · worksheet is loading" }
             }
             guard doc.learningContextRevision == revision, doc.learningTask == nil else { return }
             learningScript(doc,"workspace",["choice":doc.learningSourceID,"choices":choices,"label":label])

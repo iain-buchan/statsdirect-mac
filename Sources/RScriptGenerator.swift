@@ -106,7 +106,7 @@ enum RScriptGenerator {
             let entries = columns.enumerated().map { i, column -> (String, String) in
                 let title = column["title"] as? String ?? "Column \(i + 1)"
                 let values = column["values"] as? [Any] ?? []
-                let textMode = mode.hasPrefix("Text") || mode.hasPrefix("Category") || mode == "GroupIdentifiers" || mode == "DateReplaceMissing"
+                let textMode = column["mode"] as? String == "GroupIdentifiers" || mode.hasPrefix("Text") || mode.hasPrefix("Category") || mode == "GroupIdentifiers" || mode == "DateReplaceMissing"
                 let allNumeric = values.allSatisfy { value in
                     if value is NSNull { return true }
                     let t = String(describing: value).trimmingCharacters(in: .whitespacesAndNewlines)

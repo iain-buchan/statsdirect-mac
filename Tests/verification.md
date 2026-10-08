@@ -1,3 +1,55 @@
+# Two-dimensional grouping and tutor privacy — 8 October 2026
+
+Integrated GitHub main `871e6ee` and independently checked nested and replicated two-way
+ANOVA in long and wide layouts. Found a valid nested design rejected when parent groups
+had distinct subgroup labels: global subgroup positions introduced null holes. The Mac
+host now compacts subgroups within each parent. Nested ANOVA and its means follow-on match
+the wide-layout reports, including this case. R snapshots preserve numeric-looking group
+labels as text, and entered/lesson data can return to separate-column layout without
+filling a throwaway table. No upstream engine source or submodule pin changed.
+
+Tutor safeguards now implemented:
+
+- Every Learning window starts in Lessons only, ignoring old sharing preferences.
+- Choosing one document limits access to that document; all-open-document sharing is explicit.
+- A native, unchecked confirmation is required for each question using document context,
+  before names, headings or contents can be sent. It lists the documents and asks the learner
+  to confirm they contain no person identifiers. Cancellation sends nothing; Lessons Only
+  continues without new document context.
+- Confirmation, timestamp, question ID, statement and document revisions are written to the
+  local learning record before access is granted, and retained in review/export formats.
+  Unavailable record storage prevents access. Closed/new documents and changed worksheets
+  cannot silently enter the confirmed scope.
+- Likely identifier headings are withheld from metadata and their columns cannot be read,
+  including reads beyond the 128-column metadata preview. This is a conservative backstop,
+  not anonymisation; previously shared conversation content is not removed by Lessons only.
+- `DisableOnlineTutor` prevents connection startup, sign-in, questions and tool access. A
+  detected policy change stops an active connection/reply. Local learning and practice remain
+  available. See [deployment and limits](../Docs/Learn/TutorPrivacy.md); an enforced deployment
+  requires forced macOS managed preferences, not an ordinary user-editable defaults entry.
+
+Verification: `./build.sh` (including 1,552 distribution checks), the complete `./test.sh`
+engine/R regression suite, all 82 JavaScript tests, Swift application compilation with
+`-warnings-as-errors`, local mock tutor protocol tests, and the policy startup/in-flight
+cancellation test passed. The native WKWebView suite passed confirmation and record tests,
+fail-closed checks, offline UI under policy, provider-course requests with no document
+metadata in lessons-only mode, nested grouping/fallback/R labels, report exports and clipboard,
+10,000 × 10 worksheet paste, 1,048,576-row entered summary, and 500,001 × 2 prefill.
+
+No live AI requests, Keychain authentication, email or release publication were part of
+these checks. Engine remains 5.0.14 (`b10edfefa54b`). The local app is rebuilt; a new
+versioned installer has not been published. Grouped-covariance identifier input, Apple
+Developer ID signing/notarisation and CI remain separate outstanding work. Heading checks
+and self-confirmation do not establish institutional approval for patient-level data.
+
+Focused checks: `python3 Tests/run_beta_feedback.py --privacy-only` and `--groups-only`.
+Run the standalone policy fixture with:
+
+```sh
+swiftc -warnings-as-errors Sources/ChatGPTTutor.swift Tests/tutor-policy-driver.swift -o .build/tutor-policy-test
+.build/tutor-policy-test
+```
+
 # Groups by identifier handover — 8 October 2026
 
 Incorporated `ab9a6c1` from GitHub main (handover 2), retaining the typed entry tables and

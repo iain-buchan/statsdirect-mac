@@ -1,3 +1,4 @@
+import {identifierHeading,identifierWarning} from './tutor-privacy.mjs';
 import {columnName} from './store.mjs';
 import {cellKind} from './workbook.mjs';
 import {worksheetSelection} from './operation-data.mjs';
@@ -14,7 +15,7 @@ function selectionFor(store,selection={}) {
 export function tutorInfo(workbook,sheetIndex,selection={}) {
   return {workbook:workbook.name,activeSheet:sheetIndex,sheets:workbook.sheets.map((sheet,index)=>{
     const bounds=extent(sheet.store),selected=index===sheetIndex?selectionFor(sheet.store,selection):{};
-    return {index,name:sheet.name,hidden:!!sheet.hidden,firstDataRow:sheet.store.headerRow?2:1,lastDataRow:bounds.lastRow,columnCount:bounds.columns.length,columns:bounds.columns.slice(0,128).map(c=>({index:c,letter:columnName(c),title:sheet.store.columnTitle(c)})),columnsTruncated:bounds.columns.length>128,...selected};
+    return {index,name:sheet.name,hidden:!!sheet.hidden,firstDataRow:sheet.store.headerRow?2:1,lastDataRow:bounds.lastRow,columnCount:bounds.columns.length,columns:bounds.columns.slice(0,128).map(c=>({index:c,letter:columnName(c),title:identifierHeading(sheet.store.columnTitle(c))?'[Withheld: possible identifier]':sheet.store.columnTitle(c),withheld:identifierHeading(sheet.store.columnTitle(c))})),columnsTruncated:bounds.columns.length>128,...selected};
   })};
 }
 export function tutorData(workbook,sheetIndex,selection={},options={}) {
@@ -26,6 +27,7 @@ export function tutorData(workbook,sheetIndex,selection={},options={}) {
   if(selected.noncontiguousRows&&options.firstRow===undefined)throw Error('Select one continuous row range, or specify its first and last worksheet rows.');
   const columns=options.columns??(selected.selection?.length?selected.selection:bounds.columns);
   if(!Array.isArray(columns)||!columns.length||columns.length>32||new Set(columns).size!==columns.length||columns.some(c=>!Number.isInteger(c)||c<0||c>=store.columns.length))throw Error('Choose 1–32 distinct column indexes from the worksheet metadata.');
+  if(columns.some(c=>identifierHeading(store.columnTitle(c))))throw Error(identifierWarning);
   const firstRow=options.firstRow??Math.max(store.headerRow?2:1,selected.range?.first??(store.headerRow?2:1));
   let lastRow=options.lastRow??selected.range?.last;
   if(lastRow===undefined){lastRow=firstRow-1;for(const c of columns)lastRow=Math.max(lastRow,store.columnUsedRows(c));}

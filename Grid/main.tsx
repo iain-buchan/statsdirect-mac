@@ -157,7 +157,12 @@ function App() {
       excelSnapshot: () => postSnapshot(workbook.exportColumns().sheets),
       csvData: () => store.csv(),
       csvSnapshot: () => ({text: store.csv(), canSaveDocument: !workbook.backed && workbook.sheets.length === 1 && !workbook.formulaCount && !workbook.sheets.some((s:any) => s.rColumns)}),
-      rDataSnapshot: (currentOnly: boolean) => ({tables: rDataTables(workbook, currentOnly ? sheetIndex : undefined), canSaveDocument: !workbook.backed && !workbook.formulaCount && (!currentOnly || workbook.sheets.length === 1)}),
+      // R tables: the manifest travels as JSON, the cells as a typed snapshot stored with the application.
+      rDataSnapshot: async (currentOnly: boolean) => {
+        const {tables, sheets} = rDataTables(workbook, currentOnly ? sheetIndex : undefined);
+        const stored = await postSnapshot(sheets);
+        return {id: stored.id, tables, canSaveDocument: !workbook.backed && !workbook.formulaCount && (!currentOnly || workbook.sheets.length === 1)};
+      },
       excelData: () => workbook.export(),
       // Sheets may name a snapshot file (sdsnapshot:// URL) holding their cells in typed
       // columnar form; it is fetched into typed arrays, never through JSON.

@@ -63,7 +63,8 @@ public static class WorkbookIO {
     }
 
     // ---- Typed columnar snapshot -------------------------------------------------------
-    // Little-endian. Header: "SCOL" u32, version u32 (1), sheet count u32, reserved u32.
+    // Little-endian. Header: "SCOL" u32, version u32 (1), sheet count u32, flags u32 (bit 0:
+    // an extras string group of loader metadata follows each column's formulas; skipped here).
     // Sheet: name length u32, UTF-8 name, pad to 4, column count u32. Column: index u32,
     // cell count n u32, text count u32, formula count u32, rows u32[n], kinds u8[n], pad to 8,
     // numbers f64[n], then text and formula entries (cell ordinal u32, byte length u32, UTF-8),
@@ -114,7 +115,7 @@ public static class WorkbookIO {
     public static List<SheetData> ReadSnapshot(Stream stream) {
         using var r = new BinaryReader(stream, Encoding.UTF8, true);
         if (r.ReadUInt32() != 0x4C4F4353u || r.ReadUInt32() != 1u) throw new Exception("The worksheet snapshot is not in a recognised format.");
-        int sheetCount = (int)r.ReadUInt32(); r.ReadUInt32();
+        int sheetCount = (int)r.ReadUInt32(); uint flags = r.ReadUInt32();
         void Align(int a) { while (r.BaseStream.Position % a != 0) r.ReadByte(); }
         var sheets = new List<SheetData>();
         for (int s = 0; s < sheetCount; s++) {
@@ -123,6 +124,7 @@ public static class WorkbookIO {
             for (int c = 0; c < columns; c++) {
                 var col = new ColumnData { Col = (int)r.ReadUInt32() };
                 int n = (int)r.ReadUInt32(), texts = (int)r.ReadUInt32(), formulas = (int)r.ReadUInt32();
+                int extras = (flags & 1) != 0 ? (int)r.ReadUInt32() : 0;
                 for (int i = 0; i < n; i++) col.Rows.Add((int)r.ReadUInt32());
                 col.Kinds.AddRange(r.ReadBytes(n)); Align(8);
                 for (int i = 0; i < n; i++) col.Nums.Add(r.ReadDouble());
@@ -130,6 +132,9 @@ public static class WorkbookIO {
                 Align(4);
                 for (int i = 0; i < formulas; i++) { int o = (int)r.ReadUInt32(); col.Formulas.Add(new(o, Encoding.UTF8.GetString(r.ReadBytes((int)r.ReadUInt32())))); }
                 Align(4);
+                // Loader metadata (the R data markers) has no meaning in a workbook.
+                for (int i = 0; i < extras; i++) { r.ReadUInt32(); r.ReadBytes((int)r.ReadUInt32()); }
+                if (extras > 0) Align(4);
                 sheet.Columns[col.Col] = col;
             }
             sheets.Add(sheet);

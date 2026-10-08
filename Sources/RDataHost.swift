@@ -17,15 +17,18 @@ extension Viewer {
             return
         }
         let script = root.appendingPathComponent("R/data-files.R")
+        let snapshots = SnapshotStore.shared.directory
         status.stringValue = "Opening " + url.lastPathComponent + "…"
         DispatchQueue.global(qos: .userInitiated).async {
-            let result = Result { try RDataFileIO.read(url, script: script) }
+            let result = Result { try RDataFileIO.read(url, script: script, snapshots: snapshots) }
             DispatchQueue.main.async {
                 switch result {
                 case .failure(let error): self.showError(error.localizedDescription)
-                case .success(let workbook):
+                case .success(var workbook):
                     let doc = self.newDocument(kind: "grid", title: url.lastPathComponent, url: self.root.appendingPathComponent("Grid/index.html"))
-                    doc.workbookName = url.lastPathComponent; doc.pendingWorkbook = workbook
+                    doc.workbookName = url.lastPathComponent
+                    self.stageSnapshots(in: &workbook, for: doc)
+                    doc.pendingWorkbook = workbook
                     doc.rDataFormat = url.pathExtension.lowercased() == "rds" ? "rds" : "RData"
                     self.status.stringValue = "Opened " + url.lastPathComponent
                 }
@@ -49,14 +52,20 @@ extension Viewer {
         panel.beginSheetModal(for: window) { response in
             guard response == .OK, let url = panel.url else { return }
             let version = doc.gridVersion; doc.fileBusy = true
-            doc.web.evaluateJavaScript("window.statsDirectGrid.rDataSnapshot(\(format == "rds"))") { value, error in
-                guard error == nil, let snapshot = value as? [String: Any], let tables = snapshot["tables"] as? [[String: Any]] else {
-                    doc.fileBusy = false; self.showError("The R tables could not be read. " + (error?.localizedDescription ?? "")); return
+            // The grid stores the cells as a typed snapshot and returns the table manifest.
+            doc.web.callAsyncJavaScript("return window.statsDirectGrid.rDataSnapshot(single)", arguments: ["single": format == "rds"], in: nil, in: .page) { result in
+                guard case .success(let value) = result, let snapshot = value as? [String: Any], let tables = snapshot["tables"] as? [[String: Any]],
+                      let snapshotID = snapshot["id"] as? String, let file = SnapshotStore.shared.file(for: snapshotID) else {
+                    doc.fileBusy = false
+                    if case .failure(let error) = result { self.showError("The R tables could not be read. " + self.javaScriptMessage(error)) }
+                    else { self.showError("The R tables could not be read.") }
+                    return
                 }
                 let script = self.root.appendingPathComponent("R/data-files.R")
                 DispatchQueue.global(qos: .userInitiated).async {
-                    let result = Result { try RDataFileIO.write(tables, to: url, format: format.lowercased(), script: script) }
+                    let result = Result { try RDataFileIO.write(snapshot: file, tables: tables, to: url, format: format.lowercased(), script: script) }
                     DispatchQueue.main.async {
+                        SnapshotStore.shared.forget(snapshotID)
                         doc.fileBusy = false
                         switch result {
                         case .failure(let error): self.showError(error.localizedDescription)

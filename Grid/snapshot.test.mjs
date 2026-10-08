@@ -99,3 +99,39 @@ test('analysis forms receive metadata and read columns on demand', () => {
   assert.deepEqual(records.map(c => [c.col, Array.from(c.rows), [...c.texts]]), [[0, [0, 1, 2, 3], [[0, 'Before'], [1, 'Before'], [2, '#VALUE!']]], [1, [0, 1, 2, 3], [[0, 'After'], [1, 'After']]]]);
   assert.equal(records[0].nums[3], 15);
 });
+
+test('loader extras travel with a snapshot and R tables are built from typed columns', async () => {
+  const { rDataTables } = await import('./r-data.mjs');
+  const withExtras = [{name: 'E', columns: [column(0, [0, 1, 2], [2, 0, 3], [NaN, NaN, NaN], [[0, 'x'], [2, '2024-01-02']], [], )]}];
+  withExtras[0].columns[0].extras = new Map([[1, '{"rMissing":true}'], [2, '{"rRaw":"19724"}']]);
+  const plain = encodeSnapshot([{name: 'P', columns: [column(0, [0], [1], [1])]}]);
+  assert.equal(new DataView(plain.buffer).getUint32(12, true), 0);
+  const bytes = encodeSnapshot(withExtras);
+  assert.equal(new DataView(bytes.buffer).getUint32(12, true), 1);
+  const back = decodeSnapshot(bytes).sheets[0].columns[0];
+  assert.deepEqual([...back.extras], [[1, '{"rMissing":true}'], [2, '{"rRaw":"19724"}']]);
+  assert.deepEqual([...decodeSnapshot(plain).sheets[0].columns[0].extras], []);
+  // Extras become the loaded cell's metadata, even for a blank (NA) cell.
+  const book = new WorkbookStore();
+  book.load({name: 'r.rds', formulaCount: 0, sheets: [{name: 'frame', rows: 4, columns: 2, headerRow: true, csvRows: 4, rColumns: [{type: 'character', levels: [], ordered: false, tzone: ''}, {type: 'Date', levels: [], ordered: false, tzone: ''}],
+    rObjectName: 'frame', rObjectType: 'data.frame', rRowNames: ['a', 'b', 'c'],
+    columnar: [
+      {...column(0, [0, 1, 2, 3], [2, 2, 0, 2], [NaN, NaN, NaN, NaN], [[0, 'label'], [1, 'row 1'], [3, '']]), extras: new Map([[2, '{"rMissing":true}']])},
+      {...column(1, [0, 1, 2, 3], [2, 3, 3, 3], [NaN, NaN, NaN, NaN], [[0, 'when'], [1, '2020-01-01'], [2, '2020-01-02'], [3, '2020-01-03']]), extras: new Map([[2, '{"rRaw":"18263.5"}']])}
+    ]}]});
+  const store = book.sheets[0].store;
+  assert.deepEqual(store.loaded(0, 2), {col: 0, row: 2, text: '', kind: 'blank', formula: '', rMissing: true});
+  assert.equal(store.loaded(1, 2).rRaw, '18263.5');
+  const {tables, sheets} = rDataTables(book);
+  assert.deepEqual(tables, [{name: 'frame', shape: 'data.frame', rowNames: ['a', 'b', 'c'], rowNamesType: 'character', rows: 3, columns: [
+    {name: 'label', type: 'character', levels: [], naLevel: false, ordered: false, tzone: ''}, {name: 'when', type: 'Date', levels: [], naLevel: false, ordered: false, tzone: ''}]}]);
+  const [label, when] = sheets[0].columns;
+  assert.deepEqual([Array.from(label.rows), Array.from(label.kinds), [...label.texts], [...label.extras]], [[0, 1, 2], [2, 0, 0], [[0, 'row 1']], [[1, '{"rMissing":true}']]]);
+  assert.deepEqual([Array.from(when.kinds), [...when.extras]], [[3, 3, 3], [[1, '{"rRaw":"18263.5"}']]]);
+  // An edited cell loses its R markers; numbers travel as doubles without text.
+  store.apply([[1, 2, '2021-06-30'], [0, 2, '7']]);
+  const edited = rDataTables(book).sheets[0].columns;
+  assert.deepEqual([[...edited[1].extras], edited[0].kinds[1], edited[0].nums[1], [...edited[0].texts]], [[], 1, 7, [[0, 'row 1']]]);
+  assert.equal(rDataTables(book).tables[0].columns[0].type, 'character');
+  assert.ok(decodeSnapshot(encodeSnapshot(rDataTables(book).sheets)).sheets[0].columns[1].nums.length === 3);
+});

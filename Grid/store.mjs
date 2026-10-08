@@ -298,9 +298,10 @@ export class GridStore {
           const text = b.texts.get(i) ?? '';
           if (text === '') kind = BLANK; else col.write(r, kind, NaN, text);
         }
-        const formula = b.formulas?.get(i);
+        const formula = b.formulas?.get(i), extra = b.extras?.get(i);
         if (formula) col.formula.set(r, formula);
-        else if (kind === BLANK) continue;
+        if (extra) { try { col.extra.set(r, JSON.parse(extra)); } catch { /* malformed loader metadata is ignored */ } }
+        else if (!formula && kind === BLANK) continue;
         col.setFlags(r, LOADED);
         if (r > maxRow) maxRow = r;
       }

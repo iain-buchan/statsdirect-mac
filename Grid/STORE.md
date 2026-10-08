@@ -77,8 +77,8 @@ hold, duplicate sheet names and cleanup after a failed open.)
 - `Sources/SnapshotStore.swift` serves snapshot files to pages through the `sdsnapshot://`
   scheme (GET by id) and stores a page's snapshot (POST). Opening an Excel file, saving one
   (`excelSnapshot` in `main.tsx` posts the edited cells as typed columns) and building a
-  derived worksheet from an analysis (`snapshotColumns`) all go through it, so cell data is
-  never serialised to JSON or passed through a JavaScript string.
+  derived worksheet from an analysis (`snapshotColumns`) and R data files all go through it,
+  so cell data is never serialised to JSON or passed through a JavaScript string.
 - Analysis forms receive metadata only (`analysis-source.mjs` `analysisMetadata`: column
   titles, the last used row of each column, the selection, and the highlighted rectangle for
   screen forms). When a step is submitted the form asks the application for the chosen
@@ -90,9 +90,20 @@ from and is refused if that sheet is gone or renamed; a step cannot be submitted
 its columns are being read; the ChatGPT tutor's view of a form's worksheet input is the chosen
 columns and row range (it reads cell values through the grid's own bounded tutor path).
 
+## R data files
+
+R data files (.rds, .RData) go through base R (`Content/R/data-files.R`) as before, but no
+cell is serialised one at a time any more. Opening: R writes one file per column (percent-
+escaped text lines, flag bytes, little-endian doubles) and `Sources/RDataFileIO.swift`
+turns each table into a typed snapshot file (the snapshot format gained an optional `extras`
+group, a JSON object per cell, which carries the R markers `rMissing` and `rRaw`; the engine
+skips it). Saving: `r-data.mjs` builds typed column records and a table manifest, the grid
+posts the snapshot, and the application writes R's exchange files, formatting numbers as
+JavaScript does (`Snapshot.jsNumber`, checked against Node in `Tests/test_data_files.py`).
+The 500,000-cell and 50 MB caps are gone; the Excel dimensions remain the bound. Run
+`STATSDIRECT_SCALE=1 python3 Tests/test_data_files.py …` for the 1,048,575-row round trip.
+
 ## Still to do
 
-1. R data export (`r-data.mjs`) keeps its 500,000-cell cap until the R file path is exercised
-   at scale.
-2. The values a form sends to the engine for a very large column selection still pass
+1. The values a form sends to the engine for a very large column selection still pass
    through JSON (bounded by the selection, not the sheet).

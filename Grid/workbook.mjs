@@ -44,7 +44,7 @@ export class WorkbookStore {
       }
       store.headerRow = headerRow;
       return {
-        rColumns: sheet.rColumns, rRowNames: sheet.rRowNames, rObjectName: sheet.rObjectName, rObjectType: sheet.rObjectType,
+        rColumns: sheet.rColumns, rRowNames: sheet.rRowNames, rRowNamesType: sheet.rRowNamesType, rObjectName: sheet.rObjectName, rObjectType: sheet.rObjectType,
         name: sheet.name,
         hidden: sheet.hidden,
         store

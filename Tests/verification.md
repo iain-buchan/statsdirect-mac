@@ -349,7 +349,7 @@ swiftc Sources/RInstallation.swift Tests/r-installation-test.swift -o .build/r-i
 python3 Tests/test_r_install_download.py .build/r-installation-test
 swiftc Sources/RInstallation.swift Sources/RInstaller.swift Sources/RPane.swift Sources/RScriptGenerator.swift Tests/r-pane-driver.swift -o .build/r-pane-test -framework Cocoa -framework PDFKit
 .build/r-pane-test "$PWD/Content"
-swiftc Sources/RInstallation.swift Sources/RDataFileIO.swift Sources/CSVFileIO.swift Tests/data-file-driver.swift -o .build/data-file-driver
+swiftc Sources/RInstallation.swift Sources/RDataFileIO.swift Sources/CSVFileIO.swift Sources/Snapshot.swift Tests/data-file-driver.swift -o .build/data-file-driver
 python3 Tests/test_data_files.py .build/data-file-driver /path/to/node
 ```
 

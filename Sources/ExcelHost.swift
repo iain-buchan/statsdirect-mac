@@ -62,17 +62,23 @@ extension Viewer {
                 let doc = self.newDocument(kind: "grid", title: url.lastPathComponent, url: self.root.appendingPathComponent("Grid/index.html"))
                 doc.workbookID = workbook["id"] as? String
                 doc.workbookName = url.lastPathComponent
-                workbook["sheets"] = (workbook["sheets"] as? [[String: Any]] ?? []).map { sheet -> [String: Any] in
-                    var sheet = sheet
-                    if let path = sheet["snapshot"] as? String {
-                        let id = SnapshotStore.shared.register(URL(fileURLWithPath: path)); doc.snapshotIDs.append(id)
-                        sheet["snapshot"] = SnapshotStore.shared.url(for: id)
-                    }
-                    return sheet
-                }
+                self.stageSnapshots(in: &workbook, for: doc)
                 doc.pendingWorkbook = workbook
                 self.status.stringValue = "Opened \(url.lastPathComponent)"
             }
+        }
+    }
+    // Sheets whose cells sit in a snapshot file (written by the engine or by R import) are
+    // registered with the snapshot store, which serves them to the grid by id and deletes
+    // them once the document has loaded or closes.
+    func stageSnapshots(in workbook: inout [String: Any], for doc: Document) {
+        workbook["sheets"] = (workbook["sheets"] as? [[String: Any]] ?? []).map { sheet -> [String: Any] in
+            var sheet = sheet
+            if let path = sheet["snapshot"] as? String {
+                let id = SnapshotStore.shared.register(URL(fileURLWithPath: path)); doc.snapshotIDs.append(id)
+                sheet["snapshot"] = SnapshotStore.shared.url(for: id)
+            }
+            return sheet
         }
     }
     func loadPendingWorkbook(_ doc: Document) {

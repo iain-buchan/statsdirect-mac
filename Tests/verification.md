@@ -1,3 +1,26 @@
+# Embedded entry tables and Excel host — 8 October 2026
+
+The general analysis entry forms now use the typed worksheet store, without a one-million-cell
+limit. Large selected rectangles load through the existing column bridge when the form needs
+them. Excel dimensions and method-specific restrictions remain; the separate exact r × c
+prototype retains its existing 2,500-cell restriction. The calculation engine remains 5.0.14.
+
+Verified locally:
+
+- Full engine/R regression suite, all 77 JavaScript tests and the selected 2 × 2 table → engine
+  comparison against R passed. Entry tests include 1,048,576 × 2 populated cells, 16,384 columns,
+  exact quoted text, blank-column removal, and overflow rejection without partial writes.
+- Native WKWebView integration pasted 1,048,576 alternating 1/3 observations into the actual
+  univariate summary form: n = 1,048,576, mean = 2, sum = 2,097,152. A highlighted 500,001 × 2
+  rectangle also prefilled through the application bridge. Existing workbook, tutor, report,
+  export and clipboard checks passed using the mock tutor.
+- The Excel queue's stateless FFI helper is explicitly nonisolated. Swift compilation with
+  `-warnings-as-errors`, the complete app rebuild (including 1,552 distribution checks),
+  and deep, strict local signature verification passed.
+
+The rebuilt local app contains these changes. This verification does not create a new release
+or change the published installer version.
+
 # Mac beta feedback fixes — 6 October 2026
 
 Local build 0.3.17 includes the enriched learning library and fixes described in [the feedback validation record](../Docs/Validation/Beta-0.3.17/README.md). The full engine/R regression suite and 63 JavaScript tests passed. Native checks verified options, course flows, safe Markdown/math/R rendering, per-lesson conversations, report editing, clipboard tables and all learning/report export formats. A live ChatGPT session read nine PEFR pairs from the native worksheet, ran the unchanged engine, produced an SVG agreement chart and streamed the correct result with equivalent R.

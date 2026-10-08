@@ -16,8 +16,9 @@ extension Viewer {
         }
         return (unsafeBitCast(invokeSymbol, to: WorkbookFunction.self), unsafeBitCast(freeSymbol, to: WorkbookFreeFunction.self))
     }
-    // Runs on the workbook queue.
-    private static func call(_ functions: (invoke: WorkbookFunction, free: WorkbookFreeFunction), _ json: String) throws -> [String: Any] {
+    // Runs on the serial workbook queue; uses only the supplied entry points and JSON,
+    // never Viewer's main-actor state. Resolve the library functions on the main actor first.
+    nonisolated private static func call(_ functions: (invoke: WorkbookFunction, free: WorkbookFreeFunction), _ json: String) throws -> [String: Any] {
         guard let pointer = json.withCString({ functions.invoke($0) }) else { throw NSError(domain: "StatsDirect.Excel", code: 2, userInfo: [NSLocalizedDescriptionKey: "The Excel component could not start."]) }
         let response = String(cString: pointer); functions.free(pointer)
         guard let object = try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any] else { throw CocoaError(.fileReadCorruptFile) }

@@ -6,7 +6,9 @@
 import { MAX_ROWS } from './store.mjs';
 import { worksheetSelection } from './operation-data.mjs';
 
-const SCREEN_CELLS = 1000000;
+// Inline small tables for instant forms. Larger selections are read by the entry form
+// through the same column bridge as worksheet inputs, without a cell-count limit.
+const INLINE_SCREEN_CELLS = 65536;
 
 // Last 1-based row of a column that holds a value or a formula (0 for an empty column).
 export function columnEnd(store, c) {
@@ -35,10 +37,10 @@ export function analysisMetadata(workbook, sheetIndex, selection) {
     lazy: true,
     ...chosen
   };
-  // Screen forms take the highlighted rectangle itself, so its values travel with the metadata.
+  // Only small highlighted rectangles travel with the metadata of every analysis form.
   if (chosen.range && chosen.selection.length) {
     const rows = chosen.range.last - chosen.range.first + 1;
-    if (rows * chosen.selection.length > SCREEN_CELLS) source.screenError = 'The selected table is too large for this form.';
+    if (rows * chosen.selection.length > INLINE_SCREEN_CELLS) source.screenDeferred = true;
     else {
       try {
         const data = columnValues(workbook, sheetIndex, {columns: chosen.selection, first: chosen.range.first, last: chosen.range.last});

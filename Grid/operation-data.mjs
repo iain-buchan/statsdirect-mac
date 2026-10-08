@@ -1,3 +1,4 @@
+import {MAX_ROWS, MAX_COLS} from './store.mjs';
 // Snapshot is sparse; only the chosen columns are materialised for the calculation.
 export function worksheetSelection(columns, range) {
   if (columns.length) return {selection:columns};
@@ -34,21 +35,28 @@ export function worksheetInput(source, selected, first, last) {
   })};
 }
 // Screen forms take an explicitly highlighted rectangle, never a cropped larger selection.
-export function screenSelection(source, prompt) {
+export function screenInput(source, prompt) {
   if (!prompt.screen || !source?.range || !source.selection?.length) return null;
   const {first,last}=source.range, columns=source.selection;
   const rows=last-first+1;
   if (columns.length<prompt.minColumns || columns.length>prompt.maxColumns ||
       (prompt.fixedRows && rows!==prompt.rows))
     throw new Error(`Select ${prompt.fixedRows?prompt.rows+' rows and ':''}${prompt.minColumns===prompt.maxColumns?prompt.minColumns:prompt.minColumns+'–'+prompt.maxColumns} columns in the worksheet to fill this table. The selection has not been copied.`);
-  if (rows*columns.length>1000000) throw new Error('The selected table is too large for this form.');
+  if (rows>MAX_ROWS || columns.length>MAX_COLS) throw new Error('This exceeds the Excel worksheet dimensions.');
   if (source.lazy) {
     if (source.screenError) throw new Error(source.screenError);
+    if (source.screenDeferred) return worksheetInput(source,columns,first,last);
     if (!source.screen) throw new Error('The highlighted worksheet range is not available. Refresh the worksheet.');
-    return source.screen.map(row=>row.map(v=>String(v??'')));
+    return {columns:columns.map((c,i)=>({title:source.columns[c],values:source.screen.map(row=>String(row[i]??''))}))};
   }
-  const input=worksheetInput(source,columns,first,last);
-  return Array.from({length:rows},(_,r)=>input.columns.map(c=>String(c.values[r]??'')));
+  return worksheetInput(source,columns,first,last);
+}
+// The dedicated contingency form uses small, synchronous tables.
+export function screenSelection(source, prompt) {
+  const input=screenInput(source,prompt);
+  if (!input) return null;
+  if (input.lazy) throw new Error('The selected rectangle is too large for this contingency table.');
+  return Array.from({length:input.columns[0].values.length},(_,r)=>input.columns.map(c=>String(c.values[r]??'')));
 }
 // Builds the input from the values a lazy request returned ({columns:[{title,values}], errors, uncached}).
 export function worksheetInputFrom(pending, data) {
@@ -57,25 +65,4 @@ export function worksheetInputFrom(pending, data) {
   if (data.uncached > 0) throw new Error('Recalculate and save this workbook in Excel, then reopen it before analysing formula cells.');
   const {columns, first, last} = pending.request;
   return {source:pending.source, range:{firstRow:first,lastRow:last,columns}, preserveRows:true, columns:data.columns.map(c=>({title:c.title,values:c.values.map(v=>v??'')}))};
-}
-export function initialGrid(prompt, source, initial) {
-  const titles=initial?.columns?.map(c=>c.title)??prompt.labels??Array.from({length:Math.max(1,prompt.minColumns)},(_,i)=>`Column ${i+1}`);
-  if(initial?.columns) return {titles,matrix:Array.from({length:Math.max(prompt.rows??0,initial.columns[0].values.length)},(_,r)=>initial.columns.map(c=>String(c.values[r]??''))),error:''};
-  const blank=Array.from({length:prompt.rows??12},()=>titles.map(()=>''));
-  try { const matrix=screenSelection(source,prompt); return {titles:matrix?Array.from({length:matrix[0].length},(_,i)=>titles[i]??`Column ${i+1}`):titles,matrix:matrix??blank,error:''}; }
-  catch(e) {return {titles,matrix:blank,error:e.message};}
-}
-export function enteredInput(matrix, titles, fixedRows=false) {
-  let end=matrix.length;
-  if(!fixedRows) while(end>0 && matrix[end-1].every(v=>String(v).trim()===''))end--;
-  if(!end)throw new Error('Enter data, paste a table, or choose worksheet columns.');
-  return {source:'Entered data',preserveRows:true,columns:titles.map((title,c)=>({title,values:matrix.slice(0,end).map(row=>row[c]??'')}))};
-}
-export function pasteMatrix(matrix, text, col=0, row=0, fixedRows=false, maxColumns=16384) {
-  const incoming=String(text).replace(/\r\n?/g,'\n').replace(/\n$/,'').split('\n').map(r=>r.split('\t'));
-  const rows=Math.max(matrix.length,row+incoming.length),columns=Math.max(matrix[0]?.length??1,col+Math.max(...incoming.map(r=>r.length)));
-  if(columns>maxColumns || fixedRows && rows>matrix.length) throw new Error('The pasted table is larger than this form allows.');
-  if(rows*columns>1000000)throw new Error('Use worksheet column selection for more than one million input cells.');
-  const next=Array.from({length:rows},(_,r)=>Array.from({length:columns},(_,c)=>matrix[r]?.[c]??''));
-  incoming.forEach((r,y)=>r.forEach((v,x)=>next[row+y][col+x]=v));return next;
 }

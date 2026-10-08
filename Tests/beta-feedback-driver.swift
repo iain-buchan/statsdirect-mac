@@ -16,6 +16,7 @@ import PDFKit
     viewer.newReport()
     try await ReportExportTests.run(viewer)
     try await largeGrid(viewer)
+    try await entryTables(viewer)
     if CommandLine.arguments.contains("--live") { try await live(viewer) }
     print("PASS: beta feedback native integration");fflush(stdout)
    } catch { print("FAIL:",error);fflush(stdout);exit(1) }
@@ -33,6 +34,50 @@ import PDFKit
     }
    }
   }
+ }
+ @MainActor static func entryTables(_ v:Viewer) async throws {
+  let form=v.newDocument(kind:"operation",title:"Entry table scale fixture",url:v.root.appendingPathComponent("Grid/operation.html"))
+  defer {v.remove(form)}
+  try await ProviderLearningTests.wait {form.operationReady}
+  _=try await v.learningJavaScript(form,"(()=>{const update=statsDirectOperation.update;statsDirectOperation.update=s=>{window.entryState=s;update(s);};return {ok:true};})()")
+  form.operationName="UnivariateSummary";v.startOperation(form)
+  var pasted=false
+  for _ in 0..<20 {
+   try await ProviderLearningTests.wait {(try? await v.learningJavaScript(form,"({ok:['input','complete','failed'].includes(window.entryState?.state)})"))?["ok"] as? Bool == true}
+   let state=try await v.learningJavaScript(form,"({state:entryState.state,token:entryState.token??0,kind:entryState.prompt?.kind??'',error:entryState.prompt?.error??entryState.error??''})")
+   if state["state"] as? String=="complete" {break}
+   guard state["state"] as? String=="input",state["error"] as? String=="" else {throw ChatGPTTutor.Failure(message:"Entry table analysis failed: \(state)")}
+   if state["kind"] as? String=="grid" {
+    guard !pasted else {throw ChatGPTTutor.Failure(message:"Unexpected second data prompt")}
+    _=try await v.learningJavaScript(form,"({ok:(Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Enter / paste data').click(),true)})")
+    try await ProviderLearningTests.wait {(try? await v.learningJavaScript(form,"({ok:!!document.querySelector('.grid-tools')})"))?["ok"] as? Bool == true}
+    let timing=try await v.learningJavaScript(form,#"(()=>{const t=performance.now();statsDirectOperation.pasteText('1\n3\n'.repeat(524288));return {milliseconds:performance.now()-t};})()"#)
+    try await ProviderLearningTests.wait {(try? await v.learningJavaScript(form,"({ok:document.querySelector('.grid-tools').textContent.includes('1048576 rows')})"))?["ok"] as? Bool == true}
+    print("Native embedded full-column paste ms:",timing["milliseconds"]!);fflush(stdout)
+    pasted=true
+   }
+   let token=state["token"]!
+   _=try await v.learningJavaScript(form,"({ok:(document.querySelector('form').requestSubmit(),true)})")
+   try await ProviderLearningTests.wait {(try? await v.learningJavaScript(form,"({ok:entryState.state!=='input'||entryState.token!==\(token)})"))?["ok"] as? Bool == true}
+  }
+  try await ProviderLearningTests.wait {form.completedJobID != nil}
+  let summary=try await v.learningJavaScript(form,"(()=>{const d=document.createElement('div');d.innerHTML=entryState.html;return Object.fromEntries(Array.from(d.querySelectorAll('tr')).map(r=>[r.cells[0].textContent,r.cells[1].textContent]));})()")
+  precondition(pasted && summary["Valid data"] as? String=="1048576" && summary["Mean"] as? String=="2" && summary["Sum"] as? String=="2097152")
+  print("PASS: native embedded 1,048,576-row paste → original univariate summary engine; exact n, mean and sum")
+
+  let grid=v.newDocument(kind:"grid",title:"Large selected table fixture",url:v.root.appendingPathComponent("Grid/index.html"))
+  defer {v.remove(grid)}
+  try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:!!window.statsDirectGrid})"))?["ok"] as? Bool == true}
+  _=try await asyncJavaScript(grid,"await statsDirectGrid.loadWorkbook({name:'Counts',sheets:[{name:'Counts',columns:2,rows:500001,headerRow:false,cells:[{col:0,row:0,text:'12',kind:'number'},{col:1,row:500000,text:'17',kind:'number'}]}]});return {ok:true};")
+  _=try await v.learningJavaScript(grid,"({ok:statsDirectGrid.editCommand('selectAll','')})")
+  try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:!!statsDirectGrid.analysisSource().screenDeferred})"))?["ok"] as? Bool == true}
+  form.operationSourceID=grid.id
+  v.refreshOperationSource(form)
+  _=try await v.learningJavaScript(form,"({ok:(statsDirectOperation.update({state:'input',token:'fixture',prompt:{kind:'grid',screen:true,minColumns:2,maxColumns:2,rows:12,prompt:'Selected table'}}),true)})")
+  try await ProviderLearningTests.wait {(try? await v.learningJavaScript(form,"({ok:document.querySelector('.grid-tools')?.textContent.includes('500001 rows × 2 columns')&&!document.querySelector('[aria-busy=true]')})"))?["ok"] as? Bool == true}
+  let selected=try await v.learningJavaScript(form,"({first:document.querySelector('[aria-label=\"Selected data cell\"]').value,errors:Array.from(document.querySelectorAll('[role=alert]')).map(e=>e.textContent)})")
+  precondition(selected["first"] as? String=="12" && (selected["errors"] as? [String])?.isEmpty==true)
+  print("PASS: native highlighted 500,001 × 2 rectangle preloads through the worksheet column bridge")
  }
  @MainActor static func largeGrid(_ v:Viewer) async throws {
   let grid=v.newDocument(kind:"grid",title:"Large paste fixture",url:v.root.appendingPathComponent("Grid/index.html"))

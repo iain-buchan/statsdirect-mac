@@ -6,11 +6,11 @@ from test_menu import Session
 ROOT=Path(__file__).resolve().parents[1]
 node=os.environ.get('NODE','node')
 payload=subprocess.check_output([node,'--input-type=module','-e','''
-import {initialGrid,enteredInput} from './Grid/operation-data.mjs';
+import {EntryTable} from './Grid/entry-table.mjs';
 const source={name:'Selected C5:D6',firstRow:1,rows:20,columns:['A','B','C','D'],selection:[2,3],range:{first:5,last:6},cells:[{col:0,row:0,text:'999'},{col:2,row:4,text:'12'},{col:3,row:4,text:'3'},{col:2,row:5,text:'8'},{col:3,row:5,text:'17'}]};
 const prompt={screen:true,rows:2,fixedRows:true,minColumns:2,maxColumns:2,labels:['Present','Absent']};
-const g=initialGrid(prompt,source);
-console.log(JSON.stringify(enteredInput(g.matrix,g.titles,true)));
+const g=new EntryTable(prompt,source);
+console.log(JSON.stringify(g.input()));
 '''],cwd=ROOT,text=True)
 s=Session()
 try:

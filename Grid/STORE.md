@@ -80,8 +80,9 @@ hold, duplicate sheet names and cleanup after a failed open.)
   derived worksheet from an analysis (`snapshotColumns`) and R data files all go through it,
   so cell data is never serialised to JSON or passed through a JavaScript string.
 - Analysis forms receive metadata only (`analysis-source.mjs` `analysisMetadata`: column
-  titles, the last used row of each column, the selection, and the highlighted rectangle for
-  screen forms). When a step is submitted the form asks the application for the chosen
+  titles, the last used row of each column, the selection, and small highlighted rectangles).
+  Rectangles above 65,536 cells are deferred until a screen form needs them; this is a
+  transfer optimisation, not an input limit. When a step is submitted the form asks for chosen
   columns (`columnValues`), which match `FullEngine/HostParameters.cs` `ReadFrame`'s
   `{columns: [{title, values}]}`. A lesson's fictional data still travels with `cells`.
 
@@ -89,6 +90,24 @@ Reviewed behaviour worth knowing: a form's lazy request names the sheet its meta
 from and is refused if that sheet is gone or renamed; a step cannot be submitted twice while
 its columns are being read; the ChatGPT tutor's view of a form's worksheet input is the chosen
 columns and row range (it reads cell values through the grid's own bounded tutor path).
+
+## Embedded entry tables
+
+`entry-table.mjs` uses the same typed store for the analysis forms. There is no one-million-cell
+limit on entry or selected-range prefill. Excel's row and column dimensions and each method's
+requirements still apply (for example, a 2 × 2 table requires exactly four cells). A paste is
+validated before any values change, including quoted tabs/newlines and fixed-table bounds.
+Editing a cell changes its column storage; it does not clone the whole table. Column arrays
+are built when submitting an answer to the engine. The separate exact r × c prototype's
+existing 2,500-cell restriction remains.
+
+`Grid/entry-table.test.mjs` exercises a 1,048,576 × 2 populated table, all 16,384 columns,
+large selected ranges, exact text and atomic rejection at the bounds. The native integration
+suite (`Tests/run_beta_feedback.py`) pastes 1,048,576 observations into a real analysis form
+and verifies the engine's count, mean and sum; it also prefills a 500,001 × 2 highlighted
+rectangle through the worksheet bridge. The Excel queue helper is explicitly nonisolated:
+it uses supplied function pointers and JSON, while library lookup and completion remain on
+the main actor. The Swift host builds with `-warnings-as-errors`.
 
 ## R data files
 

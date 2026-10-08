@@ -48,14 +48,15 @@ public static class OperationSessions {
                     if (!inCatalog && !suggested) throw new Exception("Unknown menu command.");
                     if (inCatalog && definition.TryGetProperty("unavailable", out var unavailable)) throw new Exception(unavailable.GetString());
                     if (!TemplateFactory.Operations.TryGetValue(r.Operation, out var operation)) throw new Exception("The operation definition could not be loaded.");
-                    if (operation.HasPrerequisites) {
+                    // Windows runs any operation its suggestion list offers; prerequisites only guard a direct start.
+                    if (!suggested && operation.HasPrerequisites) {
                         var ran = context != null && context.ContainsKey(OperationJob.MemoryName) ? context[OperationJob.MemoryName].AsStringList : new List<string>();
                         if (!operation.PrerequisiteOperationNames.Any(ran.Contains)) {
                             var names = operation.PrerequisiteOperationNames.Select(n => TemplateFactory.Operations.TryGetValue(n, out var p) ? p.FriendlyName ?? n : n);
                             throw new Exception($"{operation.FriendlyName ?? operation.Name} follows on from {string.Join(" or ", names)}. Run that analysis first, then choose this method from its follow-on list.");
                         }
                     }
-                    var job = new OperationJob(r.Id, operation, r.Preferences, context, r.Parent); jobs[r.Id] = job;
+                    var job = new OperationJob(r.Id, operation, r.Preferences, context, r.Parent, parent?.HistorySnapshot()); jobs[r.Id] = job;
                     Task.Factory.StartNew(job.Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
                     result = job.Snapshot();
                 }
@@ -92,8 +93,10 @@ internal sealed class OperationJob {
     string progress = "Starting analysis…";
     double? fraction;
     object frames, outputs, analysisOptions, suggestions;
-    sealed record InputRecord(string Title, object Value, string Name = null, string Kind = null, string Mode = null);
+    internal sealed record InputRecord(string Title, object Value, string Name = null, string Kind = null, string Mode = null);
     readonly List<InputRecord> history = new();
+    // A follow-on's report and R script list the parent's inputs before its own.
+    public List<InputRecord> HistorySnapshot() { lock (sync) return history.ToList(); }
     // Windows keeps the names of the operations run on a set of parameters under this key.
     public const string MemoryName = "statsdirect-operation-list";
     readonly ParameterBag startContext; readonly string parentId;
@@ -101,7 +104,10 @@ internal sealed class OperationJob {
     // The inputs a follow-on starts from (set when the operation completes) and the operations suggested from the result.
     public ParameterBag FollowOnContext { get; private set; }
     public IReadOnlyCollection<string> SuggestionNames => suggestionNames;
-    public OperationJob(string id, Operation operation, JsonElement preferences, ParameterBag context = null, string parent = null) { Id = id; Operation = operation; SavedPreferences = preferences; startContext = context; parentId = parent; }
+    public OperationJob(string id, Operation operation, JsonElement preferences, ParameterBag context = null, string parent = null, List<InputRecord> inherited = null) {
+        Id = id; Operation = operation; SavedPreferences = preferences; startContext = context; parentId = parent;
+        if (inherited != null) history.AddRange(inherited);
+    }
     public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, suggestions, parent = parentId, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray() }; }
     static void NoteOperation(ParameterBag bag, string name) {
         if (!bag.ContainsKey(MemoryName)) bag.AddInput(MemoryName, new List<string>());

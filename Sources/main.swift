@@ -28,6 +28,7 @@ final class Document {
     var analysisCancelled = false
     var operationName: String?
     var parentJobID: String?
+    var parentDocumentID: String?
     var completedJobID: String?
     var followOnDefinition: [String: Any]?
     var operationReady = false

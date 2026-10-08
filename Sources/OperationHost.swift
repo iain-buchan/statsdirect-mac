@@ -77,7 +77,16 @@ extension Viewer {
         let id = UUID().uuidString; doc.analysisJobID = id; doc.analysisCancelled = false; doc.operationStarting = true
         operationScript(doc, "update", ["state": "running", "progress": "Opening input form…"])
         var request: [String: Any] = ["action": "start", "id": id, "operation": operation]
-        if let parent = doc.parentJobID { request["parent"] = parent }
+        // A follow-on runs on the parent form's current result, which the parent may have replaced since.
+        if let parentDocument = doc.parentDocumentID {
+            if let parentJob = documents.first(where: { $0.id == parentDocument })?.completedJobID { doc.parentJobID = parentJob; request["parent"] = parentJob }
+            else if analysisCatalog[operation] != nil { doc.parentJobID = nil }
+            else {
+                doc.analysisJobID = nil; doc.operationStarting = false
+                operationScript(doc, "update", ["state": "failed", "error": "The analysis this follows on from is no longer open. Run it again, then choose this method from its result.", "history": []])
+                return
+            }
+        }
         if let defaults = UserDefaults.standard.dictionary(forKey: "analysisDefaults") { request["preferences"] = defaults }
         operationRequest(request, doc: doc, id: id)
     }
@@ -107,7 +116,7 @@ extension Viewer {
         if definition["help"] == nil, let inherited = methodHelpPath(parent) { definition["help"] = inherited }
         let doc = newDocument(kind: "operation", title: nextAnalysisTitle(definition["title"] as? String ?? title), url: root.appendingPathComponent("Grid/operation.html"))
         doc.operationName = operation; doc.operationSourceID = parent.operationSourceID
-        doc.parentJobID = parentJob; doc.followOnDefinition = definition
+        doc.parentJobID = parentJob; doc.parentDocumentID = parent.id; doc.followOnDefinition = definition
     }
     func operationScript(_ doc: Document, _ method: String, _ object: Any) {
         guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.fragmentsAllowed]) else { return }
@@ -153,7 +162,12 @@ extension Viewer {
             switch result {
             case .failure(let error):
                 self.operationError(doc, error.localizedDescription)
-                if starting { doc.analysisJobID = nil; if doc.operationClosing { self.remove(doc) } }
+                if starting {
+                    doc.analysisJobID = nil
+                    // The form was told the run had started; give it a terminal state so it offers Run again.
+                    self.operationScript(doc, "update", ["state": "failed", "error": error.localizedDescription, "history": []])
+                    if doc.operationClosing { self.remove(doc) }
+                }
             case .success(let output):
                 if starting && doc.operationClosing { self.operationRequest(["action": "cancel", "id": id], doc: doc, id: id); return }
                 self.operationScript(doc, "update", output)

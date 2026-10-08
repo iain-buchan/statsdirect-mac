@@ -10,8 +10,8 @@ export function rDataTables(workbook, currentSheet) {
     if (size > 500000) throw new Error('R data files support at most 500,000 cells in this prototype.');
     const columns = store.columns.map((_, c) => {
       const values = Array.from({length: Math.max(0, end - start)}, (_, i) => {
-        const r = i + start, text = store.get(c, r), original = store.metadata.get(`${c},${r}`);
-        if (original?.formula && (store.formulasStale || text === '')) throw new Error('Recalculate formula results in Excel before saving this table as R data.');
+        const r = i + start, text = store.get(c, r), original = store.loaded(c, r);
+        if (store.formula(c, r) && (store.formulasStale || text === '')) throw new Error('Recalculate formula results in Excel before saving this table as R data.');
         return {text, kind: cellKind(store, c, r), missing: original?.text === text && original?.rMissing === true,
           raw: original?.text === text ? original?.rRaw ?? '' : ''};
       });

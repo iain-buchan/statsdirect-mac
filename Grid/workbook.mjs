@@ -1,18 +1,7 @@
-import { GridStore, columnName, numeric } from './store.mjs';
+import { GridStore, columnName } from './store.mjs';
+// The kind rules live in the store now; this wrapper keeps the old call sites working.
 export function cellKind(store, c, r) {
-  const text = store.get(c, r),
-    original = store.metadata.get(`${c},${r}`);
-  if (original?.text === text) return original.kind;
-  if (text === '') return 'blank';
-  // Preserve explicitly typed identifiers such as "0012", even after editing.
-  if (original?.kind === 'text') return 'text';
-  if (original?.kind === 'datetime' && /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/.test(text)) return 'datetime';
-  if (original?.kind === 'timespan' && /^-?(?:\d+\.)?\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)) return 'timespan';
-  if (original?.kind === 'boolean' && /^(true|false)$/i.test(text)) return 'boolean';
-  try {
-    if (numeric(text) !== null && !/^[+-]?0\d/.test(text.trim())) return 'number';
-  } catch {}
-  return 'text';
+  return store.kind(c, r);
 }
 export class WorkbookStore {
   constructor(example) {
@@ -27,6 +16,8 @@ export class WorkbookStore {
     this.edited = false;
     if (!example) this.load({name: 'Untitled', formulaCount: 0, sheets: [{name: 'Sheet 1', columns: 8, rows: 100, headerRow: false, cells: []}]});
   }
+  // A sheet carries either `cells` ({col,row,text,kind,formula,...}) or per-column `batches`
+  // ({col, rows, nums, texts}) with a `kindOf(text)` function, as produced by the CSV loader.
   load(workbook) {
     const sheets = workbook.sheets.map(sheet => {
       const store = new GridStore();
@@ -36,13 +27,19 @@ export class WorkbookStore {
       store.rows = Math.max(100, sheet.rows);
       store.excelRows = true;
       store.csvRows = sheet.csvRows ?? 0;
-      for (const cell of sheet.cells) {
-        const key = `${cell.col},${cell.row}`;
-        if (cell.text !== '') store.cells.set(key, cell.text);
-        store.metadata.set(key, cell);
+      if (sheet.batches) store.setLoadedBatches(sheet.batches, sheet.kindOf ?? (() => 'text'));
+      else store.setLoaded(sheet.cells);
+      let headerRow = sheet.headerRow;
+      if (headerRow === undefined) {
+        let any = false, all = true;
+        for (let c = 0; c < store.columns.length; c++) {
+          if (store.get(c, 0) === '') continue;
+          any = true;
+          if (store.kind(c, 0) !== 'text' || store.formula(c, 0)) all = false;
+        }
+        headerRow = any && all;
       }
-      const first = sheet.cells.filter(c => c.row === 0 && c.text !== '');
-      store.headerRow = sheet.headerRow ?? (first.length > 0 && first.every(c => c.kind === 'text' && !c.formula));
+      store.headerRow = headerRow;
       return {
         rColumns: sheet.rColumns, rRowNames: sheet.rRowNames, rObjectName: sheet.rObjectName, rObjectType: sheet.rObjectType,
         name: sheet.name,
@@ -76,18 +73,25 @@ export class WorkbookStore {
           text,
           kind: 'text'
         }));
-        for (const key of new Set([...store.cells.keys(), ...store.metadata.keys()])) {
-          const [col, row] = key.split(',').map(Number),
-            text = store.get(col, row);
-          const original = store.metadata.get(key);
-          if (this.imported && this.backed && (original?.text ?? '') === text) continue;
-          cells.push({
-            col,
-            row: this.imported ? row : row + 1,
-            text,
-            kind: cellKind(store, col, row)
+        const push = (col, row, text) => cells.push({
+          col,
+          row: this.imported ? row : row + 1,
+          text,
+          kind: store.kind(col, row)
+        });
+        if (this.imported && this.backed) {
+          // Only what differs from the file: loaded cells edited since loading (including
+          // those now blank), then cells that were never in the file.
+          for (const [key, original] of store.originals) {
+            const [col, row] = key.split(',').map(Number), text = store.get(col, row);
+            if (text !== original.text) push(col, row, text);
+          }
+          store.forEachCell((col, row, text) => {
+            if (text !== '' && !store.loaded(col, row)) push(col, row, text);
           });
-        }
+        } else store.forEachCell((col, row, text) => {
+          if (text !== '') push(col, row, text);
+        });
         return {
           name,
           cells

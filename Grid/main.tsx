@@ -73,7 +73,7 @@ function App() {
   const getCell = useCallback(([c, r]: Item): GridCell => {
     const raw = store.get(c, r);
     const n = cellKind(store, c, r) === 'number' ? Number(raw) : NaN;
-    const formula = !!store.metadata.get(`${c},${r}`)?.formula;
+    const formula = !!store.formula(c, r);
     return Number.isFinite(n) ? {
       kind: GridCellKind.Number,
       data: n,
@@ -143,7 +143,8 @@ function App() {
       tutorInfo: () => tutorInfo(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
       tutorData: (options: any = {}) => tutorData(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range},options),
       analysisSource: () => {
-        const cells = [...new Set([...store.cells.keys(), ...store.metadata.keys()])].map(key=>{const [col,row]=key.split(',').map(Number);return {...store.metadata.get(key),col,row,text:store.get(col,row),kind:cellKind(store,col,row)};});
+        const cells: any[] = [];
+        store.forEachCell((col: number, row: number, text: string, kind: string, formula: string) => { cells.push({...(store.loaded(col, row) ?? {}), col, row, text, kind, formula}); });
         const usedRows = cells.filter(cell=>cell.text!=='').reduce((m,cell)=>Math.max(m,cell.row+1),store.headerRow?2:1);
         return {name:workbook.name+' / '+workbook.sheets[sheetIndex].name,columns:store.columns.map((_:string,c:number)=>store.columnTitle(c)),cells,firstRow:store.headerRow?2:1,rows:Math.max(usedRows,selectionRef.current.current?.range.y+selectionRef.current.current?.range.height||0),formulasStale:store.formulasStale,...worksheetSelection(selectionRef.current.columns.toArray(),selectionRef.current.current?.range)};
       },
@@ -210,10 +211,10 @@ function App() {
   <div className="tools">
    <button onClick={() => attempt(() => {
         if (store.undo()) changed();
-      })} disabled={!store.undoStack.length}>Undo</button>
+      })} disabled={!store.canUndo}>Undo</button>
    <button onClick={() => attempt(() => {
         if (store.redo()) changed();
-      })} disabled={!store.redoStack.length}>Redo</button>
+      })} disabled={!store.canRedo}>Redo</button>
    <button onClick={() => attempt(() => native('copy', {
         text: copy()
       }))}>Copy</button>
@@ -236,7 +237,7 @@ function App() {
         setWidths({});
         setMessage(sheet.name + (sheet.hidden ? " (hidden in Excel)" : ""));
       }}>{sheet.name}{sheet.hidden ? " (hidden)" : ""}</button>)}</div>}
-  <div className="formula"><label htmlFor="cellValue">{current ? columnName(current[0]) + (current[1] + 1) : 'Cell'}</label><input id="cellValue" aria-label="Selected cell value" placeholder="Select a cell, then edit its value here or double-click the cell" disabled={!current || !!store.metadata.get(`${current[0]},${current[1]}`)?.formula} value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => {
+  <div className="formula"><label htmlFor="cellValue">{current ? columnName(current[0]) + (current[1] + 1) : 'Cell'}</label><input id="cellValue" aria-label="Selected cell value" placeholder="Select a cell, then edit its value here or double-click the cell" disabled={!current || !!store.formula(current[0], current[1])} value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => {
         const movement = cellMovement(e);
         if (movement && current) {
           e.preventDefault();
@@ -246,7 +247,7 @@ function App() {
             selectAdjacentCell(current, movement, store.columns.length, store.rows, setSelection, grid.current);
           });
         }
-      }} /><span>{current && store.metadata.get(`${current[0]},${current[1]}`)?.formula ? "Formula: " + store.metadata.get(`${current[0]},${current[1]}`).formula : "↵ to save and move down"}</span></div>
+      }} /><span>{current && store.formula(current[0], current[1]) ? "Formula: " + store.formula(current[0], current[1]) : "↵ to save and move down"}</span></div>
   <div className="canvas" ref={container}><DataEditor ref={grid} provideEditor={arrowKeyEditor} trapFocus width={containerSize.width} height={containerSize.height} columns={store.columns.map((title: string, c: number) => ({
         id: String(c),
         title: store.headerRow ? columnName(c) + ' · ' + store.columnTitle(c) : columnName(c),
@@ -294,7 +295,7 @@ function App() {
           store.headerRow = e.target.checked;
           refresh(n => n + 1);
         }} />First row has column names</label><span>Choose a method from Analysis to analyse these data.</span></div>
-  <footer><span role="status">{message}</span><span>{store.rows.toLocaleString()} rows × {store.columns.length} columns · {store.cells.size} filled cells</span></footer>
+  <footer><span role="status">{message}</span><span>{store.rows.toLocaleString()} rows × {store.columns.length} columns · {store.count().toLocaleString()} filled cells</span></footer>
   {workbook.formulaCount > 0 && <p className="formula-note">{workbook.formulaCount} formula cells show results from the last Excel save and are read-only. Formulas are retained on export and recalculate in Excel. {workbook.edited ? "After editing, reopen the recalculated file before analysing formula cells." : ""}</p>}
 
  </main>;

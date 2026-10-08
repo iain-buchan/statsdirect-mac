@@ -1,5 +1,6 @@
+import { fileURLToPath } from 'node:url';
 import {build} from '../Grid/node_modules/esbuild/lib/main.js';
-await build({entryPoints:[new URL('./app.mjs',import.meta.url).pathname],bundle:true,format:'iife',target:'safari17',outfile:new URL('../Content/Learn/app.js',import.meta.url).pathname});
+await build({entryPoints:[fileURLToPath(new URL('./app.mjs',import.meta.url))],bundle:true,format:'iife',target:'safari17',outfile:fileURLToPath(new URL('../Content/Learn/app.js',import.meta.url))});
 const {cp,readFile,writeFile,mkdir}=await import('node:fs/promises');
 await mkdir(new URL('../Content/Learn/katex/',import.meta.url),{recursive:true});
 for(const file of ['katex.min.css','fonts'])await cp(new URL('./node_modules/katex/dist/'+file,import.meta.url),new URL('../Content/Learn/katex/'+file,import.meta.url),{recursive:true});

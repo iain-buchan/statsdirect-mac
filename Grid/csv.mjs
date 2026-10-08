@@ -1,6 +1,7 @@
 import { MAX_ROWS, MAX_COLS, numeric } from './store.mjs';
 
-export const MAX_CSV_FIELDS = 500000;
+// Bounded by Excel's worksheet dimensions; the row and column limits are checked as well.
+export const MAX_CSV_FIELDS = MAX_ROWS * MAX_COLS;
 // CSV is data: preserve field text exactly, including whitespace, newlines,
 // identifiers and strings beginning with '='. Never evaluate imported text.
 export function parseCSV(input, maxFields = MAX_CSV_FIELDS) {
@@ -52,12 +53,16 @@ function csvKind(text) {
 export function csvWorkbook(text, name) {
   const rows = parseCSV(text);
   const columns = rows.reduce((n, row) => Math.max(n, row.length), 1);
-  // The grid is rectangular. Bound the padded shape as well as input fields.
-  if (rows.length * columns > MAX_CSV_FIELDS) throw new Error('The CSV’s rectangular table exceeds 500,000 cells.');
-  const cells = [];
+  // Per-column batches: numbers are parsed once here and stored as doubles by the grid.
+  const batches = new Map();
   rows.forEach((row, r) => row.forEach((text, c) => {
-    if (text !== '') cells.push({ col: c, row: r, text, kind: csvKind(text) });
+    if (text === '') return;
+    let b = batches.get(c);
+    if (!b) batches.set(c, b = {col: c, rows: [], nums: [], texts: new Map()});
+    b.rows.push(r);
+    b.nums.push(NaN);
+    b.texts.set(b.rows.length - 1, text);
   }));
   const sheetName = name.replace(/\.csv$/i, '').replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31) || 'Data';
-  return {name, formulaCount: 0, sheets: [{name: sheetName, hidden: false, rows: rows.length, csvRows: rows.length, columns, cells}]};
+  return {name, formulaCount: 0, sheets: [{name: sheetName, hidden: false, rows: rows.length, csvRows: rows.length, columns, cells: [], batches: [...batches.values()], kindOf: csvKind}]};
 }

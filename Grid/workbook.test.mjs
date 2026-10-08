@@ -104,8 +104,11 @@ test('formula edits are atomic and analysis refuses stale or missing cached resu
   book.changed();
   assert.throws(() => store.paired(0, 2), /out of date/);
   store.formulasStale = false;
-  store.cells.delete('2,2');
-  assert.throws(() => store.paired(0, 2), /no saved result/);
+  const uncached = fixture();
+  uncached.sheets[0].cells.find(c => c.formula).text = '';
+  const stale = new WorkbookStore();
+  stale.load(uncached);
+  assert.throws(() => stale.sheets[0].store.paired(0, 2), /no saved result/);
 });
 test('a new worksheet exports headers and numbers to actual Excel coordinates', () => {
   const book = new WorkbookStore({
@@ -140,7 +143,7 @@ test('blank worksheets have no example data or implicit export header', () => {
   const store = book.sheets[0].store;
   assert.equal(book.name, 'Untitled');
   assert.equal(book.sheets[0].name, 'Sheet 1');
-  assert.equal(store.cells.size, 0);
+  assert.equal(store.count(), 0);
   assert.equal(store.headerRow, false);
   store.apply([[0, 0, '12'], [1, 0, '8']]);
   assert.deepEqual(book.export().sheets[0].cells, [

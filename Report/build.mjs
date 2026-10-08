@@ -1,6 +1,7 @@
+import { fileURLToPath } from 'node:url';
 import {build} from 'esbuild';
 import {readFile,writeFile,readdir,realpath} from 'node:fs/promises';
-await build({entryPoints:[new URL('./export.mjs',import.meta.url).pathname],bundle:true,format:'iife',globalName:'StatsDirectReportExport',target:'safari17',outfile:new URL('../Content/Report/export.js',import.meta.url).pathname,legalComments:'eof',minify:true});
+await build({entryPoints:[fileURLToPath(new URL('./export.mjs',import.meta.url))],bundle:true,format:'iife',globalName:'StatsDirectReportExport',target:'safari17',outfile:fileURLToPath(new URL('../Content/Report/export.js',import.meta.url)),legalComments:'eof',minify:true});
 let notice='StatsDirect report export uses docx 9.7.2 (MIT), bundled for offline use.\nhttps://github.com/dolanmiu/docx\n\n';
 // The distributed docx build also embeds its runtime dependencies. Retain their licences.
 const packages=new URL('./node_modules/.pnpm/',import.meta.url);

@@ -3,9 +3,7 @@ import {cellKind} from './workbook.mjs';
 import {worksheetSelection} from './operation-data.mjs';
 
 function extent(store) {
-  let lastRow=store.headerRow?1:0;const columns=new Set();
-  for(const [key,text] of store.cells)if(text!==''){const [c,r]=key.split(',').map(Number);lastRow=Math.max(lastRow,r+1);columns.add(c);}
-  return {lastRow,columns:[...columns].sort((a,b)=>a-b)};
+  return {lastRow:Math.max(store.headerRow?1:0,store.usedRows()),columns:store.usedColumns()};
 }
 function selectionFor(store,selection={}) {
   const cols=selection.columns??[],rows=selection.rows??[],range=selection.range;
@@ -30,15 +28,15 @@ export function tutorData(workbook,sheetIndex,selection={},options={}) {
   if(!Array.isArray(columns)||!columns.length||columns.length>32||new Set(columns).size!==columns.length||columns.some(c=>!Number.isInteger(c)||c<0||c>=store.columns.length))throw Error('Choose 1–32 distinct column indexes from the worksheet metadata.');
   const firstRow=options.firstRow??Math.max(store.headerRow?2:1,selected.range?.first??(store.headerRow?2:1));
   let lastRow=options.lastRow??selected.range?.last;
-  if(lastRow===undefined){lastRow=firstRow-1;for(const [key,text] of store.cells)if(text!==''){const[c,r]=key.split(',').map(Number);if(columns.includes(c))lastRow=Math.max(lastRow,r+1);}}
+  if(lastRow===undefined){lastRow=firstRow-1;for(const c of columns)lastRow=Math.max(lastRow,store.columnUsedRows(c));}
   if(!Number.isInteger(firstRow)||!Number.isInteger(lastRow)||firstRow<(store.headerRow?2:1)||lastRow<firstRow||lastRow>store.rows)throw Error('Choose a nonempty data range using worksheet row numbers (excluding column headings).');
   const rowCount=lastRow-firstRow+1;
   if(rowCount*columns.length>4000)throw Error('This range is too large for the tutor. Select or request at most 4,000 cells. It has not been sampled or truncated.');
   let characters=0,hasErrors=false,hasStaleFormulas=false;
   const data=columns.map(c=>({index:c,title:store.columnTitle(c),values:Array.from({length:rowCount},(_,i)=>{
-    const r=firstRow+i-1,text=store.get(c,r),metadata=store.metadata.get(`${c},${r}`);
+    const r=firstRow+i-1,text=store.get(c,r);
     characters+=text.length;if(cellKind(store,c,r)==='error')hasErrors=true;
-    if(metadata?.formula&&(store.formulasStale||!text))hasStaleFormulas=true;
+    if(store.formula(c,r)&&(store.formulasStale||!text))hasStaleFormulas=true;
     return text===''?null:text;
   })}));
   if(characters>50000)throw Error('The selected text is too large for the tutor. Choose a smaller range.');

@@ -15,7 +15,7 @@ const result = await build({
   minify: true,
   format: 'iife',
   target: 'safari17',
-  outdir: out.pathname,
+  outdir: fileURLToPath(out),
   define: {
     'process.env.NODE_ENV': '"production"'
   },

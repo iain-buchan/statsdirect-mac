@@ -48,6 +48,7 @@ extension Viewer {
             refreshOperationSource(doc) { self.startOperation(doc) }
         case "outputMode": doc.includeSourceColumns = body["includeSource"] as? Bool ?? true
         case "refresh": refreshOperationSource(doc)
+        case "columns": fetchOperationColumns(doc, body)
         case "keepResult": keepResult(doc, id: body["id"] as? String)
         case "help":
             if let operation = doc.operationName, let path = analysisCatalog[operation]?["help"] as? String {
@@ -97,6 +98,21 @@ extension Viewer {
             completion?()
         }
     }
+    // A form reads the worksheet columns it needs when a step is submitted (Grid/analysis-source.mjs).
+    func fetchOperationColumns(_ doc: Document, _ body: [String: Any]) {
+        guard let token = body["token"] else { return }
+        guard let source = documents.first(where: { $0.id == (doc.operationSourceID ?? analysisSourceID) }), source.kind == "grid" else {
+            operationScript(doc, "columnData", ["token": token, "error": "The worksheet is no longer open. Use Refresh worksheet to choose another."]); return
+        }
+        var request = body; request["action"] = nil; request["token"] = nil
+        guard let data = try? JSONSerialization.data(withJSONObject: request) else { return }
+        source.web.evaluateJavaScript("window.statsDirectGrid.columnValues(\(String(decoding: data, as: UTF8.self)))") { value, error in
+            guard self.documents.contains(where: { $0 === doc }) else { return }
+            if let error { self.operationScript(doc, "columnData", ["token": token, "error": self.javaScriptMessage(error)]) }
+            else if var result = value as? [String: Any] { result["token"] = token; self.operationScript(doc, "columnData", result) }
+            else { self.operationScript(doc, "columnData", ["token": token, "error": "The worksheet is still loading. Use Refresh worksheet when it is ready."]) }
+        }
+    }
     func operationRequest(_ request: [String: Any], doc: Document, id: String) {
         // Ignore old polls after answering or cancelling a prompt.
         doc.operationRevision += 1; let revision = doc.operationRevision
@@ -138,10 +154,22 @@ extension Viewer {
         let resultID = UUID().uuidString
         let frames = output["frames"] as? [[String: Any]] ?? []
         for (index, frame) in frames.enumerated() {
-            let dataDoc = newDocument(kind: "grid", title: "\(doc.title) · Data \(index + 1)", url: root.appendingPathComponent("Grid/index.html"))
-            let combined = doc.includeSourceColumns && supportsDerivedWorksheet(doc.operationName ?? "") ? derivedWorksheet(source:doc.operationSourceSnapshot,range:doc.operationInputRange,frame:frame) : nil
-            dataDoc.pendingWorkbook = ["name": dataDoc.title, "sheets": [combined ?? frame], "formulaCount": 0]
-            dataDoc.workbookName = "\(doc.title).xlsx"; dataDoc.gridDirty = true
+            let title = "\(doc.title) · Data \(index + 1)"
+            let plan = doc.includeSourceColumns && supportsDerivedWorksheet(doc.operationName ?? "") ? derivedWorksheet(source:doc.operationSourceSnapshot,range:doc.operationInputRange,frame:frame) : nil
+            func open(_ sheet: [String: Any], snapshotID: String?) {
+                let dataDoc = self.newDocument(kind: "grid", title: title, url: self.root.appendingPathComponent("Grid/index.html"))
+                var sheet = sheet
+                if let snapshotID { sheet["snapshot"] = SnapshotStore.shared.url(for: snapshotID); dataDoc.snapshotIDs.append(snapshotID) }
+                dataDoc.pendingWorkbook = ["name": title, "sheets": [sheet], "formulaCount": 0]
+                dataDoc.workbookName = "\(doc.title).xlsx"; dataDoc.gridDirty = true
+            }
+            // The source worksheet's columns are copied beside the result through a typed snapshot.
+            if let plan, let columns = plan.sourceColumns, let source = documents.first(where: { $0.id == (doc.operationSourceID ?? analysisSourceID) }), source.kind == "grid" {
+                source.web.callAsyncJavaScript("return window.statsDirectGrid.snapshotColumns(request)", arguments: ["request": columns], in: nil, in: .page) { result in
+                    if case .success(let value) = result, let info = value as? [String: Any], let id = info["id"] as? String { open(plan.sheet, snapshotID: id) }
+                    else { open(frame, snapshotID: nil) }
+                }
+            } else { open(plan?.sheet ?? frame, snapshotID: nil) }
         }
         let html = output["html"] as? String ?? ""
         let methodPath = doc.operationName.flatMap { analysisCatalog[$0]?["help"] as? String }

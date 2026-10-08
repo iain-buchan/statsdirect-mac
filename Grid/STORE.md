@@ -42,13 +42,57 @@ form, so `1.50`, `0012` and `1e21` keep their text. The kind rules are unchanged
   only bound. (The R data export and the Excel open/save paths keep their caps until the
   transfer work below.)
 
-## Still to do for the Excel limit end to end
+## Excel files: streaming open and save
 
-1. Workbook open and save in `FullEngine/WorkbookIO.cs` load the whole file with ClosedXML and
-   cap at 500,000 cells; replace with a streaming reader and writer and a columnar transfer.
-2. Analysis forms receive the whole sheet as per-cell JSON (`analysisSource` in `main.tsx`,
-   `Sources/OperationHost.swift`); replace with a request for the chosen columns only, in
-   columnar form, matching `FullEngine/HostParameters.cs` `ReadFrame`, which already takes
-   `{columns: [{title, values}]}`.
-3. R data export (`r-data.mjs`) keeps its 500,000-cell cap until the R file path is exercised
+`FullEngine/WorkbookIO.cs` reads each worksheet part of an .xlsx package with `XmlReader`,
+so memory is spent only on the cells a sheet holds (shared strings and cell styles are read
+once per workbook; shared formulas are expanded for their dependant cells). The reply lists
+the cells as JSON, or, when the request names a `snapshot` directory, writes one typed
+columnar file per sheet (`snapshot.mjs` documents the format) that the grid fetches into
+typed arrays. A new workbook is written by a streaming XML writer with inline strings. An
+opened workbook is patched: through ClosedXML, which recalculates formulas and preserves
+styles, when the original plus the edits hold at most one million cells, and otherwise by
+streaming each worksheet part and merging the edited cells, in which case formula cells keep
+their expressions, lose their cached results and the workbook is marked for recalculation
+when Excel opens it (`uncachedFormulas` in the reply tells the user).
+
+The prototype's 500,000-cell, 50 MB, 256 MB and 128-sheet limits are gone. Measured through
+the native driver on the 1,048,576-row × 4-column probe workbook (35 MB):
+
+| Step | Time | Engine memory |
+|---|---|---|
+| Open with a typed snapshot (4,194,304 cells; 55 MB snapshot file) | 2.1 s | 162 MB |
+| Save every cell as a new workbook (streaming writer; 34.5 MB file) | 3.9 s | 240 MB |
+| Reopen that workbook | 1.4 s | |
+| Streaming patch of two cells in the opened workbook | 4.0 s | 155 MB |
+
+(`Tests/probe_big_workbook.py` produced these on a 1,048,576 × 4 workbook written by openpyxl; `Tests/test_excel.py` covers the same
+paths on the example workbook, including the streaming patch forced with `stream: true`, and
+`Tests/test_excel_edges.py` covers indented and oddly addressed worksheet parts, the 1904 date
+system, chart sheets, percent-encoded part names, shared-formula ranges, characters XML cannot
+hold, duplicate sheet names and cleanup after a failed open.)
+
+## Moving cells between the engine, the grid and the forms
+
+- `Sources/SnapshotStore.swift` serves snapshot files to pages through the `sdsnapshot://`
+  scheme (GET by id) and stores a page's snapshot (POST). Opening an Excel file, saving one
+  (`excelSnapshot` in `main.tsx` posts the edited cells as typed columns) and building a
+  derived worksheet from an analysis (`snapshotColumns`) all go through it, so cell data is
+  never serialised to JSON or passed through a JavaScript string.
+- Analysis forms receive metadata only (`analysis-source.mjs` `analysisMetadata`: column
+  titles, the last used row of each column, the selection, and the highlighted rectangle for
+  screen forms). When a step is submitted the form asks the application for the chosen
+  columns (`columnValues`), which match `FullEngine/HostParameters.cs` `ReadFrame`'s
+  `{columns: [{title, values}]}`. A lesson's fictional data still travels with `cells`.
+
+Reviewed behaviour worth knowing: a form's lazy request names the sheet its metadata came
+from and is refused if that sheet is gone or renamed; a step cannot be submitted twice while
+its columns are being read; the ChatGPT tutor's view of a form's worksheet input is the chosen
+columns and row range (it reads cell values through the grid's own bounded tutor path).
+
+## Still to do
+
+1. R data export (`r-data.mjs`) keeps its 500,000-cell cap until the R file path is exercised
    at scale.
+2. The values a form sends to the engine for a very large column selection still pass
+   through JSON (bounded by the selection, not the sheet).

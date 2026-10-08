@@ -1,4 +1,4 @@
-import { GridStore, columnName } from './store.mjs';
+import { GridStore, columnName, kindIndex } from './store.mjs';
 // The kind rules live in the store now; this wrapper keeps the old call sites working.
 export function cellKind(store, c, r) {
   return store.kind(c, r);
@@ -27,8 +27,11 @@ export class WorkbookStore {
       store.rows = Math.max(100, sheet.rows);
       store.excelRows = true;
       store.csvRows = sheet.csvRows ?? 0;
+      // A sheet carries typed `columnar` records (decoded from a snapshot file), per-column
+      // `batches` from the CSV loader, per-cell `cells`, or a combination.
+      if (sheet.columnar) store.setLoadedColumns(sheet.columnar);
       if (sheet.batches) store.setLoadedBatches(sheet.batches, sheet.kindOf ?? (() => 'text'));
-      else store.setLoaded(sheet.cells);
+      if (sheet.cells?.length || !(sheet.columnar || sheet.batches)) store.setLoaded(sheet.cells ?? []);
       let headerRow = sheet.headerRow;
       if (headerRow === undefined) {
         let any = false, all = true;
@@ -60,43 +63,45 @@ export class WorkbookStore {
     this.edited = true;
     for (const sheet of this.sheets) sheet.store.formulasStale = true;
   }
+  // Visits the cells a save must write, as (sheetIndex, col, row, text, kind). For a workbook
+  // backed by a file: loaded cells edited since loading (including those now blank), then
+  // cells never in the file. Otherwise every populated cell, with a new worksheet's column
+  // titles as row 0 and its data shifted down one row.
+  exportCells(visit) {
+    this.sheets.forEach(({store}, sheetIndex) => {
+      if (!this.imported) store.columns.forEach((text, col) => visit(sheetIndex, col, 0, text, 'text'));
+      const push = (col, row, text) => visit(sheetIndex, col, this.imported ? row : row + 1, text, store.kind(col, row));
+      if (this.imported && this.backed) {
+        for (const [key, original] of store.originals) {
+          const [col, row] = key.split(',').map(Number), text = store.get(col, row);
+          if (text !== original.text) push(col, row, text);
+        }
+        store.forEachCell((col, row, text) => {
+          if (text !== '' && !store.loaded(col, row)) push(col, row, text);
+        });
+      } else store.forEachCell((col, row, text) => {
+        if (text !== '') push(col, row, text);
+      });
+    });
+  }
   export() {
-    return {
-      sheets: this.sheets.map(({
-        name,
-        store
-      }) => {
-        const cells = [];
-        if (!this.imported) store.columns.forEach((text, col) => cells.push({
-          col,
-          row: 0,
-          text,
-          kind: 'text'
-        }));
-        const push = (col, row, text) => cells.push({
-          col,
-          row: this.imported ? row : row + 1,
-          text,
-          kind: store.kind(col, row)
-        });
-        if (this.imported && this.backed) {
-          // Only what differs from the file: loaded cells edited since loading (including
-          // those now blank), then cells that were never in the file.
-          for (const [key, original] of store.originals) {
-            const [col, row] = key.split(',').map(Number), text = store.get(col, row);
-            if (text !== original.text) push(col, row, text);
-          }
-          store.forEachCell((col, row, text) => {
-            if (text !== '' && !store.loaded(col, row)) push(col, row, text);
-          });
-        } else store.forEachCell((col, row, text) => {
-          if (text !== '') push(col, row, text);
-        });
-        return {
-          name,
-          cells
-        };
-      })
-    };
+    const sheets = this.sheets.map(({name}) => ({name, cells: []}));
+    this.exportCells((s, col, row, text, kind) => sheets[s].cells.push({col, row, text, kind}));
+    return {sheets};
+  }
+  // The same cells as typed column records per sheet, for snapshot.mjs encodeSnapshot.
+  exportColumns() {
+    const sheets = this.sheets.map(({name, store}) => ({name, store, columns: new Map()}));
+    this.exportCells((s, col, row, text, kind) => {
+      const sheet = sheets[s];
+      let b = sheet.columns.get(col);
+      if (!b) sheet.columns.set(col, b = {col, rows: [], kinds: [], nums: [], texts: new Map(), formulas: new Map()});
+      const i = b.rows.length, k = kindIndex(kind);
+      b.rows.push(row); b.kinds.push(text === '' ? 0 : k);
+      const n = kind === 'number' ? Number(text) : NaN;
+      b.nums.push(n); if (text !== '' && Number.isNaN(n)) b.texts.set(i, text);
+    });
+    return {sheets: sheets.map(({name, columns}) => ({name, columns: [...columns.values()].sort((a, b) => a.col - b.col)}))};
   }
 }
+

@@ -7,7 +7,8 @@ import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
 import { tutorInfo, tutorData } from './tutor-data.mjs';
-import { worksheetSelection } from './operation-data.mjs';
+import { decodeSnapshot, encodeSnapshot } from './snapshot.mjs';
+import { analysisMetadata, columnValues, snapshotColumns } from './analysis-source.mjs';
 import { WorkbookStore, cellKind } from './workbook.mjs';
 import { selectAdjacentCell, cellMovement, arrowKeyEditor } from './navigation';
 declare global {
@@ -17,6 +18,14 @@ declare global {
   }
 }
 const workbook = new WorkbookStore();
+// Stores a typed snapshot of worksheet columns with the application (POST sdsnapshot://blob)
+// and returns {id, bytes}; the engine or another grid reads it back by id.
+async function postSnapshot(sheets: any[]) {
+  const bytes = encodeSnapshot(sheets);
+  const response = await fetch('sdsnapshot://blob', {method: 'POST', body: bytes});
+  if (!response.ok) throw new Error('The worksheet snapshot could not be stored.');
+  return await response.json();
+}
 function native(action: string, extra: object = {}) {
   const bridge = window.webkit?.messageHandlers?.statsDirectGrid;
   if (bridge) bridge.postMessage({
@@ -142,17 +151,28 @@ function App() {
       },
       tutorInfo: () => tutorInfo(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
       tutorData: (options: any = {}) => tutorData(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range},options),
-      analysisSource: () => {
-        const cells: any[] = [];
-        store.forEachCell((col: number, row: number, text: string, kind: string, formula: string) => { cells.push({...(store.loaded(col, row) ?? {}), col, row, text, kind, formula}); });
-        const usedRows = cells.filter(cell=>cell.text!=='').reduce((m,cell)=>Math.max(m,cell.row+1),store.headerRow?2:1);
-        return {name:workbook.name+' / '+workbook.sheets[sheetIndex].name,columns:store.columns.map((_:string,c:number)=>store.columnTitle(c)),cells,firstRow:store.headerRow?2:1,rows:Math.max(usedRows,selectionRef.current.current?.range.y+selectionRef.current.current?.range.height||0),formulasStale:store.formulasStale,...worksheetSelection(selectionRef.current.columns.toArray(),selectionRef.current.current?.range)};
-      },
+      analysisSource: () => analysisMetadata(workbook, sheetIndex, {columns: selectionRef.current.columns.toArray(), range: selectionRef.current.current?.range}),
+      columnValues: (request: any) => columnValues(workbook, sheetIndex, request),
+      snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),
+      excelSnapshot: () => postSnapshot(workbook.exportColumns().sheets),
       csvData: () => store.csv(),
       csvSnapshot: () => ({text: store.csv(), canSaveDocument: !workbook.backed && workbook.sheets.length === 1 && !workbook.formulaCount && !workbook.sheets.some((s:any) => s.rColumns)}),
       rDataSnapshot: (currentOnly: boolean) => ({tables: rDataTables(workbook, currentOnly ? sheetIndex : undefined), canSaveDocument: !workbook.backed && !workbook.formulaCount && (!currentOnly || workbook.sheets.length === 1)}),
       excelData: () => workbook.export(),
-      loadWorkbook: (data: any) => {
+      // Sheets may name a snapshot file (sdsnapshot:// URL) holding their cells in typed
+      // columnar form; it is fetched into typed arrays, never through JSON.
+      loadWorkbook: async (data: any) => {
+        for (const sheet of data.sheets) {
+          if (typeof sheet.snapshot !== 'string') continue;
+          const response = await fetch(sheet.snapshot);
+          if (!response.ok) throw new Error(`The worksheet data could not be read (${response.status}).`);
+          sheet.columnar = decodeSnapshot(await response.arrayBuffer()).sheets[0]?.columns ?? [];
+          delete sheet.snapshot;
+        }
+        window.statsDirectGrid.applyWorkbook(data);
+        return {sheets: data.sheets.length, cells: workbook.sheets.reduce((n: number, s: any) => n + s.store.count(), 0)};
+      },
+      applyWorkbook: (data: any) => {
         setSheetIndex(workbook.load(data));
         setSelection(empty);
         setMessage(`Opened ${data.name} · ${data.sheets.length} worksheet${data.sheets.length === 1 ? '' : 's'}${data.warnings?.length ? '. Not imported: ' + data.warnings.join('; ') : ''}`);
@@ -160,7 +180,7 @@ function App() {
       },
       loadCSV: (text: string, name: string) => {
         const data = csvWorkbook(text, name);
-        window.statsDirectGrid.loadWorkbook(data);
+        window.statsDirectGrid.applyWorkbook(data);
         setMessage(`Opened ${name} · ${data.sheets[0].rows} rows × ${data.sheets[0].columns} columns`);
         return {rows: data.sheets[0].rows, columns: data.sheets[0].columns};
       },

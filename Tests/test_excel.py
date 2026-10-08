@@ -80,6 +80,18 @@ try:
                         assert old_values[sheet.title][cell.coordinate].value == new_values[sheet.title][cell.coordinate].value, (sheet.title, cell.coordinate, 'formula result')
         reopened = request(action='open', path=str(saved))
         assert len(reopened['sheets']) == 11 and reopened['formulaCount'] == 22
+        # The file the ClosedXML path wrote is indented; a streaming patch of it must keep every cell.
+        restreamed = Path(folder)/'restreamed.xlsx'
+        result = request(action='save', id=reopened['id'], path=str(restreamed), stream=True, sheets=[{'name':'Parametric','cells':[{'col':0,'row':1,'text':'333','kind':'number'}]}])
+        assert result.get('ok'), result
+        again = independent_read(restreamed)
+        for a in after:
+            for row in a:
+                for cell in row:
+                    if cell.value is None: continue
+                    expected = 333 if a.title == 'Parametric' and cell.coordinate == 'A2' else cell.value
+                    assert again[a.title][cell.coordinate].value == expected, (a.title, cell.coordinate, expected, again[a.title][cell.coordinate].value)
+        assert request(action='close', id=reopened['id']).get('ok')
         print(f'PASS: all 11 sheets, {count} populated cells, {formulas} formulas, cached formula results, cell types and cell styles survive the edited round trip')
         recalculated = Path(folder)/'recalculated.xlsx'
         changed_input = request(action='save', id=imported['id'], path=str(recalculated), sheets=[{'name':'Graphics','cells':[{'col':19,'row':1,'text':'100','kind':'number'}]}])
@@ -105,6 +117,58 @@ try:
         protected = request(action='save', id=imported['id'], path=str(saved), sheets=[{'name':formula[0]['name'],'cells':[dict(formula[1], text='0',kind='number')]}])
         assert 'read-only' in protected.get('error','')
         assert independent_read(saved)['Parametric']['A2'].value == 332
+        # Typed columnar snapshots: the grid's open path and its save path never pass cells through JSON.
+        snapshot_dir = Path(folder)/'snapshots'
+        columnar = request(action='open', path=str(source), snapshot=str(snapshot_dir))
+        assert 'error' not in columnar, columnar
+        assert [s['name'] for s in columnar['sheets']] == [s['name'] for s in imported['sheets']] and columnar['formulaCount'] == 22
+        assert all(s['cells'] == [] and Path(s['snapshot']).is_file() for s in columnar['sheets'])
+        for json_sheet, typed_sheet in zip(imported['sheets'], columnar['sheets']):
+            decoded = json.loads(subprocess.check_output([sys.argv[2], str(ROOT/'Tests/decode-snapshot.mjs'), typed_sheet['snapshot']], text=True))[0]
+            key = lambda c: (c['col'], c['row'])
+            assert sorted(decoded['cells'], key=key) == sorted(json_sheet['cells'], key=key), (json_sheet['name'], 'snapshot cells differ from JSON cells')
+            assert (typed_sheet['rows'], typed_sheet['columns'], typed_sheet['count']) == (json_sheet['rows'], json_sheet['columns'], len(json_sheet['cells']))
+        print('PASS: typed columnar snapshots hold exactly the cells, kinds, text and formulas of the JSON open reply')
+        edits = Path(folder)/'edits.sdcol'
+        encoded = json.loads(subprocess.check_output([sys.argv[2], str(ROOT/'Tests/encode-edits.mjs'), str(edits)], input=json.dumps(imported), text=True))
+        assert encoded['cells'] == 1
+        from_snapshot = Path(folder)/'from-snapshot.xlsx'
+        result = request(action='save', id=columnar['id'], path=str(from_snapshot), snapshot=str(edits))
+        assert result.get('ok') and result.get('recalculated') is True, result
+        assert independent_read(from_snapshot)['Parametric']['A2'].value == 332
+        assert independent_read(from_snapshot)['Graphics']['V2'].value == before['Graphics']['V2'].value
+        assert independent_read(from_snapshot, True)['Graphics']['V2'].value == old_values['Graphics']['V2'].value
+        print('PASS: a save from an edits snapshot patches the workbook like the JSON edits')
+        # Large workbooks are patched by streaming the worksheet parts; formulas keep their
+        # expressions but lose cached results, which Excel recalculates on load.
+        streamed = Path(folder)/'streamed.xlsx'
+        result = request(action='save', id=columnar['id'], path=str(streamed), snapshot=str(edits), stream=True)
+        assert result.get('ok') and result.get('recalculated') is False and result.get('uncachedFormulas') == 22, result
+        after = independent_read(streamed)
+        assert before.sheetnames == after.sheetnames
+        for a in before:
+            b = after[a.title]
+            for row in a:
+                for cell in row:
+                    if cell.value is None: continue
+                    target = b[cell.coordinate]
+                    expected = 332 if a.title == 'Parametric' and cell.coordinate == 'A2' else cell.value
+                    assert target.value == expected, (a.title, cell.coordinate, expected, target.value)
+                    assert target.data_type == cell.data_type, (a.title, cell.coordinate, 'type')
+                    assert target.number_format == cell.number_format, (a.title, cell.coordinate, 'format')
+                    for feature in ('font', 'fill', 'alignment', 'border'):
+                        assert copy.copy(getattr(target, feature)) == copy.copy(getattr(cell, feature)), (a.title, cell.coordinate, feature)
+        cached = independent_read(streamed, True)
+        assert all(cached[s.title][c.coordinate].value is None for s in before for r in s for c in r if c.data_type == 'f')
+        reopened_stream = request(action='open', path=str(streamed))
+        assert reopened_stream['formulaCount'] == 22 and all(c['text'] == '' for s in reopened_stream['sheets'] for c in s['cells'] if c['formula'])
+        assert request(action='close', id=reopened_stream['id']).get('ok')
+        assert 'fullCalcOnLoad="1"' in ZipFile(streamed).read('xl/workbook.xml').decode()
+        print('PASS: the streaming patch keeps values, types, styles and formula expressions, and marks the workbook for recalculation')
+        protected_stream = request(action='save', id=columnar['id'], path=str(streamed), sheets=[{'name':formula[0]['name'],'cells':[dict(formula[1], text='0',kind='number')]}], stream=True)
+        assert 'read-only' in protected_stream.get('error',''), protected_stream
+        assert request(action='close', id=columnar['id']).get('ok')
+        for s in columnar['sheets']: Path(s['snapshot']).unlink()
         bad = Path(folder)/'bad.xlsx'; bad.write_text('not a workbook')
         assert 'error' in request(action='open', path=str(bad))
         assert request(action='close', id=imported['id']).get('ok')

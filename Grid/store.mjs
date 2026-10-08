@@ -17,6 +17,7 @@ const CHUNK_BITS = 12,
 export const KINDS = ['blank', 'number', 'text', 'datetime', 'timespan', 'boolean', 'error'];
 const KIND_INDEX = new Map(KINDS.map((k, i) => [k, i]));
 const BLANK = 0, NUMBER = 1, TEXT = 2;
+export function kindIndex(name) { return KIND_INDEX.get(name) ?? TEXT; }
 const LOADED = 1, MODIFIED = 2;
 const UNDO_STEPS = 50,
   UNDO_BYTES = 256 * 1024 * 1024;
@@ -278,6 +279,50 @@ export class GridStore {
       }
       if (b.col + 1 > this.columns.length) this.growColumns(b.col + 1);
     }
+  }
+  // Bulk load typed column records as decoded from a snapshot file (see snapshot.mjs):
+  // {col, rows, kinds, nums, texts: Map<ordinal, text>, formulas: Map<ordinal, text>}.
+  setLoadedColumns(columns) {
+    let maxRow = -1, maxCol = -1;
+    for (const b of columns) {
+      const col = this.col(b.col), n = b.rows.length;
+      for (let i = 0; i < n; i++) {
+        const r = b.rows[i];
+        if (r >= MAX_ROWS || b.col >= MAX_COLS) throw new Error('Cell is outside the worksheet.');
+        let kind = b.kinds[i];
+        if (kind === NUMBER) {
+          const num = b.nums[i];
+          if (Number.isFinite(num)) col.write(r, NUMBER, num, '');
+          else { const text = b.texts.get(i) ?? ''; if (text === '') kind = BLANK; else col.write(r, NUMBER, canonical(text), text); }
+        } else if (kind !== BLANK) {
+          const text = b.texts.get(i) ?? '';
+          if (text === '') kind = BLANK; else col.write(r, kind, NaN, text);
+        }
+        const formula = b.formulas?.get(i);
+        if (formula) col.formula.set(r, formula);
+        else if (kind === BLANK) continue;
+        col.setFlags(r, LOADED);
+        if (r > maxRow) maxRow = r;
+      }
+      if (b.col > maxCol) maxCol = b.col;
+    }
+    if (maxCol + 1 > this.columns.length) this.growColumns(maxCol + 1);
+    if (maxRow + 1 > this.rows) this.rows = maxRow + 1;
+  }
+  // Typed column records for the given columns, as snapshot.mjs encodes them. Rows are shifted
+  // by `rowOffset`; with `header`, the column titles become row 0. Formulas are not carried.
+  columnRecords(columns, rowOffset = 0, header = false) {
+    return columns.map(c => {
+      const col = this.cols[c], rows = [], kinds = [], nums = [], texts = new Map();
+      if (header) { rows.push(0); kinds.push(TEXT); nums.push(NaN); texts.set(0, this.columnTitle(c)); }
+      if (col) col.forEach((r, text, k) => {
+        if (k === BLANK) return;
+        const i = rows.length; rows.push(r + rowOffset); kinds.push(k);
+        const n = k === NUMBER ? col.numAt(r) : NaN;
+        nums.push(n); if (Number.isNaN(n)) texts.set(i, text);
+      });
+      return {col: c, rows, kinds, nums, texts, formulas: new Map()};
+    });
   }
   growColumns(cols) {
     while (this.columns.length < cols) this.columns.push('Variable ' + columnName(this.columns.length));

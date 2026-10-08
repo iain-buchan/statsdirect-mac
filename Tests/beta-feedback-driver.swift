@@ -23,6 +23,17 @@ import PDFKit
   }}
   app.run()
  }
+ @MainActor static func asyncJavaScript(_ doc:Document,_ script:String,_ arguments:[String:Any]=[:]) async throws -> [String:Any] {
+  try await withCheckedThrowingContinuation { continuation in
+   doc.web.callAsyncJavaScript(script,arguments:arguments,in:nil,in:.page) { result in
+    switch result {
+    case .failure(let error): continuation.resume(throwing:error)
+    case .success(let value):
+     if let value=value as? [String:Any] { continuation.resume(returning:value) } else { continuation.resume(throwing:ChatGPTTutor.Failure(message:"Unexpected script result: \(String(describing:value))")) }
+    }
+   }
+  }
+ }
  @MainActor static func largeGrid(_ v:Viewer) async throws {
   let grid=v.newDocument(kind:"grid",title:"Large paste fixture",url:v.root.appendingPathComponent("Grid/index.html"))
   defer {v.remove(grid)}
@@ -31,23 +42,37 @@ import PDFKit
   (()=>{const t=performance.now();window.largePaste=Array.from({length:10000},(_,r)=>Array.from({length:10},(_,c)=>String(r*10+c)).join('\t')).join('\n');statsDirectGrid.pasteText(window.largePaste);return {milliseconds:performance.now()-t};})()
   """#)
   try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:statsDirectGrid.analysisSource().columns.length===10})"))?["ok"] as? Bool == true}
-  let check="(()=>{const s=statsDirectGrid.analysisSource();return {rows:s.rows,columns:s.columns.length,count:s.cells.filter(c=>c.text!=='').length,last:s.cells.find(c=>c.col===9&&c.row===9999)?.text,exact:statsDirectGrid.csvData().trim().split('\\n').length===10000};})()"
+  let check="(()=>{const s=statsDirectGrid.analysisSource();const d=statsDirectGrid.columnValues({columns:[9],first:1,last:s.rows});return {rows:s.rows,columns:s.columns.length,count:s.columnEnds.reduce((n,e)=>n+e,0),last:d.columns[0].values[9999],exact:statsDirectGrid.csvData().trim().split('\\n').length===10000,cells:'cells' in s};})()"
   let full=try await v.learningJavaScript(grid,check)
-  precondition(full["rows"] as? Int==10000 && full["columns"] as? Int==10 && full["count"] as? Int==100000 && full["last"] as? String=="99999" && full["exact"] as? Bool==true)
+  precondition(full["rows"] as? Int==10000 && full["columns"] as? Int==10 && full["count"] as? Int==100000 && full["last"] as? String=="99999" && full["exact"] as? Bool==true && full["cells"] as? Bool==false)
   let source=try await v.learningJavaScript(grid,"statsDirectGrid.analysisSource()")
   let frame:[String:Any]=["name":"Derived","columns":1,"rows":10001,"headerRow":true,"cells":[["col":0,"row":0,"text":"Derived","kind":"text"],["col":0,"row":1,"text":"2.5","kind":"number"]]]
-  let derived=derivedWorksheet(source:source,range:["firstRow":1,"lastRow":10000],frame:frame)!
-  let sourceCells=derived["cells"] as! [[String:Any]]
-  precondition(sourceCells.contains{$0["col"] as? Int==0 && $0["row"] as? Int==1 && $0["text"] as? String=="0" && $0["kind"] as? String=="number"})
+  let plan=derivedWorksheet(source:source,range:["firstRow":1,"lastRow":10000],frame:frame)!
+  precondition(plan.sourceColumns != nil && plan.sheet["columns"] as? Int==11 && (plan.sheet["cells"] as! [[String:Any]]).contains{$0["col"] as? Int==10 && $0["row"] as? Int==1 && $0["text"] as? String=="2.5"})
+  // The source columns reach the derived worksheet through a typed snapshot served by the application, never JSON.
+  let stored=try await asyncJavaScript(grid,"return window.statsDirectGrid.snapshotColumns(request)",["request":plan.sourceColumns!])
+  let snapshotID=stored["id"] as! String
+  precondition(((try? Data(contentsOf:SnapshotStore.shared.file(for:snapshotID)!))?.count ?? 0) > 100000)
+  let derivedDoc=v.newDocument(kind:"grid",title:"Derived fixture",url:v.root.appendingPathComponent("Grid/index.html"))
+  defer {v.remove(derivedDoc)}
+  var merged=plan.sheet; merged["snapshot"]=SnapshotStore.shared.url(for:snapshotID); derivedDoc.snapshotIDs.append(snapshotID)
+  derivedDoc.pendingWorkbook=["name":"Derived fixture","sheets":[merged],"formulaCount":0]
+  try await ProviderLearningTests.wait {derivedDoc.pendingWorkbook==nil}
+  let combined=try await v.learningJavaScript(derivedDoc,"(()=>{const d=statsDirectGrid.columnValues({columns:[0,9,10],first:1,last:10001});const s=statsDirectGrid.analysisSource();return {a:d.columns[0].values[1],j:d.columns[1].values[10000],derived:d.columns[2].values[1],title:d.columns[2].values[0],columns:s.columns.length,firstRow:s.firstRow,count:s.columnEnds.reduce((n,e)=>n+e,0)};})()")
+  precondition(combined["a"] as? String=="0" && combined["j"] as? String=="99999" && combined["derived"] as? String=="2.5" && combined["title"] as? String=="Derived" && combined["columns"] as? Int==11 && combined["firstRow"] as? Int==2 && combined["count"] as? Int==100012)
+  precondition(SnapshotStore.shared.file(for:snapshotID)==nil)
   _=try await v.learningJavaScript(grid,"({ok:(statsDirectGrid.undo(),true)})")
-  try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:statsDirectGrid.analysisSource().cells.length===0&&statsDirectGrid.analysisSource().columns.length===8})"))?["ok"] as? Bool == true}
+  try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:statsDirectGrid.analysisSource().width===0&&statsDirectGrid.analysisSource().columns.length===8})"))?["ok"] as? Bool == true}
   _=try await v.learningJavaScript(grid,"({ok:(statsDirectGrid.redo(),true)})")
   try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,check))?["last"] as? String == "99999"}
   _=try await v.learningJavaScript(grid,"({ok:statsDirectGrid.editCommand('selectAll','')})")
   try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:statsDirectGrid.copyText()===window.largePaste})"))?["ok"] as? Bool == true}
+  // The typed store has no paste cap below Excel's dimensions: one more row is accepted, a 16,385-column row is refused and leaves the sheet unchanged.
   _=try await v.learningJavaScript(grid,"({ok:(statsDirectGrid.pasteText(window.largePaste+'\\n1'),true)})")
-  let rejected=try await v.learningJavaScript(grid,check);precondition(rejected["count"] as? Int==100000 && rejected["last"] as? String=="99999")
-  print("PASS: native 10,000 × 10 paste, auto-expansion, numeric source-and-derived columns, full CSV/copy, atomic undo/redo and oversized-paste rejection; paste ms=",pasted["milliseconds"]!)
+  let grown=try await v.learningJavaScript(grid,check);precondition(grown["count"] as? Int==100001 && grown["last"] as? String=="99999")
+  _=try await v.learningJavaScript(grid,"({ok:(statsDirectGrid.pasteText(Array.from({length:16385},()=>'1').join('\\t')),true)})")
+  let rejected=try await v.learningJavaScript(grid,check);precondition(rejected["count"] as? Int==100001 && rejected["last"] as? String=="99999" && rejected["columns"] as? Int==10)
+  print("PASS: native 10,000 × 10 paste, auto-expansion, lazy column reads, derived worksheet through a typed snapshot, full CSV/copy, atomic undo/redo and rejection of a paste wider than Excel; paste ms=",pasted["milliseconds"]!)
  }
  @MainActor static func run(_ v:Viewer) async throws {
   let learn=v.documents.first{$0.kind=="learn"}!
@@ -114,7 +139,8 @@ import PDFKit
   let source:[String:Any]=["columns":["A","B"],"firstRow":1,"rows":3,"cells":[["col":0,"row":0,"text":"5","kind":"number"],["col":1,"row":2,"text":"9","kind":"number"]]]
   let frame:[String:Any]=["name":"Log","columns":1,"rows":3,"headerRow":true,"cells":[["col":0,"row":0,"text":"Log","kind":"text"],["col":0,"row":1,"text":"1.2","kind":"number"],["col":0,"row":2,"text":"1.4","kind":"number"]]]
   let derived=derivedWorksheet(source:source,range:["firstRow":2,"lastRow":3],frame:frame)!
-  let cells=derived["cells"] as! [[String:Any]]
+  precondition(derived.sourceColumns==nil)
+  let cells=derived.sheet["cells"] as! [[String:Any]]
   precondition(cells.contains{ $0["col"] as? Int == 2 && $0["row"] as? Int == 2 && $0["text"] as? String == "1.2" })
   precondition(cells.contains{ $0["col"] as? Int == 1 && $0["row"] as? Int == 3 && $0["text"] as? String == "9" })
   precondition(derivedWorksheet(source:source,range:["firstRow":1,"lastRow":3],frame:frame)==nil)

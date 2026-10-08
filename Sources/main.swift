@@ -19,6 +19,7 @@ final class Document {
     var workbookID: String?
     var workbookName = "Untitled.xlsx"
     var pendingWorkbook: [String: Any]?
+    var snapshotIDs: [String] = []
     var pendingCSV: String?
     var csvSaveName: String?
     var rDataFormat: String?
@@ -51,6 +52,7 @@ final class Document {
         self.kind = kind; self.title = title; self.access = access
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
+        config.setURLSchemeHandler(SnapshotStore.shared, forURLScheme: SnapshotStore.scheme)
         web = WKWebView(frame: .zero, configuration: config)
         item = NSTabViewItem(identifier: id)
         item.label = title
@@ -411,6 +413,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func remove(_ doc: Document) {
         if let id = doc.workbookID { workbookRequest(["action": "close", "id": id]) { _ in } }
+        for id in doc.snapshotIDs { SnapshotStore.shared.forget(id) }; doc.snapshotIDs = []
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectReport")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectGrid")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectAnalysis")
@@ -535,7 +538,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         return .terminateNow
     }
-    func applicationWillTerminate(_ notification: Notification) { RInstaller.shared.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() } }
+    func applicationWillTerminate(_ notification: Notification) { RInstaller.shared.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 MainActor.assumeIsolated {

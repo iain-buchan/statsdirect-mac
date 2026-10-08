@@ -6,11 +6,16 @@ import './operation.css';
 import {ResultPreview} from './ResultPreview';
 import {InstantAnswers} from './instant-answers.mjs';
 import {columnName} from './store.mjs';
-import {worksheetInput,worksheetRows,enteredInput,pasteMatrix,initialGrid} from './operation-data.mjs';
+import {worksheetInput,worksheetInputFrom,worksheetRows,enteredInput,pasteMatrix,initialGrid} from './operation-data.mjs';
 import {selectAdjacentCell, cellMovement, arrowKeyEditor} from './navigation';
 declare global { interface Window { statsDirectOperation:any; webkit?:any; } }
 const native=(action:string,extra:object={})=>window.webkit?.messageHandlers?.statsDirectOperation?.postMessage({action,...extra});
 const empty:GridSelection={columns:CompactSelection.empty(),rows:CompactSelection.empty()};
+// Worksheet columns are read from the live worksheet when a step is submitted (see
+// analysis-source.mjs); entered data is already complete.
+const pendingColumns=new Map<string,{resolve:(v:any)=>void,reject:(e:Error)=>void}>();let columnToken=0;
+const fetchColumns=(request:any)=>new Promise<any>((resolve,reject)=>{const token=String(++columnToken);pendingColumns.set(token,{resolve,reject});native('columns',{token,...request});});
+const resolveInput=(v:any)=>v?.lazy?fetchColumns(v.request).then((data:any)=>worksheetInputFrom(v,data)):Promise.resolve(v);
 function DataInput({p,source,onChange,initial}:{p:any,source:any,onChange:(v:any)=>void,initial:any}) {
   const [useSheet,setUseSheet]=useState(!!source && !p.screen && !initial),[selected,setSelected]=useState<number[]>(()=>source?.selection?.slice(0,p.maxColumns)??[]);
   const [rowOverride,setRowOverride]=useState<{first:string,last:string}|null>(null);
@@ -49,12 +54,12 @@ function DataInput({p,source,onChange,initial}:{p:any,source:any,onChange:(v:any
 const tutorInputs=new Map<symbol,()=>any>();
 function Prompt({p,source,onSubmit,onCancel,initial,busy,embedded=false,register}:{p:any,source:any,onSubmit:(v:any)=>void,onCancel:()=>void,initial:any,busy:boolean,embedded?:boolean,register?:(reader:()=>any)=>void}) {
   const initialValue=()=>initial??(p.kind==='options'?Object.fromEntries(p.options.map((o:any)=>[o.value,o.selected])):['fields','settings'].includes(p.kind)?Object.fromEntries(p.fields.map((o:any)=>[o.name,o.defaultValue??''])):p.kind==='selectList'?[]:p.defaultValue??(p.kind==='option'?p.options[0]?.value:'')??'');
-  const [value,setValue]=useState<any>(initialValue),[error,setError]=useState(''); const gridValue=useRef<()=>any>(()=>{throw new Error('Enter or select data.');});
+  const [value,setValue]=useState<any>(initialValue),[error,setError]=useState(''); const gridValue=useRef<()=>any>(()=>{throw new Error('Enter or select data.');}); const resolving=useRef(false);
   useEffect(()=>{register?.(()=>p.kind==='grid'?gridValue.current():value);},[value,p.kind,register]);
   const tutorKey=useRef(Symbol());
   useEffect(()=>{tutorInputs.set(tutorKey.current,()=>({prompt:p.prompt,name:p.name,kind:p.kind,value:p.kind==='grid'?gridValue.current():value}));return()=>{tutorInputs.delete(tutorKey.current);};},[p,value]);
   const Container=embedded?'div':'form';
-  function submit(e:React.FormEvent){e.preventDefault();try{onSubmit(p.kind==='grid'?gridValue.current():value);setError('');}catch(e){setError((e as Error).message);}}
+  function submit(e:React.FormEvent){e.preventDefault();if(resolving.current)return;try{const v=p.kind==='grid'?gridValue.current():value;setError('');resolving.current=true;resolveInput(v).then(resolved=>{resolving.current=false;onSubmit(resolved);}).catch((err:Error)=>{resolving.current=false;setError(err.message);});}catch(e){setError((e as Error).message);}}
   return <Container className={embedded?'embedded-prompt':p.kind==='settings'?'settings-form':undefined} onSubmit={embedded?undefined:submit}><fieldset disabled={busy}><div className="prompt-body"><h2>{p.kind==='settings'?'Current defaults':p.prompt==='Enter a value'&&p.kind==='confidence'?'Confidence level':p.prompt==='Enter a value'&&p.kind==='grid'?'Enter the data table':p.prompt||p.title}</h2>{p.rubric&&<p className="rubric">{p.rubric}</p>}{p.error&&<p className="error" role="alert">{p.error}</p>}
     {p.kind==='settings'?<><p>These defaults are saved for new analyses. Analyses already open keep their current settings.</p><div className="settings">{p.fields.map((f:any)=><div key={f.name} className="field">{f.kind==='boolean'?<label><input type="checkbox" disabled={f.disabled} checked={!!value[f.name]} onChange={e=>setValue({...value,[f.name]:e.target.checked})}/>{f.prompt}</label>:<label>{f.prompt}<select aria-label={f.prompt} value={value[f.name]} onChange={e=>setValue({...value,[f.name]:e.target.value})}>{f.options.map((o:any)=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>}{f.note&&<span className="hint">{f.note}</span>}</div>)}</div><p className="hint" hidden={!p.fields.some((f:any)=>f.name==='use-default-ci')}>Turn off “Use a default confidence interval” to choose confidence separately for each analysis. Methods that require an explicit confidence or probability still ask for it.</p></>:
     p.kind==='boolean'?<div className="yesno"><label><input type="radio" name={`boolean-${p.name}`} checked={value===true} onChange={()=>setValue(true)}/>Yes</label><label><input type="radio" name={`boolean-${p.name}`} checked={value!==true} onChange={()=>setValue(false)}/>No</label></div>:
@@ -67,8 +72,8 @@ function Prompt({p,source,onSubmit,onCancel,initial,busy,embedded=false,register
     {error&&<p className="error" role="alert">{error}</p>}</div>{!embedded&&<div className="actions"><button className="primary" type="submit">{p.kind==='settings'?'Save defaults':'Continue →'}</button>{p.kind==='settings'&&<button type="button" onClick={onCancel}>Cancel</button>}{p.skip&&<button type="button" onClick={()=>onSubmit({skip:true})}>{p.skip}</button>}{p.kind==='settings'&&busy&&<span role="status">Saving defaults…</span>}</div>}</fieldset></Container>;
 }
 function InstantEditor({steps,onRun,busy}:{steps:any[],onRun:(steps:any[])=>void,busy:boolean}) {
-  const readers=useRef(new Map<number,()=>any>()),[error,setError]=useState('');
-  return <form className="instant-inputs" onSubmit={e=>{e.preventDefault();try{onRun(steps.map((s,i)=>({...s,value:readers.current.get(i)!()})));setError('');}catch(e){setError((e as Error).message);}}}>
+  const readers=useRef(new Map<number,()=>any>()),[error,setError]=useState(''),resolving=useRef(false);
+  return <form className="instant-inputs" onSubmit={e=>{e.preventDefault();if(resolving.current)return;try{const values=steps.map((s,i)=>readers.current.get(i)!());setError('');resolving.current=true;Promise.all(values.map(resolveInput)).then(resolved=>{resolving.current=false;onRun(steps.map((s,i)=>({...s,value:resolved[i]})));}).catch((err:Error)=>{resolving.current=false;setError(err.message);});}catch(e){setError((e as Error).message);}}}>
     <h2>Data and parameters</h2>
     {steps.map((s,i)=><Prompt key={i} p={s.p} initial={s.value} source={null} busy={busy} onSubmit={()=>{}} onCancel={()=>{}} embedded register={reader=>readers.current.set(i,reader)}/>)}
     {error&&<p className="error" role="alert">{error}</p>}
@@ -80,7 +85,7 @@ function App(){
   const lastAnswer=useRef<any>();
   const answers=useRef(new InstantAnswers());
   const [result,setResult]=useState<any>(null),[steps,setSteps]=useState<any[]>([]);
-  useEffect(()=>{window.statsDirectOperation={tutorSnapshot:()=>({inputs:Array.from(tutorInputs.values()).map(read=>{try{const input=read();return JSON.stringify(input).length<=50000?input:{error:'Input too large for the tutor; choose a smaller worksheet range.'};}catch(e){return {error:(e as Error).message};}})}),configure:(c:any)=>setConfig(c),setSource:(s:any)=>setSource(s),update:(s:any)=>{setState(s);setBusy(false);setError('');if(s.state==='input'){const next=answers.current.next(s.prompt);if(next.found){lastAnswer.current=next.value;setBusy(true);native('answer',{token:s.token,value:next.value});}}if(s.state==='complete')setSteps(answers.current.finish());},showResult:(r:any)=>{setResult(r);window.scrollTo(0,0);},resultKept:(name:string)=>setResult((r:any)=>r?{...r,kept:name}:r),error:(s:string)=>{setError(s);setBusy(false);}};native('ready');return()=>{delete window.statsDirectOperation;};},[]);
+  useEffect(()=>{window.statsDirectOperation={tutorSnapshot:()=>({inputs:Array.from(tutorInputs.values()).map(read=>{try{const input=read();return JSON.stringify(input).length<=50000?input:{error:'Input too large for the tutor; choose a smaller worksheet range.'};}catch(e){return {error:(e as Error).message};}})}),configure:(c:any)=>setConfig(c),setSource:(s:any)=>setSource(s),columnData:(r:any)=>{const p=pendingColumns.get(r?.token);if(!p)return;pendingColumns.delete(r.token);if(r.error)p.reject(new Error(r.error));else p.resolve(r);},update:(s:any)=>{setState(s);setBusy(false);setError('');if(s.state==='input'){const next=answers.current.next(s.prompt);if(next.found){lastAnswer.current=next.value;setBusy(true);native('answer',{token:s.token,value:next.value});}}if(s.state==='complete')setSteps(answers.current.finish());},showResult:(r:any)=>{setResult(r);window.scrollTo(0,0);},resultKept:(name:string)=>setResult((r:any)=>r?{...r,kept:name}:r),error:(s:string)=>{setError(s);setBusy(false);}};native('ready');return()=>{delete window.statsDirectOperation;};},[]);
   const isActive=['input','running'].includes(state.state),isSettings=['AnalysisOptions','MetaCalculationOptions','MetaPlotOptions'].includes(config.id);
   return <main className={isSettings?'options-page':undefined}><header><div><div className="eyebrow">ANALYSIS / STATSDIRECT</div><h1>{config.title}</h1><p>{isSettings?"Review all defaults below, then save them together.":"Results collect in the active report. Use File → New Report to start another."}</p></div><button onClick={()=>native('help')}>Method help ↗</button></header>
     {error&&<p className="error" role="alert">{error}</p>}

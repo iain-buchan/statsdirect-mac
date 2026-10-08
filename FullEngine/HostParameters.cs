@@ -267,14 +267,14 @@ internal static class HostParameters {
         }
         return result;
     }
-    static (string title, string[] values)[] IdentifierColumns(JsonElement input, string name) {
+    internal static (string title, string[] values)[] IdentifierColumns(JsonElement input, string name) {
         if (!input.TryGetProperty(name, out var list) || list.ValueKind != JsonValueKind.Array) return Array.Empty<(string, string[])>();
         return list.EnumerateArray().Select((c, i) => (
             c.TryGetProperty("title", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : "Column " + (i + 1),
             c.TryGetProperty("values", out var v) && v.ValueKind == JsonValueKind.Array ? v.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.Null ? "" : x.ToString().Trim()).ToArray() : Array.Empty<string>())).ToArray();
     }
     // Group index per row (-1 where the row has no identifier), labels in order of first appearance.
-    static int[] Classify((string title, string[] values)[] identifiers, int rows, DoubleVariable data, string what, out List<string> labels) {
+    internal static int[] Classify((string title, string[] values)[] identifiers, int rows, DoubleVariable data, string what, out List<string> labels) {
         var ids = new int[rows]; var index = new Dictionary<string, int>(); labels = new List<string>();
         for (int r = 0; r < rows; r++) {
             var parts = identifiers.Select(c => r < c.values.Length ? c.values[r] : "").ToArray();
@@ -290,7 +290,7 @@ internal static class HostParameters {
         }
         return ids;
     }
-    static string CountMessage(int min, int max, int count) =>
+    internal static string CountMessage(int min, int max, int count) =>
         min == max ? $"The identifiers define {count} group{(count == 1 ? "" : "s")}; this method needs exactly {min}."
         : count < min ? $"The identifiers define {count} group{(count == 1 ? "" : "s")}; this method needs at least {min}."
         : $"The identifiers define {count} groups; this method takes at most {max}.";

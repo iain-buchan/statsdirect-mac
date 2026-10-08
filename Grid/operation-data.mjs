@@ -23,11 +23,13 @@ export function worksheetRows(source, selected, requiredLength) {
 // application pivots them into one variable per group (HostParameters.PivotLongFrame).
 export function worksheetInput(source, selected, first, last, layout) {
   if (layout) {
+    // Paired modes take one identifier column and one block (or sub-group) column.
+    const paired=layout.mode==='treatmentAndBlock'||layout.mode==='groupAndSubgroup', nested=layout.mode==='groupAndSubgroup';
     if (!Number.isInteger(layout.data)) throw new Error('Choose the data column.');
-    if (!layout.identifiers?.length) throw new Error(layout.mode==='treatmentAndBlock'?'Choose the treatment (column) identifier column.':'Choose at least one group identifier column.');
-    if (layout.mode==='treatmentAndBlock' && layout.identifiers.length!==1) throw new Error('Choose one treatment identifier column.');
-    if (layout.mode!=='treatmentAndBlock' && layout.identifiers.length>20) throw new Error('Choose up to 20 group identifier columns.');
-    if (layout.mode==='treatmentAndBlock' && !Number.isInteger(layout.block)) throw new Error('Choose the block (row) identifier column.');
+    if (!layout.identifiers?.length) throw new Error(nested?'Choose the group identifier column.':paired?'Choose the treatment (column) identifier column.':'Choose at least one group identifier column.');
+    if (paired && layout.identifiers.length!==1) throw new Error(nested?'Choose one group identifier column.':'Choose one treatment identifier column.');
+    if (!paired && layout.identifiers.length>20) throw new Error('Choose up to 20 group identifier columns.');
+    if (paired && !Number.isInteger(layout.block)) throw new Error(nested?'Choose the sub-group identifier column.':'Choose the block (row) identifier column.');
     selected=[layout.data, ...layout.identifiers, ...(Number.isInteger(layout.block)?[layout.block]:[])];
   }
   if (!source || !selected.length) throw new Error('Choose at least one column.');

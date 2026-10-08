@@ -271,7 +271,7 @@ internal sealed class OperationHost : ITemplateHost {
             options.Values1.AddRange(Enumerable.Range(1,context["ycats"].AsInt32).Select(i=>(double)i));options.Values2.AddRange(Enumerable.Range(1,context["xcats"].AsInt32).Select(i=>(double)i));
             HostAmendments.Amend(job,this,options,context);var values=new ParameterBag();values.AddInput("values1",options.Values1.ToArray());values.AddInput("values2",options.Values2.ToArray());return values;
         }
-        if (p is Frame2DParameter multi) return new ParameterBag(p.Name, FilledParameterFactory.Input(HostComplexData.Frame2D(job, multi, processor, context)));
+        if (p is Frame2DParameter multi) return new ParameterBag(p.Name, FilledParameterFactory.Input(HostComplexData.Frame2D(job, multi, processor, context, this)));
         if (p is GroupedCovarianceParameter) return new ParameterBag(p.Name, FilledParameterFactory.Input(HostComplexData.GroupedCovariance(job, this)));
         string error = null;
         while (true) {

@@ -95,6 +95,10 @@ test('long data: the form sends the data column, the identifiers and the block, 
   assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'single', data: 1, identifiers: [1]}), /different columns/);
   assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'treatmentAndBlock', data: 0, identifiers: [1, 2]}), /one treatment/);
   assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'treatmentAndBlock', data: 0, identifiers: [1]}), /block/);
+  // Two-dimensional frames take a group and a sub-group identifier.
+  const nested = worksheetInput(source, [], 2, 13, {mode: 'groupAndSubgroup', data: 0, identifiers: [1], block: 2});
+  assert.deepEqual(nested.layout, {mode: 'groupAndSubgroup', identifiers: 1, block: true});
+  assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'groupAndSubgroup', data: 0, identifiers: [1]}), /sub-group/);
   // A lesson source that carries cells cannot pivot: identifiers need the live worksheet.
   assert.throws(() => worksheetInput({...source, lazy: false, cells: []}, [], 2, 13, {mode: 'single', data: 0, identifiers: [1]}), /open worksheet/);
 });

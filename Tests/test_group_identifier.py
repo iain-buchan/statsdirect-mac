@@ -76,6 +76,55 @@ try:
     same_numbers(wide_fr, long_fr, 'Friedman by treatment and block identifiers')
     print('PASS: two-way ANOVA and Friedman from treatment and block identifiers match separate columns')
 
+    # Nested means is a follow-on of the nested ANOVA; it runs on the pivoted two-dimensional frame.
+    def chain(operation, answers, parent=None):
+        id = str(uuid.uuid4()); st = s.request(action='start', id=id, operation=operation, **({'parent': parent} if parent else {})); st = s.wait(id)
+        while st.get('state') == 'input':
+            p = st['prompt']; name = p.get('name')
+            value = answers.get(name, answers.get(p.get('prompt'), p.get('defaultValue') if p.get('defaultValue') is not None else (p['options'][0]['value'] if p['kind'] == 'option' else {o['name']: o['defaultValue'] for o in p['fields']} if p['kind'] in ('fields', 'settings') else False if p['kind'] == 'boolean' else None)))
+            assert value is not None and not p.get('error'), (operation, p)
+            s.request(action='answer', id=id, token=st['token'], value=value); st = s.wait(id)
+        assert st['state'] == 'complete', (operation, st.get('error'))
+        return id, st
+    # Two-dimensional frames: nested groups and sub-groups, and repeated measures by treatment and subject.
+    nested_wide = s.run('TwoWayNested', {'Group 1: one column per subgroup': columns([1, 2, 3], [2, 3, 5]), 'Group 2: one column per subgroup': columns([4, 5, 7], [6, 7, 9])})
+    nest_values, nest_groups, nest_subs = [], [], []
+    for g, cols in (('alpha', [[1, 2, 3], [2, 3, 5]]), ('beta', [[4, 5, 7], [6, 7, 9]])):
+        for sg, vals in zip(('p', 'q'), cols):
+            for v in vals: nest_values.append(v); nest_groups.append(g); nest_subs.append(sg)
+    nested_long = s.run('TwoWayNested', {'layout2d': 'identifiers', 'data2d': long_input(nest_values, nest_groups, nest_subs, titles=('score', 'group', 'sub'))})
+    same_numbers(nested_wide, nested_long, 'nested two-way ANOVA from group and sub-group identifiers')
+    assert 'group_alpha (sub_p)' in nested_long['html'], nested_long['html'][:500]
+    wide_parent, _ = chain('TwoWayNested', {'Group 1: one column per subgroup': columns([1, 2, 3], [2, 3, 5]), 'Group 2: one column per subgroup': columns([4, 5, 7], [6, 7, 9])})
+    long_parent, _ = chain('TwoWayNested', {'layout2d': 'identifiers', 'data2d': long_input(nest_values, nest_groups, nest_subs, titles=('score', 'group', 'sub'))})
+    means_wide_id, means_wide = chain('TwoWayNestedMeans', {}, parent=wide_parent)
+    means_long_id, means_long = chain('TwoWayNestedMeans', {}, parent=long_parent)
+    same_numbers(means_wide, means_long, 'nested two-way means as a follow-on from identifiers')
+    for i in (means_wide_id, means_long_id, wide_parent, long_parent): assert s.request(action='release', id=i).get('ok')
+    repeat_wide = s.run('ReplicateTwoWay', {'Repeat 1: subjects in rows, treatments in columns': columns([1, 2, 4], [3, 4, 5]), 'Repeat 2: subjects in rows, treatments in columns': columns([2, 3, 3], [5, 6, 7])})
+    rep_values, rep_treat, rep_subj = [], [], []
+    repeats = [[[1, 2, 4], [3, 4, 5]], [[2, 3, 3], [5, 6, 7]]]
+    for r in range(2):
+        for subj in range(3):
+            for t, label in enumerate(('tee', 'you')): rep_values.append(repeats[r][t][subj]); rep_treat.append(label); rep_subj.append('abc'[subj])
+    repeat_long = s.run('ReplicateTwoWay', {'layout2d': 'identifiers', 'data2d': long_input(rep_values, rep_treat, rep_subj, titles=('score', 'treatment', 'subject'))})
+    same_numbers(repeat_wide, repeat_long, 'replicate two-way ANOVA from treatment and subject identifiers')
+    id, st = s.start('TwoWayNested'); assert st['prompt']['kind'] == 'option' and st['prompt']['name'] == 'layout2d' and st['prompt']['defaultValue'] == 'columns'
+    s.request(action='answer', id=id, token=st['token'], value='nonsense'); st = s.wait(id)
+    assert st['prompt']['name'] == 'layout2d' and 'available options' in (st['prompt'].get('error') or ''), st['prompt']
+    s.request(action='answer', id=id, token=st['token'], value='identifiers'); st = s.wait(id)
+    assert st['prompt']['kind'] == 'grid' and st['prompt']['groupIdentifiers'] == 'groupAndSubgroup' and st['prompt']['layout'] == 'long' and st['prompt']['identifierLabels'] == {'first': 'Group identifier', 'second': 'Sub-group identifier'}, st['prompt']
+    # Entered or lesson data can only arrive in separate columns: the layout choice comes back with an explanation.
+    s.request(action='answer', id=id, token=st['token'], value=columns([1, 2, 3], [2, 3, 5])); st = s.wait(id)
+    assert st['prompt']['name'] == 'layout2d' and 'separate columns' in (st['prompt'].get('error') or '') and st['prompt']['defaultValue'] == 'columns', st['prompt']
+    s.close(id)
+    # The record of a long two-dimensional answer holds the data, group and sub-group columns together.
+    _, nested_state = chain('TwoWayNested', {'layout2d': 'identifiers', 'data2d': long_input(nest_values, nest_groups, nest_subs, titles=('score', 'group', 'sub'))})
+    nested_record = next(h for h in nested_state['history'] if h.get('name') == 'data2d')['value']
+    assert [c['title'] for c in nested_record['columns']] == ['score', 'group', 'sub'] and nested_record['layout'] == 'long' and nested_record['identifiers'] == ['group'], nested_record
+    assert next(h for h in nested_state['history'] if h.get('name') == 'layout2d')['value'] == 'identifiers'
+    print('PASS: nested and repeated-measures two-way designs from group and sub-group identifiers match separate columns')
+
     # A follow-on runs on the pivoted groups.
     anova_id = str(uuid.uuid4()); st = s.request(action='start', id=anova_id, operation='OneWay'); st = s.wait(anova_id)
     s.request(action='answer', id=anova_id, token=st['token'], value=long_input(rows, groups)); st = s.wait(anova_id)

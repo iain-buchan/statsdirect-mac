@@ -25,12 +25,14 @@ internal static class AnalysisDefaults {
     internal static void Apply(SDPreferences target, JsonElement options) {
         if (options.ValueKind == JsonValueKind.Undefined || options.ValueKind == JsonValueKind.Null) return;
         if (options.ValueKind != JsonValueKind.Object) throw new ArgumentException("Invalid saved analysis options.");
-        bool useDefault=options.GetProperty("use-default-ci").GetBoolean();
-        double confidence=HostParameters.Number(options.GetProperty("default-ci"));
-        int decimals=(int)HostParameters.Number(options.GetProperty("decp"));
-        int pDecimals=(int)HostParameters.Number(options.GetProperty("pdecp"));
-        bool groups=options.GetProperty("selectGroupsByIdentifier").GetBoolean();
-        bool scientific=options.GetProperty("use-scientific-notation-for-small-p-values").GetBoolean();
+        // The layout switch can save just its own preference before Analysis Options has
+        // ever been opened. Overlay saved keys on this analysis's existing defaults.
+        bool useDefault=options.TryGetProperty("use-default-ci",out var useDefaultValue)?useDefaultValue.GetBoolean():target.CanDefaultConfidenceInterval;
+        double confidence=options.TryGetProperty("default-ci",out var confidenceValue)?HostParameters.Number(confidenceValue):target.DefaultConfidenceInterval*100;
+        int decimals=options.TryGetProperty("decp",out var decimalsValue)?(int)HostParameters.Number(decimalsValue):target.DisplayDecimalPlaces;
+        int pDecimals=options.TryGetProperty("pdecp",out var pDecimalsValue)?(int)HostParameters.Number(pDecimalsValue):target.PDecimalPlaces;
+        bool groups=options.TryGetProperty("selectGroupsByIdentifier",out var groupsValue)?groupsValue.GetBoolean():target.SelectGroupsByIdentifier;
+        bool scientific=options.TryGetProperty("use-scientific-notation-for-small-p-values",out var scientificValue)?scientificValue.GetBoolean():target.UseScientificNotationForSmallPValues;
         if (confidence is not (80 or 85 or 90 or 95 or 99) || decimals<2 || decimals>12 || pDecimals<3 || pDecimals>7)
             throw new ArgumentException("Invalid analysis defaults. Choose a listed confidence level and decimal precision.");
         if(options.TryGetProperty("meta-cc",out var cc)) {

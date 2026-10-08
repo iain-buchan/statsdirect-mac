@@ -72,4 +72,18 @@ try:
   assert result['values']['pc']==90
  finally:second.finish()
  print('PASS native saved defaults restore in a fresh engine process')
+ # The layout switch is usable before visiting Analysis Options, so saved settings may
+ # contain only that key. Unspecified defaults, including the 95% CI, must remain intact.
+ third=Session()
+ try:
+  id,state=third.start('AnalysisOptions',{'selectGroupsByIdentifier':True})
+  assert {f['name']:f['defaultValue'] for f in state['prompt']['fields']}=={**DEFAULTS,'selectGroupsByIdentifier':True}
+  third.close(id)
+  result=third.run('TPaired',{'data':columns([10,20,30,40],[8,17,25,32])},{'selectGroupsByIdentifier':True})
+  assert result['values']['pc']==95
+  id,state=third.start('OneWay',{'selectGroupsByIdentifier':True})
+  assert state['prompt']['groupsByIdentifier'] is True
+  third.close(id)
+ finally:third.finish()
+ print('PASS first-use group layout preference preserves all other defaults and subsequent analyses open normally')
 finally:s.finish()

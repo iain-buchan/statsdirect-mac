@@ -4,6 +4,8 @@ export const promptKey = p => `${p.name}:${p.kind}`;
 export class InstantAnswers {
   constructor() { this.steps=new Map(); this.replay=null; }
   record(prompt,value) { this.steps.set(promptKey(prompt),{p:{...prompt,error:null},value}); }
+  // A nested validation question must not replace the data answer restored on rejection.
+  previous(prompt) { return this.steps.get(promptKey(prompt))?.value; }
   restart(steps) { this.replay=new Map(steps.map(s=>[promptKey(s.p),s.value]));this.steps.clear(); }
   next(prompt) {
     const key=promptKey(prompt);

@@ -16,3 +16,15 @@ test('recalculation uses edited values but pauses for new questions and engine v
  const final=a.finish();assert.equal(final.length,2);assert.equal(final[0].p.error,null);
  assert.equal(previous[0].value.columns[0].values[0],'12');
 });
+test('declining a nested warning retains the original data answer for correction',()=>{
+ const a=new InstantAnswers(),data={name:'data',kind:'grid'};
+ const input={layout:'long',range:{firstRow:2,lastRow:6,columns:[0,1]},roles:{identifiers:1},columns:[{values:['2','3','4','5','6']}],groupIdentifiers:[{values:['A','A','A','A','B']}]};
+ a.record(data,input);
+ a.record({kind:'boolean',prompt:'Warning: unequal length columns'},false);
+ assert.deepEqual(a.previous({...data,error:'The groups have different numbers of observations.'}),input);
+ assert.equal(a.previous({kind:'boolean'}),false);
+ a.restart(a.finish());
+ assert.equal(a.previous(data),undefined);
+ assert.deepEqual(a.next(data).value,input);
+ assert.deepEqual(a.previous({...data,error:'Rejected during replay'}),input);
+});

@@ -1,3 +1,37 @@
+# Groups by identifier handover — 8 October 2026
+
+Incorporated `ab9a6c1` from GitHub main (handover 2), retaining the typed entry tables and
+Excel actor-isolation fix. Independent checks found and fixed four integration defects:
+
+- Balanced treatment/block totals could conceal duplicate combinations. Two-way ANOVA and
+  Friedman then overwrote observations and analysed only the surviving complete blocks.
+  The Mac host now rejects duplicate combinations, including explicitly missing observations.
+  The pinned Windows selection code uses the same assignment pattern; the upstream core
+  remains unchanged and this validation is in the Mac host.
+- The first layout switch could save only `selectGroupsByIdentifier`, causing subsequent
+  analyses to fail on missing preference keys. Saved keys now overlay the existing defaults;
+  the default CI remains 95% and complete Analysis Options forms are still validated.
+- Rejecting a long-data answer reset a custom row range to the worksheet selection. A native
+  reproduction changed rows 2–5 to 1–12. Retries now retain the submitted range.
+- Declining the unequal-group warning replaced the saved data answer with a Boolean. Answers
+  are now restored by parameter, preserving the original roles and range for correction.
+
+The complete engine/R regression suite and all 79 JavaScript tests passed. Native WKWebView
+checks cover role selection, rejected and corrected ranges, first-use preference persistence,
+ANOVA history and its R script, and declining the unequal-group warning. The existing native
+workbook, tutor (mock), report/export, clipboard and million-row entry tests also passed.
+`./build.sh`, 1,552 distribution checks, Swift with `-warnings-as-errors`, and the rebuilt
+app's deep, strict local signature check passed. Engine pin: 5.0.14, `b10edfefa54b`.
+Run `python3 Tests/run_beta_feedback.py --groups-only` for the focused native checks.
+
+Remaining handover items: long-format acquisition for two-dimensional and grouped covariance
+frames; tutor-sharing controls and recorded consent; institution-level tutor policy; Apple
+Developer signing/notarisation and release CI. The existing tutor already explains what Send
+shares, says “Avoid identifiers”, and offers “Lessons only”; it does not record the proposed
+per-worksheet confirmation. Account-side contractual, training and residency claims in the
+handover are not established by inspecting this code. No tutor-sharing policy, upstream
+calculation source or published installer version changed in this integration.
+
 # Embedded entry tables and Excel host — 8 October 2026
 
 The general analysis entry forms now use the typed worksheet store, without a one-million-cell

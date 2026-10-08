@@ -253,9 +253,14 @@ internal static class HostParameters {
         var result = new DataFrame { Name = dataFrame.Name };
         for (int i = 0; i < groups.Count; i++) {
             var data = Enumerable.Repeat(Constant.MISSING, perTreatment).ToArray();
+            var occupied = new bool[perTreatment];
             for (int j = 0; j < rows; j++) {
                 if (groupIds[j] != i) continue;
                 if (blockIds[j] < 0) throw new ArgumentException($"Row {j + 1} has no block identifier.");
+                // Equal marginal counts do not establish one observation per treatment/block.
+                // Reject duplicates (including explicit missing values) before any value is overwritten.
+                if (occupied[blockIds[j]]) throw new ArgumentException($"Treatment '{groups[i]}' has more than one observation in block '{blockLabels[blockIds[j]]}'. Use a repeated/replicate measures method for repeated observations.");
+                occupied[blockIds[j]] = true;
                 data[blockIds[j]] = j < dataVariable.Length ? dataVariable.Data[j] : Constant.MISSING;
             }
             result.Variables.Add(new DoubleVariable(data, groups.Count > 1 ? dataVariable.Title + "_" + groupTitle + "_" + groups[i] : dataVariable.Title));

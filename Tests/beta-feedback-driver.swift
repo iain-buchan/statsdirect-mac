@@ -10,6 +10,9 @@ import PDFKit
   UserDefaults.standard.set(false,forKey:"automaticUpdateChecks")
   DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { Task { @MainActor in
    do {
+    if CommandLine.arguments.contains("--groups-only") {
+     try await GroupIdentifierTests.run(viewer)
+    } else {
     try await LearningWorkspaceTests.run(viewer)
     try await ProviderLearningTests.run(viewer)
     try await run(viewer)
@@ -17,7 +20,9 @@ import PDFKit
     try await ReportExportTests.run(viewer)
     try await largeGrid(viewer)
     try await entryTables(viewer)
+    try await GroupIdentifierTests.run(viewer)
     if CommandLine.arguments.contains("--live") { try await live(viewer) }
+    }
     print("PASS: beta feedback native integration");fflush(stdout)
    } catch { print("FAIL:",error);fflush(stdout);exit(1) }
    if !CommandLine.arguments.contains("--stay-open") { viewer.closeApproved=true;app.terminate(nil) }

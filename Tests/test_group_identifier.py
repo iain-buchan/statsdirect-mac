@@ -97,6 +97,14 @@ try:
     refused('OneWay', long_input(rows, ['a', 'b', ''] * 4), 'no group identifier')
     refused('TwoWay', long_input(values, treatments[:-1] + ['T1'], blocks, titles=('score', 'treatment', 'block')), 'same size')
     refused('TwoWay', long_input(values, treatments, ['B1'] * 12, titles=('score', 'treatment', 'block')), 'one observation per block')
+    # Balanced marginal counts can conceal duplicate treatment/block pairs. Previously these
+    # silently overwrote values and reported results using the remaining complete blocks.
+    duplicate_treatments = ['A', 'A', 'B', 'B', 'A', 'B', 'A', 'B']
+    duplicate_blocks = ['X', 'X', 'Y', 'Y', 'Z', 'Z', 'W', 'W']
+    for operation in ('TwoWay', 'Friedman'):
+        for first in (1, '*'):
+            refused(operation, long_input([first, 2, 3, 4, 5, 7, 8, 11], duplicate_treatments, duplicate_blocks), 'more than one observation')
+    print('PASS: duplicate treatment/block combinations are refused even with balanced marginal counts or missing values')
     refused('OneWay', dict(long_input(rows, groups), columns=[{'title': 'a', 'values': rows}, {'title': 'b', 'values': rows}]), 'one data column')
     refused('BoxWhiskerPlot', long_input([1, '*', 2, '*', 3, '*'], ['a', 'b'] * 3), 'no numeric observations')
     # Frames that take categories or text keep separate columns: no identifier layout is offered.

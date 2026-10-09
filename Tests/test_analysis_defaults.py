@@ -80,7 +80,7 @@ try:
   'Group 2: Y outcomes for Column 2':columns([3,5,8,9])}
  for confidence in (95,90):
   result=s.run('GroupedCovariance',covariance,{**DEFAULTS,'default-ci':str(confidence)})
-  assert not any(h.get('title')=='Confidence level' for h in result['history']), result['history']
+  assert next(h['value'] for h in result['history'] if h.get('title')=='Confidence level')=={'ci':confidence}, result['history']
   assert str(confidence)+'%' in result['html'], result['html'][:500]
  result=s.run('GroupedCovariance',{**covariance,'Confidence level':{'ci':99}},{**DEFAULTS,'use-default-ci':False})
  assert any(h.get('title')=='Confidence level' for h in result['history']) and '99%' in result['html']

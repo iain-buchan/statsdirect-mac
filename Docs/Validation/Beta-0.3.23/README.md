@@ -42,5 +42,5 @@ Apple Developer ID signing and notarisation were excluded from this work. The pr
 
 The Release build has no Swift warnings. The extracted ZIP passes archive integrity, executable/engine/resource identity, existing ad-hoc signature verification and matching debug-symbol checks. Signing credentials and notarisation are untouched.
 
-- Application: `StatsDirect-0.3.23-macOS-arm64.zip`, 156,290,456 bytes; SHA-256 `7b6ffb2672d3a858485b0af1f71aeb4e0839e6a05db8d65d15f879460abb8165`.
-- Symbols: `StatsDirect-0.3.23-macOS-arm64-symbols.zip`, 1,955,188 bytes; SHA-256 `a17865967d91937de03a54d3b3e5282038752dbb09e47d4a1813f4037622c7bb`.
+- Application: `StatsDirect-0.3.23-macOS-arm64.zip`, 156,290,555 bytes; SHA-256 `d9f532fa15d255e4b25f605e9c0ce7d259f7033179e180ca11ffec6b49cd3baf`.
+- Symbols: `StatsDirect-0.3.23-macOS-arm64-symbols.zip`, 1,955,187 bytes; SHA-256 `bb6213e9bb32d0f9abecb8abaf60acc2019d25501dc9c9d126f5d18f0e2c421f`.

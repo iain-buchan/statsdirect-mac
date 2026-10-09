@@ -1,3 +1,7 @@
+# Advanced Excel structural edits — 9 October 2026
+
+See [0.3.24 validation](../Docs/Validation/Beta-0.3.24/README.md) for feature coverage, Excel checks and the remaining genuine structural constraints. This replaces the earlier blanket exclusions for tables, merges, pivots, slicers, controls and worksheet extensions.
+
 # Extended Mac validation — 9 October 2026
 
 See [0.3.23 validation](../Docs/Validation/Beta-0.3.23/README.md) for the latest checks, host fixes, native Office results, fresh-profile boundaries and remaining limits. The historical entries below describe earlier builds.

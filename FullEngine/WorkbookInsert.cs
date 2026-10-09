@@ -70,12 +70,14 @@ public static partial class WorkbookIO {
             int a = sheetOrder.FindIndex(s => s.Equals(firstSheet, StringComparison.OrdinalIgnoreCase)), b = sheetOrder.FindIndex(s => s.Equals(lastSheet, StringComparison.OrdinalIgnoreCase));
             if (a < 0 || b < 0) throw new Exception("A three-dimensional formula refers to an unknown worksheet.");
             var areas = sheetOrder.Skip(Math.Min(a,b)).Take(Math.Abs(b-a)+1).Select(s => Area(s,reference)).Distinct().ToList();
-            if (areas.Count != 1) throw new Exception("This insertion would make a three-dimensional formula refer to different columns on different worksheets. Write the results in a new worksheet.");
+            // Excel keeps a 3-D coordinate when only some constituent sheets move.
+            // A grouped edit with the same shift on every sheet moves it as one range.
+            if (areas.Count != 1) return base.Reference3D(ctx, range, firstSheet, lastSheet, reference);
             return base.Reference3D(ctx, range, firstSheet, lastSheet, areas[0]);
         }
     }
 
-    static void InsertWorkbookColumns(string sourcePath, string targetPath, List<SheetInserts> inserts) {
+    static void InsertWorkbookColumns(string sourcePath, string targetPath, List<SheetInserts> inserts, List<SheetData> patches = null) {
         using var source = ZipFile.OpenRead(sourcePath);
         var package = new Package(source, true);
         var book = ReadXml(source, "xl/workbook.xml");
@@ -83,13 +85,12 @@ public static partial class WorkbookIO {
         var refs = new ColumnReferences(inserts, names);
         var replaced = new Dictionary<string, XDocument>(StringComparer.OrdinalIgnoreCase);
         var sheetParts = package.Sheets.ToDictionary(s => s.Entry, s => s, StringComparer.OrdinalIgnoreCase);
-        // These parts contain coordinate-bearing structures that require more than shifting
-        // their visible cells. Reading remains unrestricted; only structural editing waits.
-        foreach (var entry in source.Entries) {
-            string part = entry.FullName.ToLowerInvariant();
-            if (part.StartsWith("xl/pivot") || part.StartsWith("xl/slicer") || part.StartsWith("xl/threadedcomments") || part.StartsWith("xl/metadata") || part.StartsWith("xl/externalconnections") || part.StartsWith("xl/querytables/") || part == "xl/connections.xml")
-                throw new Exception("This workbook contains pivot, slicer or linked-data metadata that cannot yet be moved safely. Write the results in a new worksheet.");
-        }
+        var headers = new Dictionary<string, SortedDictionary<int, List<XElement>>>(StringComparer.OrdinalIgnoreCase);
+        // Cache fields, slicer field IDs, rich-value metadata and connection definitions
+        // are not sheet coordinates. Keep their identities and payloads; only their
+        // source ranges and the owning sheet's visible objects need relocation.
+        AdjustPivotSources(source, replaced, refs);
+        AdjustConnectionParameters(source, replaced, refs);
         foreach (var name in book.Descendants(S + "definedName")) {
             int? index = (int?)name.Attribute("localSheetId");
             string context = index.HasValue && index >= 0 && index < names.Count ? names[index.Value] : null;
@@ -105,71 +106,53 @@ public static partial class WorkbookIO {
                 if ((string)rel.Attribute("TargetMode") == "External") continue;
                 string type = (string)rel.Attribute("Type") ?? "", target = (string)rel.Attribute("Target");
                 string part = Uri.UnescapeDataString(new Uri(new Uri("http://package/" + info.Entry), target).AbsolutePath.TrimStart('/'));
-                bool moving = refs.For(info.Name).Count > 0;
-                if (moving && (type.EndsWith("/oleObject") || type.EndsWith("/ctrlProp")))
-                    throw new Exception($"Worksheet '{info.Name}' has legacy shapes or controls that cannot yet be moved safely. Write the results in a new worksheet.");
-                if (type.EndsWith("/vmlDrawing") && moving) {
+                if (type.EndsWith("/vmlDrawing")) {
                     var drawing = ReadXml(source, part);
-                    XNamespace vml = "urn:schemas-microsoft-com:vml", excel = "urn:schemas-microsoft-com:office:excel";
-                    foreach (var shape in drawing.Descendants(vml+"shape")) {
-                        var data = shape.Element(excel+"ClientData");
-                        if ((string)data?.Attribute("ObjectType") != "Note")
-                            throw new Exception($"Worksheet '{info.Name}' has legacy shapes or controls that cannot yet be moved safely. Write the results in a new worksheet.");
-                        if (data.Element(excel+"Column") is XElement column)
-                            column.Value = (refs.Column(info.Name, (int)column+1)-1).ToString(CultureInfo.InvariantCulture);
-                        if (data.Element(excel+"Anchor") is XElement anchor) {
-                            var coordinates = anchor.Value.Split(',').Select(x=>int.Parse(x.Trim(),CultureInfo.InvariantCulture)).ToArray();
-                            if (coordinates.Length != 8 || coordinates.Any(n=>n<0) || coordinates[0]>=MaxCols || coordinates[4]>=MaxCols || coordinates[4]<coordinates[0]) throw new Exception("A note has an invalid anchor. Repair it in Excel before inserting columns.");
-                            bool flag(string name) { var element=data.Element(excel+name); return element!=null && (element.Value.Trim() is "" or "True" or "true" or "1" or "t"); }
-                            int start = coordinates[0], end = coordinates[4];
-                            // Notes move with their cell. Preserve the note box's width
-                            // unless the VML explicitly requests sizing with cells.
-                            if (flag("MoveWithCells") || flag("SizeWithCells")) {
-                                coordinates[0] = refs.Column(info.Name,start+1)-1;
-                                coordinates[4] = flag("SizeWithCells") ? refs.Column(info.Name,end+1)-1 : end+coordinates[0]-start;
-                            }
-                            if (coordinates[4] >= MaxCols) throw new Exception("A note would move beyond Excel's last column. Write results in a new worksheet.");
-                            anchor.Value = string.Join(", ", coordinates);
-                        }
-                    }
-                    // Other VML element types can also carry coordinates. Only note
-                    // drawings are supported; never accept a control by omission.
-                    if (drawing.Descendants().Any(e=>e.Name.Namespace==vml && e.Name.LocalName is "rect" or "roundrect" or "oval" or "line" or "polyline" or "arc" or "curve" or "image" or "group"))
-                        throw new Exception($"Worksheet '{info.Name}' has legacy shapes or controls that cannot yet be moved safely. Write the results in a new worksheet.");
+                    AdjustVml(drawing, info.Name, refs);
                     replaced[part] = drawing;
                 } else if (type.EndsWith("/table")) {
                     var table = ReadXml(source, part);
-                    var range = table.Root.Attribute("ref");
-                    refs.Intact(range.Value, info.Name, "an Excel table");
+                    ExpandTable(source, part, table, info.Name, refs, headers, patches, replaced);
                     AdjustFeatures(table.Root, info.Name, refs);
                     replaced[part] = table;
-                } else if (type.EndsWith("/comments")) {
-                    var comments = ReadXml(source, part);
-                    foreach (var cell in comments.Descendants(S + "comment")) cell.SetAttributeValue("ref", refs.Range((string)cell.Attribute("ref"), info.Name));
-                    replaced[part] = comments;
-                } else if (type.EndsWith("/drawing") && moving) {
-                    var drawing = ReadXml(source, part);
-                    XNamespace xdr = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
-                    foreach (var anchor in drawing.Root.Elements()) {
-                        string behavior = (string)anchor.Attribute("editAs");
-                        if (anchor.Name == xdr+"absoluteAnchor" || behavior == "absolute") continue;
-                        var columns = anchor.Descendants(xdr+"col").ToList();
-                        int delta = columns.Count == 0 ? 0 : refs.Column(info.Name,(int)columns[0]+1)-1-(int)columns[0];
-                        foreach (var col in columns) {
-                            int moved = behavior == "oneCell" ? (int)col + delta : refs.Column(info.Name,(int)col+1)-1;
-                            if (moved >= MaxCols) throw new Exception("A drawing would move beyond Excel's last column. Write results in a new worksheet.");
-                            col.Value = moved.ToString(CultureInfo.InvariantCulture);
-                        }
+                    foreach (var (queryType,queryPart) in PartRelations(source,part).Where(r=>r.type.EndsWith("/queryTable"))) {
+                        if (replaced.ContainsKey(queryPart)) continue; // expanded query already adjusted
+                        var query = ReadXml(source,queryPart); AdjustFeatures(query.Root,info.Name,refs); replaced[queryPart] = query;
                     }
+                } else if ((type.EndsWith("/comments") || type.EndsWith("/threadedComment"))) {
+                    var comments = ReadXml(source, part);
+                    foreach (var cell in comments.Descendants().Where(e => e.Name.LocalName is "comment" or "threadedComment")) cell.SetAttributeValue("ref", refs.Range((string)cell.Attribute("ref"), info.Name));
+                    replaced[part] = comments;
+                } else if (type.EndsWith("/drawing")) {
+                    var drawing = ReadXml(source, part);
+                    AdjustFeatures(drawing.Root, info.Name, refs);
                     replaced[part] = drawing;
+                } else if (type.EndsWith("/ctrlProp")) {
+                    var control = ReadXml(source, part);
+                    AdjustFeatures(control.Root, info.Name, refs);
+                    replaced[part] = control;
+                } else if (type.EndsWith("/queryTable") || type.EndsWith("/singleCellTable")) {
+                    var query = ReadXml(source,part); AdjustFeatures(query.Root,info.Name,refs); replaced[part] = query;
+                } else if (type.EndsWith("/pivotTable")) {
+                    var pivot = ReadXml(source, part);
+                    // Excel itself prohibits splitting a pivot report. Moving the
+                    // complete report leaves pivot-field indices and cache IDs intact.
+                    foreach (var location in pivot.Descendants(S+"location")) {
+                        refs.Intact((string)location.Attribute("ref"), info.Name, "a PivotTable report");
+                        location.SetAttributeValue("ref", refs.Range((string)location.Attribute("ref"), info.Name));
+                    }
+                    // Pivot-area references are offsets within the report, not A1
+                    // coordinates on the sheet: they deliberately remain unchanged.
+                    replaced[part] = pivot;
                 }
+
             }
         }
         // Chart series on any sheet may refer to the moved data. Drop their obsolete caches.
         foreach (var entry in source.Entries.Where(e => e.FullName.StartsWith("xl/charts/") && e.FullName.EndsWith(".xml"))) {
             var chart = ReadXml(source, entry.FullName);
             XNamespace c = "http://schemas.openxmlformats.org/drawingml/2006/chart";
-            foreach (var formula in chart.Descendants(c + "f")) formula.Value = refs.Formula(formula.Value, null);
+            foreach (var formula in chart.Descendants().Where(e=>e.Name == c+"f" || e.Name.LocalName == "f" && e.Name.NamespaceName == "http://schemas.microsoft.com/office/drawing/2014/chartex")) formula.Value = refs.Formula(formula.Value, null);
             chart.Descendants().Where(e => e.Name == c+"numCache" || e.Name == c+"strCache").Remove();
             replaced[entry.FullName] = chart;
         }
@@ -191,25 +174,38 @@ public static partial class WorkbookIO {
             if (entry.FullName.EndsWith('/') || entry.FullName == chainPart) continue;
             using var into = output.CreateEntry(entry.FullName, CompressionLevel.Optimal).Open();
             if (replaced.TryGetValue(entry.FullName, out var doc)) { doc.Save(into); continue; }
-            if (sheetParts.TryGetValue(entry.FullName, out var sheet)) InsertSheet(entry, into, sheet.Name, refs);
+            if (sheetParts.TryGetValue(entry.FullName, out var sheet)) InsertSheet(entry, into, sheet.Name, refs, headers.GetValueOrDefault(sheet.Name));
             else { using var from = entry.Open(); from.CopyTo(into); }
         }
     }
 
     static void AdjustFeatures(XElement element, string sheet, ColumnReferences refs) {
         bool moving = refs.For(sheet).Count > 0;
-        foreach (var node in element.DescendantsAndSelf()) {
-            if (moving && node.Name.LocalName is "extLst" or "customSheetViews" or "dataConsolidate") throw new Exception($"Worksheet '{sheet}' uses extended Excel features that cannot yet be moved safely. Write the results in a new worksheet.");
-            if (node.Name.Namespace != S) continue;
+        foreach (var node in element.DescendantsAndSelf().ToList()) {
+            // MS-XLSX xm:f and xm:sqref explicitly expose coordinates even for
+            // otherwise unknown extension payloads. Do not rewrite unrelated IDs.
+            if (node.Name.Namespace == Xm && node.Name.LocalName is "f" or "sqref") {
+                node.Value = node.Name.LocalName == "f" ? refs.Formula(node.Value,sheet) : refs.Range(node.Value,sheet);
+                continue;
+            }
+            if (node.Name.Namespace != S && !IsExcelExtension(node.Name.Namespace)) continue;
             string kind = node.Name.LocalName;
             if (moving && kind == "sheetProtection" && (string)node.Attribute("sheet") is "1" or "true" && (string)node.Attribute("insertColumns") is not ("0" or "false"))
                 throw new Exception($"Worksheet '{sheet}' is protected against column insertion. Unprotect it in Excel or write the results in a new worksheet.");
-            if (kind == "mergeCell" && node.Attribute("ref") is XAttribute merge) refs.Intact(merge.Value, sheet, "a merged cell range");
-            if (kind is "formula" or "formula1" or "formula2" or "calculatedColumnFormula" or "totalsRowFormula") node.Value = refs.Formula(node.Value, sheet);
+            if (!node.HasElements && kind is "formula" or "formula1" or "formula2" or "calculatedColumnFormula" or "totalsRowFormula") node.Value = refs.Formula(node.Value, sheet);
+            string context = kind == "dataRef" && node.Attribute("sheet") != null ? (string)node.Attribute("sheet") : sheet;
+            bool external = kind == "dataRef" && node.Attribute(Rel+"id") != null;
             foreach (var attr in node.Attributes().ToList()) {
                 if (attr.Name.Namespace != XNamespace.None) continue;
-                if (attr.Name.LocalName is "ref" or "sqref" or "activeCell" or "topLeftCell" or "syncRef" || kind == "inputCells" && attr.Name.LocalName == "r") attr.Value = refs.Range(attr.Value, sheet);
+                if (attr.Name.LocalName is "ref" or "sqref" or "activeCell" or "topLeftCell" or "syncRef" || kind is "inputCells" or "cellWatch" or "singleXmlCell" && attr.Name.LocalName == "r") if (!external) attr.Value = refs.Range(attr.Value, context);
+                if (attr.Name.LocalName is "fmlaLink" or "fmlaRange" or "fmlaTxbx" or "linkedCell" or "listFillRange") attr.Value = refs.Formula(attr.Value, sheet);
+                if (kind == "webPublishItem" && attr.Name.LocalName == "sourceRef") attr.Value = refs.Range(attr.Value,sheet);
                 if (kind == "hyperlink" && attr.Name.LocalName == "location") attr.Value = refs.Formula(attr.Value, sheet);
+            }
+            if (kind == "cfvo" && (string)node.Attribute("type") == "formula" && node.Attribute("val") is XAttribute threshold) threshold.Value = refs.Formula(threshold.Value,sheet);
+            if (moving && kind == "brk" && node.Parent?.Name == S+"rowBreaks") {
+                bool fullWidth = ((int?)node.Attribute("min") ?? 0) == 0 && (int?)node.Attribute("max") == MaxCols-1;
+                if (!fullWidth) foreach (string limit in new[] { "min", "max" }) if (node.Attribute(limit) is XAttribute bound) bound.Value = (refs.Column(sheet,int.Parse(bound.Value,CultureInfo.InvariantCulture)+1,true)-1).ToString(CultureInfo.InvariantCulture);
             }
             if (kind == "autoFilter" && node.Attribute("ref") != null) {
                 // colId is relative to the left edge of the filter range; insertion inside a
@@ -230,9 +226,10 @@ public static partial class WorkbookIO {
             }
             if (moving && kind == "brk" && node.Parent?.Name == S+"colBreaks") node.SetAttributeValue("id", refs.Column(sheet,(int)node.Attribute("id")));
         }
+        AdjustDrawing(element, sheet, refs);
     }
 
-    static void InsertSheet(ZipArchiveEntry entry, Stream output, string sheet, ColumnReferences refs) {
+    static void InsertSheet(ZipArchiveEntry entry, Stream output, string sheet, ColumnReferences refs, SortedDictionary<int, List<XElement>> headers) {
         // Shared masters may follow their dependants in a valid file. Collect them first.
         var shared = new Dictionary<string,string>();
         using (var input = entry.Open()) using (var scan = XmlReader.Create(input)) {
@@ -258,6 +255,8 @@ public static partial class WorkbookIO {
                 var node = (XElement)XNode.ReadFrom(reader);
                 if (node.Name == S+"row") {
                     rowNumber = (int?)node.Attribute("r") ?? rowNumber+1;
+                    WriteMissingHeaderRows(writer, headers, rowNumber);
+                    var styles = InsertedCellStyles(node,sheet,refs,rowNumber);
                     node.Attribute("spans")?.Remove();
                     int col = 0;
                     foreach (var cell in node.Elements(S+"c")) {
@@ -266,7 +265,14 @@ public static partial class WorkbookIO {
                         var f = cell.Element(S+"f");
                         if (f == null) continue;
                         string type = (string)f.Attribute("t");
-                        if (type == "dataTable") throw new Exception($"Worksheet '{sheet}' has a what-if data table that cannot yet be adjusted. Write results in a new worksheet.");
+                        if (type == "dataTable") {
+                            if (f.Attribute("ref") is XAttribute table) {
+                                refs.Intact(table.Value, sheet, "a what-if data table");
+                                table.Value = refs.Range(table.Value, sheet);
+                            }
+                            foreach (string input in new[] { "r1", "r2" })
+                                if (f.Attribute(input) is XAttribute reference) reference.Value = refs.Range(reference.Value,sheet);
+                        }
                         if (type == "shared") {
                             string id = (string)f.Attribute("si");
                             if (id == null || !shared.TryGetValue(id,out var master)) throw new Exception("A shared formula has no master expression.");
@@ -279,22 +285,25 @@ public static partial class WorkbookIO {
                         f.Value = refs.Formula(f.Value,sheet,rowNumber,col);
                         cell.Elements(S+"v").Remove(); cell.Elements(S+"is").Remove(); cell.Attribute("t")?.Remove();
                     }
+                    MergeRowCells(node,styles);
+                    AddTableHeaders(node, rowNumber, headers);
+                    AdjustFeaturesInRow(node, sheet, refs);
                 } else if (node.Name == S+"cols") {
-                    foreach (var c in node.Elements(S+"col").ToList()) {
-                        int min = (int)c.Attribute("min"), max = (int)c.Attribute("max");
-                        // Keep column properties with their old columns. A spanning
-                        // definition expands over the gap; other gaps use sheet defaults.
-                        int movedMin = min;
-                        foreach (var ins in refs.For(sheet)) if (movedMin > ins.Col) movedMin += ins.Count;
-                        if (movedMin > MaxCols) { c.Remove(); continue; }
-                        c.SetAttributeValue("min", movedMin); c.SetAttributeValue("max", refs.Column(sheet,max,true));
-                    }
+                    InsertColumnStyles(node,sheet,refs);
                 } else AdjustFeatures(node,sheet,refs);
                 node.WriteTo(writer); more = !reader.EOF; continue;
             }
             switch (reader.NodeType) {
-                case XmlNodeType.Element: writer.WriteStartElement(reader.Prefix,reader.LocalName,reader.NamespaceURI); writer.WriteAttributes(reader,true); if (reader.IsEmptyElement) writer.WriteEndElement(); break;
-                case XmlNodeType.EndElement: writer.WriteFullEndElement(); break;
+                case XmlNodeType.Element:
+                    writer.WriteStartElement(reader.Prefix,reader.LocalName,reader.NamespaceURI); writer.WriteAttributes(reader,true);
+                    if (reader.IsEmptyElement) {
+                        if (reader.NamespaceURI == MainNs && reader.LocalName == "sheetData") WriteMissingHeaderRows(writer,headers,int.MaxValue);
+                        writer.WriteEndElement();
+                    }
+                    break;
+                case XmlNodeType.EndElement:
+                    if (reader.NamespaceURI == MainNs && reader.LocalName == "sheetData") WriteMissingHeaderRows(writer, headers, int.MaxValue);
+                    writer.WriteFullEndElement(); break;
                 case XmlNodeType.XmlDeclaration: writer.WriteStartDocument(); break;
                 case XmlNodeType.Text: writer.WriteString(reader.Value); break;
                 case XmlNodeType.Whitespace: case XmlNodeType.SignificantWhitespace: writer.WriteWhitespace(reader.Value); break;

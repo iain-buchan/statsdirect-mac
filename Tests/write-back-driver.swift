@@ -48,9 +48,17 @@ struct WriteBackTests {
         _=try await write("FirstColumn",[])
         let moved=try await v.learningJavaScript(formatted,"({csv:statsDirectGrid.csvData()})")
         try check((moved["csv"] as? String)?.hasPrefix("output,dose,double")==true,"Formatted column movement \(moved)")
-        do {_=try await write("AfterSelection",[5]); throw DriverCheckFailure(description:"An insertion split a merged range")}
+        _=try await write("AfterSelection",[1])
+        let tableExpanded=try await v.learningJavaScript(formatted,"({csv:statsDirectGrid.csvData()})")
+        try check((tableExpanded["csv"] as? String)?.hasPrefix("output,dose,output,double")==true,"Insertion inside an Excel table was blocked")
+        _=try await v.learningJavaScript(formatted,"({ok:(statsDirectGrid.undo(),true)})")
+        _=try await write("AfterSelection",[5])
+        let mergeExpanded=try await v.learningJavaScript(formatted,"({csv:statsDirectGrid.csvData()})")
+        try check(mergeExpanded["csv"] as? String != moved["csv"] as? String,"Insertion inside a merged heading was blocked")
+        _=try await v.learningJavaScript(formatted,"({ok:(statsDirectGrid.undo(),true)})")
+        do {_=try await write("AfterSelection",[9]); throw DriverCheckFailure(description:"An insertion split an array formula")}
         catch let error as DriverCheckFailure {throw error}
-        catch {try check(error.localizedDescription.contains("merged cell"),"Unexpected refusal: \(error)")}
+        catch {try check(error.localizedDescription.contains("array formula"),"Unexpected refusal: \(error)")}
         let after=try await v.learningJavaScript(formatted,"({csv:statsDirectGrid.csvData()})")
         try check(after["csv"] as? String==moved["csv"] as? String,"Refusal changed the worksheet")
         _=try await v.learningJavaScript(formatted,"({ok:(statsDirectGrid.undo(),true)})")
@@ -58,6 +66,6 @@ struct WriteBackTests {
         try check((restored["csv"] as? String)?.hasPrefix("dose,double")==true,"Undo did not restore formatted workbook")
         let stale=try await v.learningJavaScript(formatted,"(()=>{const p=statsDirectGrid.prepareWriteFrames({frames:[{columns:1,lengths:[1],cells:[{col:0,row:1,text:'9'}]}],placement:'FirstColumn'});statsDirectGrid.redo();try{statsDirectGrid.writeFrames({token:p.token});return {refused:false};}catch(e){return {refused:e.message.includes('changed while checking')};}})()")
         try check(stale["refused"] as? Bool == true,"A stale insertion plan was committed")
-        print("PASS: native file-backed insertion preflight with names/formulas/formatting, refusal before grid mutation, and undo")
+        print("PASS: native file-backed insertion preflight with table and merged-heading expansion, names/formulas/formatting, array refusal before mutation, and undo")
     }
 }

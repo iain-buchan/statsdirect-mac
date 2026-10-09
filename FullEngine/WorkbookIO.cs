@@ -498,10 +498,10 @@ public static partial class WorkbookIO {
                 long edits = sheets.Sum(s => s.Columns.Values.Sum(c => (long)c.Rows.Count));
                 if (inserts.Count > 0) {
                     insertedSource = temporary + ".inserted.xlsx";
-                    InsertWorkbookColumns(source, insertedSource, inserts);
+                    InsertWorkbookColumns(source, insertedSource, inserts, sheets);
                     source = insertedSource;
                 }
-                if (!request.Stream && edits + originalCells <= ClosedXmlCells) { File.Copy(source, temporary, true); uncached = PatchWithClosedXml(temporary, source, sheets); }
+                if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source)) { File.Copy(source, temporary, true); uncached = PatchWithClosedXml(temporary, source, sheets); }
                 else { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 sheetCount = CountSheets(temporary);
             }

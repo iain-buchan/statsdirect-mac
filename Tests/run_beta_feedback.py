@@ -17,8 +17,12 @@ out=root/'.build/feedback-native';out.mkdir(exist_ok=True)
 # A formatted file-backed source exercises insertion preflight through the real native host.
 import openpyxl
 from openpyxl.workbook.defined_name import DefinedName
+from openpyxl.worksheet.table import Table
+from openpyxl.worksheet.formula import ArrayFormula
 fixture=openpyxl.Workbook(); sheet=fixture.active; sheet.title='Data'
 sheet.append(['dose','double']); sheet.append([2,'=A2*2']); sheet.merge_cells('E3:F3'); sheet['E3']='keep'
+sheet.add_table(Table(displayName='Doses',ref='A1:B2'))
+sheet['I3']=ArrayFormula(ref='I3:J3',text='=A2:B2*2')
 sheet.column_dimensions['A'].width=27; sheet['A2'].number_format='0.00'
 fixture.defined_names.add(DefinedName('Dose',attr_text='Data!$A$2'))
 fixture.save(out/'column-insert.xlsx')

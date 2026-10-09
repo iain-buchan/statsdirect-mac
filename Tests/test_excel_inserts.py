@@ -134,9 +134,9 @@ try:
 
         w,d,p=book('table.xlsx'); d.add_table(Table(displayName='Trial',ref='A1:C2')); w.save(p)
         saved=insert(p,col=0); assert openpyxl.load_workbook(saved)['Data'].tables['Trial'].ref=='B1:D2'
-        insert(p,col=1,expect='split an Excel table')
+        expanded=openpyxl.load_workbook(insert(p,col=1))['Data']; assert expanded.tables['Trial'].ref=='A1:D2' and [c.name for c in expanded.tables['Trial'].tableColumns]==['a','result','b','c']
         w,d,p=book('merged.xlsx'); d.merge_cells('A3:B3'); w.save(p)
-        insert(p,expect='split a merged cell range')
+        assert str(openpyxl.load_workbook(insert(p)).active.merged_cells)=='A3:C3'
         w,d,p=book('array.xlsx'); d['B4']=ArrayFormula(ref='B4:C4',text='=A2:B2*2'); w.save(p)
         for streaming in (False,True):
             saved=insert(p,stream=streaming); a=openpyxl.load_workbook(saved)['Data']['C4'].value
@@ -145,8 +145,8 @@ try:
         w,d,p=book('protected.xlsx'); d.protection.sheet=True; w.save(p); insert(p,expect='protected')
         d.protection.insertColumns=False; w.save(p); insert(p)
         w,d,p=book('edge.xlsx'); d.cell(2,16384,'keep'); w.save(p); insert(p,expect='last column')
-        w,d,p=book('3d.xlsx'); w.create_sheet('Other'); d['A3']='=SUM(Data:Other!B2)'; w.save(p); insert(p,expect='three-dimensional')
-        print('PASS: whole tables and arrays move; splitting tables, arrays or merges, protected insertions, overflow and divergent 3-D references are refused atomically')
+        w,d,p=book('3d.xlsx'); w.create_sheet('Other'); d['A3']='=SUM(Data:Other!B2)'; w.save(p); assert openpyxl.load_workbook(insert(p))['Data']['A3'].value=='=SUM(Data:Other!B2)'
+        print('PASS: whole tables and arrays move; splitting arrays, protected insertions, and overflow are refused atomically; divergent 3-D references retain Excel semantics')
 
         # The shipped example workbook uses shared formulas. Expand the expressions,
         # then structurally adjust each one rather than discarding sharing metadata only.
@@ -204,16 +204,16 @@ try:
                     anchor=list(map(int,vml.find('.//{'+x+'}Anchor').text.split(',')))
                     assert (anchor[0],anchor[4])==expected,(mode,streaming,anchor)
                     assert vml.find('.//{'+x+'}Column').text=='2'
-        # A legacy form control shares the VML format but must still be refused.
+        # A legacy form control shares the VML format and is now preserved.
         control=Path(folder)/'control.xlsx'
         with zipfile.ZipFile(p) as z,zipfile.ZipFile(control,'w') as out:
             for item in z.infolist():
                 data=z.read(item.filename)
                 if item.filename.endswith('.vml'): data=data.replace(b'ObjectType="Note"',b'ObjectType="Button"')
                 out.writestr(item,data)
-        insert(control,expect='legacy shapes')
+        insert(control)
         w,d,p=book('ambiguous-name.xlsx'); w.defined_names.add(DefinedName('Relative',attr_text='$B$2')); w.save(p); insert(p,expect='unqualified cell reference')
-        print('PASS: chart anchor/series and legacy notes move, original style XML remains identical, and controls/ambiguous names are refused before mutation')
+        print('PASS: chart anchor/series and legacy notes move, original style XML remains identical, controls are preserved and ambiguous names are refused before mutation')
 
         # Truly cross the million-cell threshold; streaming is selected automatically.
         large=Path(folder)/'large.xlsx'; w=openpyxl.Workbook(write_only=True); d=w.create_sheet('Data')

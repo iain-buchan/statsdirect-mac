@@ -192,6 +192,9 @@ export class GridStore {
     this.redoStack = [];
     this.undoBytes = 0;
     this.originals = new Map();
+    // Columns inserted before existing ones since the file was loaded ({col, count}, in order, in the
+    // coordinates of the moment), for the Excel save path to move the file's cells, styles and formulas.
+    this.inserts = [];
     this.headerRow = false;
     this.excelRows = false;
     this.csvRows = 0;
@@ -332,7 +335,7 @@ export class GridStore {
   // edits: [[col, row, text, kind?]]. An explicit kind (as the grid names them: number, text,
   // datetime, timespan, boolean, error) is kept, as when cells move; otherwise the kind is derived
   // from the text. Returns true if anything changed.
-  apply(edits, rows = this.rows, cols = this.columns.length) {
+  apply(edits, rows = this.rows, cols = this.columns.length, inserts = []) {
     const byColumn = new Map();
     for (const [c, r, value, kind] of edits) {
       let b = byColumn.get(c);
@@ -341,9 +344,9 @@ export class GridStore {
       b.rows.push(r); b.nums.push(n); b.kinds.push(typeof kind === 'string' && KIND_INDEX.has(kind) ? kind : undefined);
       if (Number.isNaN(n)) b.texts.set(b.rows.length - 1, text);
     }
-    return this.applyBatches([...byColumn.values()], rows, cols);
+    return this.applyBatches([...byColumn.values()], rows, cols, inserts);
   }
-  applyBatches(batches, rows = this.rows, cols = this.columns.length) {
+  applyBatches(batches, rows = this.rows, cols = this.columns.length, inserts = []) {
     if (rows > MAX_ROWS || cols > MAX_COLS) throw new Error('This exceeds the Excel worksheet dimensions.');
     const patches = [];
     let bytes = 0;
@@ -386,8 +389,8 @@ export class GridStore {
         for (const t of afterText.values()) bytes += t.length * 2;
       }
     }
-    if (!patches.length && rows === this.rows && cols === this.columns.length) return false;
-    const step = {patches, oldRows: this.rows, newRows: rows, oldCols: this.columns.length, newCols: cols, bytes};
+    if (!patches.length && rows === this.rows && cols === this.columns.length && !inserts.length) return false;
+    const step = {patches, oldRows: this.rows, newRows: rows, oldCols: this.columns.length, newCols: cols, bytes, inserts: inserts.map(i => ({col: i.col, count: i.count}))};
     this.replay(step, true);
     this.undoStack.push(step);
     this.undoBytes += bytes;
@@ -409,6 +412,7 @@ export class GridStore {
     }
     this.rows = forward ? step.newRows : step.oldRows;
     this.growColumns(forward ? step.newCols : step.oldCols);
+    if (step.inserts?.length) { if (forward) this.inserts.push(...step.inserts); else this.inserts.splice(-step.inserts.length); }
   }
   undo() {
     const s = this.undoStack.pop();

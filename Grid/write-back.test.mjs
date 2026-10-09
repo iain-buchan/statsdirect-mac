@@ -67,10 +67,13 @@ test('a sheet without a title row takes values only, from the first row; unequal
 });
 test('refusals: formulas in moved or replaced columns, a file-backed workbook, no room, unknown placement', () => {
   const f = sheet(); f.cols[2].formula.set(1, 'A2*2');
-  assert.throws(() => planWriteBack(f, [frame('a', ['1'])], 'BeforeSelection', {firstRow: 2, lastRow: 2, columns: [0]}), /formulas/);
+  assert.throws(() => planWriteBack(f, [frame('a', ['1'])], 'BeforeSelection', {firstRow: 2, lastRow: 2, columns: [0]}), /formula cells/);
   assert.throws(() => planWriteBack(f, [frame('a', ['1'])], 'ReplaceSelection', {firstRow: 2, lastRow: 2, columns: [2]}), /formulas/);
-  assert.throws(() => planWriteBack(sheet(), [frame('a', ['1'])], 'AfterSelection', {firstRow: 2, lastRow: 2, columns: [0]}, {backed: true}), /opened from a file/);
-  assert.doesNotThrow(() => planWriteBack(sheet(), [frame('a', ['1'])], 'LastColumn', {firstRow: 2, lastRow: 2, columns: [0]}, {backed: true}));
+  assert.throws(() => planWriteBack(sheet(), [frame('a', ['1'])], 'AfterSelection', {firstRow: 2, lastRow: 2, columns: [0]}, {cells: 1000001}), /this large/);
+  assert.doesNotThrow(() => planWriteBack(sheet(), [frame('a', ['1'])], 'LastColumn', {firstRow: 2, lastRow: 2, columns: [0]}, {cells: 1000001}));
+  // Formula cells to the left of the insertion stay put; the Excel save re-references them.
+  const left = sheet(); left.cols[0].formula.set(1, 'B2*2');
+  assert.doesNotThrow(() => planWriteBack(left, [frame('a', ['1'])], 'AfterSelection', {firstRow: 2, lastRow: 2, columns: [0]}));
   assert.throws(() => planWriteBack(sheet(), [frame('a', ['1'])], 'Sideways', null), /Unknown write position/);
   const full = sheet(); full.setLoaded([{col: MAX_COLS - 1, row: 1, text: '1', kind: 'number'}]);
   assert.throws(() => planWriteBack(full, [frame('a', ['1'])], 'LastColumn', null), /No room/);
@@ -111,4 +114,14 @@ test('values align to analysis rows that start lower down; an untitled frame sta
   const u = sheet();
   apply(u, planWriteBack(u, [{name: 'Out', columns: 1, rows: 3, lengths: [2], cells: [{col: 0, row: 1, text: 'p'}, {col: 0, row: 2, text: 'q'}]}], 'LastColumn', null));
   assert.deepEqual([0, 1, 2].map(r => text(u, 3, r)), ['p', 'q', '']);
+});
+test('an insertion is recorded for the Excel save and leaves with undo', () => {
+  const s = sheet();
+  const plan = planWriteBack(s, [frame('log', ['0', '0.693', '1.386'])], 'AfterSelection', {firstRow: 2, lastRow: 4, columns: [0]});
+  assert.deepEqual(plan.inserts, [{col: 1, count: 1}]);
+  assert.equal(s.apply(plan.edits, Math.max(s.rows, plan.rows), Math.max(s.columns.length, plan.cols), plan.inserts), true);
+  assert.deepEqual(s.inserts, [{col: 1, count: 1}]);
+  const again = planWriteBack(s, [frame('sq', ['1', '4', '16'])], 'LastColumn', {firstRow: 2, lastRow: 4, columns: [0]});
+  assert.deepEqual(again.inserts, []);   // nothing moves for a write after the last column
+  s.undo(); assert.deepEqual(s.inserts, []); s.redo(); assert.deepEqual(s.inserts, [{col: 1, count: 1}]);
 });

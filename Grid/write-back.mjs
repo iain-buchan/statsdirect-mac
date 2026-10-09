@@ -3,10 +3,11 @@ import {MAX_ROWS, MAX_COLS} from './store.mjs';
 // (frmSpreadsheetGear.WriteDataFrame): one column per variable, the title in the title row,
 // missing values as the missing indicator, placed relative to the selected columns or after
 // the used columns. Insertions move the columns to the right of the insertion point along,
-// cell kinds included, as Excel's "insert" does. A workbook opened from a file cannot take an
-// insertion here (its cell formats and formulas would not move with the values), nor can a
-// worksheet with formulas; such a sheet takes the output after its last column, in place of
-// the selected columns, or in a new document.
+// cell kinds included, as Excel's "insert" does; the Excel save path moves the file's cells,
+// styles, widths and formulas to match (an insertion is recorded in the plan). Formula cells at
+// or after the insertion point cannot move in the grid, and a workbook too large for the Excel
+// patch cannot take an insertion, so such a sheet takes the output after its last column, in
+// place of the selected columns, or in a new document.
 export const PLACEMENTS = ['FirstColumn', 'BeforeSelection', 'ReplaceSelection', 'AfterSelection', 'LastColumn'];
 const LABELS = {FirstColumn: 'as the first columns', BeforeSelection: 'before the selected columns', ReplaceSelection: 'in place of the selected columns', AfterSelection: 'after the selected columns', LastColumn: 'after the last used column'};
 const BLANK = {text: '', kind: 'blank'};
@@ -16,7 +17,7 @@ const BLANK = {text: '', kind: 'blank'};
 export function planWriteBack(store, frames, placement, range, options = {}) {
   if (!Array.isArray(frames) || !frames.length) throw new Error('There is no data to write.');
   if (!PLACEMENTS.includes(placement)) throw new Error('Unknown write position.');
-  const edits = [], written = [];
+  const edits = [], written = [], inserts = [];
   const header = !!store.headerRow;
   let rows = store.rows, cols = store.columns.length;
   // The selected columns of the analysis input, as the Windows grid uses its current selection.
@@ -62,8 +63,9 @@ export function planWriteBack(store, frames, placement, range, options = {}) {
     if (shift && first >= end) shift = false;   // nothing to the right to move
     if ((shift ? end : Math.max(end, first)) + count > MAX_COLS) throw new Error('No room to write output data on the sheet.');
     if (shift) {
-      if (options.backed) throw new Error('Columns cannot be inserted into a workbook opened from a file: its cell formats and formulas would not move with the values. Write the results after the last column, in place of the selected columns, or into a new document.');
-      if (options.formulaCount > 0 || store.cols.some(col => col && col.formula.size > 0)) throw new Error('Columns cannot be inserted into a worksheet with formulas, which Excel would need to re-reference. Write the results after the last column or into a new document.');
+      if (options.cells > 1000000) throw new Error('Columns cannot be inserted into a workbook this large, which is saved by streaming. Write the results after the last column, in place of the selected columns, or into a new document.');
+      if (store.cols.some((col, c) => c >= first && col && col.formula.size > 0)) throw new Error('Columns cannot be inserted before formula cells, which cannot move here. Write the results after the last column or into a new document.');
+      inserts.push({col: first, count});
       // Move columns right by `count`, from the rightmost, so each cell is cleared before its new content lands.
       for (let c = end - 1; c >= first; c--) for (const r of rowsOf(c)) {
         const moving = at(c, r);
@@ -96,5 +98,5 @@ export function planWriteBack(store, frames, placement, range, options = {}) {
   });
   const total = written.reduce((n, w) => n + w.width, 0);
   const message = total === 0 ? 'No columns were written: the analysis produced no data' : `Wrote ${total} column${total === 1 ? '' : 's'} ${fellBack ? LABELS.LastColumn + ' (no columns were selected)' : LABELS[placement]}`;
-  return {edits, rows, cols, written, message};
+  return {edits, rows, cols, written, inserts, message};
 }

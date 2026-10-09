@@ -155,13 +155,18 @@ function App() {
       analysisSource: () => analysisMetadata(workbook, sheetIndex, {columns: selectionRef.current.columns.toArray(), range: selectionRef.current.current?.range}),
       columnValues: (request: any) => columnValues(workbook, sheetIndex, request),
       snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),
-      excelSnapshot: () => postSnapshot(workbook.exportColumns().sheets),
+      // The snapshot carries the cells; columns inserted before existing ones since the file was loaded travel beside it.
+      excelSnapshot: async () => {
+        const sheets = workbook.exportColumns().sheets;
+        const stored = await postSnapshot(sheets);
+        return {...stored, inserts: sheets.filter((sh: any) => sh.inserts?.length).map((sh: any) => ({name: sh.name, inserts: sh.inserts}))};
+      },
       // Output frames of an analysis written into a worksheet as the Windows grid writes them (write-back.mjs):
       // one undo step, the written columns selected when the sheet is the one shown.
       writeFrames: (request: any) => {
         const sheet = requestedSheet(workbook, sheetIndex, request), target = sheet.store;
-        const plan = planWriteBack(target, request?.frames, request?.placement, request?.range, {formulaCount: workbook.formulaCount, backed: workbook.backed});
-        const applied = plan.edits.length > 0 && target.apply(plan.edits, Math.max(target.rows, plan.rows), Math.max(target.columns.length, plan.cols));
+        const plan = planWriteBack(target, request?.frames, request?.placement, request?.range, {cells: workbook.sheets.reduce((n: number, sh: any) => n + sh.store.count(), 0)});
+        const applied = plan.edits.length > 0 && target.apply(plan.edits, Math.max(target.rows, plan.rows), Math.max(target.columns.length, plan.cols), plan.inserts);
         if (applied) changed();
         const shown = target === store;
         if (shown && applied && plan.written.length) setSelection({...empty, current: {cell: [plan.written[0].x, plan.written[0].y], range: plan.written[0], rangeStack: []}});

@@ -117,6 +117,7 @@ extension Viewer {
                 }
                 var request: [String: Any] = ["action": "save", "path": url.path, "snapshot": file.path]
                 if let id = doc.workbookID { request["id"] = id }
+                if let inserts = info["inserts"] as? [[String: Any]], !inserts.isEmpty { request["inserts"] = inserts }
                 self.gridStatus(doc, "Saving Excel workbook…")
                 self.workbookRequest(request) { result in
                     SnapshotStore.shared.forget(snapshotID)

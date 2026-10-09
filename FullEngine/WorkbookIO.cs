@@ -37,7 +37,11 @@ public static class WorkbookIO {
     public sealed record Cell(int Col, int Row, string Text, string Kind, string Formula = "");
     public sealed record Sheet(string Name, int Rows, int Columns, bool Hidden, List<Cell> Cells, int Count, int FormulaCount, string Snapshot);
     public sealed record Patch(string Name, List<Cell> Cells);
-    public sealed record Request(string Action, string Path, string Id, List<Patch> Sheets, string Snapshot, bool Stream = false);
+    public sealed record Request(string Action, string Path, string Id, List<Patch> Sheets, string Snapshot, bool Stream = false, List<SheetInserts> Inserts = null);
+    // Columns inserted into an opened worksheet by the grid (a write-back placed before existing columns), in the
+    // order they were made and in the coordinates of that moment; the cells sent to save are in the final coordinates.
+    public sealed record SheetInserts(string Name, List<Insert> Inserts);
+    public sealed record Insert(int Col, int Count);
     static readonly XNamespace S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     static readonly XNamespace Rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     static readonly XNamespace PackageRel = "http://schemas.openxmlformats.org/package/2006/relationships";
@@ -470,11 +474,13 @@ public static class WorkbookIO {
         }
         var temporary = request.Path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         int uncached = 0, sheetCount = sheets.Count; bool recalculated = true;
+        var inserts = (request.Inserts ?? new()).Where(i => i.Inserts != null && i.Inserts.Count > 0).ToList();
         try {
-            if (source == null) { using var stream = File.Create(temporary); WriteWorkbook(stream, sheets); }
+            if (source == null) { using var stream = File.Create(temporary); WriteWorkbook(stream, sheets); }   // a new workbook already holds the cells where the grid put them
             else {
                 long edits = sheets.Sum(s => s.Columns.Values.Sum(c => (long)c.Rows.Count));
-                if (!request.Stream && edits + originalCells <= ClosedXmlCells) { File.Copy(source, temporary, true); uncached = PatchWithClosedXml(temporary, source, sheets); }
+                if (inserts.Count > 0 && (request.Stream || edits + originalCells > ClosedXmlCells)) throw new Exception("Columns were inserted into a worksheet, which a workbook this large (saved by streaming) cannot take. Undo the insertion, or write the results after the last column or into a new document.");
+                if (!request.Stream && edits + originalCells <= ClosedXmlCells) { File.Copy(source, temporary, true); uncached = PatchWithClosedXml(temporary, source, sheets, inserts); }
                 else { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 sheetCount = CountSheets(temporary);
             }
@@ -628,8 +634,15 @@ public static class WorkbookIO {
     // Preserve the source package's styles, rich text and other worksheet features.
     // ClosedXML rewrites some inherited fonts on a full save of StatsDirect's test.xlsx.
     // Existing workbooks therefore receive cell patches, rather than a package rebuild.
-    static int PatchWithClosedXml(string temporary, string source, List<SheetData> sheets) {
+    static int PatchWithClosedXml(string temporary, string source, List<SheetData> sheets, List<SheetInserts> inserts = null) {
         using var workbook = new XLWorkbook(source);
+        // ClosedXML moves the cells and re-references every formula in the workbook; the original package is then
+        // patched to match (PatchOriginal), so styles, column widths and everything else travel with the cells.
+        foreach (var si in inserts ?? new()) {
+            if (!workbook.Worksheets.Contains(si.Name)) throw new Exception("The worksheet no longer exists in this workbook.");
+            var target = workbook.Worksheet(si.Name);
+            foreach (var ins in si.Inserts) { if (ins.Col < 0 || ins.Count <= 0) throw new Exception("Invalid column insertion."); target.Column(ins.Col + 1).InsertColumnsBefore(ins.Count); }
+        }
         var patches = new List<Patch>();
         foreach (var data in sheets) {
             if (!workbook.Worksheets.Contains(data.Name)) throw new Exception("The worksheet no longer exists in this workbook.");
@@ -654,9 +667,9 @@ public static class WorkbookIO {
         workbook.CalculateMode = XLCalculateMode.Auto;
         workbook.FullCalculationOnLoad = true;
         workbook.ForceFullCalculation = true;
-        return PatchOriginal(temporary, workbook, patches);
+        return PatchOriginal(temporary, workbook, patches, inserts ?? new());
     }
-    static int PatchOriginal(string path, XLWorkbook workbook, List<Patch> patches) {
+    static int PatchOriginal(string path, XLWorkbook workbook, List<Patch> patches, List<SheetInserts> inserts) {
         foreach (var worksheet in workbook.Worksheets)
             foreach (var cell in worksheet.CellsUsed(XLCellsUsedOptions.Contents).Where(c => c.HasFormula)) cell.InvalidateFormula();
         XNamespace s = S, rel = Rel, packageRel = PackageRel;
@@ -674,15 +687,26 @@ public static class WorkbookIO {
             var stylesEntry = relationships.Values.Select(ResolveTarget).FirstOrDefault(e => Entry(zip, e) != null && e.EndsWith("styles.xml", StringComparison.OrdinalIgnoreCase));
             if (stylesEntry != null) { var styles = Read(stylesEntry); dateStyle = EnsureDateStyle(styles, out var added); if (added) Write(stylesEntry, styles); }
         }
+        bool anyInserts = inserts.Count > 0;
+        if (anyInserts && (bookXml.Root.Element(s + "definedNames")?.Elements(s + "definedName").Any() ?? false))
+            throw new Exception("Columns cannot be inserted into this workbook because it has defined names, which this prototype cannot move. Write the results after the last column or into a new document.");
         foreach (var sheetInfo in bookXml.Root.Element(s + "sheets").Elements(s + "sheet")) {
             var name = (string)sheetInfo.Attribute("name");
             if (!workbook.Worksheets.TryGetWorksheet(name, out var sheet)) continue;
             var edits = patches.FirstOrDefault(p => p.Name == name)?.Cells ?? new List<Cell>();
             var formulas = sheet.CellsUsed(XLCellsUsedOptions.Contents).Where(c => c.HasFormula).ToList();
-            if (edits.Count == 0 && formulas.Count == 0) continue;
+            var shifts = inserts.FirstOrDefault(i => i.Name == name)?.Inserts ?? new List<Insert>();
+            if (edits.Count == 0 && formulas.Count == 0 && shifts.Count == 0) continue;
             var target = relationships[(string)sheetInfo.Attribute(rel + "id")];
             var entry = ResolveTarget(target);
             var xml = Read(entry); var data = xml.Root.Element(s + "sheetData");
+            if (anyInserts) {
+                // Features whose ranges this prototype cannot move are refused rather than corrupted.
+                foreach (var feature in new[] { "mergeCells", "conditionalFormatting", "dataValidations", "tableParts", "autoFilter", "hyperlinks", "sheetProtection" })
+                    if (shifts.Count > 0 && xml.Root.Element(s + feature) != null) throw new Exception($"Columns cannot be inserted into worksheet '{name}' because it uses {feature}, which this prototype cannot move. Write the results after the last column or into a new document.");
+                if (xml.Descendants(s + "f").Any(f => f.Attribute("t") != null)) throw new Exception($"Columns cannot be inserted into this workbook because worksheet '{name}' has shared or array formulas, which this prototype cannot re-reference. Write the results after the last column or into a new document.");
+            }
+            int Shifted(int col0) { foreach (var ins in shifts) if (col0 >= ins.Col) col0 += ins.Count; return col0; }
             var rows = new Dictionary<int, XElement>(); var cells = new Dictionary<(int, int), XElement>();
             int rowNumber = 0;
             foreach (var row in data.Elements(s + "row")) {
@@ -693,8 +717,17 @@ public static class WorkbookIO {
                     var address = (string)cell.Attribute("r");
                     if (address == null) col++;
                     else { col = 0; foreach (char ch in address.TakeWhile(char.IsLetter)) col = col * 26 + char.ToUpperInvariant(ch) - 'A' + 1; }
+                    if (shifts.Count > 0) col = Shifted(col - 1) + 1;   // the cell keeps its style and content at its new address
                     cells[(rowNumber, col)] = cell;
                     cell.SetAttributeValue("r", sheet.Cell(rowNumber, col).Address.ToStringRelative());
+                }
+            }
+            if (shifts.Count > 0) {
+                var colsElement = xml.Root.Element(s + "cols");
+                foreach (var colDef in colsElement?.Elements(s + "col") ?? Enumerable.Empty<XElement>()) {
+                    int min0 = ((int?)colDef.Attribute("min") ?? 1) - 1, max0 = ((int?)colDef.Attribute("max") ?? 1) - 1;
+                    foreach (var ins in shifts) { if (min0 >= ins.Col) { min0 += ins.Count; max0 += ins.Count; } else if (max0 >= ins.Col) max0 += ins.Count; }
+                    colDef.SetAttributeValue("min", min0 + 1); colDef.SetAttributeValue("max", max0 + 1);
                 }
             }
             XElement Find(int r, int c) {
@@ -738,10 +771,16 @@ public static class WorkbookIO {
             foreach (var cell in formulas) {
                 XLCellValue value;
                 try { value = cell.Value; } catch { value = Blank.Value; uncached++; }
-                SetValue(Find(cell.Address.RowNumber, cell.Address.ColumnNumber), value, true);
+                var xmlCell = Find(cell.Address.RowNumber, cell.Address.ColumnNumber);
+                SetValue(xmlCell, value, true);
+                if (anyInserts) {   // the formula as ClosedXML re-referenced it after the insertion, in every worksheet
+                    var f = xmlCell.Element(s + "f");
+                    if (f == null) { f = new XElement(s + "f"); xmlCell.AddFirst(f); }
+                    f.Value = cell.FormulaA1.TrimStart('=');
+                }
             }
             var dimension = xml.Root.Element(s + "dimension");
-            if (dimension != null && edits.Count > 0) {
+            if (dimension != null && (edits.Count > 0 || shifts.Count > 0) && cells.Count > 0) {
                 int lastRow = cells.Keys.Max(k => k.Item1), lastCol = cells.Keys.Max(k => k.Item2);
                 dimension.SetAttributeValue("ref", "A1:" + sheet.Cell(lastRow, lastCol).Address.ToStringRelative());
             }

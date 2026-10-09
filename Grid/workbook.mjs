@@ -101,7 +101,7 @@ export class WorkbookStore {
       const n = kind === 'number' ? Number(text) : NaN;
       b.nums.push(n); if (text !== '' && Number.isNaN(n)) b.texts.set(i, text);
     });
-    return {sheets: sheets.map(({name, columns}) => ({name, columns: [...columns.values()].sort((a, b) => a.col - b.col)}))};
+    return {sheets: sheets.map(({name, store, columns}) => ({name, columns: [...columns.values()].sort((a, b) => a.col - b.col), inserts: store.inserts.map(i => ({col: i.col, count: i.count}))}))};
   }
 }
 

@@ -5,6 +5,7 @@ import html, re, sys, uuid
 from pathlib import Path
 import openpyxl
 from help_examples import examples, ROOT, NUMBER, QUOTED
+ARGS = sys.argv[1:]; sys.argv = sys.argv[:1]   # the engine driver reads its own arguments
 from test_menu import Session
 
 wb = openpyxl.load_workbook(ROOT / 'FullEngine/Upstream/StatsDirectUI/Assets/Data/test.xlsx', read_only=True, data_only=True)
@@ -23,7 +24,7 @@ def column(name):
     key = name.strip().lower()
     if key in COLUMNS: return COLUMNS[key]
     if len(key) < 4: return None
-    near = [c for k, c in COLUMNS.items() if key in k]
+    near = [c for k, c in COLUMNS.items() if key in k or (len(k) >= 6 and key.startswith(k))]   # 'Hypertensives' names the column 'Hypertensive'
     return near[0] if len(near) == 1 else None
 
 def frame_answer(cols):
@@ -65,6 +66,7 @@ def matches(expected, found):
         except ValueError: continue
         decimals = len(e.split('.')[1]) if '.' in e and 'e' not in e.lower() else 0
         if e in found or any(abs(v - value) <= 0.5 * 10 ** -decimals + 1e-12 for v in pool): continue
+        if decimals >= 2 and any(f.lstrip('-').startswith(e.lstrip('-')) for f in found): continue   # a figure the page's markup split in two
         missing.append(e)
     return missing
 
@@ -156,7 +158,12 @@ def run_example(s, example, operation, booleans=False, strategy='role'):
                 said = said_number(example, p)
                 if said is not None and len(p['fields']) == 1: value = {p['fields'][0]['name']: said}
             elif p['kind'] == 'boolean': value = said_boolean(example, p) if said_boolean(example, p) is not None else booleans
-            elif p['kind'] == 'confidence': value = said_number(example, p) if said_number(example, p) is not None else p['defaultValue']
+            elif p['kind'] == 'confidence':
+                said = said_number(example, p)
+                if said is None:   # 'Choose 90% as the confidence level', even when the prompt only says 'Enter a value'
+                    m = next((re.search(r'(\d+(?:\.\d+)?)\s*%', c) for c in clauses(example['instructions']) if 'confidence' in c.lower() and re.search(r'\d+(?:\.\d+)?\s*%', c)), None)
+                    said = float(m.group(1)) if m else None
+                value = said if said is not None else p['defaultValue']
             elif p['kind'] in ('number', 'integer') and said_blank(example, p) and p.get('skip'): value = {'skip': True}
             elif p['kind'] in ('number', 'integer') and said_blank(example, p): value = ''
             elif p['kind'] in ('number', 'integer') and said_number(example, p) is not None: value = said_number(example, p)
@@ -173,8 +180,10 @@ def run_example(s, example, operation, booleans=False, strategy='role'):
         # Follow-ons the page runs from the Further analysis box (named, or any when the page says 'multiple comparisons').
         for su in st.get('suggestions') or []:
             title = su.get('title') or ''
-            mentioned = example['instructions'] + ' ' + example['expected']
-            if title in mentioned or ('multiple comparisons' in mentioned.lower() and 'comparison' in title.lower()) or ('analysis of variance' in mentioned.lower() and 'variance' in title.lower() and 'equality' not in title.lower()):
+            mentioned = example['instructions'] + ' ' + example['expected']; low = mentioned.lower(); tl = title.lower()
+            wanted = title in mentioned or ('comparison' in tl and 'comparison' in low) or ('variance' in tl and 'equality' not in tl and 'analysis of variance' in low) \
+                or ('area' in tl and 'area under' in low) or ('hazard' in tl and 'hazard ratio' in low) or ('model analysis' in tl and 'model analysis' in low) or len(words(title) & words(example['expected'])) >= 3
+            if wanted:
                 fid = str(uuid.uuid4()); fs = s.request(action='start', id=fid, operation=su['operation'], parent=id)
                 if fs.get('error'): continue
                 fst = s.wait(fid); n = 0
@@ -211,8 +220,10 @@ BASELINE = [
     ('meta_analysis/mh.htm', 'Mantel', False),
     ('meta_analysis/peto.htm', 'PetoMeta', False),
     ('meta_analysis/relative_risk.htm', 'RelativeRiskMeta', False),
+    ('meta_analysis/risk_difference.htm', 'RiskDifference', False),
     ('meta_analysis/summary.htm', 'MetaSummary', False),
     ('nonparametric_methods/kendall_correlation.htm', 'Kendall', False),
+    ('nonparametric_methods/kruskal_wallis.htm', 'Kruskal', False),
     ('nonparametric_methods/mann_whitney.htm', 'MannWhitney', False),
     ('nonparametric_methods/smirnov.htm', 'Smirnov', False),
     ('nonparametric_methods/spearman.htm', 'Spearman', False),
@@ -223,15 +234,19 @@ BASELINE = [
     ('parametric_methods/single_sample_t.htm', 'TSingle', False),
     ('parametric_methods/unpaired_t.htm', 'TUnpaired', False),
     ('regression_and_correlation/grouped_linearity_replicates.htm', 'GroupedLinearity', False),
+    ('regression_and_correlation/logistic.htm', 'LogisticRegression', False),
     ('regression_and_correlation/multiple_linear.htm', 'MultipleLinearRegression', False),
+    ('regression_and_correlation/polynomial.htm', 'PolynomialRegression', False),
     ('regression_and_correlation/probit_analysis.htm', 'Logit', False),
+    ('regression_and_correlation/simple_linear.htm', 'SimpleLinearRegression', False),
+    ('survival_analysis/cox_regression.htm', 'CoxRegression', False),
     ('survival_analysis/follow_up_life_table.htm', 'FollowUpLifetable', False),
     ('survival_analysis/kaplan_meier.htm', 'KaplanMeier', False),
 ]
 
 if __name__ == '__main__':
-    report = '--report' in sys.argv
-    only = next((a for a in sys.argv[1:] if not a.startswith('--')), None)
+    report = '--report' in ARGS
+    only = next((a for a in ARGS if not a.startswith('--')), None)
     s = Session(); lines = ['| Page | Operation | Result | Detail |', '|---|---|---|---|']; counts = {}
     try:
         if not report:

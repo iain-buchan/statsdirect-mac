@@ -94,5 +94,44 @@ struct GroupIdentifierTests {
         precondition(nestedR.script.contains("c(\"01\", \"01\"") && nestedR.script.contains("\"north\""))
         print("PASS: native nested group/subgroup selection and layout fallback; distinct subgroups calculate; numeric-looking group identifiers stay as text in R")
 
+        // Analysis of covariance from long data: a predictor column, two Y replicate columns and a group identifier column.
+        _=try await BetaFeedbackTests.asyncJavaScript(grid,"await statsDirectGrid.loadWorkbook({name:'Covariance long data',sheets:[{name:'Covariance',columns:4,rows:6,headerRow:false,cells:[[1,2,3,2,3,4],[2,3,5,3,6,8],[3,4,6,4,7,9],['a','a','a','b','b','b']].flatMap((values,col)=>values.map((text,row)=>({col,row,text:String(text),kind:col<3?'number':'text'})))}]});return {ok:true};")
+        let covariance=v.newDocument(kind:"operation",title:"Covariance identifiers fixture",url:v.root.appendingPathComponent("Grid/operation.html"))
+        defer {v.remove(covariance)}
+        covariance.operationSourceID=grid.id
+        try await ProviderLearningTests.wait {covariance.operationReady && covariance.operationSourceSnapshot != nil}
+        _=try await v.learningJavaScript(covariance,"(()=>{const update=statsDirectOperation.update;statsDirectOperation.update=s=>{window.groupState=s;update(s);};return {ok:true};})()")
+        covariance.operationName="GroupedCovariance";v.startOperation(covariance)
+        do {
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(covariance,"({ok:window.groupState?.prompt?.name==='layoutCovariance'&&document.querySelectorAll('.choices input').length===2})"))?["ok"] as? Bool == true}
+        _=try await v.learningJavaScript(covariance,"({ok:(document.querySelectorAll('.choices input')[1].click(),true)})")
+        try await submit(covariance)
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(covariance,"({ok:groupState.prompt?.name==='gcd'&&document.querySelectorAll('.roles fieldset').length===3&&document.querySelectorAll('input[name=long-outcomes]').length===4})"))?["ok"] as? Bool == true}
+        _=try await v.learningJavaScript(covariance,"({ok:(document.querySelectorAll('input[name=long-data]')[0].click(),document.querySelectorAll('input[name=long-ids]')[3].click(),document.querySelectorAll('input[name=long-outcomes]')[1].click(),document.querySelectorAll('input[name=long-outcomes]')[2].click(),true)})")
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(covariance,"({ok:(document.querySelector('.selection')?.textContent??'').includes('Y:')&&document.querySelectorAll('input[name=long-outcomes]:checked').length===2})"))?["ok"] as? Bool == true}
+        var covToken=(try await v.learningJavaScript(covariance,"({token:String(groupState.token)})"))["token"] as? String ?? ""
+        try await submit(covariance)
+        // The confidence level and the baseline mean for the predictors keep their defaults.
+        for _ in 0..<2 {
+            let previous=covToken
+            try await ProviderLearningTests.wait {(try? await v.learningJavaScript(covariance,"({ok:groupState.state==='input'&&String(groupState.token)!=='\(previous)'&&!groupState.prompt?.error})"))?["ok"] as? Bool == true}
+            covToken=(try await v.learningJavaScript(covariance,"({token:String(groupState.token)})"))["token"] as? String ?? ""
+            try await submit(covariance)
+        }
+        try await ProviderLearningTests.wait {covariance.completedJobID != nil}
+        } catch {
+            print("Covariance diagnostic",try await v.learningJavaScript(covariance,"({state:groupState,text:document.body.innerText})"));fflush(stdout)
+            throw error
+        }
+        let covResult=try await v.learningJavaScript(covariance,"window.groupState")
+        let covHistory=covResult["history"] as! [[String:Any]]
+        let covRecord=covHistory.first{$0["name"] as? String=="gcd"}!["value"] as! [String:Any]
+        let covColumns=covRecord["columns"] as! [[String:Any]]
+        precondition(covColumns.count==4 && covColumns[3]["mode"] as? String=="GroupIdentifiers" && (covRecord["roles"] as! [String:Any])["outcomes"] as? Int==2, "covariance record: \(covRecord)")
+        precondition(covHistory.first{$0["name"] as? String=="layoutCovariance"}!["value"] as? String=="identifiers")
+        let covR=try RScriptGenerator.generate(operation:"GroupedCovariance",title:"Covariance fixture",output:covResult,resources:v.root)
+        precondition(covR.script.contains("\"a\"") && covR.script.contains("data_frames[["), "covariance R script")
+        print("PASS: native analysis of covariance from long data: the layout choice, the X, Y replicate and identifier roles reach the engine, the input history and R")
+
     }
 }

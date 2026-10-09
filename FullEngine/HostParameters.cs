@@ -274,14 +274,14 @@ internal static class HostParameters {
             c.TryGetProperty("values", out var v) && v.ValueKind == JsonValueKind.Array ? v.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.Null ? "" : x.ToString().Trim()).ToArray() : Array.Empty<string>())).ToArray();
     }
     // Group index per row (-1 where the row has no identifier), labels in order of first appearance.
-    internal static int[] Classify((string title, string[] values)[] identifiers, int rows, DoubleVariable data, string what, out List<string> labels) {
+    internal static int[] Classify((string title, string[] values)[] identifiers, int rows, DoubleVariable data, string what, out List<string> labels, string dataName = null) {
         var ids = new int[rows]; var index = new Dictionary<string, int>(); labels = new List<string>();
         for (int r = 0; r < rows; r++) {
             var parts = identifiers.Select(c => r < c.values.Length ? c.values[r] : "").ToArray();
             bool blank = parts.Any(t => t == "" || t == "*");
             bool hasData = r < data.Length && data.Data[r] != Constant.MISSING;
             if (blank) {
-                if (hasData) throw new ArgumentException($"Row {r + 1} has a value but no {what} identifier. Give every data row an identifier or leave the cell blank.");
+                if (hasData) throw new ArgumentException($"Row {r + 1}{(dataName == null ? "" : " of the " + dataName + " data")} has a value but no {what} identifier. Give every data row an identifier or leave the cell blank.");
                 ids[r] = -1; continue;
             }
             string label = string.Join(", ", parts);

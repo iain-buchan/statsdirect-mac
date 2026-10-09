@@ -142,7 +142,30 @@ internal static class HostComplexData {
             } catch (ArgumentException ex) { error = ex.Message; }
         }
     }
+    // The Windows selection panel offers groups by column or by identifier for the analysis of covariance too
+    // (FillGroupedCovarianceParameter routes through Gidxyr when the setting is on). One choice replaces the radios.
     internal static GroupedCovarianceData GroupedCovariance(OperationJob job, OperationHost host) {
+        const string question = "How are the groups laid out in the worksheet?";
+        bool byIdentifier = host.GroupsByIdentifier ?? host.Preferences.SelectGroupsByIdentifier;
+        string layoutError = null;
+        while (true) {
+            var choice = job.Ask(new() { ["kind"]="option", ["name"]="layoutCovariance", ["title"]="Analysis of covariance", ["prompt"]=question,
+                ["options"]=new object[] {
+                    new { value="columns", label="Each group's predictor (X) series in its own column, then its outcomes (Y)", selected=!byIdentifier },
+                    new { value="identifiers", label="One X column and Y column(s) with group identifier columns", selected=byIdentifier } },
+                ["defaultValue"]=byIdentifier ? "identifiers" : "columns", ["error"]=layoutError });
+            string layout = choice.ValueKind == JsonValueKind.String ? choice.GetString() : null;
+            if (layout is not ("columns" or "identifiers")) { layoutError = "Choose one of the available options."; continue; }
+            if (layout == "identifiers") {
+                var pivoted = GroupedCovarianceFromIdentifiers(job);
+                if (pivoted != null) { job.Record(question, layout, "layoutCovariance", "option"); host.GroupsByIdentifier = true; pivoted.GAMMA = Confidence(job, host); return pivoted; }
+                // The form could only send columns (entered data or a lesson's data): offer the layout choice again.
+                byIdentifier = false; layoutError = "This data cannot be read by identifier: entered data and lesson data stay in separate columns. Choose separate columns, or open a worksheet and refresh.";
+                continue;
+            }
+            job.Record(question, layout, "layoutCovariance", "option"); host.GroupsByIdentifier = false;
+            break;
+        }
         var predictors=AskFrame(job,"Select predictor (X) series — one column per group",2,200);
         // The Windows grouped-covariance form removes missing observations within each selected series.
         foreach(DoubleVariable v in predictors.Variables)v.Data=v.Data.Where(n=>n!=Constant.MISSING).ToArray();
@@ -156,8 +179,7 @@ internal static class HostComplexData {
             if(!replicate&&frame.MaxRows!=n)throw new ArgumentException("Missing Y observations do not match the X series. Supply complete paired observations.");
             outcomes.Add(frame);if(replicate)maxreps=Math.Max(maxreps,frame.MaxRows);
         }
-        var ci=HostAmendments.Form(job,"Confidence level",new[]{HostAmendments.Field("ci","Confidence level (%)",host.Preferences.DefaultConfidenceInterval*100)},v=>{var ci=HostParameters.Number(v.GetProperty("ci"));if(ci<=0||ci>=100)throw new ArgumentException("Confidence must be greater than 0 and less than 100%.");});
-        var data=new GroupedCovarianceData {k=k,maxr=maxr,maxreps=maxreps,GAMMA=HostParameters.Number(ci.GetProperty("ci"))/100,
+        var data=new GroupedCovarianceData {k=k,maxr=maxr,maxreps=maxreps,GAMMA=Confidence(job,host),
             a=new double[k+1],b=new double[k+1],bnam=new string[k+1],cx=new ColumnData[k+1],nxi=new int[k+1],ny=new int[k+1,maxr+1],rssx=new double[k+1],xmean=new double[k+1],ymean=new double[k+1],xt=new double[k+1,maxr+1],y=new double[k+1,maxr+1,maxreps+1],
             xlab=string.Join(" ",predictors.Variables.Select(v=>v.Title)),minMax=new MinMax {MinX=double.MaxValue,MaxX=double.MinValue,MinY=double.MaxValue,MaxY=double.MinValue}};
         for(int g=1;g<=k;g++){
@@ -169,5 +191,72 @@ internal static class HostComplexData {
             }
         }
         return data;
+    }
+    static double Confidence(OperationJob job, OperationHost host) {
+        var ci=HostAmendments.Form(job,"Confidence level",new[]{HostAmendments.Field("ci","Confidence level (%)",host.Preferences.DefaultConfidenceInterval*100)},v=>{var ci=HostParameters.Number(v.GetProperty("ci"));if(ci<=0||ci>=100)throw new ArgumentException("Confidence must be greater than 0 and less than 100%.");});
+        return HostParameters.Number(ci.GetProperty("ci"))/100;
+    }
+    // Long data for the analysis of covariance, as the Windows shell's Gidxyr: group (series) identifier
+    // column(s), one predictor (X) column and one or more outcome (Y) columns, all over the same rows.
+    // Groups keep the order of first appearance and are titled identifiers_label; x[g, i] and y[g, i, k]
+    // hold the group's rows in worksheet order. A value beside a blank identifier is refused by row, each
+    // Y column in turn and then X, as Windows does. Windows keeps missing values in the arrays, where the
+    // covariance sums them as numbers; here a row whose X is missing is left out of its group and a missing
+    // Y replicate out of its X level, as the separate-column path removes missing observations within a series.
+    static GroupedCovarianceData GroupedCovarianceFromIdentifiers(OperationJob job) {
+        const string title = "Select the predictor (X) column, the outcome (Y) column(s) and the group identifier column(s)";
+        string error = null;
+        while (true) {
+            var input = job.Ask(new() { ["kind"]="grid", ["name"]="gcd", ["title"]=title, ["prompt"]=title, ["minColumns"]=2, ["maxColumns"]=200, ["rows"]=12, ["mode"]="NumericReplaceMissing",
+                ["groupIdentifiers"]="covariance", ["groupsByIdentifier"]=true, ["layout"]="long",
+                ["identifierLabels"]=new { first="Group (series) identifier column(s)", outcomes="Outcome (Y) column(s)" }, ["error"]=error });
+            try {
+                if (!HostParameters.IsLongLayout(input)) return null;   // the form had only separate columns to offer
+                if (!input.TryGetProperty("columns", out var columns) || columns.ValueKind != JsonValueKind.Array || columns.GetArrayLength() != 1) throw new ArgumentException("Choose one predictor (X) column.");
+                if (!input.TryGetProperty("outcomeColumns", out var outcomes) || outcomes.ValueKind != JsonValueKind.Array || outcomes.GetArrayLength() < 1) throw new ArgumentException("Choose at least one outcome (Y) column.");
+                if (outcomes.GetArrayLength() > 200) throw new ArgumentException("Choose up to 200 outcome (Y) columns.");
+                var groups = HostParameters.IdentifierColumns(input, "groupIdentifiers");
+                if (groups.Length == 0) throw new ArgumentException("Choose at least one group identifier column.");
+                if (groups.Length > 10) throw new ArgumentException("Choose up to 10 group identifier columns.");
+                string source = input.TryGetProperty("source", out var s) && s.ValueKind == JsonValueKind.String ? s.GetString() : "Worksheet";
+                var x = (DoubleVariable)HostParameters.ReadFrame(JsonSerializer.SerializeToElement(new { source, preserveRows = true, columns = new[] { columns[0] } }), DataAcquisitionMode.NumericReplaceMissing).Variables[0];
+                var ys = HostParameters.ReadFrame(JsonSerializer.SerializeToElement(new { source, preserveRows = true, columns = outcomes }), DataAcquisitionMode.NumericReplaceMissing).Variables.Cast<DoubleVariable>().ToArray();
+                int rows = Math.Max(Math.Max(x.Length, ys.Max(v => v.Length)), groups.Max(c => c.values.Length));
+                foreach (var y in ys) HostParameters.Classify(groups, rows, y, "group", out _, "Y");
+                var gid = HostParameters.Classify(groups, rows, x, "group", out var gcat, "X");
+                if (gcat.Count < 2 || gcat.Count > 200) throw new ArgumentException(HostParameters.CountMessage(2, 200, gcat.Count));
+                int k = gcat.Count, nrep = ys.Length;
+                var members = Enumerable.Range(0, k).Select(_ => new List<int>()).ToArray();
+                for (int j = 0; j < rows; j++) if (gid[j] >= 0 && j < x.Length && x.Data[j] != Constant.MISSING) members[gid[j]].Add(j);
+                for (int g = 0; g < k; g++) if (members[g].Count == 0) throw new ArgumentException($"Group '{gcat[g]}' has no predictor (X) observations.");
+                int maxr = members.Max(m => m.Count);
+                string catlab = string.Join(", ", groups.Select(c => c.title));
+                var data = new GroupedCovarianceData { k=k, maxr=maxr, maxreps=nrep, xlab=x.Title,
+                    a=new double[k+1], b=new double[k+1], bnam=new string[k+1], cx=new ColumnData[k+1], nxi=new int[k+1], ny=new int[k+1,maxr+1], rssx=new double[k+1], xmean=new double[k+1], ymean=new double[k+1],
+                    xt=new double[k+1,maxr+1], y=new double[k+1,maxr+1,nrep+1], minMax=new MinMax { MinX=double.MaxValue, MaxX=double.MinValue, MinY=double.MaxValue, MaxY=double.MinValue } };
+                for (int g = 1; g <= k; g++) {
+                    var rowsOf = members[g-1]; data.nxi[g] = rowsOf.Count;
+                    data.cx[g] = new ColumnData { Title = k > 1 ? catlab + "_" + gcat[g-1] : catlab, Rows = rowsOf.Count, Sum = 0 };
+                    for (int i = 1; i <= rowsOf.Count; i++) {
+                        int j = rowsOf[i-1]; double xv = x.Data[j];
+                        data.xt[g,i] = xv; data.cx[g].Sum += xv; data.minMax.MinX = Math.Min(data.minMax.MinX, xv); data.minMax.MaxX = Math.Max(data.minMax.MaxX, xv);
+                        int cnt = 0;
+                        for (int r = 0; r < nrep; r++) {
+                            double yv = j < ys[r].Length ? ys[r].Data[j] : Constant.MISSING; if (yv == Constant.MISSING) continue;
+                            data.y[g,i,++cnt] = yv; data.minMax.MinY = Math.Min(data.minMax.MinY, yv); data.minMax.MaxY = Math.Max(data.minMax.MaxY, yv);
+                        }
+                        if (cnt == 0) throw new ArgumentException($"Row {j + 1} has a predictor (X) value but no outcome (Y) value. Give every X row a Y value or leave its X cell blank.");
+                        data.ny[g,i] = cnt;
+                    }
+                }
+                // Recorded as a frame of the X, Y and identifier columns, so the report's inputs and the R script hold them together.
+                var record = new Dictionary<string, object>();
+                foreach (var property in input.EnumerateObject()) if (property.Name is "source" or "range" or "preserveRows" or "layout" or "roles") record[property.Name] = property.Value.Clone();
+                record["identifiers"] = groups.Select(c => c.title).ToArray();
+                Func<DoubleVariable, object> column = v => new { title = v.Title, values = Enumerable.Range(0, v.Length).Select(r => v.Data[r] == Constant.MISSING ? (object)"*" : v.Data[r]).ToArray() };
+                record["columns"] = new[] { column(x) }.Concat(ys.Select(column)).Concat(groups.Select(c => (object)new { title = c.title, mode = "GroupIdentifiers", values = (object)c.values })).ToArray();
+                job.Record(title, record, "gcd", "grid", "NumericReplaceMissing"); return data;
+            } catch (ArgumentException ex) { error = ex.Message; }
+        }
     }
 }

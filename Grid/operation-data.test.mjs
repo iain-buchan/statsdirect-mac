@@ -102,3 +102,21 @@ test('long data: the form sends the data column, the identifiers and the block, 
   // A lesson source that carries cells cannot pivot: identifiers need the live worksheet.
   assert.throws(() => worksheetInput({...source, lazy: false, cells: []}, [], 2, 13, {mode: 'single', data: 0, identifiers: [1]}), /open worksheet/);
 });
+test('long data for the analysis of covariance: the predictor, the outcomes and the identifiers travel by role', () => {
+  const source = {lazy: true, sheet: 0, sheetName: 'S', name: 'book / S', firstRow: 2, rows: 13, columns: ['x', 'y1', 'y2', 'group', 'other'], columnEnds: [13, 13, 13, 13, 0]};
+  const pending = worksheetInput(source, [], 2, 13, {mode: 'covariance', data: 0, identifiers: [3], outcomes: [1, 2]});
+  assert.deepEqual(pending.request.columns, [0, 3, 1, 2]);
+  assert.deepEqual(pending.layout, {mode: 'covariance', identifiers: 1, block: false, outcomes: 2});
+  const data = {columns: [{title: 'x', values: ['1', '2']}, {title: 'group', values: ['a', 'b']}, {title: 'y1', values: ['3', '4']}, {title: 'y2', values: ['5', '6']}]};
+  const input = worksheetInputFrom(pending, data);
+  assert.equal(input.layout, 'long');
+  assert.deepEqual(input.columns, [{title: 'x', values: ['1', '2']}]);
+  assert.deepEqual(input.groupIdentifiers, [{title: 'group', values: ['a', 'b']}]);
+  assert.deepEqual(input.outcomeColumns, [{title: 'y1', values: ['3', '4']}, {title: 'y2', values: ['5', '6']}]);
+  assert.equal(input.blockIdentifiers, undefined);
+  assert.deepEqual(input.roles, {mode: 'covariance', identifiers: 1, block: false, outcomes: 2});
+  assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'covariance', data: 0, identifiers: [3], outcomes: []}), /outcome \(Y\)/);
+  assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'covariance', data: 0, identifiers: [3], outcomes: [0]}), /different columns/);
+  assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'covariance', data: undefined, identifiers: [3], outcomes: [1]}), /predictor \(X\)/);
+  assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'covariance', data: 0, identifiers: Array.from({length: 11}, (_, i) => i + 1), outcomes: [1]}), /up to 10/);
+});

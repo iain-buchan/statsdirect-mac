@@ -178,6 +178,60 @@ try:
     print('PASS: a paired frame from unequal groups is padded with missing values after the Windows warning, or refused when declined')
     print('PASS: wrong group counts, blank identifiers, unequal treatments and repeated blocks are refused with clear messages')
 
+    # Analysis of covariance: Windows pivots its frames through Gidxyr. Long data (a predictor column,
+    # outcome column(s) and identifier columns) gives the same numbers as the separate-column layout.
+    def cov_input(x, ys, groups, titles=('x', 'y', 'group')):
+        return {'source': 'Long data', 'preserveRows': True, 'layout': 'long', 'columns': [{'title': titles[0], 'values': list(x)}],
+                'outcomeColumns': [{'title': titles[1] + ' ' + 'abcdefgh'[i], 'values': list(v)} for i, v in enumerate(ys)],
+                'groupIdentifiers': [{'title': titles[2], 'values': list(groups)}]}
+    id, st = s.start('GroupedCovariance'); p = st['prompt']
+    assert p['kind'] == 'option' and p['name'] == 'layoutCovariance' and [o['value'] for o in p['options']] == ['columns', 'identifiers'] and p['defaultValue'] == 'columns', p
+    s.close(id)
+    x_prompt = 'Select predictor (X) series — one column per group'
+    cov_x = [1, 2, 3, 4, 5, 2, 3, 4, 5, 6]; cov_y = [2, 3, 5, 7, 10, 3, 6, 8, 11, 12]; cov_g = ['a'] * 5 + ['b'] * 5
+    wide_cov = s.run('GroupedCovariance', {'layoutCovariance': 'columns', x_prompt: columns([1, 2, 3, 4, 5], [2, 3, 4, 5, 6]), 'Group 1: Y outcomes for group a': columns([2, 3, 5, 7, 10]), 'Group 2: Y outcomes for group b': columns([3, 6, 8, 11, 12])})
+    long_cov = s.run('GroupedCovariance', {'layoutCovariance': 'identifiers', 'gcd': cov_input(cov_x, [cov_y], cov_g)})
+    same_numbers(wide_cov, long_cov, 'analysis of covariance from long data')
+    rec = next(h for h in long_cov['history'] if h.get('name') == 'gcd')['value']
+    assert rec['layout'] == 'long' and rec['identifiers'] == ['group'] and [c['title'] for c in rec['columns']] == ['x', 'y a', 'group'] and rec['columns'][2]['mode'] == 'GroupIdentifiers', rec
+    assert next(h for h in long_cov['history'] if h.get('name') == 'layoutCovariance')['value'] == 'identifiers'
+    # Y replicates: one outcome column per replicate in long data, one column per X value in the separate-column layout.
+    rep_prompt = {1: 'Group 1: one column of Y replicates for each X value', 2: 'Group 2: one column of Y replicates for each X value'}
+    rep_x = [1, 2, 3, 2, 3, 4]; rep_y1 = [2, 3, 5, 3, 6, 8]; rep_y2 = [3, 4, 6, 4, 7, 9]; rep_g = ['a'] * 3 + ['b'] * 3
+    wide_rep = s.run('GroupedCovariance', {'layoutCovariance': 'columns', x_prompt: columns([1, 2, 3], [2, 3, 4]), 'Use Y replicates': True,
+        rep_prompt[1]: columns([2, 3], [3, 4], [5, 6]), rep_prompt[2]: columns([3, 4], [6, 7], [8, 9])})
+    long_rep = s.run('GroupedCovariance', {'layoutCovariance': 'identifiers', 'gcd': cov_input(rep_x, [rep_y1, rep_y2], rep_g)})
+    same_numbers(wide_rep, long_rep, 'analysis of covariance with Y replicates from long data')
+    # A row whose X is missing is left out of its group, and a missing Y replicate out of its X value,
+    # as the separate-column layout removes missing observations within a series.
+    long_gap = s.run('GroupedCovariance', {'layoutCovariance': 'identifiers', 'gcd': cov_input(rep_x + ['*'], [[2, 3, 5, 3, 6, 8, 9], [3, '*', 6, 4, 7, 9, 9]], rep_g + ['b'])})
+    wide_gap = s.run('GroupedCovariance', {'layoutCovariance': 'columns', x_prompt: columns([1, 2, 3], [2, 3, 4]), 'Use Y replicates': True,
+        rep_prompt[1]: columns([2, 3], [3], [5, 6]), rep_prompt[2]: columns([3, 4], [6, 7], [8, 9])})
+    same_numbers(wide_gap, long_gap, 'missing X rows and Y replicates are left out of the analysis of covariance')
+    # A missing first replicate: the remaining replicate is placed first, not left at its column position.
+    long_first = s.run('GroupedCovariance', {'layoutCovariance': 'identifiers', 'gcd': cov_input(rep_x, [[2, '*', 5, 3, 6, 8], rep_y2], rep_g)})
+    wide_first = s.run('GroupedCovariance', {'layoutCovariance': 'columns', x_prompt: columns([1, 2, 3], [2, 3, 4]), 'Use Y replicates': True,
+        rep_prompt[1]: columns([2, 3], [4], [5, 6]), rep_prompt[2]: columns([3, 4], [6, 7], [8, 9])})
+    same_numbers(wide_first, long_first, 'a missing first Y replicate is left out of the analysis of covariance')
+    def cov_refused(answer, fragment):
+        id, st = s.start('GroupedCovariance'); s.request(action='answer', id=id, token=st['token'], value='identifiers'); st = s.wait(id)
+        assert st['prompt']['name'] == 'gcd' and st['prompt']['groupIdentifiers'] == 'covariance' and st['prompt']['layout'] == 'long', st['prompt']
+        s.request(action='answer', id=id, token=st['token'], value=answer); st = s.wait(id)
+        assert st['state'] == 'input' and fragment in (st['prompt'].get('error') or ''), (fragment, st.get('state'), (st.get('prompt') or {}).get('error'), st.get('error'))
+        s.close(id)
+    cov_refused(cov_input(cov_x, [cov_y], ['a'] * 10), 'needs at least 2')
+    cov_refused(cov_input(cov_x, [cov_y], ['a', 'b', ''] * 3 + ['a']), 'Row 3 of the Y data has a value but no group identifier')
+    cov_refused(cov_input(cov_x, [[2, 3, '*', 7, 10, '*', 6, 8, '*', 12]], ['a', 'b', ''] * 3 + ['a']), 'Row 3 of the X data has a value but no group identifier')
+    cov_refused(cov_input(cov_x, [], cov_g), 'at least one outcome')
+    cov_refused(cov_input(cov_x, [[2, '*', 5, 7, 10, 3, 6, 8, 11, 12]], cov_g), 'Row 2 has a predictor (X) value but no outcome (Y) value')
+    cov_refused(cov_input(['*'] * 5 + [2, 3, 4, 5, 6], [cov_y], cov_g), "Group 'a' has no predictor (X) observations")
+    # A source that can only send columns (entered or lesson data) is offered the layout choice again.
+    id, st = s.start('GroupedCovariance'); s.request(action='answer', id=id, token=st['token'], value='identifiers'); st = s.wait(id)
+    s.request(action='answer', id=id, token=st['token'], value={'layout': 'columns'}); st = s.wait(id)
+    assert st['prompt']['name'] == 'layoutCovariance' and 'cannot be read by identifier' in st['prompt']['error'] and st['prompt']['defaultValue'] == 'columns', st['prompt']
+    s.close(id)
+    print('PASS: analysis of covariance from long data matches separate columns, with and without Y replicates; missing X rows and Y replicates are left out; blank identifiers, too few groups, missing outcomes and columns-only sources are refused; the record holds X, Y and the identifiers')
+
     # The Analysis options form offers the setting, and it changes the form's default layout.
     id, st = s.start('AnalysisOptions')
     field = next(f for f in st['prompt']['fields'] if f['name'] == 'selectGroupsByIdentifier')

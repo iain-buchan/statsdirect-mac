@@ -24,14 +24,17 @@ function DataInput({p,source,onChange,initial,onChooseColumns}:{p:any,source:any
   // Long data: one data column with group identifiers (or treatment and block identifiers), as the Windows "groups by identifier" setting.
   // Only a live worksheet can serve it; lesson sources carry their cells and stay in separate columns.
   // Paired modes (treatment and block; group and sub-group for two-dimensional frames) take one identifier and one block column.
-  const twoWay=p.groupIdentifiers==='treatmentAndBlock'||p.groupIdentifiers==='groupAndSubgroup',canPivot=!!p.groupIdentifiers&&!!source?.lazy,longOnly=p.layout==='long';
+  // The analysis of covariance takes a predictor (X) column, outcome (Y) column(s) and group identifier column(s).
+  const twoWay=p.groupIdentifiers==='treatmentAndBlock'||p.groupIdentifiers==='groupAndSubgroup',covariance=p.groupIdentifiers==='covariance',canPivot=!!p.groupIdentifiers&&!!source?.lazy,longOnly=p.layout==='long';
   const idLabel=p.identifierLabels?.first??(p.groupIdentifiers==='treatmentAndBlock'?'Treatment (column) identifier':'Group identifier column(s)'),blockLabel=p.identifierLabels?.second??'Block (row) identifier';
+  const dataLabel=covariance?'Predictor (X) column':'Data column',outcomesLabel=p.identifierLabels?.outcomes??'Outcome (Y) column(s)';
   const [byIdentifier,setByIdentifier]=useState(!!longInitial||longOnly||(canPivot&&!!p.groupsByIdentifier));
   const [dataCol,setDataCol]=useState<number|undefined>(()=>longInitial?.range.columns[0]);
   const [idCols,setIdCols]=useState<number[]>(()=>longInitial?longInitial.range.columns.slice(1,1+(longInitial.roles?.identifiers??1)):[]);
-  const [blockCol,setBlockCol]=useState<number|undefined>(()=>longInitial?.roles?.block?longInitial.range.columns[longInitial.range.columns.length-1]:undefined);
-  const longLayout=useSheet&&byIdentifier&&canPivot?{mode:p.groupIdentifiers,data:dataCol,identifiers:idCols,block:blockCol}:undefined;
-  const chosen=longLayout?[dataCol,...idCols,blockCol].filter((n):n is number=>Number.isInteger(n)):selected;
+  const [blockCol,setBlockCol]=useState<number|undefined>(()=>longInitial?.roles?.block?longInitial.range.columns[1+(longInitial.roles?.identifiers??1)]:undefined);
+  const [outcomeCols,setOutcomeCols]=useState<number[]>(()=>longInitial?.roles?.outcomes?longInitial.range.columns.slice(1+(longInitial.roles?.identifiers??1)+(longInitial.roles?.block?1:0)):[]);
+  const longLayout=useSheet&&byIdentifier&&canPivot?{mode:p.groupIdentifiers,data:dataCol,identifiers:idCols,block:blockCol,...(covariance?{outcomes:outcomeCols}:{})}:undefined;
+  const chosen=longLayout?[dataCol,...idCols,blockCol,...outcomeCols].filter((n):n is number=>Number.isInteger(n)):selected;
   const [rowOverride,setRowOverride]=useState<{first:string,last:string}|null>(longInitial?{first:String(longInitial.range.firstRow),last:String(longInitial.range.lastRow)}:null);
   const suggestedRows=worksheetRows(source,chosen,p.length);
   const first=rowOverride?.first??String(suggestedRows.first),last=rowOverride?.last??String(suggestedRows.last);
@@ -43,7 +46,7 @@ function DataInput({p,source,onChange,initial,onChooseColumns}:{p:any,source:any
     previousSource.current=source;
     setRowOverride(null);if(source?.selection)setSelected(source.selection.slice(0,p.maxColumns));
     // Columns the refreshed worksheet no longer has are dropped from the long-data choices.
-    const count=source?.columns?.length??0;setDataCol(d=>Number.isInteger(d)&&d!<count?d:undefined);setIdCols(a=>a.filter(n=>n<count));setBlockCol(b=>Number.isInteger(b)&&b!<count?b:undefined);},[source]);
+    const count=source?.columns?.length??0;setDataCol(d=>Number.isInteger(d)&&d!<count?d:undefined);setIdCols(a=>a.filter(n=>n<count));setBlockCol(b=>Number.isInteger(b)&&b!<count?b:undefined);setOutcomeCols(a=>a.filter(n=>n<count));},[source]);
   const [table,setTable]=useState(()=>new EntryTable(p,null,longInitial?undefined:initial));
   const [revision,refresh]=useState(0),[showTitles,setShowTitles]=useState(false);
   const [selection,setSelection]=useState(empty),[cell,setCell]=useState(''),[error,setError]=useState(table.error);
@@ -65,7 +68,7 @@ function DataInput({p,source,onChange,initial,onChooseColumns}:{p:any,source:any
   useEffect(()=>{const observer=new ResizeObserver(([e])=>setWidth(Math.floor(e.contentRect.width)));if(container.current)observer.observe(container.current);return()=>observer.disconnect();},[useSheet]);
   useEffect(()=>{
     onChange(()=> longOnly&&!longLayout ? {layout:"columns"} : useSheet ? worksheetInput(source,selected,Number(first),Number(last),longLayout) : table.input());
-  },[useSheet,source,selected,first,last,table,revision,byIdentifier,dataCol,idCols,blockCol]);
+  },[useSheet,source,selected,first,last,table,revision,byIdentifier,dataCol,idCols,blockCol,outcomeCols]);
   const apply=(change:()=>void)=>{try{if(loading)return;change();table.error='';setError('');refresh(n=>n+1);}catch(e){setError((e as Error).message);}};
   const paste=(text:string)=>apply(()=>table.paste(text,c,r));
   useEffect(()=>{window.statsDirectOperation.pasteText=paste;return()=>{delete window.statsDirectOperation.pasteText;};});
@@ -77,13 +80,14 @@ function DataInput({p,source,onChange,initial,onChooseColumns}:{p:any,source:any
       {canPivot&&!longOnly&&<div className="switch layout-switch"><span>Groups are</span><button type="button" className={!byIdentifier?'chosen':''} onClick={()=>{setByIdentifier(false);native('groupsByIdentifier',{value:false});}}>in separate columns</button><button type="button" className={byIdentifier?'chosen':''} onClick={()=>{setByIdentifier(true);native('groupsByIdentifier',{value:true});}}>{twoWay?'identified by treatment and block columns':'identified by a column of group labels'}</button></div>}
       {longOnly&&!canPivot&&<p className="hint">This layout reads a live worksheet. With entered or lesson data, continue with separate columns and choose that layout when asked again, or open a worksheet and press Refresh worksheet.</p>}
       {longLayout?<>
-        <p>Choose the data column, then the {twoWay?`${idLabel.toLowerCase()} and the ${blockLabel.toLowerCase()} columns`:'column(s) whose values label each observation\u2019s group'}. {p.maxColumns<10000?`${p.minColumns}–${p.maxColumns} groups allowed.`:`At least ${p.minColumns} group(s).`}</p>
+        <p>{covariance?'Choose the predictor (X) column, the outcome (Y) column(s), one per replicate, and the column(s) whose values label each observation\u2019s group (series).':`Choose the data column, then the ${twoWay?`${idLabel.toLowerCase()} and the ${blockLabel.toLowerCase()} columns`:'column(s) whose values label each observation\u2019s group'}.`} {p.maxColumns<10000?`${p.minColumns}–${p.maxColumns} groups allowed.`:`At least ${p.minColumns} group(s).`}</p>
         <div className="roles">
-          <fieldset><legend>Data column</legend><div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type="radio" name="long-data" checked={dataCol===i} onChange={()=>setDataCol(i)}/><span>{columnName(i)} · {label}</span></label>)}</div></fieldset>
+          <fieldset><legend>{dataLabel}</legend><div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type="radio" name="long-data" checked={dataCol===i} onChange={()=>setDataCol(i)}/><span>{columnName(i)} · {label}</span></label>)}</div></fieldset>
           <fieldset><legend>{idLabel}</legend><div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type={twoWay?'radio':'checkbox'} name="long-ids" checked={idCols.includes(i)} onChange={e=>setIdCols(a=>twoWay?[i]:e.target.checked?[...a,i]:a.filter(n=>n!==i))}/><span>{columnName(i)} · {label}</span>{!twoWay&&idCols.includes(i)&&<b>{idCols.indexOf(i)+1}</b>}</label>)}</div></fieldset>
+          {covariance&&<fieldset><legend>{outcomesLabel}</legend><div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type="checkbox" name="long-outcomes" checked={outcomeCols.includes(i)} onChange={e=>setOutcomeCols(a=>e.target.checked?[...a,i]:a.filter(n=>n!==i))}/><span>{columnName(i)} · {label}</span>{outcomeCols.includes(i)&&<b>{outcomeCols.indexOf(i)+1}</b>}</label>)}</div></fieldset>}
           {twoWay&&<fieldset><legend>{blockLabel}</legend><div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type="radio" name="long-block" checked={blockCol===i} onChange={()=>setBlockCol(i)}/><span>{columnName(i)} · {label}</span></label>)}</div></fieldset>}
         </div>
-        <p className="selection">Data: {Number.isInteger(dataCol)?source.columns[dataCol!]:'None'} · {twoWay?idLabel:'Groups'}: {idCols.map(i=>source.columns[i]).join(', ')||'None'}{twoWay&&<> · {blockLabel}: {Number.isInteger(blockCol)?source.columns[blockCol!]:'None'}</>}</p>
+        <p className="selection">{covariance?'X':'Data'}: {Number.isInteger(dataCol)?source.columns[dataCol!]:'None'}{covariance&&<> · Y: {outcomeCols.map(i=>source.columns[i]).join(', ')||'None'}</>} · {twoWay?idLabel:'Groups'}: {idCols.map(i=>source.columns[i]).join(', ')||'None'}{twoWay&&<> · {blockLabel}: {Number.isInteger(blockCol)?source.columns[blockCol!]:'None'}</>}</p>
       </>:<>
       <p>Choose columns in the order required by the question. {p.maxColumns<10000?`${p.minColumns}–${p.maxColumns} columns allowed.`:`At least ${p.minColumns} column(s).`}</p>
       <div className="column-chooser">{source.columns.map((label:string,i:number)=><label key={i}><input type="checkbox" checked={selected.includes(i)} onChange={e=>setSelected(a=>e.target.checked?[...a,i]:a.filter(n=>n!==i))}/><span>{columnName(i)} · {label}</span>{selected.includes(i)&&<b>{selected.indexOf(i)+1}</b>}</label>)}</div>
@@ -139,7 +143,8 @@ function App(){
       <div className="choices">{state.suggestions.map((s:any)=><button key={s.operation} type="button" onClick={()=>native('followOn',{operation:s.operation,title:s.title,help:s.help??null})}>{s.title}</button>)}</div></section>}
     {config.instant&&state.state==='complete'&&steps.length>0&&<InstantEditor steps={steps} busy={busy} onRun={edited=>{answers.current.restart(edited);setResult(null);setBusy(true);native('start');}}/>}
     {state.state==='ready'&&<section><h2>{config.unavailable?'Method help available':error?'Unable to open the form':'Opening input form…'}</h2>{config.unavailable&&<p className="notice">{config.unavailable}</p>}{error&&!config.unavailable&&<button className="primary" disabled={busy} onClick={()=>{setBusy(true);native('start');}}>Try again</button>}</section>}
-    {state.state==='input'&&<Prompt key={state.token} p={state.prompt} source={source} busy={busy} initial={state.prompt.error?answers.current.previous(state.prompt):undefined} onCancel={()=>{setBusy(true);native('cancel');}} onSubmit={value=>{answers.current.record(state.prompt,value);if(state.prompt.name==='layout2d'&&state.prompt.kind==='option')native('groupsByIdentifier',{value:value==='identifiers'});setBusy(true);native('answer',{token:state.token,value});}}/>}
+    {/* A rejected answer is shown again for correction, except for an option prompt, whose re-ask carries the engine's corrected default (the layout choice after a columns-only source). */}
+    {state.state==='input'&&<Prompt key={state.token} p={state.prompt} source={source} busy={busy} initial={state.prompt.error&&state.prompt.kind!=='option'?answers.current.previous(state.prompt):undefined} onCancel={()=>{setBusy(true);native('cancel');}} onSubmit={value=>{answers.current.record(state.prompt,value);if((state.prompt.name==='layout2d'||state.prompt.name==='layoutCovariance')&&state.prompt.kind==='option')native('groupsByIdentifier',{value:value==='identifiers'});setBusy(true);native('answer',{token:state.token,value});}}/>}
     {state.state==='running'&&<section aria-live="polite"><h2>{state.progress||'Calculating…'}</h2><progress value={state.fraction??undefined} max={1}/><p>You can read help and earlier reports while this calculation runs.</p></section>}
     {!isActive&&state.state!=='ready'&&!(config.instant&&state.state==='complete')&&<section><h2>{state.state==='complete'?(isSettings?'Analysis defaults saved':'Analysis complete'):state.state==='cancelled'?(isSettings?'Changes cancelled':'Analysis cancelled'):'Analysis could not finish'}</h2><p className={state.state==='failed'?'error':''}>{state.error|| (state.state==='complete'?(isSettings?'These settings will be used by new analyses, including after restarting StatsDirect.':'Your results have been added to the active report.'):(isSettings?'Your saved defaults are unchanged.':'No final report was created.'))}</p><button className="primary" disabled={busy} onClick={()=>{answers.current=new InstantAnswers();setResult(null);setBusy(true);native('start');}}>{isSettings?'Edit defaults':'Run again'}</button></section>}
     {isActive&&(!isSettings||state.state==='running')&&<div className="cancel"><button onClick={()=>{setBusy(true);native('cancel');}}>{isSettings?'Cancel':'Cancel analysis'}</button><span>{busy?'Waiting for the engine…':'Answers are checked by the StatsDirect engine.'}</span></div>}

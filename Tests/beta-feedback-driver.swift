@@ -10,7 +10,10 @@ import PDFKit
   UserDefaults.standard.set(false,forKey:"automaticUpdateChecks")
   DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { Task { @MainActor in
    do {
-    if CommandLine.arguments.contains("--excel-only") {
+    if CommandLine.arguments.contains("--forms-only") {
+     try await FormContractTests.run(viewer)
+     try await FormControlTests.run(viewer)
+    } else if CommandLine.arguments.contains("--excel-only") {
      try await ExcelImportTests.run(viewer)
     } else if CommandLine.arguments.contains("--groups-only") {
      try await GroupIdentifierTests.run(viewer)
@@ -25,6 +28,8 @@ import PDFKit
     try await ReportExportTests.run(viewer)
     try await largeGrid(viewer)
     try await entryTables(viewer)
+    try await FormContractTests.run(viewer)
+    try await FormControlTests.run(viewer)
     try await GroupIdentifierTests.run(viewer)
     try await WriteBackTests.run(viewer)
     if CommandLine.arguments.contains("--live") { try await live(viewer) }

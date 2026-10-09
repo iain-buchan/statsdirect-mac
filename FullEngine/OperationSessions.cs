@@ -56,6 +56,10 @@ public static class OperationSessions {
                             throw new Exception($"{operation.FriendlyName ?? operation.Name} follows on from {string.Join(" or ", names)}. Run that analysis first, then choose this method from its follow-on list.");
                         }
                     }
+                    // A model change refits the original X/Y. The previous fit's cached
+                    // context has deliberately discarded its working arrays for output;
+                    // it is suitable for interpolation, but cannot be transformed/refitted.
+                    if (r.Operation == "LinearizedEstimatesWithModel") context?.Remove("context");
                     var job = new OperationJob(r.Id, operation, r.Preferences, context, r.Parent, parent?.HistorySnapshot()); jobs[r.Id] = job;
                     Task.Factory.StartNew(job.Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
                     result = job.Snapshot();

@@ -1,0 +1,163 @@
+Mac analysis form coverage — 9 October 2026
+
+Purpose and findings
+
+Cuzick prepares its scores after the user supplies groups. Opening only the first
+prompt, or supplying scores in a calculation test, misses a blank prepared grid.
+This audit therefore checks descriptors, complete input paths and native controls
+separately. The Windows XML and InlineParameterPreparer are the source contract;
+these tests do not run the Windows GUI.
+
+Corrections in the shared Mac host and controls:
+- Forward prepared input frames for every grid descriptor, including Cuzick and
+  log-rank scores and reopened Woolf/Mantel–Haenszel strata. The stratified-count
+  forms open embedded tables directly and can prefill from the selected sheet.
+- Restore input numbers, dates, text, choices, checkboxes and individual 2-by-2
+  counts. Output parameters cannot seed inputs; force-default ranges still use
+  their declared defaults (including generated random seeds).
+- Apply the Windows variable/list preselection. Optional single lists have a
+  visible None choice. Multiple-choice lists can be empty when Windows allows it.
+- List classifier categories once, in sorted category order. Choosing None omits
+  the reference parameter, as Windows does: an all-false reference vector caused
+  universal agreement to fail or suppress its simulation follow-on.
+- Honour maximum text lengths in the form.
+- Rebuild the working regression context when LinearizedEstimatesWithModel refits.
+  The parent's cached context has been stripped of working X/Y arrays for output;
+  reusing it crashed a model change. Only the child context copy is changed. Tests
+  compare all three refitted models with fresh fits and verify that interpolation
+  from the unchanged parent gives the same result before and after the refits.
+
+Coverage and permanent tests
+
+1. Tests/FormDescriptors scans all 277 XML operations, including both sides of
+   conditional steps and nested iterations: 1,024 parameter declarations.
+   1,009 descriptors pass applicable contract checks for prompts, defaults,
+   retained input, choices, dimensions and constraints. The other 15 are listed
+   explicitly as separate host routes (complex data, output destinations, etc.).
+   Synthetic contexts make conditional declarations inspectable without claiming
+   that every calculation branch has executed. Some declarations are noninteractive.
+   Scripts/test-form-descriptors.sh writes .build/form-descriptors.json and the
+   representative .build/form-controls.json used by the native test.
+
+2. Tests/test_form_contracts.py requires fixtures for all six XML declarations
+   explicitly marked can-select=false: Cuzick/scores, KappaScreen/weights,
+   ExactChiRbyCScreen/data, ExactFisherRbyC/data, ChiWoolfScreen/data and
+   MantelHaenszelScreen/data. It completes later prompts and checks 2/3/5-group
+   scores, custom weights, invalid input and correction, independent sessions,
+   cancellation, retained strata and row/column trend scores. It also checks the
+   three-group log-rank scores supplied through a different parameter type.
+
+3. Tests/test_form_branches.py adds 45 menu fixtures and 18 branch variants,
+   including optional references, custom weights, alternative sample-size inputs,
+   simulation, stratification and regression models. It separately checks the
+   three linearized model refits and preservation of the parent result.
+
+4. Tests/test_form_follow_ons.py replays all 67 follow-on operations, with 21
+   necessary parent calculations, using synthetic inputs in the checked-in
+   form-follow-on-fixtures.json. Each child must be offered by its actual parent.
+   It verifies the ordered prompt names, kinds and text, rejects validation errors
+   or unexpected prompts, and requires completed output without rendering errors.
+   The required follow-on inventory comes from the Windows operation XML.
+
+5. test.sh collects a fresh trace for that run only. Tests/test_form_coverage.py
+   requires a completed calculation for all 206 supported menu operations and all
+   67 follow-on operations. Merely opening a form or cancelling it does not count.
+   A new XML operation without a completed regression fails the coverage guard.
+   .build/form-coverage.json identifies the suites that completed each operation.
+
+6. The native Swift/WKWebView/React tests cover real Cuzick score display, cell
+   editing, rejected-input retention, correction and completed calculation despite
+   an unrelated worksheet selection; and both stratified forms with sheet data.
+   The shared-control harness checks 12 variants for visible defaults, submission
+   and retained rejected answers, including returning a single choice to None.
+   These checks are in the full beta-feedback driver; --forms-only is available
+   for focused runs. The full driver also covers grouped/nested data, covariance,
+   worksheet output, clipboard, report export and other native integration paths.
+
+Run from the repository root after ./build.sh:
+
+  ./test.sh
+  python3 Tests/run_beta_feedback.py --forms-only
+  python3 Tests/run_beta_feedback.py
+
+The engine/descriptor/coverage tests and full native driver are wired into the
+existing GitHub CI workflow. Local evidence is distinct from a remote CI run.
+
+Final local verification on 9 October 2026
+
+- Release ./build.sh passed with the corrected host and rebuilt grid bundle.
+- ./test.sh passed: 1,009 descriptor checks, all 206 menu and 67 follow-on
+  operations completed in its fresh trace, the engine/R suites including 53
+  worked help examples, and all 101 JavaScript tests (none skipped).
+- The full Release python3 Tests/run_beta_feedback.py run passed, including the
+  real prepared-table tests and all 12 shared-control variants.
+- git diff --check passed. No remote CI run is claimed for these local changes.
+
+Coverage boundaries
+
+There is at least one completed calculation per supported operation, explicit
+branch variants, descriptor checks across conditional declarations and native
+checks of shared controls. This is not exhaustive execution of every branch
+combination, data shape, invalid input or operating-system version, nor proof of
+numerical parity for all possible data. The existing independent R comparisons
+and 53 worked help-example regressions remain the numerical checks.
+
+Four XML operations are explicitly excluded from the calculation-form count:
+ImportWorksheet and ExportWorksheet use the native file host and separate file
+integration tests; LOESS and MethodComparisonRegression retain their existing
+explicit R deferrals. The 15 separately routed descriptors are not counted as
+passing shared-descriptor checks. The native suite does not click through all
+273 calculations individually.
+
+Handover point for the Windows engine maintainer
+
+Inspect Regress.RptLinearizedEstimates / GetSimpleLinearRegressionContext and
+SimpleLinearRegressionContext.StripForOutput. The Mac model-change path reproduced
+a null working-array failure from the stored stripped context. The Mac host now
+removes that cache from the child before refitting from retained X/Y inputs.
+The calculation sources are unchanged. Whether the Windows host can encounter
+the same context state still requires a Windows execution test.
+
+Build and publication
+
+The local application and release ZIP are now 0.3.25, with the same 5.0.14 engine
+revision 70eeec462a9c. The published release remains 0.3.24; no remote publication
+or signing/notarisation change was made during this package check.
+
+Final package verification on 9 October 2026
+
+- A fresh Release build passed without warnings. The application and separate
+  debug-symbol archives are in Releases/0.3.25 with SHA256SUMS.txt.
+- Extracted the final ZIP into a new directory, compared all files with the tested
+  build, verified deep/strict local ad-hoc signatures, and matched debug-symbol
+  UUIDs for the shell, calculation engine and text library.
+- Ran form_contracts, form_branches (63 cases plus three model-change comparisons)
+  and all 67 follow-on operations using the extracted engine. The native
+  --forms-only driver used that extracted app's resources and engine and passed
+  the prepared-table checks and all 12 shared-control variants.
+- Installed the extracted app at /Users/iain/Applications/StatsDirect.app and
+  launched its actual executable. About showed 0.3.25 and engine 5.0.14 / 70eeec462a9c.
+- Help > Check for Updates completed against public GitHub and correctly reported
+  no release newer than 0.3.25 (GitHub still publishes 0.3.24). Update-service tests
+  also passed network/error fallbacks and the packaged-version response fixture:
+  an older app detects 0.3.25, while 0.3.25 does not offer itself as an update.
+  Detection of a genuinely published 0.3.25 requires a post-publication check.
+- In the installed UI, pasted three synthetic groups, selected Cuzick from the
+  Analysis menu, verified prepared scores 1/2/3, changed the last to 4 and completed
+  the calculation. The report showed 3 groups, 12 observations and scores 1/2/4.
+  Its tie-corrected z was 2.802258 and two-sided P was 0.0051.
+- This tests local installation and launch on this Mac. A quarantined download
+  on a clean Mac and Apple Gatekeeper approval are not claimed.
+
+Application ZIP: StatsDirect-0.3.25-macOS-arm64.zip (156301032 bytes)
+SHA-256: a1f291b03e9c4b37356033701c7dcb7bebb1c030b947a040745e32675699bfa3
+
+Reproduce the package-specific checks after extracting the ZIP:
+
+  export STATSDIRECT_TEST_ENGINE="/path/to/StatsDirect.app/Contents/Resources/Engine/StatsDirectEngine.dylib"
+  python3 Tests/test_form_contracts.py
+  python3 Tests/test_form_branches.py
+  python3 Tests/test_form_follow_ons.py
+  python3 Tests/run_beta_feedback.py --app /path/to/StatsDirect.app --forms-only
+  swiftc Sources/UpdateService.swift Tests/update-service-test.swift -o .build/update-service-test
+  .build/update-service-test --app /path/to/StatsDirect.app --live

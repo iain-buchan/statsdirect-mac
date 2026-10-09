@@ -1,0 +1,52 @@
+"""Synthetic fixtures for menu and conditional paths missing from the original suite."""
+from test_menu import columns as C
+counts=C([20,10],[10,20])
+multivariate=C([1,2,4,3,5,7,6,8],[3,1,4,6,5,8,7,9],[2,3,1,4,6,5,8,7])
+agreement={'data':C([10,11,20,18,30,29,40,42,50,49]),'raters':C(['Z','A']*5),'objects':C([1,1,2,2,3,3,4,4,5,5]),'categories':{'skip':True},'reference':[]}
+CASES={
+ 'AbridgedLifetable':{'intervals':C([1,4,5,5]),'population':C([10000,39000,48000,47000,45000]),'deaths':C([50,10,20,30,100]),'iterations':'10000'},
+ 'Chi2byNLinearTrend':{'data':C([4,9,14],[16,11,6])},
+ 'Chi2byNWithTrend':{'data':C([4,9,14],[16,11,6],[1,2,4])},
+ 'Chi2byNWithoutTrend':{'data':C([4,9,14],[16,11,6])},
+ 'ChiWoolfWorksheet':{'sn':C([30,40,50]),'sr':C([10,15,20]),'xn':C([35,45,55]),'xr':C([15,20,30])},
+ 'ChildGrowth':{'standardisation':'weight|age|cdc2000,uk1990,who2007,whoPreTerm,whoTerm','standard':'uk1990','measure':C([15,18,20]),'x':C([3,4,5]),'sex':C(['M','F','M']),'gestational-age':{'skip':True}},
+ 'Crosstabs':{'c1':C(['A','A','B','B','A','B','A','B']),'c2':C(['X','Y','X','Y','X','Y','Y','X']),'specify_scores':True},
+ 'ExactChiRbyC':{'data':C([10,12,8],[9,11,15]),'specify_scores':True},
+ 'ExactFisherX':{'scrap':counts},'ExactMcNamar':{'scrap':counts},'ExactMcNamarChi':{'scrap':counts},'ExactORCML':{'scrap':counts},
+ 'Kappa':{'responses':C([1,1,2,2,3,3,1,2,3],[1,2,2,3,3,1,1,2,3]),'method':'3','weights':C([1,.5,0],[.5,1,.5],[0,.5,1])},
+ 'LinearizedEstimates':{'y':C([2,3,5,8,13,21,34,55]),'x':C([1,2,3,4,5,6,7,8])},
+ 'MetaIncidenceRateRatio':{'pt1':C([1000,1200,1500]),'a':C([15,20,25]),'pt2':C([1100,1300,1400]),'b':C([25,30,35])},
+ 'MiscFalseResult':{'pt':.9,'pf':.1,'pd':5},
+ 'MiscLikely':{'data':C([20,10,5],[5,10,20])},
+ 'MiscNumberNeededToTreat':{'nc':100,'xc':30,'nt':100,'xt':15},
+ 'MiscRelRisk':{'scrap':counts,'pe':.2},'MiscRetroRisk':{'scrap':counts,'pe':.2},
+ 'PCRCorrelation':{'data':multivariate},'PCRCovariance':{'data':multivariate},'PCRCovarianceNoFollowOns':{'data':multivariate},
+ 'PoissonConfidenceInterval':{'data':C([5,10,20])},
+ 'Probit':{'dose':C([1,2,4,8,16]),'subjects':C([50]*5),'responders':C([3,10,25,40,47]),'nc':0,'calc-log10-doses':True},
+ 'PropPairs':{'n':100,'r':30,'s':20,'t':10},'PropSingle':{'n':100,'r':30},
+ 'RandomBlock':{'n':24,'b':4,'t':2,'seed':31415},'RandomUnPaired':{'high':20,'seed':31415},'RandomXY':{'low':5,'high':15,'seed':31415},
+ 'RateSmr':{'rates':C([.01,.02,.03]),'times':C([1000,1200,1500]),'dead':90},
+ 'RateSmrScreen':{'data':C([.01,.02,.03],[1000,1200,1500]),'dead':90},
+ 'SizeCorrelation':{'r1':.3},'SizeIndCase':{'p0':.2,'p1':.4},'SizeIndProp':{'p0':.2,'p1':.4},
+ 'SizeMatchCase':{'p0':.2,'ps':2},'SizeMatchProp':{'p0':.2,'p1':.4},'SizePopSurvey':{'ps':10000,'p':.2,'xd':.05},
+ 'SizeSurvival':{'ct':12,'et':18,'at':12,'fut':24},'SizeUnPaired':{'d':2,'sd':5},
+ 'Stdrr':{'a':C([15,20,25]),'pt1':C([1000,1200,1500]),'b':C([25,30,35]),'pt2':C([1100,1300,1400]),'ref':C([1000,1200,1500])},
+ 'TimeSeriesSummary':{'times':C([0,1,2]*6),'observations':C([1,3,2,2,4,3,3,5,4,2,5,4,3,6,5,4,7,6]),'subjectIds':C([x for x in range(1,7) for _ in range(3)]),'groups':C(['A']*9+['B']*9),'doExactP':True,'iterations':199,'seed':31415},
+ 'UniversalAgreement':agreement,
+ 'UniversalRCompare':{'r1_in':.8,'r2_in':.7,'mu1_in':.2,'mu2_in':.3,'var1_in':.01,'var2_in':.02,'gam1_in':0,'gam2_in':0},
+ 'WeightedUnivariateSummary':{'data':C([1,2,3,5,7,9]),'weights':C([1,2,1,3,2,1])},
+}
+VARIANTS=[
+ ('SizeIndCase','odds-ratio',{'prop-or-or':'or','r':2}),('SizeIndProp','relative-risk',{'prop-or-or':'or','r':2}),
+ ('SizeMatchProp','relative-risk',{'er-or-rr':'rr','rr':2}),('SizeSurvival','hazard-ratio',{'time-or-hr':'hr','hr':.7}),
+ ('Probit','control-response',{'nc':50,'nrc':2}),('PropSingle','test-proportion',{'qpi':.2}),
+ ('Kappa','linear-weights',{'method':'1'}),('Kappa','quadratic-weights',{'method':'2'}),
+ ('UniversalAgreement','reference-A',{'reference':[0]}),('UniversalAgreement','reference-Z',{'reference':[1]}),
+ ('WeightedUnivariateSummary','worksheet',{'output-to-frame':True}),
+ ('LinearizedEstimates','power',{'model':'1'}),('LinearizedEstimates','hyperbolic',{'model':'2'}),
+ ('Crosstabs','stratified',{'c3':C(['S1']*4+['S2']*4)}),
+ ('Stdrr','binomial',{'model':'binomial'}),
+ ('ExactChiRbyC','simulate-exact',{'doMonteCarlo':True,'iterations':199,'seed':31415,'ci':99}),
+ ('Chi2byNLinearTrend','simulate-exact',{'doExactP':True,'iterations':199,'seed':31415,'ci':99}),
+ ('Chi2byNWithTrend','simulate-exact',{'doExactP':True,'iterations':199,'seed':31415,'ci':99}),
+]

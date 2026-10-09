@@ -10,27 +10,25 @@ using StatsDirect.Utilities;
 
 internal static class HostParameters {
     static object Choice(string value, string label, bool selected = false) => new { value, label, selected };
+    static FilledParameter Previous(string name, ParameterBag context) => name != null && context.TryGetValue(name, out var value) && value?.IsInputParameter == true ? value : null;
     internal static Dictionary<string, object> Describe(Parameter p, ITemplateProcessor processor, ParameterBag context, SDPreferences preferences, bool? groupsByIdentifier = null) {
+        // Windows reopens follow-on controls with their existing inputs. Generated
+        // seeds and other force-default ranges explicitly opt out of this behaviour.
+        var previous = p is RangeParameter { ForceDefault: true } ? null : Previous(p.Name, context);
         var d = new Dictionary<string, object> { ["name"] = p.Name, ["title"] = p.Title ?? p.Operation?.ToString() ?? "Analysis options", ["prompt"] = p.Prompt(processor, context, p.Title ?? "Enter a value"), ["rubric"] = p.Rubric(processor, context), ["skip"] = p.CancelSkipsParameter };
         switch (p) {
-            case BooleanParameter b: d["kind"] = "boolean"; d["defaultValue"] = b.DefaultValue(processor, context) ?? false; break;
-            case ConfidenceIntervalParameter c: d["kind"] = "confidence"; d["defaultValue"] = (c.DefaultValue(processor, context) ?? preferences.DefaultConfidenceInterval) * 100; break;
-            case DoubleParameter n: d["kind"] = "number"; d["defaultValue"] = n.DefaultValue(processor, context); d["min"] = n.MinimumValue(processor, context); d["max"] = n.MaximumValue(processor, context); break;
-            case IntegerParameter n: d["kind"] = "integer"; d["defaultValue"] = n.DefaultValue(processor, context); d["min"] = n.MinimumValue; d["max"] = n.MaximumValue; break;
-            case StringParameter s: d["kind"] = "text"; d["defaultValue"] = s.DefaultValue(processor, context); d["maxLength"] = s.MaxLength; break;
-            case DateParameter date: d["kind"]="text";d["defaultValue"]=(date.HasDefaultValue?date.DefaultValue(processor,context):DateTime.Today).ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture);d["rubric"]="Enter a date as YYYY-MM-DD, optionally followed by HH:MM:SS.";break;
-            case OptionParameter o: d["kind"] = "option"; d["options"] = o.Options.Where(x => x.AvailableIf(processor, context)).Select(x => Choice(x.Value, x.Label)).ToArray(); d["defaultValue"] = o.DefaultValue(processor, context); break;
-            case OptionsParameter o: d["kind"] = "options"; d["options"] = o.Options.Select(x => Choice(x.Name, x.Label, x.Selected)).ToArray(); break;
+            case BooleanParameter b: d["kind"] = "boolean"; d["defaultValue"] = previous?.IsBoolean == true ? previous.AsBoolean : b.DefaultValue(processor, context) ?? false; break;
+            case ConfidenceIntervalParameter c: d["kind"] = "confidence"; d["defaultValue"] = (previous?.IsDouble == true ? previous.AsDouble : c.DefaultValue(processor, context) ?? preferences.DefaultConfidenceInterval) * 100; break;
+            case DoubleParameter n: d["kind"] = "number"; d["defaultValue"] = previous?.IsDouble == true ? previous.AsDouble : n.DefaultValue(processor, context); d["min"] = n.MinimumValue(processor, context); d["max"] = n.MaximumValue(processor, context); break;
+            case IntegerParameter n: d["kind"] = "integer"; d["defaultValue"] = previous?.IsInt32 == true ? previous.AsInt32 : n.DefaultValue(processor, context); d["min"] = n.MinimumValue; d["max"] = n.MaximumValue; break;
+            case StringParameter s: d["kind"] = "text"; d["defaultValue"] = previous?.IsString == true ? previous.AsString : s.DefaultValue(processor, context); d["maxLength"] = s.MaxLength; break;
+            case DateParameter date: d["kind"]="text";d["defaultValue"]=(previous?.AsObject is DateTime savedDate?savedDate:date.HasDefaultValue?date.DefaultValue(processor,context):DateTime.Today).ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture);d["rubric"]="Enter a date as YYYY-MM-DD, optionally followed by HH:MM:SS.";break;
+            case OptionParameter o: d["kind"] = "option"; d["options"] = o.Options.Where(x => x.AvailableIf(processor, context)).Select(x => Choice(x.Value, x.Label)).ToArray(); d["defaultValue"] = previous?.IsString == true ? previous.AsString : o.DefaultValue(processor, context); break;
+            case OptionsParameter o: d["kind"] = "options"; d["options"] = o.Options.Select(x => Choice(x.Name, x.Label, Previous(x.Name,context)?.AsObject is bool selected ? selected : x.Selected)).ToArray(); break;
             case FrameParameter f:
                 Grid(d, f.MinimumColumns(processor, context), f.MaximumColumns(processor, context));
                 d["mode"] = f.DataAcquisitionMode.ToString(); d["equalLength"] = f.ColumnsAreSameLength;
-                // Some operation scripts prepare an editable frame (e.g. Cuzick's
-                // default group scores). Windows opens that frame, not an empty grid.
                 if (!f.CanSelect) d["screen"] = true;
-                if (context.ContainsKey(f.Name) && context[f.Name].AsObject is DataFrame initial) {
-                    d["initial"] = FrameInput(initial);
-                    d["rows"] = Math.Max(1, initial.MaxRows);
-                }
                 if (f.HasLength) d["length"] = f.Length(processor, context);
                 if (f.SameLengthAsParameter != null) foreach (string other in f.SameLengthAsParameter) if (context.ContainsKey(other)) d["length"] = context[other].AsDataFrame.MaxRows;
                 // Windows lets these frames come from long data: one data column plus group identifiers
@@ -45,24 +43,50 @@ internal static class HostParameters {
             case Double2By2Parameter t:
                 Grid(d, 2, 2); d["rows"] = 2; d["fixedRows"] = true; d["screen"] = true;
                 d["labels"] = new[] { t.LeftColumnPrompt ?? "Column 1", t.RightColumnPrompt ?? "Column 2" };
-                d["rowLabels"] = new[] { t.TopRowPrompt ?? "Row 1", t.BottomRowPrompt ?? "Row 2" }; d["rubric"] = t.RowsPrompt + " / " + t.ColumnsPrompt; break;
-            case Double2By2ByKParameter: Grid(d, 2, 2); d["rows"] = 4; d["rubric"] = "Enter two rows per stratum: the first 2 × 2 table, then the next. All entries must be non-negative."; break;
+                d["rowLabels"] = new[] { t.TopRowPrompt ?? "Row 1", t.BottomRowPrompt ?? "Row 2" }; d["rubric"] = t.RowsPrompt + " / " + t.ColumnsPrompt;
+                var names = new[] { t.TopLeftName, t.BottomLeftName, t.TopRightName, t.BottomRightName };
+                if (names.Any(name => Previous(name,context)?.IsDouble == true)) {
+                    object cell(string name) => Previous(name,context)?.IsDouble == true ? Previous(name,context).AsDouble : null;
+                    d["initial"] = new { columns = new[] {
+                        new { title = t.LeftColumnPrompt ?? "Column 1", values = new[] { cell(t.TopLeftName), cell(t.BottomLeftName) } },
+                        new { title = t.RightColumnPrompt ?? "Column 2", values = new[] { cell(t.TopRightName), cell(t.BottomRightName) } }
+                    }};
+                }
+                break;
+            case Double2By2ByKParameter:
+                // Windows always embeds this table; it is not a worksheet-selection prompt.
+                Grid(d, 2, 2); d["rows"] = 4; d["screen"] = true;
+                d["labels"] = new[] { "Present", "Absent" };
+                d["rubric"] = "Enter two rows per stratum: the first 2 × 2 table, then the next. All entries must be non-negative."; break;
             case SpecialParameter s:
                 DescribeSpecial(s, d);
                 if(s.SpecialType=="1-to-n" && context.ContainsKey(s.Name)) {var values=context[s.Name].AsDataFrame; d["rows"]=values.MaxRows;d["fixedRows"]=true;d["initial"]=FrameInput(values);}
                 break;
             case PickVariablesParameter v:
                 d["kind"]="selectList";d["multiple"]=v.MaximumVariables>1;d["allowNone"]=v.MinimumVariables==0;
+                d["defaultValue"]=v.PreSelectVariables?Enumerable.Range(0,Math.Min(v.MinimumVariables,context[v.ParameterName].AsDataFrame.VariableCount)).ToArray():Array.Empty<int>();
                 d["options"]=context[v.ParameterName].AsDataFrame.Variables.Select((item,i)=>Choice(i.ToString(),item.Title)).ToArray();break;
             case EditGridParameter e:
                 var old=context[e.Source].AsDataFrame;var keys=old.FindVariable(e.KeyVariable);var vals=old.FindVariable(e.ValueVariable);
                 d["kind"]="fields";d["fields"]=Enumerable.Range(0,keys.Length).Select(i=>HostAmendments.Field(i.ToString(),Convert.ToString(keys.DataAsObject(i)),vals.DataAsObject(i),"text")).ToArray();break;
             case PickFromListParameter pick:
-                d["kind"] = "selectList"; d["multiple"] = pick.AllowMultiple; d["allowNone"] = pick.IncludeNoneEntry;
-                d["options"] = Enumerable.Range(0, context[pick.Source].AsDataFrame.Variables[0].Length).Select(i => Choice(i.ToString(), Convert.ToString(context[pick.Source].AsDataFrame.Variables[0].DataAsObject(i)))).ToArray(); break;
+                d["kind"] = "selectList"; d["multiple"] = pick.AllowMultiple; d["allowNone"] = pick.IncludeNoneEntry || pick.AllowMultiple;
+                d["defaultValue"] = pick.AllowMultiple || pick.IncludeNoneEntry ? Array.Empty<int>() : new[] { 0 };
+                d["options"] = PickLabels(pick,context).Select((label,i) => Choice(i.ToString(),label)).ToArray(); break;
             default: throw new NotSupportedException("The Mac form for " + p.GetType().Name.Replace("Parameter", "") + " is not available yet. The method's help remains available.");
         }
+        // Match Windows' inline preparer for every table kind, including specialized
+        // tables reopened as follow-ons. Prepared inputs take precedence over worksheet
+        // selection (Cuzick scores, log-rank scores, retained 2×2×k strata, etc.).
+        if (d["kind"] as string == "grid" && previous?.AsObject is DataFrame initial) {
+            d["initial"] = FrameInput(initial);
+            d["rows"] = Math.Max(1, initial.MaxRows);
+        }
         return d;
+    }
+    static string[] PickLabels(PickFromListParameter pick, ParameterBag context) {
+        var variable=context[pick.Source].AsDataFrame.Variables[0];
+        return variable is ClassifierVariable categories ? categories.SortedCategoryNames : Enumerable.Range(0,variable.Length).Select(i=>Convert.ToString(variable.DataAsObject(i))).ToArray();
     }
     static void Grid(Dictionary<string, object> d, int min, int max) { d["kind"] = "grid"; d["minColumns"] = min; d["maxColumns"] = max; d["rows"] = 12; }
     static void DescribeSpecial(SpecialParameter p, Dictionary<string, object> d) {
@@ -130,8 +154,11 @@ internal static class HostParameters {
                 var old=context[e.Source].AsDataFrame;var keys=old.FindVariable(e.KeyVariable);var replacement=new StringVariable(Enumerable.Range(0,keys.Length).Select(i=>input.GetProperty(i.ToString()).GetString()).ToArray(),e.ValueVariable);
                 var edited=new DataFrame();foreach(var v in old.Variables)edited.Variables.Add(v.Title==e.ValueVariable?replacement:v);value=edited;break;
             case PickFromListParameter pick:
-                var flags = new bool[context[pick.Source].AsDataFrame.Variables[0].Length]; foreach (var index in input.EnumerateArray()) { int i = index.GetInt32(); if (i < 0 || i >= flags.Length) throw new ArgumentException("Invalid selection."); flags[i] = true; }
-                if ((!pick.AllowMultiple && flags.Count(x => x) > 1) || (!pick.IncludeNoneEntry && !flags.Any(x => x))) throw new ArgumentException("Select an item from the list."); value = flags; break;
+                var flags = new bool[PickLabels(pick,context).Length]; foreach (var index in input.EnumerateArray()) { int i = index.GetInt32(); if (i < 0 || i >= flags.Length) throw new ArgumentException("Invalid selection."); flags[i] = true; }
+                // Windows omits the parameter for the single-choice '(none)' entry.
+                // Universal agreement distinguishes that from a reference standard.
+                if (!pick.AllowMultiple && pick.IncludeNoneEntry && !flags.Any(x=>x)) return bag;
+                if (!pick.AllowMultiple && (flags.Count(x => x) > 1 || !pick.IncludeNoneEntry && !flags.Any(x => x))) throw new ArgumentException("Select an item from the list."); value = flags; break;
             default: throw new NotSupportedException("This input form is not available yet.");
         }
         bag.AddInput(p.Name, value); return bag;

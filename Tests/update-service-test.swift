@@ -70,10 +70,24 @@ private final class UpdateFixture: URLProtocol {
   assert(UpdateService.message(for:URLError(.timedOut)).contains("in time"))
   assert(UpdateService.message(for:URLError(.serverCertificateUntrusted)).contains("secure connection"))
   print("PASS: actual URLSession fallback after DNS/rate-limit/server errors, API-only success, both-host failure, cancellation and readable connection errors")
+  var installed = "0.3.2"
+  if let index = CommandLine.arguments.firstIndex(of:"--app") {
+   guard index + 1 < CommandLine.arguments.count,
+         let bundle = Bundle(url:URL(fileURLWithPath:CommandLine.arguments[index + 1])),
+         let version = bundle.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String,
+         AppVersion(version) != nil else { fatalError("Cannot read the packaged application version") }
+   installed = version
+   let candidate = try release("v" + version)
+   if case .current = try UpdateService.interpret(candidate,status:200,installed:version) {} else { fatalError("The packaged version offers itself as an update") }
+   if case .available(let found) = try UpdateService.interpret(candidate,status:200,installed:"0.3.2") {
+    assert(found.version == "v" + version)
+   } else { fatalError("An older installation cannot detect the packaged version") }
+   print("PASS: packaged version \(version) is recognised by older installations and does not update to itself (release-response fixture)")
+  }
   if CommandLine.arguments.contains("--live") {
-   switch try await UpdateService.check(installed:"0.3.2") {
+   switch try await UpdateService.check(installed:installed) {
     case .noRelease: print("PASS: real public GitHub endpoint reports no published release")
-    case .current: print("PASS: real public GitHub endpoint reports current version")
+    case .current: print("PASS: no newer published release than installed version \(installed) at the real public GitHub endpoint")
     case .available(let r): print("PASS: real public GitHub endpoint returned \(r.version)")
    }
   }

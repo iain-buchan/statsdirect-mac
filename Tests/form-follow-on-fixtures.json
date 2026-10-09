@@ -1,0 +1,2501 @@
+{
+  "description": "Synthetic input paths for every supported follow-on operation, with required parent calculations. Values are form inputs, not numerical reference results.",
+  "fixtures": [
+    {
+      "operation": "ChiSquareGoodnessOfFit",
+      "steps": [
+        {
+          "name": "observed",
+          "kind": "grid",
+          "prompt": "Select observed counts",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  18,
+                  22,
+                  29,
+                  31
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "expected",
+          "kind": "grid",
+          "prompt": "Select cell probabilities or expected counts",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  25,
+                  25,
+                  25,
+                  25
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "names",
+          "kind": "grid",
+          "prompt": "Select category names [skip for default names]",
+          "value": {
+            "skip": true
+          }
+        }
+      ]
+    },
+    {
+      "operation": "CochranQ",
+      "steps": [
+        {
+          "name": "data",
+          "kind": "grid",
+          "prompt": "Select DATA",
+          "value": {
+            "columns": [
+              {
+                "title": "Sportsman 1",
+                "values": [
+                  1,
+                  1,
+                  0,
+                  1,
+                  0,
+                  1,
+                  1,
+                  1,
+                  0,
+                  0,
+                  1,
+                  1
+                ]
+              },
+              {
+                "title": "Sportsman 2",
+                "values": [
+                  1,
+                  1,
+                  1,
+                  1,
+                  0,
+                  1,
+                  1,
+                  1,
+                  0,
+                  1,
+                  1,
+                  1
+                ]
+              },
+              {
+                "title": "Sportsman 3",
+                "values": [
+                  1,
+                  1,
+                  0,
+                  0,
+                  0,
+                  1,
+                  1,
+                  0,
+                  1,
+                  0,
+                  1,
+                  1
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "operation": "CoxRegression",
+      "steps": [
+        {
+          "name": "times",
+          "kind": "grid",
+          "prompt": "Select data for TIMES",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "events",
+          "kind": "grid",
+          "prompt": "Select data for DEATHS/EVENTS or CENSORED{0}",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  0,
+                  1,
+                  1,
+                  0,
+                  1,
+                  0,
+                  1,
+                  1,
+                  0,
+                  1,
+                  1
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "predictors",
+          "kind": "grid",
+          "prompt": "Select data for PREDICTORS",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  0.1,
+                  0.8,
+                  0.2,
+                  0.7,
+                  0.4,
+                  0.9,
+                  0.3,
+                  0.6,
+                  0.5,
+                  0.8,
+                  0.2,
+                  0.9
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "strata",
+          "kind": "grid",
+          "prompt": "Select data for STRATA (skip if all one stratum)",
+          "value": {
+            "skip": true
+          }
+        },
+        {
+          "name": "accuracy",
+          "kind": "number",
+          "prompt": "Precision of estimates",
+          "value": 1e-09
+        },
+        {
+          "name": "centre-continuous-covariates",
+          "kind": "boolean",
+          "prompt": "Centre continuous covariates",
+          "value": true
+        }
+      ]
+    },
+    {
+      "operation": "Friedman",
+      "steps": [
+        {
+          "name": "data",
+          "kind": "grid",
+          "prompt": "Select DATA",
+          "value": {
+            "columns": [
+              {
+                "title": "group a",
+                "values": [
+                  1,
+                  2,
+                  4,
+                  6
+                ]
+              },
+              {
+                "title": "group b",
+                "values": [
+                  3,
+                  6,
+                  7,
+                  9
+                ]
+              },
+              {
+                "title": "group c",
+                "values": [
+                  4,
+                  5,
+                  8,
+                  10
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "Kappa",
+      "steps": [
+        {
+          "name": "responses",
+          "kind": "grid",
+          "prompt": "Select RESPONSES (one column per rater, one row per subject)",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  1,
+                  2,
+                  2,
+                  3,
+                  3,
+                  1,
+                  2,
+                  3
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  1,
+                  2,
+                  2,
+                  3,
+                  3,
+                  1,
+                  1,
+                  2,
+                  3
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "method",
+          "kind": "option",
+          "prompt": "Select method for weighted kappa",
+          "value": "1"
+        }
+      ]
+    },
+    {
+      "operation": "Kruskal",
+      "steps": [
+        {
+          "name": "data",
+          "kind": "grid",
+          "prompt": "Select DATA",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  3,
+                  4
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  3,
+                  5,
+                  6,
+                  8
+                ]
+              },
+              {
+                "title": "Column 3",
+                "values": [
+                  7,
+                  8,
+                  9,
+                  11
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "LinearizedEstimates",
+      "steps": [
+        {
+          "name": "y",
+          "kind": "grid",
+          "prompt": "Select data for OUTCOME (Y axis)",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  2,
+                  3,
+                  5,
+                  8,
+                  13,
+                  21,
+                  34,
+                  55
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "x",
+          "kind": "grid",
+          "prompt": "Select data for PREDICTOR (X axis)",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "model",
+          "kind": "option",
+          "prompt": "Select model",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "operation": "LogisticRegression",
+      "steps": [
+        {
+          "name": "grouping",
+          "kind": "option",
+          "prompt": "Response data",
+          "value": "grouped"
+        },
+        {
+          "name": "accuracy",
+          "kind": "text",
+          "prompt": "Precision of estimates:",
+          "value": "0.0000001"
+        },
+        {
+          "name": "intercept",
+          "kind": "boolean",
+          "prompt": "Calculate intercepts",
+          "value": true
+        },
+        {
+          "name": "weights",
+          "kind": "boolean",
+          "prompt": "Use weights for responses",
+          "value": false
+        },
+        {
+          "name": "total",
+          "kind": "grid",
+          "prompt": "Select data for TOTAL number",
+          "value": {
+            "source": "test.xlsx",
+            "columns": [
+              {
+                "title": "Men",
+                "values": [
+                  60,
+                  17,
+                  8,
+                  2,
+                  187,
+                  85,
+                  51,
+                  23
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "response",
+          "kind": "grid",
+          "prompt": "Select data for the RESPONSE",
+          "value": {
+            "source": "test.xlsx",
+            "columns": [
+              {
+                "title": "Hypertensive",
+                "values": [
+                  5,
+                  2,
+                  1,
+                  0,
+                  35,
+                  13,
+                  15,
+                  8
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "predictors",
+          "kind": "grid",
+          "prompt": "Select data for PREDICTORS",
+          "value": {
+            "source": "test.xlsx",
+            "columns": [
+              {
+                "title": "Smoking",
+                "values": [
+                  0,
+                  1,
+                  0,
+                  1,
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              },
+              {
+                "title": "Obesity",
+                "values": [
+                  0,
+                  0,
+                  1,
+                  1,
+                  0,
+                  0,
+                  1,
+                  1
+                ]
+              },
+              {
+                "title": "Snoring",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  1,
+                  1,
+                  1
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "operation": "Logit",
+      "steps": [
+        {
+          "name": "dose",
+          "kind": "grid",
+          "prompt": "Select data for DOSE levels",
+          "value": {
+            "source": "test.xlsx",
+            "columns": [
+              {
+                "title": "Age",
+                "values": [
+                  9.21,
+                  10.21,
+                  10.58,
+                  10.83,
+                  11.08,
+                  11.33,
+                  11.58,
+                  11.83,
+                  12.08,
+                  12.33,
+                  12.58,
+                  12.83,
+                  13.08,
+                  13.33,
+                  13.58,
+                  13.83,
+                  14.08,
+                  14.33,
+                  14.58,
+                  14.83,
+                  15.08,
+                  15.33,
+                  15.58,
+                  15.83,
+                  17.58
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "subjects",
+          "kind": "grid",
+          "prompt": "Select data for SUBJECTS at each dose level",
+          "value": {
+            "source": "test.xlsx",
+            "columns": [
+              {
+                "title": "Girls",
+                "values": [
+                  376,
+                  200,
+                  93,
+                  120,
+                  90,
+                  88,
+                  105,
+                  111,
+                  100,
+                  93,
+                  100,
+                  108,
+                  99,
+                  106,
+                  105,
+                  117,
+                  98,
+                  97,
+                  120,
+                  102,
+                  122,
+                  111,
+                  94,
+                  114,
+                  1049
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "responders",
+          "kind": "grid",
+          "prompt": "Select data for RESPONDERS at each dose level",
+          "value": {
+            "source": "test.xlsx",
+            "columns": [
+              {
+                "title": "+ Menses",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  2,
+                  2,
+                  5,
+                  10,
+                  17,
+                  16,
+                  29,
+                  39,
+                  51,
+                  47,
+                  67,
+                  81,
+                  88,
+                  79,
+                  90,
+                  113,
+                  95,
+                  117,
+                  107,
+                  92,
+                  112,
+                  1049
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "nc",
+          "kind": "integer",
+          "prompt": "How many control subjects do you have?",
+          "value": 0.0
+        },
+        {
+          "name": "calc-log10-doses",
+          "kind": "boolean",
+          "prompt": "Calculate log10 of doses",
+          "value": false
+        },
+        {
+          "name": "qld",
+          "kind": "number",
+          "prompt": "Enter the other centile (X)",
+          "value": 90
+        }
+      ]
+    },
+    {
+      "operation": "MultipleLinearRegression",
+      "steps": [
+        {
+          "name": "calculateIntercept",
+          "kind": "boolean",
+          "prompt": "Calculate intercept",
+          "value": true
+        },
+        {
+          "name": "useWeights",
+          "kind": "boolean",
+          "prompt": "Use weights",
+          "value": false
+        },
+        {
+          "name": "outcome",
+          "kind": "grid",
+          "prompt": "Select data for OUTCOME (Y axis)",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  7,
+                  8,
+                  9,
+                  11,
+                  12,
+                  14
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "predictors",
+          "kind": "grid",
+          "prompt": "Select data for PREDICTORS",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  "A",
+                  "B",
+                  "A",
+                  "B",
+                  "A",
+                  "B",
+                  "A",
+                  "B",
+                  "A",
+                  "B"
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": null,
+          "kind": "option",
+          "prompt": "Choose the reference category for Column 2",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "operation": "OneWay",
+      "steps": [
+        {
+          "name": "data",
+          "kind": "grid",
+          "prompt": "Select DATA",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  3,
+                  4
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  3,
+                  5,
+                  6,
+                  8
+                ]
+              },
+              {
+                "title": "Column 3",
+                "values": [
+                  7,
+                  8,
+                  9,
+                  11
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "PCRCorrelation",
+      "steps": [
+        {
+          "name": "data",
+          "kind": "grid",
+          "prompt": "Select DATA",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  4,
+                  3,
+                  5,
+                  7,
+                  6,
+                  8
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  3,
+                  1,
+                  4,
+                  6,
+                  5,
+                  8,
+                  7,
+                  9
+                ]
+              },
+              {
+                "title": "Column 3",
+                "values": [
+                  2,
+                  3,
+                  1,
+                  4,
+                  6,
+                  5,
+                  8,
+                  7
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "correctForReversal",
+          "kind": "boolean",
+          "prompt": "Correct for possible scale reversal?",
+          "value": false
+        }
+      ]
+    },
+    {
+      "operation": "PCRCovariance",
+      "steps": [
+        {
+          "name": "data",
+          "kind": "grid",
+          "prompt": "Select DATA",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  4,
+                  3,
+                  5,
+                  7,
+                  6,
+                  8
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  3,
+                  1,
+                  4,
+                  6,
+                  5,
+                  8,
+                  7,
+                  9
+                ]
+              },
+              {
+                "title": "Column 3",
+                "values": [
+                  2,
+                  3,
+                  1,
+                  4,
+                  6,
+                  5,
+                  8,
+                  7
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "correctForReversal",
+          "kind": "boolean",
+          "prompt": "Correct for possible scale reversal?",
+          "value": false
+        }
+      ]
+    },
+    {
+      "operation": "PoissonRegression",
+      "steps": [
+        {
+          "name": "grouping",
+          "kind": "option",
+          "prompt": "Response data",
+          "value": "individual"
+        },
+        {
+          "name": "accuracy",
+          "kind": "text",
+          "prompt": "Precision of estimates:",
+          "value": "0.0000001"
+        },
+        {
+          "name": "intercept",
+          "kind": "boolean",
+          "prompt": "Calculate intercepts",
+          "value": true
+        },
+        {
+          "name": "weights",
+          "kind": "boolean",
+          "prompt": "Use weights for responses",
+          "value": false
+        },
+        {
+          "name": "has-exposure",
+          "kind": "option",
+          "prompt": "Enter a value",
+          "value": "true"
+        },
+        {
+          "name": "response",
+          "kind": "grid",
+          "prompt": "Select data for RESPONSE/number of EVENTS",
+          "value": {
+            "source": "test.xlsx",
+            "columns": [
+              {
+                "title": "Cancers",
+                "values": [
+                  6,
+                  21,
+                  54,
+                  118,
+                  97,
+                  58,
+                  56,
+                  54,
+                  34,
+                  9,
+                  2,
+                  18,
+                  60,
+                  122,
+                  191,
+                  108,
+                  74,
+                  88,
+                  120,
+                  141,
+                  108,
+                  99
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "exposure",
+          "kind": "grid",
+          "prompt": "Select data for EXPOSURE (person-time)",
+          "value": {
+            "source": "test.xlsx",
+            "columns": [
+              {
+                "title": "Subject-years",
+                "values": [
+                  60840,
+                  157175,
+                  176134,
+                  186514,
+                  135475,
+                  42620,
+                  25001,
+                  13710,
+                  6163,
+                  1575,
+                  273,
+                  208487,
+                  303832,
+                  325421,
+                  312242,
+                  165597,
+                  54396,
+                  40716,
+                  33801,
+                  26618,
+                  17404,
+                  14146
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "predictors",
+          "kind": "grid",
+          "prompt": "Select data for PREDICTORS",
+          "value": {
+            "source": "test.xlsx",
+            "columns": [
+              {
+                "title": "Veterans",
+                "values": [
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "title": "Age group (25-29)",
+                "values": [
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "title": "Age group (30-34)",
+                "values": [
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "title": "Age group (35-39)",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "title": "Age group (40-44)",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "title": "Age group (45-49)",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "title": "Age group (50-54)",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "title": "Age group (55-59)",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0
+                ]
+              },
+              {
+                "title": "Age group (60-64)",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0
+                ]
+              },
+              {
+                "title": "Age group (65-69)",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0
+                ]
+              },
+              {
+                "title": "Age group (70+)",
+                "values": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "operation": "PolynomialRegression",
+      "steps": [
+        {
+          "name": "y",
+          "kind": "grid",
+          "prompt": "Select data for OUTCOME (Y axis)",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  4,
+                  9,
+                  16,
+                  25,
+                  36,
+                  49
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "x",
+          "kind": "grid",
+          "prompt": "Select data for PREDICTOR (X axis)",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "degree",
+          "kind": "option",
+          "prompt": "Select degree",
+          "value": "2"
+        }
+      ]
+    },
+    {
+      "operation": "Probit",
+      "steps": [
+        {
+          "name": "dose",
+          "kind": "grid",
+          "prompt": "Select data for DOSE levels",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  4,
+                  8,
+                  16
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "subjects",
+          "kind": "grid",
+          "prompt": "Select data for SUBJECTS at each dose level",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  50,
+                  50,
+                  50,
+                  50,
+                  50
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "responders",
+          "kind": "grid",
+          "prompt": "Select data for RESPONDERS at each dose level",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  3,
+                  10,
+                  25,
+                  40,
+                  47
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "nc",
+          "kind": "integer",
+          "prompt": "How many control subjects do you have?",
+          "value": 0
+        },
+        {
+          "name": "calc-log10-doses",
+          "kind": "boolean",
+          "prompt": "Calculate log10 of doses",
+          "value": true
+        },
+        {
+          "name": "qld",
+          "kind": "number",
+          "prompt": "Enter the other centile (X)",
+          "value": 90
+        }
+      ]
+    },
+    {
+      "operation": "ReplicateTwoWay",
+      "steps": [
+        {
+          "name": "layout2d",
+          "kind": "option",
+          "prompt": "How are the groups laid out in the worksheet?",
+          "value": "columns"
+        },
+        {
+          "name": null,
+          "kind": "fields",
+          "prompt": "Number of repeats",
+          "value": {
+            "n": 2
+          }
+        },
+        {
+          "name": null,
+          "kind": "grid",
+          "prompt": "Repeat 1: subjects in rows, treatments in columns",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  4
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  3,
+                  4,
+                  5
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": null,
+          "kind": "grid",
+          "prompt": "Repeat 2: subjects in rows, treatments in columns",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  2,
+                  3,
+                  3
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  5,
+                  6,
+                  7
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "SimpleLinearRegression",
+      "steps": [
+        {
+          "name": "y",
+          "kind": "grid",
+          "prompt": "Select data for OUTCOME (Y axis)",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  3,
+                  4,
+                  5,
+                  7,
+                  9,
+                  11
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "x",
+          "kind": "grid",
+          "prompt": "Select data for PREDICTOR (X axis)",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "TwoWay",
+      "steps": [
+        {
+          "name": "data",
+          "kind": "grid",
+          "prompt": "Select DATA",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  4,
+                  6
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  3,
+                  6,
+                  7,
+                  9
+                ]
+              },
+              {
+                "title": "Column 3",
+                "values": [
+                  4,
+                  5,
+                  8,
+                  10
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "TwoWayNested",
+      "steps": [
+        {
+          "name": "layout2d",
+          "kind": "option",
+          "prompt": "How are the groups laid out in the worksheet?",
+          "value": "columns"
+        },
+        {
+          "name": null,
+          "kind": "fields",
+          "prompt": "Number of groups",
+          "value": {
+            "n": 2
+          }
+        },
+        {
+          "name": null,
+          "kind": "grid",
+          "prompt": "Group 1: one column per subgroup",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  2,
+                  3,
+                  5
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": null,
+          "kind": "grid",
+          "prompt": "Group 2: one column per subgroup",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  4,
+                  5,
+                  7
+                ]
+              },
+              {
+                "title": "Column 2",
+                "values": [
+                  6,
+                  7,
+                  9
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "UniversalAgreement",
+      "steps": [
+        {
+          "name": "data",
+          "kind": "grid",
+          "prompt": "Select MEASUREMENTS",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  10,
+                  11,
+                  20,
+                  18,
+                  30,
+                  29,
+                  40,
+                  42,
+                  50,
+                  49
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "raters",
+          "kind": "grid",
+          "prompt": "Select OBSERVER/RATER ID",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  "Z",
+                  "A",
+                  "Z",
+                  "A",
+                  "Z",
+                  "A",
+                  "Z",
+                  "A",
+                  "Z",
+                  "A"
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "objects",
+          "kind": "grid",
+          "prompt": "Select OBJECT ID",
+          "value": {
+            "columns": [
+              {
+                "title": "Column 1",
+                "values": [
+                  1,
+                  1,
+                  2,
+                  2,
+                  3,
+                  3,
+                  4,
+                  4,
+                  5,
+                  5
+                ]
+              }
+            ],
+            "source": "Test fixture"
+          }
+        },
+        {
+          "name": "categories",
+          "kind": "grid",
+          "prompt": "Select DIMENSION ID (skip if only one dimension)",
+          "value": {
+            "skip": true
+          }
+        },
+        {
+          "name": "reference",
+          "kind": "selectList",
+          "prompt": "Which observer is a reference standard?",
+          "value": []
+        }
+      ]
+    },
+    {
+      "operation": "ChiGFSimulateExactP",
+      "parent": "ChiSquareGoodnessOfFit",
+      "steps": [
+        {
+          "name": "iterations",
+          "kind": "integer",
+          "prompt": "Iterations",
+          "value": 199
+        },
+        {
+          "name": "seed",
+          "kind": "integer",
+          "prompt": "Seed",
+          "value": 31415
+        },
+        {
+          "name": "ci",
+          "kind": "confidence",
+          "prompt": "Enter a value",
+          "value": 99
+        }
+      ]
+    },
+    {
+      "operation": "FriedmanSimulateExactP",
+      "parent": "CochranQ",
+      "steps": [
+        {
+          "name": "iterations",
+          "kind": "integer",
+          "prompt": "Iterations",
+          "value": 199
+        },
+        {
+          "name": "seed",
+          "kind": "integer",
+          "prompt": "Seed",
+          "value": 31415
+        },
+        {
+          "name": "ci",
+          "kind": "confidence",
+          "prompt": "Enter a value",
+          "value": 99
+        }
+      ]
+    },
+    {
+      "operation": "CoxBaselineToReport",
+      "parent": "CoxRegression",
+      "steps": []
+    },
+    {
+      "operation": "CoxBaselineToWorksheet",
+      "parent": "CoxRegression",
+      "steps": []
+    },
+    {
+      "operation": "CoxResiduals",
+      "parent": "CoxRegression",
+      "steps": [
+        {
+          "name": "save",
+          "kind": "boolean",
+          "prompt": "Save values to worksheet?",
+          "value": false
+        }
+      ]
+    },
+    {
+      "operation": "CoxHazardRatios",
+      "parent": "CoxRegression",
+      "steps": []
+    },
+    {
+      "operation": "CoxModelAnalysis",
+      "parent": "CoxRegression",
+      "steps": []
+    },
+    {
+      "operation": "CoxHazardPlots",
+      "parent": "CoxRegression",
+      "steps": [
+        {
+          "name": "use-tics",
+          "kind": "boolean",
+          "prompt": "Use tics for censored times",
+          "value": true
+        },
+        {
+          "name": "use-markers",
+          "kind": "boolean",
+          "prompt": "Use markers for all observed times",
+          "value": true
+        },
+        {
+          "name": "group",
+          "kind": "selectList",
+          "prompt": "Split by",
+          "value": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "operation": "FriedmanMulti",
+      "parent": "Friedman",
+      "steps": [
+        {
+          "name": "sided",
+          "kind": "option",
+          "prompt": "One or two sided",
+          "value": "2"
+        }
+      ]
+    },
+    {
+      "operation": "SquaredRanks",
+      "parent": "Friedman",
+      "steps": []
+    },
+    {
+      "operation": "KappaSimulateExactP",
+      "parent": "Kappa",
+      "steps": [
+        {
+          "name": "iterations",
+          "kind": "integer",
+          "prompt": "Iterations",
+          "value": 199
+        },
+        {
+          "name": "seed",
+          "kind": "integer",
+          "prompt": "Seed",
+          "value": 31415
+        },
+        {
+          "name": "ci",
+          "kind": "confidence",
+          "prompt": "Enter a value",
+          "value": 95
+        }
+      ]
+    },
+    {
+      "operation": "KruskalWallisMulti",
+      "parent": "Kruskal",
+      "steps": [
+        {
+          "name": "sided",
+          "kind": "option",
+          "prompt": "One or two sided",
+          "value": "2"
+        }
+      ]
+    },
+    {
+      "operation": "KruskalSimulateExactP",
+      "parent": "Kruskal",
+      "steps": [
+        {
+          "name": "iterations",
+          "kind": "integer",
+          "prompt": "Iterations",
+          "value": 199
+        },
+        {
+          "name": "seed",
+          "kind": "integer",
+          "prompt": "Seed",
+          "value": 31415
+        },
+        {
+          "name": "ci",
+          "kind": "confidence",
+          "prompt": "Enter a value",
+          "value": 99
+        }
+      ]
+    },
+    {
+      "operation": "LinearizedEstimatesWithModel",
+      "parent": "LinearizedEstimates",
+      "steps": [
+        {
+          "name": "model",
+          "kind": "option",
+          "prompt": "Select model",
+          "value": "0"
+        }
+      ]
+    },
+    {
+      "operation": "Ranv",
+      "parent": "LinearizedEstimates",
+      "steps": []
+    },
+    {
+      "operation": "LinearizedEstimatePlot",
+      "parent": "LinearizedEstimates",
+      "steps": []
+    },
+    {
+      "operation": "LinearizedEstimateInterpolation",
+      "parent": "LinearizedEstimates",
+      "steps": [
+        {
+          "name": "newx",
+          "kind": "number",
+          "prompt": "New X value",
+          "value": 2.5
+        }
+      ]
+    },
+    {
+      "operation": "LogisticRegressionFitToReport",
+      "parent": "LogisticRegression",
+      "steps": []
+    },
+    {
+      "operation": "LogisticRegressionFitToWorksheet",
+      "parent": "LogisticRegression",
+      "steps": [
+        {
+          "name": null,
+          "kind": "options",
+          "prompt": "Save fits and residuals to a worksheet",
+          "value": {
+            "trials": true,
+            "events": true,
+            "eventProbability": true,
+            "devianceResidual": true,
+            "pearsonResidual": true,
+            "leverage": true,
+            "stdPearsonResidual": true,
+            "deltaBeta": true,
+            "stdDeltaBeta": true,
+            "deltaDeviance": true,
+            "deltaChiSquare": true
+          }
+        }
+      ]
+    },
+    {
+      "operation": "LogisticRegressionDiagnostics",
+      "parent": "LogisticRegression",
+      "steps": []
+    },
+    {
+      "operation": "LogisticRegressionModel",
+      "parent": "LogisticRegression",
+      "steps": []
+    },
+    {
+      "operation": "LogisticRegressionModelSelection",
+      "parent": "LogisticRegression",
+      "steps": []
+    },
+    {
+      "operation": "LogisticRegressionClassification",
+      "parent": "LogisticRegression",
+      "steps": [
+        {
+          "name": "cutoff",
+          "kind": "number",
+          "prompt": "Rounding cut off",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "operation": "LogisticRegressionBootstrap",
+      "parent": "LogisticRegression",
+      "steps": [
+        {
+          "name": "boots",
+          "kind": "integer",
+          "prompt": "How many bootstrap iterations?",
+          "value": 199
+        }
+      ]
+    },
+    {
+      "operation": "LogisticRegressionPrediction",
+      "parent": "LogisticRegression",
+      "steps": [
+        {
+          "name": "candidatePredictors",
+          "kind": "fields",
+          "prompt": "Enter a value",
+          "value": {
+            "0": "0.5",
+            "1": "0.5",
+            "2": "0.5"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "ProbitPlot",
+      "parent": "Logit",
+      "steps": []
+    },
+    {
+      "operation": "ProbitInterpolateX",
+      "parent": "Logit",
+      "steps": [
+        {
+          "name": "newx",
+          "kind": "number",
+          "prompt": "X from which to predict Y",
+          "value": 2.5
+        }
+      ]
+    },
+    {
+      "operation": "ProbitInterpolateY",
+      "parent": "Logit",
+      "steps": [
+        {
+          "name": "newy",
+          "kind": "number",
+          "prompt": "Y from which to predict X",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "operation": "ProbitMore",
+      "parent": "Logit",
+      "steps": []
+    },
+    {
+      "operation": "MultipleLinearRegressionAnova",
+      "parent": "MultipleLinearRegression",
+      "steps": []
+    },
+    {
+      "operation": "MultipleLinearRegressionPrediction",
+      "parent": "MultipleLinearRegression",
+      "steps": [
+        {
+          "name": "candidatePredictors",
+          "kind": "fields",
+          "prompt": "Enter a value",
+          "value": {
+            "0": "5.5",
+            "1": "0.5"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "MultipleLinearRegressionBestSubset",
+      "parent": "MultipleLinearRegression",
+      "steps": [
+        {
+          "name": "selectedPredictors",
+          "kind": "selectList",
+          "prompt": "Select predictors that must be kept",
+          "value": []
+        },
+        {
+          "name": "selector",
+          "kind": "option",
+          "prompt": "Selection method",
+          "value": "minimumMallows"
+        }
+      ]
+    },
+    {
+      "operation": "MultipleLinearRegressionResiduals",
+      "parent": "MultipleLinearRegression",
+      "steps": [
+        {
+          "name": "options",
+          "kind": "options",
+          "prompt": "Save values to worksheet",
+          "value": {
+            "saveFittedY": false,
+            "saveStudentised": false,
+            "saveJackknife": false
+          }
+        }
+      ]
+    },
+    {
+      "operation": "Xxi",
+      "parent": "MultipleLinearRegression",
+      "steps": [
+        {
+          "name": "outputToGrid",
+          "kind": "boolean",
+          "prompt": "Save matrices to a workbook as well as report?",
+          "value": true
+        }
+      ]
+    },
+    {
+      "operation": "MultipleLinearRegressionParameterDetail",
+      "parent": "MultipleLinearRegression",
+      "steps": []
+    },
+    {
+      "operation": "PlotMultipleLinearRegressionResiduals",
+      "parent": "MultipleLinearRegression",
+      "steps": []
+    },
+    {
+      "operation": "Bonferroni",
+      "parent": "OneWay",
+      "steps": [
+        {
+          "name": "variables",
+          "kind": "selectList",
+          "prompt": "Enter a value",
+          "value": [
+            0,
+            1
+          ]
+        },
+        {
+          "name": "comparisons",
+          "kind": "integer",
+          "prompt": "Number of comparisons",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "operation": "Tukey",
+      "parent": "OneWay",
+      "steps": []
+    },
+    {
+      "operation": "Scheffe",
+      "parent": "OneWay",
+      "steps": []
+    },
+    {
+      "operation": "NewmanKeuls",
+      "parent": "OneWay",
+      "steps": []
+    },
+    {
+      "operation": "Dunnett",
+      "parent": "OneWay",
+      "steps": [
+        {
+          "name": "indexvariable",
+          "kind": "selectList",
+          "prompt": "Enter a value",
+          "value": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "operation": "EqualityOfVariance",
+      "parent": "OneWay",
+      "steps": []
+    },
+    {
+      "operation": "Cronbach",
+      "parent": "PCRCorrelation",
+      "steps": []
+    },
+    {
+      "operation": "PCRCoefficients",
+      "parent": "PCRCorrelation",
+      "steps": []
+    },
+    {
+      "operation": "PCRScores",
+      "parent": "PCRCorrelation",
+      "steps": []
+    },
+    {
+      "operation": "PCRMatrix",
+      "parent": "PCRCorrelation",
+      "steps": []
+    },
+    {
+      "operation": "PoissonRegressionFitToReport",
+      "parent": "PoissonRegression",
+      "steps": []
+    },
+    {
+      "operation": "PoissonRegressionFitToWorksheet",
+      "parent": "PoissonRegression",
+      "steps": [
+        {
+          "name": null,
+          "kind": "options",
+          "prompt": "Save fits and residuals to a worksheet",
+          "value": {
+            "expectedEvents": true,
+            "expectedIncidence": true,
+            "residualEvents": true,
+            "freemanTukeyResidual": true,
+            "devianceResidual": true,
+            "pearsonResidual": true,
+            "leverage": true,
+            "stdPearsonResidual": true
+          }
+        }
+      ]
+    },
+    {
+      "operation": "PoissonRegressionModel",
+      "parent": "PoissonRegression",
+      "steps": []
+    },
+    {
+      "operation": "PoissonRegressionIRR",
+      "parent": "PoissonRegression",
+      "steps": [
+        {
+          "name": "cov",
+          "kind": "selectList",
+          "prompt": "Select covariate for sub-population relative risk",
+          "value": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "operation": "PoissonRegressionResiduals",
+      "parent": "PoissonRegression",
+      "steps": []
+    },
+    {
+      "operation": "PolynomialRegressionChangeDegree",
+      "parent": "PolynomialRegression",
+      "steps": [
+        {
+          "name": "degree",
+          "kind": "option",
+          "prompt": "Select degree",
+          "value": "2"
+        }
+      ]
+    },
+    {
+      "operation": "PolynomialRegressionInterpolation",
+      "parent": "PolynomialRegression",
+      "steps": [
+        {
+          "name": "newx",
+          "kind": "number",
+          "prompt": "New X value",
+          "value": 2.5
+        }
+      ]
+    },
+    {
+      "operation": "PolynomialRegressionPlot",
+      "parent": "PolynomialRegression",
+      "steps": []
+    },
+    {
+      "operation": "PolynomialAreaUnderCurve",
+      "parent": "PolynomialRegression",
+      "steps": []
+    },
+    {
+      "operation": "PolynomialRegressionConfidence",
+      "parent": "PolynomialRegression",
+      "steps": []
+    },
+    {
+      "operation": "PolynomialRegressionBackInterpolation",
+      "parent": "PolynomialRegression",
+      "steps": [
+        {
+          "name": "newy",
+          "kind": "number",
+          "prompt": "Y from which to predict X",
+          "value": 2.5
+        }
+      ]
+    },
+    {
+      "operation": "InterpolateXY",
+      "parent": "SimpleLinearRegression",
+      "steps": [
+        {
+          "name": "newx",
+          "kind": "number",
+          "prompt": "New X value",
+          "value": 2.5
+        }
+      ]
+    },
+    {
+      "operation": "InterpolateYX",
+      "parent": "SimpleLinearRegression",
+      "steps": [
+        {
+          "name": "newy",
+          "kind": "number",
+          "prompt": "New Y value",
+          "value": 2.5
+        }
+      ]
+    },
+    {
+      "operation": "PlotSimpleLinearRegression",
+      "parent": "SimpleLinearRegression",
+      "steps": [
+        {
+          "name": null,
+          "kind": "fields",
+          "prompt": "Chart labels",
+          "value": {
+            "title": "",
+            "x": "Column 1",
+            "y": "Column 1"
+          }
+        }
+      ]
+    },
+    {
+      "operation": "PlotResidualsSimple",
+      "parent": "SimpleLinearRegression",
+      "steps": []
+    },
+    {
+      "operation": "CiMeanY",
+      "parent": "SimpleLinearRegression",
+      "steps": [
+        {
+          "name": "xa",
+          "kind": "number",
+          "prompt": "X value",
+          "value": 2.5
+        }
+      ]
+    },
+    {
+      "operation": "PlotSeCi",
+      "parent": "SimpleLinearRegression",
+      "steps": []
+    },
+    {
+      "operation": "PlotPredictionInterval",
+      "parent": "SimpleLinearRegression",
+      "steps": []
+    },
+    {
+      "operation": "SimpleLinearRegressionCI",
+      "parent": "SimpleLinearRegression",
+      "steps": []
+    },
+    {
+      "operation": "TwoWayNestedMeans",
+      "parent": "TwoWayNested",
+      "steps": []
+    },
+    {
+      "operation": "UniversalAgreementSimulateExactP",
+      "parent": "UniversalAgreement",
+      "steps": [
+        {
+          "name": "iterations",
+          "kind": "integer",
+          "prompt": "Iterations",
+          "value": 199
+        },
+        {
+          "name": "seed",
+          "kind": "integer",
+          "prompt": "Seed",
+          "value": 31415
+        },
+        {
+          "name": "ci",
+          "kind": "confidence",
+          "prompt": "Enter a value",
+          "value": 99
+        }
+      ]
+    }
+  ]
+}

@@ -1,15 +1,24 @@
 from r_runtime import rscript as find_rscript
 """Interactive C ABI checks: real prompt/answer boundaries and original engine reports."""
 from pathlib import Path
-import json, subprocess, time, uuid, math, sys
+import json, subprocess, time, uuid, math, sys, os
 ROOT=Path(__file__).resolve().parents[1]
 class Session:
  def __init__(self):
+  self.operations={};self.observed=set();self.trace_id=uuid.uuid4().hex
   driver=Path(sys.argv[1]) if len(sys.argv)>1 else ROOT/'Tests/operation-driver'
-  self.process=subprocess.Popen([str(driver.resolve()),str(ROOT/'FullEngine/publish/StatsDirectEngine.dylib')],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
+  library=Path(os.environ.get('STATSDIRECT_TEST_ENGINE',str(ROOT/'FullEngine/publish/StatsDirectEngine.dylib')))
+  self.process=subprocess.Popen([str(driver.resolve()),str(library.resolve())],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
  def request(self,**kwargs):
+  if kwargs.get('action')=='start':self.operations[kwargs['id']]=kwargs['operation']
   self.process.stdin.write(json.dumps(kwargs)+'\n');self.process.stdin.flush()
-  return json.loads(self.process.stdout.readline())
+  result=json.loads(self.process.stdout.readline())
+  trace=os.environ.get('STATSDIRECT_FORM_TRACE');key=(kwargs.get('id'),result.get('token'),result.get('state'))
+  if trace and result.get('state') in ('input','complete') and key not in self.observed:
+   self.observed.add(key);folder=Path(trace);folder.mkdir(parents=True,exist_ok=True)
+   with (folder/(self.trace_id+'.jsonl')).open('a') as stream:
+    stream.write(json.dumps({'suite':Path(sys.argv[0]).name,'operation':self.operations.get(kwargs.get('id')),'state':result['state'],'prompt':result.get('prompt'),**({k:result[k] for k in ('history','suggestions')} if result['state']=='complete' else {})})+'\n')
+  return result
  def wait(self,id):
   deadline=time.monotonic()+60
   while time.monotonic()<deadline:
@@ -18,14 +27,14 @@ class Session:
    time.sleep(.005)
   self.request(action='cancel',id=id)
   raise AssertionError('Engine did not finish within 60 seconds')
- def start(self,operation,preferences=None):
-  id=str(uuid.uuid4());s=self.request(action='start',id=id,operation=operation,**({'preferences':preferences} if preferences is not None else {}))
+ def start(self,operation,preferences=None,parent=None):
+  id=str(uuid.uuid4());s=self.request(action='start',id=id,operation=operation,**({'preferences':preferences} if preferences is not None else {}),**({'parent':parent} if parent else {}))
   assert 'error' not in s or s['error'] is None,s
   return id,self.wait(id)
  def close(self,id):
   self.request(action='cancel',id=id);self.wait(id);self.request(action='release',id=id)
- def run(self,operation,answers,preferences=None):
-  id,s=self.start(operation,preferences);prompts=[]
+ def run(self,operation,answers,preferences=None,parent=None,keep=False):
+  id,s=self.start(operation,preferences,parent);prompts=[]
   for _ in range(100):
    if s.get('state')!='input':break
    p=s['prompt'];name=p.get('name');prompts.append((name,p['kind']))
@@ -43,7 +52,7 @@ class Session:
    if p.get('error'):
     self.close(id);raise AssertionError(f'{operation}: validation {p["error"]}, answer {value}')
    self.request(action='answer',id=id,token=s['token'],value=value);s=self.wait(id)
-  self.close(id)
+  if not keep:self.close(id)
   assert s.get('state')=='complete',(operation,s.get('error'),prompts)
   return s
  def finish(self):self.process.stdin.close();self.process.wait()

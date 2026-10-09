@@ -28,7 +28,7 @@ Microsoft Excel and Word **16.113.3**, on this Mac:
 
 ## First-run and tutor checks
 
-The real pinned ChatGPT runtime passes signed-out initialization, browser sign-in URL generation, cancellation and the controlled dynamic-tool protocol. These tests use fresh storage without account credentials. Mock integration covers successful authentication and failure paths. A separate live check uses the existing signed-in account and fictional example data; see the retained native validation log for its outcome.
+The real pinned ChatGPT runtime passes signed-out initialization, browser sign-in URL generation, cancellation and the controlled dynamic-tool protocol. These tests use fresh storage without account credentials. Mock integration covers successful authentication and failure paths. The live check also passes using the existing signed-in account and fictional example data: ChatGPT reads the nine PEFR pairs through the app tools, runs the real paired t test, creates an SVG agreement report, and streams the correct difference and equivalent R code. The native document-sharing confirmation is exercised before that request.
 
 The real CRAN R download passes size, SHA-256, publisher-signature and macOS installer assessment checks. An isolated native fixture simulates missing R, a failed download, retry, installer handoff and completion: the pending script is retained and resumes with an output plot. It deliberately does not launch Installer or replace the existing R installation. A physical clean Mac installation and interactive first-time OAuth completion were not performed.
 
@@ -37,3 +37,10 @@ The real CRAN R download passes size, SHA-256, publisher-signature and macOS ins
 LOESS and method-comparison regression still have explicit R-based menu deferrals; R sessions remain available. Unsupported structural edits involving pivot/slicer/linked-data metadata, controls or certain Excel extensions are refused before mutation and results can open separately. Reading those workbooks is unaffected. This grid does not render all Excel formatting or provide arbitrary column dragging.
 
 Apple Developer ID signing and notarisation were excluded from this work. The preview remains for Apple Silicon, macOS 14 or later.
+
+## Packaged download
+
+The Release build has no Swift warnings. The extracted ZIP passes archive integrity, executable/engine/resource identity, existing ad-hoc signature verification and matching debug-symbol checks. Signing credentials and notarisation are untouched.
+
+- Application: `StatsDirect-0.3.23-macOS-arm64.zip`, 156,290,456 bytes; SHA-256 `7b6ffb2672d3a858485b0af1f71aeb4e0839e6a05db8d65d15f879460abb8165`.
+- Symbols: `StatsDirect-0.3.23-macOS-arm64-symbols.zip`, 1,955,188 bytes; SHA-256 `a17865967d91937de03a54d3b3e5282038752dbb09e47d4a1813f4037622c7bb`.

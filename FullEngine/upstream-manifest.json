@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "70eeec462a9c02399f007319e1f122d1895c9ca3",
+  "commit": "14461275e42883876d3a84be19e5052086073195",
   "version": "5.0.14",
   "sha256": {
     "Layout/Axis.cs": "37b781cfd82f963f5ba9f24295b008af80fe12d9a4e3ddd0649140c14e8785ef",
@@ -476,7 +476,7 @@
     "StatsDirectUI/Builtins/Random.cs": "6adb40f76c7da9945811c7721c9cfe65e98491294db6e4db4033f8bbdaa42f5e",
     "StatsDirectUI/Builtins/Rates.cs": "bdc53e87f7a642c43137fc33821f62dc74c2c65d3ddbfe96a1c33286e9b49bb1",
     "StatsDirectUI/Builtins/Registry.cs": "862824a824d660041b4aa566ca505d5aac1229d0a99a662df79f14de518a7007",
-    "StatsDirectUI/Builtins/Regress.cs": "d915859cdf360530dabe963af96b05bc645d0f387d93606f2cec9a8bd7cb82e2",
+    "StatsDirectUI/Builtins/Regress.cs": "8ef4015dcd5143580d90cd425cec6d16544f1d4648d6a835480f0c1df519e13d",
     "StatsDirectUI/Builtins/Regress1.cs": "97317d935573743def312fea922f86658a6f60f10ebf220f2aeb28705509c8e3",
     "StatsDirectUI/Builtins/RegressRpt.cs": "a454c90b997bec4896f9bd1b14a05820769caf19e93730ff49d059da489ebe95",
     "StatsDirectUI/Builtins/Sheet.cs": "5b9de932f933f8cd12c3236466f383cdca1295d545b1ba655c0c7be5efda8ee2",

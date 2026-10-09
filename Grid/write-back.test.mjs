@@ -15,7 +15,7 @@ function sheet(header = true) {
 const frame = (title, values, extra = {}) => ({name: 'Out', columns: 1, rows: values.length + 1, headerRow: true, lengths: [values.length], missingIndicator: '*', keepSelection: false,
   cells: [{col: 0, row: 0, text: title}, ...values.map((v, i) => ({col: 0, row: i + 1, text: v})).filter(c => c.text !== null)], ...extra});
 const text = (s, c, r) => s.get(c, r);
-const apply = (s, plan) => s.apply(plan.edits, Math.max(s.rows, plan.rows), Math.max(s.columns.length, plan.cols));
+const apply = (s, plan) => s.apply(plan.edits, Math.max(s.rows, plan.rows), Math.max(s.columns.length, plan.cols), plan.inserts);
 
 test('after the last used column: title in the title row, values aligned to the analysis rows, missing as *', () => {
   const s = sheet();
@@ -65,11 +65,11 @@ test('a sheet without a title row takes values only, from the first row; unequal
   assert.deepEqual([0, 1, 2].map(r => text(s, 3, r)), ['1', '2', '']);
   assert.deepEqual([0, 1].map(r => text(s, 4, r)), ['9', '']);
 });
-test('refusals: formulas in moved or replaced columns, a file-backed workbook, no room, unknown placement', () => {
+test('moving formulas and large workbooks is allowed; replacement of formulas and overflowing insertions are refused', () => {
   const f = sheet(); f.cols[2].formula.set(1, 'A2*2');
-  assert.throws(() => planWriteBack(f, [frame('a', ['1'])], 'BeforeSelection', {firstRow: 2, lastRow: 2, columns: [0]}), /formula cells/);
+  assert.doesNotThrow(() => planWriteBack(f, [frame('a', ['1'])], 'BeforeSelection', {firstRow: 2, lastRow: 2, columns: [0]}));
   assert.throws(() => planWriteBack(f, [frame('a', ['1'])], 'ReplaceSelection', {firstRow: 2, lastRow: 2, columns: [2]}), /formulas/);
-  assert.throws(() => planWriteBack(sheet(), [frame('a', ['1'])], 'AfterSelection', {firstRow: 2, lastRow: 2, columns: [0]}, {cells: 1000001}), /this large/);
+  assert.doesNotThrow(() => planWriteBack(sheet(), [frame('a', ['1'])], 'AfterSelection', {firstRow: 2, lastRow: 2, columns: [0]}, {cells: 1000001}));
   assert.doesNotThrow(() => planWriteBack(sheet(), [frame('a', ['1'])], 'LastColumn', {firstRow: 2, lastRow: 2, columns: [0]}, {cells: 1000001}));
   // Formula cells to the left of the insertion stay put; the Excel save re-references them.
   const left = sheet(); left.cols[0].formula.set(1, 'B2*2');
@@ -124,4 +124,43 @@ test('an insertion is recorded for the Excel save and leaves with undo', () => {
   const again = planWriteBack(s, [frame('sq', ['1', '4', '16'])], 'LastColumn', {firstRow: 2, lastRow: 4, columns: [0]});
   assert.deepEqual(again.inserts, []);   // nothing moves for a write after the last column
   s.undo(); assert.deepEqual(s.inserts, []); s.redo(); assert.deepEqual(s.inserts, [{col: 1, count: 1}]);
+});
+
+test('structural moves preserve formula metadata, widths and loaded origins without copying values', () => {
+  const s = sheet(); s.cols[2].formula.set(1, 'A2*2'); s.cols[2].displayWidth = 245;
+  s.apply([[1,1,'9']]); // an edit made before insertion must move with its source
+  const originalColumn = s.cols[2], p = planWriteBack(s,[frame('new',['10'])],'FirstColumn',null);
+  assert.equal(p.edits.length,2); // title + result, no move/clear for any original cell
+  apply(s,p);
+  assert.equal(s.cols[3],originalColumn); assert.equal(s.formula(3,1),'A2*2'); assert.equal(s.cols[3].displayWidth,245);
+  assert.equal(s.loaded(2,1).text,'5'); assert.equal(s.get(2,1),'9');
+  s.undo(); assert.equal(s.cols[2],originalColumn); assert.equal(s.loaded(1,1).text,'5');
+  s.redo(); assert.equal(s.cols[3],originalColumn); s.undo(); s.undo(); assert.equal(s.get(1,1),'5');
+});
+test('planning and an invalid edit after an insertion leave data and history untouched', () => {
+  const s=sheet(); s.cols[1].formula.set(1,'A2*2');
+  const before=JSON.stringify({csv:s.csv(),origins:[...s.originals],cols:s.cols.length,version:s.version});
+  assert.throws(()=>s.apply([[2,1,'99']],100,4,[{col:0,count:1}]),/Formula cells/);
+  assert.equal(JSON.stringify({csv:s.csv(),origins:[...s.originals],cols:s.cols.length,version:s.version}),before);
+  assert.equal(s.canUndo,false);
+});
+test('file-backed insertions also move blank formatted columns beyond the last value', () => {
+  const s=sheet(); const p=planWriteBack(s,[frame('new',['1'])],'AfterSelection',{columns:[2]},{backed:true});
+  assert.deepEqual(p.inserts,[{col:3,count:1}]);
+});
+test('one million rows move by column identity with a small undo record', () => {
+  const s=new GridStore();
+  const rows=Uint32Array.from({length:1000001},(_,i)=>i),nums=new Float64Array(rows.length).fill(2);
+  s.setLoadedBatches([{col:1,rows,nums,texts:new Map()}],()=> 'number');
+  const before=s.cols[1];
+  apply(s,planWriteBack(s,[frame('new',['7'])],'FirstColumn',null));
+  assert.equal(s.cols[2],before); assert.equal(s.get(2,1000000),'2'); assert.ok(s.undoBytes<1024);
+  s.undo(); assert.equal(s.cols[1],before); assert.equal(s.get(1,1000000),'2');
+});
+
+
+test('replacement at Excel width does not require room for an insertion', () => {
+  const s=sheet(); s.setLoaded([{col:MAX_COLS-1,row:1,text:'2',kind:'number'}]);
+  apply(s,planWriteBack(s,[frame('new',['7'])],'ReplaceSelection',{columns:[0]}));
+  assert.equal(s.get(0,1),'7'); assert.equal(s.get(MAX_COLS-1,1),'2'); assert.deepEqual(s.inserts,[]);
 });

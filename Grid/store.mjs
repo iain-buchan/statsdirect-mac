@@ -192,6 +192,7 @@ export class GridStore {
     this.redoStack = [];
     this.undoBytes = 0;
     this.originals = new Map();
+    this.version = 0;
     // Columns inserted before existing ones since the file was loaded ({col, count}, in order, in the
     // coordinates of the moment), for the Excel save path to move the file's cells, styles and formulas.
     this.inserts = [];
@@ -348,12 +349,20 @@ export class GridStore {
   }
   applyBatches(batches, rows = this.rows, cols = this.columns.length, inserts = []) {
     if (rows > MAX_ROWS || cols > MAX_COLS) throw new Error('This exceeds the Excel worksheet dimensions.');
+    const preview = this.cols.slice(), origins = new Map(this.cols.map((col,c) => [col,c]));
+    for (const ins of inserts) {
+      if (!Number.isInteger(ins.col) || !Number.isInteger(ins.count) || ins.col < 0 || ins.count < 1 || ins.col + ins.count > MAX_COLS) throw new Error('Invalid column insertion.');
+      if (preview.some((col,c) => c >= MAX_COLS-ins.count && c >= ins.col && (col.count || col.formula.size || col.extra.size || col.rMetadata || col.displayWidth))) throw new Error('No room to insert columns.');
+      while (preview.length < ins.col) preview.push(new Column());
+      preview.splice(ins.col,0,...Array.from({length:ins.count},() => new Column()));
+      preview.length = Math.min(preview.length, MAX_COLS);
+    }
     const patches = [];
     let bytes = 0;
     for (const b of batches) {
       const c = b.col;
       if (c < 0 || c >= MAX_COLS) throw new Error('Cell is outside the worksheet.');
-      const col = this.col(c), n = b.rows.length;
+      const col = preview[c] ?? new Column(), n = b.rows.length;
       // Last write to a cell wins; collect the distinct rows in order of first appearance.
       const index = new Map();
       for (let i = 0; i < n; i++) {
@@ -367,11 +376,11 @@ export class GridStore {
       for (const [r, i] of index) {
         const num = b.nums[i], text = Number.isNaN(num) ? b.texts.get(i) ?? '' : String(num);
         const current = col.get(r);
-        if (col.formula.has(r) && text !== current) throw new Error('Formula cells are read-only. Edit their formulas in Excel.');
-        const original = col.flagsAt(r) & LOADED ? this.loaded(c, r) : undefined;
+        const original = col.flagsAt(r) & LOADED ? this.loaded(origins.get(col), r) : undefined;
         const explicit = b.kinds?.[i];
         const kind = text === '' ? BLANK : explicit ? KIND_INDEX.get(explicit) : deriveKind(text, original);
         const oldKind = col.kindAt(r);
+        if (col.formula.has(r) && (text !== current || kind !== oldKind)) throw new Error('Formula cells are read-only. Edit their formulas in Excel.');
         if (text === current && kind === oldKind) continue;
         rowsOut[k] = r;
         beforeKind[k] = oldKind; beforeNum[k] = col.numAt(r);
@@ -398,7 +407,25 @@ export class GridStore {
     this.redoStack = [];
     return true;
   }
+  shiftColumns(ins, forward) {
+    if (forward) {
+      while (this.cols.length < ins.col) this.cols.push(new Column());
+      this.cols.splice(ins.col,0,...Array.from({length:ins.count},() => new Column()));
+      this.columns.splice(ins.col,0,...Array.from({length:ins.count},(_,c) => columnName(ins.col+c)));
+      this.cols.length = Math.min(MAX_COLS, this.cols.length);
+    } else { this.cols.splice(ins.col, ins.count); this.columns.splice(ins.col,ins.count); }
+    const moved = new Map();
+    for (const [key,cell] of this.originals) {
+      let [c,r] = key.split(',').map(Number);
+      if (forward && c >= ins.col) c += ins.count;
+      else if (!forward && c >= ins.col + ins.count) c -= ins.count;
+      else if (!forward && c >= ins.col) continue;
+      moved.set(`${c},${r}`, {...cell, col:c});
+    }
+    this.originals = moved;
+  }
   replay(step, forward) {
+    if (forward) for (const ins of step.inserts ?? []) this.shiftColumns(ins,true);
     for (const p of step.patches) {
       const col = this.col(p.col), side = forward ? p.after : p.before, key = p.col;
       for (let i = 0; i < p.rows.length; i++) {
@@ -410,6 +437,8 @@ export class GridStore {
         col.write(r, side.kind[i], side.num[i], side.text.get(i) ?? '');
       }
     }
+    if (!forward) for (const ins of [...(step.inserts ?? [])].reverse()) this.shiftColumns(ins,false);
+    this.version++;
     this.rows = forward ? step.newRows : step.oldRows;
     this.growColumns(forward ? step.newCols : step.oldCols);
     if (step.inserts?.length) { if (forward) this.inserts.push(...step.inserts); else this.inserts.splice(-step.inserts.length); }

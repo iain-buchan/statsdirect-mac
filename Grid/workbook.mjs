@@ -5,6 +5,7 @@ export function cellKind(store, c, r) {
 }
 export class WorkbookStore {
   constructor(example) {
+    this.revision = 0;
     this.name = 'PEFR data';
     this.sheets = [{
       name: 'PEFR',
@@ -19,6 +20,7 @@ export class WorkbookStore {
   // A sheet carries either `cells` ({col,row,text,kind,formula,...}) or per-column `batches`
   // ({col, rows, nums, texts}) with a `kindOf(text)` function, as produced by the CSV loader.
   load(workbook) {
+    this.revision++;
     const sheets = workbook.sheets.map(sheet => {
       const store = new GridStore();
       store.columns = Array.from({
@@ -43,6 +45,7 @@ export class WorkbookStore {
         headerRow = any && all;
       }
       store.headerRow = headerRow;
+      sheet.rColumns?.forEach((metadata,c) => { store.col(c).rMetadata = metadata; });
       return {
         rColumns: sheet.rColumns, rRowNames: sheet.rRowNames, rRowNamesType: sheet.rRowNamesType, rObjectName: sheet.rObjectName, rObjectType: sheet.rObjectType,
         name: sheet.name,
@@ -61,6 +64,7 @@ export class WorkbookStore {
     return Math.max(0, sheets.findIndex(s => !s.hidden));
   }
   changed() {
+    this.revision++;
     this.edited = true;
     for (const sheet of this.sheets) sheet.store.formulasStale = true;
   }
@@ -75,7 +79,7 @@ export class WorkbookStore {
       if (this.imported && this.backed) {
         for (const [key, original] of store.originals) {
           const [col, row] = key.split(',').map(Number), text = store.get(col, row);
-          if (text !== original.text) push(col, row, text);
+          if (text !== original.text || store.kind(col, row) !== original.kind) push(col, row, text);
         }
         store.forEachCell((col, row, text) => {
           if (text !== '' && !store.loaded(col, row)) push(col, row, text);

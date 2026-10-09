@@ -42,7 +42,7 @@ export function rDataTables(workbook, currentSheet) {
       }
       const inferred = seen.size === 1 && seen.has('number') ? 'double' : seen.size === 1 && seen.has('boolean') ? 'logical'
         : seen.size === 1 && seen.has('datetime') ? (hasTime ? 'POSIXct' : 'Date') : 'character';
-      const metadata = store.headerRow ? sheet.rColumns?.[c] : undefined;
+      const metadata = store.headerRow ? col?.rMetadata : undefined;
       columns.push({name: store.columnTitle(c), type: metadata?.type ?? inferred, levels: metadata?.levels ?? [], naLevel: metadata?.naLevel ?? false, ordered: metadata?.ordered ?? false, tzone: metadata?.tzone ?? 'UTC'});
       data.push({col: c, rows, kinds, nums, texts, formulas: new Map(), extras});
     });

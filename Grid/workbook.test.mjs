@@ -152,3 +152,15 @@ test('blank worksheets have no example data or implicit export header', () => {
   ]);
   assert.equal(store.csv().split('\r\n')[0], '12,8,,,,,,');
 });
+
+test('insertions export only new/edited values at their final coordinates, including kind-only edits', () => {
+  const w=new WorkbookStore();
+  w.load({id:'source',name:'Book',sheets:[{name:'Data',columns:3,rows:3,cells:[{col:1,row:1,text:'12',kind:'number'},{col:2,row:1,text:'24',kind:'number',formula:'B2*2'}]}]});
+  const s=w.sheets[0].store;
+  s.apply([[1,1,'12','text']]);
+  s.apply([[1,1,'9','number']],100,4,[{col:1,count:1}]);
+  assert.deepEqual(w.export().sheets[0].cells.sort((a,b)=>a.col-b.col),[{col:1,row:1,text:'9',kind:'number'},{col:2,row:1,text:'12',kind:'text'}]);
+  assert.deepEqual(w.exportColumns().sheets[0].inserts,[{col:1,count:1}]);
+  s.undo(); assert.deepEqual(w.export().sheets[0].cells,[{col:1,row:1,text:'12',kind:'text'}]);
+  s.undo(); assert.deepEqual(w.export().sheets[0].cells,[]);
+});

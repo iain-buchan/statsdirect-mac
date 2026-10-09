@@ -19,6 +19,15 @@ declare global {
   }
 }
 const workbook = new WorkbookStore();
+let prepared: any = null;
+function prepareWriteFrames(request: any, sheetIndex: number) {
+  const sheet = requestedSheet(workbook, sheetIndex, request), target = sheet.store;
+  const plan = planWriteBack(target, request?.frames, request?.placement, request?.range, {backed:workbook.backed});
+  const token = crypto.randomUUID();
+  prepared = {token, sheet, plan, revision:workbook.revision, versions:workbook.sheets.map(s => [s.store, s.store.version])};
+  const inserts = workbook.sheets.map(sh => ({name:sh.name, inserts:[...sh.store.inserts,...(sh === sheet ? plan.inserts : [])]})).filter(sh => sh.inserts.length);
+  return {token, inserts, validate: !!workbook.backed && plan.inserts.length > 0};
+}
 // Stores a typed snapshot of worksheet columns with the application (POST sdsnapshot://blob)
 // and returns {id, bytes}; the engine or another grid reads it back by id.
 async function postSnapshot(sheets: any[]) {
@@ -43,7 +52,6 @@ function App() {
   const store = workbook.sheets[sheetIndex].store;
   const [revision, refresh] = useState(0),
     [selection, setSelection] = useState<GridSelection>(empty),
-    [widths, setWidths] = useState<Record<number, number>>({}),
     [message, setMessage] = useState('Ready'),
     [value, setValue] = useState('');
   const grid = useRef<DataEditorRef>(null),
@@ -163,9 +171,17 @@ function App() {
       },
       // Output frames of an analysis written into a worksheet as the Windows grid writes them (write-back.mjs):
       // one undo step, the written columns selected when the sheet is the one shown.
+      prepareWriteFrames: (request: any) => prepareWriteFrames(request, sheetIndex),
+      cancelWriteFrames: (token: string) => { if (prepared?.token === token) prepared = null; },
       writeFrames: (request: any) => {
-        const sheet = requestedSheet(workbook, sheetIndex, request), target = sheet.store;
-        const plan = planWriteBack(target, request?.frames, request?.placement, request?.range, {cells: workbook.sheets.reduce((n: number, sh: any) => n + sh.store.count(), 0)});
+        if (!request.token) {
+          const info = prepareWriteFrames(request,sheetIndex);
+          if (info.validate) { prepared = null; throw new Error('This workbook needs an insertion check before writing results.'); }
+          request = info;
+        }
+        const pending = prepared; prepared = null;
+        if (!pending || pending.revision !== workbook.revision || request.token !== pending.token || pending.versions.length !== workbook.sheets.length || pending.versions.some(([s,v]:any,i:number) => workbook.sheets[i].store !== s || s.version !== v)) throw new Error('The worksheet changed while checking the insertion. Run the analysis again.');
+        const {sheet,plan} = pending, target = sheet.store;
         const applied = plan.edits.length > 0 && target.apply(plan.edits, Math.max(target.rows, plan.rows), Math.max(target.columns.length, plan.cols), plan.inserts);
         if (applied) changed();
         const shown = target === store;
@@ -291,15 +307,12 @@ function App() {
             selectAdjacentCell(current, movement, store.columns.length, store.rows, setSelection, grid.current);
           });
         }
-      }} /><span>{current && store.formula(current[0], current[1]) ? "Formula: " + store.formula(current[0], current[1]) : "↵ to save and move down"}</span></div>
+      }} /><span>{current && store.formula(current[0], current[1]) ? (store.formulasStale ? "Original Excel formula (save and reopen to refresh): " : "Formula: ") + store.formula(current[0], current[1]) : "↵ to save and move down"}</span></div>
   <div className="canvas" ref={container}><DataEditor ref={grid} provideEditor={arrowKeyEditor} trapFocus width={containerSize.width} height={containerSize.height} columns={store.columns.map((title: string, c: number) => ({
         id: String(c),
         title: store.headerRow ? columnName(c) + ' · ' + store.columnTitle(c) : columnName(c),
-        width: widths[c] ?? 178
-      }))} rows={store.rows} getCellContent={getCell} getCellsForSelection={true} rowMarkers="both" rowMarkerWidth={48} headerHeight={36} rowHeight={29} freezeColumns={0} smoothScrollX smoothScrollY gridSelection={selection} onGridSelectionChange={setSelection} onColumnResize={(_col, width, index) => setWidths(w => ({
-        ...w,
-        [index]: width
-      }))} onCellsEdited={items => {
+        width: store.cols[c]?.displayWidth ?? 178
+      }))} rows={store.rows} getCellContent={getCell} getCellsForSelection={true} rowMarkers="both" rowMarkerWidth={48} headerHeight={36} rowHeight={29} freezeColumns={0} smoothScrollX smoothScrollY gridSelection={selection} onGridSelectionChange={setSelection} onColumnResize={(_col, width, index) => {store.col(index).displayWidth = width; refresh(n => n+1);}} onCellsEdited={items => {
         attempt(() => {
           store.apply(items.map(({
             location: [c, r],

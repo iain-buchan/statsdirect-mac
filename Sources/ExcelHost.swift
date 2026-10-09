@@ -39,6 +39,33 @@ extension Viewer {
             }
         } catch { completion(.failure(error)) }
     }
+    // Validate against the immutable source package before committing a structural grid edit.
+    // The grid token also checks every sheet's revision, so edits made during the check
+    // cannot be overwritten by the result of an earlier analysis.
+    func writeAnalysisFrames(_ request: [String: Any], to doc: Document, completion: @escaping @MainActor (Result<Any, Error>) -> Void) {
+        doc.web.callAsyncJavaScript("return window.statsDirectGrid.prepareWriteFrames(request)", arguments: ["request": request], in: nil, in: .page) { prepared in
+            guard case .success(let value) = prepared, let info = value as? [String: Any], let token = info["token"] as? String else {
+                if case .failure(let error) = prepared { completion(.failure(error)) }
+                else { completion(.failure(CocoaError(.fileReadCorruptFile))) }
+                return
+            }
+            @MainActor func commit() {
+                guard self.documents.contains(where: { $0 === doc }) else { completion(.failure(CocoaError(.userCancelled))); return }
+                doc.web.callAsyncJavaScript("return window.statsDirectGrid.writeFrames(request)", arguments: ["request": ["token": token]], in: nil, in: .page) { result in completion(result) }
+            }
+            if info["validate"] as? Bool == true {
+                guard let id = doc.workbookID else { completion(.failure(CocoaError(.fileReadNoSuchFile))); return }
+                self.status.stringValue = "Checking worksheet column insertion…"
+                self.workbookRequest(["action": "validateInserts", "id": id, "inserts": info["inserts"] ?? []]) { result in
+                    switch result {
+                    case .success: commit()
+                    case .failure(let error):
+                        doc.web.callAsyncJavaScript("window.statsDirectGrid.cancelWriteFrames(token)", arguments: ["token": token], in: nil, in: .page) { _ in completion(.failure(error)) }
+                    }
+                }
+            } else { commit() }
+        }
+    }
     // At quit: the engine deletes its private copy of each open workbook. Waits for the queue
     // so a save in progress finishes first.
     func closeOpenWorkbooks() {

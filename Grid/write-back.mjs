@@ -1,13 +1,6 @@
 import {MAX_ROWS, MAX_COLS} from './store.mjs';
-// Output frames of an analysis written into a worksheet, as the Windows grid writes them
-// (frmSpreadsheetGear.WriteDataFrame): one column per variable, the title in the title row,
-// missing values as the missing indicator, placed relative to the selected columns or after
-// the used columns. Insertions move the columns to the right of the insertion point along,
-// cell kinds included, as Excel's "insert" does; the Excel save path moves the file's cells,
-// styles, widths and formulas to match (an insertion is recorded in the plan). Formula cells at
-// or after the insertion point cannot move in the grid, and a workbook too large for the Excel
-// patch cannot take an insertion, so such a sheet takes the output after its last column, in
-// place of the selected columns, or in a new document.
+// Plan against column identities. Inserting a column moves its data and metadata together;
+// only analysis output and explicit replacements become cell edits.
 export const PLACEMENTS = ['FirstColumn', 'BeforeSelection', 'ReplaceSelection', 'AfterSelection', 'LastColumn'];
 const LABELS = {FirstColumn: 'as the first columns', BeforeSelection: 'before the selected columns', ReplaceSelection: 'in place of the selected columns', AfterSelection: 'after the selected columns', LastColumn: 'after the last used column'};
 const BLANK = {text: '', kind: 'blank'};
@@ -21,24 +14,22 @@ export function planWriteBack(store, frames, placement, range, options = {}) {
   const header = !!store.headerRow;
   let rows = store.rows, cols = store.columns.length;
   // The selected columns of the analysis input, as the Windows grid uses its current selection.
-  const selected = Array.isArray(range?.columns) ? range.columns.filter(c => Number.isInteger(c) && c >= 0) : [];
+  const selected = Array.isArray(range?.columns) ? range.columns.filter(c => Number.isInteger(c) && c >= 0 && c < MAX_COLS) : [];
   let selection = selected.length ? {x: Math.min(...selected), width: Math.max(...selected) - Math.min(...selected) + 1} : null;
   let position = placement, fellBack = false;
   if (!selection && (position === 'BeforeSelection' || position === 'AfterSelection' || position === 'ReplaceSelection')) { position = 'LastColumn'; fellBack = true; }
-  // Cells moved, cleared or written so far, per column, so later frames see the sheet as it will be.
-  const moved = new Map();   // col -> Map(row -> {text, kind}); text '' = cleared
-  const movedCol = c => { let m = moved.get(c); if (!m) moved.set(c, m = new Map()); return m; };
-  const at = (c, r) => moved.get(c)?.get(r) ?? {text: store.get(c, r), kind: store.kind(c, r)};
-  const rowsOf = c => {   // rows holding a cell in column c after the edits so far
-    const rows = new Set(); const col = store.cols[c];
-    if (col) col.forEach(r => rows.add(r));
-    for (const r of moved.get(c)?.keys() ?? []) rows.add(r);
-    return [...rows].filter(r => at(c, r).text !== '').sort((a, b) => a - b);
+  const virtual = store.cols.map(source => ({source, edits: new Map()}));
+  const column = c => { while (virtual.length <= c) virtual.push({source: null, edits: new Map()}); return virtual[c]; };
+  const movedCol = c => column(c).edits;
+  const at = (c, r) => column(c).edits.get(r) ?? {text: column(c).source?.get(r) ?? ''};
+  const rowsOf = c => {
+    const rows = new Set(); column(c).source?.forEach(r => rows.add(r));
+    for (const r of column(c).edits.keys()) rows.add(r);
+    return [...rows].filter(r => at(c, r).text !== '').sort((a,b) => a-b);
   };
-  const usedEnd = () => {   // one past the last column holding any cell or formula after the edits so far
+  const usedEnd = () => {
     let end = 0;
-    store.cols.forEach((col, c) => { if (col && (col.count > 0 || col.formula.size > 0) && c + 1 > end) end = c + 1; });
-    for (const [c, cells] of moved) if (c + 1 > end && [...cells.values()].some(cell => cell.text !== '')) end = c + 1;
+    virtual.forEach((col,c) => { if (col.source?.count || col.source?.formula.size || col.source?.extra.size || col.source?.rMetadata || col.source?.displayWidth || [...col.edits.values()].some(v => v.text !== '')) end = c+1; });
     return end;
   };
   frames.forEach((frame, index) => {
@@ -60,21 +51,18 @@ export function planWriteBack(store, frames, placement, range, options = {}) {
       default: first = usedEnd();
     }
     const end = usedEnd();
-    if (shift && first >= end) shift = false;   // nothing to the right to move
-    if ((shift ? end : Math.max(end, first)) + count > MAX_COLS) throw new Error('No room to write output data on the sheet.');
+    if (shift && first >= end && !options.backed) shift = false;   // nothing to the right to move
+    if ((shift ? Math.max(end + count, first + count) : Math.max(end, first + count)) > MAX_COLS) throw new Error('No room to write output data on the sheet.');
     if (shift) {
-      if (options.cells > 1000000) throw new Error('Columns cannot be inserted into a workbook this large, which is saved by streaming. Write the results after the last column, in place of the selected columns, or into a new document.');
-      if (store.cols.some((col, c) => c >= first && col && col.formula.size > 0)) throw new Error('Columns cannot be inserted before formula cells, which cannot move here. Write the results after the last column or into a new document.');
       inserts.push({col: first, count});
-      // Move columns right by `count`, from the rightmost, so each cell is cleared before its new content lands.
-      for (let c = end - 1; c >= first; c--) for (const r of rowsOf(c)) {
-        const moving = at(c, r);
-        edits.push([c + count, r, moving.text, moving.kind], [c, r, '']); movedCol(c + count).set(r, moving); movedCol(c).set(r, BLANK);
-      }
+      column(first);
+      virtual.splice(first, 0, ...Array.from({length: count}, () => ({source: null, edits: new Map()})));
+      cols = Math.min(MAX_COLS, Math.max(cols + count, end + count));
+      for (const previous of written) if (previous.x >= first) previous.x += count;
     } else if (here === 'ReplaceSelection') {
       for (let c = first; c < first + count; c++) {
-        if (store.cols[c]?.formula.size > 0) throw new Error('The selected columns hold formulas, which are read-only here. Write the results elsewhere.');
-        for (const r of rowsOf(c)) { edits.push([c, r, '']); movedCol(c).set(r, BLANK); }
+        if (column(c).source?.formula.size > 0) throw new Error('The selected columns hold formulas, which are read-only here. Write the results elsewhere.');
+        for (const r of rowsOf(c)) { movedCol(c).set(r, BLANK); }
       }
     }
     // Values go beside the analysis rows when the output has one value per input row, otherwise from
@@ -85,10 +73,10 @@ export function planWriteBack(store, frames, placement, range, options = {}) {
     if (top + length > MAX_ROWS) throw new Error('This exceeds the Excel worksheet dimensions.');
     for (let v = 0; v < count; v++) {
       const c = first + v, title = cell.get(`${v},0`);
-      if (header && titled && title) { edits.push([c, 0, title.text, 'text']); movedCol(c).set(0, {text: title.text, kind: 'text'}); }
+      if (header && titled && title) { movedCol(c).set(0, {text: title.text, kind: 'text'}); }
       for (let r = 0; r < (lengths[v] ?? 0); r++) {
         const got = cell.get(`${v},${r + 1}`), text = got ? got.text : missing, kind = got ? got.kind : 'text';   // the missing indicator is text
-        edits.push([c, top + r, text, kind]); movedCol(c).set(top + r, {text, kind});
+        movedCol(c).set(top + r, {text, kind});
       }
     }
     const y = header && titled ? 0 : top;
@@ -98,5 +86,6 @@ export function planWriteBack(store, frames, placement, range, options = {}) {
   });
   const total = written.reduce((n, w) => n + w.width, 0);
   const message = total === 0 ? 'No columns were written: the analysis produced no data' : `Wrote ${total} column${total === 1 ? '' : 's'} ${fellBack ? LABELS.LastColumn + ' (no columns were selected)' : LABELS[placement]}`;
+  virtual.forEach((col,c) => { for (const [r, cell] of col.edits) edits.push([c,r,cell.text,cell.kind]); });
   return {edits, rows, cols, written, inserts, message};
 }

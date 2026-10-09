@@ -14,6 +14,14 @@ source_app=args.app.resolve()
 source_info=plistlib.loads((source_app/'Contents/Info.plist').read_bytes())
 assert (source_app/'Contents/MacOS'/source_info['CFBundleExecutable']).is_file(), source_app
 out=root/'.build/feedback-native';out.mkdir(exist_ok=True)
+# A formatted file-backed source exercises insertion preflight through the real native host.
+import openpyxl
+from openpyxl.workbook.defined_name import DefinedName
+fixture=openpyxl.Workbook(); sheet=fixture.active; sheet.title='Data'
+sheet.append(['dose','double']); sheet.append([2,'=A2*2']); sheet.merge_cells('E3:F3'); sheet['E3']='keep'
+sheet.column_dimensions['A'].width=27; sheet['A2'].number_format='0.00'
+fixture.defined_names.add(DefinedName('Dose',attr_text='Data!$A$2'))
+fixture.save(out/'column-insert.xlsx')
 subprocess.run([str(root/'Grid/node_modules/esbuild/bin/esbuild'),'Tests/feedback-renderer.mjs','--bundle','--format=iife','--outfile=.build/feedback-renderer.js'],cwd=root,check=True)
 (out/'Viewer.swift').write_text((root/'Sources/main.swift').read_text().split('MainActor.assumeIsolated {')[0])
 helpers=[]

@@ -220,7 +220,7 @@ extension Viewer {
             if let range = doc.operationInputRange { request["range"] = range }
             if let sheet = doc.operationSourceSnapshot?["sheet"] { request["sheet"] = sheet }
             if let name = doc.operationSourceSnapshot?["sheetName"] { request["sheetName"] = name }
-            source.web.callAsyncJavaScript("return window.statsDirectGrid.writeFrames(request)", arguments: ["request": request], in: nil, in: .page) { result in
+            self.writeAnalysisFrames(request, to: source) { result in
                 switch result {
                 case .success(let value):
                     let message = (value as? [String: Any])?["message"] as? String ?? "The results were written into the worksheet."

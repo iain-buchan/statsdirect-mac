@@ -35,5 +35,29 @@ struct WriteBackTests {
         _=try await v.learningJavaScript(grid,"({ok:(statsDirectGrid.undo(),true)})")
         try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:statsDirectGrid.csvData().split(/\\r?\\n/)[0]==='dose,note'})"))?["ok"] as? Bool == true}
         print("PASS: native transform output written into the source worksheet after the selected column, moving the note column along, selected, and undone in one step")
+
+        let path=URL(fileURLWithPath:FileManager.default.currentDirectoryPath).appendingPathComponent(".build/feedback-native/column-insert.xlsx")
+        v.openExcelURL(path)
+        let formatted=try await ExcelImportTests.loaded(v,path)
+        defer {v.remove(formatted)}
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(formatted,"({ok:statsDirectGrid.csvData().startsWith('dose,double')})"))?["ok"] as? Bool == true}
+        @MainActor func write(_ placement:String,_ columns:[Int]) async throws -> Any {
+            let request:[String:Any]=["frames":[["columns":1,"rows":2,"lengths":[1],"cells":[["col":0,"row":0,"text":"output"],["col":0,"row":1,"text":"7","kind":"number"]]]],"placement":placement,"range":["columns":columns]]
+            return try await withCheckedThrowingContinuation { continuation in v.writeAnalysisFrames(request,to:formatted) {continuation.resume(with:$0)} }
+        }
+        _=try await write("FirstColumn",[])
+        let moved=try await v.learningJavaScript(formatted,"({csv:statsDirectGrid.csvData()})")
+        try check((moved["csv"] as? String)?.hasPrefix("output,dose,double")==true,"Formatted column movement \(moved)")
+        do {_=try await write("AfterSelection",[5]); throw DriverCheckFailure(description:"An insertion split a merged range")}
+        catch let error as DriverCheckFailure {throw error}
+        catch {try check(error.localizedDescription.contains("merged cell"),"Unexpected refusal: \(error)")}
+        let after=try await v.learningJavaScript(formatted,"({csv:statsDirectGrid.csvData()})")
+        try check(after["csv"] as? String==moved["csv"] as? String,"Refusal changed the worksheet")
+        _=try await v.learningJavaScript(formatted,"({ok:(statsDirectGrid.undo(),true)})")
+        let restored=try await v.learningJavaScript(formatted,"({csv:statsDirectGrid.csvData()})")
+        try check((restored["csv"] as? String)?.hasPrefix("dose,double")==true,"Undo did not restore formatted workbook")
+        let stale=try await v.learningJavaScript(formatted,"(()=>{const p=statsDirectGrid.prepareWriteFrames({frames:[{columns:1,lengths:[1],cells:[{col:0,row:1,text:'9'}]}],placement:'FirstColumn'});statsDirectGrid.redo();try{statsDirectGrid.writeFrames({token:p.token});return {refused:false};}catch(e){return {refused:e.message.includes('changed while checking')};}})()")
+        try check(stale["refused"] as? Bool == true,"A stale insertion plan was committed")
+        print("PASS: native file-backed insertion preflight with names/formulas/formatting, refusal before grid mutation, and undo")
     }
 }

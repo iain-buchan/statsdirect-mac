@@ -1,3 +1,4 @@
+import { rDataTables } from './r-data.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { encodeSnapshot, decodeSnapshot } from './snapshot.mjs';
@@ -134,4 +135,15 @@ test('loader extras travel with a snapshot and R tables are built from typed col
   assert.deepEqual([[...edited[1].extras], edited[0].kinds[1], edited[0].nums[1], [...edited[0].texts]], [[], 1, 7, [[0, 'row 1']]]);
   assert.equal(rDataTables(book).tables[0].columns[0].type, 'character');
   assert.ok(decodeSnapshot(encodeSnapshot(rDataTables(book).sheets)).sheets[0].columns[1].nums.length === 3);
+});
+
+
+test('R factor metadata moves with columns and follows undo', () => {
+  const book=new WorkbookStore();
+  book.load({name:'factors',sheets:[{name:'D',rows:2,columns:1,headerRow:true,rColumns:[{type:'factor',levels:['a','b'],ordered:true}],cells:[{col:0,row:0,text:'group',kind:'text'},{col:0,row:1,text:'a',kind:'text'}]}]});
+  const s=book.sheets[0].store;
+  s.apply([[0,0,'result','text'],[0,1,'12','number']],100,2,[{col:0,count:1}]);
+  const out=rDataTables(book).tables[0].columns;
+  assert.equal(out[0].type,'double'); assert.equal(out[1].type,'factor'); assert.deepEqual(out[1].levels,['a','b']);
+  s.undo(); assert.equal(rDataTables(book).tables[0].columns[0].type,'factor');
 });

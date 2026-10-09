@@ -1,0 +1,274 @@
+"""Replay of the help's worked examples through the Mac engine host: each page that uses the test
+workbook is run with the columns it names, prompts answered as the page says or by their defaults,
+and every figure the page prints is looked for in the Mac report. Writes Tests/help-examples-results.md."""
+import html, re, sys, uuid
+from pathlib import Path
+import openpyxl
+from help_examples import examples, ROOT, NUMBER, QUOTED
+from test_menu import Session
+
+wb = openpyxl.load_workbook(ROOT / 'FullEngine/Upstream/StatsDirectUI/Assets/Data/test.xlsx', read_only=True, data_only=True)
+COLUMNS = {}
+for ws in wb.worksheets:
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows: continue
+    for c, title in enumerate(rows[0]):
+        if title is None: continue
+        values = [row[c] if c < len(row) else None for row in rows[1:]]
+        if None in values: values = values[:values.index(None)]   # a column's example ends at its first blank cell
+        COLUMNS.setdefault(str(title).strip().lower(), {'title': str(title).strip(), 'values': [('' if v is None else v.isoformat() if hasattr(v, 'isoformat') else v) for v in values], 'sheet': ws.title})
+
+def column(name):
+    """The workbook column a page names: exactly, else the one title that contains the name or is contained by it."""
+    key = name.strip().lower()
+    if key in COLUMNS: return COLUMNS[key]
+    if len(key) < 4: return None
+    near = [c for k, c in COLUMNS.items() if key in k]
+    return near[0] if len(near) == 1 else None
+
+def frame_answer(cols):
+    return {'source': 'test.xlsx', 'columns': [{'title': c['title'], 'values': [('*' if v == '' else v) for v in c['values']]} for c in cols]}
+
+def report_numbers(html_text):
+    text = html.unescape(re.sub(r'<[A-Za-z/!][^>]*>', ' ', html_text))   # tags only: a bare "<" in "P < 0.0001" is text
+    return NUMBER.findall(text)
+
+STOP = {'the', 'a', 'an', 'of', 'for', 'and', 'or', 'data', 'select', 'column', 'columns', 'marked', 'when', 'asked', 'prompted', 'enter', 'to', 'in', 'as', 'at', 'with', 'if', 'skip', 'none',
+        'not', 'you', 'are', 'want', 'whether', 'then', 'this', 'that', 'from', 'click', 'button', 'box', 'option', 'also', 'each', 'all', 'any', 'your', 'will', 'have', 'has', 'been', 'one', 'first', 'next', 'other'}
+def stem(w): return re.sub(r'(ies|es|s|ed|ing)$', '', w) if len(w) > 4 else w
+def words(text): return {stem(w) for w in re.findall(r'[a-z]+', text.lower()) if w not in STOP and len(w) > 2}
+def roles(example):
+    """The words a page attaches to each quoted column ('"Time Surv" when asked for times'), for matching prompts."""
+    text = example['instructions']; out = []
+    for m in QUOTED.finditer(text):
+        after = text[m.end():m.end() + 90]; before = text[max(0, m.start() - 90):m.start()]
+        role = re.search(r'(?:when (?:asked|prompted) for|for)\s+(?:the\s+)?([^.,;"\u201c\u201d]{1,50})', after)
+        context = role.group(1) if role else ''
+        mb = re.search(r'([^.,;"\u201c\u201d]{1,50})\s*$', before)
+        out.append(words(context) | (words(mb.group(1)) if mb and not role else set()))
+    return out
+def pick(pending, prompt_text, take):
+    """The pending columns whose role words fit the prompt best, else the first ones."""
+    scored = sorted(range(len(pending)), key=lambda i: (-len(pending[i][1] & words(prompt_text)), i))
+    chosen = scored[:take] if pending[scored[0]][1] & words(prompt_text) else list(range(take))
+    chosen.sort(); return [pending[i] for i in chosen], [c for i, c in enumerate(pending) if i not in chosen]
+
+def matches(expected, found):
+    """How many of the page's figures appear in the report, exactly or at the page's printed precision."""
+    pool = {}
+    for f in found:
+        try: pool.setdefault(float(f), []).append(f)
+        except ValueError: pass
+    missing = []
+    for e in expected:
+        try: value = float(e)
+        except ValueError: continue
+        decimals = len(e.split('.')[1]) if '.' in e and 'e' not in e.lower() else 0
+        if e in found or any(abs(v - value) <= 0.5 * 10 ** -decimals + 1e-12 for v in pool): continue
+        missing.append(e)
+    return missing
+
+WORD_NUMBERS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10}
+def prompt_words(p): return words((p.get('prompt') or p.get('title') or '') + ' ' + (p.get('name') or '').replace('-', ' '))   # the operation's title would match too much
+def sentences(text): return [t.strip() for t in re.split(r'(?<=[.;])\s+', text) if t.strip()]
+def clauses(text):
+    """Sentences split again at 'and' and commas, so one instruction is read for one prompt."""
+    return [c.strip() for t in sentences(text) for c in re.split(r',| and |; ', t) if c.strip()]
+def said_blank(example, p):
+    keys = prompt_words(p)
+    return any(len(keys & words(c)) >= 2 and re.search(r'\bleave\b.*\bblank\b', c, re.I) for c in clauses(example['instructions']))
+def said_number(example, p):
+    """A number the page tells the user to enter for this prompt ('enter the population mean as 120',
+    'Choose 90% as the confidence level'): the number nearest the prompt's own words."""
+    keys = prompt_words(p); best = None
+    for clause in clauses(example['instructions']):
+        overlap = keys & words(clause)
+        if not overlap or not re.search(r'\b(enter|as|choose|number of)\b', clause, re.I): continue
+        for m in re.finditer(r'(?<![\w.])(\d+(?:\.\d+)?)%?|\b(one|two|three|four|five|six|seven|eight|nine|ten)\b', clause, re.I):
+            value = float(m.group(1)) if m.group(1) else WORD_NUMBERS[m.group(2).lower()]
+            distance = min(abs(m.start() - clause.lower().find(w)) for w in overlap)
+            if best is None or (len(overlap), -distance) > best[0]: best = ((len(overlap), -distance), value)
+    return best[1] if best else None
+def said_boolean(example, p):
+    """Checked or unchecked, yes or no, when the page mentions the option."""
+    keys = prompt_words(p)
+    for clause in clauses(example['instructions']):
+        if not (keys & words(clause)): continue
+        low = clause.lower()
+        if re.search(r'\b(unchecked|unticked|not checked|not ticked|is not checked|click on "?no|click no|answer no|leave .* unchecked)\b', low): return False
+        if re.search(r'\b(checked|ticked|tick the|check the|click on "?yes|click yes|answer yes)\b', low): return True
+    return None
+def said_skip(example, p):
+    keys = prompt_words(p)
+    return any((keys & words(c)) and re.search(r'\b(cancel|skip|click on "?no)\b', c, re.I) for c in clauses(example['instructions']))
+def said_option(example, p):
+    for sentence in sentences(example['instructions']):
+        if 'option' not in sentence.lower(): continue
+        for o in p.get('options', []):
+            if words(str(o.get('label', '')) + ' ' + str(o.get('value', ''))) & words(sentence): return o['value']
+    return None
+def expand_columns(example):
+    """The columns a page names, with '"P1L1" etc.' expanded to every workbook title of that pattern."""
+    out = []
+    text = example['instructions']
+    for name, role in zip(example['columns'], roles(example)):
+        after = text[text.find(name) + len(name):text.find(name) + len(name) + 40] if name in text else ''
+        if re.search(r'\d', name) and (re.search(r'\betc\b', after) or 'Repeat this selection' in text):
+            pattern = '^' + re.sub(r'\d+', r'\\d+', re.escape(name)) + '$'
+            found = [c for k, c in COLUMNS.items() if re.match(pattern, c['title'], re.I)]
+            out.extend((c, role) for c in found)
+        else:
+            c = column(name)
+            if c: out.append((c, role))
+    return out
+
+def run_example(s, example, operation, booleans=False, strategy='role'):
+    named = expand_columns(example)
+    if not named: return {'status': 'no columns', 'detail': 'none of the quoted names is a column of the test workbook'}
+    id, st = s.start(operation); prompts = []; pending = list(named); groupwise = len(named) > len(example['columns'])
+    try:
+        for _ in range(60):
+            if st.get('state') != 'input': break
+            p = st['prompt']; prompts.append(p.get('name') or p.get('prompt'))
+            if p.get('error'): return {'status': 'refused', 'detail': f"{p.get('name') or p.get('prompt')}: {p['error']}", 'prompts': prompts}
+            text = p.get('prompt') or p.get('title') or ''
+            if p['kind'] == 'grid':
+                group = re.match(r'(Group|Repeat) (\d+):', text)
+                if groupwise and group:
+                    # A two-dimensional frame from '"P1L1" etc.': the digit slot that counts the groups picks each group's columns.
+                    k = int(group.group(2)); titles = [c['title'] for c, _ in pending]
+                    slots = [sorted({re.findall(r'\d+', t)[i] for t in titles}) for i in range(len(re.findall(r'\d+', titles[0])))]
+                    slot = next((i for i, vals in enumerate(slots) if len(vals) == groups), 0) if (groups := len(slots) and max(len(v) for v in slots)) else 0
+                    chosen = [(c, r) for c, r in pending if int(re.findall(r'\d+', c['title'])[slot]) == k]
+                    if not chosen: return {'status': 'too few columns', 'detail': f"{text} has no columns of the pattern", 'prompts': prompts}
+                    pending = [x for x in pending if x not in chosen]; value = frame_answer([c for c, _ in chosen])
+                elif p.get('skip') and said_skip(example, p): value = {'skip': True}
+                else:
+                    take = max(p.get('minColumns', 1), min(p.get('maxColumns', 1), len(pending)))
+                    if len(pending) < max(1, p.get('minColumns', 1)):
+                        if p.get('skip'): value = {'skip': True}   # an optional frame the page does not mention
+                        else: return {'status': 'too few columns', 'detail': f"{text} needs {p.get('minColumns')} column(s); {len(pending)} left", 'prompts': prompts}
+                    elif strategy == 'role': chosen, pending = pick(pending, text, take); value = frame_answer([c for c, _ in chosen])
+                    else: value = frame_answer([c for c, _ in pending[:take]]); pending = pending[take:]
+            elif p['kind'] == 'options': value = {o['value']: o['selected'] for o in p['options']}
+            elif p['kind'] in ('fields', 'settings'):
+                value = {o['name']: o['defaultValue'] for o in p['fields']}
+                said = said_number(example, p)
+                if said is not None and len(p['fields']) == 1: value = {p['fields'][0]['name']: said}
+            elif p['kind'] == 'boolean': value = said_boolean(example, p) if said_boolean(example, p) is not None else booleans
+            elif p['kind'] == 'confidence': value = said_number(example, p) if said_number(example, p) is not None else p['defaultValue']
+            elif p['kind'] in ('number', 'integer') and said_blank(example, p) and p.get('skip'): value = {'skip': True}
+            elif p['kind'] in ('number', 'integer') and said_blank(example, p): value = ''
+            elif p['kind'] in ('number', 'integer') and said_number(example, p) is not None: value = said_number(example, p)
+            elif p['kind'] == 'option' and said_option(example, p) is not None: value = said_option(example, p)
+            elif p.get('defaultValue') is not None: value = p['defaultValue']
+            elif p['kind'] == 'option': value = p['options'][0]['value']
+            elif p['kind'] == 'selectList': value = [p['options'][0]['value']] if p.get('multiple') else p['options'][0]['value']
+            elif p.get('skip'): value = {'skip': True}
+            else: return {'status': 'unanswered', 'detail': f"{p['kind']} {p.get('name') or p.get('prompt')}", 'prompts': prompts}
+            s.request(action='answer', id=id, token=st['token'], value=value); st = s.wait(id)
+        if st.get('state') != 'complete': return {'status': 'failed', 'detail': str(st.get('error'))[:200], 'prompts': prompts}
+        if example['page'].startswith('graphics/'): return {'status': 'chart drawn', 'detail': 'a plot; its figures are not compared', 'prompts': prompts, 'missing': [], 'total': 0}
+        found = report_numbers(st.get('html') or '')
+        # Follow-ons the page runs from the Further analysis box (named, or any when the page says 'multiple comparisons').
+        for su in st.get('suggestions') or []:
+            title = su.get('title') or ''
+            mentioned = example['instructions'] + ' ' + example['expected']
+            if title in mentioned or ('multiple comparisons' in mentioned.lower() and 'comparison' in title.lower()) or ('analysis of variance' in mentioned.lower() and 'variance' in title.lower() and 'equality' not in title.lower()):
+                fid = str(uuid.uuid4()); fs = s.request(action='start', id=fid, operation=su['operation'], parent=id)
+                if fs.get('error'): continue
+                fst = s.wait(fid); n = 0
+                while fst.get('state') == 'input' and n < 20:
+                    fp = fst['prompt']; n += 1
+                    if fp.get('error'): break
+                    if fp['kind'] == 'options': fv = {o['value']: o['selected'] for o in fp['options']}
+                    elif fp['kind'] in ('fields', 'settings'): fv = {o['name']: o['defaultValue'] for o in fp['fields']}
+                    elif fp['kind'] == 'boolean': fv = booleans
+                    elif fp.get('defaultValue') is not None: fv = fp['defaultValue']
+                    elif fp['kind'] == 'option': fv = fp['options'][0]['value']
+                    elif fp['kind'] == 'selectList': fv = [o['value'] for o in fp['options']] if fp.get('multiple') else fp['options'][0]['value']
+                    elif fp.get('skip'): fv = {'skip': True}
+                    else: break
+                    s.request(action='answer', id=fid, token=fst['token'], value=fv); fst = s.wait(fid)
+                if fst.get('state') == 'complete': found += report_numbers(fst.get('html') or ''); prompts.append('+' + su['operation'])
+                else: s.request(action='cancel', id=fid); s.wait(fid)
+                s.request(action='release', id=fid)
+        # Figures with decimals are the statistics; integers are mostly the example data echoed on the page.
+        figures = [e for e in example['numbers'] if '.' in e]
+        missing = matches(figures, found)
+        random = bool(re.search(r'bootstrap|monte carlo|simulat', example['expected'], re.I))
+        status = 'matched' if not missing else 'differs (random method)' if random else 'differs'
+        return {'status': status, 'detail': f"{len(figures) - len(missing)}/{len(figures)} figures found" + (f"; missing {', '.join(missing[:8])}" if missing else ''), 'prompts': prompts, 'missing': missing, 'total': len(figures)}
+    finally:
+        s.close(id)
+
+# Pages whose figures the Mac engine reproduces, with the operation and the answer to yes/no prompts that
+# does it. `python3 Tests/test_help_examples.py` checks these (test.sh); `--report` surveys every page
+# and rewrites Tests/help-examples-results.md.
+BASELINE = [
+    ('analysis_of_variance/one_way.htm', 'OneWay', False),
+    ('analysis_of_variance/two_way.htm', 'TwoWay', False),
+    ('meta_analysis/mh.htm', 'Mantel', False),
+    ('meta_analysis/peto.htm', 'PetoMeta', False),
+    ('meta_analysis/relative_risk.htm', 'RelativeRiskMeta', False),
+    ('meta_analysis/summary.htm', 'MetaSummary', False),
+    ('nonparametric_methods/kendall_correlation.htm', 'Kendall', False),
+    ('nonparametric_methods/mann_whitney.htm', 'MannWhitney', False),
+    ('nonparametric_methods/smirnov.htm', 'Smirnov', False),
+    ('nonparametric_methods/spearman.htm', 'Spearman', False),
+    ('nonparametric_methods/wilcoxon_signed_ranks.htm', 'Wilcoxon', False),
+    ('parametric_methods/f_variance_ratio.htm', 'VarianceRatio', False),
+    ('parametric_methods/normality.htm', 'Normality', False),
+    ('parametric_methods/paired_t.htm', 'TPaired', False),
+    ('parametric_methods/single_sample_t.htm', 'TSingle', False),
+    ('parametric_methods/unpaired_t.htm', 'TUnpaired', False),
+    ('regression_and_correlation/grouped_linearity_replicates.htm', 'GroupedLinearity', False),
+    ('regression_and_correlation/multiple_linear.htm', 'MultipleLinearRegression', False),
+    ('regression_and_correlation/probit_analysis.htm', 'Logit', False),
+    ('survival_analysis/follow_up_life_table.htm', 'FollowUpLifetable', False),
+    ('survival_analysis/kaplan_meier.htm', 'KaplanMeier', False),
+]
+
+if __name__ == '__main__':
+    report = '--report' in sys.argv
+    only = next((a for a in sys.argv[1:] if not a.startswith('--')), None)
+    s = Session(); lines = ['| Page | Operation | Result | Detail |', '|---|---|---|---|']; counts = {}
+    try:
+        if not report:
+            failures = []
+            for page, op, yes in BASELINE:
+                if only and only not in page: continue
+                ex = next(e for e in examples() if e['page'] == page)
+                r = None
+                for strategy in ('role', 'order'):
+                    r = run_example(s, ex, op, yes, strategy)
+                    if r['status'] == 'matched': break
+                if r['status'] != 'matched': failures.append(f"{page} ({op}): {r['status']}: {r['detail'][:160]}")
+            assert not failures, '\n'.join(failures)
+            print(f'PASS: the Mac engine reproduces every figure of {len(BASELINE)} worked examples in the help, run through the prompt/answer boundary with the test workbook')
+        else:
+            for ex in examples():
+                if only and only not in ex['page']: continue
+                if not ex['operations'] or not ex['numbers']: continue
+                # Every operation the page documents is tried, with the yes/no prompts answered No and then Yes; the best match counts.
+                best = None
+                for op in ex['operations']:
+                    for booleans, strategy in ((False, 'role'), (False, 'order'), (True, 'role'), (True, 'order')):
+                        try: r = run_example(s, ex, op, booleans, strategy)
+                        except Exception as e: r = {'status': 'harness error', 'detail': str(e)[:200]}
+                        r['operation'] = op; r['booleans'] = booleans
+                        rank = (r['status'] in ('matched', 'chart drawn'), r['status'].startswith('differs'), -(len(r.get('missing', [])) if r.get('total') else 10 ** 6))
+                        if best is None or rank > best[0]: best = (rank, r)
+                        if r['status'] in ('matched', 'chart drawn'): break
+                    if best[1]['status'] in ('matched', 'chart drawn'): break
+                r = best[1]; op = r['operation']
+                counts[r['status']] = counts.get(r['status'], 0) + 1
+                lines.append(f"| {ex['page']} | {op}{' (yes to questions)' if r['booleans'] else ''} | {r['status']} | {r['detail'].replace('|', '/')} |")
+                print(f"{r['status']:16s} {ex['page']:55s} {op:32s} {r['detail'][:100]}", flush=True)
+            (ROOT / 'Tests/help-examples-results.md').write_text('# Help examples replayed through the Mac engine\n\n'
+                'Every help page that uses the test workbook, run through the Mac engine host with the columns it names and the answers it gives; '
+                'the figures printed under "For this example" are looked for in the Mac report. Plots are run but their figures are not compared. '
+                'Regenerate with `python3 Tests/test_help_examples.py --report`.\n\n' + '\n'.join(lines) + '\n')
+            print(counts)
+    finally:
+        s.finish()

@@ -104,11 +104,26 @@ internal sealed class OperationJob {
     // The inputs a follow-on starts from (set when the operation completes) and the operations suggested from the result.
     public ParameterBag FollowOnContext { get; private set; }
     public IReadOnlyCollection<string> SuggestionNames => suggestionNames;
+    // The Windows shell writes an operation's output frames into a worksheet at the first output
+    // step's default placement (after the selected columns unless the definition says otherwise);
+    // the form offers the same placements, so the start snapshot carries them.
+    readonly bool writesWorksheet; readonly string placement;
+    static OutputFrameStep FirstOutputFrame(IEnumerable<Step> steps) {
+        foreach (var step in steps) {
+            switch (step) {
+                case OutputFrameStep o: return o;
+                case IterationStep it: { var found = FirstOutputFrame(it.Steps); if (found != null) return found; break; }
+                case TestStep t: { var found = FirstOutputFrame(t.TrueSteps) ?? FirstOutputFrame(t.FalseSteps); if (found != null) return found; break; }
+            }
+        }
+        return null;
+    }
     public OperationJob(string id, Operation operation, JsonElement preferences, ParameterBag context = null, string parent = null, List<InputRecord> inherited = null) {
         Id = id; Operation = operation; SavedPreferences = preferences; startContext = context; parentId = parent;
         if (inherited != null) history.AddRange(inherited);
+        var output = FirstOutputFrame(operation.Steps); writesWorksheet = output != null; placement = output?.DefaultPlacement.ToString();
     }
-    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, suggestions, parent = parentId, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray() }; }
+    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, suggestions, parent = parentId, writesWorksheet, placement, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray() }; }
     static void NoteOperation(ParameterBag bag, string name) {
         if (!bag.ContainsKey(MemoryName)) bag.AddInput(MemoryName, new List<string>());
         var list = bag[MemoryName].AsStringList;
@@ -328,7 +343,7 @@ internal sealed class OperationHost : ITemplateHost {
     public void Warning(string message, string caption) { Html.Append("<p class='note'>").Append(System.Net.WebUtility.HtmlEncode(caption + ": " + message)).Append("</p>"); }
     public object OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation) { job.Check(); Html.Append(new HtmlRenderer(this).Render(renderable)); return null; }
     public void OutputFrame(DataFrame frame, bool keepSelection, bool isFormulae, string missingIndicator, PaneAndPosition preferredOutputLocation, RelativePosition defaultPosition) {
-        job.Check(); Frames.Add(HostParameters.FrameOutput(frame, isFormulae));
+        job.Check(); Frames.Add(HostParameters.FrameOutput(frame, isFormulae, defaultPosition.ToString(), keepSelection, missingIndicator ?? Formatting.ASTERISK));
     }
     public IScriptEngine GetScriptEngine(string language) => ScriptEngine.CanHandle(language) ? new ScriptEngine() : null;
     public string pval(double p) => Formatting.pval(p, Preferences.PDecimalPlaces, Preferences.UseScientificNotationForSmallPValues);

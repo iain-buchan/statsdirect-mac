@@ -124,13 +124,13 @@ struct GroupIdentifierTests {
             throw error
         }
         let covResult=try await v.learningJavaScript(covariance,"window.groupState")
-        let covHistory=covResult["history"] as! [[String:Any]]
-        let covRecord=covHistory.first{$0["name"] as? String=="gcd"}!["value"] as! [String:Any]
-        let covColumns=covRecord["columns"] as! [[String:Any]]
-        precondition(covColumns.count==4 && covColumns[3]["mode"] as? String=="GroupIdentifiers" && (covRecord["roles"] as! [String:Any])["outcomes"] as? Int==2, "covariance record: \(covRecord)")
-        precondition(covHistory.first{$0["name"] as? String=="layoutCovariance"}!["value"] as? String=="identifiers")
+        let covHistory=covResult["history"] as? [[String:Any]] ?? []
+        let covRecord=covHistory.first{$0["name"] as? String=="gcd"}?["value"] as? [String:Any] ?? [:]
+        let covColumns=covRecord["columns"] as? [[String:Any]] ?? []
+        try check(covColumns.count==4 && covColumns[3]["mode"] as? String=="GroupIdentifiers" && (covRecord["roles"] as? [String:Any])?["outcomes"] as? Int==2, "covariance record: \(covRecord)")
+        try check(covHistory.first{$0["name"] as? String=="layoutCovariance"}?["value"] as? String=="identifiers", "layout record missing")
         let covR=try RScriptGenerator.generate(operation:"GroupedCovariance",title:"Covariance fixture",output:covResult,resources:v.root)
-        precondition(covR.script.contains("\"a\"") && covR.script.contains("data_frames[["), "covariance R script")
+        try check(covR.script.contains("\"a\"") && covR.script.contains("data_frames[["), "covariance R script")
         print("PASS: native analysis of covariance from long data: the layout choice, the X, Y replicate and identifier roles reach the engine, the input history and R")
 
     }

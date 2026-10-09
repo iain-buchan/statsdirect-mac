@@ -8,7 +8,8 @@ import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
 import { tutorInfo, tutorData } from './tutor-data.mjs';
 import { decodeSnapshot, encodeSnapshot } from './snapshot.mjs';
-import { analysisMetadata, columnValues, snapshotColumns } from './analysis-source.mjs';
+import {analysisMetadata, columnValues, snapshotColumns, requestedSheet} from './analysis-source.mjs';
+import {planWriteBack} from './write-back.mjs';
 import { WorkbookStore, cellKind } from './workbook.mjs';
 import { selectAdjacentCell, cellMovement, arrowKeyEditor } from './navigation';
 declare global {
@@ -155,6 +156,19 @@ function App() {
       columnValues: (request: any) => columnValues(workbook, sheetIndex, request),
       snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),
       excelSnapshot: () => postSnapshot(workbook.exportColumns().sheets),
+      // Output frames of an analysis written into a worksheet as the Windows grid writes them (write-back.mjs):
+      // one undo step, the written columns selected when the sheet is the one shown.
+      writeFrames: (request: any) => {
+        const sheet = requestedSheet(workbook, sheetIndex, request), target = sheet.store;
+        const plan = planWriteBack(target, request?.frames, request?.placement, request?.range, {formulaCount: workbook.formulaCount, backed: workbook.backed});
+        const applied = plan.edits.length > 0 && target.apply(plan.edits, Math.max(target.rows, plan.rows), Math.max(target.columns.length, plan.cols));
+        if (applied) changed();
+        const shown = target === store;
+        if (shown && applied && plan.written.length) setSelection({...empty, current: {cell: [plan.written[0].x, plan.written[0].y], range: plan.written[0], rangeStack: []}});
+        const where = sheet.name ? ` in worksheet ${sheet.name}` : '';
+        setMessage(plan.message + where + (applied ? (shown ? ' · Undo restores the previous cells' : ' · show that worksheet to undo') : ''));
+        return {message: plan.message + where, written: plan.written};
+      },
       csvData: () => store.csv(),
       csvSnapshot: () => ({text: store.csv(), canSaveDocument: !workbook.backed && workbook.sheets.length === 1 && !workbook.formulaCount && !workbook.sheets.some((s:any) => s.rColumns)}),
       // R tables: the manifest travels as JSON, the cells as a typed snapshot stored with the application.

@@ -46,7 +46,9 @@ extension Viewer {
             doc.operationReady = true
             operationScript(doc, "configure", config)
             refreshOperationSource(doc) { self.startOperation(doc) }
-        case "outputMode": doc.includeSourceColumns = body["includeSource"] as? Bool ?? true
+        case "outputMode":
+            if let include = body["includeSource"] as? Bool { doc.includeSourceColumns = include }
+            if let placement = body["placement"] as? String { doc.outputPlacement = placement }
         case "refresh": refreshOperationSource(doc)
         case "columns": fetchOperationColumns(doc, body)
         case "keepResult": keepResult(doc, id: body["id"] as? String)
@@ -64,7 +66,7 @@ extension Viewer {
             startOperation(doc)
         case "answer":
             guard let id = doc.analysisJobID, let token = body["token"], let value = body["value"] else { return }
-            if let input=value as? [String:Any], input["columns"] != nil { doc.operationInputRange=input["range"] as? [String:Any] }
+            if let input=value as? [String:Any], input["columns"] != nil { doc.operationInputRange=input["range"] as? [String:Any]; doc.operationInputEntered = input["range"] == nil }
             operationRequest(["action": "answer", "id": id, "token": token, "value": value], doc: doc, id: id)
         case "cancel":
             guard let id = doc.analysisJobID else { return }
@@ -78,7 +80,7 @@ extension Viewer {
         guard doc.analysisJobID == nil else { return }
         // A completed run stays open in the engine for follow-ons; a rerun replaces it.
         if let previous = doc.completedJobID { doc.completedJobID = nil; analysisRequest(["action": "release", "id": previous], entry: "statsdirect_operation") { _ in } }
-        doc.operationInputRange = nil
+        doc.operationInputRange = nil; doc.operationInputEntered = false
         let id = UUID().uuidString; doc.analysisJobID = id; doc.analysisCancelled = false; doc.operationStarting = true
         operationScript(doc, "update", ["state": "running", "progress": "Opening input form…"])
         var request: [String: Any] = ["action": "start", "id": id, "operation": operation]
@@ -133,7 +135,8 @@ extension Viewer {
         if let source = doc.initialOperationSource {
             doc.initialOperationSource = nil; doc.operationSourceSnapshot=source; operationScript(doc, "setSource", source); completion?(); return
         }
-        guard let source = documents.first(where: { $0.id == (doc.operationSourceID ?? analysisSourceID) }), source.kind == "grid" else { operationScript(doc, "setSource", NSNull()); completion?(); return }
+        guard let source = documents.first(where: { $0.id == (doc.operationSourceID ?? analysisSourceID) }), source.kind == "grid" else { doc.operationSnapshotSourceID = nil; operationScript(doc, "setSource", NSNull()); completion?(); return }
+        doc.operationSnapshotSourceID = source.id
         let script = "window.statsDirectGrid?.analysisSource()"
         source.web.evaluateJavaScript(script) { snapshot, error in
             guard self.documents.contains(where: { $0 === doc }) else { return }
@@ -203,8 +206,39 @@ extension Viewer {
         }
     }
     func showOperationReport(_ doc: Document, _ output: [String: Any]) {
-        let resultID = UUID().uuidString
         let frames = output["frames"] as? [[String: Any]] ?? []
+        // As on Windows, output frames are written into the worksheet the analysis came from, at the
+        // placement chosen in the form (the definition's default unless changed). A source that cannot
+        // take them (lesson data, no open worksheet) or a refused write gets a new document instead.
+        // Data entered in the form rather than selected from the worksheet goes to a new document unless the
+        // user chose otherwise; an instant form, which recalculates on every edit, never writes back.
+        let live = doc.operationSourceSnapshot?["lazy"] as? Bool == true && !doc.operationInputEntered
+        let instant = doc.operationName.flatMap({ analysisCatalog[$0]?["instant"] as? Bool }) == true
+        let placement = instant ? "new" : (doc.outputPlacement ?? (live ? (output["placement"] as? String ?? "new") : "new"))
+        if placement != "new", !frames.isEmpty, let sourceID = doc.operationSourceID ?? doc.operationSnapshotSourceID, let source = documents.first(where: { $0.id == sourceID }), source.kind == "grid" {
+            var request: [String: Any] = ["frames": frames, "placement": placement]
+            if let range = doc.operationInputRange { request["range"] = range }
+            if let sheet = doc.operationSourceSnapshot?["sheet"] { request["sheet"] = sheet }
+            if let name = doc.operationSourceSnapshot?["sheetName"] { request["sheetName"] = name }
+            source.web.callAsyncJavaScript("return window.statsDirectGrid.writeFrames(request)", arguments: ["request": request], in: nil, in: .page) { result in
+                switch result {
+                case .success(let value):
+                    let message = (value as? [String: Any])?["message"] as? String ?? "The results were written into the worksheet."
+                    // The worksheet's columns may have moved: the form's snapshot is refreshed so a rerun sees them.
+                    self.refreshOperationSource(doc) { self.finishOperationReport(doc, output, frames: [], note: message) }
+                case .failure(let error):
+                    let reason = ((error as NSError).userInfo["WKJavaScriptExceptionMessage"] as? String) ?? error.localizedDescription
+                    self.openOutputDocuments(doc, frames)
+                    self.finishOperationReport(doc, output, frames: frames, note: "The results could not be written into the worksheet (\(reason)). They were opened in a new document instead.")
+                }
+            }
+            return
+        }
+        openOutputDocuments(doc, frames)
+        finishOperationReport(doc, output, frames: frames, note: nil)
+    }
+    // Each output frame opened as its own worksheet document (with the source columns beside it when the operation derives columns).
+    func openOutputDocuments(_ doc: Document, _ frames: [[String: Any]]) {
         for (index, frame) in frames.enumerated() {
             let title = "\(doc.title) · Data \(index + 1)"
             let plan = doc.includeSourceColumns && supportsDerivedWorksheet(doc.operationName ?? "") ? derivedWorksheet(source:doc.operationSourceSnapshot,range:doc.operationInputRange,frame:frame) : nil
@@ -223,6 +257,9 @@ extension Viewer {
                 }
             } else { open(plan?.sheet ?? frame, snapshotID: nil) }
         }
+    }
+    func finishOperationReport(_ doc: Document, _ output: [String: Any], frames: [[String: Any]], note: String?) {
+        let resultID = UUID().uuidString
         let html = output["html"] as? String ?? ""
         let methodPath = methodHelpPath(doc)
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
@@ -230,7 +267,7 @@ extension Viewer {
         let rPlan = try? RScriptGenerator.generate(operation: doc.operationName ?? "", title: doc.title, output: output, resources: root)
         let body = """
         <div class="eyebrow">Analysis / StatsDirect</div><h1>\(htmlEscape(doc.title))</h1><p class="muted">\(stamp)</p>
-        <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)</section>
+        <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)\(note.map { "<p class=\"note\">\(htmlEscape($0))</p>" } ?? "")</section>
         \(reportLinks(rPlan, helpPath: methodPath, resultID: resultID))
         <details><summary>Inputs used for this report</summary><pre>\(htmlEscape(String(decoding: inputData, as: UTF8.self)))</pre></details>
         <p class="muted">Calculated by the StatsDirect \(htmlEscape(engineVersion)) engine · \(htmlEscape(doc.operationName ?? ""))</p>

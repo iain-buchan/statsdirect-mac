@@ -48,6 +48,11 @@ final class Document {
     var operationSourceSnapshot: [String: Any]?
     var operationInputRange: [String: Any]?
     var includeSourceColumns = true
+    // Where an analysis writes its output frames: a Windows placement name, or "new" for a new document.
+    var outputPlacement: String?
+    // The grid document the form's worksheet snapshot was taken from, and whether the data step was entered rather than selected.
+    var operationSnapshotSourceID: String?
+    var operationInputEntered = false
     var reportEntries: [ReportEntry]?
     var reportUndo: [[ReportEntry]] = []
     var pendingResult: ReportEntry?

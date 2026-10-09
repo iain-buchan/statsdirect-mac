@@ -23,6 +23,7 @@ import PDFKit
     try await largeGrid(viewer)
     try await entryTables(viewer)
     try await GroupIdentifierTests.run(viewer)
+    try await WriteBackTests.run(viewer)
     if CommandLine.arguments.contains("--live") { try await live(viewer) }
     }
     print("PASS: beta feedback native integration");fflush(stdout)

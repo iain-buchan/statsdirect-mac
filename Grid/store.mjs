@@ -329,14 +329,16 @@ export class GridStore {
     while (this.columns.length < cols) this.columns.push('Variable ' + columnName(this.columns.length));
     this.columns.length = cols;
   }
-  // edits: [[col, row, text]]. Returns true if anything changed.
+  // edits: [[col, row, text, kind?]]. An explicit kind (as the grid names them: number, text,
+  // datetime, timespan, boolean, error) is kept, as when cells move; otherwise the kind is derived
+  // from the text. Returns true if anything changed.
   apply(edits, rows = this.rows, cols = this.columns.length) {
     const byColumn = new Map();
-    for (const [c, r, value] of edits) {
+    for (const [c, r, value, kind] of edits) {
       let b = byColumn.get(c);
-      if (!b) byColumn.set(c, b = {col: c, rows: [], nums: [], texts: new Map()});
-      const text = String(value), n = canonical(text);
-      b.rows.push(r); b.nums.push(n);
+      if (!b) byColumn.set(c, b = {col: c, rows: [], nums: [], texts: new Map(), kinds: []});
+      const text = String(value), n = kind && kind !== 'number' ? NaN : canonical(text);
+      b.rows.push(r); b.nums.push(n); b.kinds.push(typeof kind === 'string' && KIND_INDEX.has(kind) ? kind : undefined);
       if (Number.isNaN(n)) b.texts.set(b.rows.length - 1, text);
     }
     return this.applyBatches([...byColumn.values()], rows, cols);
@@ -364,7 +366,8 @@ export class GridStore {
         const current = col.get(r);
         if (col.formula.has(r) && text !== current) throw new Error('Formula cells are read-only. Edit their formulas in Excel.');
         const original = col.flagsAt(r) & LOADED ? this.loaded(c, r) : undefined;
-        const kind = deriveKind(text, original);
+        const explicit = b.kinds?.[i];
+        const kind = text === '' ? BLANK : explicit ? KIND_INDEX.get(explicit) : deriveKind(text, original);
         const oldKind = col.kindAt(r);
         if (text === current && kind === oldKind) continue;
         rowsOut[k] = r;

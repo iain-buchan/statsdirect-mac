@@ -16,7 +16,7 @@ out=root/'.build/feedback-native';out.mkdir(exist_ok=True)
 subprocess.run([str(root/'Grid/node_modules/esbuild/bin/esbuild'),'Tests/feedback-renderer.mjs','--bundle','--format=iife','--outfile=.build/feedback-renderer.js'],cwd=root,check=True)
 (out/'Viewer.swift').write_text((root/'Sources/main.swift').read_text().split('MainActor.assumeIsolated {')[0])
 helpers=[]
-for name in ['learning-workspace','provider-learning','report-export','group-identifier']:
+for name in ['learning-workspace','provider-learning','report-export','group-identifier','write-back']:
  p=out/(name+'.swift');p.write_text((root/('Tests/'+name+'-driver.swift')).read_text().replace('@main struct','struct'));helpers.append(str(p))
 app=out/'StatsDirect Feedback Check.app';(app/'Contents/MacOS').mkdir(parents=True,exist_ok=True)
 info=plistlib.loads((root/'Info.plist').read_bytes());info['CFBundleIdentifier']='com.statsdirect.feedback.'+uuid.uuid4().hex;info['CFBundleExecutable']='FeedbackCheck';(app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))

@@ -213,6 +213,11 @@ try:
     wide_first = s.run('GroupedCovariance', {'layoutCovariance': 'columns', x_prompt: columns([1, 2, 3], [2, 3, 4]), 'Use Y replicates': True,
         rep_prompt[1]: columns([2, 3], [4], [5, 6]), rep_prompt[2]: columns([3, 4], [6, 7], [8, 9])})
     same_numbers(wide_first, long_first, 'a missing first Y replicate is left out of the analysis of covariance')
+    # An X level whose replicates are all missing keeps a count of 0, as an empty replicate column does in the separate-column layout.
+    long_empty = s.run('GroupedCovariance', {'layoutCovariance': 'identifiers', 'gcd': cov_input(rep_x, [[2, '*', 5, 3, 6, 8], [3, '*', 6, 4, 7, 9]], rep_g)})
+    wide_empty = s.run('GroupedCovariance', {'layoutCovariance': 'columns', x_prompt: columns([1, 2, 3], [2, 3, 4]), 'Use Y replicates': True,
+        rep_prompt[1]: columns([2, 3], [], [5, 6]), rep_prompt[2]: columns([3, 4], [6, 7], [8, 9])})
+    same_numbers(wide_empty, long_empty, 'an X level without Y replicates counts as empty in the analysis of covariance')
     def cov_refused(answer, fragment):
         id, st = s.start('GroupedCovariance'); s.request(action='answer', id=id, token=st['token'], value='identifiers'); st = s.wait(id)
         assert st['prompt']['name'] == 'gcd' and st['prompt']['groupIdentifiers'] == 'covariance' and st['prompt']['layout'] == 'long', st['prompt']
@@ -223,7 +228,6 @@ try:
     cov_refused(cov_input(cov_x, [cov_y], ['a', 'b', ''] * 3 + ['a']), 'Row 3 of the Y data has a value but no group identifier')
     cov_refused(cov_input(cov_x, [[2, 3, '*', 7, 10, '*', 6, 8, '*', 12]], ['a', 'b', ''] * 3 + ['a']), 'Row 3 of the X data has a value but no group identifier')
     cov_refused(cov_input(cov_x, [], cov_g), 'at least one outcome')
-    cov_refused(cov_input(cov_x, [[2, '*', 5, 7, 10, 3, 6, 8, 11, 12]], cov_g), 'Row 2 has a predictor (X) value but no outcome (Y) value')
     cov_refused(cov_input(['*'] * 5 + [2, 3, 4, 5, 6], [cov_y], cov_g), "Group 'a' has no predictor (X) observations")
     # A source that can only send columns (entered or lesson data) is offered the layout choice again.
     id, st = s.start('GroupedCovariance'); s.request(action='answer', id=id, token=st['token'], value='identifiers'); st = s.wait(id)

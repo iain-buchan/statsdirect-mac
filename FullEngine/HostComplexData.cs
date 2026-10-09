@@ -202,7 +202,8 @@ internal static class HostComplexData {
     // hold the group's rows in worksheet order. A value beside a blank identifier is refused by row, each
     // Y column in turn and then X, as Windows does. Windows keeps missing values in the arrays, where the
     // covariance sums them as numbers; here a row whose X is missing is left out of its group and a missing
-    // Y replicate out of its X level, as the separate-column path removes missing observations within a series.
+    // Y replicate out of its X level, as the separate-column path removes missing observations within a series
+    // (Windows adopted the same placement on 9 October 2026 after this port reported that it summed missing values).
     static GroupedCovarianceData GroupedCovarianceFromIdentifiers(OperationJob job) {
         const string title = "Select the predictor (X) column, the outcome (Y) column(s) and the group identifier column(s)";
         string error = null;
@@ -245,8 +246,7 @@ internal static class HostComplexData {
                             double yv = j < ys[r].Length ? ys[r].Data[j] : Constant.MISSING; if (yv == Constant.MISSING) continue;
                             data.y[g,i,++cnt] = yv; data.minMax.MinY = Math.Min(data.minMax.MinY, yv); data.minMax.MaxY = Math.Max(data.minMax.MaxY, yv);
                         }
-                        if (cnt == 0) throw new ArgumentException($"Row {j + 1} has a predictor (X) value but no outcome (Y) value. Give every X row a Y value or leave its X cell blank.");
-                        data.ny[g,i] = cnt;
+                        data.ny[g,i] = cnt;   // a level whose replicates are all missing stays with a count of 0, as the separate-column path and Windows (since 9 October 2026) leave it
                     }
                 }
                 // Recorded as a frame of the X, Y and identifier columns, so the report's inputs and the R script hold them together.

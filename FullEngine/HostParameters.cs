@@ -301,12 +301,17 @@ internal static class HostParameters {
         throw new ArgumentException("Enter the date as YYYY-MM-DD, optionally followed by HH:MM:SS.");
     }
     internal static object ScalarOutputs(ParameterBag bag) => bag.Where(p => p.Value != null && p.Value.Direction == FilledParameterDirection.Output && (p.Value.AsObject is string || p.Value.AsObject is bool || p.Value.AsObject is int || p.Value.AsObject is double d && double.IsFinite(d))).ToDictionary(p => p.Key, p => p.Value.AsObject);
-    internal static object FrameOutput(DataFrame frame, bool formulae) {
+    internal static object FrameOutput(DataFrame frame, bool formulae) => FrameOutput(frame, formulae, null, false, null);
+    // An output frame for the grid: cells (missing values left out), each variable's length, and how the
+    // Windows shell would place it in the worksheet (placement, keepSelection, missingIndicator, formulae).
+    internal static object FrameOutput(DataFrame frame, bool formulae, string placement, bool keepSelection, string missingIndicator) {
         var cells = new List<object>();
         for (int c = 0; c < frame.VariableCount; c++) {
-            var v = frame.Variables[c]; cells.Add(new { col = c, row = 0, text = v.Title ?? "Column " + (c + 1), kind = "text" });
-            for (int r = 0; r < v.Length; r++) { object o = v.DataAsObject(r); if (o == null || o is double missing && (missing == Constant.MISSING || !double.IsFinite(missing))) continue; cells.Add(new { col = c, row = r + 1, text = Convert.ToString(o, CultureInfo.InvariantCulture), kind = o is double || o is int ? "number" : "text" }); }
+            // A variable without a title (a rotated block) gets no title cell, as Windows writes none; a null
+            // entry of a text variable is a blank cell, not a missing value.
+            var v = frame.Variables[c]; if (v.Title != null) cells.Add(new { col = c, row = 0, text = v.Title, kind = "text" });
+            for (int r = 0; r < v.Length; r++) { object o = v.DataAsObject(r); if (o is double missing && (missing == Constant.MISSING || !double.IsFinite(missing))) continue; if (o == null) { cells.Add(new { col = c, row = r + 1, text = "", kind = "text" }); continue; } cells.Add(new { col = c, row = r + 1, text = Convert.ToString(o, CultureInfo.InvariantCulture), kind = o is double || o is int ? "number" : "text" }); }
         }
-        return new { name = frame.Name ?? "Analysis data", rows = frame.MaxRows + 1, columns = frame.VariableCount, cells, headerRow = true, hidden = false };
+        return new { name = frame.Name ?? "Analysis data", rows = frame.MaxRows + 1, columns = frame.VariableCount, cells, headerRow = true, hidden = false, lengths = frame.Variables.Select(v => v.Length).ToArray(), placement, keepSelection, missingIndicator, formulae };
     }
 }

@@ -62,7 +62,7 @@ export function checkColumnData(data) {
 // and of formula cells whose saved result is missing or out of date.
 // A request made from metadata names its sheet; the values come from that sheet, whichever
 // sheet the grid is showing now, and a sheet that is gone or renamed is refused.
-function requestedSheet(workbook, sheetIndex, request) {
+export function requestedSheet(workbook, sheetIndex, request) {
   const index = Number.isInteger(request?.sheet) ? request.sheet : sheetIndex;
   const sheet = workbook.sheets[index];
   if (!sheet || (typeof request?.sheetName === 'string' && sheet.name !== request.sheetName)) throw new Error('That worksheet is no longer available. Refresh the worksheet.');

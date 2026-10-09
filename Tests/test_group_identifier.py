@@ -24,7 +24,7 @@ def same_numbers(a, b, what):
 def local(tag): return tag.split('}')[-1]
 askers = [Path(f).stem for f in glob.glob(str(ROOT/'FullEngine/Upstream/StatsDirectUI/Assets/Operations/*.xml'))
           if any(local(e.tag) == 'ask-for-group-id' and (e.text or '').strip() == 'true' for e in ET.parse(f).getroot().iter())]
-assert len(askers) == 40, len(askers)
+assert len(askers) == 36, len(askers)  # 40 until 2026-10-08: Frequency and BarPlotFrequency lost the flag upstream and GroupedOneWay and GroupedTwoWay were retired
 
 s = Session()
 try:

@@ -19,11 +19,12 @@ while frontier:
         if s in definitions and s not in reachable: reachable.add(s); frontier.append(s)
 follow_on_only = sorted(o for o in reachable if o not in menu)
 unreachable = sorted(set(definitions) - reachable)
-assert len(definitions) == 284 and len(menu) == 208 and len(follow_on_only) == 67, (len(definitions), len(menu), len(follow_on_only))
-# Neither a menu command nor a suggestion of any operation: grouped variants, worksheet import/export
-# commands and plots the Windows menu reaches by other means. Recorded, not hidden.
-assert unreachable == ['ExploreContinuousDistributions', 'ExportWorksheet', 'GroupedOneWay', 'GroupedTwoWay', 'ImportWorksheet', 'SortByExpression', 'StackedBar100PercentPlot', 'StackedBarPlot', 'TransformZECDF'], unreachable
-print('PASS: 275 of 284 engine operations are reachable: 208 from the menu and 67 as follow-ons; the 9 others are listed')
+assert len(definitions) == 277 and len(menu) == 208 and len(follow_on_only) == 67, (len(definitions), len(menu), len(follow_on_only))
+# Neither a menu command nor a suggestion of any operation: the worksheet import and export commands,
+# which the Windows worksheet window reaches by other means. The seven operations that no menu reached
+# and no help topic described were retired upstream on 2026-10-08. Recorded, not hidden.
+assert unreachable == ['ExportWorksheet', 'ImportWorksheet'], unreachable
+print('PASS: 275 of 277 engine operations are reachable: 208 from the menu and 67 as follow-ons; the 2 others are listed')
 
 s = Session()
 def complete(operation, answers, parent=None):

@@ -179,7 +179,7 @@ internal sealed class OperationJob {
     }
     void RunWithEngine() {
         try {
-            Check();
+            Check(); StatsDirect.R.ReportFragments.Clear();
             var host = new OperationHost(this);
             StatsDirect.UI.OperationHacks.Information = text => host.Warning(text,"Search results");
             // The Windows basic-search command only sends Ctrl+H to its shell. Use
@@ -205,7 +205,7 @@ internal sealed class OperationJob {
             }
         } catch (Exception ex) {
             lock (sync) { state = Cancelled || ex is OperationCanceledException ? "cancelled" : "failed"; error = state == "failed" ? ex.Message : null; Finished = true; }
-        } finally { StatsDirect.UI.OperationHacks.Information = null; lock (sync) { prompt = null; Finished = true; Monitor.PulseAll(sync); } }
+        } finally { StatsDirect.UI.OperationHacks.Information = null; StatsDirect.R.RController.Abandon(); lock (sync) { prompt = null; Finished = true; Monitor.PulseAll(sync); } }
     }
 }
 
@@ -256,9 +256,16 @@ internal sealed class OperationHost : ITemplateHost {
             } catch (ArgumentException ex) { error=ex.Message; }
         }
     }
+    // An acquire-if-true that names a parameter the definition never asked for (LOESS asks for its confidence level
+    // "if plotFitsAndCi", a prompt only shown for one predictor) counts as false. Windows stops the operation with
+    // "Cannot find parameter"; the definition is to be corrected upstream, and its R script already allows for the gap.
+    static bool Acquire(Parameter p, ITemplateProcessor processor, ParameterBag context) {
+        try { return p.AcquireIfTrue(processor, context); }
+        catch (ArgumentException ex) when (p.HasAcquireIfTrue && ex.Message.StartsWith("Cannot find parameter")) { return false; }
+    }
     public ParameterBag FillParameter(ITemplateProcessor processor, Parameter p, ParameterBag context, bool shouldCombine) {
         job.Check();
-        if (!p.AcquireIfTrue(processor, context)) return new ParameterBag();
+        if (!Acquire(p, processor, context)) return new ParameterBag();
         if (shouldCombine && CanCombine(p)) { settingsParameters.Add(p); return new ParameterBag(); }
         // Basic search is exact whole-cell replacement. Advanced search retains
         // its numeric comparisons, expressions and row/cell deletion choices.
@@ -345,7 +352,7 @@ internal sealed class OperationHost : ITemplateHost {
     public ParameterBag Amend(IFillable options, ParameterBag context) => HostAmendments.Amend(job, this, options, context);
     public void Error(string message, string caption) { job.Check(); throw new InvalidOperationException(caption + ": " + message); }
     public void Warning(string message, string caption) { Html.Append("<p class='note'>").Append(System.Net.WebUtility.HtmlEncode(caption + ": " + message)).Append("</p>"); }
-    public object OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation) { job.Check(); Html.Append(new HtmlRenderer(this).Render(renderable)); return null; }
+    public object OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation) { job.Check(); Html.Append(StatsDirect.R.ReportFragments.Resolve(new HtmlRenderer(this).Render(renderable))); return null; }
     public void OutputFrame(DataFrame frame, bool keepSelection, bool isFormulae, string missingIndicator, PaneAndPosition preferredOutputLocation, RelativePosition defaultPosition) {
         job.Check(); Frames.Add(HostParameters.FrameOutput(frame, isFormulae, defaultPosition.ToString(), keepSelection, missingIndicator ?? Formatting.ASTERISK));
     }

@@ -29,6 +29,31 @@ import PDFKit
             let body="<section class='engine-report'>"+(result["html"] as! String)+"</section>"+v.reportLinks(plan,helpPath:v.analysisCatalog[operation]?["help"] as? String,resultID:entryID)
             v.appendReport(ReportEntry(id:entryID,title:operation,operation:operation,body:body,rPlan:plan))
         }
+        // LOESS runs its script through R, and its chart is the PNG R drew: it must reach the pane and every export like the engine's SVG charts.
+        do {
+            func check(_ ok:Bool,_ message:String) throws { if !ok { throw NSError(domain:"ReportExportTests",code:1,userInfo:[NSLocalizedDescriptionKey:message]) } }
+            let y=[12,13,11,15,14,13,12,16,15,14,13,12,11,11,13,14], x=[90,85,60,95,80,70,65,99,92,88,75,55,50,48,77,83]
+            func frame(_ title:String,_ values:[Int]) -> [String:Any] { ["source":"Export test","columns":[["title":title,"values":values]]] }
+            func request(_ body:[String:Any]) async throws -> [String:Any] { try await withCheckedThrowingContinuation { c in v.analysisRequest(body,entry:"statsdirect_operation"){c.resume(with:$0)} } }
+            let id=UUID().uuidString
+            var output=try await request(["action":"start","id":id,"operation":"LOESS"])
+            let deadline=Date().addingTimeInterval(60)
+            while Date()<deadline, !["complete","failed","cancelled"].contains(output["state"] as? String ?? "") {
+                if output["state"] as? String=="input", let prompt=output["prompt"] as? [String:Any], let token=output["token"] {
+                    try check((prompt["error"] as? String ?? "").isEmpty,"LOESS prompt error: \(prompt)")
+                    let name=prompt["name"] as? String ?? "", kind=prompt["kind"] as? String ?? ""
+                    let value:Any = name=="outcome" ? frame("Hgb",y) : name=="predictors" ? frame("eGFR",x) : name=="saveRScript" ? true
+                        : kind=="boolean" ? (prompt["defaultValue"] as? Bool ?? false) : kind=="option" ? ((prompt["options"] as? [[String:Any]])?.first?["value"] ?? "") : (prompt["defaultValue"] ?? "")
+                    output=try await request(["action":"answer","id":id,"token":token,"value":value])
+                } else { try await Task.sleep(nanoseconds:50_000_000); output=try await request(["action":"poll","id":id]) }
+            }
+            _=try? await request(["action":"release","id":id])
+            try check(output["state"] as? String=="complete","LOESS did not complete: \(output["error"] ?? "")")
+            let html=output["html"] as? String ?? ""
+            try check(html.contains("<img class=\"r-chart\"") && html.contains("data:image/png;base64,") && html.contains("<pre class=\"r-script\">") && html.contains("Residual Standard Error"),"LOESS report lacks R's chart or script")
+            v.appendReport(ReportEntry(id:UUID().uuidString,title:"LOESS",operation:"LOESS",body:"<section class='engine-report'>"+html+"</section>",rPlan:nil))
+            print("PASS: LOESS through R: the report carries R's PNG chart and the script");fflush(stdout)
+        }
         let rows=(1...65).map{"<tr><td>Observation \($0)</td><td>\($0).25</td><td>-2.5</td><td>1.2e-7</td></tr>"}.joined()
         v.appendReport(ReportEntry(id:UUID().uuidString,title:"Export table checks",operation:"",body:"<h1>Export table checks</h1><table><thead><tr><th rowspan='2'>Measurement</th><th colspan='3'>Results</th></tr><tr><th>Estimate</th><th>Difference</th><th>P value</th></tr></thead><tbody>\(rows)</tbody></table><p><strong>All report entries included</strong> — α = 0.05, 95% CI, χ<sup>2</sup> and CO<sub>2</sub>.</p>",rPlan:nil))
         let report=v.active!
@@ -40,8 +65,9 @@ import PDFKit
                 let html=String(decoding:data,as:UTF8.self)
                 precondition(html.contains("56.111111")&&html.contains("8.64")&&html.contains("Observation 65"))
                 precondition(html.contains("<svg")&&html.contains("https://www.statsdirect.com/help/"))
+                precondition(html.contains("class=\"r-chart\"")&&html.contains("data:image/png;base64,")&&html.contains("Residual Standard Error"))
                 precondition(!html.contains("onclick=") && !html.contains("statsDirectReport.postMessage") && !html.contains("file:///"))
-                print("PASS: HTML contains every result, inline vector chart and portable help links; no app handlers or file paths")
+                print("PASS: HTML contains every result, inline vector chart, R's PNG chart and portable help links; no app handlers or file paths")
             }
             if format == .pdf {
                 let pdf=PDFDocument(data:data)!,text=pdf.string ?? ""

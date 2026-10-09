@@ -19,10 +19,9 @@ menu = json.loads((ROOT / 'Content/analysis-menu.json').read_text())['operations
 excluded = {
     'ImportWorksheet': 'Native workbook/file host; covered by the separate file integration suites.',
     'ExportWorksheet': 'Native workbook/file host; covered by the separate file integration suites.',
-    'LOESS': 'Existing explicit R deferral; no Mac calculation form.',
     'MethodComparisonRegression': 'Existing explicit R deferral; no Mac calculation form.',
 }
-assert {op for op, definition in menu.items() if definition.get('unavailable')} == {'LOESS', 'MethodComparisonRegression'}
+assert {op for op, definition in menu.items() if definition.get('unavailable')} == {'MethodComparisonRegression'}
 assert set(excluded) <= operations
 expected = operations - set(excluded)
 completed = {}

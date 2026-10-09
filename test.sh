@@ -7,7 +7,7 @@ clang++ -std=c++17 -arch arm64 Tests/bridge-driver.cpp -o Tests/bridge-driver
 clang++ -std=c++17 -arch arm64 Tests/operation-driver.cpp -o Tests/operation-driver
 bash Scripts/test-form-descriptors.sh
 export STATSDIRECT_FORM_TRACE="$(mktemp -d "$PWD/.build/form-trace.XXXXXX")"
-for test in engine agreement menu data_graphics sessions analysis_defaults form_contracts form_branches form_follow_ons upstream_update distribution_update core_5_0_13 core_2026_09_30 distribution_menu beta_feedback follow_on group_identifier write_back help_examples help_regression_r charts; do
+for test in engine agreement menu data_graphics sessions analysis_defaults form_contracts form_branches form_follow_ons upstream_update distribution_update core_5_0_13 core_2026_09_30 distribution_menu beta_feedback follow_on group_identifier write_back help_examples help_regression_r r_operations charts; do
   python3 "Tests/test_${test}.py"
 done
 python3 Tests/test_form_coverage.py

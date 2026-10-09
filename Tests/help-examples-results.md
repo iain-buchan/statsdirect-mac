@@ -41,7 +41,7 @@ Worked help examples using the test workbook, run through the Mac engine host wi
 | nonparametric_methods/gini.htm | Gini | matched | 13/13 figures found |
 | nonparametric_methods/kendall_correlation.htm | Kendall | matched | 16/16 figures found |
 | nonparametric_methods/kruskal_wallis.htm | Kruskal | matched | 46/46 figures found |
-| nonparametric_methods/loess.htm | LOESS | deferred | R-based menu host is not enabled; use an R session. |
+| nonparametric_methods/loess.htm | LOESS | matched | 3/3 figures found |
 | nonparametric_methods/mann_whitney.htm | MannWhitney | matched | 13/13 figures found |
 | nonparametric_methods/nonparametric_regression.htm | NonparametricLinearRegression | matched | 6/6 figures found |
 | nonparametric_methods/quantile_ci.htm | Quantile | matched | 5/5 figures found |

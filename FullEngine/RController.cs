@@ -1,174 +1,163 @@
 using Antlr4.Runtime;
-using Microsoft.Win32;
-using StatsDirect.Configuration;
 using StatsDirect.Templates;
-using StatsDirect.UI;
-using StatsDirect.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace StatsDirect.R
 {
+    /// <summary>
+    /// The Mac host of the engine's R script steps. LOESS curve fitting and method comparison regression define their
+    /// calculation as &lt;script language="R"&gt;: the engine's ScriptEngine.RunR writes the parameters as R variables,
+    /// starts R through this class, waits for it (killing it if the user cancels) and reads the results back. Windows finds
+    /// R in the registry, runs Rscript.exe in My Documents\StatsDirect\R and takes each chart back as a metafile. Here
+    /// Rscript is found where the CRAN installer, Homebrew or the user put it; every run has its own folder under
+    /// Application Support, beside the shell's R sessions, so nothing is shared between runs; the script's Windows metafile
+    /// device is shimmed to R's quartz PNG device, which needs no XQuartz; and the chart and the script reach the HTML
+    /// report as fragments (see ReportFragments). Packages a script installs go to one shared library folder.
+    /// </summary>
     public static class RController
     {
-        const string RSCRIPT_EXE_NAME = "Rscript.exe";
         const string RSCRIPT_NAME = "script.r";
         const string RESULTS_FILE_NAME = "results.txt";
         const string ERROR_FILE_NAME = "error.txt";
-        const string SCRIPT_HEAD = "userdir<-\"{0}\"\r\nlibdir<-\"Lib\"\r\nrlib=file.path(userdir, libdir)\r\ndir.create(rlib,recursive=T,showWarnings=F)\r\nsetwd(file.path(userdir))\r\n.libPaths(c(rlib, .libPaths()))";
-        const string STATSDIRECT_HEAD = "zz <- file(\"{0}\", open = \"wt\")\r\nsink(zz, type = \"message\")\r\nreturning.to.statsdirect <- TRUE";
-        /// <summary>
-        /// Checks whether R is installed and, if so, what versions.
-        /// </summary>
-        public static List<RVersion> CheckR()
+        public const string NotInstalledMessage = "R is not installed. Choose R ▸ Install R… from the menu bar, or install R from cran.r-project.org, then run this analysis again.";
+        static readonly string[] Candidates = { "/Library/Frameworks/R.framework/Resources/bin/Rscript", "/opt/homebrew/bin/Rscript", "/usr/local/bin/Rscript" };
+
+        /// <summary>Where runs and the package library live. STATSDIRECT_R_FOLDER overrides it (tests use a temporary folder).</summary>
+        public static string SupportFolder
         {
-            string[] rLocations = { @"Software\R-core\R", @"Software\R-core\R64" };
-            List<RVersion> installedVersions = new();
-            try
+            get
             {
-                using RegistryKey hklm = Registry.LocalMachine;
-                foreach (string rLocation in rLocations)
-                {
-                    using RegistryKey rKey = hklm.OpenSubKey(rLocation);
-                    foreach (string version32 in rKey.GetSubKeyNames())
-                    {
-                        using RegistryKey versionKey = rKey.OpenSubKey(version32);
-                        object installPathObject = versionKey.GetValue("InstallPath");
-                        if (null != installPathObject)
-                        {
-                            bool isX64 = rLocation.EndsWith("64");
-                            string installPath = (string)installPathObject;
-                            RVersion version = new() { IsX64 = isX64, VersionString = version32, InstallPath = installPath };
-                            // Probe for a binary there to check it's still around and hasn't been uninstalled/deleted
-                            string binaryPath = Path.Combine(version.BinPath, "Rscript.exe");
-                            if (File.Exists(binaryPath))
-                                installedVersions.Add(version);
-                        }
-                    }
-                }
+                string folder = Environment.GetEnvironmentVariable("STATSDIRECT_R_FOLDER");
+                return string.IsNullOrEmpty(folder) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support", "StatsDirect Viewer") : folder;
             }
-            catch (Exception)
-            {
-                // Return whatever we have
-            }
-            return installedVersions;
         }
+        public static string RunsFolder => Path.Combine(SupportFolder, "R Operations");
+        public static string LibraryFolder => Path.Combine(SupportFolder, "R Library");
+
+        sealed class Run
+        {
+            public string Folder;
+            public Process Process;
+            public readonly StringBuilder Stderr = new();
+        }
+        // ScriptEngine.RunR starts R, waits and reads the results on the thread that runs the operation.
+        [ThreadStatic] static Run current;
 
         /// <summary>
-        /// Rules: Prefer highest version, then highest bitness
+        /// Rscript: STATSDIRECT_RSCRIPT if it is set (a path that does not exist means "not installed", which tests use), then
+        /// the CRAN framework, Homebrew and /usr/local, then PATH. Null when R is not installed.
         /// </summary>
-        /// <returns></returns>
-        public static RVersion PreferredRVersion()
+        public static string FindRscript()
         {
-            ICollection<RVersion> candidates = CheckR();
-            RVersion preferred = null;
-            foreach (RVersion candidate in candidates)
-                if (candidate.CompareTo(preferred) > 0)
-                    preferred = candidate;
-            return preferred;
+            string env = Environment.GetEnvironmentVariable("STATSDIRECT_RSCRIPT");
+            if (!string.IsNullOrEmpty(env))
+                return File.Exists(env) ? env : null;
+            foreach (string candidate in Candidates)
+                if (File.Exists(candidate))
+                    return candidate;
+            foreach (string dir in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(':'))
+            {
+                if (dir.Length == 0)
+                    continue;
+                string candidate = Path.Combine(dir, "Rscript");
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+            return null;
         }
 
-        /// <param name="scriptBody"></param>
-        /// <param name="rtfScriptBody">A version of the script body that contains everything necessary to run the script, suitable for emitting into an RTF report window.</param>
-        /// <param name="host"></param>
-        /// <returns> <code>true</code> if the script appears to have been run successfully, <code>false</code> otherwise.</returns>
+        public static bool IsInstalled => FindRscript() != null;
+
+        // The Windows metafile device, as R's PNG device: 144 dots per inch, so the report shows it at half size on a Retina display.
+        const string GraphicsShim = @"# StatsDirect for Mac: the chart goes into the report as a PNG drawn by R's quartz device
+win.metafile <- function(filename = """", width = 7, height = 7, ...) {
+  png <- sub(""\\.wmf$"", "".png"", filename, ignore.case = TRUE)
+  tryCatch(grDevices::png(png, width = width, height = height, units = ""in"", res = 144, type = ""quartz""),
+           error = function(e) grDevices::png(png, width = width, height = height, units = ""in"", res = 144))
+}";
+
+        // A parameter whose value R cannot take (a list, for instance) is written by RConvert as a name with nothing after
+        // the arrow, which would stop R before the script ran. Windows passes the same bag; leave such lines out.
+        static readonly Regex Unconvertible = new(@"^[A-Za-z._][A-Za-z0-9._]* <- *$", RegexOptions.Multiline);
+
+        /// <param name="host">Unused here (Windows shows its install dialog over the host window).</param>
+        /// <param name="scriptBody">The operation's script, after the parameters written as R variables.</param>
+        /// <param name="rtfScriptBody">What the report shows under "R script to reproduce this result": here a report fragment token, not RTF.</param>
         public static Process RunScriptAndQuit(ITemplateHost host, string scriptBody, out string rtfScriptBody)
         {
-            string rFolder = SDConfiguration.MyStatsDirectRFolder;
-            // Just in case this is the first time the user has run an R script.  TODO: Is there a more sensible place for this?
-            if (!Directory.Exists(rFolder))
-                Directory.CreateDirectory(rFolder);
-            string scriptPath = Path.Combine(rFolder, RSCRIPT_NAME);
-
-            // We get a right mix of terminations at this point; we need Windows newlines in order to match the rest of the file format and meet the requirement to be openable in Notepad.
-            string repairedScriptBody = scriptBody
-                .Replace("\r", string.Empty)
-                .Replace("\n", "\r\n");
-            rtfScriptBody = (string.Format(SCRIPT_HEAD, rFolder.Replace(@"\", @"\\")) + "\r\n" + repairedScriptBody)
-                .Replace(@"\", @"\\")
-                .Replace("{", @"\{")
-                .Replace("}", @"\}")
-                .Replace("\n", "\n\\par ");
-
-            using (TextWriter tw = new StreamWriter(scriptPath, false, new UTF8Encoding(false)))
+            string rscript = FindRscript() ?? throw new InvalidOperationException(NotInstalledMessage);
+            Directory.CreateDirectory(LibraryFolder);
+            Prune();
+            var run = new Run { Folder = Path.Combine(RunsFolder, Guid.NewGuid().ToString("N")) };
+            Directory.CreateDirectory(run.Folder);
+            current = run;
+            string body = Unconvertible.Replace(scriptBody.Replace("\r\n", "\n").Replace('\r', '\n'), "# (a parameter that R cannot take was left out)");
+            string head = "userdir <- " + RQuote(run.Folder) + "\nrlib <- " + RQuote(LibraryFolder)
+                + "\ndir.create(rlib, recursive = TRUE, showWarnings = FALSE)\nsetwd(userdir)\n.libPaths(c(rlib, .libPaths()))";
+            // The script the report shows can be run again as it is: without the shim and the message sink, which are this host's.
+            rtfScriptBody = ReportFragments.Script(head + "\n" + body);
+            string script = head + "\n" + GraphicsShim + "\nzz <- file(" + RQuote(ERROR_FILE_NAME) + ", open = \"wt\")\nsink(zz, type = \"message\")\nreturning.to.statsdirect <- TRUE\n" + body + "\nquit()\n";
+            string scriptPath = Path.Combine(run.Folder, RSCRIPT_NAME);
+            File.WriteAllText(scriptPath, script, new UTF8Encoding(false));
+            var startInfo = new ProcessStartInfo
             {
-                tw.Write(SCRIPT_HEAD, rFolder.Replace(@"\", @"\\"));
-                tw.WriteLine();
-                tw.Write(STATSDIRECT_HEAD, ERROR_FILE_NAME);
-                tw.WriteLine();
-                tw.WriteLine(repairedScriptBody);
-                tw.WriteLine("quit()");
-            }
-
-            string errorFilePath = Path.Combine(rFolder, ERROR_FILE_NAME);
-            if (File.Exists(errorFilePath))
-                File.Delete(errorFilePath);
-
-            // TODO: Probably don't do this per-script in the future.
-            RVersion preferredVersion = PreferredRVersion();
-            while (null == preferredVersion)
-            {
-                if (!UserMightHaveInstalledR())
-                    throw new TemplateOperationCancelledException();
-                preferredVersion = PreferredRVersion();
-            }
-
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = Path.Combine(preferredVersion.BinPath, RSCRIPT_EXE_NAME),
-                WorkingDirectory = rFolder,
-                Arguments = $"--vanilla --encoding=UTF-8 \"{scriptPath}\"",
+                FileName = rscript,
+                WorkingDirectory = run.Folder,
+                UseShellExecute = false,
                 CreateNoWindow = true,
-                UseShellExecute = false
+                RedirectStandardError = true,
+                RedirectStandardOutput = true
             };
-
-            //  Rscript.exe is not DPI-aware, so on a scaled display Windows tells it the screen is 96 dpi while the metafile it records is framed against the
-            //  display's true resolution: at 225% R draws its chart into the top left 40% of the picture and leaves the rest blank.  This compatibility layer
-            //  makes Windows give R the real figures, so the drawing fills its frame.  Any layers already set for this process are kept.
-            const string compatLayerVariable = "__COMPAT_LAYER";
-            const string highDpiAwareLayer = "HighDpiAware";
-            //  (TryGetValue, because the indexer throws when the variable is not set, which is the normal case.)
-            startInfo.Environment.TryGetValue(compatLayerVariable, out string existingLayers);
-            if (string.IsNullOrWhiteSpace(existingLayers))
-                startInfo.Environment[compatLayerVariable] = highDpiAwareLayer;
-            else if (existingLayers.IndexOf(highDpiAwareLayer, StringComparison.OrdinalIgnoreCase) < 0)
-                startInfo.Environment[compatLayerVariable] = existingLayers + " " + highDpiAwareLayer;
-
-            return Process.Start(startInfo);
+            startInfo.ArgumentList.Add("--vanilla");
+            startInfo.ArgumentList.Add("--encoding=UTF-8");
+            startInfo.ArgumentList.Add(scriptPath);
+            var process = Process.Start(startInfo);
+            run.Process = process;
+            // R's own messages before the sink starts (a syntax error, a missing package) come on stderr; what the script prints is not needed.
+            process.ErrorDataReceived += (_, e) => { if (e.Data != null) lock (run.Stderr) run.Stderr.AppendLine(e.Data); };
+            process.OutputDataReceived += (_, _) => { };
+            process.BeginErrorReadLine();
+            process.BeginOutputReadLine();
+            return process;
         }
 
-        /// <summary>
-        /// If necessary, prompt the user to install R.  Return true if we think the user might have installed R successfully, or false if there's no chance (for example, the user's told us that they're not going to)
-        /// </summary>
-        /// <returns></returns>
+        /// <summary>Windows asks the user to install R here. The Mac shell installs R from its own menu, so the operation stops with that advice.</summary>
         public static bool UserMightHaveInstalledR()
         {
-            throw new PlatformNotSupportedException("R installation must be configured by the Mac host.");
+            throw new InvalidOperationException(NotInstalledMessage);
         }
 
         internal static ParameterBag FilesToParameterBag()
         {
-            string rFolder = SDConfiguration.MyStatsDirectRFolder;
-            string resultsPath = Path.Combine(rFolder, RESULTS_FILE_NAME);
-            using Stream s = File.OpenRead(resultsPath);
-            AntlrInputStream input = new(s);
-            RResultsLexer lexer = new(input);
-            CommonTokenStream tokenStream = new(lexer);
-            RResultsParser parser = new(tokenStream);
-            RResultsParser.CompileUnitContext retval = parser.compileUnit();
-            if (parser.NumberOfSyntaxErrors > 0)
+            Run run = current ?? throw new InvalidOperationException("No R script has been run on this thread.");
+            try
             {
-                throw new Exception("Couldn't parse file: " + parser.NumberOfSyntaxErrors + " error(s)");
+                run.Process?.WaitForExit();
+                string resultsPath = Path.Combine(run.Folder, RESULTS_FILE_NAME);
+                if (!File.Exists(resultsPath))
+                    throw new InvalidOperationException("R finished without writing its results.");
+                using Stream s = File.OpenRead(resultsPath);
+                AntlrInputStream input = new(s);
+                RResultsLexer lexer = new(input);
+                CommonTokenStream tokenStream = new(lexer);
+                RResultsParser parser = new(tokenStream);
+                RResultsParser.CompileUnitContext retval = parser.compileUnit();
+                if (parser.NumberOfSyntaxErrors > 0)
+                    throw new InvalidOperationException("The results R wrote could not be read: " + parser.NumberOfSyntaxErrors + " error(s)");
+                // The parser seems to dislike recognising EOF (for some reason - TODO: find out why) so instead test that we're at EOF at the end of the parse
+                if (!"<EOF>".Equals(parser.CurrentToken.Text))
+                    throw new InvalidOperationException("The results R wrote could not be read near \"" + parser.CurrentToken.Text + "\"");
+                return DictionaryToParameterBag(retval.Values);
             }
-            // The parser seems to dislike recognising EOF (for some reason - TODO: find out why) so instead test that we're at EOF at the end of the parse
-            if (!"<EOF>".Equals(parser.CurrentToken.Text))
-                throw new Exception("Couldn't parse file: syntax error near \"" + parser.CurrentToken.Text + "\"");
-            //if (null == retval || null == retval.builtExpression)
-            //    throw new Exception("Syntax error");
-            return DictionaryToParameterBag(retval.Values);
+            finally
+            {
+                Finish(run);
+            }
         }
 
         /// <summary>
@@ -227,11 +216,8 @@ namespace StatsDirect.R
             foreach (KeyValuePair<string, object> pair in dictionary)
             {
                 ParameterBag thisBag = GetBag(pair.Key, outputParameters, out string leafName);
-                if (pair.Value is TitleAndValue)
-                {
-                    TitleAndValue tv = (TitleAndValue)pair.Value;
+                if (pair.Value is TitleAndValue tv)
                     thisBag.AddOutput(leafName, RConvert.ToFrame(leafName, tv.Title, (List<object>)tv.Value));
-                }
                 else
                     thisBag.AddOutput(leafName, pair.Value);
             }
@@ -239,18 +225,68 @@ namespace StatsDirect.R
         }
 
         /// <summary>
-        /// Returns the most recent error text from R.
+        /// Why R stopped: what it wrote to its message sink (the error, after any warnings), or what it printed on stderr before
+        /// the sink started. Null when nothing was recorded.
         /// </summary>
-        /// <returns>The most recent error text, or null if no error text could be retrieved</returns>
         public static string GetErrorText()
         {
-            string rFolder = SDConfiguration.MyStatsDirectRFolder;
-            string errorFilePath = Path.Combine(rFolder, ERROR_FILE_NAME);
-            if (!File.Exists(errorFilePath))
+            Run run = current;
+            if (run == null)
                 return null;
-
-            using TextReader tr = new StreamReader(errorFilePath);
-            return tr.ReadToEnd().Replace("\r", string.Empty);
+            try
+            {
+                run.Process?.WaitForExit();
+                string text = null;
+                string errorPath = Path.Combine(run.Folder, ERROR_FILE_NAME);
+                if (File.Exists(errorPath))
+                    text = File.ReadAllText(errorPath);
+                if (string.IsNullOrWhiteSpace(text))
+                    lock (run.Stderr) text = run.Stderr.ToString();
+                text = (text ?? string.Empty).Replace("\r", string.Empty).Replace("Execution halted", string.Empty).Trim();
+                return text.Length == 0 ? null : "R reported: " + text;
+            }
+            finally
+            {
+                Finish(run);
+            }
         }
+
+        /// <summary>
+        /// Called by the host when an operation ends. A run that was cancelled (ScriptEngine.RunR kills R and throws without
+        /// reading anything back) or that failed before its results were read is stopped and its folder removed.
+        /// </summary>
+        public static void Abandon()
+        {
+            Run run = current;
+            if (run == null)
+                return;
+            try { if (run.Process != null && !run.Process.HasExited) run.Process.Kill(true); } catch (Exception) { }
+            Finish(run);
+        }
+
+        static void Finish(Run run)
+        {
+            if (ReferenceEquals(current, run))
+                current = null;
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("STATSDIRECT_R_KEEP")))
+                return;
+            try { Directory.Delete(run.Folder, true); } catch (Exception) { }
+        }
+
+        // Runs that a crash or a force-quit left behind.
+        static void Prune()
+        {
+            try
+            {
+                if (!Directory.Exists(RunsFolder))
+                    return;
+                foreach (string folder in Directory.GetDirectories(RunsFolder))
+                    if (Directory.GetLastWriteTimeUtc(folder) < DateTime.UtcNow.AddDays(-1))
+                        try { Directory.Delete(folder, true); } catch (Exception) { }
+            }
+            catch (Exception) { }
+        }
+
+        static string RQuote(string unquoted) => "\"" + unquoted.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
     }
 }

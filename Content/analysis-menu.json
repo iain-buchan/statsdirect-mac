@@ -2680,7 +2680,6 @@
       "id": "LOESS",
       "title": "LOESS curve fitting",
       "help": "Help/nonparametric_methods/loess.htm",
-      "unavailable": "This R-based method is not enabled in the Mac prototype yet. Method help and R \u2192 New R Session are available.",
       "instant": false
     },
     "Cuzick": {

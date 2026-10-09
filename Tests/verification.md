@@ -1,3 +1,7 @@
+# LOESS curve fitting through R on the Mac — 9 October 2026
+
+The engine's R script steps now run on the Mac: `FullEngine/RController.cs` finds Rscript, runs each operation's script in its own folder under Application Support, shims the Windows metafile device to R's quartz PNG device and returns the chart and the script to the HTML report as fragments (`ReportFragments.cs`). LOESS curve fitting is enabled in the analysis menu; method comparison regression stays deferred until its `mcr` package path is verified. `Tests/test_r_operations.py` (in `test.sh`) checks the help example's four printed figures and the fits and standard errors written back against R called directly on the same data, rows with missing values, two predictors, an error inside R, R not installed and cancelling while R runs. The help replay baseline includes the LOESS page; the menu test counts 207 input hosts and one R deferral.
+
 # Advanced Excel structural edits — 9 October 2026
 
 See [0.3.24 validation](../Docs/Validation/Beta-0.3.24/README.md) for feature coverage, Excel checks and the remaining genuine structural constraints. This replaces the earlier blanket exclusions for tables, merges, pivots, slicers, controls and worksheet extensions.

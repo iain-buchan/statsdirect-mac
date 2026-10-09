@@ -153,6 +153,7 @@ OVERRIDES = {
     'nonparametric_methods/gini.htm': {'answers': {'boots': 2000, 'seed': 2001}},
     'nonparametric_methods/quantile_ci.htm': {'answers': {'gamma':90,'quantile':0.75,'conservative-ci':False}},
     'nonparametric_methods/quantile_ci.htm#conservative': {'answers': {'gamma':90,'quantile':0.75,'conservative-ci':True}},
+    'nonparametric_methods/loess.htm': {'answers': {'plotFitsAndCi': True}},   # the page says to check the box for the plot
 }
 
 def documented_inputs(page, session=None):
@@ -230,7 +231,7 @@ def run_example(s, example, operation, booleans=False, strategy='role', choice=0
     if override.get('columns'): example = dict(example, columns=override['columns'], instructions=example['instructions'] + ' ' + ' '.join(f'"{c}"' for c in override['columns']))
     named = expand_columns(example)
     if not named and not explicit: return {'status': 'no columns', 'detail': 'none of the quoted names is a column of the test workbook'}
-    if operation == 'LOESS': return {'status': 'deferred', 'detail': 'R-based menu host is not enabled; use an R session.'}
+    if operation == 'MethodComparisonRegression': return {'status': 'deferred', 'detail': 'R-based menu host is not enabled; use an R session.'}
     id, st = s.start(operation); prompts = []; pending = list(named); groupwise = len(named) > len(example['columns'])
     try:
         for _ in range(60):
@@ -336,6 +337,7 @@ def run_example(s, example, operation, booleans=False, strategy='role', choice=0
 # does it. `python3 Tests/test_help_examples.py` checks these (test.sh); `--report` surveys every page
 # and rewrites Tests/help-examples-results.md.
 BASELINE = [
+    ('nonparametric_methods/loess.htm', 'LOESS', False),
     ('nonparametric_methods/quantile_ci.htm', 'Quantile', False),
     ('nonparametric_methods/quantile_ci.htm#conservative', 'Quantile', True),
     ('analysis_of_variance/crossover.htm', 'Crossover', False),

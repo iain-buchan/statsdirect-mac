@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
+source Scripts/native-build-flags.sh
 APP="$PWD/StatsDirect.app"
 BUILD_WORK="${STATSDIRECT_BUILD_WORK:-$PWD/.build}"
 mkdir -p "$BUILD_WORK"
@@ -25,8 +26,11 @@ if [[ ! -f FullEngine/Upstream/StatsDirectUI/UI/OperationTestHost.cs ]]; then
   git submodule update --init --recursive
 fi
 FullEngine/build.sh
+mkdir -p "$BUILD_WORK/native/$STATSDIRECT_CONFIGURATION"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
-swiftc -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/*.swift -o "$APP/Contents/MacOS/StatsDirect" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
+swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirect -emit-module-path "$BUILD_WORK/native/$STATSDIRECT_CONFIGURATION/StatsDirect.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/*.swift -o "$APP/Contents/MacOS/StatsDirect" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
+# The compiler links the dSYM while its temporary object files still exist.
+statsdirect_store_symbols "$APP/Contents/MacOS/StatsDirect.dSYM" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION/StatsDirect.app.dSYM"
 cp FullEngine/publish/StatsDirectEngine.dylib "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
 ditto FullEngine/publish "$APP/Contents/Resources/Engine"
 python3 Scripts/build-icon.py "$BUILD_WORK"
@@ -37,4 +41,5 @@ cp STATSDIRECT-LICENSE.txt STATISTICALHELP-LICENSE.txt DOTNET-LICENSE.txt DOTNET
 ditto Content "$APP/Contents/Resources/Content"
 codesign --force --sign - "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
 codesign --force --sign - "$APP"
-printf 'Built %s\n' "$APP"
+python3 Scripts/verify-symbols.py "$APP" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION"
+printf 'Built %s (%s); symbols: %s\n' "$APP" "$STATSDIRECT_CONFIGURATION" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION"

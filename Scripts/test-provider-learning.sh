@@ -3,6 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
+source Scripts/native-build-flags.sh
 BASE="${1:-$ROOT/StatsDirect.app}"
 mkdir -p .build
 TEST_WORK="$(mktemp -d "$ROOT/.build/provider-learning.XXXXXX")"
@@ -17,7 +18,7 @@ SOURCES=()
 for source in Sources/*.swift; do
   if [[ "$source" != 'Sources/main.swift' ]]; then SOURCES+=("$source"); fi
 done
-swiftc -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/provider-learning-driver.swift -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
+swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirectTest -emit-module-path "$TEST_WORK/StatsDirectTest.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/provider-learning-driver.swift -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
 cp -cR "$BASE" "$TEST_APP"
 EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$TEST_APP/Contents/Info.plist")"
 cp "$TEST_WORK/driver" "$TEST_APP/Contents/MacOS/$EXECUTABLE"

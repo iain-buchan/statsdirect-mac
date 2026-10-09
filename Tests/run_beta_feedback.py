@@ -24,7 +24,8 @@ for f in ['Resources','Frameworks']:
  p=app/'Contents'/f
  if p.is_symlink():p.unlink()
  p.symlink_to((source_app/'Contents'/f).resolve())
-cmd=['swiftc','-parse-as-library','-target','arm64-apple-macosx14.0','-module-cache-path',str(root/'.build/swift-cache')]+[str(x) for x in (root/'Sources').glob('*.swift') if x.name!='main.swift']+[str(out/'Viewer.swift'),str(root/'Tests/beta-feedback-driver.swift')]+helpers+['-o',str(app/'Contents/MacOS/FeedbackCheck'),'-framework','Cocoa','-framework','WebKit','-framework','PDFKit','-framework','Security']
+flags=subprocess.check_output(['bash',str(root/'Scripts/native-build-flags.sh'),'--swift'],text=True).splitlines()
+cmd=['swiftc',*flags,'-emit-executable','-module-name','StatsDirectFeedback','-emit-module-path',str(out/'StatsDirectFeedback.swiftmodule'),'-parse-as-library','-target','arm64-apple-macosx14.0','-module-cache-path',str(root/'.build/swift-cache')]+[str(x) for x in (root/'Sources').glob('*.swift') if x.name!='main.swift']+[str(out/'Viewer.swift'),str(root/'Tests/beta-feedback-driver.swift')]+helpers+['-o',str(app/'Contents/MacOS/FeedbackCheck'),'-framework','Cocoa','-framework','WebKit','-framework','PDFKit','-framework','Security']
 subprocess.run(cmd,cwd=root,check=True)
 print('Testing app resources and engine:',source_app,flush=True)
 subprocess.run([str(app/'Contents/MacOS/FeedbackCheck'),str(root/'.build/beta-feedback-exports')]+(['--live'] if args.live else [])+(['--groups-only'] if args.groups_only else [])+(['--privacy-only'] if args.privacy_only else [])+(['--stay-open'] if args.stay_open else []),cwd=root,check=True)

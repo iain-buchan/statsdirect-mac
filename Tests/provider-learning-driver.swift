@@ -14,9 +14,9 @@ import Cocoa
         }
         app.run()
     }
-    @MainActor static func wait(_ check: () async throws -> Bool) async throws {
-        for _ in 0..<100 { if try await check() { return }; try await Task.sleep(nanoseconds:100_000_000) }
-        throw LearningTutor.Failure(message:"Timed out waiting for the provider learning interface")
+    @MainActor static func wait(timeout: TimeInterval = 10, file: StaticString = #fileID, line: UInt = #line, _ check: () async throws -> Bool) async throws {
+        for _ in 0..<Int(timeout * 10) { if try await check() { return }; try await Task.sleep(nanoseconds:100_000_000) }
+        throw LearningTutor.Failure(message:"Timed out waiting for the native interface at \(file):\(line)")
     }
     @MainActor static func run(_ v: Viewer) async throws {
         v.openLearningOptions(); let d = v.documents.first{$0.kind == "learn"}!

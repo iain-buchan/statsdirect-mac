@@ -75,4 +75,19 @@ jobs:
       - name: Report export
         run: Scripts/test-report-export.sh
       - name: WebKit integration driver
-        run: python3 Tests/run_beta_feedback.py
+        run: |
+          set -o pipefail
+          for attempt in 1 2; do
+            log=".build/webkit-attempt-$attempt.log"
+            if python3 Tests/run_beta_feedback.py 2>&1 | tee "$log"; then
+              exit 0
+            else
+              result=$?
+            fi
+            # Retry only the observed hosted-WebKit wait timeout, never assertions,
+            # compilation errors or statistical failures. Preserve both logs.
+            if [[ "$attempt" == 2 ]] || ! grep -Fq 'FAIL: Failure(message: "Timed out waiting for the native interface at ' "$log"; then
+              exit "$result"
+            fi
+            echo '::warning::WebKit wait timed out; retrying once with a fresh test app.'
+          done

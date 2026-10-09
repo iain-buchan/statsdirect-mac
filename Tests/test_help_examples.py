@@ -4,12 +4,12 @@ and every figure the page prints is looked for in the Mac report. Writes Tests/h
 import html, re, sys, uuid
 from pathlib import Path
 import openpyxl
-from help_examples import examples, ROOT, NUMBER, QUOTED
+from help_examples import examples, ROOT, NUMBER, QUOTED, quoted_spans
 ARGS = sys.argv[1:]; sys.argv = sys.argv[:1]   # the engine driver reads its own arguments
 from test_menu import Session
 
 wb = openpyxl.load_workbook(ROOT / 'FullEngine/Upstream/StatsDirectUI/Assets/Data/test.xlsx', read_only=True, data_only=True)
-COLUMNS = {}
+COLUMNS = {}   # lower-case title -> every column of that title, one per worksheet
 for ws in wb.worksheets:
     rows = list(ws.iter_rows(values_only=True))
     if not rows: continue
@@ -17,15 +17,34 @@ for ws in wb.worksheets:
         if title is None: continue
         values = [row[c] if c < len(row) else None for row in rows[1:]]
         if None in values: values = values[:values.index(None)]   # a column's example ends at its first blank cell
-        COLUMNS.setdefault(str(title).strip().lower(), {'title': str(title).strip(), 'values': [('' if v is None else v.isoformat() if hasattr(v, 'isoformat') else v) for v in values], 'sheet': ws.title})
+        COLUMNS.setdefault(str(title).strip().lower(), []).append({'title': str(title).strip(), 'values': [('' if v is None else v.isoformat() if hasattr(v, 'isoformat') else v) for v in values], 'sheet': ws.title})
 
-def column(name):
-    """The workbook column a page names: exactly, else the one title that contains the name or is contained by it."""
+def candidates(name):
+    """The workbook columns a page's name may mean: an exact title, else the one title containing the name (the shortest) or starting it."""
     key = name.strip().lower()
     if key in COLUMNS: return COLUMNS[key]
-    if len(key) < 4: return None
-    near = [c for k, c in COLUMNS.items() if key in k or (len(k) >= 6 and key.startswith(k))]   # 'Hypertensives' names the column 'Hypertensive'
-    return near[0] if len(near) == 1 else None
+    if len(key) < 4: return []
+    near = sorted((k for k in COLUMNS if key in k or (len(k) >= 6 and key.startswith(k))), key=len)   # 'Hypertensives' names the column 'Hypertensive'
+    return COLUMNS[near[0]] if near else []
+def column(name, sheet=None, length=None):
+    """The column a page's name means: in the worksheet the page's columns share, and, where a title recurs
+    there (one worksheet holds several examples), the one whose rows match the page's other columns."""
+    found = candidates(name)
+    if sheet: found = [c for c in found if c['sheet'] == sheet] or found
+    if length is not None: found = [c for c in found if len(c['values']) == length] or found
+    return found[0] if found else None
+def common_length(names, sheet):
+    tally = {}
+    for n in names:
+        for c in candidates(n):
+            if sheet is None or c['sheet'] == sheet: tally[len(c['values'])] = tally.get(len(c['values']), 0) + 1
+    return max(tally, key=tally.get) if tally else None
+def columns_sheet(names):
+    """The worksheet holding most of the named columns, since many titles recur across worksheets."""
+    tally = {}
+    for n in names:
+        for c in candidates(n): tally[c['sheet']] = tally.get(c['sheet'], 0) + 1
+    return max(tally, key=tally.get) if tally else None
 
 def frame_answer(cols):
     return {'source': 'test.xlsx', 'columns': [{'title': c['title'], 'values': [('*' if v == '' else v) for v in c['values']]} for c in cols]}
@@ -41,17 +60,21 @@ def words(text): return {stem(w) for w in re.findall(r'[a-z]+', text.lower()) if
 def roles(example):
     """The words a page attaches to each quoted column ('"Time Surv" when asked for times'), for matching prompts."""
     text = example['instructions']; out = []
-    for m in QUOTED.finditer(text):
-        after = text[m.end():m.end() + 90]; before = text[max(0, m.start() - 90):m.start()]
+    for start, end, _ in quoted_spans(text):
+        after = text[end:end + 90]; before = text[max(0, start - 90):start]
         role = re.search(r'(?:when (?:asked|prompted) for|for)\s+(?:the\s+)?([^.,;"\u201c\u201d]{1,50})', after)
         context = role.group(1) if role else ''
         mb = re.search(r'([^.,;"\u201c\u201d]{1,50})\s*$', before)
         out.append(words(context) | (words(mb.group(1)) if mb and not role else set()))
     return out
+def overlap(a, b):
+    """Words shared by two sets, a word counting when one is the other's stem or prefix (censor, censorship)."""
+    return {x for x in a if any(x == y or (len(x) >= 4 and len(y) >= 4 and (x.startswith(y) or y.startswith(x))) for y in b)}
 def pick(pending, prompt_text, take):
     """The pending columns whose role words fit the prompt best, else the first ones."""
-    scored = sorted(range(len(pending)), key=lambda i: (-len(pending[i][1] & words(prompt_text)), i))
-    chosen = scored[:take] if pending[scored[0]][1] & words(prompt_text) else list(range(take))
+    pw = words(prompt_text)
+    scored = sorted(range(len(pending)), key=lambda i: (-len(overlap(pending[i][1], pw)), i))
+    chosen = scored[:take] if overlap(pending[scored[0]][1], pw) else list(range(take))
     chosen.sort(); return [pending[i] for i in chosen], [c for i, c in enumerate(pending) if i not in chosen]
 
 def matches(expected, found):
@@ -110,21 +133,27 @@ def said_option(example, p):
             if words(str(o.get('label', '')) + ' ' + str(o.get('value', ''))) & words(sentence): return o['value']
     return None
 def expand_columns(example):
-    """The columns a page names, with '"P1L1" etc.' expanded to every workbook title of that pattern."""
+    """The columns a page names, from the worksheet most of them share, with '"P1L1" etc.' expanded to every title of that pattern."""
     out = []
-    text = example['instructions']
+    text = example['instructions']; sheet = columns_sheet(example['columns']); length = common_length(example['columns'], sheet)
     for name, role in zip(example['columns'], roles(example)):
         after = text[text.find(name) + len(name):text.find(name) + len(name) + 40] if name in text else ''
         if re.search(r'\d', name) and (re.search(r'\betc\b', after) or 'Repeat this selection' in text):
             pattern = '^' + re.sub(r'\d+', r'\\d+', re.escape(name)) + '$'
-            found = [c for k, c in COLUMNS.items() if re.match(pattern, c['title'], re.I)]
+            found = [c for k, cols in COLUMNS.items() for c in cols if re.match(pattern, c['title'], re.I) and (sheet is None or c['sheet'] == sheet)]
             out.extend((c, role) for c in found)
         else:
-            c = column(name)
-            if c: out.append((c, role))
+            c = column(name, sheet, length)
+            if c: out.append((c, role or words(c['title'])))   # with no stated role, the title's own words say which prompt it fits
     return out
 
-def run_example(s, example, operation, booleans=False, strategy='role'):
+# Pages whose instructions the harness cannot read: the columns they mean, and prompt answers they state.
+OVERRIDES = {
+    'randomization/preference_group.htm': {'columns': ['Group capacity', '1st choice', '2nd choice', '3rd choice'], 'answers': {'seed': 10}},
+}
+def run_example(s, example, operation, booleans=False, strategy='role', choice=0):
+    override = OVERRIDES.get(example['page'], {})
+    if override.get('columns'): example = dict(example, columns=override['columns'], instructions=example['instructions'] + ' ' + ' '.join(f'"{c}"' for c in override['columns']))
     named = expand_columns(example)
     if not named: return {'status': 'no columns', 'detail': 'none of the quoted names is a column of the test workbook'}
     id, st = s.start(operation); prompts = []; pending = list(named); groupwise = len(named) > len(example['columns'])
@@ -134,13 +163,16 @@ def run_example(s, example, operation, booleans=False, strategy='role'):
             p = st['prompt']; prompts.append(p.get('name') or p.get('prompt'))
             if p.get('error'): return {'status': 'refused', 'detail': f"{p.get('name') or p.get('prompt')}: {p['error']}", 'prompts': prompts}
             text = p.get('prompt') or p.get('title') or ''
-            if p['kind'] == 'grid':
+            if p.get('name') in override.get('answers', {}): value = override['answers'][p['name']]
+            elif p['kind'] == 'grid':
                 group = re.match(r'(Group|Repeat) (\d+):', text)
                 if groupwise and group:
                     # A two-dimensional frame from '"P1L1" etc.': the digit slot that counts the groups picks each group's columns.
                     k = int(group.group(2)); titles = [c['title'] for c, _ in pending]
                     slots = [sorted({re.findall(r'\d+', t)[i] for t in titles}) for i in range(len(re.findall(r'\d+', titles[0])))]
-                    slot = next((i for i, vals in enumerate(slots) if len(vals) == groups), 0) if (groups := len(slots) and max(len(v) for v in slots)) else 0
+                    before = [titles[0][:m.start()].lower() for m in re.finditer(r'\d+', titles[0])]   # the text before each digit slot
+                    slot = next((i for i, b in enumerate(before) if group.group(1) == 'Repeat' and 'rep' in b), None)
+                    if slot is None: slot = next((i for i, vals in enumerate(slots) if len(vals) == groups), 0) if (groups := len(slots) and max(len(v) for v in slots)) else 0
                     chosen = [(c, r) for c, r in pending if int(re.findall(r'\d+', c['title'])[slot]) == k]
                     if not chosen: return {'status': 'too few columns', 'detail': f"{text} has no columns of the pattern", 'prompts': prompts}
                     pending = [x for x in pending if x not in chosen]; value = frame_answer([c for c, _ in chosen])
@@ -168,6 +200,7 @@ def run_example(s, example, operation, booleans=False, strategy='role'):
             elif p['kind'] in ('number', 'integer') and said_blank(example, p): value = ''
             elif p['kind'] in ('number', 'integer') and said_number(example, p) is not None: value = said_number(example, p)
             elif p['kind'] == 'option' and said_option(example, p) is not None: value = said_option(example, p)
+            elif p['kind'] == 'option' and choice: value = p['options'][min(choice, len(p['options']) - 1)]['value']; choice = 0   # a variant of the first option prompt
             elif p.get('defaultValue') is not None: value = p['defaultValue']
             elif p['kind'] == 'option': value = p['options'][0]['value']
             elif p['kind'] == 'selectList': value = [p['options'][0]['value']] if p.get('multiple') else p['options'][0]['value']
@@ -207,7 +240,7 @@ def run_example(s, example, operation, booleans=False, strategy='role'):
         missing = matches(figures, found)
         random = bool(re.search(r'bootstrap|monte carlo|simulat', example['expected'], re.I))
         status = 'matched' if not missing else 'differs (random method)' if random else 'differs'
-        return {'status': status, 'detail': f"{len(figures) - len(missing)}/{len(figures)} figures found" + (f"; missing {', '.join(missing[:8])}" if missing else ''), 'prompts': prompts, 'missing': missing, 'total': len(figures)}
+        return {'status': status, 'detail': f"{len(figures) - len(missing)}/{len(figures)} figures found" + (f"; missing {', '.join(missing[:8])}" if missing else ''), 'prompts': prompts, 'missing': missing, 'total': len(figures), 'found': found, 'figures': figures}
     finally:
         s.close(id)
 
@@ -217,8 +250,13 @@ def run_example(s, example, operation, booleans=False, strategy='role'):
 BASELINE = [
     ('analysis_of_variance/one_way.htm', 'OneWay', False),
     ('analysis_of_variance/two_way.htm', 'TwoWay', False),
+    ('analysis_of_variance/two_way_replicate.htm', 'ReplicateTwoWay', False),
+    ('meta_analysis/correlation.htm', 'MetaCorrelation', False),
+    ('meta_analysis/effect_size.htm', 'Effect', False),
+    ('meta_analysis/incidence_rate.htm', 'MetaIncidenceRateDifference', False),
     ('meta_analysis/mh.htm', 'Mantel', False),
     ('meta_analysis/peto.htm', 'PetoMeta', False),
+    ('meta_analysis/proportion.htm', 'ProportionMeta', False),
     ('meta_analysis/relative_risk.htm', 'RelativeRiskMeta', False),
     ('meta_analysis/risk_difference.htm', 'RiskDifference', False),
     ('meta_analysis/summary.htm', 'MetaSummary', False),
@@ -233,6 +271,7 @@ BASELINE = [
     ('parametric_methods/paired_t.htm', 'TPaired', False),
     ('parametric_methods/single_sample_t.htm', 'TSingle', False),
     ('parametric_methods/unpaired_t.htm', 'TUnpaired', False),
+    ('randomization/preference_group.htm', 'Preferences', False),
     ('regression_and_correlation/grouped_linearity_replicates.htm', 'GroupedLinearity', False),
     ('regression_and_correlation/logistic.htm', 'LogisticRegression', False),
     ('regression_and_correlation/multiple_linear.htm', 'MultipleLinearRegression', False),
@@ -267,16 +306,20 @@ if __name__ == '__main__':
                 if not ex['operations'] or not ex['numbers']: continue
                 # Every operation the page documents is tried, with the yes/no prompts answered No and then Yes; the best match counts.
                 best = None
+                union = {}   # operation -> figures found across its variants, for pages printing several variants of one analysis
                 for op in ex['operations']:
-                    for booleans, strategy in ((False, 'role'), (False, 'order'), (True, 'role'), (True, 'order')):
-                        try: r = run_example(s, ex, op, booleans, strategy)
+                    for booleans, strategy, choice in ((False, 'role', 0), (False, 'order', 0), (True, 'role', 0), (True, 'order', 0), (False, 'role', 1), (False, 'role', 2), (False, 'role', 3)):
+                        try: r = run_example(s, ex, op, booleans, strategy, choice)
                         except Exception as e: r = {'status': 'harness error', 'detail': str(e)[:200]}
                         r['operation'] = op; r['booleans'] = booleans
+                        if r.get('found'): union.setdefault(op, set()).update(r['found'])
                         rank = (r['status'] in ('matched', 'chart drawn'), r['status'].startswith('differs'), -(len(r.get('missing', [])) if r.get('total') else 10 ** 6))
                         if best is None or rank > best[0]: best = (rank, r)
                         if r['status'] in ('matched', 'chart drawn'): break
                     if best[1]['status'] in ('matched', 'chart drawn'): break
                 r = best[1]; op = r['operation']
+                if r['status'].startswith('differs') and op in union and not matches(r['figures'], list(union[op])):
+                    r = dict(r, status='matched across runs', detail=f"{r['total']}/{r['total']} figures found over the variants the page prints")
                 counts[r['status']] = counts.get(r['status'], 0) + 1
                 lines.append(f"| {ex['page']} | {op}{' (yes to questions)' if r['booleans'] else ''} | {r['status']} | {r['detail'].replace('|', '/')} |")
                 print(f"{r['status']:16s} {ex['page']:55s} {op:32s} {r['detail'][:100]}", flush=True)

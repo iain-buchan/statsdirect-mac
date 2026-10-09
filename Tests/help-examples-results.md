@@ -9,13 +9,13 @@ Every help page that uses the test workbook, run through the Mac engine host wit
 | analysis_of_variance/nested.htm | TwoWayNested | differs | 2/18 figures found; missing 7.560346, 2.520115, 2.6302, 0.328775, 0.07985, 0.006654, 10.270396, 378.727406 |
 | analysis_of_variance/one_way.htm | OneWay | matched | 7/7 figures found |
 | analysis_of_variance/two_way.htm | TwoWay | matched | 11/11 figures found |
-| analysis_of_variance/two_way_replicate.htm | ReplicateTwoWay | failed | Operation terminated: Internal error: Every repeat must have the same treatments. |
+| analysis_of_variance/two_way_replicate.htm | ReplicateTwoWay | matched | 15/15 figures found |
 | graphics/bar.htm | BarPlotFrequency | chart drawn | a plot; its figures are not compared |
 | graphics/box_whisker.htm | BoxWhiskerPlot | chart drawn | a plot; its figures are not compared |
 | graphics/box_whisker_text.htm | BoxWhiskerPlotText | chart drawn | a plot; its figures are not compared |
 | graphics/control.htm | ControlPlot | refused | X: Date, row 1: ‘1999-01-19T00:00:00’ is not numeric. Correct it or use * for a missing value. |
 | graphics/error_bar.htm | ErrorPlot | chart drawn | a plot; its figures are not compared |
-| graphics/forest.htm | CochranePlot | refused | gn: The data must have 7 rows, matching the earlier selection. |
+| graphics/forest.htm | CochranePlot | chart drawn | a plot; its figures are not compared |
 | graphics/histogram.htm | HistogramPlot | chart drawn | a plot; its figures are not compared |
 | graphics/histogram_text.htm | HistogramPlotText | chart drawn | a plot; its figures are not compared |
 | graphics/ladder.htm | LadderPlot | chart drawn | a plot; its figures are not compared |
@@ -25,12 +25,12 @@ Every help page that uses the test workbook, run through the Mac engine host wit
 | graphics/scatter_text.htm | ScatterPlotText | chart drawn | a plot; its figures are not compared |
 | graphics/spread.htm | SpreadPlot | chart drawn | a plot; its figures are not compared |
 | graphics/survival.htm | SurvivalPlot | too few columns | Select data for censorship/death/event of group 2 needs 1 column(s); 0 left |
-| meta_analysis/correlation.htm | MetaCorrelation | no columns | none of the quoted names is a column of the test workbook |
-| meta_analysis/effect_size.htm | Effect | no columns | none of the quoted names is a column of the test workbook |
-| meta_analysis/incidence_rate.htm | MetaIncidenceRateDifference | differs | 1/31 figures found; missing 0.003356, -0.0027, 0.009412, 0.026187, 0.005781, 0.046593, 0.003356, 0.00001 |
+| meta_analysis/correlation.htm | MetaCorrelation | matched | 101/101 figures found |
+| meta_analysis/effect_size.htm | Effect | matched | 86/86 figures found |
+| meta_analysis/incidence_rate.htm | MetaIncidenceRateDifference | matched | 31/31 figures found |
 | meta_analysis/mh.htm | Mantel | matched | 36/36 figures found |
 | meta_analysis/peto.htm | PetoMeta | matched | 91/91 figures found |
-| meta_analysis/proportion.htm | ProportionMeta | no columns | none of the quoted names is a column of the test workbook |
+| meta_analysis/proportion.htm | ProportionMeta | matched | 176/176 figures found |
 | meta_analysis/relative_risk.htm | RelativeRiskMeta | matched | 75/75 figures found |
 | meta_analysis/risk_difference.htm | RiskDifference | matched | 58/58 figures found |
 | meta_analysis/summary.htm | MetaSummary | matched | 80/80 figures found |
@@ -43,7 +43,7 @@ Every help page that uses the test workbook, run through the Mac engine host wit
 | nonparametric_methods/loess.htm | LOESS | harness error | {'error': 'This R-based method is not enabled in the Mac prototype yet. Method help and R → New R Session are available.'} |
 | nonparametric_methods/mann_whitney.htm | MannWhitney | matched | 13/13 figures found |
 | nonparametric_methods/nonparametric_regression.htm | NonparametricLinearRegression | too few columns | Select data for PREDICTOR (X axis) needs 1 column(s); 0 left |
-| nonparametric_methods/quantile_ci.htm | Quantile | differs | 8/10 figures found; missing 78.5, 96.284745 |
+| nonparametric_methods/quantile_ci.htm | Quantile | matched across runs | 10/10 figures found over the variants the page prints |
 | nonparametric_methods/smirnov.htm | Smirnov | matched | 6/6 figures found |
 | nonparametric_methods/spearman.htm | Spearman | matched | 6/6 figures found |
 | nonparametric_methods/wilcoxon_signed_ranks.htm | Wilcoxon | matched | 9/9 figures found |
@@ -53,8 +53,8 @@ Every help page that uses the test workbook, run through the Mac engine host wit
 | parametric_methods/reference_range.htm | ReferenceRange | differs | 24/25 figures found; missing 97.5 |
 | parametric_methods/single_sample_t.htm | TSingle | matched | 8/8 figures found |
 | parametric_methods/unpaired_t.htm | TUnpaired | matched | 15/15 figures found |
-| parametric_methods/z_normal.htm | ZSingle | differs | 11/25 figures found; missing 0.06, 0.03, 299.8728, 0.008951, 299.832, 0.002812, 0.015338, 0.010737 |
-| randomization/preference_group.htm | Preferences | no columns | none of the quoted names is a column of the test workbook |
+| parametric_methods/z_normal.htm | ZSingle | differs | 11/13 figures found; missing 0.06, 0.03 |
+| randomization/preference_group.htm | Preferences | matched | 0/0 figures found |
 | regression_and_correlation/conditional_logistic.htm | ConditionalLogisticRegression | refused | predictors: The data must have 112 rows, matching the earlier selection. |
 | regression_and_correlation/grouped_covariance.htm | GroupedCovariance | too few columns | Group 1: one column of Y replicates for each X value needs 3 column(s); 0 left |
 | regression_and_correlation/grouped_linearity_replicates.htm | GroupedLinearity | matched | 9/9 figures found |

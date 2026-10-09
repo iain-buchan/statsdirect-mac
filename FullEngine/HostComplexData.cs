@@ -193,6 +193,7 @@ internal static class HostComplexData {
         return data;
     }
     static double Confidence(OperationJob job, OperationHost host) {
+        if (host.Preferences.CanDefaultConfidenceInterval) return host.Preferences.DefaultConfidenceInterval;
         var ci=HostAmendments.Form(job,"Confidence level",new[]{HostAmendments.Field("ci","Confidence level (%)",host.Preferences.DefaultConfidenceInterval*100)},v=>{var ci=HostParameters.Number(v.GetProperty("ci"));if(ci<=0||ci>=100)throw new ArgumentException("Confidence must be greater than 0 and less than 100%.");});
         return HostParameters.Number(ci.GetProperty("ci"))/100;
     }

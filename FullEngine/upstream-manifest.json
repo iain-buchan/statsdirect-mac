@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "00aa1ced98e02b8b72e345c8a0d89c2dc8900e42",
+  "commit": "70eeec462a9c02399f007319e1f122d1895c9ca3",
   "version": "5.0.14",
   "sha256": {
     "Layout/Axis.cs": "37b781cfd82f963f5ba9f24295b008af80fe12d9a4e3ddd0649140c14e8785ef",
@@ -15,7 +15,7 @@
     "Layout/Formatters/UnitFormat.cs": "5d8839b5be16b9339fa4ee3f49721643df791f34467b4bccfe5b68e2f950e55f",
     "Layout/Properties/AssemblyInfo.cs": "f5249034d0c61117369c518375d43f9785aa68f4d3184105d641f15a3f88d514",
     "Layout/Range.cs": "b88ec9e4654ca68811c25c8a85f75aeb7d2c0112126655b23a28a7e98d1ec60d",
-    "StatsDirectUI/Assets/Data/test.xlsx": "d98b3f75c7f3be01afb6d261797a798bbc7e3ca8984045619a67268c79193bb1",
+    "StatsDirectUI/Assets/Data/test.xlsx": "8878b9c9f866d350214206e0158207c1c2068ba987505e96d9c960115466d3c8",
     "StatsDirectUI/Assets/Operations/AbridgedLifetable.xml": "a0bcedd7932101afa25454a4ee72a2d781b33e04bb236e070f35aeb34f602e12",
     "StatsDirectUI/Assets/Operations/Agreement.xml": "751bd9f9202052c4dead9fc975e37797ed39ceb80cdf86d866da98e4385aad4a",
     "StatsDirectUI/Assets/Operations/AnalysisOptions.xml": "78371c4c2878b4ab62cdde06f0ffdc6bb22d4489413c418b09c2c1ee50285d4b",

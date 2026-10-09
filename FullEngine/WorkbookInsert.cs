@@ -106,9 +106,38 @@ public static partial class WorkbookIO {
                 string type = (string)rel.Attribute("Type") ?? "", target = (string)rel.Attribute("Target");
                 string part = Uri.UnescapeDataString(new Uri(new Uri("http://package/" + info.Entry), target).AbsolutePath.TrimStart('/'));
                 bool moving = refs.For(info.Name).Count > 0;
-                if (moving && (type.EndsWith("/vmlDrawing") || type.EndsWith("/oleObject") || type.EndsWith("/ctrlProp")))
+                if (moving && (type.EndsWith("/oleObject") || type.EndsWith("/ctrlProp")))
                     throw new Exception($"Worksheet '{info.Name}' has legacy shapes or controls that cannot yet be moved safely. Write the results in a new worksheet.");
-                if (type.EndsWith("/table")) {
+                if (type.EndsWith("/vmlDrawing") && moving) {
+                    var drawing = ReadXml(source, part);
+                    XNamespace vml = "urn:schemas-microsoft-com:vml", excel = "urn:schemas-microsoft-com:office:excel";
+                    foreach (var shape in drawing.Descendants(vml+"shape")) {
+                        var data = shape.Element(excel+"ClientData");
+                        if ((string)data?.Attribute("ObjectType") != "Note")
+                            throw new Exception($"Worksheet '{info.Name}' has legacy shapes or controls that cannot yet be moved safely. Write the results in a new worksheet.");
+                        if (data.Element(excel+"Column") is XElement column)
+                            column.Value = (refs.Column(info.Name, (int)column+1)-1).ToString(CultureInfo.InvariantCulture);
+                        if (data.Element(excel+"Anchor") is XElement anchor) {
+                            var coordinates = anchor.Value.Split(',').Select(x=>int.Parse(x.Trim(),CultureInfo.InvariantCulture)).ToArray();
+                            if (coordinates.Length != 8 || coordinates.Any(n=>n<0) || coordinates[0]>=MaxCols || coordinates[4]>=MaxCols || coordinates[4]<coordinates[0]) throw new Exception("A note has an invalid anchor. Repair it in Excel before inserting columns.");
+                            bool flag(string name) { var element=data.Element(excel+name); return element!=null && (element.Value.Trim() is "" or "True" or "true" or "1" or "t"); }
+                            int start = coordinates[0], end = coordinates[4];
+                            // Notes move with their cell. Preserve the note box's width
+                            // unless the VML explicitly requests sizing with cells.
+                            if (flag("MoveWithCells") || flag("SizeWithCells")) {
+                                coordinates[0] = refs.Column(info.Name,start+1)-1;
+                                coordinates[4] = flag("SizeWithCells") ? refs.Column(info.Name,end+1)-1 : end+coordinates[0]-start;
+                            }
+                            if (coordinates[4] >= MaxCols) throw new Exception("A note would move beyond Excel's last column. Write results in a new worksheet.");
+                            anchor.Value = string.Join(", ", coordinates);
+                        }
+                    }
+                    // Other VML element types can also carry coordinates. Only note
+                    // drawings are supported; never accept a control by omission.
+                    if (drawing.Descendants().Any(e=>e.Name.Namespace==vml && e.Name.LocalName is "rect" or "roundrect" or "oval" or "line" or "polyline" or "arc" or "curve" or "image" or "group"))
+                        throw new Exception($"Worksheet '{info.Name}' has legacy shapes or controls that cannot yet be moved safely. Write the results in a new worksheet.");
+                    replaced[part] = drawing;
+                } else if (type.EndsWith("/table")) {
                     var table = ReadXml(source, part);
                     var range = table.Root.Attribute("ref");
                     refs.Intact(range.Value, info.Name, "an Excel table");

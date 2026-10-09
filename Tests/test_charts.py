@@ -147,6 +147,12 @@ try:
     # Control chart: the mean and the three sigma limits where the data put them, the series joined in order.
     y, x = [5, 6, 7, 6, 5, 8], [1, 2, 3, 4, 5, 6]
     c = chart(s, 'ControlPlot', {'Y': columns(y), 'X': columns(x)})
+    from datetime import datetime, timedelta
+    dates = [(datetime(2026,1,1)+timedelta(days=i)).isoformat() for i in range(6)]
+    dated = chart(s, 'ControlPlot', {'Y': columns(y), 'X': columns(dates)})
+    serial = chart(s, 'ControlPlot', {'Y': columns(y), 'X': columns([46023+i for i in range(6)])})
+    assert dated.points() == serial.points() and dated.lines() == serial.lines()
+    print('PASS: imported ISO dates in the control-chart sequence match Excel date serials')
     fx, fy = c.axis('x'), c.axis('y'); mean = sum(y) / 6; sd = (sum((v - mean) ** 2 for v in y) / 5) ** 0.5
     assert '6.167 (mean)' in c.text and all(f'{round(mean + k * sd, 3):g}' in c.text or f'{mean + k * sd:.3f}' in c.text for k in (1, 2, 3, -1, -2, -3)), c.text
     horizontals = [(a, b, cc, d) for a, b, cc, d in c.lines() if near(b, d, 0.01) and abs(cc - a) > c.width / 2]

@@ -175,9 +175,45 @@ try:
                 expected=(0,3) if mode=='absolute' or mode=='oneCell' and position==1 else (1,4) if position==0 else (0,4)
                 assert (a._from.col,a.to.col)==expected,(mode,position,a._from.col,a.to.col)
         from openpyxl.comments import Comment
-        w,d,p=book('comments.xlsx'); d['B2'].comment=Comment('Keep this comment','Tester'); w.save(p); insert(p,expect='legacy shapes')
+        w,d,p=book('comments.xlsx'); d['B2'].comment=Comment('Keep this comment','Tester'); w.save(p)
+        for streaming in (False,True):
+            moved=openpyxl.load_workbook(insert(p,stream=streaming))['Data']['C2'].comment
+            assert moved.text=='Keep this comment' and moved.author=='Tester'
+        # Excel-authored notes have an eight-coordinate anchor. Exercise move/size
+        # options separately, including explicit False (presence alone is not true).
+        for mode,flags,expected in [
+            ('sized','<x:MoveWithCells/><x:SizeWithCells/>',(0,4)),
+            ('move','<x:MoveWithCells/><x:SizeWithCells>False</x:SizeWithCells>',(0,3)),
+            ('fixed','<x:MoveWithCells>False</x:MoveWithCells>',(0,3))]:
+            anchored=Path(folder)/('anchored-'+mode+'.xlsx')
+            with zipfile.ZipFile(p) as z,zipfile.ZipFile(anchored,'w') as out:
+                for item in z.infolist():
+                    data=z.read(item.filename)
+                    if item.filename.endswith('.vml'):
+                        xml=ET.fromstring(data);x='urn:schemas-microsoft-com:office:excel'
+                        client=xml.find('.//{'+x+'}ClientData')
+                        for name in ['MoveWithCells','SizeWithCells','Anchor']:
+                            for el in list(client.findall('{'+x+'}'+name)):client.remove(el)
+                        extra=ET.fromstring('<extra xmlns:x="'+x+'">'+flags+'<x:Anchor>0, 6, 0, 2, 3, 8, 4, 1</x:Anchor></extra>')
+                        client.extend(list(extra));data=ET.tostring(xml)
+                    out.writestr(item,data)
+            for streaming in (False,True):
+                saved=insert(anchored,stream=streaming)
+                with zipfile.ZipFile(saved) as z:
+                    vml=ET.fromstring(z.read(next(n for n in z.namelist() if n.endswith('.vml'))))
+                    anchor=list(map(int,vml.find('.//{'+x+'}Anchor').text.split(',')))
+                    assert (anchor[0],anchor[4])==expected,(mode,streaming,anchor)
+                    assert vml.find('.//{'+x+'}Column').text=='2'
+        # A legacy form control shares the VML format but must still be refused.
+        control=Path(folder)/'control.xlsx'
+        with zipfile.ZipFile(p) as z,zipfile.ZipFile(control,'w') as out:
+            for item in z.infolist():
+                data=z.read(item.filename)
+                if item.filename.endswith('.vml'): data=data.replace(b'ObjectType="Note"',b'ObjectType="Button"')
+                out.writestr(item,data)
+        insert(control,expect='legacy shapes')
         w,d,p=book('ambiguous-name.xlsx'); w.defined_names.add(DefinedName('Relative',attr_text='$B$2')); w.save(p); insert(p,expect='unqualified cell reference')
-        print('PASS: chart anchor/series move, original style XML remains identical, and legacy comments/ambiguous names are refused before mutation')
+        print('PASS: chart anchor/series and legacy notes move, original style XML remains identical, and controls/ambiguous names are refused before mutation')
 
         # Truly cross the million-cell threshold; streaming is selected automatically.
         large=Path(folder)/'large.xlsx'; w=openpyxl.Workbook(write_only=True); d=w.create_sheet('Data')

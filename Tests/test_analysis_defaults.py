@@ -62,6 +62,31 @@ try:
  assert state['state']=='input' and state['prompt']['kind']=='confidence',state
  s.close(id)
  print('PASS operation-specific non-defaultable confidence still asks for input')
+ # Cuzick prepares one default score for each group before asking the user.
+ id,state=s.start('Cuzick')
+ state=advance(id,state,columns([1,2,3,4],[3,4,5,6],[6,7,8,9]))
+ prompt=state['prompt']
+ assert prompt['name']=='scores' and prompt['screen'] is True and prompt['rows']==3, prompt
+ assert prompt['initial']['columns'][0]['values']==[1,2,3], prompt
+ state=advance(id,state,prompt['initial'])
+ assert state['state']=='complete' and 'Cuzick' in state['html'], state
+ s.close(id)
+ print('PASS Cuzick opens an editable score table prefilled with one score per group')
+ # Grouped covariance obtains CI in its host-side data-selection form.
+ # It must obey the same saved defaults as ordinary XML confidence parameters.
+ covariance={
+  'Select predictor (X) series — one column per group':columns([1,2,3,4],[1,2,3,4]),
+  'Group 1: Y outcomes for Column 1':columns([2,4,5,8]),
+  'Group 2: Y outcomes for Column 2':columns([3,5,8,9])}
+ for confidence in (95,90):
+  result=s.run('GroupedCovariance',covariance,{**DEFAULTS,'default-ci':str(confidence)})
+  assert not any(h.get('title')=='Confidence level' for h in result['history']), result['history']
+  assert str(confidence)+'%' in result['html'], result['html'][:500]
+ result=s.run('GroupedCovariance',{**covariance,'Confidence level':{'ci':99}},{**DEFAULTS,'use-default-ci':False})
+ assert any(h.get('title')=='Confidence level' for h in result['history']) and '99%' in result['html']
+ save(DEFAULTS)
+ print('PASS grouped covariance uses saved 95%/90% defaults and asks only when automatic CI is disabled')
+
  # Simulate values supplied by native persistent settings to a fresh engine process.
  second=Session()
  try:

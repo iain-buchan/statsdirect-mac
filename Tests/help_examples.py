@@ -69,7 +69,34 @@ def examples():
                 ops = [name for name, entry in menu.items() if entry.get('title') and (named.lower() in entry['title'].lower() or entry['title'].lower() in named.lower())]
                 out.append({'page': rel + '#2', 'operations': ops, 'columns': [c.strip() for c in quoted_names(instr2)], 'instructions': instr2[:1500], 'expected': block2.strip(),
                             'numbers': NUMBER.findall(block2)})
-    return out
+    expanded = []
+    for item in out:
+        page = item['page']
+        split = {'survival_analysis/logrank.htm':'Stratified example',
+                 'nonparametric_methods/friedman.htm':'For the dichotomous data'}.get(page)
+        if split and split in item['expected']:
+            first, second = item['expected'].split(split, 1)
+            expanded.append(dict(item, expected=first, numbers=NUMBER.findall(first)))
+            if 'logrank' in page:
+                instructions, expected = second.split('For this example:', 1)
+                expanded.append(dict(item, page=page+'#stratified', instructions=instructions,
+                                     expected=expected, numbers=NUMBER.findall(expected)))
+            else:
+                expected = second.split('From the overall test statistic')[0]
+                expanded.append(dict(item, page=page+'#cochran', operations=['CochranQ'],
+                                     expected=expected, numbers=NUMBER.findall(expected)))
+        elif page == 'nonparametric_methods/quantile_ci.htm':
+            common, intervals = item['expected'].split('Approximate 90% CI (non-conservative)', 1)
+            nonconservative, conservative = intervals.split('Approximate 90% CI (conservative)',1)
+            for suffix, label, block in [('', 'non-conservative', nonconservative), ('#conservative','conservative',conservative.split('We may conclude')[0])]:
+                expected=common+'Approximate 90% CI ('+label+')'+block
+                expanded.append(dict(item,page=page+suffix,operations=['Quantile'],expected=expected,numbers=NUMBER.findall(expected)))
+        elif page == 'parametric_methods/z_normal.htm#2':
+            text = page_text(HELP / page.split('#')[0])
+            expected = text.split('Normal distribution (z) test - two independent samples',1)[1].split('The later measurements')[0]
+            expanded.append(dict(item, operations=['ZUnpaired'], expected=expected, numbers=NUMBER.findall(expected)))
+        else: expanded.append(item)
+    return expanded
 
 if __name__ == '__main__':
     import openpyxl

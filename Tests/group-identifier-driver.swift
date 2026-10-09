@@ -111,8 +111,8 @@ struct GroupIdentifierTests {
         try await ProviderLearningTests.wait {(try? await v.learningJavaScript(covariance,"({ok:(document.querySelector('.selection')?.textContent??'').includes('Y:')&&document.querySelectorAll('input[name=long-outcomes]:checked').length===2})"))?["ok"] as? Bool == true}
         var covToken=(try await v.learningJavaScript(covariance,"({token:String(groupState.token)})"))["token"] as? String ?? ""
         try await submit(covariance)
-        // The confidence level and the baseline mean for the predictors keep their defaults.
-        for _ in 0..<2 {
+        // Confidence uses the saved 95% default; only the predictor baseline asks.
+        for _ in 0..<1 {
             let previous=covToken
             try await ProviderLearningTests.wait {(try? await v.learningJavaScript(covariance,"({ok:groupState.state==='input'&&String(groupState.token)!=='\(previous)'&&!groupState.prompt?.error})"))?["ok"] as? Bool == true}
             covToken=(try await v.learningJavaScript(covariance,"({token:String(groupState.token)})"))["token"] as? String ?? ""
@@ -125,6 +125,7 @@ struct GroupIdentifierTests {
         }
         let covResult=try await v.learningJavaScript(covariance,"window.groupState")
         let covHistory=covResult["history"] as? [[String:Any]] ?? []
+        try check(!covHistory.contains{$0["title"] as? String=="Confidence level"} && (covResult["html"] as? String ?? "").contains("95%"), "covariance must use the 95% default without another dialog")
         let covRecord=covHistory.first{$0["name"] as? String=="gcd"}?["value"] as? [String:Any] ?? [:]
         let covColumns=covRecord["columns"] as? [[String:Any]] ?? []
         try check(covColumns.count==4 && covColumns[3]["mode"] as? String=="GroupIdentifiers" && (covRecord["roles"] as? [String:Any])?["outcomes"] as? Int==2, "covariance record: \(covRecord)")

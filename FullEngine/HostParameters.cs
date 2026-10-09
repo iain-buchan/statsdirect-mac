@@ -24,6 +24,13 @@ internal static class HostParameters {
             case FrameParameter f:
                 Grid(d, f.MinimumColumns(processor, context), f.MaximumColumns(processor, context));
                 d["mode"] = f.DataAcquisitionMode.ToString(); d["equalLength"] = f.ColumnsAreSameLength;
+                // Some operation scripts prepare an editable frame (e.g. Cuzick's
+                // default group scores). Windows opens that frame, not an empty grid.
+                if (!f.CanSelect) d["screen"] = true;
+                if (context.ContainsKey(f.Name) && context[f.Name].AsObject is DataFrame initial) {
+                    d["initial"] = FrameInput(initial);
+                    d["rows"] = Math.Max(1, initial.MaxRows);
+                }
                 if (f.HasLength) d["length"] = f.Length(processor, context);
                 if (f.SameLengthAsParameter != null) foreach (string other in f.SameLengthAsParameter) if (context.ContainsKey(other)) d["length"] = context[other].AsDataFrame.MaxRows;
                 // Windows lets these frames come from long data: one data column plus group identifiers
@@ -90,7 +97,7 @@ internal static class HostParameters {
             case OptionsParameter o: foreach (var option in o.Options) bag.AddInput(option.Name, input.TryGetProperty(option.Name, out var flag) && flag.GetBoolean()); return bag;
             case FrameParameter f:
                 bool longLayout = IsLongLayout(input);
-                var frame = longLayout ? PivotLongFrame(input, f, processor, context, host) : ReadFrame(input, f.DataAcquisitionMode, host);
+                var frame = longLayout ? PivotLongFrame(input, f, processor, context, host) : ReadFrame(input, f.DataAcquisitionMode, host, f.Operation?.Name == "ControlPlot" && f.Name == "X");
                 var count = longLayout ? frame.VariableCount : input.GetProperty("columns").GetArrayLength();
                 // Windows pads pivoted groups of unequal size with missing values once the user accepts.
                 if (longLayout && f.ColumnsAreSameLength && frame.MinRows != frame.MaxRows) {
@@ -136,7 +143,7 @@ internal static class HostParameters {
             foreach (var variable in filled[f.Name].AsDataFrame.Variables) target.Variables.Add(variable); if (!context.ContainsKey(f.AppendToFrame)) filled.AddInput(f.AppendToFrame, target);
         }
     }
-    internal static DataFrame ReadFrame(JsonElement input, DataAcquisitionMode mode, OperationHost host = null) {
+    internal static DataFrame ReadFrame(JsonElement input, DataAcquisitionMode mode, OperationHost host = null, bool sequenceDates = false) {
         if (!input.TryGetProperty("columns", out var cols) || cols.ValueKind != JsonValueKind.Array || cols.GetArrayLength() == 0) throw new ArgumentException("Choose worksheet columns or enter data in the table.");
         var frame = new DataFrame(); frame.Name = input.TryGetProperty("source", out var source) ? source.GetString() : "Entered data";
         if(mode==DataAcquisitionMode.CategoryCombineAllColumns) {
@@ -176,7 +183,17 @@ internal static class HostParameters {
                 } else frame.Variables.Add(cv);
                 continue;
             }
-            double[] data = texts.Select((s, r) => missing(s) ? Constant.MISSING : double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double n) && double.IsFinite(n) ? n : throw new ArgumentException($"{title}, row {r + 1}: ‘{s}’ is not numeric. Correct it or use * for a missing value.")).ToArray();
+            // Excel imports dates as ISO text. A control chart's sequence axis accepts
+            // those dates on the same OLE date scale used by the Windows worksheet.
+            // Keep other numeric inputs strict; ambiguous locale-dependent dates are refused.
+            double number(string s, int row) {
+                if (missing(s)) return Constant.MISSING;
+                if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double n) && double.IsFinite(n)) return n;
+                if (sequenceDates && DateTime.TryParseExact(s, new[] { "yyyy-MM-dd", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss.FFFFFFF", "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) && date.Year >= 100)
+                    return date.ToOADate();
+                throw new ArgumentException($"{title}, row {row + 1}: ‘{s}’ is not numeric. Correct it or use * for a missing value.");
+            }
+            double[] data = texts.Select(number).ToArray();
             if (mode == DataAcquisitionMode.NumericSkipMissing) data = data.Where(n => n != Constant.MISSING).ToArray();
             if(mode==DataAcquisitionMode.NumericCodingTextToDummies && data.All(n=>n>=int.MinValue && n<=int.MaxValue && n==Math.Truncate(n))) {
                 var categories=data.Distinct().ToArray();

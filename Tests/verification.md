@@ -1,3 +1,7 @@
+# Extended Mac validation — 9 October 2026
+
+See [0.3.23 validation](../Docs/Validation/Beta-0.3.23/README.md) for the latest checks, host fixes, native Office results, fresh-profile boundaries and remaining limits. The historical entries below describe earlier builds.
+
 # Two-dimensional grouping and tutor privacy — 8 October 2026
 
 Integrated GitHub main `871e6ee` and independently checked nested and replicated two-way

@@ -33,6 +33,8 @@ For Docker, run `./docker-build.sh` instead. The build restores missing submodul
 
 Run `./test.sh` for engine and R comparison tests (requires R; `RSCRIPT` can select its executable).
 
+Every push to `main` and every pull request runs `.github/workflows/ci.yml` on a GitHub-hosted Apple Silicon runner: the build, `test.sh`, the JavaScript tests, the Excel and data-file tests, the report export and the WebKit integration driver, and a check that the committed `Content` bundles match their sources.
+
 ## Documentation
 
 [Reports](Report/README.md) · [Data grid](Grid/README.md) · [Learning](Learn/README.md) · [Engine and updates](FullEngine/README.md) · [Verification and limitations](Tests/verification.md)

@@ -547,3 +547,7 @@ Scripts/test-report-export.sh "$PWD/StatsDirect Viewer.app"
 ## 2026-10-09 — Engine pinned to upstream 2a55c5c4
 
 - The Windows `main` head removes `Assets/menu-sd2.xml`, the second menu layout the program never loaded, with a changelog line. The asset was never in the provenance manifest, so the regenerated manifest lists the same 873 files and the engine is identical; the pin moves only to stay at the branch head.
+
+## 2026-10-09 — Continuous integration
+
+- `.github/workflows/ci.yml` runs on every push to `main`, every pull request and on request, on a GitHub-hosted `macos-15` (Apple Silicon) runner with the .NET 10 SDK, Node 24 with pnpm through corepack, R and openpyxl: `build.sh`, a check that `node Grid/build.mjs`, `Report/build.mjs` and `Learn/build.mjs` reproduce the committed `Content` bundles, `test.sh`, the Node suites, `Tests/test_excel.py`, `Tests/test_excel_edges.py` and `Tests/test_data_files.py` with their drivers, `Scripts/test-report-export.sh` and `Tests/run_beta_feedback.py`. NuGet packages and the pinned ChatGPT runtime archive are cached. Actions are pinned by commit, as the release workflow pins them.

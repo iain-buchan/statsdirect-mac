@@ -1,0 +1,74 @@
+name: Build and test
+
+# Every push to main and every pull request builds the application on an Apple Silicon runner
+# and runs the suites the handovers describe: the engine and R comparison tests, the JavaScript
+# tests, the Excel and data-file tests, the report export and the WebKit integration driver.
+# The committed grid, report and learning bundles are checked against their sources.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Enable pnpm through corepack
+        run: corepack enable
+      - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
+        with:
+          r-version: release
+      - name: Cache NuGet packages and the ChatGPT runtime archive
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .build/nuget
+            .build/codex-runtime
+          key: ${{ runner.os }}-build-${{ hashFiles('FullEngine/*.csproj', 'FullEngine/Upstream/**/*.csproj', 'Scripts/bundle-chatgpt.py') }}
+      - name: Install JavaScript dependencies
+        run: for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
+      - name: Install openpyxl for the Excel tests
+        run: python3 -m pip install --user openpyxl
+      - name: Build the application
+        run: DOTNET="$(command -v dotnet)" ./build.sh
+      - name: Committed bundles match their sources
+        run: |
+          node Grid/build.mjs && node Report/build.mjs && node Learn/build.mjs
+          git diff --exit-code --stat -- Content/Grid Content/Report Content/Learn
+      - name: Engine and R comparison tests
+        run: ./test.sh
+      - name: JavaScript tests
+        run: node --test Grid/*.test.mjs Report/*.test.mjs Learn/*.test.mjs
+      - name: Excel and data file tests
+        run: |
+          clang++ -std=c++17 -arch arm64 Tests/workbook-driver.cpp -o .build/workbook-driver
+          swiftc Sources/RInstallation.swift Sources/RDataFileIO.swift Sources/CSVFileIO.swift Sources/Snapshot.swift Tests/data-file-driver.swift -o .build/data-file-driver
+          python3 Tests/test_excel.py .build/workbook-driver "$(command -v node)"
+          python3 Tests/test_excel_edges.py .build/workbook-driver "$(command -v node)"
+          python3 Tests/test_data_files.py .build/data-file-driver "$(command -v node)"
+      - name: Report export
+        run: Scripts/test-report-export.sh
+      - name: WebKit integration driver
+        run: python3 Tests/run_beta_feedback.py

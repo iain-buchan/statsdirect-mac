@@ -10,11 +10,14 @@ import PDFKit
   UserDefaults.standard.set(false,forKey:"automaticUpdateChecks")
   DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { Task { @MainActor in
    do {
-    if CommandLine.arguments.contains("--groups-only") {
+    if CommandLine.arguments.contains("--excel-only") {
+     try await ExcelImportTests.run(viewer)
+    } else if CommandLine.arguments.contains("--groups-only") {
      try await GroupIdentifierTests.run(viewer)
     } else if CommandLine.arguments.contains("--privacy-only") {
      try await LearningWorkspaceTests.run(viewer)
     } else {
+    try await ExcelImportTests.run(viewer)
     try await LearningWorkspaceTests.run(viewer)
     try await ProviderLearningTests.run(viewer)
     try await run(viewer)

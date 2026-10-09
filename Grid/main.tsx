@@ -341,6 +341,7 @@ function App() {
         }} />First row has column names</label><span>Choose a method from Analysis to analyse these data.</span></div>
   <footer><span role="status">{message}</span><span>{store.rows.toLocaleString()} rows × {store.columns.length} columns · {store.count().toLocaleString()} filled cells</span></footer>
   {workbook.formulaCount > 0 && <p className="formula-note">{workbook.formulaCount} formula cells show results from the last Excel save and are read-only. Formulas are retained on export and recalculate in Excel. {workbook.edited ? "After editing, reopen the recalculated file before analysing formula cells." : ""}</p>}
+  {workbook.importNotice && <p className="formula-note">{workbook.importNotice}</p>}
 
  </main>;
 }

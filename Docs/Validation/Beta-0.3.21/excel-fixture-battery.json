@@ -1,0 +1,1670 @@
+[
+  {
+    "file": "10x10.xls",
+    "error": null,
+    "code": null,
+    "cells": 71
+  },
+  {
+    "file": "10x10.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 71
+  },
+  {
+    "file": "10x10.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 71
+  },
+  {
+    "file": "10x10000.xls",
+    "error": null,
+    "code": null,
+    "cells": 100000
+  },
+  {
+    "file": "10x10000.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 100000
+  },
+  {
+    "file": "10x10000.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 100000
+  },
+  {
+    "file": "255x10.xls",
+    "error": null,
+    "code": null,
+    "cells": 2550
+  },
+  {
+    "file": "255x10.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 2550
+  },
+  {
+    "file": "255x10.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 2550
+  },
+  {
+    "file": "AllColumnsNotReadInHiddenTable.xls",
+    "error": null,
+    "code": null,
+    "cells": 627
+  },
+  {
+    "file": "BigFormatted.xls",
+    "error": null,
+    "code": null,
+    "cells": 167235
+  },
+  {
+    "file": "BigFormatted.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 167235
+  },
+  {
+    "file": "BlankHeader.xls",
+    "error": null,
+    "code": null,
+    "cells": 20
+  },
+  {
+    "file": "BlankHeader.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 20
+  },
+  {
+    "file": "BlankHeader.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 20
+  },
+  {
+    "file": "BoolFormula.xls",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "BoolFormula.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 7
+  },
+  {
+    "file": "BoolFormula.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 7
+  },
+  {
+    "file": "Chess.xls",
+    "error": null,
+    "code": null,
+    "cells": 12
+  },
+  {
+    "file": "Chess.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 12
+  },
+  {
+    "file": "Chess.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 12
+  },
+  {
+    "file": "ClipboardBiff12.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 4
+  },
+  {
+    "file": "ClipboardBiff8.xls",
+    "error": null,
+    "code": null,
+    "cells": 4
+  },
+  {
+    "file": "CollapsedHide.xls",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "CollapsedHide.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "CollapsedHide.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "ColumnWidthsTest.xls",
+    "error": null,
+    "code": null,
+    "cells": 8
+  },
+  {
+    "file": "ColumnWidthsTest.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 8
+  },
+  {
+    "file": "ColumnWidthsTest.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 8
+  },
+  {
+    "file": "DateFormatButNotDate.xls",
+    "error": null,
+    "code": null,
+    "cells": 11
+  },
+  {
+    "file": "DateFormatButNotDate.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 11
+  },
+  {
+    "file": "DateFormatButNotDate.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 11
+  },
+  {
+    "file": "Decimal1109.xls",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "Decimal1109.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "Decimal1109.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "DecimalLocale.xls",
+    "error": null,
+    "code": null,
+    "cells": 4
+  },
+  {
+    "file": "DecimalLocale.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 4
+  },
+  {
+    "file": "DoublePrecision.xls",
+    "error": null,
+    "code": null,
+    "cells": 17
+  },
+  {
+    "file": "DoublePrecision.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 17
+  },
+  {
+    "file": "DoublePrecision.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 17
+  },
+  {
+    "file": "EmptyZipFile.xlsb",
+    "error": "Detected ZIP file, but not a valid OpenXml file.",
+    "code": null,
+    "cells": null
+  },
+  {
+    "file": "EmptyZipFile.xlsx",
+    "error": "Detected ZIP file, but not a valid OpenXml file.",
+    "code": null,
+    "cells": null
+  },
+  {
+    "file": "EncodingFormulaDate1520.xls",
+    "error": null,
+    "code": null,
+    "cells": 37
+  },
+  {
+    "file": "EncodingFormulaDate1520.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 37
+  },
+  {
+    "file": "EncodingFormulaDate1520.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 37
+  },
+  {
+    "file": "Excel2040.xls",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "Excel2040.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "ExcelDataset.xls",
+    "error": null,
+    "code": null,
+    "cells": 205
+  },
+  {
+    "file": "ExcelDataset.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 205
+  },
+  {
+    "file": "ExcelDataset.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 205
+  },
+  {
+    "file": "ExcelLibrary_newdoc.xls",
+    "error": null,
+    "code": null,
+    "cells": 7
+  },
+  {
+    "file": "ExcelOpenOffice.xls",
+    "error": null,
+    "code": null,
+    "cells": 203
+  },
+  {
+    "file": "ExcelOpenOffice.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 203
+  },
+  {
+    "file": "FailBinary.xls",
+    "error": "Invalid file signature.",
+    "code": null,
+    "cells": null
+  },
+  {
+    "file": "Fillreport.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 172
+  },
+  {
+    "file": "Format49_@.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 5
+  },
+  {
+    "file": "FullWidthSpace.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Googlesourced.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 22
+  },
+  {
+    "file": "Hashes.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 22
+  },
+  {
+    "file": "InvalidByteOrderValueInHeader.xls",
+    "error": null,
+    "code": null,
+    "cells": 215706
+  },
+  {
+    "file": "Issue111_NoRowRecords.xls",
+    "error": null,
+    "code": null,
+    "cells": 108
+  },
+  {
+    "file": "Issue142.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 13032
+  },
+  {
+    "file": "Issue145.xls",
+    "error": null,
+    "code": null,
+    "cells": 1060
+  },
+  {
+    "file": "Issue14_InvalidOADate.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue14_InvalidOADate.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue152.xls",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue158.xls",
+    "error": null,
+    "code": null,
+    "cells": 44
+  },
+  {
+    "file": "Issue173.xls",
+    "error": null,
+    "code": null,
+    "cells": 17953
+  },
+  {
+    "file": "Issue2.xls",
+    "error": null,
+    "code": null,
+    "cells": 4
+  },
+  {
+    "file": "Issue217.xls",
+    "error": null,
+    "code": null,
+    "cells": 227
+  },
+  {
+    "file": "Issue221.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue224_Firstoddeven.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue224_Firstoddeven.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue224_Simple.xls",
+    "error": null,
+    "code": null,
+    "cells": 0
+  },
+  {
+    "file": "Issue224_Simple.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 0
+  },
+  {
+    "file": "Issue224_Simple.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 0
+  },
+  {
+    "file": "Issue224_Simple95.xls",
+    "error": null,
+    "code": null,
+    "cells": 0
+  },
+  {
+    "file": "Issue231_NoCodePage.xls",
+    "error": null,
+    "code": null,
+    "cells": 47
+  },
+  {
+    "file": "Issue242_StdRc4PwdPassword.xls",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue242_XorPwdPassword.xls",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue250_Richtext.xls",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue250_Richtext.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue250_Richtext.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue263.xls",
+    "error": null,
+    "code": null,
+    "cells": 244559
+  },
+  {
+    "file": "Issue270.xls",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue270.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue270.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue271_InvalidDimension.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 13
+  },
+  {
+    "file": "Issue283_TimeSpan.xls",
+    "error": null,
+    "code": null,
+    "cells": 36
+  },
+  {
+    "file": "Issue283_TimeSpan.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 36
+  },
+  {
+    "file": "Issue283_TimeSpan.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 36
+  },
+  {
+    "file": "Issue286_SST.xls",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "Issue289.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue301_IgnoreCase.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 71
+  },
+  {
+    "file": "Issue319.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue321.xls",
+    "error": null,
+    "code": null,
+    "cells": 8697
+  },
+  {
+    "file": "Issue324.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 113
+  },
+  {
+    "file": "Issue329_Error.xls",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue329_Error.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue329_Error.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue341.xls",
+    "error": null,
+    "code": null,
+    "cells": 11
+  },
+  {
+    "file": "Issue341.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 11
+  },
+  {
+    "file": "Issue341.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 11
+  },
+  {
+    "file": "Issue341_Style.xls",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue354.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue364.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue364.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue368_Formats.xls",
+    "error": null,
+    "code": null,
+    "cells": 64
+  },
+  {
+    "file": "Issue368_Header.xls",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "Issue368_Ixfe.xls",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "Issue368_LabelXf.xls",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue375_IxfeRowmap.xls",
+    "error": null,
+    "code": null,
+    "cells": 100
+  },
+  {
+    "file": "Issue382_Oom.xls",
+    "error": "Cyclic sector chain in compound document.",
+    "code": null,
+    "cells": null
+  },
+  {
+    "file": "Issue385_Backslash.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 71
+  },
+  {
+    "file": "Issue392_Oob.xls",
+    "error": null,
+    "code": null,
+    "cells": 70
+  },
+  {
+    "file": "Issue411.xls",
+    "error": null,
+    "code": null,
+    "cells": 305
+  },
+  {
+    "file": "Issue425.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue438.xls",
+    "error": null,
+    "code": null,
+    "cells": 4
+  },
+  {
+    "file": "Issue45.xls",
+    "error": null,
+    "code": null,
+    "cells": 395
+  },
+  {
+    "file": "Issue454.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue461.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "Issue466_Biff3.xls",
+    "error": null,
+    "code": null,
+    "cells": 10
+  },
+  {
+    "file": "Issue467_EmptyContinueLeftoverbytes.xls",
+    "error": null,
+    "code": null,
+    "cells": 627
+  },
+  {
+    "file": "Issue467_SstEmptyContinue.xls",
+    "error": null,
+    "code": null,
+    "cells": 627
+  },
+  {
+    "file": "Issue477_CryptoKeylength40.xls",
+    "error": null,
+    "code": null,
+    "cells": 5
+  },
+  {
+    "file": "Issue477_SstWrongCount.xls",
+    "error": null,
+    "code": null,
+    "cells": 71
+  },
+  {
+    "file": "Issue477_SstZeroCount.xls",
+    "error": null,
+    "code": null,
+    "cells": 0
+  },
+  {
+    "file": "Issue486.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "Issue5.xls",
+    "error": "The excel file may be corrupt or truncated. We've read past the end of the file.",
+    "code": null,
+    "cells": null
+  },
+  {
+    "file": "Issue51.xls",
+    "error": null,
+    "code": null,
+    "cells": 20357
+  },
+  {
+    "file": "Issue518.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 16
+  },
+  {
+    "file": "Issue532.xls",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "Issue532.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "Issue532.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "Issue532_Mulcells.xls",
+    "error": null,
+    "code": null,
+    "cells": 41683
+  },
+  {
+    "file": "Issue53_CachedFormulaStringType.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 21
+  },
+  {
+    "file": "Issue541.xls",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue541.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue541.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue574.xls",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue574.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue574.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue578.xls",
+    "error": null,
+    "code": null,
+    "cells": 5
+  },
+  {
+    "file": "Issue578.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 5
+  },
+  {
+    "file": "Issue578.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 5
+  },
+  {
+    "file": "Issue608.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 15
+  },
+  {
+    "file": "Issue609.xls",
+    "error": null,
+    "code": null,
+    "cells": 193
+  },
+  {
+    "file": "Issue624.xls",
+    "error": null,
+    "code": null,
+    "cells": 47
+  },
+  {
+    "file": "Issue629.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 54
+  },
+  {
+    "file": "Issue635.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 12
+  },
+  {
+    "file": "Issue642.xls",
+    "error": null,
+    "code": null,
+    "cells": 14
+  },
+  {
+    "file": "Issue642.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 14
+  },
+  {
+    "file": "Issue642.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 14
+  },
+  {
+    "file": "Issue642_Onesheet.xls",
+    "error": null,
+    "code": null,
+    "cells": 0
+  },
+  {
+    "file": "Issue642_Onesheet.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 0
+  },
+  {
+    "file": "Issue642_Onesheet.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 0
+  },
+  {
+    "file": "Issue649_Date1904Parsings.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue682.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue682.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "Issue694_TimeSpan.xls",
+    "error": null,
+    "code": null,
+    "cells": 106
+  },
+  {
+    "file": "Issue694_TimeSpan.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 106
+  },
+  {
+    "file": "Issue694_TimeSpan.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 106
+  },
+  {
+    "file": "Issue694_TimeSpanFormula.xls",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "Issue694_TimeSpanFormula.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "Issue694_TimeSpanFormula.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "Issue695_InvalidByteOrderFEFF.xls",
+    "error": null,
+    "code": null,
+    "cells": 1202
+  },
+  {
+    "file": "Issue700_CellAlignments.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 4
+  },
+  {
+    "file": "Issue70_ExcelBinaryReaderTryConvertOADateTimeConvertDates.xls",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "Issue711_OpenXmlRowHeightParsing.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 18
+  },
+  {
+    "file": "Issue711_OpenXmlRowHeightParsingNegativeDefaultHeight.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 18
+  },
+  {
+    "file": "LocaleTime.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 8
+  },
+  {
+    "file": "LotsOfSheets.xls",
+    "error": null,
+    "code": null,
+    "cells": 14107
+  },
+  {
+    "file": "LotsOfSheets.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 14107
+  },
+  {
+    "file": "LotsOfSheets.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 14107
+  },
+  {
+    "file": "LowerCaseReferenceAttribute.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 9
+  },
+  {
+    "file": "MergedCell.xls",
+    "error": null,
+    "code": null,
+    "cells": 10
+  },
+  {
+    "file": "MergedCell.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 10
+  },
+  {
+    "file": "MergedCell.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 10
+  },
+  {
+    "file": "MultiSheet.xls",
+    "error": null,
+    "code": null,
+    "cells": 106
+  },
+  {
+    "file": "MultiSheet.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 106
+  },
+  {
+    "file": "MultiSheet.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 106
+  },
+  {
+    "file": "NoDimensionOrCellReferenceAttribute.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 216
+  },
+  {
+    "file": "NoStylesNoRAttribute.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 102
+  },
+  {
+    "file": "NumDoubleDateBoolString.xls",
+    "error": null,
+    "code": null,
+    "cells": 153
+  },
+  {
+    "file": "NumDoubleDateBoolString.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 153
+  },
+  {
+    "file": "NumDoubleDateBoolString.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 153
+  },
+  {
+    "file": "OldIssue10725.xls",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "OldIssue10725.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "OldIssue10725.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "OldIssue11397.xls",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "OldIssue11397.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "OldIssue11397.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "OldIssue11435_Colors.xls",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "OldIssue11435_Colors.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "OldIssue11435_Colors.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "OldIssue11479_BlankSheet.xls",
+    "error": null,
+    "code": null,
+    "cells": 19
+  },
+  {
+    "file": "OldIssue11479_BlankSheet.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 19
+  },
+  {
+    "file": "OldIssue11479_BlankSheet.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 19
+  },
+  {
+    "file": "OldIssue11516_SingleTab.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 539
+  },
+  {
+    "file": "OldIssue11516_SingleTab.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 539
+  },
+  {
+    "file": "OldIssue11522_OpenXml.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 17
+  },
+  {
+    "file": "OldIssue11545_NoIndex.xls",
+    "error": null,
+    "code": null,
+    "cells": 1130
+  },
+  {
+    "file": "OldIssue11553_FAT.xls",
+    "error": null,
+    "code": null,
+    "cells": 37
+  },
+  {
+    "file": "OldIssue11570_Excel2013.xls",
+    "error": null,
+    "code": null,
+    "cells": 10
+  },
+  {
+    "file": "OldIssue11570_FAT1.xls",
+    "error": null,
+    "code": null,
+    "cells": 10
+  },
+  {
+    "file": "OldIssue11570_FAT2.xls",
+    "error": null,
+    "code": null,
+    "cells": 1972
+  },
+  {
+    "file": "OldIssue11572_CodePage.xls",
+    "error": null,
+    "code": null,
+    "cells": 76986
+  },
+  {
+    "file": "OldIssue11573_BlankValues.xls",
+    "error": null,
+    "code": null,
+    "cells": 961
+  },
+  {
+    "file": "OldIssue11573_BlankValues.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 961
+  },
+  {
+    "file": "OldIssue11573_BlankValues.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 961
+  },
+  {
+    "file": "OldIssue11636_BiffStream.xls",
+    "error": null,
+    "code": null,
+    "cells": 345
+  },
+  {
+    "file": "OldIssue11642_ValuesNotLoaded.xls",
+    "error": null,
+    "code": null,
+    "cells": 1984
+  },
+  {
+    "file": "OldIssue11773_Exponential.xls",
+    "error": null,
+    "code": null,
+    "cells": 5760
+  },
+  {
+    "file": "OldIssue11773_Exponential.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 5760
+  },
+  {
+    "file": "OldIssue11773_Exponential.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 5760
+  },
+  {
+    "file": "OldIssue11818_OutOfRange.xls",
+    "error": null,
+    "code": null,
+    "cells": 5764
+  },
+  {
+    "file": "OldIssue12556_Corrupt.xls",
+    "error": "The excel file may be corrupt or truncated. We've read past the end of the file.",
+    "code": null,
+    "cells": null
+  },
+  {
+    "file": "OldIssue12667_GoogleExportMissingColumns.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 6
+  },
+  {
+    "file": "OldIssue4031_NullColumn.xls",
+    "error": null,
+    "code": null,
+    "cells": 15
+  },
+  {
+    "file": "OldIssue4031_NullColumn.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 15
+  },
+  {
+    "file": "OldIssue4031_NullColumn.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 15
+  },
+  {
+    "file": "OldIssue4145.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3955
+  },
+  {
+    "file": "OldIssue7433_IllegalOleAutDate.xls",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "OldIssue7433_IllegalOleAutDate.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "OldIssue7433_IllegalOleAutDate.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 3
+  },
+  {
+    "file": "OldIssue8536.xls",
+    "error": null,
+    "code": null,
+    "cells": 13
+  },
+  {
+    "file": "OldIssue8536.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 13
+  },
+  {
+    "file": "OldIssue8536.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 13
+  },
+  {
+    "file": "Open.xls",
+    "error": null,
+    "code": null,
+    "cells": 869
+  },
+  {
+    "file": "Open.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 869
+  },
+  {
+    "file": "Open.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 869
+  },
+  {
+    "file": "OpenOffice.xls",
+    "error": null,
+    "code": null,
+    "cells": 203
+  },
+  {
+    "file": "Row1217NotRead.xls",
+    "error": null,
+    "code": null,
+    "cells": 10444
+  },
+  {
+    "file": "RowWithDifferentNumberOfColumns.xls",
+    "error": null,
+    "code": null,
+    "cells": 3153
+  },
+  {
+    "file": "StringContinuationAfterCharacterData.xls",
+    "error": null,
+    "code": null,
+    "cells": 35741
+  },
+  {
+    "file": "TableOnlyImageX01oct2016.xls",
+    "error": null,
+    "code": null,
+    "cells": 15436
+  },
+  {
+    "file": "Uncalculated.xls",
+    "error": null,
+    "code": null,
+    "cells": 10
+  },
+  {
+    "file": "UnicodeChars.xls",
+    "error": null,
+    "code": null,
+    "cells": 22
+  },
+  {
+    "file": "UnicodeChars.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 22
+  },
+  {
+    "file": "UnicodeChars.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 22
+  },
+  {
+    "file": "agile_AES128_MD5_CBC_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES128_MD5_CBC_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES128_SHA1_CBC_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES128_SHA1_CBC_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES128_SHA384_CBC_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES128_SHA384_CBC_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES128_SHA512_CBC_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES128_SHA512_CBC_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES192_SHA512_CBC_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES192_SHA512_CBC_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES256_SHA512_CBC_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_AES256_SHA512_CBC_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_DES_MD5_CBC_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_DES_MD5_CBC_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_DESede_SHA384_CBC_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_DESede_SHA384_CBC_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_RC2_SHA1_CBC_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "agile_RC2_SHA1_CBC_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "as3xls_BIFF2.xls",
+    "error": null,
+    "code": null,
+    "cells": 50
+  },
+  {
+    "file": "as3xls_BIFF3.xls",
+    "error": null,
+    "code": null,
+    "cells": 50
+  },
+  {
+    "file": "as3xls_BIFF4.xls",
+    "error": null,
+    "code": null,
+    "cells": 50
+  },
+  {
+    "file": "as3xls_BIFF5.xls",
+    "error": null,
+    "code": null,
+    "cells": 50
+  },
+  {
+    "file": "biff3.xls",
+    "error": null,
+    "code": null,
+    "cells": 6870
+  },
+  {
+    "file": "customformat_notdate.xls",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "issue753.xls",
+    "error": null,
+    "code": null,
+    "cells": 4
+  },
+  {
+    "file": "protectedsheet-xxx.xls",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "roo_1900_base.xls",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "roo_1900_base.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "roo_1900_base.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "roo_1904_base.xls",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "roo_1904_base.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "roo_1904_base.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 2
+  },
+  {
+    "file": "standard_AES128_SHA1_ECB_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "standard_AES128_SHA1_ECB_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "standard_AES192_SHA1_ECB_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "standard_AES192_SHA1_ECB_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "standard_AES256_SHA1_ECB_pwd_password.xlsb",
+    "error": null,
+    "code": null,
+    "cells": 1
+  },
+  {
+    "file": "standard_AES256_SHA1_ECB_pwd_password.xlsx",
+    "error": null,
+    "code": null,
+    "cells": 1
+  }
+]

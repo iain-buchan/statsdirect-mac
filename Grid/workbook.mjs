@@ -54,7 +54,8 @@ export class WorkbookStore {
     this.sheets = sheets;
     this.name = workbook.name;
     this.imported = true;
-    this.backed = !!workbook.id;
+    this.backed = !!workbook.id && !workbook.dataCopy;
+    this.importNotice = workbook.importNotice ?? '';
     this.formulaCount = workbook.formulaCount;
     this.edited = false;
     return Math.max(0, sheets.findIndex(s => !s.hidden));
@@ -104,4 +105,3 @@ export class WorkbookStore {
     return {sheets: sheets.map(({name, store, columns}) => ({name, columns: [...columns.values()].sort((a, b) => a.col - b.col), inserts: store.inserts.map(i => ({col: i.col, count: i.count}))}))};
   }
 }
-

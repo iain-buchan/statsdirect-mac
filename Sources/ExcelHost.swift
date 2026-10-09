@@ -7,6 +7,7 @@ private typealias WorkbookFreeFunction = @convention(c) (UnsafeMutablePointer<CC
 private let workbookQueue = DispatchQueue(label: "StatsDirect.Excel", qos: .userInitiated)
 
 extension Viewer {
+    static let excelExtensions = ["xlsx", "xls", "xlsb", "xlsm", "xlt", "xltx", "xltm"]
     private func workbookFunctions() throws -> (invoke: WorkbookFunction, free: WorkbookFreeFunction) {
         if libraryHandle == nil {
             libraryHandle = dlopen(Bundle.main.bundleURL.appendingPathComponent("Contents/Frameworks/StatsDirectEngine.dylib").path, RTLD_NOW | RTLD_LOCAL)
@@ -22,7 +23,9 @@ extension Viewer {
         guard let pointer = json.withCString({ functions.invoke($0) }) else { throw NSError(domain: "StatsDirect.Excel", code: 2, userInfo: [NSLocalizedDescriptionKey: "The Excel component could not start."]) }
         let response = String(cString: pointer); functions.free(pointer)
         guard let object = try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any] else { throw CocoaError(.fileReadCorruptFile) }
-        if let message = object["error"] as? String { throw NSError(domain: "StatsDirect.Excel", code: 3, userInfo: [NSLocalizedDescriptionKey: message]) }
+        if let message = object["error"] as? String {
+            throw NSError(domain: "StatsDirect.Excel", code: 3, userInfo: [NSLocalizedDescriptionKey: message, "workbookErrorCode": object["code"] as? String ?? ""])
+        }
         return object
     }
     func workbookRequest(_ request: [String: Any], completion: @escaping (Result<[String: Any], Error>) -> Void) {
@@ -46,28 +49,61 @@ extension Viewer {
         }
     }
     @objc func openExcel() {
-        let panel = NSOpenPanel(); panel.allowedContentTypes = [UTType(filenameExtension: "xlsx")!]
+        let panel = NSOpenPanel(); panel.allowedContentTypes = Self.excelExtensions.compactMap { UTType(filenameExtension: $0) }
         panel.allowsMultipleSelection = false; panel.canChooseDirectories = false
         panel.beginSheetModal(for: window) { response in
             if response == .OK, let url = panel.url { self.openExcelURL(url) }
         }
     }
     @objc func openExampleWorkbook() { openExcelURL(root.appendingPathComponent("Examples/test.xlsx")) }
-    func openExcelURL(_ url: URL) {
+    func openExcelURL(_ url: URL, password: String? = nil) {
         status.stringValue = "Opening \(url.lastPathComponent)…"
         // The engine writes each sheet's cells to a typed snapshot file; the grid fetches them by id.
-        workbookRequest(["action": "open", "path": url.path, "snapshot": SnapshotStore.shared.directory.path]) { result in
+        var request: [String: Any] = ["action": "open", "path": url.resolvingSymlinksInPath().path, "snapshot": SnapshotStore.shared.directory.path]
+        if let password { request["password"] = password }
+        workbookRequest(request) { result in
             switch result {
-            case .failure(let error): self.status.stringValue = "Excel import failed"; self.showError(error.localizedDescription)
+            case .failure(let error):
+                if (error as NSError).userInfo["workbookErrorCode"] as? String == "workbookPassword" {
+                    self.askWorkbookPassword(url, retry: password != nil)
+                } else { self.status.stringValue = "Excel import failed"; self.showError(error.localizedDescription) }
             case .success(var workbook):
                 let doc = self.newDocument(kind: "grid", title: url.lastPathComponent, url: self.root.appendingPathComponent("Grid/index.html"))
                 doc.workbookID = workbook["id"] as? String
                 doc.workbookName = url.lastPathComponent
+                doc.workbookSourceURL = url.resolvingSymlinksInPath()
+                doc.workbookDataCopy = workbook["dataCopy"] as? Bool == true
                 self.stageSnapshots(in: &workbook, for: doc)
                 doc.pendingWorkbook = workbook
                 self.status.stringValue = "Opened \(url.lastPathComponent)"
             }
         }
+    }
+    func askWorkbookPassword(_ url: URL, retry: Bool) {
+        let alert = NSAlert()
+        alert.messageText = retry ? "The workbook password was not accepted" : "Enter the workbook password"
+        alert.informativeText = "\(url.lastPathComponent) needs its opening password. The password is used only to open this file and is not saved."
+        alert.addButton(withTitle: "Open"); alert.addButton(withTitle: "Cancel")
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        field.placeholderString = "Workbook password"
+        field.setAccessibilityLabel("Workbook password")
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        status.stringValue = "Waiting for workbook password"
+        alert.beginSheetModal(for: window) { response in
+            let password = field.stringValue
+            field.stringValue = ""
+            if response == .alertFirstButtonReturn { self.openExcelURL(url, password: password) }
+            else { self.status.stringValue = "Opening cancelled" }
+        }
+    }
+    // Values-only exports must never replace the source, including a selected filesystem alias.
+    func isImportedWorkbookSource(_ url: URL, document: Document) -> Bool {
+        guard document.workbookDataCopy, let source = document.workbookSourceURL else { return false }
+        if source.resolvingSymlinksInPath().path.caseInsensitiveCompare(url.resolvingSymlinksInPath().path) == .orderedSame { return true }
+        let a = try? source.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier
+        let b = try? url.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier
+        return a != nil && b != nil && (a as? NSObject)?.isEqual(b) == true
     }
     // Sheets whose cells sit in a snapshot file (written by the engine or by R import) are
     // registered with the snapshot store, which serves them to the grid by id and deletes
@@ -102,9 +138,14 @@ extension Viewer {
         guard !doc.fileBusy else { return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [UTType(filenameExtension: "xlsx")!]
         let stem = (doc.workbookName as NSString).deletingPathExtension
-        panel.nameFieldStringValue = stem + "-edited.xlsx"
+        panel.nameFieldStringValue = stem + (doc.workbookDataCopy ? "-data.xlsx" : "-edited.xlsx")
+        if doc.workbookDataCopy { panel.message = "Save the imported values as a new workbook. The original keeps its formulas, formatting, macros and any password protection." }
         panel.beginSheetModal(for: window) { response in
             guard response == .OK, let url = panel.url else { return }
+            guard !self.isImportedWorkbookSource(url, document: doc) else {
+                self.showError("Choose a new filename to keep the original workbook intact.")
+                return
+            }
             let version = doc.gridVersion
             doc.fileBusy = true
             // The grid stores a typed snapshot of the cells to write; the engine reads it by path.

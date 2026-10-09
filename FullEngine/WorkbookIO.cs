@@ -25,19 +25,20 @@ using ClosedXML.Excel;
 // small workbooks through ClosedXML (which recalculates formulas and preserves styles),
 // large ones by streaming each worksheet part and merging the edited cells, leaving Excel
 // to recalculate formulas when it opens the file.
-public static class WorkbookIO {
+public static partial class WorkbookIO {
     // Above this many cells (original plus edits) a patch streams instead of loading ClosedXML.
     public const int ClosedXmlCells = 1000000;
     const int MaxRows = 1048576, MaxCols = 16384;
     static readonly ConcurrentDictionary<string, (string path, long cells)> originals = new();
     static WorkbookIO() {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { foreach (var original in originals.Values) { try { File.Delete(original.path); } catch { } } };
     }
     static readonly JsonSerializerOptions json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
     public sealed record Cell(int Col, int Row, string Text, string Kind, string Formula = "");
     public sealed record Sheet(string Name, int Rows, int Columns, bool Hidden, List<Cell> Cells, int Count, int FormulaCount, string Snapshot);
     public sealed record Patch(string Name, List<Cell> Cells);
-    public sealed record Request(string Action, string Path, string Id, List<Patch> Sheets, string Snapshot, bool Stream = false, List<SheetInserts> Inserts = null);
+    public sealed record Request(string Action, string Path, string Id, List<Patch> Sheets, string Snapshot, bool Stream = false, List<SheetInserts> Inserts = null, string Password = null);
     // Columns inserted into an opened worksheet by the grid (a write-back placed before existing columns), in the
     // order they were made and in the coordinates of that moment; the cells sent to save are in the final coordinates.
     public sealed record SheetInserts(string Name, List<Insert> Inserts);
@@ -51,16 +52,19 @@ public static class WorkbookIO {
         try {
             var request = JsonSerializer.Deserialize<Request>(input, json) ?? throw new Exception("Missing workbook request.");
             object result = request.Action switch {
-                "open" => Open(request.Path, request.Snapshot),
+                "open" => Open(request.Path, request.Snapshot, request.Password),
                 "save" => Save(request),
                 "close" => Close(request.Id),
                 _ => throw new Exception("Unknown workbook action.")
             };
             return JsonSerializer.Serialize(result, json);
+        } catch (ExcelDataReader.Exceptions.InvalidPasswordException) {
+            return JsonSerializer.Serialize(new { error = "This workbook needs its opening password.", code = "workbookPassword" }, json);
         } catch (Exception ex) { return JsonSerializer.Serialize(new { error = ex.Message }, json); }
     }
 
     static object Close(string id) {
+        if (dataCopies.TryRemove(id ?? "", out _)) return new { ok = true };
         if (!originals.TryRemove(id ?? "", out var original)) return new { ok = false };
         try { File.Delete(original.path); } catch { }
         return new { ok = true };
@@ -189,10 +193,7 @@ public static class WorkbookIO {
     }
 
     // ---- Open ------------------------------------------------------------------------
-    static object Open(string path, string snapshotDir) {
-        if (!string.Equals(System.IO.Path.GetExtension(path), ".xlsx", StringComparison.OrdinalIgnoreCase))
-            throw new Exception("Choose an .xlsx workbook. Legacy .xls and .xlsb files are not supported yet.");
-        if (!File.Exists(path)) throw new Exception("The workbook could not be found.");
+    static object OpenXlsx(string path, string snapshotDir) {
         var id = Guid.NewGuid().ToString("N");
         var sheets = new List<Sheet>();
         var written = new List<string>();
@@ -218,11 +219,12 @@ public static class WorkbookIO {
             }
         }
         if (sheets.Count == 0) throw new Exception("The workbook contains no worksheets.");
-        } catch { foreach (var file in written) { try { File.Delete(file); } catch { } } throw; }
         // The original is kept as a private copy so later edits on disk do not change what is patched.
         var copy = System.IO.Path.Combine(snapshotDir ?? System.IO.Path.GetTempPath(), $"statsdirect-workbook-{id}.xlsx");
+        written.Add(copy);
         File.Copy(path, copy, true); originals[id] = (copy, sheets.Sum(x => (long)x.Count));
         return new { id, name = System.IO.Path.GetFileName(path), sheets, formulaCount = sheets.Sum(s => s.FormulaCount), cellCount = sheets.Sum(s => s.Count) };
+        } catch { foreach (var file in written) { try { File.Delete(file); } catch { } } throw; }
     }
 
     sealed class SheetInfo { public string Name; public string Entry; public bool Hidden; }
@@ -355,9 +357,17 @@ public static class WorkbookIO {
                 if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out num)) { kind = 2; cellText = value; }
                 else {
                     byte styleKind = style != null && int.TryParse(style, NumberStyles.None, CultureInfo.InvariantCulture, out var sx) && sx < package.StyleKinds.Count ? package.StyleKinds[sx] : (byte)1;
-                    if (styleKind == 3) { kind = 3; cellText = DateText(SerialToDate(num, package.Date1904)); num = double.NaN; }
-                    else if (styleKind == 4) { kind = 4; cellText = TimeSpan.FromDays(num).ToString("c", CultureInfo.InvariantCulture); num = double.NaN; }
-                    else { kind = 1; cellText = ""; }
+                    kind = 1; cellText = "";
+                    // A number with date/time formatting can exceed that format's
+                    // representable range. Keep the numeric value readable instead
+                    // of rejecting the whole workbook because of its display style.
+                    if (styleKind == 3) {
+                        try { cellText = DateText(SerialToDate(num, package.Date1904)); kind = 3; num = double.NaN; }
+                        catch (ArgumentException) { }
+                    } else if (styleKind == 4) {
+                        try { cellText = TimeSpan.FromDays(num).ToString("c", CultureInfo.InvariantCulture); kind = 4; num = double.NaN; }
+                        catch (OverflowException) { }
+                    }
                 }
             }
             if (kind == 0 && !hasFormula) continue;
@@ -462,8 +472,13 @@ public static class WorkbookIO {
         if (!string.Equals(System.IO.Path.GetExtension(request.Path), ".xlsx", StringComparison.OrdinalIgnoreCase)) throw new Exception("Save the workbook with an .xlsx extension.");
         string source = null; long originalCells = 0;
         if (!string.IsNullOrEmpty(request.Id)) {
-            if (!originals.TryGetValue(request.Id, out var original) || !File.Exists(original.path)) throw new Exception("The source workbook is no longer open.");
-            source = original.path; originalCells = original.cells;
+            if (dataCopies.TryGetValue(request.Id, out var importedPath)) {
+                if (string.Equals(Path.GetFullPath(request.Path), importedPath, StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("Save the imported data under a new name to keep the original workbook intact.");
+            } else {
+                if (!originals.TryGetValue(request.Id, out var original) || !File.Exists(original.path)) throw new Exception("The source workbook is no longer open.");
+                source = original.path; originalCells = original.cells;
+            }
         }
         List<SheetData> sheets;
         if (request.Snapshot != null) { using var stream = File.OpenRead(request.Snapshot); sheets = ReadSnapshot(stream); }

@@ -8,6 +8,7 @@ parser.add_argument('--live',action='store_true')
 parser.add_argument('--stay-open',action='store_true')
 parser.add_argument('--privacy-only',action='store_true',help='Run only the native tutor-sharing and policy checks')
 parser.add_argument('--groups-only',action='store_true',help='Run only the native group-selection checks')
+parser.add_argument('--excel-only',action='store_true',help='Run only native Excel import and password checks')
 args=parser.parse_args()
 source_app=args.app.resolve()
 source_info=plistlib.loads((source_app/'Contents/Info.plist').read_bytes())
@@ -16,7 +17,7 @@ out=root/'.build/feedback-native';out.mkdir(exist_ok=True)
 subprocess.run([str(root/'Grid/node_modules/esbuild/bin/esbuild'),'Tests/feedback-renderer.mjs','--bundle','--format=iife','--outfile=.build/feedback-renderer.js'],cwd=root,check=True)
 (out/'Viewer.swift').write_text((root/'Sources/main.swift').read_text().split('MainActor.assumeIsolated {')[0])
 helpers=[]
-for name in ['learning-workspace','provider-learning','report-export','group-identifier','write-back']:
+for name in ['learning-workspace','provider-learning','report-export','group-identifier','write-back','excel-import']:
  p=out/(name+'.swift');p.write_text((root/('Tests/'+name+'-driver.swift')).read_text().replace('@main struct','struct'));helpers.append(str(p))
 app=out/'StatsDirect Feedback Check.app';(app/'Contents/MacOS').mkdir(parents=True,exist_ok=True)
 info=plistlib.loads((root/'Info.plist').read_bytes());info['CFBundleIdentifier']='com.statsdirect.feedback.'+uuid.uuid4().hex;info['CFBundleExecutable']='FeedbackCheck';(app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
@@ -28,4 +29,4 @@ flags=subprocess.check_output(['bash',str(root/'Scripts/native-build-flags.sh'),
 cmd=['swiftc',*flags,'-emit-executable','-module-name','StatsDirectFeedback','-emit-module-path',str(out/'StatsDirectFeedback.swiftmodule'),'-parse-as-library','-target','arm64-apple-macosx14.0','-module-cache-path',str(root/'.build/swift-cache')]+[str(x) for x in (root/'Sources').glob('*.swift') if x.name!='main.swift']+[str(out/'Viewer.swift'),str(root/'Tests/beta-feedback-driver.swift')]+helpers+['-o',str(app/'Contents/MacOS/FeedbackCheck'),'-framework','Cocoa','-framework','WebKit','-framework','PDFKit','-framework','Security']
 subprocess.run(cmd,cwd=root,check=True)
 print('Testing app resources and engine:',source_app,flush=True)
-subprocess.run([str(app/'Contents/MacOS/FeedbackCheck'),str(root/'.build/beta-feedback-exports')]+(['--live'] if args.live else [])+(['--groups-only'] if args.groups_only else [])+(['--privacy-only'] if args.privacy_only else [])+(['--stay-open'] if args.stay_open else []),cwd=root,check=True)
+subprocess.run([str(app/'Contents/MacOS/FeedbackCheck'),str(root/'.build/beta-feedback-exports')]+(['--live'] if args.live else [])+(['--groups-only'] if args.groups_only else [])+(['--privacy-only'] if args.privacy_only else [])+(['--excel-only'] if args.excel_only else [])+(['--stay-open'] if args.stay_open else []),cwd=root,check=True)

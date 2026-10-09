@@ -18,6 +18,8 @@ final class Document {
     var gridVersion = 0
     var workbookID: String?
     var workbookName = "Untitled.xlsx"
+    var workbookSourceURL: URL?
+    var workbookDataCopy = false
     var pendingWorkbook: [String: Any]?
     var snapshotIDs: [String] = []
     var pendingCSV: String?
@@ -441,14 +443,14 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func forward() { active?.web.goForward() }
     @objc func openFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = ["xlsx", "csv", "rds", "rdata", "rda", "html", "htm"].compactMap { UTType(filenameExtension: $0) }
+        panel.allowedContentTypes = (Self.excelExtensions + ["csv", "rds", "rdata", "rda", "html", "htm"]).compactMap { UTType(filenameExtension: $0) }
         panel.allowsMultipleSelection = true; panel.canChooseDirectories = false
         panel.message = "Open Excel, CSV or R data, or an HTML report."
         panel.beginSheetModal(for: window) { response in
             guard response == .OK else { return }
             for url in panel.urls {
                 switch url.pathExtension.lowercased() {
-                case "xlsx": self.openExcelURL(url)
+                case let ext where Self.excelExtensions.contains(ext): self.openExcelURL(url)
                 case "csv": self.openCSVURL(url)
                 case "rds", "rdata", "rda": self.openRDataURL(url)
                 default: self.newDocument(kind: "report", title: "Report · \(url.deletingPathExtension().lastPathComponent)", url: url, access: url.deletingLastPathComponent())

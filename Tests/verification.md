@@ -581,3 +581,8 @@ Scripts/test-report-export.sh "$PWD/StatsDirect Viewer.app"
 - Local build, full engine/R suite, 94 JavaScript tests, 33 help examples, chart geometry, Excel insertion/edge tests, CSV/R-data tests and the optimised native host against the extracted release all pass. The actual executable reports StatsDirect 0.3.20 and the updated engine revision.
 - The latest upstream CI had another native wait timeout; waits now report file/line and CI retries that timeout once, retaining hard failures for other errors and for a second timeout. Simulated failure and recovery cases verify pipeline exit-code propagation.
 - [Package identities, detailed checks and remaining limits](../Docs/Validation/Beta-0.3.20/README.md). Apple signing/notarisation remain pending.
+
+
+# Excel compatibility — Mac 0.3.21, 9 October 2026
+
+Opening/reading and source-column insertion safeguards are now explicitly separate. XLS, XLSB, macro-enabled, template, Strict and password-protected workbooks use a compatibility reader with typed snapshots; ordinary XLSX retains its preserving editor. New tests cover values, types, hidden/complex sheets, out-of-order BIFF rows, passwords and source preservation, plus 1,048,577 populated cells through the last Excel row and column. [Implementation, evidence and limitations](../Docs/Validation/Beta-0.3.21/README.md).

@@ -37,6 +37,9 @@ jobs:
           node-version: 24
       - name: Enable pnpm through corepack
         run: corepack enable
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
       - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
         with:
           r-version: release
@@ -50,7 +53,7 @@ jobs:
       - name: Install JavaScript dependencies
         run: for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
       - name: Install openpyxl for the Excel tests
-        run: python3 -m pip install --user openpyxl
+        run: python3 -m pip install openpyxl
       - name: Build the application
         run: DOTNET="$(command -v dotnet)" ./build.sh
       - name: Committed bundles match their sources

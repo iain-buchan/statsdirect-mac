@@ -5,6 +5,7 @@ Those Windows-only input routes are counted as unsupported, not reported passed.
 The unchanged upstream numerical inverse/range tests run in UpstreamSuites.
 """
 from collections import Counter
+import json
 import math
 from pathlib import Path
 from test_menu import Session
@@ -64,14 +65,11 @@ try:
             if result['state'] != 'complete':
                 failures.append((line, 'expected a result', result))
                 continue
-            values = result['values']
-            boxes = {'txtUp': values['upper']}
-            if kind in ('Binomial', 'Poisson'):
-                boxes.update(txtLp=values['mass'], txt2p=values['lower'])
-            elif kind not in ('Rho', 'Kendall'):
-                boxes['txtLp'] = values['lower']
-                if kind in ('Z', 'T'):
-                    boxes['txt2p'] = 2 * min(values['lower'], values['upper'])
+            # The boxes as the run's record keeps them (the Windows names: lower, upper, two_sided), as the calculator shows them.
+            recorded = json.loads(result['record'])['parameters']
+            boxes = {'txtUp': recorded['upper']}
+            if 'lower' in recorded: boxes['txtLp'] = recorded['lower']
+            if 'two_sided' in recorded: boxes['txt2p'] = recorded['two_sided']
             for box, (value, room) in wanted.items():
                 if box not in boxes:
                     continue  # Windows-only score/value display, not a probability.

@@ -1,6 +1,7 @@
 from r_runtime import rscript as find_rscript
 """Exercise 5.0.7 fixes through the Mac host, with independent base R references."""
 from html.parser import HTMLParser
+import json
 import math
 from pathlib import Path
 import re
@@ -73,22 +74,23 @@ try:
         assert message in text and 'No non-normality detected' not in text, text
     print('PASS constant and two-value samples give explicit normality limitations without a false conclusion')
 
+    def box(result, side): return json.loads(result['record'])['parameters'][side]   # the calculator's boxes are inputs of the run's record, as on Windows
     for z in (9, -9):
         result = distribution('DistributionNormal', {'x': z})
-        tail = result['values']['upper' if z > 0 else 'lower']
+        tail = box(result, 'upper' if z > 0 else 'lower')
         assert math.isclose(tail, normal_tail, rel_tol=1e-12, abs_tol=0), (z, tail, normal_tail)
         two_sided = float(re.search(r'Two-sided P = ([\d.Ee+\-]+)', Text(result['html']).text)[1])
         assert math.isclose(two_sided, 2 * normal_tail, rel_tol=1e-12, abs_tol=0)
     result = distribution('DistributionF', {'x': 1e20, 'df': 5, 'df2': 10})
-    assert math.isclose(result['values']['upper'], f_tail, rel_tol=1e-12, abs_tol=0)
+    assert math.isclose(box(result, 'upper'), f_tail, rel_tol=1e-12, abs_tol=0)
     result = distribution('DistributionPoisson', {'df': 11, 'df2': 2})
     # The Windows calculator's upper tail includes the event count.
-    assert math.isclose(result['values']['upper'], poisson_tail, rel_tol=1e-10, abs_tol=0)
+    assert math.isclose(box(result, 'upper'), poisson_tail, rel_tol=1e-10, abs_tol=0)
     print('PASS small normal, F and Poisson upper tails match R without subtraction loss')
 
     for tau in (-1, 0, 1):
         result = distribution('DistributionKendall', {'x': tau, 'df': 2})
-        assert 0 <= result['values']['upper'] <= 1
+        assert 0 <= box(result, 'upper') <= 1
     ident, state = s.start('DistributionKendall')
     assert next(field for field in state['prompt']['fields'] if field['name'] == 'df')['min'] == 2
     s.request(action='answer', id=ident, token=state['token'], value={'x': 0, 'df': 1})

@@ -81,3 +81,5 @@ The [30 September integration audit](../Docs/Validation/Core-176eef7/README.md) 
 ## General menu and multiple-form checks
 
 Build `Tests/operation-driver.cpp` with `clang++ -std=c++17 -arch arm64`, then run `python3 Tests/test_menu.py /path/to/operation-driver`. This checks every menu/help mapping, all 206 enabled entry points, explicit R deferrals, validation retries, stale answers, cancellation and 47 end-to-end analyses. `Tests/test_data_graphics.py` adds 74 data/graphics cases, including SVG output and expected transformed data. `Tests/test_sessions.py` interleaves six open forms, including duplicate methods and agreement charts, compares their outputs with serial runs, and checks independent cancellation and stale input rejection. `node --test Grid/*.test.mjs` includes column order, missing-row alignment, selected-formula safety and generated-table export.
+
+The Distributions calculator (`HostAmendments.Distribution`) mirrors the Windows `ctlPDF`: the same boxes under the same names, Calculate (the value given) and Invert (the value left empty, one probability given), and the boxes recorded as inputs of the run for the shared `RunRecord` and the R script.

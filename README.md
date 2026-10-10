@@ -34,6 +34,8 @@ For Docker, run `./docker-build.sh` instead. The build restores missing submodul
 
 `./build.sh` defaults to an optimised Release build of the Swift shell and native bridges, retaining runtime safety checks. Matching crash-debugging symbols are saved under `.build/symbols/Release`, outside the app. Use `STATSDIRECT_CONFIGURATION=Debug ./build.sh` for an unoptimised native build; the managed calculation engine uses its existing Release configuration.
 
+Set `STATSDIRECT_APP_OUTPUT="$PWD/.build/ready/StatsDirect.app"` to build separately while an existing copy is running.
+
 Run `./test.sh` for engine and R comparison tests (requires R; `RSCRIPT` can select its executable).
 
 Offline help is imported independently of the engine pin: fetch `FullEngine/Upstream`, then run `python3 Scripts/import-desktop-help.py <published-statsdirect-commit>`. This copies the complete Windows DesktopHelp bundle without changing its files. Run `python3 Tests/test_desktop_help.py` and `Scripts/test-help-pane.sh` to verify it.

@@ -16,7 +16,7 @@ final class CalculatorInput: NSTextView {
 // A session tool, not a document: hiding or moving it keeps the same input view,
 // undo history, results and saved expressions. Help occupies the other split.
 @MainActor
-final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
+final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate, NSTextViewDelegate {
     struct Calculation { let expression: String; let result: String }
     let view = NSView()
     let input = CalculatorInput()
@@ -25,9 +25,12 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
     let modeButton = NSButton(title:"Pop out",target:nil,action:nil)
     let calculateButton = NSButton(title:"Calculate",target:nil,action:nil)
     let saveButton = NSButton(title:"Save",target:nil,action:nil)
+    let copyResultButton = NSButton(title:"Copy result",target:nil,action:nil)
     let savedMenu = NSPopUpButton()
-    let deleteButton = NSButton(title:"Delete",target:nil,action:nil)
-    let copyButton = NSButton(title:"Copy all",target:nil,action:nil)
+    let recallButton = NSButton(title:"Recall",target:nil,action:nil)
+    let insertButton = NSButton(title:"Insert",target:nil,action:nil)
+    let deleteButton = NSButton(title:"Remove",target:nil,action:nil)
+    let copyButton = NSButton(title:"Copy saved",target:nil,action:nil)
     weak var owner: NSWindow?
     weak var split: NSSplitView?
     private(set) var floatingWindow: NSPanel?
@@ -37,6 +40,7 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
     private(set) var dockHeight: CGFloat = 250
     private(set) var busy = false
     private(set) var saved: [Calculation] = []
+    private var lastAnswer: String?
     private var timer: Timer?
     var evaluate: ((String, @escaping (Result<String,Error>) -> Void) -> Void)?
     var showHelp: (() -> Void)?
@@ -52,7 +56,7 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
         close.setAccessibilityLabel("Close calculator"); close.toolTip = "Close calculator"
         modeButton.target = self; modeButton.action = #selector(toggleMode)
         for item in [heading,help,modeButton,close] { top.addArrangedSubview(item) }
-        input.isRichText = false; input.allowsUndo = true
+        input.isRichText = false; input.allowsUndo = true; input.delegate = self
         input.font = .monospacedSystemFont(ofSize:13,weight:.regular)
         input.isAutomaticQuoteSubstitutionEnabled = false; input.isAutomaticDashSubstitutionEnabled = false
         input.isAutomaticTextReplacementEnabled = false; input.isAutomaticSpellingCorrectionEnabled = false
@@ -64,31 +68,37 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
         calculateButton.target = self; calculateButton.action = #selector(calculate)
         saveButton.target = self; saveButton.action = #selector(save)
         saveButton.toolTip = "Calculate and save the expression and result for this session"
+        copyResultButton.target = self; copyResultButton.action = #selector(copyResult); copyResultButton.isEnabled = false
         let hint = NSTextField(labelWithString:"Enter: calculate · Shift+Enter: new line")
         hint.font = .systemFont(ofSize:10); hint.textColor = .secondaryLabelColor; hint.lineBreakMode = .byTruncatingTail
         hint.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
-        for item in [calculateButton,saveButton,hint] { actions.addArrangedSubview(item) }
+        for item in [calculateButton,saveButton,copyResultButton,hint] { actions.addArrangedSubview(item) }
         let resultScroll = NSScrollView()
         result.isEditable = false; result.isRichText = false; result.font = .monospacedSystemFont(ofSize:13,weight:.regular)
         result.setAccessibilityLabel("Calculator result"); configure(result,in:resultScroll)
         let history = NSStackView(); history.spacing = 4
         savedMenu.setAccessibilityLabel("Saved calculations")
-        savedMenu.target = self; savedMenu.action = #selector(useSaved)
+        savedMenu.target = self; savedMenu.action = #selector(selectionChanged)
         savedMenu.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
         savedMenu.widthAnchor.constraint(greaterThanOrEqualToConstant:100).isActive = true
         deleteButton.target = self; deleteButton.action = #selector(deleteSaved)
         copyButton.target = self; copyButton.action = #selector(copySaved)
-        for item in [savedMenu,deleteButton,copyButton] { history.addArrangedSubview(item) }
-        for button in [help,modeButton,close,calculateButton,saveButton,deleteButton,copyButton] { button.controlSize = .small; button.refusesFirstResponder = true }
-        for child in [top,inputScroll,actions,resultScroll,history] { child.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(child) }
+        recallButton.target = self; recallButton.action = #selector(recallSaved)
+        recallButton.toolTip = "Replace the expression and result with the selected saved calculation"
+        insertButton.target = self; insertButton.action = #selector(useSaved)
+        insertButton.toolTip = "Insert the saved expression at the caret or replace selected text"
+        for item in [recallButton,insertButton,deleteButton,copyButton] { history.addArrangedSubview(item) }
+        for button in [help,modeButton,close,calculateButton,saveButton,copyResultButton,recallButton,insertButton,deleteButton,copyButton] { button.controlSize = .small; button.refusesFirstResponder = true }
+        for child in [top,inputScroll,actions,resultScroll,savedMenu,history] { child.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(child) }
         NSLayoutConstraint.activate([
             top.topAnchor.constraint(equalTo:view.topAnchor,constant:4), top.heightAnchor.constraint(equalToConstant:25),
             inputScroll.topAnchor.constraint(equalTo:top.bottomAnchor,constant:4), inputScroll.heightAnchor.constraint(greaterThanOrEqualToConstant:45),
             actions.topAnchor.constraint(equalTo:inputScroll.bottomAnchor,constant:3), actions.heightAnchor.constraint(equalToConstant:26),
             resultScroll.topAnchor.constraint(equalTo:actions.bottomAnchor,constant:3), resultScroll.heightAnchor.constraint(equalToConstant:38),
-            history.topAnchor.constraint(equalTo:resultScroll.bottomAnchor,constant:3), history.heightAnchor.constraint(equalToConstant:26), history.bottomAnchor.constraint(equalTo:view.bottomAnchor,constant:-5)
+            savedMenu.topAnchor.constraint(equalTo:resultScroll.bottomAnchor,constant:3), savedMenu.heightAnchor.constraint(equalToConstant:26),
+            history.topAnchor.constraint(equalTo:savedMenu.bottomAnchor,constant:3), history.heightAnchor.constraint(equalToConstant:26), history.bottomAnchor.constraint(equalTo:view.bottomAnchor,constant:-5)
         ])
-        for child in [top,inputScroll,actions,resultScroll,history] {
+        for child in [top,inputScroll,actions,resultScroll,savedMenu,history] {
             child.leadingAnchor.constraint(equalTo:view.leadingAnchor,constant:8).isActive = true
             child.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-8).isActive = true
         }
@@ -118,10 +128,15 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
     @objc func help() { showHelp?() }
     @objc func calculate() { run(save:false) }
     @objc func save() { run(save:true) }
+    func textDidChange(_ notification: Notification) {
+        guard notification.object as? NSTextView === input else { return }
+        lastAnswer = nil; result.string = ""; copyResultButton.isEnabled = false
+    }
     private func run(save: Bool) {
         guard !busy, let evaluate else { return }
         let expression = input.string
         busy = true; calculateButton.isEnabled = false; saveButton.isEnabled = false; input.isEditable = false; savedMenu.isEnabled = false
+        lastAnswer = nil; copyResultButton.isEnabled = false; selectionChanged()
         result.textColor = .secondaryLabelColor; result.string = "Calculating…"
         evaluate(expression) { [weak self] output in
             guard let self else { return }
@@ -129,10 +144,12 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
             switch output {
             case .success(let answer):
                 self.result.textColor = .labelColor; self.result.string = answer
+                self.lastAnswer = answer; self.copyResultButton.isEnabled = !answer.isEmpty
                 if save { self.saved.append(Calculation(expression:expression,result:answer)); self.refreshSaved(select:self.saved.count - 1) }
             case .failure(let error): self.result.textColor = .systemRed; self.result.string = error.localizedDescription
             }
             self.savedMenu.isEnabled = !self.saved.isEmpty
+            self.selectionChanged()
             self.result.scrollRangeToVisible(NSRange(location:0,length:0))
         }
     }
@@ -140,13 +157,31 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
         savedMenu.removeAllItems(); savedMenu.addItem(withTitle:"Saved calculations"); savedMenu.lastItem?.tag = -1; savedMenu.lastItem?.isEnabled = false
         for (index, entry) in saved.enumerated() {
             // Only the menu label is flattened; the saved expression stays exact.
-            let label = entry.expression.replacingOccurrences(of:"\n",with:" ") + " = " + entry.result
+            let label = savedLabel(entry)
             let item = NSMenuItem(title:String(label.prefix(120)),action:nil,keyEquivalent:"")
             item.tag = index; item.toolTip = entry.expression + " = " + entry.result; savedMenu.menu?.addItem(item)
         }
         if let select, saved.indices.contains(select) { savedMenu.selectItem(withTag:select) }
         savedMenu.isEnabled = !saved.isEmpty && !busy; copyButton.isEnabled = !saved.isEmpty
-        deleteButton.isEnabled = (savedMenu.selectedItem?.tag ?? -1) >= 0
+        selectionChanged()
+    }
+    private func savedLabel(_ entry: Calculation) -> String {
+        entry.expression.replacingOccurrences(of:"\r",with:" ").replacingOccurrences(of:"\n",with:" ").replacingOccurrences(of:"\t",with:" ") + " = " + entry.result
+    }
+    @objc func selectionChanged() {
+        let selected = saved.indices.contains(savedMenu.selectedItem?.tag ?? -1)
+        recallButton.isEnabled = selected && !busy; insertButton.isEnabled = selected && !busy; deleteButton.isEnabled = selected && !busy
+    }
+    @objc func recallSaved() {
+        guard !busy, let index = savedMenu.selectedItem?.tag, saved.indices.contains(index) else { return }
+        let entry = saved[index]
+        input.insertText(entry.expression,replacementRange:NSRange(location:0,length:(input.string as NSString).length))
+        lastAnswer = entry.result; result.string = entry.result; result.textColor = .labelColor
+        copyResultButton.isEnabled = !entry.result.isEmpty; view.window?.makeFirstResponder(input)
+    }
+    @objc func copyResult() {
+        guard let answer = lastAnswer, !answer.isEmpty else { return }
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(answer,forType:.string)
     }
     @objc func useSaved() {
         guard !busy, let index = savedMenu.selectedItem?.tag, saved.indices.contains(index) else { return }
@@ -154,12 +189,12 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
         deleteButton.isEnabled = true; view.window?.makeFirstResponder(input)
     }
     @objc func deleteSaved() {
-        guard let index = savedMenu.selectedItem?.tag, saved.indices.contains(index) else { return }
+        guard !busy, let index = savedMenu.selectedItem?.tag, saved.indices.contains(index) else { return }
         saved.remove(at:index); refreshSaved()
     }
     @objc func copySaved() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(saved.map { $0.expression + "\t" + $0.result }.joined(separator:"\n"),forType:.string)
+        NSPasteboard.general.setString(saved.map(savedLabel).joined(separator:"\n"),forType:.string)
     }
     @objc func toggleMode() {
         guard !hasModal else { return }
@@ -182,7 +217,7 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
         if floating {
             if floatingWindow == nil {
                 let panel = NSPanel(contentRect:NSRect(x:0,y:0,width:600,height:310),styleMask:[.titled,.closable,.resizable,.utilityWindow],backing:.buffered,defer:false)
-                panel.title = "StatsDirect Calculator"; panel.minSize = NSSize(width:320,height:225); panel.isReleasedWhenClosed = false
+                panel.title = "StatsDirect Calculator"; panel.minSize = NSSize(width:320,height:255); panel.isReleasedWhenClosed = false
                 panel.worksWhenModal = true; panel.hidesOnDeactivate = false; panel.delegate = self; panel.center(); floatingWindow = panel
             }
             view.autoresizingMask = [.width,.height]; view.translatesAutoresizingMaskIntoConstraints = true
@@ -211,7 +246,7 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate {
     }
     func windowShouldClose(_ sender:NSWindow) -> Bool { hide(); return false }
     func splitView(_ splitView:NSSplitView,constrainMinCoordinate proposedMinimumPosition:CGFloat,ofSubviewAt dividerIndex:Int) -> CGFloat { 150 }
-    func splitView(_ splitView:NSSplitView,constrainMaxCoordinate proposedMaximumPosition:CGFloat,ofSubviewAt dividerIndex:Int) -> CGFloat { max(150,splitView.bounds.height - 205) }
+    func splitView(_ splitView:NSSplitView,constrainMaxCoordinate proposedMaximumPosition:CGFloat,ofSubviewAt dividerIndex:Int) -> CGFloat { max(150,splitView.bounds.height - 220) }
     func splitView(_ splitView:NSSplitView,shouldAdjustSizeOfSubview view:NSView) -> Bool { view !== self.view }
 }
 

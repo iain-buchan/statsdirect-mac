@@ -57,9 +57,13 @@ import WebKit
         c.input.string="2+\n3*4"; c.save(); try await until { !c.busy }
         try check(c.saved.count==1 && c.saved[0].expression=="2+\n3*4" && c.saved[0].result=="14","Save calculates and preserves the exact multiline expression")
         c.copySaved()
-        try check(NSPasteboard.general.string(forType:.string)=="2+\n3*4\t14","saved expressions and results copy to the clipboard")
+        try check(NSPasteboard.general.string(forType:.string)=="2+ 3*4 = 14","Copy saved matches Windows, with one expression/result per line")
+        c.copyResult(); try check(NSPasteboard.general.string(forType:.string)=="14","Copy result copies only the evaluated answer")
         c.input.string="2+"; c.save(); try await until { !c.busy }
         try check(c.saved.count==1 && !c.result.string.isEmpty && c.result.textColor==NSColor.systemRed,"invalid expression is shown inline and is not saved")
+        try check(!c.copyResultButton.isEnabled,"a failed evaluation cannot copy a stale answer")
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString("unchanged",forType:.string); c.copyResult()
+        try check(NSPasteboard.general.string(forType:.string)=="unchanged","Copy result ignores an invalid calculation")
         c.input.string="SQRT(81)"; c.calculate(); try await until { !c.busy }
         try check(c.result.string=="9","calculator recovers after an invalid expression")
         let long=Array(repeating:"1",count:180).joined(separator:"+")
@@ -69,14 +73,22 @@ import WebKit
         try check(lines>1 && c.input.string==long,"long expressions visually wrap without changing expression text")
         c.calculate(); try await until { !c.busy }
         try check(c.result.string=="180","wrapped expression evaluates correctly")
-        c.input.string="ABC"; c.input.setSelectedRange(NSRange(location:1,length:1)); c.savedMenu.selectItem(withTag:0); c.useSaved()
+        c.input.string="ABC"; c.input.setSelectedRange(NSRange(location:1,length:1)); c.savedMenu.selectItem(withTag:0); c.selectionChanged()
+        try check(c.input.string=="ABC" && c.recallButton.isEnabled && c.insertButton.isEnabled,"choosing a saved calculation does not modify the expression")
+        c.useSaved()
         try check(c.input.string=="A2+\n3*4C","saved expression replaces selected input")
+        try check(c.result.string.isEmpty && !c.copyResultButton.isEnabled,"editing an expression clears its old result")
         c.input.undoManager?.undo()
         try check(c.input.string=="ABC","saved expression insertion supports Undo")
+        c.recallSaved()
+        try check(c.input.string=="2+\n3*4" && c.result.string=="14" && c.copyResultButton.isEnabled,"Recall restores the entire saved expression and result")
+        c.input.undoManager?.undo(); try check(c.input.string=="ABC" && c.result.string.isEmpty,"Recall is undoable without leaving a stale answer")
         c.input.string="2+3"; c.input.setSelectedRange(NSRange(location:1,length:1)); c.input.insertText("*",replacementRange:c.input.selectedRange())
+        c.calculate(); try await until { !c.busy }
+        let caret=c.input.selectedRange()
         c.toggleMode(); try await settle()
         try check(c.view.window === c.floatingWindow && c.floatingWindow?.isVisible==true && v.documentSplit.subviews.count==1,"Pop out uses a companion window and restores document height")
-        try check(c.input.string=="2*3" && c.saved.count==1 && c.result.string=="180","Pop out retains input, result and saved calculations")
+        try check(c.input.string=="2*3" && c.saved.count==1 && c.result.string=="6" && c.input.selectedRange()==caret,"Pop out retains input, result, caret and saved calculations")
         c.input.undoManager?.undo(); try check(c.input.string=="2+3","expression Undo survives reparenting")
         c.toggleMode(); try await settle()
         try check(c.view.superview === v.documentSplit && c.floatingWindow?.isVisible==false,"Dock returns calculator beneath the document")
@@ -89,15 +101,20 @@ import WebKit
         c.toggleMode(); v.calculatorHelp(); try await settle()
         try check(v.helpPane.visible && v.workspaceSplit.subviews.count==2 && c.view.superview === v.documentSplit,"Calculator and right-hand Help can both be docked")
         try await until { v.helpPane.web.url?.path=="/basics/calculator.htm" && !v.helpPane.web.isLoading }
-        try check((try await js(v.helpPane.web,"document.body.innerText.includes('Calculator')")) as? Bool==true,"calculator opens its offline help topic")
+        try check((try await js(v.helpPane.web,"['Tools > Calculator','Shift+Enter','Recall','Copy saved'].every(s=>document.body.innerText.includes(s))")) as? Bool==true,"calculator opens the updated offline help topic")
         c.open(); v.currentMethodHelp()
         try check(v.helpPane.web.url?.path=="/basics/calculator.htm","context help targets the focused calculator")
         let originalFrame=v.window.frame
+        c.input.string=long
         v.window.setFrame(NSRect(origin:originalFrame.origin,size:v.window.minSize),display:true)
         v.workspaceSplit.setPosition(320,ofDividerAt:0); try await settle()
-        let controls=[c.modeButton,c.calculateButton,c.saveButton,c.savedMenu,c.deleteButton,c.copyButton]
+        let controls=[c.modeButton,c.calculateButton,c.saveButton,c.copyResultButton,c.savedMenu,c.recallButton,c.insertButton,c.deleteButton,c.copyButton]
         try check(c.view.frame.width>=319 && c.inputScroll.frame.height>=45 && controls.allSatisfy { c.view.bounds.contains(c.view.convert($0.bounds,from:$0)) },"calculator controls fit the minimum window with Help docked")
+        c.input.layoutManager!.ensureLayout(for:c.input.textContainer!)
+        let narrowHeight=c.input.layoutManager!.usedRect(for:c.input.textContainer!).height
         v.window.setFrame(originalFrame,display:true); try await settle()
+        c.input.layoutManager!.ensureLayout(for:c.input.textContainer!)
+        try check(c.input.layoutManager!.usedRect(for:c.input.textContainer!).height<narrowHeight && c.input.string==long,"wrapping layout shrinks after changing from narrow to wide")
         let sheet=NSWindow(contentRect:NSRect(x:0,y:0,width:300,height:150),styleMask:[.titled],backing:.buffered,defer:false)
         let field=NSTextField(frame:NSRect(x:20,y:60,width:240,height:25)); sheet.contentView!.addSubview(field)
         v.window.beginSheet(sheet,completionHandler:nil); sheet.makeFirstResponder(field)

@@ -2,7 +2,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 source Scripts/native-build-flags.sh
-APP="$PWD/StatsDirect.app"
+# A separate destination lets a new build be tested while the user keeps working
+# in the current app. Never replace the executable/resources of that live app.
+APP="${STATSDIRECT_APP_OUTPUT:-$PWD/StatsDirect.app}"
+mkdir -p "$(dirname "$APP")"
+APP="$(cd "$(dirname "$APP")" && pwd -P)/$(basename "$APP")"
 BUILD_WORK="${STATSDIRECT_BUILD_WORK:-$PWD/.build}"
 mkdir -p "$BUILD_WORK"
 BUILD_WORK="$(cd "$BUILD_WORK" && pwd -P)"

@@ -57,6 +57,14 @@ final class Document {
     var operationInputEntered = false
     var reportEntries: [ReportEntry]?
     var reportUndo: [[ReportEntry]] = []
+    var reportTextUndo: [ReportTextChange] = []
+    var reportTextRedo: [ReportTextChange] = []
+    var reportEditing = false
+    var reportRevision = 0
+    var reportSavedRevision = 0
+    var reportDirty: Bool { reportRevision != reportSavedRevision }
+    var reportSourceURL: URL?
+    var reportImportNotice: String?
     var pendingResult: ReportEntry?
     var scrollToResultID: String?
     var hasSVG = false
@@ -127,7 +135,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 4
         let symbol = NSImageView(); symbol.image = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")); symbol.imageScaling = .scaleProportionallyUpOrDown
         symbol.setAccessibilityLabel("StatsDirect"); symbol.widthAnchor.constraint(equalToConstant:26).isActive = true; symbol.heightAnchor.constraint(equalToConstant:26).isActive = true; bar.addArrangedSubview(symbol)
-        for title in ["File", "Edit", "Data", "Analysis", "Graphics", "R", "Help", "Window"] {
+        for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "R", "Help", "Window"] {
             let button = NSButton(title: title + " ▾", target: self, action: #selector(showDropdown(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(title)
             button.isBordered = false; button.refusesFirstResponder = true
@@ -215,6 +223,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             if command == "redo" { item.keyEquivalentModifierMask = [.command, .shift] }
             edit.addItem(item)
         }
+        populateReportFormatMenu(menu("Format"))
         for title in ["Data", "Analysis", "Graphics"] { populateOperationMenu(menu(title)) }
         let rMenu = menu("R")
         add(rMenu, "New R Session", #selector(newRTab), "")
@@ -248,6 +257,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(checkUpdates) { return !checkingUpdates && window.attachedSheet == nil }
         if menuItem.action == #selector(toggleAutomaticUpdates) { menuItem.state = automaticUpdates ? .on : .off; return true }
         if menuItem.action == #selector(currentMethodHelp) { return active?.operationName != nil || active?.kind == "analysis" }
+        if menuItem.action == #selector(reportFormatCommand(_:)) {
+            guard let doc=active,doc.kind=="report",!doc.web.isLoading,window.attachedSheet==nil else {return false}
+            let command=(menuItem.representedObject as? [String:String])?["command"]
+            if command=="toggle" {menuItem.title=doc.reportEditing ? "Done Editing Report" : "Edit Report";return true}
+            return doc.reportEditing
+        }
         if menuItem.action == #selector(editCommand(_:)) { return active != nil }
         if menuItem.action == #selector(back) { return active?.web.canGoBack == true }
         if menuItem.action == #selector(forward) { return active?.web.canGoForward == true }
@@ -375,7 +390,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func editCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
-        if let doc=active, doc.kind=="report", command=="copy", window.attachedSheet==nil { copyReportSelection(doc); return }
+        if let doc=active, doc.kind=="report", ["copy","cut","paste"].contains(command), window.attachedSheet==nil { reportClipboardCommand(doc, command: command); return }
+        if let doc=active, doc.kind=="report", doc.reportEditing, ["undo","redo"].contains(command), window.attachedSheet==nil {
+            doc.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand(\(jsString(command)))") { handled, error in
+                if error != nil || handled as? Bool != true { _ = fallback() }
+            }; return
+        }
         guard let doc = active, doc.kind == "grid" else { _ = fallback(); return }
         let clipboard = command == "paste" ? NSPasteboard.general.string(forType: .string) ?? "" : ""
         doc.web.evaluateJavaScript("window.statsDirectGrid?.editCommand(\(jsString(command)),\(jsString(clipboard)))") { handled, error in
@@ -407,7 +427,15 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             } else { doc.operationClosing = true; cancelAnalysis(doc) }
             return
         }
-        if doc.kind == "analysis" && doc.gridDirty {
+        if doc.kind == "report" && doc.reportDirty {
+            let alert = NSAlert(); alert.messageText = "Save changes to \(doc.title)?"
+            alert.informativeText = "Save this report as HTML, PDF or Word before closing."
+            alert.addButton(withTitle: "Save…"); alert.addButton(withTitle: "Discard Changes"); alert.addButton(withTitle: "Cancel")
+            alert.beginSheetModal(for: window) { response in
+                if response == .alertFirstButtonReturn { self.saveReport(doc) { if !doc.reportDirty { self.remove(doc) } } }
+                else if response == .alertSecondButtonReturn { self.remove(doc) }
+            }
+        } else if doc.kind == "analysis" && doc.gridDirty {
             let alert = NSAlert(); alert.messageText = "Close the contingency table?"
             alert.informativeText = "Unsaved counts and labels will be discarded. Use Save Table to keep a CSV copy. Reports remain open."
             alert.addButton(withTitle: "Close Table"); alert.addButton(withTitle: "Cancel")
@@ -443,9 +471,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func forward() { active?.web.goForward() }
     @objc func openFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = (Self.excelExtensions + ["csv", "rds", "rdata", "rda", "html", "htm"]).compactMap { UTType(filenameExtension: $0) }
+        panel.allowedContentTypes = (Self.excelExtensions + ["csv", "rds", "rdata", "rda", "html", "htm", "rtf"]).compactMap { UTType(filenameExtension: $0) }
         panel.allowsMultipleSelection = true; panel.canChooseDirectories = false
-        panel.message = "Open Excel, CSV or R data, or an HTML report."
+        panel.message = "Open Excel, CSV or R data, or an HTML or legacy RTF report."
         panel.beginSheetModal(for: window) { response in
             guard response == .OK else { return }
             for url in panel.urls {
@@ -453,7 +481,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
                 case let ext where Self.excelExtensions.contains(ext): self.openExcelURL(url)
                 case "csv": self.openCSVURL(url)
                 case "rds", "rdata", "rda": self.openRDataURL(url)
-                default: self.newDocument(kind: "report", title: "Report · \(url.deletingPathExtension().lastPathComponent)", url: url, access: url.deletingLastPathComponent())
+                default: self.openReportURL(url)
                 }
             }
         }
@@ -466,7 +494,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func page(_ title: String, _ body: String) -> String {
         let css = (try? String(contentsOf: root.appendingPathComponent("workspace.css"), encoding: .utf8)) ?? ""
-        return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>\(title)</title><style>\(css)</style></head><body>\(body)</body></html>"
+        return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>\(htmlEscape(title))</title><style>\(css)</style></head><body>\(body)</body></html>"
     }
     @objc func printPage() {
         guard active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" else { return }
@@ -543,9 +571,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if documents.contains(where: { $0.fileBusy }) { showError("Please wait for the file save to finish."); return .terminateCancel }
         if running { showError("Please wait for the running analysis to finish, or cancel it from its form."); return .terminateCancel }
         if closeApproved { return .terminateNow }
-        if documents.contains(where: { $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true || $0.gridDirty || $0.analysisJobID != nil }) {
+        if documents.contains(where: { $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true || $0.gridDirty || $0.reportDirty || $0.analysisJobID != nil }) {
             let alert = NSAlert(); alert.messageText = "Quit with unsaved work?"
-            alert.informativeText = "Unsaved worksheet and R script edits will be lost. Open analyses and R sessions will stop."
+            alert.informativeText = "Unsaved report, worksheet and R script edits will be lost. Open analyses and R sessions will stop."
             alert.addButton(withTitle: "Quit"); alert.addButton(withTitle: "Cancel")
             if alert.runModal() != .alertFirstButtonReturn { return .terminateCancel }
         }

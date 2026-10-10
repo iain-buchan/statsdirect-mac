@@ -33,6 +33,7 @@ subprocess.run([str(root/'Grid/node_modules/esbuild/bin/esbuild'),'Tests/feedbac
 helpers=[]
 for name in ['learning-workspace','provider-learning','report-export','group-identifier','write-back','excel-import','form-contract','form-controls']:
  p=out/(name+'.swift');p.write_text((root/('Tests/'+name+'-driver.swift')).read_text().replace('@main struct','struct'));helpers.append(str(p))
+helpers.append(str(root/'Tests/report-transfer-checks.swift'))
 app=out/'StatsDirect Feedback Check.app';(app/'Contents/MacOS').mkdir(parents=True,exist_ok=True)
 info=plistlib.loads((root/'Info.plist').read_bytes());info['CFBundleIdentifier']='com.statsdirect.feedback.'+uuid.uuid4().hex;info['CFBundleExecutable']='FeedbackCheck';(app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
 for f in ['Resources','Frameworks']:

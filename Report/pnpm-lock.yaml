@@ -11,6 +11,12 @@ importers:
       docx:
         specifier: 9.7.2
         version: 9.7.2
+      dompurify:
+        specifier: 3.4.16
+        version: 3.4.16
+      emf-converter:
+        specifier: 4.18.1
+        version: 4.18.1
     devDependencies:
       esbuild:
         specifier: 0.25.10
@@ -177,12 +183,26 @@ packages:
   '@types/node@25.9.8':
     resolution: {integrity: sha512-VfMrScDmMhUJQmd5hArdQnFvK0OIeD36uN2Va1FcpYaLB/BgkgM8Ulc50XtYISPMz7APJ30+N0T5EM0jlcdfRw==}
 
+  '@types/trusted-types@2.0.7':
+    resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
+
   core-util-is@1.0.3:
     resolution: {integrity: sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==}
 
   docx@9.7.2:
     resolution: {integrity: sha512-ULgLbO3Qw7jK03XypipZoLAg7Kqy9w2T2KaDs9cVZLnWxwva7vU3iJExCYdXogIDeA4GLJ5oxEYSfTiTw3K17Q==}
     engines: {node: '>=10'}
+
+  dompurify@3.4.16:
+    resolution: {integrity: sha512-sqo+pNp3qRhCIpbgRi1y8Tgk27Bo2Ry7w0dC1NBeNTdZChWjz9Xb/KOoZbRP/R6pQZ80Qw8YhXw13hWWBbMRnQ==}
+
+  emf-converter@4.18.1:
+    resolution: {integrity: sha512-e/H8eBnj/QO8sWL2Yav02n58wWVo3GWYqFM2SqJh2bk9Prc2rgexPUSs8VV42GL5l/x49GaK/kPueCDW+j+6Sg==}
+    peerDependencies:
+      '@napi-rs/canvas': ^1.0.9
+    peerDependenciesMeta:
+      '@napi-rs/canvas':
+        optional: true
 
   esbuild@0.25.10:
     resolution: {integrity: sha512-9RiGKvCwaqxO2owP61uQ4BgNborAQskMR6QusfWzQqv7AZOg5oGehdY2pRJMTKuwxd1IDBP4rSbI5lHzU7SMsQ==}
@@ -334,6 +354,9 @@ snapshots:
     dependencies:
       undici-types: 7.24.6
 
+  '@types/trusted-types@2.0.7':
+    optional: true
+
   core-util-is@1.0.3: {}
 
   docx@9.7.2:
@@ -344,6 +367,12 @@ snapshots:
       nanoid: 6.0.1
       xml: 1.0.1
       xml-js: 1.6.11
+
+  dompurify@3.4.16:
+    optionalDependencies:
+      '@types/trusted-types': 2.0.7
+
+  emf-converter@4.18.1: {}
 
   esbuild@0.25.10:
     optionalDependencies:

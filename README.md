@@ -15,7 +15,7 @@ Upgrading from 0.3.18 or earlier: after saving work and quitting the old app, re
 Open your data with **File → Open**, or choose **Help → Example workbook**, then select a method from **Analysis**.
 
 - Open Excel workbooks (`.xlsx`, `.xls`, `.xlsb`, `.xlsm` and templates), including password-protected files. Save data as `.xlsx`, CSV or R files.
-- Keep results together in an active report, with SVG charts; save as HTML, PDF or editable Word documents.
+- Keep results together in an editable report with SVG charts; open legacy RTF reports and save as HTML, PDF or Word documents.
 - Continue supported analyses in editable R sessions; install R through the app if needed.
 - Use **Help → Learning** for biostatistics, epidemiology, practice questions and a tutor connected to your open work. **Use my ChatGPT** signs in through your browser; your account’s Codex access and usage allowance apply.
 

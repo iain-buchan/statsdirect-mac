@@ -16,7 +16,7 @@ SOURCES=()
 for source in Sources/*.swift; do
   if [[ "$source" != 'Sources/main.swift' ]]; then SOURCES+=("$source"); fi
 done
-swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirectTest -emit-module-path "$TEST_WORK/StatsDirectTest.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/report-export-driver.swift -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
+swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirectTest -emit-module-path "$TEST_WORK/StatsDirectTest.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/report-export-driver.swift Tests/report-transfer-checks.swift -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
 cp -cR "$BASE" "$TEST_APP"
 EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$TEST_APP/Contents/Info.plist")"
 cp "$TEST_WORK/driver" "$TEST_APP/Contents/MacOS/$EXECUTABLE"
@@ -26,3 +26,5 @@ rsync -a Content/ "$TEST_APP/Contents/Resources/Content/"
 codesign --force --sign - "$TEST_APP"
 printf 'Test app: %s\n' "$TEST_APP"
 "$TEST_APP/Contents/MacOS/$EXECUTABLE" "$ROOT/.build/report-export-output" "${@:2}"
+
+if [[ " $* " != *" --transfer-only "* && " $* " != *" --legacy-only "* && " $* " != *" --legacy-file "* && " $* " != *" --report-file "* ]]; then python3 Tests/verify-report-documents.py "$ROOT/.build/report-export-output"; fi

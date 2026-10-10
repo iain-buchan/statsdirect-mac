@@ -38,22 +38,10 @@ enum ReportFormat: String, CaseIterable {
 }
 
 extension Viewer {
-    func copyReportSelection(_ doc: Document) {
-        Task { @MainActor in
-            do {
-                guard let payload=try await reportScript(doc,method:"clipboard"),
-                      let data=payload.data(using:.utf8),
-                      let values=try JSONSerialization.jsonObject(with:data) as? [String:String],
-                      let html=values["html"],let text=values["text"] else { return }
-                let item=NSPasteboardItem();item.setString(html,forType:.html);item.setString(text,forType:.string)
-                NSPasteboard.general.clearContents();NSPasteboard.general.writeObjects([item])
-                self.status.stringValue="Copied report selection"
-            } catch { self.showError("The selection could not be copied: " + error.localizedDescription) }
-        }
-    }
-    func reportScript(_ doc: Document, method: String, format: String = "html") async throws -> String? {
+    func reportScript(_ doc: Document, method: String, format: String = "html", fragment: String? = nil) async throws -> String? {
         let script=try String(contentsOf:root.appendingPathComponent("Report/export.js"),encoding:.utf8)
-        let options=["title":doc.title,"helpRoot":root.appendingPathComponent("Help",isDirectory:true).absoluteString,"format":format]
+        var options=["title":doc.title,"helpRoot":root.appendingPathComponent("Help",isDirectory:true).absoluteString,"format":format]
+        if let fragment { options["fragment"] = fragment }
         return try await withCheckedThrowingContinuation { continuation in
             doc.web.callAsyncJavaScript(script+"\nreturn await StatsDirectReportExport."+method+"(options);",arguments:["options":options],in:nil,in:.defaultClient) { result in
                 switch result {
@@ -70,7 +58,7 @@ extension Viewer {
     @objc func exportReportPDF() { if let doc=active, doc.kind=="report" { saveReport(doc,format:.pdf) } }
     @objc func exportReportDOCX() { if let doc=active, doc.kind=="report" { saveReport(doc,format:.docx) } }
 
-    func saveReport(_ doc: Document, format: ReportFormat? = nil) {
+    func saveReport(_ doc: Document, format: ReportFormat? = nil, completion: (() -> Void)? = nil) {
         guard !doc.fileBusy else { return }
         guard !doc.web.isLoading else { showError("Wait for the report to finish loading, then save it."); return }
         let panel=NSSavePanel()
@@ -79,6 +67,8 @@ extension Viewer {
         let picker=ReportFormatPicker(panel:panel,format:format ?? ReportFormat(rawValue:UserDefaults.standard.string(forKey:"reportSaveFormat") ?? "") ?? .html)
         panel.beginSheetModal(for:window) { [picker] response in
             guard response == .OK, let url=panel.url else { return }
+            guard url.pathExtension.lowercased() != "rtf" else { self.showError("Legacy RTF reports can only be read. Choose HTML, PDF or Word for the saved copy."); return }
+            let revision=doc.reportRevision
             let format=picker.format
             doc.fileBusy=true; self.status.stringValue="Saving \(format.rawValue.uppercased()) report…"
             Task { @MainActor in
@@ -87,7 +77,9 @@ extension Viewer {
                     let data=try await self.reportExportData(doc,format:format)
                     try data.write(to:url,options:.atomic)
                     UserDefaults.standard.set(format.rawValue,forKey:"reportSaveFormat")
+                    doc.reportSavedRevision=revision
                     self.status.stringValue="Saved " + url.lastPathComponent
+                    completion?()
                 } catch { self.showError("The report could not be saved: " + error.localizedDescription) }
             }
         }

@@ -8,3 +8,24 @@
 .report-entry + .report-entry{border-top:2px solid #d7e6e2;margin-top:44px;padding-top:28px}
 
 .report-controls{display:flex;gap:12px;align-items:center;margin:8px 0;font:12px -apple-system,sans-serif}.report-controls button{background:#f4f7f8;border:1px solid #c7d4db;border-radius:5px;padding:4px 8px;color:#385461}.report-annotation{white-space:pre-wrap;min-height:34px;padding:8px;border:1px dashed #ccd8de;margin-bottom:14px}.report-annotation:empty::before{content:attr(data-placeholder);color:#748995}.report-annotation:focus{outline:2px solid #439caa}@media print{.report-controls{display:none}.report-annotation{border:0}.report-annotation:empty{display:none}}
+/* The common formatting controls share one compact row; extra controls float
+   over the report so opening them does not push the text down. */
+.report-toolbar{position:sticky;top:0;z-index:10;background:#fff;border:1px solid #d7e6e2;border-radius:6px;padding:5px;gap:4px;flex-wrap:wrap;box-shadow:0 1px 3px #0001;line-height:1.25}
+.report-toolbar button{height:27px;padding:3px 7px;white-space:nowrap;font-size:12px}
+.report-toolbar button:disabled{opacity:.4}.report-toolbar>.report-undo-removal:disabled{display:none}
+#report-format-tools,.report-format-row{display:contents}#report-format-tools[hidden]{display:none}
+.report-toolbar label{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.report-toolbar select,.report-toolbar input{font:12px -apple-system,sans-serif;color:#233748;border:1px solid #c7d4db;border-radius:4px;background:white;padding:3px 4px;width:auto;text-align:left;height:27px}
+.report-toolbar select[data-format=fontName]{width:128px}.report-toolbar select[data-format=formatBlock]{width:94px}.report-toolbar input[data-format=fontSize]{width:46px}
+.report-toolbar input[type=color]{width:30px;padding:2px}.report-toolbar .report-icon-button{display:inline-flex;align-items:center;justify-content:center;width:27px;padding:3px;flex-shrink:0}
+.report-toolbar button[aria-pressed=true]{background:#d5eae6;border-color:#37897b;color:#145d51}.report-toolbar button[data-command=bold]{font-weight:bold}.report-toolbar button[data-command=italic]{font-style:italic}.report-toolbar button[data-command=underline]{text-decoration:underline}.report-toolbar button[data-command=strikeThrough]{text-decoration:line-through}
+.report-more-tools{position:absolute;right:0;top:calc(100% + 4px);width:360px;max-width:100%;padding:9px;background:white;border:1px solid #c7d4db;border-radius:7px;box-shadow:0 5px 18px #0002}
+.report-more-tools[hidden]{display:none}.report-more-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.report-more-row+.report-more-row{margin-top:8px;padding-top:8px;border-top:1px solid #e2e9ec}
+body.report-editing{padding-top:14px}.report-editing .report-body{outline:1px dashed #97b9b1;outline-offset:5px;min-height:2em}.report-editing .report-body:focus{outline:2px solid #439caa}.report-import-notice{color:#607583;line-height:1.5}.report-import-warning{padding:12px;border:1px solid #d8b267;background:#fff9e9}.report-chart[hidden]{display:none!important}
+@media print{.report-editing .report-body{outline:0}.report-toolbar{display:none}}
+.report-media{position:relative;display:flow-root;break-inside:avoid}.report-media>svg,.report-media>img{display:block;max-width:100%;height:auto;margin:24px auto}
+.report-chart-sizing{display:none;align-items:center;gap:6px}.report-chart-sizing label{display:inline-flex;align-items:center;gap:4px}.report-chart-sizing input{width:64px;height:25px;padding:2px 4px;font:12px -apple-system,sans-serif}
+.report-chart-resize{display:none;position:absolute;margin:0;padding:0;width:16px;height:16px;border:2px solid white;border-radius:3px;background:#278a7c;box-shadow:0 0 0 1px #278a7c;cursor:nwse-resize;touch-action:none;z-index:1}
+.report-editing .report-chart-sizing{display:inline-flex}.report-editing .report-chart-resize{display:block}.report-editing .report-media>svg,.report-editing .report-media>img{outline:1px solid #c7dcd7}.report-chart-resize:focus-visible{outline:2px solid #145d51;outline-offset:3px}.report-resizing{user-select:none}.report-resizing>svg,.report-resizing>img{pointer-events:none}
+@media print{.report-chart-sizing,.report-chart-resize{display:none!important}.report-media>svg,.report-media>img{outline:none!important}}
+.report-editing .report-media-selected>svg,.report-editing .report-media-selected>img{outline:2px solid #278a7c;background:#f2faf7}.report-media-selected{cursor:grab}.report-drop-caret{position:absolute;width:2px;margin:0;background:#16776b;pointer-events:none;z-index:15}

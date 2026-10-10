@@ -1,6 +1,7 @@
 import {numericValue, clipboardText, formatClipboardTables} from './clipboard.mjs';
 import {wordEquation} from './math.mjs';
-import {Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, ExternalHyperlink, HeadingLevel, WidthType, TableLayoutType, AlignmentType, BorderStyle} from 'docx';
+import {explicitPictureWidth} from './chart-size.mjs';
+import {Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, ExternalHyperlink, HeadingLevel, WidthType, TableLayoutType, AlignmentType, BorderStyle, LevelFormat, ShadingType} from 'docx';
 
 const MAX_HTML = 30_000_000;
 const printCSS = `@page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;font-size:11pt;line-height:1.4;color:#182b38}h1{font-size:19pt}h2{font-size:14pt}h1,h2,h3{break-after:avoid}table{width:100%;border-collapse:collapse;font-size:9pt}th,td{padding:5pt 7pt;overflow-wrap:anywhere}tr,svg,img{break-inside:avoid}thead{display:table-header-group}svg,img{max-width:100%;height:auto}.report-r-link{display:none}@media print{body{max-width:none!important;padding:0!important}details:not([open]){display:none}details[open]{display:block}svg,img{max-height:230mm}a{color:inherit}}`;
@@ -10,9 +11,13 @@ const text = node => (node.textContent ?? '').replace(/\s+/g,' ').trim();
 const safeLink = value => /^(https?:|mailto:|#)/i.test(value);
 
 function clean(root, helpRoot) {
-  root.querySelectorAll('.report-annotation:empty').forEach(e=>e.remove());
+  root.querySelectorAll('.report-chart[hidden],.report-annotation:empty').forEach(e=>e.remove());
   root.querySelectorAll('script,iframe,object,embed,form,button,input,textarea,select,link,base,meta[http-equiv],.report-r-link,.report-links span,.report-controls,.code-actions').forEach(e=>e.remove());
+  root.querySelectorAll('.report-media,.report-chart').forEach(e=>e.replaceWith(...e.childNodes));
   for(const el of [root,...root.querySelectorAll('*')]) {
+    el.classList.remove('report-editing');
+    if(el.getAttribute('role')==='textbox')el.removeAttribute('role');
+    for(const name of ['data-report-chart-index','data-result-id','data-hidden-charts'])el.removeAttribute(name);
     for(const attr of [...el.attributes]) if(/^on/i.test(attr.name)||['srcdoc','action','formaction','contenteditable','nonce','integrity'].includes(attr.name.toLowerCase())) el.removeAttribute(attr.name);
     if(el.localName==='a') {
       const original=el.getAttribute('href')??'';
@@ -38,7 +43,8 @@ async function raster(data,width,height) {
 async function snapshot({title,helpRoot}) {
   if(document.documentElement.outerHTML.length>MAX_HTML) throw new Error('This report is too large to export in one file. Save smaller reports.');
   const clone=document.documentElement.cloneNode(true);
-  const originals=[...document.querySelectorAll('svg,img,canvas')],copies=[...clone.querySelectorAll('svg,img,canvas')],pictures=new Map();
+  const visible=el=>!el.closest('.report-chart[hidden],.report-controls')&&!el.parentElement.closest('svg');
+  const originals=[...document.querySelectorAll('svg,img,canvas')].filter(visible),copies=[...clone.querySelectorAll('svg,img,canvas')].filter(visible),pictures=new Map();
   if(originals.length>200) throw new Error('This report has too many charts to export in one file. Save smaller reports.');
   for(let i=0;i<originals.length;i++) {
     const src=originals[i],dst=copies[i];
@@ -49,6 +55,9 @@ async function snapshot({title,helpRoot}) {
       width=view?.width||src.getBoundingClientRect().width||640;height=view?.height||src.getBoundingClientRect().height||400;
       const vector=src.cloneNode(true);clean(vector,helpRoot);
       vector.setAttribute('xmlns','http://www.w3.org/2000/svg');vector.setAttribute('width',String(width));vector.setAttribute('height',String(height));
+      // Raster fallbacks use intrinsic coordinates; the chosen report width is
+      // applied by the Word drawing/HTML layout, never baked into the chart.
+      for(const name of ['width','height','max-width','max-height'])vector.style.removeProperty(name);
       svg=new XMLSerializer().serializeToString(vector);
       png=await raster('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg),width,height);
     } else {
@@ -59,7 +68,7 @@ async function snapshot({title,helpRoot}) {
       canvas.getContext('2d').drawImage(src,0,0,canvas.width,canvas.height);png=canvas.toDataURL('image/png');
       if(src.localName==='canvas') {const image=document.createElement('img');image.src=png;dst.replaceWith(image);copies[i]=image;} else {dst.src=png;dst.removeAttribute('srcset');}
     }
-    const factor=Math.min(1,640/width,820/height);
+    const factor=Math.min(explicitPictureWidth(src,width)/width,640/width,820/height);
     pictures.set(copies[i],{svg,png,width:Math.round(width*factor),height:Math.round(height*factor),alt:src.getAttribute('aria-label')||src.getAttribute('alt')||src.querySelector('title')?.textContent||'StatsDirect chart'});
   }
   clean(clone,helpRoot);
@@ -74,6 +83,61 @@ async function snapshot({title,helpRoot}) {
   const style=document.createElement('style');style.textContent=css+'\n'+printCSS;head.append(style);
   return {clone,pictures};
 }
+function wordColor(value) {
+  if(!value||value==='transparent')return null;
+  const hex=value.match(/^#([a-f\d]{6})$/i);if(hex)return hex[1].toUpperCase();
+  const rgb=value.match(/^rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)(?:\s*[,/]\s*([\d.]+))?\s*\)$/i);
+  return rgb&&Number(rgb[4]??1)>0?rgb.slice(1,4).map(n=>Number(n).toString(16).padStart(2,'0')).join('').toUpperCase():null;
+}
+function runStyle(node,options={}) {
+  const style={...options};
+  if(['B','STRONG','TH'].includes(node.tagName))style.bold=true;
+  if(['I','EM'].includes(node.tagName))style.italics=true;
+  if(node.tagName==='SUP'){style.superScript=true;style.subScript=false;}
+  if(node.tagName==='SUB'){style.subScript=true;style.superScript=false;}
+  if(node.tagName==='U'||/underline/.test(node.style?.textDecorationLine||node.style?.textDecoration||''))style.underline={};
+  if(['S','STRIKE','DEL'].includes(node.tagName))style.strike=true;
+  const css=node.style;
+  if(css) {
+    if(/line-through/.test(css.textDecorationLine||css.textDecoration||''))style.strike=true;
+    if(css.verticalAlign==='super'){style.superScript=true;style.subScript=false;}
+    if(css.verticalAlign==='sub'){style.subScript=true;style.superScript=false;}
+    const color=wordColor(css.color),background=wordColor(css.backgroundColor);
+    if(color)style.color=color;
+    if(background)style.shading={type:ShadingType.CLEAR,fill:background};
+    if(css.fontWeight)style.bold=css.fontWeight==='bold'||Number(css.fontWeight)>=600;
+    if(css.fontStyle)style.italics=['italic','oblique'].includes(css.fontStyle);
+    if(css.fontSize && /(?:px|pt)$/.test(css.fontSize))style.size=Math.round(parseFloat(css.fontSize)*(css.fontSize.endsWith('pt')?2:1.5));
+    if(css.fontFamily)style.font=css.fontFamily.split(',')[0].replace(/["']/g,'').trim();
+  }
+  if(['CODE','PRE'].includes(node.tagName))style.font='Courier New';
+  return style;
+}
+function paragraphStyle(node,options={}) {
+  const css=node.style,alignment=({left:AlignmentType.LEFT,center:AlignmentType.CENTER,right:AlignmentType.RIGHT,justify:AlignmentType.JUSTIFIED}[css.textAlign]||options.alignment);
+  const result={alignment,spacing:{after:110,...options.spacing},indent:options.indent};
+  if(css.lineHeight&&css.lineHeight!=='normal') {
+    const unitless=/^[\d.]+$/.test(css.lineHeight),line=parseFloat(css.lineHeight),font=parseFloat(css.fontSize)||16;
+    if(line>0)result.spacing.line=Math.round(240*(unitless?line:line/font));
+  }
+  const indent=(parseFloat(css.marginLeft)||0)*15;
+  if(indent>0)result.indent={left:Math.round(indent)+(options.indent?.left||0)};
+  return result;
+}
+function listParagraphs(list,pictures,options={},level=0) {
+  const reference='report-list-'+pictures.numbering.length,ordered=list.tagName==='OL';
+  pictures.numbering.push({reference,levels:Array.from({length:9},(_,i)=>({level:i,format:ordered?LevelFormat.DECIMAL:LevelFormat.BULLET,text:ordered?`%${i+1}.`:'•',start:Number(list.start)||1,alignment:AlignmentType.LEFT,style:{paragraph:{indent:{left:720*(i+1),hanging:360}}}}))});
+  const output=[];
+  for(const item of list.children) {
+    // WebKit represents an indented first item as ul > ul > li.
+    if(['UL','OL'].includes(item.tagName)){output.push(...listParagraphs(item,pictures,options,level+1));continue;}
+    if(item.tagName!=='LI')continue;
+    const copy=item.cloneNode(true);copy.querySelectorAll('ul,ol').forEach(n=>n.remove());
+    output.push(new Paragraph({...paragraphStyle(item,options),children:inline(copy,options),numbering:{reference,level:Math.min(level,8)}}));
+    for(const nested of item.querySelectorAll('ul,ol'))if(nested.parentElement.closest('ul,ol')===list)output.push(...listParagraphs(nested,pictures,runStyle(item,options),level+1));
+  }
+  return output;
+}
 function inline(node, options={}) {
   if(node.nodeType===Node.TEXT_NODE) {
     const value=options.preserve?node.textContent:node.textContent.replace(/\s+/g,' ');
@@ -82,19 +146,14 @@ function inline(node, options={}) {
   if(node.nodeType!==Node.ELEMENT_NODE)return [];
   if(node.classList.contains('katex')||node.localName==='math') { const equation=wordEquation(node);if(equation)return [equation]; }
   if(node.tagName==='BR') return [new TextRun({break:1})];
-  const style={...options};
-  if(['B','STRONG','TH'].includes(node.tagName))style.bold=true;
-  if(['I','EM'].includes(node.tagName))style.italics=true;
-  if(node.tagName==='SUP')style.superScript=true;
-  if(node.tagName==='SUB')style.subScript=true;
-  if(['CODE','PRE'].includes(node.tagName))style.font='Courier New';
+  const style=runStyle(node,options);
   const runs=[...node.childNodes].flatMap(n=>inline(n,style));
   if(node.tagName==='A'&&/^https?:|^mailto:/i.test(node.getAttribute('href')??''))return [new ExternalHyperlink({link:node.getAttribute('href'),children:runs})];
   return runs;
 }
 function paragraphs(node,pictures,options={}) {
   const output=[];let pending=[];
-  const flush=()=>{if(pending.some(n=>text(n)))output.push(new Paragraph({children:pending.flatMap(n=>inline(n,options)),alignment:options.alignment,spacing:{after:110}}));pending=[];};
+  const flush=()=>{if(pending.some(n=>text(n)))output.push(new Paragraph({children:pending.flatMap(n=>inline(n,options)),alignment:options.alignment,indent:options.indent,spacing:{after:110,...options.spacing}}));pending=[];};
   for(const child of node.childNodes) {
     if(child.nodeType!==Node.ELEMENT_NODE||!blockTags.has(child.tagName.toUpperCase())){pending.push(child);continue;}
     flush();
@@ -106,17 +165,13 @@ function paragraphs(node,pictures,options={}) {
     }
     if(tag==='DETAILS'&&!child.open)continue;
     if(tag==='HR'){output.push(new Paragraph({spacing:{after:160}}));continue;}
-    if(/^H[1-6]$/.test(tag)) {output.push(new Paragraph({heading:HeadingLevel['HEADING_'+tag[1]],keepNext:true,children:inline(child),spacing:{before:180,after:100}}));continue;}
-    if(tag==='UL'||tag==='OL') {
-      let n=Number(child.start)||1;
-      for(const item of child.children)output.push(new Paragraph({children:[new TextRun(tag==='OL'?`${n++}. `:'• '),...inline(item)],spacing:{after:80}}));
-      continue;
-    }
+    if(/^H[1-6]$/.test(tag)) {output.push(new Paragraph({heading:HeadingLevel['HEADING_'+tag[1]],keepNext:true,...paragraphStyle(child,options),children:inline(child,options),spacing:{...paragraphStyle(child,options).spacing,before:180,after:100}}));continue;}
+    if(tag==='UL'||tag==='OL') {output.push(...listParagraphs(child,pictures,options));continue;}
     if(tag==='P'||tag==='PRE'||tag==='BLOCKQUOTE') {
-      if(child.querySelector('svg,img,table,canvas'))output.push(...paragraphs(child,pictures,options));
+      if(child.querySelector('svg,img,table,canvas')||tag==='BLOCKQUOTE'&&child.querySelector('p,div,ul,ol'))output.push(...paragraphs(child,pictures,{...runStyle(child,options),...paragraphStyle(child,options)}));
       else if(tag==='PRE')for(const line of child.textContent.split('\n'))output.push(new Paragraph({children:[new TextRun({text:line,font:'Courier New',size:16})],spacing:{after:0}}));
-      else output.push(new Paragraph({children:inline(child,options),alignment:options.alignment,spacing:{after:110}}));
-    } else output.push(...paragraphs(child,pictures,options));
+      else output.push(new Paragraph({...paragraphStyle(child,options),children:inline(child,options)}));
+    } else output.push(...paragraphs(child,pictures,{...runStyle(child,options),...paragraphStyle(child,options)}));
   }
   flush();return output;
 }
@@ -139,8 +194,10 @@ export async function capture(options) {
   const {clone,pictures}=await snapshot(options);
   if(options.format==='html')return '<!doctype html>\n'+clone.outerHTML;
   if(options.format!=='docx')throw new Error('Unknown report format.');
+  pictures.numbering=[];
   const content=paragraphs(clone.querySelector('body'),pictures);
   const doc=new Document({creator:'StatsDirect',title:options.title,description:'Statistical analysis report',
+    numbering:{config:pictures.numbering},
     styles:{default:{document:{run:{font:'Arial',size:22,color:'182B38'},paragraph:{spacing:{after:110}}}},
       paragraphStyles:[{id:'Heading1',name:'Heading 1',basedOn:'Normal',next:'Normal',quickFormat:true,run:{bold:true,size:34,color:'182B38'},paragraph:{keepNext:true}},{id:'Heading2',name:'Heading 2',basedOn:'Normal',next:'Normal',quickFormat:true,run:{bold:true,size:27,color:'182B38'},paragraph:{keepNext:true}}]},
     sections:[{properties:{page:{size:{width:11906,height:16838},margin:{top:720,right:720,bottom:720,left:720}}},children:content.length?content:[new Paragraph(options.title)]}]});
@@ -151,8 +208,11 @@ export async function capture(options) {
 
 export async function clipboard(options) {
   const selection=window.getSelection();
-  if(!selection||selection.isCollapsed||!selection.rangeCount)return null;
-  const range=selection.getRangeAt(0),root=document.createElement('div');
+  if(!options.fragment&&(!selection||selection.isCollapsed||!selection.rangeCount))return null;
+  const root=document.createElement('div');
+  if(options.fragment)root.innerHTML=options.fragment;
+  else {
+  const range=selection.getRangeAt(0);
   let fragment=range.cloneContents(),ancestor=range.commonAncestorContainer;
   if(ancestor.nodeType!==Node.ELEMENT_NODE)ancestor=ancestor.parentElement;
   // cloneContents omits the common ancestor; restore table/paragraph structure for partial selections.
@@ -160,16 +220,26 @@ export async function clipboard(options) {
     const wrapper=ancestor.cloneNode(false);wrapper.append(fragment);fragment=wrapper;ancestor=ancestor.parentElement;
   }
   root.append(fragment);
+  }
   if(root.innerHTML.length>MAX_HTML)throw new Error('The selection is too large to copy. Select a smaller part of the report.');
   clean(root,options.helpRoot);
   root.querySelectorAll('details:not([open])').forEach(e=>e.remove());
-  root.querySelectorAll('[style]').forEach(e=>e.removeAttribute('style'));
+  const widths=new Map([...root.querySelectorAll('svg,img')].map(e=>[e,explicitPictureWidth(e,0)]));
+  // Keep text formatting for Word and other rich editors. Table formatting
+  // below still supplies the numeric/cell hints Excel needs.
+  for(const img of root.querySelectorAll('img'))if(widths.get(img)) {
+    await timeout(img.decode());
+    const width=Math.min(640,widths.get(img)),height=Math.round(width*img.naturalHeight/img.naturalWidth);
+    img.width=Math.round(width*.75);img.height=Math.round(height*.75);img.style.cssText=`width:${width}px;height:${height}px`;
+  }
   for(const svg of root.querySelectorAll('svg')) {
     const box=svg.viewBox?.baseVal,width=box?.width||640,height=box?.height||400;
     svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    svg.setAttribute('width',String(width));svg.setAttribute('height',String(height));
+    for(const property of ['width','height','max-width','max-height'])svg.style.removeProperty(property);
     const img=document.createElement('img');img.alt=svg.getAttribute('aria-label')||'StatsDirect chart';
     img.src=await raster('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg)),width,height);
-    const displayWidth=Math.min(640,width),displayHeight=Math.round(height*displayWidth/width);
+    const displayWidth=Math.min(640,widths.get(svg)||width),displayHeight=Math.round(height*displayWidth/width);
     // Excel treats image HTML attributes as points but lays out CSS dimensions as pixels.
     img.width=Math.round(displayWidth*.75);img.height=Math.round(displayHeight*.75);
     img.style.cssText=`width:${displayWidth}px;height:${displayHeight}px`;

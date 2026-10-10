@@ -84,7 +84,7 @@ namespace StatsDirect.UI
             throw new NotImplementedException();
         }
 
-        object IUserInterface.OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation)
+        object IUserInterface.OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation, object run)
         {
             CheckCancellation();
             Html.Append(new HtmlRenderer(this).Render(renderable));

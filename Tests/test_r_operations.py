@@ -66,7 +66,7 @@ try:
     assert values['observations'] == stats[0] == 804 and close(values['parameters'], stats[1]) and close(values['residualse'], stats[2]) and close(values['df'], stats[3]), (values, stats)
     # The script draws six by four inches through R's svg device, svglite here: the SVG goes into the report inline, as the engine's own charts do.
     svg = re.search(r'<svg\b[^>]*>', st['html']); assert svg and '<?xml' not in st['html'] and 'data:image/png' not in st['html'], st['html'][:300]
-    assert re.search(r"width=['\"]432(\.00)?pt['\"]", svg[0]) and re.search(r"height=['\"]288(\.00)?pt['\"]", svg[0]) and 'viewBox' in svg[0], svg[0]
+    assert re.search(r"width=['\"]432(\.00)?pt['\"]", svg[0]) and re.search(r"height=['\"]432(\.00)?pt['\"]", svg[0]) and 'viewBox' in svg[0], svg[0]
     assert st['html'].count('<svg') == 1 and '</svg>' in st['html'] and st['html'].count('<circle') >= 800 and st['html'].count('<polyline') >= 3, 'the scatter, the fit and the band'
     script = st['html'].split('R script to reproduce this result')[1]   # shown as text with line breaks, as on Windows
     assert 'loess(model,span=span,degree=degree)' in script and 'hgb &lt;- c(' in script and '<br />' in script and 'returning.to.statsdirect &lt;- TRUE' not in script and 'win.metafile &lt;- function' not in script, script[:300]

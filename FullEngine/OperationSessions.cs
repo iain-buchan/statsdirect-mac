@@ -97,6 +97,8 @@ internal sealed class OperationJob {
     string progress = "Starting analysis…";
     double? fraction;
     object frames, outputs, analysisOptions, suggestions;
+    // The engine's record of the run (RunRecord, shared with Windows) as it stood at the last report step: the report keeps it with the result.
+    string record;
     internal sealed record InputRecord(string Title, object Value, string Name = null, string Kind = null, string Mode = null);
     readonly List<InputRecord> history = new();
     // A follow-on's report and R script list the parent's inputs before its own.
@@ -127,7 +129,7 @@ internal sealed class OperationJob {
         if (inherited != null) history.AddRange(inherited);
         var output = FirstOutputFrame(operation.Steps); writesWorksheet = output != null; placement = output?.DefaultPlacement.ToString();
     }
-    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, suggestions, parent = parentId, writesWorksheet, placement, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray() }; }
+    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, suggestions, parent = parentId, writesWorksheet, placement, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray(), record }; }
     static void NoteOperation(ParameterBag bag, string name) {
         if (!bag.ContainsKey(MemoryName)) bag.AddInput(MemoryName, new List<string>());
         var list = bag[MemoryName].AsStringList;
@@ -167,6 +169,7 @@ internal sealed class OperationJob {
         Check(); return value;
     }
     public void Record(string title, object value, string name = null, string kind = null, string mode = null) { lock (sync) history.Add(new InputRecord(title, value, name, kind, mode)); }
+    public void SetRecord(string json) { lock (sync) record = json; }
     public void Answer(int requestedToken, JsonElement value) {
         lock (sync) {
             Check(); if (state != "input" || token != requestedToken || answer.HasValue) throw new Exception("That input step has already changed. Use the current form.");
@@ -352,7 +355,11 @@ internal sealed class OperationHost : ITemplateHost {
     public ParameterBag Amend(IFillable options, ParameterBag context) => HostAmendments.Amend(job, this, options, context);
     public void Error(string message, string caption) { job.Check(); throw new InvalidOperationException(caption + ": " + message); }
     public void Warning(string message, string caption) { Html.Append("<p class='note'>").Append(System.Net.WebUtility.HtmlEncode(caption + ": " + message)).Append("</p>"); }
-    public object OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation) { job.Check(); Html.Append(new HtmlRenderer(this).Render(renderable)); return null; }
+    public object OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation, object run) {
+        job.Check(); Html.Append(new HtmlRenderer(this).Render(renderable));
+        if (run is OperationRun operationRun && !string.IsNullOrEmpty(operationRun.Record)) job.SetRecord(operationRun.Record);
+        return null;
+    }
     public void OutputFrame(DataFrame frame, bool keepSelection, bool isFormulae, string missingIndicator, PaneAndPosition preferredOutputLocation, RelativePosition defaultPosition) {
         job.Check(); Frames.Add(HostParameters.FrameOutput(frame, isFormulae, defaultPosition.ToString(), keepSelection, missingIndicator ?? Formatting.ASTERISK));
     }

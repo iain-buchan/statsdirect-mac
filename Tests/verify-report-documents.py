@@ -73,7 +73,7 @@ for name in ['resized-report','resized-reopened-report']:
     assert int(raster.get('cx'))==200*9525 and int(raster.get('cy'))==100*9525
     # The other two pictures are SVG: the engine chart resized to 320px and the LOESS chart R drew at six by four inches (432 by 288 points).
     vectors=sorted((e for d,e in extents if d!='Raster resize check'),key=lambda e:int(e.get('cx')))
-    assert len(pictures)==3 and [int(e.get('cx')) for e in vectors]==[320*9525,576*9525] and int(vectors[1].get('cy'))==384*9525, (name,[(d,e.attrib) for d,e in extents])
+    assert len(pictures)==3 and [int(e.get('cx')) for e in vectors]==[320*9525,576*9525] and int(vectors[1].get('cy'))==576*9525, (name,[(d,e.attrib) for d,e in extents])
     svg_extent=vectors[0].attrib
     if original_svg_extent is None: original_svg_extent=svg_extent
     else: assert svg_extent==original_svg_extent, 'HTML reopening changed the SVG aspect ratio'

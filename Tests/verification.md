@@ -752,3 +752,7 @@ Native UI checks on the user’s saved Windows/Mac comparison report confirm a 4
 As the Windows script window: the R pane's toolbar has **Output folder** (opens the session folder in the Finder), and after each run the files the script wrote (charts among them) are listed as links the user can open with a click. `Tests/r-pane-driver.swift` writes a CSV from R, finds it listed once as a link, sees no list after a run that writes nothing, and finds the button enabled.
 
 R pane, later the same day: Run script while a run is going stops that run and runs the edited script in a fresh session (as the Windows script window does); closing the tab already stopped a run. The driver starts a 20-second script, runs an edited one half a second later and finds only the edited output.
+
+## Engine pinned to Windows main 40dd1e1d: the LOESS chart square — 11 October 2026
+
+The shared LOESS definition opens R's svg device at 6 by 6 inches (Iain: the example chart should be square), so the chart reaches the report at 432 by 432 points and the Word export at 576 by 576 pixels; the R operations test and the Word-package check expect those sizes. The pin also brings the engine's run record, R script writer and recipes source files, which the Mac headless build compiles or excludes as the platform copies require. The manifest records 871 files.

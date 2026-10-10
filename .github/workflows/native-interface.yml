@@ -19,6 +19,10 @@ jobs:
   native:
     runs-on: macos-15
     timeout-minutes: 15
+    # GitHub exposes draft releases only to tokens with repository push access.
+    # This manually dispatched job reads the draft; it never publishes a release.
+    permissions:
+      contents: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}

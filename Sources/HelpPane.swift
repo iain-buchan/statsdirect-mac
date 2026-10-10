@@ -10,15 +10,32 @@ final class HelpResources: NSObject, WKURLSchemeHandler {
     static let origin = URL(string: "app://statsdirect-help/")!
     let root: URL
     private(set) var missing: [String] = []
-    init(root: URL) { self.root = root.resolvingSymlinksInPath() }
+    private var files: [String: URL] = [:]
+    init(root: URL) {
+        self.root = root.resolvingSymlinksInPath()
+        super.init()
+        // Flare's Windows output contains mixed-case links (Scripts vs scripts).
+        // Resolve using a catalogue so help also works on case-sensitive Mac volumes.
+        if let entries = FileManager.default.enumerator(at:self.root,includingPropertiesForKeys:[.isRegularFileKey]) {
+            for case let file as URL in entries {
+                if (try? file.resourceValues(forKeys:[.isRegularFileKey]).isRegularFile) == true {
+                    files[String(file.path.dropFirst(self.root.path.count)).lowercased()] = file
+                }
+            }
+        }
+    }
     func localURL(_ url: URL) -> URL? {
         guard url.scheme == "app", url.host == "statsdirect-help", url.user == nil, url.password == nil, url.port == nil else { return nil }
         let file = root.appendingPathComponent(url.path).resolvingSymlinksInPath()
         guard file.path.hasPrefix(root.path + "/") else { return nil }
-        return file
+        return files[String(file.path.dropFirst(root.path.count)).lowercased()]
     }
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
-        guard let url = task.request.url, let file = localURL(url), task.request.httpMethod == "GET" else { task.didFailWithError(URLError(.noPermissionsToReadFile)); return }
+        guard let url = task.request.url, task.request.httpMethod == "GET" else { task.didFailWithError(URLError(.noPermissionsToReadFile)); return }
+        guard let file = localURL(url) else {
+            if url.scheme == "app", url.host == "statsdirect-help" { missing.append(url.path) }
+            task.didFailWithError(URLError(.fileDoesNotExist)); return
+        }
         guard let data = try? Data(contentsOf: file) else { missing.append(url.path); task.didFailWithError(URLError(.fileDoesNotExist)); return }
         let types = ["js":"text/javascript", "css":"text/css", "htm":"text/html", "html":"text/html", "xml":"application/xml", "json":"application/json", "svg":"image/svg+xml"]
         let type = types[file.pathExtension.lowercased()] ?? UTType(filenameExtension:file.pathExtension)?.preferredMIMEType ?? "application/octet-stream"

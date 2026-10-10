@@ -50,6 +50,7 @@ import WebKit
         try check(h.url(for:"PTT") == h.url(for:"1239"),"named aliases can be resolved")
         try check(h.resources.localURL(URL(string:"app://statsdirect-help/../../Info.plist")!) == nil || !FileManager.default.fileExists(atPath:h.resources.localURL(URL(string:"app://statsdirect-help/../../Info.plist")!)!.path),"path traversal cannot read outside the help bundle")
         try check(h.resources.localURL(URL(string:"app://elsewhere/contents.htm")!) == nil,"foreign help origin rejected")
+        try check(h.resources.localURL(URL(string:"app://statsdirect-help/resources/Scripts/jquery.min.js")!)?.path == h.resources.root.appendingPathComponent("resources/scripts/jquery.min.js").path,"mixed-case Windows links resolve to the bundle’s exact filename")
         v.openHelp(v.root.appendingPathComponent("Help/parametric_methods/paired_t.htm"),title:"Paired t")
         try await until(web,"document.querySelector('.MCDropDownHotSpot') !== null && typeof MadCap !== 'undefined'")
         try await settle()

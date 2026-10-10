@@ -20,6 +20,8 @@ static workbook_fn analysisRequest = nullptr;
 static free_fn analysisFree = nullptr;
 static workbook_fn operationRequest = nullptr;
 static free_fn operationFree = nullptr;
+static workbook_fn calculatorRequest = nullptr;
+static free_fn calculatorFree = nullptr;
 static std::once_flag initialized;
 static void initialize() {
     Dl_info location{};
@@ -63,6 +65,10 @@ static void initialize() {
     if (code < 0) operationRequest = nullptr;
     code = load(assembly.c_str(), "OperationSessions, StatsDirect.Headless", "Free", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&operationFree);
     if (code < 0) operationFree = nullptr;
+    code = load(assembly.c_str(), "CalculatorIO, StatsDirect.Headless", "Invoke", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&calculatorRequest);
+    if (code < 0) calculatorRequest = nullptr;
+    code = load(assembly.c_str(), "CalculatorIO, StatsDirect.Headless", "Free", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&calculatorFree);
+    if (code < 0) calculatorFree = nullptr;
 }
 extern "C" int statsdirect_paired_t(const double* before, const double* after, int count, double confidence, double* output, int capacity) {
     std::call_once(initialized, initialize);
@@ -101,3 +107,9 @@ extern "C" char* statsdirect_operation(const char* request) {
     return operationRequest && operationFree ? operationRequest(request) : nullptr;
 }
 extern "C" void statsdirect_operation_free(char* result) { if (operationFree) operationFree(result); }
+
+extern "C" char* statsdirect_calculator(const char* request) {
+    std::call_once(initialized, initialize);
+    return calculatorRequest && calculatorFree ? calculatorRequest(request) : nullptr;
+}
+extern "C" void statsdirect_calculator_free(char* result) { if (calculatorFree) calculatorFree(result); }

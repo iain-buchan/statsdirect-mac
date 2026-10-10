@@ -78,6 +78,11 @@ jobs:
         run: |
           python3 Tests/test_desktop_help.py
           Scripts/test-help-pane.sh
+      - name: Calculator
+        run: |
+          clang++ -std=c++17 -arch arm64 Tests/calculator-driver.cpp -o .build/calculator-driver
+          python3 Tests/test_calculator.py
+          Scripts/test-calculator-pane.sh
       - name: Report export
         run: Scripts/test-report-export.sh
       - name: WebKit integration driver

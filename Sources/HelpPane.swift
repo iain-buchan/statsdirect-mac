@@ -122,7 +122,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     var isFocused: Bool {
         guard visible else { return false }
         if let panel = floatingWindow, NSApp.keyWindow === panel { return true }
-        return (owner?.firstResponder as? NSView)?.isDescendant(of:view) == true
+        return NSApp.keyWindow === owner && (owner?.firstResponder as? NSView)?.isDescendant(of:view) == true
     }
     var hasModal: Bool { owner?.attachedSheet != nil || (NSApp.modalWindow != nil && NSApp.modalWindow !== floatingWindow) }
     func url(for topic: String) -> URL? {

@@ -85,7 +85,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var closeApproved = false
     var tabs: NSTabView!
     let workspaceSplit = NSSplitView()
+    let documentSplit = NSSplitView()
     lazy var helpPane = HelpPane(root: root.appendingPathComponent("Help"))
+    let calculatorPane = CalculatorPane()
     var helpKeyMonitor: Any?
     let documentTabs = NSStackView()
     let documentTabScroll = NSScrollView()
@@ -137,7 +139,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 4
         let symbol = NSImageView(); symbol.image = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")); symbol.imageScaling = .scaleProportionallyUpOrDown
         symbol.setAccessibilityLabel("StatsDirect"); symbol.widthAnchor.constraint(equalToConstant:26).isActive = true; symbol.heightAnchor.constraint(equalToConstant:26).isActive = true; bar.addArrangedSubview(symbol)
-        for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "R", "Help", "Window"] {
+        for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "R", "Tools", "Help", "Window"] {
             let button = NSButton(title: title + " ▾", target: self, action: #selector(showDropdown(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(title)
             button.isBordered = false; button.refusesFirstResponder = true
@@ -155,8 +157,18 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         status.font = .systemFont(ofSize: 11); status.textColor = .secondaryLabelColor
         status.lineBreakMode = .byTruncatingTail
         workspaceSplit.isVertical = true; workspaceSplit.dividerStyle = .thin
-        workspaceSplit.addArrangedSubview(tabs)
+        documentSplit.isVertical = false; documentSplit.dividerStyle = .thin
+        documentSplit.addArrangedSubview(tabs)
+        workspaceSplit.addArrangedSubview(documentSplit)
         helpPane.attach(to: workspaceSplit, owner: window)
+        calculatorPane.attach(to: documentSplit, owner: window)
+        calculatorPane.showHelp = { [weak self] in self?.calculatorHelp() }
+        calculatorPane.evaluate = { [weak self] expression, completion in
+            let culture = Locale.current.identifier.components(separatedBy:"@")[0].replacingOccurrences(of:"_",with:"-")
+            self?.analysisRequest(["expression":expression,"culture":culture],entry:"statsdirect_calculator") { output in
+                completion(output.map { $0["result"] as? String ?? "" })
+            }
+        }
         helpKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 122 { self?.currentMethodHelp(); return nil }; return event
         }
@@ -242,6 +254,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(rMenu, "Save Script…", #selector(saveRScript))
         rMenu.addItem(.separator())
         add(rMenu, "Install R…", #selector(installR))
+        add(menu("Tools"), "Calculator", #selector(showCalculator))
         let help = menu("Help")
         add(help, "Learning", #selector(openLearning))
         add(help, "Learning Options…", #selector(openLearningOptions))
@@ -264,15 +277,15 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(installR) { menuItem.title = RRuntime.executable() == nil ? "Install R…" : "R Is Installed"; return RRuntime.executable() == nil }
         if menuItem.action == #selector(checkUpdates) { return !checkingUpdates && window.attachedSheet == nil }
         if menuItem.action == #selector(toggleAutomaticUpdates) { menuItem.state = automaticUpdates ? .on : .off; return true }
-        if menuItem.action == #selector(currentMethodHelp) { return active?.operationName != nil || active?.kind == "analysis" }
+        if menuItem.action == #selector(currentMethodHelp) { return calculatorPane.isFocused || active?.operationName != nil || active?.kind == "analysis" }
         if menuItem.action == #selector(reportFormatCommand(_:)) {
-            guard let doc=active,doc.kind=="report",!doc.web.isLoading,window.attachedSheet==nil else {return false}
+            guard !calculatorPane.isFocused, !helpPane.isFocused, let doc=active,doc.kind=="report",!doc.web.isLoading,window.attachedSheet==nil else {return false}
             let command=(menuItem.representedObject as? [String:String])?["command"]
             if command=="toggle" {menuItem.title=doc.reportEditing ? "Done Editing Report" : "Edit Report";return true}
             return doc.reportEditing
         }
-        if menuItem.action == #selector(editCommand(_:)) { return helpPane.isFocused || active != nil }
-        if menuItem.action == #selector(closeTab), helpPane.isFocused { return true }
+        if menuItem.action == #selector(editCommand(_:)) { return calculatorPane.isFocused || helpPane.isFocused || active != nil }
+        if menuItem.action == #selector(closeTab), calculatorPane.isFocused || helpPane.isFocused { return true }
         if menuItem.action == #selector(back) { return helpPane.web.canGoBack }
         if menuItem.action == #selector(forward) { return helpPane.web.canGoForward }
         if [#selector(exportReportHTML), #selector(exportReportPDF), #selector(exportReportDOCX)].contains(menuItem.action) { return active?.kind == "report" && active?.fileBusy == false && active?.web.isLoading == false }
@@ -377,6 +390,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     @objc func helpLibrary() { helpPane.contents() }
     @objc func currentMethodHelp() {
+        if calculatorPane.isFocused { calculatorHelp(); return }
         if let doc = active, let path = methodHelpPath(doc) {
             openHelp(root.appendingPathComponent(path), title: doc.title)
         } else if active?.kind == "analysis" { chiSquareHelp() }
@@ -395,7 +409,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func editCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
-        if helpPane.isFocused { _ = fallback(); return }
+        if calculatorPane.isFocused || helpPane.isFocused { _ = fallback(); return }
         if let doc=active, doc.kind=="report", ["copy","cut","paste"].contains(command), window.attachedSheet==nil { reportClipboardCommand(doc, command: command); return }
         if let doc=active, doc.kind=="report", doc.reportEditing, ["undo","redo","selectAll"].contains(command), window.attachedSheet==nil {
             doc.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand(\(jsString(command)))") { handled, error in
@@ -421,6 +435,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func stopRSession() { active?.rPane?.stopSession() }
     @objc func saveRScript() { active?.rPane?.saveScript() }
     @objc func closeTab() {
+        if calculatorPane.isFocused { calculatorPane.hide(); return }
         if helpPane.isFocused { helpPane.hide(); return }
         guard let doc = active else { return }
         closeDocument(doc)
@@ -573,7 +588,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         let allowed = applicationShouldTerminate(NSApp) == .terminateNow
         closeApproved = allowed
-        if allowed { helpPane.shutdown() }
+        if allowed { helpPane.shutdown(); calculatorPane.shutdown() }
         return allowed
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -588,7 +603,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         return .terminateNow
     }
-    func applicationWillTerminate(_ notification: Notification) { helpPane.shutdown(); if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }; RInstaller.shared.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
+    func applicationWillTerminate(_ notification: Notification) { helpPane.shutdown(); calculatorPane.shutdown(); if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }; RInstaller.shared.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 MainActor.assumeIsolated {

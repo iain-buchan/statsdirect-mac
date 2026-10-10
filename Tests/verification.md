@@ -1,3 +1,7 @@
+# R charts as SVG — 10 October 2026
+
+On Iain's decision that every chart in a report is a vector picture, the engine (Windows main `41518ad6`) draws its R charts with R's svg device and carries them as `ReportVectorPicture`, inlined by the HTML renderer. The Mac pins that commit (867 files). Its R host substitutes the svglite package for R's svg device, since CRAN's R for the Mac needs XQuartz for its own, and its copy of the results parser reads the .svg file by the same rules as Windows (markup from the svg element on; size from width and height in points, or the viewBox; either quote style). `Tests/test_r_operations.py` checks the LOESS chart arrives inline at 432 by 288 points with its points, fit and band; the native report-export driver carries it through the pane, HTML, PDF, DOCX and the clipboard, and the Word-package check finds it at 576 by 384 beside the resized engine chart.
+
 # Engine 5.1.0 — 10 October 2026
 
 The engine submodule moves to Windows main `44203cc8` (StatsDirect 5.1.0: HTML reports with WebView2 editing, dockable help and the calculator on Windows; the RTF and EMF renderers removed). The Mac now uses the engine's `ReportPicture` for R charts and shows the R script as text, as Windows does, so `ReportFragments.cs` and the Mac copy of `Nonparametric.cs` are gone; the manifest records 866 files. The chart's size in the report comes from the PNG's recorded resolution. Build, `test.sh` and the native WebKit driver suite pass on this build.

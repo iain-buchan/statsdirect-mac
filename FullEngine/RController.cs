@@ -74,8 +74,16 @@ namespace StatsDirect.R
 
         public static bool IsInstalled => FindRscript() != null;
 
-        // The Windows metafile device, as R's PNG device: 144 dots per inch, so the report shows it at half size on a Retina display.
-        const string GraphicsShim = @"# StatsDirect for Mac: the chart goes into the report as a PNG drawn by R's quartz device
+        // The engine's scripts draw their charts with R's svg device. CRAN's R for the Mac needs XQuartz for that device
+        // (its cairo library links X11), so the chart is drawn by the svglite package instead, installed from CRAN into
+        // the shared library the first time it is needed; its SVG carries a viewBox and Arial text like the engine's own.
+        // A script that still opens the Windows metafile device gets R's quartz PNG device at 144 dots per inch.
+        const string GraphicsShim = @"# StatsDirect for Mac: charts go into the report as SVG drawn by svglite (R's own svg device needs XQuartz here)
+svg <- function(filename = """", width = 7, height = 7, ...) {
+  if (!requireNamespace(""svglite"", quietly = TRUE))
+    utils::install.packages(""svglite"", lib = rlib, repos = ""https://cloud.r-project.org"", quiet = TRUE, type = ""binary"")
+  svglite::svglite(filename, width = width, height = height)
+}
 win.metafile <- function(filename = """", width = 7, height = 7, ...) {
   png <- sub(""\\.wmf$"", "".png"", filename, ignore.case = TRUE)
   tryCatch(grDevices::png(png, width = width, height = height, units = ""in"", res = 144, type = ""quartz""),

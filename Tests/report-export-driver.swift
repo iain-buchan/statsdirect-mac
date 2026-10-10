@@ -66,9 +66,9 @@ import PDFKit
             _=try? await request(["action":"release","id":id])
             try check(output["state"] as? String=="complete","LOESS did not complete: \(output["error"] ?? "")")
             let html=output["html"] as? String ?? ""
-            try check(html.contains("<img alt=\"R chart\"") && html.contains("data:image/png;base64,") && html.contains("userdir &lt;-") && html.contains("Residual Standard Error"),"LOESS report lacks R's chart or script")
+            try check(html.contains("<svg") && html.contains("</svg>") && !html.contains("data:image/png;base64,") && html.contains("userdir &lt;-") && html.contains("Residual Standard Error"),"LOESS report lacks R's SVG chart or script")
             v.appendReport(ReportEntry(id:UUID().uuidString,title:"LOESS",operation:"LOESS",body:"<section class='engine-report'>"+html+"</section>",rPlan:nil))
-            print("PASS: LOESS through R: the report carries R's PNG chart and the script");fflush(stdout)
+            print("PASS: LOESS through R: the report carries R's chart as inline SVG and the script");fflush(stdout)
         }
         let rows=(1...65).map{"<tr><td>Observation \($0)</td><td>\($0).25</td><td>-2.5</td><td>1.2e-7</td></tr>"}.joined()
         v.appendReport(ReportEntry(id:UUID().uuidString,title:"Export table checks",operation:"",body:"<h1>Export table checks</h1><table><thead><tr><th rowspan='2'>Measurement</th><th colspan='3'>Results</th></tr><tr><th>Estimate</th><th>Difference</th><th>P value</th></tr></thead><tbody>\(rows)</tbody></table><p><strong>All report entries included</strong> — α = 0.05, 95% CI, χ<sup>2</sup> and CO<sub>2</sub>.</p>",rPlan:nil))
@@ -83,9 +83,9 @@ import PDFKit
                 let html=String(decoding:data,as:UTF8.self)
                 precondition(html.contains("56.111111")&&html.contains("8.64")&&html.contains("Observation 65"))
                 precondition(html.contains("<svg")&&html.contains("https://www.statsdirect.com/help/"))
-                precondition(html.contains("alt=\"R chart\"")&&html.contains("data:image/png;base64,")&&html.contains("Residual Standard Error"))
+                precondition(html.contains("Residual Standard Error")&&html.contains("svglite"),"the LOESS report's inline SVG chart must survive HTML export")
                 precondition(!html.contains("onclick=") && !html.contains("statsDirectReport.postMessage") && !html.contains("file:///"))
-                print("PASS: HTML contains every result, inline vector chart, R's PNG chart and portable help links; no app handlers or file paths")
+                print("PASS: HTML contains every result, inline vector charts including R's, and portable help links; no app handlers or file paths")
             }
             if format == .pdf {
                 let pdf=PDFDocument(data:data)!,text=pdf.string ?? ""
@@ -398,7 +398,8 @@ import PDFKit
         try await report.web.evaluateJavaScript("(()=>{const picture=document.querySelector('.report-body svg');picture.dispatchEvent(new MouseEvent('click',{bubbles:true}));document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true}));})()")
         try await settled(report)
         let hiddenHTML=String(decoding:try await v.reportExportData(report,format:.html),as:UTF8.self)
-        precondition(!hiddenHTML.contains("<svg"))
+        // The deleted picture is the engine's agreement chart; the LOESS chart R drew (an inline SVG too) stays.
+        precondition(hiddenHTML.components(separatedBy:"<svg").count==2 && hiddenHTML.contains("svglite"),"only the agreement chart should be gone; the LOESS SVG stays")
         v.editReport(report,["action":"undoText"]);try await settled(report)
         for format in ReportFormat.allCases {
             let data=try await v.reportExportData(report,format:format)

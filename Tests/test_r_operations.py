@@ -3,7 +3,7 @@ the inputs as R variables, the Mac host runs Rscript in a folder of its own, rea
 (a PNG from the quartz device, in place of the Windows metafile) and the script into the HTML report. The figures are
 checked against R called directly on the same data, the help example against its printed values, and the host's own
 paths: missing values, several predictors, R not installed, an R error, and cancelling while R runs."""
-import base64, math, os, re, subprocess, sys, tempfile, time
+import math, os, re, subprocess, sys, tempfile, time
 from pathlib import Path
 ARGS = sys.argv[1:]; sys.argv = sys.argv[:1]
 from test_menu import Session
@@ -64,17 +64,17 @@ try:
     values = st['values']
     stats, fits, ses = direct([float(v) for v in hgb['values']], [[float(v) for v in egfr['values']]])
     assert values['observations'] == stats[0] == 804 and close(values['parameters'], stats[1]) and close(values['residualse'], stats[2]) and close(values['df'], stats[3]), (values, stats)
-    img = re.search(r'<img alt="R chart"[^>]*>', st['html']); assert img, st['html'][:300]
-    assert 'width="576" height="384"' in img[0], img[0][:200]   # the script draws 864 by 576 pixels at 144 dots per inch; the PNG records the resolution
-    png = base64.b64decode(re.search(r'base64,([A-Za-z0-9+/=]+)', img[0])[1])
-    assert png[:8] == b'\x89PNG\r\n\x1a\n' and int.from_bytes(png[16:20], 'big') == 864 and int.from_bytes(png[20:24], 'big') == 576 and len(png) > 20000, len(png)
+    # The script draws six by four inches through R's svg device, svglite here: the SVG goes into the report inline, as the engine's own charts do.
+    svg = re.search(r'<svg\b[^>]*>', st['html']); assert svg and '<?xml' not in st['html'] and 'data:image/png' not in st['html'], st['html'][:300]
+    assert re.search(r"width=['\"]432(\.00)?pt['\"]", svg[0]) and re.search(r"height=['\"]288(\.00)?pt['\"]", svg[0]) and 'viewBox' in svg[0], svg[0]
+    assert st['html'].count('<svg') == 1 and '</svg>' in st['html'] and st['html'].count('<circle') >= 800 and st['html'].count('<polyline') >= 3, 'the scatter, the fit and the band'
     script = st['html'].split('R script to reproduce this result')[1]   # shown as text with line breaks, as on Windows
     assert 'loess(model,span=span,degree=degree)' in script and 'hgb &lt;- c(' in script and '<br />' in script and 'returning.to.statsdirect &lt;- TRUE' not in script and 'win.metafile &lt;- function' not in script, script[:300]
     assert text.index('R script to reproduce this result') < text.index('userdir'), 'the script is shown under its heading'
     (fit_title, fit), (se_title, se) = (frame_values(f) for f in st['frames'])
     assert (fit_title, se_title) == ('LOESS fit', 'LOESS fit SE') and [f['placement'] for f in st['frames']] == ['AfterSelection'] * 2 and [f['lengths'] for f in st['frames']] == [[804], [804]], st['frames'][0].keys()
     assert len(fit) == 804 and all(close(fit[i], fits[i]) and close(se[i], ses[i]) for i in range(804))
-    print('PASS: the LOESS help example runs through R from the Mac form: its four printed figures, the fits and standard errors written back agree with R called directly; the chart is R\'s PNG and the script is shown')
+    print('PASS: the LOESS help example runs through R from the Mac form: its four printed figures, the fits and standard errors written back agree with R called directly; the chart is R\'s SVG inline and the script is shown')
 
     # Missing values: loess leaves the row out, the fits are padded back to the worksheet rows, and the count is of complete rows.
     y = [12, 13, 11, 15, 14, 13, 12, 16, 15, 14, 13, 12, 11, 11, 13, 14]; x = [90, 85, 60, 95, 80, 70, 65, 99, 92, 88, 75, 55, 50, 48, 77, 83]
@@ -87,7 +87,7 @@ try:
     assert set(fit) == set(se) == set(range(16)) - gaps and [f['lengths'] for f in st['frames']] == [[16], [16]]
     kept = [i for i in range(16) if i not in gaps]
     assert all(close(fit[i], fits[k]) and close(se[i], ses[k]) for k, i in enumerate(kept))
-    assert '<img alt="R chart"' in st['html'], 'with one predictor the script always draws the scatter, with the fit and band only when asked'
+    assert '<svg' in st['html'], 'with one predictor the script always draws the scatter, with the fit and band only when asked'
     print('PASS: rows with a missing outcome are left out of the fit and left blank in the written fits, as the R script pads them')
 
     # Several predictors: the formula names them all, the plot prompts are not asked and no chart is drawn.
@@ -97,7 +97,7 @@ try:
     assert prompts == ['outcome', 'predictors', 'model', 'title', 'span', 'degree', 'saveFitsAndSe', 'saveRScript'], prompts
     stats, _, _ = direct(y, [x, z], span=0.9, degree=1)
     assert close(st['values']['parameters'], stats[1]) and close(st['values']['residualse'], stats[2]) and 'Polynomial degree: 1, Span: 0.9' in re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', st['html']))
-    assert '<img' not in st['html'] and not st.get('frames')
+    assert '<svg' not in st['html'] and '<img' not in st['html'] and not st.get('frames')
     print('PASS: two predictors fit with the chosen span and degree, without the single-predictor plot')
 
     # An error inside R reaches the form as R's own message.

@@ -67,12 +67,13 @@ for name in ['resized-report','resized-reopened-report']:
     resized,_=package(name)
     drawing='{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}'
     pictures=resized.findall('.//'+drawing+'inline')
-    sizes={p.find(drawing+'docPr').get('descr'):p.find(drawing+'extent') for p in pictures}
-    raster=sizes.pop('Raster resize check'); rchart=sizes.pop('R chart')
+    extents=[(p.find(drawing+'docPr').get('descr'),p.find(drawing+'extent')) for p in pictures]
+    raster=next(e for d,e in extents if d=='Raster resize check')
     assert int(raster.get('cx'))==200*9525 and int(raster.get('cy'))==100*9525
-    assert int(rchart.get('cx'))==576*9525 and int(rchart.get('cy'))==384*9525   # R draws 864 by 576 pixels at 144 dots per inch
-    assert len(pictures)==3 and len(sizes)==1 and int(next(iter(sizes.values())).get('cx'))==320*9525, (name,sizes)
-    svg_extent=next(iter(sizes.values())).attrib
+    # The other two pictures are SVG: the engine chart resized to 320px and the LOESS chart R drew at six by four inches (432 by 288 points).
+    vectors=sorted((e for d,e in extents if d!='Raster resize check'),key=lambda e:int(e.get('cx')))
+    assert len(pictures)==3 and [int(e.get('cx')) for e in vectors]==[320*9525,576*9525] and int(vectors[1].get('cy'))==384*9525, (name,[(d,e.attrib) for d,e in extents])
+    svg_extent=vectors[0].attrib
     if original_svg_extent is None: original_svg_extent=svg_extent
     else: assert svg_extent==original_svg_extent, 'HTML reopening changed the SVG aspect ratio'
 print('PASS: DOCX uses the selected SVG/raster sizes and retains the LOESS chart before and after HTML reopen')

@@ -750,3 +750,5 @@ Native UI checks on the user’s saved Windows/Mac comparison report confirm a 4
 ## R pane: Output folder and the files a run writes — 11 October 2026
 
 As the Windows script window: the R pane's toolbar has **Output folder** (opens the session folder in the Finder), and after each run the files the script wrote (charts among them) are listed as links the user can open with a click. `Tests/r-pane-driver.swift` writes a CSV from R, finds it listed once as a link, sees no list after a run that writes nothing, and finds the button enabled.
+
+R pane, later the same day: Run script while a run is going stops that run and runs the edited script in a fresh session (as the Windows script window does); closing the tab already stopped a run. The driver starts a 20-second script, runs an edited one half a second later and finds only the edited output.

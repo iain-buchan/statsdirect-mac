@@ -77,6 +77,13 @@ struct RPaneChecks {
         let folderButton = buttons(pane.view).first { $0.title == "Output folder" }
         precondition(folderButton?.isEnabled == true, "Output folder button")
         print("PASS files a run writes are listed as links once, and the Output folder button is offered for the session folder")
+        // Run script while a run is going stops that run and runs the edited script (the Windows script window does the same).
+        pane.editor.string = "Sys.sleep(20); cat('slow finished\\n')"; pane.runScript()
+        precondition(pane.isRunning, pane.state.stringValue)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        run("cat('edited script ran\\n')", plots: 0)
+        precondition(pane.console.string.contains("edited script ran") && !pane.console.string.contains("slow finished") && pane.console.string.contains("Run stopped"), pane.console.string.suffix(400).description)
+        print("PASS Run script during a run stops it and runs the edited script")
         precondition(pane.console.textStorage!.containsAttachments)
     }
 }

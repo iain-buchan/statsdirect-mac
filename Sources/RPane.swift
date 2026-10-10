@@ -252,7 +252,9 @@ final class RPane: NSObject, NSTextViewDelegate {
         console.scrollToEndOfDocument(nil)
     }
     @objc func runScript() {
-        guard !busy else { return }
+        // Run while a run is going stops that run and runs the edited script, as the Windows script window does
+        // (a dropped click looked like the unedited answers); the session starts afresh.
+        if busy { shutdown(); append("\nRun stopped; the edited script runs in a fresh R session.\n") }
         if executable() == nil { requestInstallation(run: true); return }
         if process == nil { startSession() }
         guard let process, process.isRunning, let input, let directory else { return }
@@ -260,7 +262,7 @@ final class RPane: NSObject, NSTextViewDelegate {
             filesBefore = sessionFiles(); plotsBefore = plotFiles()
             let script = directory.appendingPathComponent("run-" + UUID().uuidString + ".R")
             try editor.string.write(to: script, atomically: true, encoding: .utf8)
-            busy = true; runButton.isEnabled = false; state.stringValue = "Running R script…"; append("\n── Run script ──\n")
+            busy = true; state.stringValue = "Running R script… Run script again stops this run and runs the edited script"; append("\n── Run script ──\n")
             try input.fileHandleForWriting.write(contentsOf: Data((script.path + "\n").utf8))
         } catch { busy = false; runButton.isEnabled = true; state.stringValue = error.localizedDescription }
     }

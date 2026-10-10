@@ -30,6 +30,10 @@ jobs:
       SUITE: ${{ inputs.suite }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
+        if: inputs.suite == 'report'
+        with:
+          r-version: release
       - name: Get the packaged runtime
         shell: bash
         run: |

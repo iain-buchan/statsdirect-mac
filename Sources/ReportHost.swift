@@ -30,7 +30,16 @@ struct ReportChange {
     var added: [IndexedReportEntry] = []
     var time = Date()
     var typing: Bool
-    var bytes: Int { edits.reduce(0) { $0 + ($1.before?.utf8.count ?? 0) + ($1.after?.utf8.count ?? 0) } + (removed + added).reduce(0) { $0 + $1.bytes } }
+    var bytes: Int {
+        var total = 0
+        for edit in edits {
+            total += edit.before?.utf8.count ?? 0
+            total += edit.after?.utf8.count ?? 0
+        }
+        for frame in removed { total += frame.bytes }
+        for frame in added { total += frame.bytes }
+        return total
+    }
 }
 
 extension Viewer {

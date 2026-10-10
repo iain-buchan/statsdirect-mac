@@ -19,15 +19,29 @@ import WebKit
         let event = NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:shift ? [.shift] : [],timestamp:0,windowNumber:pane.view.window!.windowNumber,context:nil,characters:"\r",charactersIgnoringModifiers:"\r",isARepeat:false,keyCode:36)!
         pane.input.keyDown(with:event)
     }
+    @MainActor static func historyCommand(_ viewer:Viewer,_ name:String = "undo") async throws {
+        // Undo is a separate user event. Go through NSTextView's responder-chain
+        // action so AppKit can finish text coalescing before its undo manager runs.
+        try await settle()
+        let command=NSMenuItem(title:name,action:#selector(Viewer.editCommand(_:)),keyEquivalent:"z")
+        command.representedObject=name
+        viewer.editCommand(command)
+        try await settle()
+    }
     @MainActor static func main() {
         guard CommandLine.arguments.contains("--run-tests") else { print("Use Scripts/test-calculator-pane.sh"); exit(2) }
         let app=NSApplication.shared; app.setActivationPolicy(.regular)
         UserDefaults.standard.set(false,forKey:"automaticUpdateChecks")
         let v=Viewer(); app.delegate=v
+        let watchdog=DispatchWorkItem {
+            print("FAIL: native calculator checks exceeded 120 seconds"); fflush(stdout); exit(1)
+        }
+        DispatchQueue.global().asyncAfter(deadline:.now()+120,execute:watchdog)
         DispatchQueue.main.asyncAfter(deadline:.now()+0.5) {
             Task { @MainActor in
                 do { try await run(v); print("PASS: native calculator checks"); fflush(stdout) }
                 catch { print("FAIL: \(error.localizedDescription)"); fflush(stdout); exit(1) }
+                watchdog.cancel()
                 if !CommandLine.arguments.contains("--stay-open") { v.closeApproved=true; app.terminate(nil) }
             }
         }
@@ -78,18 +92,22 @@ import WebKit
         c.useSaved()
         try check(c.input.string=="A2+\n3*4C","saved expression replaces selected input")
         try check(c.result.string.isEmpty && !c.copyResultButton.isEnabled,"editing an expression clears its old result")
-        c.input.undoManager?.undo()
+        try await historyCommand(v)
         try check(c.input.string=="ABC","saved expression insertion supports Undo")
+        try await historyCommand(v,"redo")
+        try check(c.input.string=="A2+\n3*4C" && c.result.string.isEmpty,"Edit menu Redo restores insertion without a stale result")
+        try await historyCommand(v)
+        try check(c.input.string=="ABC","Edit menu Undo works again after Redo")
         c.recallSaved()
         try check(c.input.string=="2+\n3*4" && c.result.string=="14" && c.copyResultButton.isEnabled,"Recall restores the entire saved expression and result")
-        c.input.undoManager?.undo(); try check(c.input.string=="ABC" && c.result.string.isEmpty,"Recall is undoable without leaving a stale answer")
+        try await historyCommand(v); try check(c.input.string=="ABC" && c.result.string.isEmpty,"Recall is undoable without leaving a stale answer")
         c.input.string="2+3"; c.input.setSelectedRange(NSRange(location:1,length:1)); c.input.insertText("*",replacementRange:c.input.selectedRange())
         c.calculate(); try await until { !c.busy }
         let caret=c.input.selectedRange()
         c.toggleMode(); try await settle()
         try check(c.view.window === c.floatingWindow && c.floatingWindow?.isVisible==true && v.documentSplit.subviews.count==1,"Pop out uses a companion window and restores document height")
         try check(c.input.string=="2*3" && c.saved.count==1 && c.result.string=="6" && c.input.selectedRange()==caret,"Pop out retains input, result, caret and saved calculations")
-        c.input.undoManager?.undo(); try check(c.input.string=="2+3","expression Undo survives reparenting")
+        try await historyCommand(v); try check(c.input.string=="2+3","expression Undo survives reparenting")
         c.toggleMode(); try await settle()
         try check(c.view.superview === v.documentSplit && c.floatingWindow?.isVisible==false,"Dock returns calculator beneath the document")
         v.documentSplit.setPosition(v.documentSplit.bounds.height-280,ofDividerAt:0); try await settle()

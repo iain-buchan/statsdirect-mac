@@ -2,8 +2,6 @@ import Cocoa
 
 @MainActor
 final class CalculatorInput: NSTextView {
-    private let history = UndoManager()
-    override var undoManager: UndoManager? { history }
     var calculate: (() -> Void)?
     override func keyDown(with event: NSEvent) {
         if [36,76].contains(event.keyCode), event.modifierFlags.intersection([.command,.control,.option]).isEmpty {
@@ -17,6 +15,10 @@ final class CalculatorInput: NSTextView {
 // undo history, results and saved expressions. Help occupies the other split.
 @MainActor
 final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate, NSTextViewDelegate {
+    // Use NSTextView's delegate hook so its editing internals and menu actions
+    // share the same history, including after moving between windows.
+    private let inputHistory = UndoManager()
+    func undoManager(for view: NSTextView) -> UndoManager? { view === input ? inputHistory : nil }
     struct Calculation { let expression: String; let result: String }
     let view = NSView()
     let input = CalculatorInput()

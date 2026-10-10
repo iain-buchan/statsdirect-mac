@@ -10,7 +10,7 @@ on:
         description: Native interface to check using the current source
         required: true
         type: choice
-        options: [calculator, help, report]
+        options: [calculator, help, report, integration]
 
 permissions:
   contents: read
@@ -18,7 +18,7 @@ permissions:
 jobs:
   native:
     runs-on: macos-15
-    timeout-minutes: 15
+    timeout-minutes: 25
     # GitHub exposes draft releases only to tokens with repository push access.
     # This manually dispatched job reads the draft; it never publishes a release.
     permissions:
@@ -30,8 +30,28 @@ jobs:
       SUITE: ${{ inputs.suite }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        if: inputs.suite == 'integration'
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: inputs.suite == 'integration'
+        with:
+          node-version: 24
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        if: inputs.suite == 'integration'
+        with:
+          python-version: '3.12'
+      - name: Install integration test dependencies
+        if: inputs.suite == 'integration'
+        run: |
+          corepack enable
+          (cd Grid && pnpm install --frozen-lockfile)
+          python3 -m pip install openpyxl
       - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
-        if: inputs.suite == 'report'
+        if: inputs.suite == 'report' || inputs.suite == 'integration'
         with:
           r-version: release
       - name: Get the packaged runtime
@@ -52,5 +72,9 @@ jobs:
             calculator) Scripts/test-calculator-pane.sh ;;
             help) Scripts/test-help-pane.sh ;;
             report) Scripts/test-report-export.sh ;;
+            integration)
+              python3 Tests/run_beta_feedback.py
+              python3 Tests/verify-report-documents.py .build/beta-feedback-exports
+              ;;
             *) exit 2 ;;
           esac

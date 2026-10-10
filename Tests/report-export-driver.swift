@@ -250,10 +250,27 @@ import PDFKit
         """) as! [String:String]
         precondition(computed["font"]!.hasPrefix("Arial") && computed["custom"]!.contains("Georgia") && computed["chart"]!.contains("Georgia"))
         precondition(computed["ci"]=="rgb(0, 0, 255)" && computed["pval"]=="rgb(0, 128, 0)" && computed["warn"]=="rgb(255, 0, 0)")
-        let before=try await report.web.evaluateJavaScript("document.querySelector('.report-body').innerHTML") as! String,revision=report.reportRevision
+        // ResizeObserver repositions the disposable chart controls during layout/printing.
+        // Keep every content element and style in this invariant, excluding only those controls.
+        let snapshotScript="""
+        (()=>{const body=document.querySelector('.report-body'),copy=body.cloneNode(true);copy.querySelectorAll('.report-controls').forEach(e=>e.remove());return {raw:body.innerHTML,content:copy.innerHTML};})()
+        """
+        let initial=try await report.web.evaluateJavaScript(snapshotScript) as! [String:String],revision=report.reportRevision
+        let frame=v.window.frame
+        v.window.setFrame(NSRect(x:frame.minX,y:frame.minY,width:frame.width+80,height:frame.height),display:true)
+        try await settled(report)
+        let resized=try await report.web.evaluateJavaScript(snapshotScript) as! [String:String]
+        v.window.setFrame(frame,display:true);try await settled(report)
+        precondition(initial["raw"] != resized["raw"] && initial["content"]==resized["content"] && report.reportRevision==revision,"Window resizing should change chart controls without changing report content")
+        let before=try await report.web.evaluateJavaScript(snapshotScript) as! [String:String]
         for format in ReportFormat.allCases {try await v.reportExportData(report,format:format).write(to:output.appendingPathComponent("stylesheet-report."+format.rawValue))}
-        let after=try await report.web.evaluateJavaScript("document.querySelector('.report-body').innerHTML") as! String
-        precondition(before==after && report.reportRevision==revision,"Export must not style or revise the live document")
+        let after=try await report.web.evaluateJavaScript(snapshotScript) as! [String:String]
+        if before["content"] != after["content"] || report.reportRevision != revision {
+            print("EXPORT DIAGNOSTICS: revision \(revision) -> \(report.reportRevision)")
+            print("BEFORE: \(before["content"]!)");print("AFTER: \(after["content"]!)");fflush(stdout)
+        }
+        precondition(before["content"]==after["content"] && report.reportRevision==revision,"Export must not style or revise the live document")
+        if before["raw"] != after["raw"] {print("PASS: export layout changed only disposable chart controls; all report content and styles remain identical");fflush(stdout)}
         let reopened=try await v.importReport(output.appendingPathComponent("stylesheet-report.html"));try await settled(reopened)
         try await v.reportExportData(reopened,format:.docx).write(to:output.appendingPathComponent("stylesheet-reopened.docx"))
         let preserved=try await reopened.web.evaluateJavaScript("getComputedStyle(document.querySelector('.report-body svg text')).fontFamily.includes('Georgia')") as! Bool

@@ -24,7 +24,8 @@ assert heading.find('w:pPr/w:pStyle',ns).get(key)=='Heading2'
 assert next(p for p in edited.findall('.//w:p',ns) if 'Interpretation bullet' in ''.join(p.itertext())).find('w:pPr/w:numPr',ns) is not None
 assert next(p for p in edited.findall('.//w:p',ns) if 'Interpretation step' in ''.join(p.itertext())).find('w:pPr/w:numPr',ns) is not None
 assert len(edited.findall('.//w:tbl',ns))==4
-assert sum(name.endswith('.svg') for name in files)==1
+# The agreement chart deleted and restored by Undo, and the LOESS chart R drew: both vector pictures.
+assert sum(name.endswith('.svg') for name in files)==2
 legacy,files=package('legacy-converted')
 for text,tag in [('Legacy statistical report','b'),('Paired measurements','i'),('Reviewed','u')]:
     style=run_for(legacy,text).find('w:rPr/w:'+tag,ns)

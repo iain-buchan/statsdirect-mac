@@ -418,6 +418,7 @@ import PDFKit
         // The deleted picture is the engine's agreement chart; the LOESS chart R drew (an inline SVG too) stays.
         precondition(hiddenHTML.components(separatedBy:"<svg").count==2 && hiddenHTML.contains("svglite"),"only the agreement chart should be gone; the LOESS SVG stays")
         v.editReport(report,["action":"undoText"]);try await settled(report)
+        precondition(try await report.web.evaluateJavaScript("document.querySelectorAll('#report-results svg').length") as? Int==2,"undo did not restore the deleted chart in the report pane")
         for format in ReportFormat.allCases {
             let data=try await v.reportExportData(report,format:format)
             try data.write(to:output.appendingPathComponent("edited-report."+format.rawValue))
@@ -487,6 +488,25 @@ import PDFKit
         try await check("document.getElementById('result-region-b').textContent.includes('Tail text')&&[...document.getElementById('report-results').children].every(e=>e.matches('.report-entry[data-result-id]'))","text typed after the last result belongs to it")
         precondition((report.reportEntries!.last!.editedBody ?? "").contains("Tail text"))
         precondition(try await js("StatsDirectReportEditor.reveal('region-b')&&document.getElementById('report-results').style.getPropertyValue('--reveal-room')!==''") as? Bool==true)
+        // A report that fits the window stays at the top when a result is revealed.
+        _ = try await js("window.scrollTo(0,0)")
+        try await check("(()=>{StatsDirectReportEditor.reveal('region-a');return window.scrollY===0&&document.getElementById('report-results').style.getPropertyValue('--reveal-room')==='0px';})()","revealing the first result of a short report scrolled the window")
+        // Ctrl+Y / ⌘Y redoes, as Word does on either platform.
+        let undoCount=report.reportUndo.count
+        _ = try await js("(()=>{const p=document.getElementById('sr-a1'),r=document.createRange();document.getElementById('report-results').focus();r.selectNodeContents(p);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('insertText',false,' redo me');})()")
+        try await settled(report)
+        precondition(report.reportUndo.count==undoCount+1 && (report.reportEntries!.first!.editedBody ?? "").contains("redo me"))
+        _ = try await js("StatsDirectReportEditor.command('undo')");try await settled(report)
+        precondition(!(report.reportEntries!.first!.editedBody ?? "").contains("redo me") && report.reportRedo.count==1)
+        _ = try await js("document.getElementById('report-results').dispatchEvent(new KeyboardEvent('keydown',{key:'y',metaKey:true,bubbles:true,cancelable:true}))");try await settled(report)
+        precondition((report.reportEntries!.first!.editedBody ?? "").contains("redo me") && report.reportRedo.isEmpty,"⌘Y did not redo")
+        // A host that loads another report into the same page (the Windows window) replaces every block: the results the editor knew before are forgotten, so the first edit of the new report is not reported as their removal.
+        let c="region-c"
+        report.reportEntries=[ReportEntry(id:c,title:"Gamma",operation:"",body:"<h1 id='sr-c-h'>Gamma</h1><p id='sr-c1'>Gamma one</p>",rPlan:nil)];report.reportUndo=[];report.reportRedo=[]
+        _ = try await js("(()=>{const root=document.getElementById('report-results');root.replaceChildren();StatsDirectReportEditor.replaceEntries([{id:'region-c',html:\"<article class='report-entry' id='result-region-c' data-result-id='region-c' aria-label='Gamma'><h1 id='sr-c-h'>Gamma</h1><p id='sr-c1'>Gamma one</p></article>\"}],['region-c']);const p=document.getElementById('sr-c1'),r=document.createRange();root.focus();r.selectNodeContents(p);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('insertText',false,' edited');})()")
+        try await settled(report)
+        precondition(report.reportUndo.count==1 && (report.reportEntries!.first!.editedBody ?? "").contains("Gamma one edited"),"the first edit after a load was lost: \(report.reportUndo.count) changes")
+        report.reportEntries=[ReportEntry(id:a,title:"Alpha",operation:"TPaired",body:"<h1 id='sr-a-h'>Alpha</h1><p id='sr-a1'>Alpha one</p>",rPlan:nil,helpPath:"Help/parametric_methods/paired_t.htm")];report.reportUndo=[];report.reportRedo=[];v.renderReport(report);try await settled(report)
         let exported=String(decoding:try await v.reportExportData(report,format:.html),as:UTF8.self)
         precondition(exported.contains("https://www.statsdirect.com/help/parametric_methods/paired_t.htm") && !exported.contains("data-help") && !exported.contains("contenteditable"),"the saved report carries the method link, not the editing attributes")
         v.remove(report)

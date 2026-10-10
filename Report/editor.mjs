@@ -138,6 +138,17 @@ function selectedBlocks(range) {
   if(range.collapsed){const block=elementOf(range.startContainer)?.closest(blockSelector);return block&&root.contains(block)&&!block.matches(entrySelector)&&block!==root?[block]:[];}
   return [...root.querySelectorAll(blockSelector)].filter(el=>range.intersectsNode(el)&&!el.closest('[contenteditable="false"]')&&!el.matches(entrySelector)&&![...el.querySelectorAll(blockSelector)].some(child=>range.intersectsNode(child)));
 }
+const INDENT_STEP=40;
+function indentBlock(block,inward) {
+  const current=parseFloat(block.style.marginLeft)||0;
+  if(inward)block.style.marginLeft=(current+INDENT_STEP)+'px';
+  else if(current>0)block.style.marginLeft=current>INDENT_STEP?(current-INDENT_STEP)+'px':'';
+  else if(block.parentElement?.matches('blockquote')&&inRegion(block.parentElement)&&!block.parentElement.matches(entrySelector)) {
+    // A quotation from an earlier editor or a pasted document is the indentation it stands for.
+    const quote=block.parentElement;quote.replaceWith(...quote.childNodes);
+  }
+  if(!block.getAttribute('style'))block.removeAttribute('style');
+}
 const textProperties=['font-family','font-size','font-weight','font-style','text-decoration','text-decoration-line','text-decoration-color','text-decoration-style','color','background-color','vertical-align','letter-spacing','text-transform','text-shadow'];
 const blockProperties=[...textProperties,'line-height','text-align','text-indent','margin-left','margin-right','padding-left'];
 // Clear formatting as a word processor does: with a caret the paragraph at the
@@ -197,8 +208,8 @@ function absorbStrays(root) {
     if(!target){node.remove();continue;}
     if(node.compareDocumentPosition(target)&Node.DOCUMENT_POSITION_FOLLOWING)target.prepend(node);else target.append(node);
   }
-  // A result pasted inside another stays content: one level of results only.
-  for(const entry of root.querySelectorAll(entrySelector))if(entry.parentElement!==root){entry.removeAttribute('data-result-id');entry.removeAttribute('id');entry.classList.remove('report-entry');}
+  // A result block inside another (pasted, or cloned by the browser's block editing) is its content: one level of results only.
+  for(const nested of [...root.querySelectorAll('article')].reverse())if(nested.parentElement!==root)nested.replaceWith(...nested.childNodes);
   // Split halves are one result again, in order.
   let previous=null;
   for(const entry of [...root.children]) {
@@ -284,7 +295,10 @@ export function replaceEntries(list,order=null) {
   const scroll=window.scrollY,root=region();
   const focused=entryOf(document.activeElement)||entryOf(window.getSelection()?.anchorNode),index=focused?entries().indexOf(focused):0;
   const refocus=document.activeElement===root||!!focused;
-  if(order)for(const entry of entries())if(!order.includes(entry.dataset.resultId)){entry.remove();snapshots.delete(entry.dataset.resultId);}
+  if(order){
+    for(const entry of entries())if(!order.includes(entry.dataset.resultId))entry.remove();
+    for(const id of [...snapshots.keys()])if(!order.includes(id))snapshots.delete(id);
+  }
   for(const {id,html} of list) {
     if(entryById(id))replace(id,html);
     else {const block=parse(html);root.append(block);protect();remeasure(block);}
@@ -310,9 +324,15 @@ export function extend(id,html) {
 export function reveal(id) {
   const entry=entryById(id),root=region();if(!entry||!root)return false;
   const bar=document.getElementById('report-toolbar'),gap=(bar?bar.getBoundingClientRect().height:0)+8;
-  const room=Math.max(0,window.innerHeight-gap-entry.getBoundingClientRect().height);
-  root.style.setProperty('--reveal-room',room+'px');
-  window.scrollTo({top:entry.getBoundingClientRect().top+window.scrollY-gap,behavior:'auto'});
+  root.style.setProperty('--reveal-room','0px');
+  const box=entry.getBoundingClientRect();
+  // A result wholly in view, below the toolbar, leaves the window where it is: a short report stays at the top.
+  if(box.top>=gap&&box.bottom<=window.innerHeight)return true;
+  // Otherwise the page gets just the room below the result for its top to reach the toolbar.
+  const below=document.documentElement.scrollHeight-(box.bottom+window.scrollY);
+  const room=Math.max(0,window.innerHeight-gap-box.height-below);
+  if(room>0)root.style.setProperty('--reveal-room',room+'px');
+  window.scrollTo({top:Math.max(0,entry.getBoundingClientRect().top+window.scrollY-gap),behavior:'auto'});
   return true;
 }
 export function selectAll(){return selectAllResults();}
@@ -357,6 +377,14 @@ export function command(name,value=null) {
       for(const block of blocks)block.style.lineHeight=value;
     } else if(name==='removeFormat') {
       pendingSize=null;clearFormatting(range);
+    } else if(name==='indent'||name==='outdent') {
+      let blocks=selectedBlocks(range);
+      if(!blocks.length){document.execCommand('formatBlock',false,'p');blocks=selectedBlocks(selection.getRangeAt(0));}
+      const items=blocks.filter(block=>block.matches('li'));
+      // List items nest within their list through the browser; every other block moves its left margin,
+      // as the browser's command would split the result's block to wrap the paragraph in a quotation.
+      if(items.length&&items.length===blocks.length){document.execCommand('styleWithCSS',false,true);document.execCommand(name,false,null);}
+      else for(const block of blocks)indentBlock(block,name==='indent');
     } else {
       document.execCommand('styleWithCSS',false,true);document.execCommand(name,false,value);
     }
@@ -391,6 +419,7 @@ export function start({editing:initial=false,undo=false,redo=false,post:bridge=n
     if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))pendingSize=null;
     if(!event.metaKey&&!event.ctrlKey)return;
     if(event.key.toLowerCase()==='z'){event.preventDefault();command(event.shiftKey?'redo':'undo');}
+    if(event.key.toLowerCase()==='y'&&!event.shiftKey){event.preventDefault();command('redo');}
     if(event.target.closest('.report-controls'))return;
     if(['b','i','u'].includes(event.key.toLowerCase())){event.preventDefault();command({b:'bold',i:'italic',u:'underline'}[event.key.toLowerCase()]);}
   });

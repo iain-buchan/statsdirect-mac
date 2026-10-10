@@ -440,7 +440,7 @@ import PDFKit
         let report=v.makeReport(),a="region-a",b="region-b"
         report.reportEntries=[
             ReportEntry(id:a,title:"Alpha",operation:"TPaired",body:"<h1 id='sr-a-h'>Alpha</h1><p id='sr-a1'>Alpha one</p><p id='sr-a2' style='text-align:right;font-size:18pt'><b>Alpha</b> <span style='color:#ff0000'>two</span></p>",rPlan:RScriptPlan(script:"x <- 1",hasRecipe:true,detail:"Recipe"),helpPath:"Help/parametric_methods/paired_t.htm"),
-            ReportEntry(id:b,title:"Beta",operation:"",body:"<h1 id='sr-b-h'>Beta heading</h1><p id='sr-b1' style='font-style:italic'>Beta <u>one</u></p><svg id='sr-svg' viewBox='0 0 100 40' width='100' height='40'><text x='5' y='25'>Chart</text></svg><p id='sr-b2'>Beta two</p>",rPlan:nil)]
+            ReportEntry(id:b,title:"Beta",operation:"",body:"<h1 id='sr-b-h'>Beta heading</h1><p id='sr-b1' style='font-style:italic'>Beta <u>one</u></p><svg id='sr-svg' viewBox='0 0 100 40' width='100'><rect x='62' y='6' width='30' height='28' style='fill:#cfd8dc;stroke:#37474f'/><text x='30' y='22' style='font-family:&quot;Arial&quot;;font-size:10px;text-anchor:middle;fill:#102a43' transform='rotate(0)'><tspan dy='0.35em'>Chart</tspan></text></svg><p id='sr-b2'>Beta two</p>",rPlan:nil)]
         report.reportEditing=true;v.renderReport(report);try await settled(report)
         func js(_ script:String) async throws -> Any {try await report.web.evaluateJavaScript(script) ?? NSNull()}
         func check(_ expression:String,_ reason:String) async throws {
@@ -495,6 +495,15 @@ import PDFKit
         let pngData=Data(base64Encoded:String(pngURL.dropFirst("data:image/png;base64,".count))) ?? Data()
         let bitmap=NSBitmapImageRep(data:pngData)
         precondition(pngURL.hasPrefix("data:image/png;base64,") && bitmap != nil && abs(Double(bitmap!.pixelsWide)-displayed*2)<3,"chart png: \(pngURL.prefix(40)) \(bitmap?.pixelsWide ?? -1) vs \(displayed)")
+        // The saved markup is the chart as other programs read it: text styling as attributes, baseline shifts folded in, and it draws the same pixels.
+        let same=try await asyncJS("""
+        return (()=>{const el=document.getElementById('sr-svg'),out=StatsDirectReportEditor.exportableSvg(el);
+          if(out.querySelector('[style]')||!out.getAttribute('height'))return {styled:!!out.querySelector('[style]'),height:out.getAttribute('height')};
+          const draw=markup=>new Promise((ok,bad)=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=200;c.height=80;const x=c.getContext('2d');x.drawImage(img,0,0,200,80);ok(x.getImageData(0,0,200,80).data);};img.onerror=()=>bad(new Error('draw'));img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(markup);});
+          const copy=el.cloneNode(true);copy.setAttribute('xmlns','http://www.w3.org/2000/svg');
+          return Promise.all([draw(new XMLSerializer().serializeToString(copy)),draw(new XMLSerializer().serializeToString(out))]).then(([a,b])=>{let inked=0,differ=0;for(let i=3;i<a.length;i+=4){if(a[i]||b[i])inked++;if(a[i]!==b[i]||a[i-1]!==b[i-1]||a[i-2]!==b[i-2]||a[i-3]!==b[i-3])differ++;}return {inked,differ};});})()
+        """) as? [String:Any] ?? [:]
+        precondition((same["inked"] as? Int ?? 0)>50 && (same["differ"] as? Int ?? 1)==0,"exportable SVG pixels: \(same)")
         _ = try await js("document.getElementById('sr-a1').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");try await settled(report)
         let textMenu=NSMenu();v.extendReportMenu(textMenu,for:report)
         precondition(!textMenu.items.map(\.title).contains("Save Chart as PNG…"),"chart items offered without a chart")
@@ -576,6 +585,15 @@ import PDFKit
         try await settled(report)
         precondition(abs((keyed["after"] as! Double)-(keyed["before"] as! Double)+20)<1 && abs((keyed["field"] as! Double)-(keyed["after"] as! Double))<1,"corner marker keys: \(keyed)")
         precondition(report.reportUndo.count==undoCount+4)
+        // A click on the marker (no drag) selects its picture, so Delete removes the picture as a click on the picture would.
+        try await report.web.evaluateJavaScript("(()=>{const h=document.querySelector('.report-body .report-media>.report-chart-resize'),r=h.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2,ev=type=>h.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:8,button:0,clientX:x,clientY:y}));window.__markedChart=h.parentElement.querySelector('svg');ev('pointerdown');ev('pointerup');})()")
+        try await settled(report)
+        let clicked=try await report.web.evaluateJavaScript("(()=>{const selected=!!document.querySelector('.report-media-selected'),region=document.activeElement===document.getElementById('report-results');document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Delete',bubbles:true,cancelable:true}));const gone=!window.__markedChart.isConnected;delete window.__markedChart;return {selected,region,gone};})()") as! [String:Any]
+        try await settled(report)
+        precondition(clicked["selected"] as? Bool==true && clicked["region"] as? Bool==true && clicked["gone"] as? Bool==true,"marker click then Delete: \(clicked)")
+        precondition(report.reportUndo.count==undoCount+5)
+        try await report.web.evaluateJavaScript("StatsDirectReportEditor.command('undo')");try await settled(report)
+        precondition(try await report.web.evaluateJavaScript("document.querySelectorAll('.report-body .report-media svg').length") as? Int==2 && report.reportUndo.count==undoCount+4)
         // The context menu's commands act on the selected chart too.
         try await report.web.evaluateJavaScript("(()=>{document.querySelector('.report-body svg').dispatchEvent(new MouseEvent('click',{bubbles:true}));StatsDirectReportEditor.command('pictureWidth','320');})()")
         try await settled(report)

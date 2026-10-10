@@ -44,7 +44,7 @@ export function layoutHandle(wrapper) {
   handle.style.left=`${Math.round(box.right-parent.left-10)}px`;handle.style.top=`${Math.round(box.bottom-parent.top-10)}px`;
   handle.setAttribute('aria-label',`Resize chart, ${Math.round(box.width)} pixels wide`);
 }
-export function installPictureSizing({isEditing,changed}) {
+export function installPictureSizing({isEditing,changed,select}) {
   let drag=null;
   const pictureOf=handle=>handle.parentElement?pictureIn(handle.parentElement):null;
   function finish(cancel=false) {
@@ -56,6 +56,9 @@ export function installPictureSizing({isEditing,changed}) {
     else if(before!==picture.getAttribute('style'))changed();
     try{if(handle.hasPointerCapture(pointer))handle.releasePointerCapture(pointer);}catch{}
     const wrapper=picture.closest('.report-media');if(wrapper)layoutHandle(wrapper);
+    // The marker's picture is the selected one after a drag or a plain click, as a click on the picture makes it:
+    // Delete removes it and the toolbar shows its width. The marker itself takes the focus only from the keyboard (Tab).
+    if(!cancel&&wrapper&&select)select(wrapper);
   }
   const cancelDrag=()=>finish(true);
   const escape=event=>{if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();finish(true);}};
@@ -71,7 +74,7 @@ export function installPictureSizing({isEditing,changed}) {
     const handle=event.target.closest?.('.'+HANDLE);if(!handle)return;
     const picture=pictureOf(handle);
     if(!picture||!isEditing()||event.button!==0||drag)return;
-    event.preventDefault();event.stopPropagation();handle.focus();
+    event.preventDefault();event.stopPropagation();
     const box=picture.getBoundingClientRect();
     drag={handle,picture,pointer:event.pointerId,x:event.clientX,y:event.clientY,width:box.width,ratio:box.width/box.height||1,before:picture.getAttribute('style')};
     handle.parentElement.classList.add('report-resizing');

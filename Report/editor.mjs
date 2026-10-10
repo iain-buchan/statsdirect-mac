@@ -1,4 +1,4 @@
-import {explicitPictureWidth,wrapPicture,applyPictureWidth,fitPicture,pictureWidth} from './chart-size.mjs';
+import {explicitPictureWidth,wrapPicture,applyPictureWidth,fitPicture,pictureWidth,ensureHandle,installPictureSizing} from './chart-size.mjs';
 import {installTransfer,transferring,prepareClipboard,cutPrepared,preparePaste,pastePrepared,selectRange,clampSelection} from './transfer.mjs';
 import {installDeletion,selectAllResults,selectResult} from './deletion.mjs';
 import {region,entries,entryOf,entryById,entrySelector,inRegion,elementOf,field,emptyNotice,protectedSelector} from './region.mjs';
@@ -91,7 +91,7 @@ function toolbar() {
 }
 // The selected picture, when the selection is exactly one chart or picture.
 export function selectedPicture() {
-  if(document.activeElement?.matches?.('.report-media'))return document.activeElement.querySelector('svg,img');
+  const active=document.activeElement?.closest?.('.report-media');if(active&&inRegion(active))return active.querySelector('svg,img');
   const selection=window.getSelection();
   if(document.activeElement?.closest?.('#report-toolbar')&&savedRange&&document.contains(savedRange.commonAncestorContainer)) {
     const node=savedRange.collapsed?null:savedRange.startContainer.childNodes?.[savedRange.startOffset];
@@ -106,6 +106,10 @@ export function selectedPicture() {
 }
 function updateControls() {
   if(!editing||document.activeElement?.closest('#report-format-tools'))return;
+  // The picture tools follow the selected picture, or the one whose wrapper or corner marker has the focus,
+  // whatever the text selection is doing. The field keeps its focus (and its value) while it is being typed in.
+  const picture=selectedPicture(),width=document.querySelector('[data-format="pictureWidth"]'),fit=document.querySelector('[data-command="pictureFit"]'),tools=document.querySelector('.report-picture-tools');
+  if(width&&tools&&document.activeElement!==width&&document.activeElement!==fit){tools.hidden=!picture;width.disabled=!picture;fit.disabled=!picture;width.value=picture?String(pictureWidth(picture)):'';}
   const selection=window.getSelection(),root=region();if(!root||!selection?.rangeCount||!inRegion(selection.anchorNode))return;
   for(const name of toggles)document.querySelector(`[data-command="${name}"]`)?.setAttribute('aria-pressed',String(document.queryCommandState(name)));
   const range=selection.getRangeAt(0),nodes=[];
@@ -117,10 +121,6 @@ function updateControls() {
   const size=common('fontSize');document.querySelector('[data-format="fontSize"]').value=pendingSize??(size?Math.round(parseFloat(size)*.75*100)/100:'');
   const block=document.querySelector('[data-format="formatBlock"]');block.value=document.queryCommandValue('formatBlock').toLowerCase().replace(/[<>]/g,'');
   const spacing=common('lineHeight'),base=common('fontSize');document.querySelector('[data-format="lineSpacing"]').value=spacing&&base?String(Math.round(parseFloat(spacing)/parseFloat(base)*100)/100):'';
-  const picture=selectedPicture(),width=document.querySelector('[data-format="pictureWidth"]'),fit=document.querySelector('[data-command="pictureFit"]');
-  // The field keeps its focus (and its value) while it is being typed in; the picture stays selected meanwhile.
-  const tools=document.querySelector('.report-picture-tools');
-  if(width&&document.activeElement!==width&&document.activeElement!==fit){tools.hidden=!picture;width.disabled=!picture;fit.disabled=!picture;width.value=picture?String(pictureWidth(picture)):'';}
 }
 // WebKit's fontSize command uses HTML sizes 1–7. Convert its temporary size 7
 // immediately to an exact point size; the pending value also covers new typing.
@@ -231,6 +231,7 @@ function protect() {
       wrapPicture(svg);
     });
     for(const img of entry.querySelectorAll('img'))if(!img.closest('.report-media,svg,.report-links'))wrapPicture(img);
+    for(const media of entry.querySelectorAll('.report-media'))ensureHandle(media);
     entry.querySelectorAll(protectedSelector).forEach(el=>{el.contentEditable='false';});
   }
   const notice=emptyNotice();if(notice)notice.hidden=entries().length>0;
@@ -411,6 +412,7 @@ export function start({editing:initial=false,undo=false,redo=false,post:bridge=n
   const hooks={isEditing:()=>editing,serialize,protect,detach:()=>{},post:m=>post(m),remember};
   installTransfer(hooks);
   installDeletion(hooks);
+  installPictureSizing({isEditing:()=>editing,changed:()=>{changed();updateControls();}});
   document.getElementById('report-toolbar').addEventListener('mousedown',event=>{remember();if(event.target.closest('button'))event.preventDefault();});
   document.addEventListener('selectionchange',()=>{remember();updateControls();});
   document.addEventListener('pointerdown',event=>{if(inRegion(event.target))pendingSize=null;});

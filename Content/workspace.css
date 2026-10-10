@@ -30,6 +30,11 @@ body.report-editing{padding-top:14px}.report-editing .report-body{outline:1px da
 .report-media{position:relative;display:flow-root;break-inside:avoid}.report-media>svg,.report-media>img{display:block;max-width:100%;height:auto;margin:24px auto}
 
 .report-editing .report-media>svg,.report-editing .report-media>img{outline:1px solid #c7dcd7}
+/* The corner marker at a chart's bottom right while editing: drag it to resize the chart. */
+.report-chart-resize{position:absolute;display:none;width:14px;height:14px;padding:0;margin:0;box-sizing:border-box;border:2px solid #278a7c;border-radius:2px;background:#fff;cursor:nwse-resize;z-index:2}
+.report-editing .report-media>.report-chart-resize{display:block}.report-chart-resize:focus-visible{outline:2px solid #23695f;outline-offset:2px}
+.report-media.report-resizing>svg,.report-media.report-resizing>img{outline:2px solid #278a7c}
+@media print{.report-chart-resize{display:none!important}}
 @media print{.report-media>svg,.report-media>img{outline:none!important}}
 .report-picture-tools{display:inline-flex;align-items:center;gap:4px;padding-left:6px;border-left:1px solid #d7e6e2}.report-picture-tools[hidden]{display:none}.report-picture-tools input[data-format=pictureWidth]{width:58px}.report-media:focus{outline:2px solid #278a7c;outline-offset:3px}
 .report-editing .report-media-selected>svg,.report-editing .report-media-selected>img{outline:2px solid #278a7c;background:#f2faf7}.report-media-selected{cursor:grab}.report-drop-caret{position:absolute;width:2px;margin:0;background:#16776b;pointer-events:none;z-index:15}

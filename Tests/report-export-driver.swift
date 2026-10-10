@@ -448,7 +448,7 @@ import PDFKit
             if !ok {print("Region failure:",reason,try await js("document.getElementById('report-results').innerHTML"));fflush(stdout)}
             precondition(ok,reason)
         }
-        try await check("(()=>{const r=document.getElementById('report-results');return r.isContentEditable&&r.classList.contains('report-body')&&document.querySelectorAll('#report-results [contenteditable=\"true\"]').length===0&& !r.querySelector('.report-controls,.report-links,button,input,select,.report-annotation');})()","the region is the one editable element and holds no controls")
+        try await check("(()=>{const r=document.getElementById('report-results');return r.isContentEditable&&r.classList.contains('report-body')&&document.querySelectorAll('#report-results [contenteditable=\"true\"]').length===0&& [...r.querySelectorAll('.report-controls,.report-links,button,input,select,.report-annotation')].every(c=>c.classList.contains('report-chart-resize')&&c.parentElement.classList.contains('report-media'));})()","the region is the one editable element and holds no controls but a chart's corner marker")
         try await check("(()=>{const e=document.getElementById('result-region-a');return e.dataset.resultId==='region-a'&&e.dataset.help==='Help/parametric_methods/paired_t.htm'&&e.dataset.r==='recipe'&&e.getAttribute('aria-label')==='Alpha'&& !document.getElementById('result-region-b').dataset.r;})()","result blocks carry their id, help and R availability")
         // A selection from one result into the next, formatted in one step: both results change, one undo restores both.
         _ = try await js("(()=>{const r=document.createRange(),a=document.getElementById('sr-a2').lastChild.firstChild,b=document.getElementById('sr-b1').firstChild;document.getElementById('report-results').focus();r.setStart(a,1);r.setEnd(b,3);const s=getSelection();s.removeAllRanges();s.addRange(r);StatsDirectReportEditor.command('underline');})()")
@@ -512,7 +512,7 @@ import PDFKit
         precondition(report.reportUndo.count==1 && (report.reportEntries!.first!.editedBody ?? "").contains("Gamma one edited"),"the first edit after a load was lost: \(report.reportUndo.count) changes")
         report.reportEntries=[ReportEntry(id:a,title:"Alpha",operation:"TPaired",body:"<h1 id='sr-a-h'>Alpha</h1><p id='sr-a1'>Alpha one</p>",rPlan:nil,helpPath:"Help/parametric_methods/paired_t.htm")];report.reportUndo=[];report.reportRedo=[];v.renderReport(report);try await settled(report)
         let exported=String(decoding:try await v.reportExportData(report,format:.html),as:UTF8.self)
-        precondition(exported.contains("https://www.statsdirect.com/help/parametric_methods/paired_t.htm") && !exported.contains("data-help") && !exported.contains("contenteditable"),"the saved report carries the method link, not the editing attributes")
+        precondition(exported.contains("https://www.statsdirect.com/help/parametric_methods/paired_t.htm") && !exported.contains("data-help") && !exported.contains("contenteditable") && !exported.contains("<button"),"the saved report carries the method link, not the editing attributes")
         v.remove(report)
         print("PASS: one editable region: no controls in the report, commands and Clear formatting across results, context target with help/R/chart, text after the last result, reveal, and the method link in the saved report");fflush(stdout)
     }
@@ -525,8 +525,9 @@ import PDFKit
         let undoCount=report.reportUndo.count
         // The chart is selected by a click; the toolbar's width field and Fit then size it. Nothing sits in the report itself.
         try await report.web.evaluateJavaScript("(()=>{const s=document.querySelector('.report-body svg');s.dispatchEvent(new MouseEvent('click',{bubbles:true}));})()")
-        let none=try await report.web.evaluateJavaScript("!document.querySelector('.report-body .report-chart-sizing,.report-body .report-chart-resize,.report-body .report-controls')") as! Bool
-        precondition(none,"sizing controls must not be in the report")
+        // Nothing sits in the report but the chart's corner marker, shown while editing.
+        let none=try await report.web.evaluateJavaScript("!document.querySelector('.report-body .report-chart-sizing')&&[...document.querySelectorAll('.report-body .report-controls')].every(c=>c.classList.contains('report-chart-resize'))&&getComputedStyle(document.querySelector('.report-body .report-media>.report-chart-resize')).display!=='none'") as! Bool
+        precondition(none,"only the chart's corner marker may be in the report, and it must show while editing")
         let enabled=try await report.web.evaluateJavaScript("(()=>{const i=document.querySelector('[data-format=pictureWidth]');return !i.disabled&&Number(i.value)>0;})()") as! Bool
         precondition(enabled,"the toolbar width field follows the selected chart")
         try await report.web.evaluateJavaScript("(()=>{const input=document.querySelector('[data-format=pictureWidth]');input.focus();input.value='324';input.dispatchEvent(new Event('change',{bubbles:true}));})()")
@@ -543,6 +544,22 @@ import PDFKit
         try await report.web.evaluateJavaScript("StatsDirectReportEditor.command('redo')");try await settled(report)
         let redone=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').style.width") as! String
         precondition(redone=="324px")
+        // The corner marker drags to resize (the right edge moves half as far as the width grows, as pictures are centred); Escape cancels a drag.
+        let dragged=try await report.web.evaluateJavaScript("""
+        (()=>{const h=document.querySelector('.report-body .report-media>.report-chart-resize'),s=h.parentElement.querySelector('svg'),before=s.getBoundingClientRect().width,r=h.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+          const ev=(type,target,dx)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:7,button:0,clientX:x+dx,clientY:y}));
+          ev('pointerdown',h,0);ev('pointermove',document,30);ev('pointerup',document,30);const after=s.getBoundingClientRect().width;
+          ev('pointerdown',h,0);ev('pointermove',document,40);document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));const cancelled=s.getBoundingClientRect().width;
+          return {before,after,cancelled,left:parseFloat(h.style.left)>0};})()
+        """) as! [String:Any]
+        try await settled(report)
+        precondition(abs((dragged["after"] as! Double)-(dragged["before"] as! Double)-60)<2 && abs((dragged["cancelled"] as! Double)-(dragged["after"] as! Double))<1 && dragged["left"] as? Bool==true,"corner marker drag: \(dragged)")
+        precondition(report.reportUndo.count==undoCount+2,"a drag is one undo step and a cancelled drag none")
+        // With the focus on the marker, arrow keys adjust the size, Shift in larger steps; the toolbar field follows.
+        let keyed=try await report.web.evaluateJavaScript("(()=>{const h=document.querySelector('.report-body .report-media>.report-chart-resize'),s=h.parentElement.querySelector('svg'),before=s.getBoundingClientRect().width;h.focus();h.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));h.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',shiftKey:true,bubbles:true,cancelable:true}));return {before,after:s.getBoundingClientRect().width,field:Number(document.querySelector('[data-format=pictureWidth]').value)};})()") as! [String:Any]
+        try await settled(report)
+        precondition(abs((keyed["after"] as! Double)-(keyed["before"] as! Double)+20)<1 && abs((keyed["field"] as! Double)-(keyed["after"] as! Double))<1,"corner marker keys: \(keyed)")
+        precondition(report.reportUndo.count==undoCount+4)
         // The context menu's commands act on the selected chart too.
         try await report.web.evaluateJavaScript("(()=>{document.querySelector('.report-body svg').dispatchEvent(new MouseEvent('click',{bubbles:true}));StatsDirectReportEditor.command('pictureWidth','320');})()")
         try await settled(report)

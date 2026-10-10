@@ -324,15 +324,17 @@ export function extend(id,html) {
 export function reveal(id) {
   const entry=entryById(id),root=region();if(!entry||!root)return false;
   const bar=document.getElementById('report-toolbar'),gap=(bar?bar.getBoundingClientRect().height:0)+8;
-  root.style.setProperty('--reveal-room','0px');
+  // A report that fits the window stays at the top: with the window at the top and the result wholly in view below
+  // the toolbar, nothing moves. Anywhere else the result's top goes just below the toolbar, as a result just run or
+  // just given more output is what the user wants to see, and the page gets the room below it that this needs.
   const box=entry.getBoundingClientRect();
-  // A result wholly in view, below the toolbar, leaves the window where it is: a short report stays at the top.
-  if(box.top>=gap&&box.bottom<=window.innerHeight)return true;
-  // Otherwise the page gets just the room below the result for its top to reach the toolbar.
-  const below=document.documentElement.scrollHeight-(box.bottom+window.scrollY);
+  if(window.scrollY===0&&box.top>=gap&&box.bottom<=window.innerHeight){root.style.setProperty('--reveal-room','0px');return true;}
+  root.style.setProperty('--reveal-room','0px');
+  const top=entry.getBoundingClientRect().top+window.scrollY;
+  const below=document.documentElement.scrollHeight-(top+box.height);
   const room=Math.max(0,window.innerHeight-gap-box.height-below);
   if(room>0)root.style.setProperty('--reveal-room',room+'px');
-  window.scrollTo({top:Math.max(0,entry.getBoundingClientRect().top+window.scrollY-gap),behavior:'auto'});
+  window.scrollTo({top:Math.max(0,top-gap),behavior:'auto'});
   return true;
 }
 export function selectAll(){return selectAllResults();}

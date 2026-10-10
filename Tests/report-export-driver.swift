@@ -491,6 +491,10 @@ import PDFKit
         // A report that fits the window stays at the top when a result is revealed.
         _ = try await js("window.scrollTo(0,0)")
         try await check("(()=>{StatsDirectReportEditor.reveal('region-a');return window.scrollY===0&&document.getElementById('report-results').style.getPropertyValue('--reveal-room')==='0px';})()","revealing the first result of a short report scrolled the window")
+        // A result after a tall one lands with its top just below the toolbar, and stays there when more of it arrives.
+        _ = try await js("(()=>{const a=document.getElementById('result-region-a');const tall=document.createElement('p');tall.id='sr-tall';tall.style.height='2000px';tall.textContent='Tall';a.append(tall);})()")
+        try await check("(()=>{const e=StatsDirectReportEditor,b=document.getElementById('result-region-b'),bar=document.getElementById('report-toolbar'),gap=bar.getBoundingClientRect().height+8;e.reveal('region-b');const top=b.getBoundingClientRect().top;if(!(window.scrollY>0&&top>=gap-1&&top<=gap+40))return false;e.extend('region-b','<p id=\"sr-b-more\">More output</p>');e.reveal('region-b');const again=b.getBoundingClientRect().top;return window.scrollY>0&&again>=gap-1&&again<=gap+40&&!!document.getElementById('sr-b-more');})()","a result after a tall one, or given more output, is not at the toolbar")
+        _ = try await js("document.getElementById('sr-tall').remove();document.getElementById('sr-b-more').remove();window.scrollTo(0,0)")
         // Ctrl+Y / ⌘Y redoes, as Word does on either platform.
         let undoCount=report.reportUndo.count
         _ = try await js("(()=>{const p=document.getElementById('sr-a1'),r=document.createRange();document.getElementById('report-results').focus();r.selectNodeContents(p);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('insertText',false,' redo me');})()")

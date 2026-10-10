@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "40dd1e1d66104b1410626ba45181312484a77f40",
+  "commit": "35610300cb257495ec56a6fdc71d539a070b7db8",
   "version": "5.1.0",
   "sha256": {
     "Layout/Axis.cs": "37b781cfd82f963f5ba9f24295b008af80fe12d9a4e3ddd0649140c14e8785ef",
@@ -139,7 +139,7 @@
     "StatsDirectUI/Assets/Operations/MetaIncidenceRateRatio.xml": "2450df1de2b8b6bdb8d62fe9d414f06cd15bac129fd3a7be7241e0a0f57d988c",
     "StatsDirectUI/Assets/Operations/MetaPlotOptions.xml": "8a42e2f00d80b367161b0d5bd5645034669a583c63484b9fce11145f0fb76a7e",
     "StatsDirectUI/Assets/Operations/MetaSummary.xml": "2a8b426b8b43ec45d81c9fb037d8814f21555eca5146c0e02c8bd4c25c0ee061",
-    "StatsDirectUI/Assets/Operations/MethodComparisonRegression.xml": "305827a386974836bf00ce26e340903fc189d967d8b67d65615ed9663e1f00bf",
+    "StatsDirectUI/Assets/Operations/MethodComparisonRegression.xml": "1ad60257edca5b79d26dbd4ad9fdcdc27fb102e6b8d65a38ff333c10368a6c1c",
     "StatsDirectUI/Assets/Operations/MiscDiagnostic.xml": "a58bb038a3c97ddc72cba5447a37942629f7c4b949a2777dfffafdffa50b425f",
     "StatsDirectUI/Assets/Operations/MiscFalseResult.xml": "134ddbcbe3b545c06935f2810dc60307c643cc92e801d267b181ab841dd19075",
     "StatsDirectUI/Assets/Operations/MiscLikely.xml": "590440e6372e971809ed8a457177c2f2dbfd6da013a15e2794be7f2216742dab",

@@ -756,3 +756,7 @@ R pane, later the same day: Run script while a run is going stops that run and r
 ## Engine pinned to Windows main 40dd1e1d: the LOESS chart square — 11 October 2026
 
 The shared LOESS definition opens R's svg device at 6 by 6 inches (Iain: the example chart should be square), so the chart reaches the report at 432 by 432 points and the Word export at 576 by 576 pixels; the R operations test and the Word-package check expect those sizes. The pin also brings the engine's run record, R script writer and recipes source files, which the Mac headless build compiles or excludes as the platform copies require. The manifest records 871 files.
+
+## Engine pinned to Windows main 35610300: the method comparison scatter square — 11 October 2026
+
+The shared MethodComparisonRegression definition draws the test-against-reference plot at 6 by 6 inches with equal axes (the line of equality at 45 degrees); the difference, residual and bias plots stay 6 by 4. Method comparison regression is still an explicit R deferral on the Mac (no calculation form yet), so the definition is carried for when that host is enabled. The manifest records 871 files; every suite and the native beta check pass at the pin.

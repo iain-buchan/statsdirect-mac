@@ -139,7 +139,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 4
         let symbol = NSImageView(); symbol.image = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")); symbol.imageScaling = .scaleProportionallyUpOrDown
         symbol.setAccessibilityLabel("StatsDirect"); symbol.widthAnchor.constraint(equalToConstant:26).isActive = true; symbol.heightAnchor.constraint(equalToConstant:26).isActive = true; bar.addArrangedSubview(symbol)
-        for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "R", "Tools", "Help", "Window"] {
+        for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "R", "Help", "Window"] {
             let button = NSButton(title: title + " ▾", target: self, action: #selector(showDropdown(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(title)
             button.isBordered = false; button.refusesFirstResponder = true
@@ -244,7 +244,14 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             edit.addItem(item)
         }
         populateReportFormatMenu(menu("Format"))
-        for title in ["Data", "Analysis", "Graphics"] { populateOperationMenu(menu(title)) }
+        for title in ["Data", "Analysis", "Graphics"] {
+            let operations = menu(title)
+            populateOperationMenu(operations)
+            if title == "Analysis" {
+                operations.addItem(.separator())
+                add(operations, "Calculator", #selector(showCalculator))
+            }
+        }
         let rMenu = menu("R")
         add(rMenu, "New R Session", #selector(newRTab), "")
         add(rMenu, "Continue Report in R", #selector(continueActiveReportInR))
@@ -254,7 +261,6 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(rMenu, "Save Script…", #selector(saveRScript))
         rMenu.addItem(.separator())
         add(rMenu, "Install R…", #selector(installR))
-        add(menu("Tools"), "Calculator", #selector(showCalculator))
         let help = menu("Help")
         add(help, "Learning", #selector(openLearning))
         add(help, "Learning Options…", #selector(openLearningOptions))

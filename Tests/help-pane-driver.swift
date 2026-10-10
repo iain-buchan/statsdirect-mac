@@ -128,6 +128,9 @@ import WebKit
         let pdf=try await web.pdf(configuration:WKPDFConfiguration())
         try check(pdf.count>1000,"help can be printed to PDF")
         for document in v.documents { v.remove(document) }
+        // Model clicking the search field: a first responder in an inactive
+        // window alone must not make that pane the target of menu commands.
+        v.window.makeKeyAndOrderFront(nil)
         v.window.makeFirstResponder(h.searchField)
         try check(h.isFocused && v.validateMenuItem(NSMenuItem(title:"Copy",action:#selector(Viewer.editCommand(_:)),keyEquivalent:"c")),"help editing commands remain available without workspace documents")
         try check(v.validateMenuItem(NSMenuItem(title:"Close",action:#selector(Viewer.closeTab),keyEquivalent:"w")),"Close remains available for help without workspace documents")

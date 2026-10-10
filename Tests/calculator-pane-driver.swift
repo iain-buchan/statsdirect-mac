@@ -43,9 +43,9 @@ import WebKit
         try await settle()
         let before=try await js(worksheet.web,"JSON.stringify(statsDirectGrid.analysisSource())") as? String
         try check(!c.visible && v.documentSplit.subviews.count==1,"calculator starts hidden without a document tab")
-        let menu=NSApp.mainMenu!.items.first { $0.submenu?.title=="Tools" }!.submenu!
+        let menu=NSApp.mainMenu!.items.first { $0.submenu?.title=="Analysis" }!.submenu!
         let command=menu.items.first { $0.title=="Calculator" }!
-        try check(NSApp.sendAction(command.action!,to:command.target,from:command),"Tools → Calculator opens the pane")
+        try check(NSApp.sendAction(command.action!,to:command.target,from:command),"Analysis → Calculator opens the pane")
         try await settle()
         try check(c.visible && c.view.superview === v.documentSplit && v.documentSplit.subviews.count==2,"calculator docks beneath the document")
         try check(v.active === worksheet && v.documents.count==count,"calculator leaves active document and tabs unchanged")
@@ -101,7 +101,7 @@ import WebKit
         c.toggleMode(); v.calculatorHelp(); try await settle()
         try check(v.helpPane.visible && v.workspaceSplit.subviews.count==2 && c.view.superview === v.documentSplit,"Calculator and right-hand Help can both be docked")
         try await until { v.helpPane.web.url?.path=="/basics/calculator.htm" && !v.helpPane.web.isLoading }
-        try check((try await js(v.helpPane.web,"['Tools > Calculator','Shift+Enter','Recall','Copy saved'].every(s=>document.body.innerText.includes(s))")) as? Bool==true,"calculator opens the updated offline help topic")
+        try check((try await js(v.helpPane.web,"['Analysis > Calculator','selected from the Analysis menu','Shift+Enter','Recall','Copy saved'].every(s=>document.body.innerText.includes(s)) && !document.body.innerText.includes('Tools > Calculator')")) as? Bool==true,"calculator opens the updated offline help topic with the Mac menu location")
         c.open(); v.currentMethodHelp()
         try check(v.helpPane.web.url?.path=="/basics/calculator.htm","context help targets the focused calculator")
         let originalFrame=v.window.frame

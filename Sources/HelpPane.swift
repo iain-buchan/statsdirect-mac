@@ -36,7 +36,13 @@ final class HelpResources: NSObject, WKURLSchemeHandler {
             if url.scheme == "app", url.host == "statsdirect-help" { missing.append(url.path) }
             task.didFailWithError(URLError(.fileDoesNotExist)); return
         }
-        guard let data = try? Data(contentsOf: file) else { missing.append(url.path); task.didFailWithError(URLError(.fileDoesNotExist)); return }
+        guard var data = try? Data(contentsOf: file) else { missing.append(url.path); task.didFailWithError(URLError(.fileDoesNotExist)); return }
+        // Preserve the imported Windows bundle and its hashes; present the Mac menu
+        // location in the calculator topic, including when it is copied or printed.
+        if file == root.appendingPathComponent("basics/calculator.htm"), let html = String(data:data,encoding:.utf8) {
+            data = Data(html.replacingOccurrences(of:"Tools &gt; Calculator",with:"Analysis &gt; Calculator")
+                .replacingOccurrences(of:"selected from the Tools menu",with:"selected from the Analysis menu").utf8)
+        }
         let types = ["js":"text/javascript", "css":"text/css", "htm":"text/html", "html":"text/html", "xml":"application/xml", "json":"application/json", "svg":"image/svg+xml"]
         let type = types[file.pathExtension.lowercased()] ?? UTType(filenameExtension:file.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
         let headers = ["Content-Type":type + (type.hasPrefix("text/") ? "; charset=utf-8" : ""),

@@ -37,7 +37,7 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate, NST
     private(set) var visible = false
     private(set) var prefersFloating = false
     private(set) var temporarilyFloating = false
-    private(set) var dockHeight: CGFloat = 250
+    private(set) var dockHeight: CGFloat = 220
     private(set) var busy = false
     private(set) var saved: [Calculation] = []
     private var lastAnswer: String?
@@ -216,8 +216,8 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate, NST
         view.removeFromSuperview()
         if floating {
             if floatingWindow == nil {
-                let panel = NSPanel(contentRect:NSRect(x:0,y:0,width:600,height:310),styleMask:[.titled,.closable,.resizable,.utilityWindow],backing:.buffered,defer:false)
-                panel.title = "StatsDirect Calculator"; panel.minSize = NSSize(width:320,height:255); panel.isReleasedWhenClosed = false
+                let panel = NSPanel(contentRect:NSRect(x:0,y:0,width:600,height:220),styleMask:[.titled,.closable,.resizable,.utilityWindow],backing:.buffered,defer:false)
+                panel.title = "StatsDirect Calculator"; panel.minSize = NSSize(width:320,height:242); panel.isReleasedWhenClosed = false
                 panel.worksWhenModal = true; panel.hidesOnDeactivate = false; panel.delegate = self; panel.center(); floatingWindow = panel
             }
             view.autoresizingMask = [.width,.height]; view.translatesAutoresizingMaskIntoConstraints = true

@@ -1,5 +1,6 @@
 import Cocoa
 import WebKit
+import UniformTypeIdentifiers
 
 struct ReportEntry {
     let id: String
@@ -297,9 +298,39 @@ extension Viewer {
             add("Fit Chart to Width", "pictureFit")
             add("Chart Width…", "pictureWidth")
         }
+        // A chart as a file, as the Windows report's menu offers: its own markup, or a PNG at twice its size on the page.
+        if context["picture"] as? Bool == true {
+            if context["chartKind"] as? String == "svg" { add("Save Chart as SVG…", "saveChart", "svg") }
+            add("Save Chart as PNG…", "saveChart", "png")
+        }
         guard !items.isEmpty else { return }
         for (index, item) in items.enumerated() { menu.insertItem(item, at: index) }
         menu.insertItem(.separator(), at: items.count)
+    }
+    func saveReportChart(_ doc: Document, format: String) {
+        let png = format == "png"
+        let panel = NSSavePanel(); panel.title = png ? "Save Chart as PNG" : "Save Chart as SVG"; panel.prompt = "Save"
+        panel.nameFieldStringValue = png ? "chart.png" : "chart.svg"
+        panel.allowedContentTypes = [png ? UTType.png : UTType.svg]
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            doc.web.callAsyncJavaScript("return await StatsDirectReportEditor.chartImage(format, scale)", arguments: ["format": format, "scale": 2], in: nil, in: .page) { result in
+                switch result {
+                case .failure(let error):
+                    self.showError("The chart could not be saved: " + (((error as NSError).userInfo["WKJavaScriptExceptionMessage"] as? String) ?? error.localizedDescription))
+                case .success(let value):
+                    guard let text = value as? String else { self.showError("The chart could not be saved."); return }
+                    do {
+                        let prefix = "data:image/png;base64,"
+                        if png {
+                            guard text.hasPrefix(prefix), let data = Data(base64Encoded: String(text.dropFirst(prefix.count))) else { self.showError("The chart could not be drawn."); return }
+                            try data.write(to: url, options: .atomic)
+                        } else { try Data(text.utf8).write(to: url, options: .atomic) }
+                        self.status.stringValue = "Chart saved as " + url.lastPathComponent
+                    } catch { self.showError("The chart could not be saved: " + error.localizedDescription) }
+                }
+            }
+        }
     }
     @objc func reportContextAction(_ sender: NSMenuItem) {
         guard let info = sender.representedObject as? [String: String], let kind = info["kind"], let doc = documents.first(where: { $0.id == info["document"] }) else { return }
@@ -310,6 +341,7 @@ extension Viewer {
         case "selectResult": doc.web.evaluateJavaScript("StatsDirectReportEditor.selectResult(\(jsString(value)))")
         case "selectAll": doc.web.evaluateJavaScript("StatsDirectReportEditor.selectAll()")
         case "pictureFit": doc.web.evaluateJavaScript("StatsDirectReportEditor.command('pictureFit')")
+        case "saveChart": saveReportChart(doc, format: value)
         case "pictureWidth": doc.web.evaluateJavaScript("(()=>{const more=document.getElementById('report-more-tools'),toggle=document.getElementById('report-more-toggle');if(more&&toggle){more.hidden=false;toggle.setAttribute('aria-expanded','true');}document.querySelector('[data-format=pictureWidth]')?.focus();})()")
         default: break
         }

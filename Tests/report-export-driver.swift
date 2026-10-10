@@ -482,6 +482,22 @@ import PDFKit
         let menu=NSMenu();v.extendReportMenu(menu,for:report)
         let titles=menu.items.map(\.title)
         precondition(titles.starts(with:["Method Help","Continue in R","Select Result","Select All Results"]),"context menu items: \(titles)")
+        // A chart under the pointer can be saved as a file, as on Windows: the menu offers SVG and PNG for a vector chart, and the
+        // editor gives the chart's own markup (xmlns ensured) and a PNG drawn at twice its size on the page.
+        _ = try await js("document.getElementById('sr-svg').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");try await settled(report)
+        let chartMenu=NSMenu();v.extendReportMenu(chartMenu,for:report)
+        precondition(chartMenu.items.map(\.title).contains("Save Chart as SVG…") && chartMenu.items.map(\.title).contains("Save Chart as PNG…") && report.reportContext["chartKind"] as? String=="svg","chart save items: \(chartMenu.items.map(\.title))")
+        func asyncJS(_ script:String) async throws -> Any { try await withCheckedThrowingContinuation { (c:CheckedContinuation<Any,Error>) in report.web.callAsyncJavaScript(script,arguments:[:],in:nil,in:.page) { c.resume(with:$0) } } }
+        let markup=try await asyncJS("return await StatsDirectReportEditor.chartImage('svg')") as? String ?? ""
+        precondition(markup.hasPrefix("<svg") && markup.contains("xmlns=\"http://www.w3.org/2000/svg\"") && markup.contains(">Chart<"),"chart markup: \(markup.prefix(160))")
+        let pngURL=try await asyncJS("return await StatsDirectReportEditor.chartImage('png',2)") as? String ?? ""
+        let displayed=try await js("document.getElementById('sr-svg').getBoundingClientRect().width") as! Double
+        let pngData=Data(base64Encoded:String(pngURL.dropFirst("data:image/png;base64,".count))) ?? Data()
+        let bitmap=NSBitmapImageRep(data:pngData)
+        precondition(pngURL.hasPrefix("data:image/png;base64,") && bitmap != nil && abs(Double(bitmap!.pixelsWide)-displayed*2)<3,"chart png: \(pngURL.prefix(40)) \(bitmap?.pixelsWide ?? -1) vs \(displayed)")
+        _ = try await js("document.getElementById('sr-a1').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");try await settled(report)
+        let textMenu=NSMenu();v.extendReportMenu(textMenu,for:report)
+        precondition(!textMenu.items.map(\.title).contains("Save Chart as PNG…"),"chart items offered without a chart")
         // Typing on past the last result stays in that result; a result is revealed below the toolbar.
         _ = try await js("(()=>{const p=document.getElementById('sr-b2'),r=document.createRange();document.getElementById('report-results').focus();r.selectNodeContents(p);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('insertParagraph');document.execCommand('insertText',false,'Tail text');})()")
         try await settled(report)

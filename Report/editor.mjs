@@ -3,6 +3,7 @@ import {installTransfer,transferring,prepareClipboard,cutPrepared,preparePaste,p
 import {installDeletion,selectAllResults,selectResult} from './deletion.mjs';
 import {region,entries,entryOf,entryById,entrySelector,inRegion,elementOf,field,emptyNotice,protectedSelector} from './region.mjs';
 export {prepareClipboard,cutPrepared,preparePaste,pastePrepared,selectResult,explicitPictureWidth};
+let contextPicture=null;   // the chart under the pointer at the last right-click, for Save chart as SVG or PNG
 // The report is one editable region (see region.mjs). Results are blocks in it,
 // identified by their result id, so that the host can replace a result, add the
 // further output of a run to it, undo its edits and offer its help and R script.
@@ -344,9 +345,26 @@ export function selectAll(){return selectAllResults();}
 export function contextTarget(){return context;}
 function describe(node) {
   const entry=entryOf(node),selection=window.getSelection(),picture=elementOf(node)?.closest('.report-media')?.querySelector('svg,img')||null;
+  contextPicture=picture;
   return {resultId:entry?.dataset.resultId??null,help:entry?.dataset.help||null,r:entry?.dataset.r||null,title:entry?.getAttribute('aria-label')||null,
     hasSelection:!!selection&&!selection.isCollapsed&&inRegion(selection.anchorNode),editable:editing&&inRegion(node)&&!elementOf(node)?.closest('[contenteditable="false"]'),
-    picture:!!picture,pictureWidth:picture?pictureWidth(picture):null,inReport:inRegion(node)};
+    picture:!!picture,pictureWidth:picture?pictureWidth(picture):null,chartKind:picture?(picture.localName==='img'?'png':'svg'):null,inReport:inRegion(node)};
+}
+// The chart under the pointer as a file, for the host's Save chart as SVG or PNG: its own markup for an SVG file (the xmlns
+// ensured), or a PNG drawn from it on a canvas at the given scale of its size on the page, on white. A raster picture gives
+// its own data as it is, and no SVG.
+export async function chartImage(format,scale=1) {
+  const el=contextPicture;if(!el||!el.isConnected)throw new Error('No chart is under the pointer.');
+  if(el.localName==='img'){if(format==='svg')throw new Error('This picture is not a vector chart.');return el.src;}
+  const svg=el.cloneNode(true);if(!svg.getAttribute('xmlns'))svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  if(format==='svg')return new XMLSerializer().serializeToString(svg);
+  const box=el.getBoundingClientRect(),w=Math.max(1,Math.round(box.width)),h=Math.max(1,Math.round(box.height));
+  svg.setAttribute('width',w);svg.setAttribute('height',h);
+  const img=new Image();
+  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=()=>bad(new Error('The chart could not be drawn.'));img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg));});
+  const k=Math.max(1,Number(scale)||1),canvas=document.createElement('canvas');canvas.width=w*k;canvas.height=h*k;
+  const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.scale(k,k);ctx.drawImage(img,0,0,w,h);
+  return canvas.toDataURL('image/png');
 }
 export function command(name,value=null) {
   if(name==='toggle'){setEditing(!editing);return;}

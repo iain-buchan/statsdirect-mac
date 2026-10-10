@@ -3,6 +3,7 @@ import Cocoa
 @main
 struct RPaneChecks {
     @MainActor static func main() throws {
+        setvbuf(stdout, nil, _IOLBF, 0)
         _ = NSApplication.shared
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
         let pane = RPane(resources: resources)
@@ -58,8 +59,24 @@ struct RPaneChecks {
         storage.enumerateAttribute(.link, in: NSRange(location: 0, length: storage.length)) { value, _, _ in
             if let url = value as? URL, FileManager.default.fileExists(atPath: url.path) { links += 1 }
         }
-        precondition(links == images().count)
+        precondition(links >= images().count)
         print("PASS plot attachments fit a narrow output column and retain original file links")
+        // The files a run writes are listed as links (as the Windows script window lists them), and the Output folder button opens the session folder.
+        run("write.csv(data.frame(a = 1:3), 'table.csv', row.names = FALSE)\ncat('written\\n')", plots: 0)
+        let folder = pane.outputFolder!
+        precondition(FileManager.default.fileExists(atPath: folder.appendingPathComponent("table.csv").path), folder.path)
+        var listed = [String]()
+        storage.enumerateAttribute(.link, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            if let url = value as? URL, url.lastPathComponent == "table.csv" { listed.append((storage.string as NSString).substring(with: range)) }
+        }
+        precondition(listed == ["table.csv\n"] && pane.console.string.contains("Files written, to open with a click:"), pane.console.string)
+        let listings = pane.console.string.components(separatedBy: "Files written").count
+        run("cat('nothing written\\n')", plots: 0)
+        precondition(pane.console.string.components(separatedBy: "Files written").count == listings, "an unchanged folder lists no files again")
+        func buttons(_ view: NSView) -> [NSButton] { view.subviews.flatMap { ($0 as? NSButton).map { [$0] } ?? buttons($0) } }
+        let folderButton = buttons(pane.view).first { $0.title == "Output folder" }
+        precondition(folderButton?.isEnabled == true, "Output folder button")
+        print("PASS files a run writes are listed as links once, and the Output folder button is offered for the session folder")
         precondition(pane.console.textStorage!.containsAttachments)
     }
 }

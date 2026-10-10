@@ -34,6 +34,8 @@ final class RPane: NSObject, NSTextViewDelegate {
     private let runButton = NSButton(title: "Run script  ⌘↩", target: nil, action: nil)
     private let stopButton = NSButton(title: "Stop / Reset", target: nil, action: nil)
     private let installButton = NSButton(title: "Install R…", target: nil, action: nil)
+    // The folder the session runs in, where the files a script writes go (as the Windows script window's Output folder).
+    private let folderButton = NSButton(title: "Output folder", target: nil, action: nil)
     private let installer: RInstaller
     private let executable: () -> String?
     private var requestingInstallation = false
@@ -50,6 +52,8 @@ final class RPane: NSObject, NSTextViewDelegate {
     private let resources: URL
     private struct PlotStamp: Equatable { let modified: Date; let size: Int }
     private var plotsBefore: [URL: PlotStamp] = [:]
+    private var filesBefore: [URL: PlotStamp] = [:]
+    var outputFolder: URL? { directory }
     var hasUnsavedChanges: Bool { editor.string != savedScript }
     var isRunning: Bool { busy }
 
@@ -73,9 +77,11 @@ final class RPane: NSObject, NSTextViewDelegate {
         stopButton.target = self; stopButton.action = #selector(stopSession)
         installButton.target = self; installButton.action = #selector(prepareSession)
         installButton.isHidden = true; stopButton.isEnabled = false
+        folderButton.target = self; folderButton.action = #selector(openOutputFolder); folderButton.isEnabled = false
+        folderButton.toolTip = "Open the folder the script runs in, where the files it writes go"
         let save = NSButton(title: "Save script…", target: self, action: #selector(saveScript))
         let clear = NSButton(title: "Clear output", target: self, action: #selector(clearOutput))
-        let bar = NSStackView(views: [runButton, stopButton, save, clear, installButton]); bar.spacing = 10
+        let bar = NSStackView(views: [runButton, stopButton, folderButton, save, clear, installButton]); bar.spacing = 10
         let label = NSTextField(labelWithString: "R script · Variables persist between runs. Stop / Reset clears the session.")
         label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor
         let split = NSSplitView(); split.isVertical = false; split.dividerStyle = .thin
@@ -134,13 +140,13 @@ final class RPane: NSObject, NSTextViewDelegate {
                     self.process = nil; self.busy = false; self.runButton.isEnabled = true; self.stopButton.isEnabled = false
                     self.state.stringValue = "R session ended (\(task.terminationStatus)). Run script starts a fresh session."
                     if !self.pending.isEmpty { self.append(String(decoding: self.pending, as: UTF8.self)); self.pending.removeAll() }
-                    self.showNewPlots()
+                    self.showNewPlots(); self.listWrittenFiles()
                 }
                 // Retain files the user's R scripts create in the session working directory.
             }
             try child.run()
             process = child; input = incoming; output = outgoing; directory = folder
-            stopButton.isEnabled = true; state.stringValue = "Ready · \(executable)"
+            stopButton.isEnabled = true; folderButton.isEnabled = true; state.stringValue = "Ready · \(executable)"
         } catch {
             state.stringValue = "Could not start R: \(error.localizedDescription)"
             append(state.stringValue + "\n")
@@ -170,7 +176,7 @@ final class RPane: NSObject, NSTextViewDelegate {
             let line = String(decoding: pending[..<newline], as: UTF8.self)
             pending.removeSubrange(...newline)
             if line.trimmingCharacters(in: .whitespacesAndNewlines) == marker {
-                showNewPlots()
+                showNewPlots(); listWrittenFiles()
                 busy = false; runButton.isEnabled = true; state.stringValue = "Ready · R session retained"
             } else { append(line + "\n") }
         }
@@ -187,15 +193,33 @@ final class RPane: NSObject, NSTextViewDelegate {
         console.layoutManager?.invalidateLayout(forCharacterRange: NSRange(location: 0, length: storage.length), actualCharacterRange: nil)
         console.needsDisplay = true
     }
-    private func plotFiles() -> [URL: PlotStamp] {
+    // Every file in the session folder with its stamp; the scripts the pane writes for each run are not the user's files.
+    private func sessionFiles() -> [URL: PlotStamp] {
         guard let directory, let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey], options: [.skipsHiddenFiles]) else { return [:] }
         var result: [URL: PlotStamp] = [:]
         for case let url as URL in files {
-            guard ["pdf", "png", "jpg", "jpeg", "tif", "tiff"].contains(url.pathExtension.lowercased()),
-                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]), values.isRegularFile == true else { continue }
+            guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]), values.isRegularFile == true,
+                  !(url.lastPathComponent.hasPrefix("run-") && url.pathExtension == "R") else { continue }
             result[url] = PlotStamp(modified: values.contentModificationDate ?? .distantPast, size: values.fileSize ?? 0)
         }
         return result
+    }
+    private func plotFiles() -> [URL: PlotStamp] {
+        sessionFiles().filter { ["pdf", "png", "jpg", "jpeg", "tif", "tiff"].contains($0.key.pathExtension.lowercased()) }
+    }
+    // The files a run wrote (charts among them) as links the user can open, as the Windows script window lists them.
+    private func listWrittenFiles() {
+        let files = sessionFiles()
+        let written = files.keys.filter { files[$0] != filesBefore[$0] }.sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
+        filesBefore = files
+        guard !written.isEmpty, let storage = console.textStorage else { return }
+        append("\nFiles written, to open with a click:\n")
+        for url in written { storage.append(NSAttributedString(string: url.lastPathComponent + "\n", attributes: [.link: url, .font: NSFont.systemFont(ofSize: 12)])) }
+        console.scrollToEndOfDocument(nil)
+    }
+    @objc private func openOutputFolder() {
+        guard let directory else { return }
+        NSWorkspace.shared.open(directory)
     }
     private func showNewPlots() {
         let files = plotFiles()
@@ -233,7 +257,7 @@ final class RPane: NSObject, NSTextViewDelegate {
         if process == nil { startSession() }
         guard let process, process.isRunning, let input, let directory else { return }
         do {
-            plotsBefore = plotFiles()
+            filesBefore = sessionFiles(); plotsBefore = plotFiles()
             let script = directory.appendingPathComponent("run-" + UUID().uuidString + ".R")
             try editor.string.write(to: script, atomically: true, encoding: .utf8)
             busy = true; runButton.isEnabled = false; state.stringValue = "Running R script…"; append("\n── Run script ──\n")

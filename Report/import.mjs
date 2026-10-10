@@ -1,10 +1,11 @@
 import DOMPurify from 'dompurify';
+import {borderProperties} from './presentation.mjs';
 import {validateMetafile} from './metafile.mjs';
 import {convertMetafileToSvg} from 'emf-converter';
 import {chartFontMap,restoreChartFontFallbacks,fitChartText} from './fonts.mjs';
 import {normalizeLegacyLayout} from './legacy-layout.mjs';
 
-const properties = new Set(['font-family','font-size','font-style','font-weight','text-decoration','text-decoration-line','text-align','vertical-align','color','background-color','white-space','line-height','margin-left','margin-right','margin-top','margin-bottom','padding','padding-left','padding-right','padding-top','padding-bottom','border','border-top','border-bottom','border-left','border-right','border-collapse','border-spacing','width','height','max-width','list-style-type','fill','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-dasharray','stroke-dashoffset','stroke-miterlimit','opacity','fill-opacity','stroke-opacity','fill-rule','clip-rule','clip-path','mask','filter','marker-start','marker-mid','marker-end','text-anchor','dominant-baseline','stop-color','stop-opacity']);
+const properties = new Set(['font-family','font-size','font-style','font-weight','text-decoration','text-decoration-line','text-align','vertical-align','color','background-color','white-space','line-height','margin-left','margin-right','margin-top','margin-bottom','padding','padding-left','padding-right','padding-top','padding-bottom','border','border-top','border-bottom','border-left','border-right','border-collapse','border-spacing','width','height','max-width','list-style-type','fill','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-dasharray','stroke-dashoffset','stroke-miterlimit','opacity','fill-opacity','stroke-opacity','fill-rule','clip-rule','clip-path','mask','filter','marker-start','marker-mid','marker-end','text-anchor','dominant-baseline','stop-color','stop-opacity',...borderProperties]);
 function safeStyle(style) {
   const result = document.createElement('span').style;
   for (const name of style) {

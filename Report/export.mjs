@@ -1,11 +1,13 @@
-import {numericValue, clipboardText, formatClipboardTables} from './clipboard.mjs';
+import {clipboardText, formatClipboardTables, formatOfficePresentation, flattenOfficeTableBorders} from './clipboard.mjs';
 import {wordEquation} from './math.mjs';
 import {explicitPictureWidth} from './chart-size.mjs';
 import {inlinePresentation} from './fragment.mjs';
-import {Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, ExternalHyperlink, HeadingLevel, WidthType, TableLayoutType, AlignmentType, BorderStyle, LevelFormat, ShadingType} from 'docx';
+import {Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, ExternalHyperlink, HeadingLevel, WidthType, TableLayoutType, AlignmentType, BorderStyle, LevelFormat, ShadingType, VerticalAlignTable} from 'docx';
 
 const MAX_HTML = 30_000_000;
-const printCSS = `@page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;font-size:11pt;line-height:1.4;color:#182b38}h1{font-size:19pt}h2{font-size:14pt}h1,h2,h3{break-after:avoid}table{width:100%;border-collapse:collapse;font-size:9pt}th,td{padding:5pt 7pt;overflow-wrap:anywhere}tr,svg,img{break-inside:avoid}thead{display:table-header-group}svg,img{max-width:100%;height:auto}.report-r-link{display:none}@media print{body{max-width:none!important;padding:0!important}details:not([open]){display:none}details[open]{display:block}svg,img{max-height:230mm}a{color:inherit}}`;
+// Export retains report presentation. Only pagination and page fitting belong
+// here; screen/export fonts, table padding and colours must not diverge.
+const printCSS = `@page{size:A4;margin:16mm}@media print{body{max-width:none!important;padding:0!important}h1,h2,h3{break-after:avoid}tr,svg,img{break-inside:avoid}thead{display:table-header-group}svg,img{max-width:100%;max-height:230mm}details:not([open]){display:none}details[open]{display:block}}`;
 const blockTags = new Set(['P','DIV','SECTION','ARTICLE','MAIN','HEADER','FOOTER','ASIDE','NAV','FIGURE','FIGCAPTION','ADDRESS','DL','DT','DD','H1','H2','H3','H4','H5','H6','PRE','TABLE','UL','OL','LI','DETAILS','BLOCKQUOTE','SVG','IMG','HR']);
 const blockSelector = [...blockTags].map(tag=>tag.toLowerCase()).join(',');
 function isBlock(node) {
@@ -51,13 +53,11 @@ async function raster(data,width,height) {
 async function snapshot({title,helpRoot,format}) {
   if(document.documentElement.outerHTML.length>MAX_HTML) throw new Error('This report is too large to export in one file. Save smaller reports.');
   const clone=document.documentElement.cloneNode(true);
-  // Word reads inline presentation, so capture stylesheet and inherited values
-  // from the live document before exporting its detached copy. Keep SVG styles
-  // and sizing untouched, and never modify the editor or its revision history.
-  if(format==='docx') {
-    const live=[...document.body.querySelectorAll('*')],styled=[...clone.querySelector('body').querySelectorAll('*')];
-    for(let i=0;i<live.length;i++)if(!live[i].closest('svg,.report-controls'))inlinePresentation(live[i],styled[i]);
-  }
+  // Resolve presentation while still attached, including the body defaults.
+  // All formats then carry the same styles even if wrappers/classes are removed
+  // on import. Never modify the live editor or its revision history.
+  const live=[document.body,...document.body.querySelectorAll('*')],styled=[clone.querySelector('body'),...clone.querySelector('body').querySelectorAll('*')];
+  for(let i=0;i<live.length;i++)if(!live[i].closest('svg,.report-controls'))inlinePresentation(live[i],styled[i]);
   const visible=el=>!el.closest('.report-chart[hidden],.report-controls')&&!el.parentElement.closest('svg');
   const originals=[...document.querySelectorAll('svg,img,canvas')].filter(visible),copies=[...clone.querySelectorAll('svg,img,canvas')].filter(visible),pictures=new Map();
   if(originals.length>200) throw new Error('This report has too many charts to export in one file. Save smaller reports.');
@@ -125,18 +125,24 @@ function runStyle(node,options={}) {
     if(css.fontSize && /(?:px|pt)$/.test(css.fontSize))style.size=Math.round(parseFloat(css.fontSize)*(css.fontSize.endsWith('pt')?2:1.5));
     if(css.fontFamily)style.font=css.fontFamily.split(',')[0].replace(/["']/g,'').trim();
   }
-  if(['CODE','PRE'].includes(node.tagName))style.font='Courier New';
+  if(['CODE','PRE'].includes(node.tagName)&&!css?.fontFamily)style.font='Courier New';
+  if(/^pre/.test(css?.whiteSpace||''))style.preserve=true;
   return style;
 }
+const twips=value=>Math.round((parseFloat(value)||0)*(value?.endsWith('pt')?20:15));
 function paragraphStyle(node,options={}) {
-  const css=node.style,alignment=({left:AlignmentType.LEFT,center:AlignmentType.CENTER,right:AlignmentType.RIGHT,justify:AlignmentType.JUSTIFIED}[css.textAlign]||options.alignment);
-  const result={alignment,spacing:{after:110,...options.spacing},indent:options.indent};
+  const css=node.style,alignment=({left:AlignmentType.LEFT,start:AlignmentType.LEFT,center:AlignmentType.CENTER,right:AlignmentType.RIGHT,end:AlignmentType.RIGHT,justify:AlignmentType.JUSTIFIED}[css.textAlign]||options.alignment);
+  const result={alignment,spacing:{after:0,...options.spacing},indent:options.indent};
+  if(css.marginTop)result.spacing.before=Math.max(0,twips(css.marginTop));
+  if(css.marginBottom)result.spacing.after=Math.max(0,twips(css.marginBottom));
   if(css.lineHeight&&css.lineHeight!=='normal') {
     const unitless=/^[\d.]+$/.test(css.lineHeight),line=parseFloat(css.lineHeight),font=parseFloat(css.fontSize)||16;
     if(line>0)result.spacing.line=Math.round(240*(unitless?line:line/font));
   }
-  const indent=(parseFloat(css.marginLeft)||0)*15;
-  if(indent>0)result.indent={left:Math.round(indent)+(options.indent?.left||0)};
+  for(const side of ['left','right']) {
+    const margin=twips(css.getPropertyValue('margin-'+side));
+    if(margin)result.indent={...result.indent,[side]:margin+(options.indent?.[side]||0)};
+  }
   return result;
 }
 function listParagraphs(list,pictures,options={},level=0) {
@@ -156,11 +162,11 @@ function listParagraphs(list,pictures,options={},level=0) {
 function inline(node, options={}) {
   if(node.nodeType===Node.TEXT_NODE) {
     const value=options.preserve?node.textContent:node.textContent.replace(/\s+/g,' ');
-    return value?[new TextRun({...options,text:value})]:[];
+    return value?(options.preserve?value.split(/\r\n|\r|\n/).map((line,index)=>new TextRun({...options,text:line,...(index?{break:1}:{})})):[new TextRun({...options,text:value})]):[];
   }
   if(node.nodeType!==Node.ELEMENT_NODE)return [];
   if(node.classList.contains('katex')||node.localName==='math') { const equation=wordEquation(node);if(equation)return [equation]; }
-  if(node.tagName==='BR') return [new TextRun({break:1})];
+  if(node.tagName==='BR') return [new TextRun({...options,break:1})];
   const style=runStyle(node,options);
   const runs=[...node.childNodes].flatMap(n=>inline(n,style));
   if(node.tagName==='A'&&/^https?:|^mailto:/i.test(node.getAttribute('href')??''))return [new ExternalHyperlink({link:node.getAttribute('href'),children:runs})];
@@ -168,7 +174,7 @@ function inline(node, options={}) {
 }
 function paragraphs(node,pictures,options={}) {
   const output=[];let pending=[];
-  const flush=()=>{if(pending.some(n=>text(n)))output.push(new Paragraph({children:pending.flatMap(n=>inline(n,options)),alignment:options.alignment,indent:options.indent,spacing:{after:110,...options.spacing}}));pending=[];};
+  const flush=()=>{if(pending.some(n=>text(n)))output.push(new Paragraph({children:pending.flatMap(n=>inline(n,options)),alignment:options.alignment,indent:options.indent,spacing:{after:0,...options.spacing}}));pending=[];};
   for(const child of node.childNodes) {
     if(!isBlock(child)){pending.push(child);continue;}
     flush();
@@ -180,41 +186,59 @@ function paragraphs(node,pictures,options={}) {
     }
     if(tag==='DETAILS'&&!child.open)continue;
     if(tag==='HR'){output.push(new Paragraph({spacing:{after:160}}));continue;}
-    if(/^H[1-6]$/.test(tag)) {output.push(new Paragraph({heading:HeadingLevel['HEADING_'+tag[1]],keepNext:true,...paragraphStyle(child,options),children:inline(child,options),spacing:{...paragraphStyle(child,options).spacing,before:180,after:100}}));continue;}
+    if(/^H[1-6]$/.test(tag)) {output.push(new Paragraph({heading:HeadingLevel['HEADING_'+tag[1]],keepNext:true,...paragraphStyle(child,options),children:inline(child,options)}));continue;}
     if(tag==='UL'||tag==='OL') {output.push(...listParagraphs(child,pictures,options));continue;}
     if(tag==='P'||tag==='PRE'||tag==='BLOCKQUOTE') {
       if(child.querySelector('svg,img,table,canvas')||tag==='BLOCKQUOTE'&&child.querySelector('p,div,ul,ol'))output.push(...paragraphs(child,pictures,{...runStyle(child,options),...paragraphStyle(child,options)}));
-      else if(tag==='PRE')for(const line of child.textContent.split('\n'))output.push(new Paragraph({children:[new TextRun({text:line,font:'Courier New',size:16})],spacing:{after:0}}));
+      else if(tag==='PRE')output.push(new Paragraph({...paragraphStyle(child,options),children:inline(child,{...options,preserve:true})}));
       else output.push(new Paragraph({...paragraphStyle(child,options),children:inline(child,options)}));
     } else output.push(...paragraphs(child,pictures,{...runStyle(child,options),...paragraphStyle(child,options)}));
   }
   flush();return output;
 }
+const sides=['top','bottom','left','right'];
+function borders(element) {
+  return Object.fromEntries(sides.map(side=>{
+    const css=element.style,type=css.getPropertyValue(`border-${side}-style`),width=twips(css.getPropertyValue(`border-${side}-width`));
+    const style=({solid:BorderStyle.SINGLE,dashed:BorderStyle.DASHED,dotted:BorderStyle.DOTTED,double:BorderStyle.DOUBLE,inset:BorderStyle.INSET,outset:BorderStyle.OUTSET,groove:BorderStyle.THREE_D_ENGRAVE,ridge:BorderStyle.THREE_D_EMBOSS})[type];
+    return [side,style&&width>0?{style,size:Math.max(2,Math.round(width*.4)),color:wordColor(css.getPropertyValue(`border-${side}-color`))||'auto'}:{style:BorderStyle.NONE}];
+  }));
+}
+function cellBackground(cell) {
+  // CSS table backgrounds show through transparent cells and row groups.
+  for(let node=cell;node&&node.tagName!=='BODY';node=node.parentElement) {
+    const fill=wordColor(node.style.backgroundColor);if(fill)return {type:ShadingType.CLEAR,fill};
+  }
+}
 function table(element,pictures) {
   const rows=[...element.rows];
   if(!rows.length)return new Paragraph('');
   const columns=Math.max(...rows.map(row=>[...row.cells].reduce((n,c)=>n+c.colSpan,0)));
-  const border={style:BorderStyle.SINGLE,size:4,color:'D5DFE3'};
   return new Table({width:{size:100,type:WidthType.PERCENTAGE},layout:TableLayoutType.AUTOFIT,
+    // docx otherwise supplies a single border on every table edge, even when
+    // individual cells explicitly have no border.
+    borders:{...borders(element),insideHorizontal:{style:BorderStyle.NONE},insideVertical:{style:BorderStyle.NONE}},
     rows:rows.map((row,index)=>new TableRow({tableHeader:row.parentElement.tagName==='THEAD'||index===0&&[...row.cells].some(c=>c.tagName==='TH'),cantSplit:true,
       children:[...row.cells].map(cell=>{
-        const content=paragraphs(cell,pictures,{bold:cell.tagName==='TH',size:19,alignment:numericValue(text(cell))!==null?AlignmentType.RIGHT:AlignmentType.LEFT});
+        const style={...runStyle(cell),...paragraphStyle(cell)},content=paragraphs(cell,pictures,style);
         return new TableCell({columnSpan:cell.colSpan,rowSpan:cell.rowSpan>1?cell.rowSpan:undefined,
-        width:{size:Math.floor(10466*cell.colSpan/columns),type:WidthType.DXA},margins:{top:65,bottom:65,left:90,right:90},
-        borders:{top:border,bottom:border,left:border,right:border},shading:cell.tagName==='TH'?{fill:'EDF4F5'}:undefined,
-        children:content.length?content:[new Paragraph('')]
-      });})}))});
+          width:{size:Math.floor(10466*cell.colSpan/columns),type:WidthType.DXA},
+          margins:Object.fromEntries(sides.map(side=>[side,Math.max(0,twips(cell.style.getPropertyValue('padding-'+side)))])),
+          borders:borders(cell),shading:cellBackground(cell),
+          verticalAlign:({middle:VerticalAlignTable.CENTER,bottom:VerticalAlignTable.BOTTOM})[cell.style.verticalAlign]||VerticalAlignTable.TOP,
+          children:content.length?content:[new Paragraph({...paragraphStyle(cell),children:[new TextRun({...runStyle(cell),text:''})]})]
+        });})}))});
 }
 export async function capture(options) {
   const {clone,pictures}=await snapshot(options);
   if(options.format==='html')return '<!doctype html>\n'+clone.outerHTML;
   if(options.format!=='docx')throw new Error('Unknown report format.');
   pictures.numbering=[];
-  const content=paragraphs(clone.querySelector('body'),pictures);
+  const body=clone.querySelector('body'),defaults=runStyle(body),content=paragraphs(body,pictures,defaults);
   const doc=new Document({creator:'StatsDirect',title:options.title,description:'Statistical analysis report',
     numbering:{config:pictures.numbering},
-    styles:{default:{document:{run:{font:'Arial',size:22,color:'182B38'},paragraph:{spacing:{after:110}}}},
-      paragraphStyles:[{id:'Heading1',name:'Heading 1',basedOn:'Normal',next:'Normal',quickFormat:true,run:{bold:true,size:34,color:'182B38'},paragraph:{keepNext:true}},{id:'Heading2',name:'Heading 2',basedOn:'Normal',next:'Normal',quickFormat:true,run:{bold:true,size:27,color:'182B38'},paragraph:{keepNext:true}}]},
+    styles:{default:{document:{run:defaults,paragraph:{spacing:{after:0}}}},
+      paragraphStyles:Array.from({length:6},(_,i)=>({id:`Heading${i+1}`,name:`Heading ${i+1}`,basedOn:'Normal',next:'Normal',quickFormat:true,paragraph:{keepNext:true}}))},
     sections:[{properties:{page:{size:{width:11906,height:16838},margin:{top:720,right:720,bottom:720,left:720}}},children:content.length?content:[new Paragraph(options.title)]}]});
   const encoded=await Packer.toBase64String(doc);
   if(encoded.length>80_000_000)throw new Error('This report is too large to export in one file. Save smaller reports.');
@@ -227,11 +251,15 @@ export async function clipboard(options) {
   const root=document.createElement('div');
   if(options.fragment)root.innerHTML=options.fragment;
   else {
-  const range=selection.getRangeAt(0);
+  const source=selection.getRangeAt(0),body=document.body,copy=body.cloneNode(true);
+  const originals=[body,...body.querySelectorAll('*')],copies=[copy,...copy.querySelectorAll('*')];
+  originals.forEach((node,i)=>inlinePresentation(node,copies[i]));
+  const equivalent=node=>{const path=[];while(node!==body){path.unshift([...node.parentNode.childNodes].indexOf(node));node=node.parentNode;}return path.reduce((parent,i)=>parent.childNodes[i],copy);};
+  const range=document.createRange();range.setStart(equivalent(source.startContainer),source.startOffset);range.setEnd(equivalent(source.endContainer),source.endOffset);
   let fragment=range.cloneContents(),ancestor=range.commonAncestorContainer;
   if(ancestor.nodeType!==Node.ELEMENT_NODE)ancestor=ancestor.parentElement;
-  // cloneContents omits the common ancestor; restore table/paragraph structure for partial selections.
-  while(ancestor&&ancestor!==document.body&&ancestor!==document.documentElement) {
+  // Restore table/paragraph structure omitted by a partial selection.
+  while(ancestor&&ancestor!==copy) {
     const wrapper=ancestor.cloneNode(false);wrapper.append(fragment);fragment=wrapper;ancestor=ancestor.parentElement;
   }
   root.append(fragment);
@@ -264,7 +292,9 @@ export async function clipboard(options) {
     for(let n=0;n<Math.ceil(img.height*.25/12)+2;n++)holder.append(document.createElement('br'));
     svg.replaceWith(holder);
   }
+  flattenOfficeTableBorders(root);
+  formatOfficePresentation(root);
   formatClipboardTables(root);
-  const html='<!doctype html><html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>body,p,td,th{font:11pt Arial}h1,h2,h3{font: bold 12pt Arial}td,th{white-space:normal}p{margin:6pt 0}</style></head><body><!--StartFragment-->'+root.innerHTML+'<!--EndFragment--></body></html>';
+  const html='<!doctype html><html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body><!--StartFragment-->'+root.innerHTML+'<!--EndFragment--></body></html>';
   return JSON.stringify({html,text:clipboardText(root)});
 }

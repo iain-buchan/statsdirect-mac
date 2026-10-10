@@ -2,7 +2,16 @@ import Cocoa
 import PDFKit
 
 @main struct ReportExportTests {
+    // A failed integration check should exit with a diagnostic, not raise a
+    // Swift trap and leave a macOS "quit unexpectedly" dialog on the desktop.
+    static func precondition(_ ok:Bool,_ message:String="Report check failed",file:StaticString=#fileID,line:UInt=#line) {
+        guard ok else {print("FAIL: \(message) (\(file):\(line))");fflush(stdout);exit(1)}
+    }
+
     @MainActor static func main() {
+        guard CommandLine.arguments.count>1 else {
+            print("Run this test host with Scripts/test-report-export.sh and an output directory.");exit(2)
+        }
         let app=NSApplication.shared;app.setActivationPolicy(.regular)
         let viewer=Viewer();app.delegate=viewer
         UserDefaults.standard.set(false,forKey:"automaticUpdateChecks")
@@ -12,6 +21,7 @@ import PDFKit
                     if let index=CommandLine.arguments.firstIndex(where:{$0=="--legacy-file" || $0=="--report-file"}),index+1<CommandLine.arguments.count {
                         try await archived(viewer, url:URL(fileURLWithPath:CommandLine.arguments[index+1]), output:URL(fileURLWithPath:CommandLine.arguments[1]))
                     } else if CommandLine.arguments.contains("--deletion-only") {try await deletions(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--presentation-only") {try await presentation(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--transfer-only") {try await transfers(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--legacy-only") {try await legacy(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))} else {try await run(viewer)}
                     print("PASS: native report exports");fflush(stdout)}
@@ -116,6 +126,111 @@ import PDFKit
         try await legacy(v, output: output)
         try await semanticContainers(v, output: output)
         try await stylesheetPresentation(v, output: output)
+        try await presentation(v, output: output)
+    }
+
+    @MainActor static func presentation(_ v: Viewer, output: URL) async throws {
+        func check(_ ok:Bool,_ message:String="Report presentation check failed") throws {
+            guard ok else {throw NSError(domain:"ReportPresentation",code:1,userInfo:[NSLocalizedDescriptionKey:message])}
+        }
+        try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
+        let report=v.makeReport()
+        report.reportEntries=[ReportEntry(id:UUID().uuidString,title:"Copy/export presentation",operation:"",body:"""
+        <section class="presentation-fixture">
+        <h2>Custom heading</h2><p>Custom paragraph</p>
+        <table class="plain"><thead><tr><th>Plain heading</th><th>Value</th></tr></thead><tbody>
+        <tr><td>Precision</td><td>12.500</td></tr><tr><td>Percentage</td><td>95.00%</td></tr>
+        <tr><td>Exponent</td><td>1.20e-7</td></tr><tr><td>Negative</td><td>−2.50</td></tr>
+        <tr><td>Identifier</td><td>0012</td></tr><tr><td>Long identifier</td><td>1234567890123456</td></tr><tr><td>Formula text</td><td>=1+1</td></tr>
+        </tbody></table>
+        <table class="custom"><colgroup><col style="width:220px"><col style="width:140px"></colgroup><tbody><tr><td class="special">Custom cell</td><td>Row fill</td></tr></tbody></table>
+        <pre>Preformatted  spaces\n<strong style="color:#cc0000">Bold second line</strong> <code style="font-family:Arial">Explicit code font</code></pre>
+        </section>
+        """,rPlan:nil)]
+        v.renderReport(report);try await settled(report)
+        try await report.web.evaluateJavaScript("""
+        (()=>{const s=document.createElement('style');s.textContent=`
+        .presentation-fixture h2{font:normal 16pt Georgia;color:#663399;margin:12px 0 8px;text-align:center}
+        .presentation-fixture p{font:normal 12pt Arial;margin:8px 0 12px;line-height:1.5}
+        .presentation-fixture .plain,.presentation-fixture .plain th,.presentation-fixture .plain td{font:normal 10pt Arial;color:#222222;background:transparent;border:none;text-align:left;padding:2px 4px}
+        .presentation-fixture .plain thead{background:transparent}
+        .presentation-fixture .plain th{text-decoration:underline}
+        .presentation-fixture .custom{border:2px solid #008000}
+        .presentation-fixture .custom tr{background:#ddffee}
+        .presentation-fixture .custom td{border:none}
+        .presentation-fixture .custom .special{font:normal 18pt Georgia;color:#663399;background:#ffff00;text-align:center;vertical-align:middle;padding:6px 10px;border-top:2px solid #cc0000;border-bottom:3px dashed #0000cc;border-left:1px dotted #660066;border-right:none}
+        .presentation-fixture pre{font:normal 14pt Georgia;white-space:pre-wrap;color:#224466;margin:10px 0;line-height:1.25}
+        `;document.head.append(s);})()
+        """)
+        let description="""
+        (()=>{const names=['fontFamily','fontSize','fontWeight','fontStyle','color','backgroundColor','textAlign','textDecorationLine','verticalAlign','paddingTop','paddingRight','paddingBottom','paddingLeft','borderTopStyle','borderTopWidth','borderTopColor','borderBottomStyle','borderBottomWidth','borderBottomColor','borderLeftStyle','borderLeftWidth','borderLeftColor','borderRightStyle'];
+        const cells=[...document.querySelectorAll('.report-body td,.report-body th')];return JSON.stringify(cells.map(el=>{const c=getComputedStyle(el);return [el.textContent.trim(),Object.fromEntries(names.map(n=>[n,c[n]]))]}));})()
+        """
+        let expected=try await report.web.evaluateJavaScript(description) as! String
+        try Data(expected.utf8).write(to:output.appendingPathComponent("presentation-live.json"))
+        let before=try await report.web.evaluateJavaScript("document.querySelector('.report-body').innerHTML") as! String,revision=report.reportRevision
+        for format in ReportFormat.allCases {
+            let data=try await v.reportExportData(report,format:format)
+            try data.write(to:output.appendingPathComponent("presentation-report."+format.rawValue))
+            if format == .pdf {
+                let pdf=PDFDocument(data:data)!
+                try check(pdf.string!.contains("Custom cell") && pdf.string!.contains("Bold second line"))
+                let fonts=pdf.findString("Custom cell",withOptions:[]).compactMap{$0.attributedString?.attribute(.font,at:0,effectiveRange:nil) as? NSFont}
+                let plainFonts=pdf.findString("Plain heading",withOptions:[]).compactMap{$0.attributedString?.attribute(.font,at:0,effectiveRange:nil) as? NSFont}
+                // WebKit fits the page; PDFKit returns the scaled font. Compare
+                // the original 18pt/10pt ratio, not an assumed printer scale.
+                try check(!plainFonts.isEmpty && fonts.contains{$0.fontName.contains("Georgia") && abs($0.pointSize/plainFonts[0].pointSize-1.8)<0.02},"PDF changed the custom cell font or relative size")
+            }
+        }
+        let after=try await report.web.evaluateJavaScript("document.querySelector('.report-body').innerHTML") as! String
+        try check(after==before)
+        try check(report.reportRevision==revision)
+        let reopened=try await v.importReport(output.appendingPathComponent("presentation-report.html"));try await settled(reopened)
+        let imported=try await reopened.web.evaluateJavaScript(description) as! String
+        try Data(imported.utf8).write(to:output.appendingPathComponent("presentation-reopened.json"))
+        try check(imported==expected,"HTML reopen changed table presentation")
+        try await v.reportExportData(reopened,format:.docx).write(to:output.appendingPathComponent("presentation-reopened.docx"))
+        v.remove(reopened)
+        v.tabs.selectTabViewItem(report.item)
+        try await report.web.evaluateJavaScript("window.getSelection().selectAllChildren(document.querySelector('.report-body'))")
+        let direct=try await v.reportScript(report,method:"clipboard")!
+        let directHTML=(try JSONSerialization.jsonObject(with:Data(direct.utf8)) as! [String:String])["html"]!
+        try Data(directHTML.utf8).write(to:output.appendingPathComponent("presentation-direct.html"))
+        try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true);document.querySelector('.report-body').focus();window.getSelection().selectAllChildren(document.querySelector('.report-body'))")
+        let board=NSPasteboard.withUniqueName();defer{board.releaseGlobally()}
+        _ = try await v.transferReportClipboard(report,command:"copy",pasteboard:board)
+        let publicHTML=board.string(forType:.html)!,privateHTML=board.string(forType:Viewer.reportFragmentType)!
+        try Data(publicHTML.utf8).write(to:output.appendingPathComponent("presentation-clipboard.html"))
+        try Data(privateHTML.utf8).write(to:output.appendingPathComponent("presentation-private.html"))
+        for (name,html,kind) in [("private",privateHTML,Viewer.reportFragmentType),("public",publicHTML,NSPasteboard.PasteboardType.html),("direct",directHTML,NSPasteboard.PasteboardType.html)] {
+            let target=v.makeReport();target.reportEntries=[ReportEntry(id:UUID().uuidString,title:"Paste",operation:"",body:"<p id='paste-here'><br></p>",rPlan:nil)]
+            v.renderReport(target);try await settled(target)
+            try await target.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true);document.querySelector('.report-body').focus();const r=document.createRange();r.selectNodeContents(document.getElementById('paste-here'));r.collapse(true);window.getSelection().removeAllRanges();window.getSelection().addRange(r)")
+            board.clearContents();board.setString(html,forType:kind)
+            _ = try await v.transferReportClipboard(target,command:"paste",pasteboard:board);try await settled(target)
+            let pasted=try await target.web.evaluateJavaScript(description) as! String
+            try Data(pasted.utf8).write(to:output.appendingPathComponent("presentation-\(name)-paste.json"))
+            if name=="private" {try check(pasted==expected,"Private clipboard changed table styles or borders")}
+            else {
+                // Office receives the visible collapsed-border outline on its
+                // outside cells. Other presentation must still match exactly.
+                func withoutBorders(_ json:String) throws -> String {
+                    var cells=try JSONSerialization.jsonObject(with:Data(json.utf8)) as! [[Any]]
+                    for i in cells.indices {cells[i][1]=(cells[i][1] as! [String:String]).filter{!$0.key.hasPrefix("border")}}
+                    return String(decoding:try JSONSerialization.data(withJSONObject:cells,options:.sortedKeys),as:UTF8.self)
+                }
+                try check(try withoutBorders(pasted)==withoutBorders(expected),"Office clipboard changed text or cell presentation")
+                let edges=try await target.web.evaluateJavaScript("(()=>{const t=[...document.querySelectorAll('.report-body table')].at(-1),a=getComputedStyle(t.rows[0].cells[0]),b=getComputedStyle(t.rows[0].cells[1]);return a.borderTopColor==='rgb(204, 0, 0)'&&a.borderTopWidth==='2px'&&a.borderBottomStyle==='dashed'&&a.borderBottomColor==='rgb(0, 0, 204)'&&a.borderBottomWidth==='3px'&&a.borderLeftColor==='rgb(0, 128, 0)'&&b.borderRightColor==='rgb(0, 128, 0)'&&b.borderTopWidth==='2px';})()") as! Bool
+                try check(edges,"Office clipboard changed the visible collapsed table borders")
+            }
+            try check(target.reportUndo.count==1,"Pasting styled content should be one undo")
+            try await target.web.evaluateJavaScript("StatsDirectReportEditor.command('undo')");try await settled(target)
+            let count=try await target.web.evaluateJavaScript("document.querySelectorAll('.report-body table').length") as! Int
+            try check(count==0)
+            v.remove(target)
+        }
+        v.remove(report)
+        print("PASS: HTML/PDF/DOCX retain report styles, private/public/direct copy preserve table fonts and per-side borders, pasted content undoes as one edit; Office values and Word properties checked separately");fflush(stdout)
     }
 
     @MainActor static func stylesheetPresentation(_ v: Viewer, output: URL) async throws {
@@ -408,7 +523,7 @@ import PDFKit
         let binary=try LegacyReport.read(Data(contentsOf:fixtures.appendingPathComponent("binary-picture.rtf")))
         precondition(binary.pictures.count==1 && binary.pictures[0].data==parsed.pictures[0].data)
         for invalid in ["not rtf", "{\\rtf1 unclosed", "{\\rtf1 {\\pict\\emfblip\\bin99 short}}", "{\\rtf1 text}junk"] {
-            do { _=try LegacyReport.read(Data(invalid.utf8));preconditionFailure("Malformed RTF accepted") } catch {}
+            do { _=try LegacyReport.read(Data(invalid.utf8));precondition(false,"Malformed RTF accepted") } catch {}
         }
         let doc=try await v.importReport(fixtures.appendingPathComponent("legacy-charts.rtf"));try await settled(doc)
         let state=try await doc.web.evaluateJavaScript("({text:document.body.innerText,charts:document.querySelectorAll('.report-body svg').length,table:document.querySelectorAll('.report-body table').length})") as! [String:Any]

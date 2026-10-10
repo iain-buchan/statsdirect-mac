@@ -134,3 +134,7 @@ assert len(tables)==1 and tables[0].find('w:tr/w:tc/w:tcPr/w:gridSpan',ns).get(k
 assert sum(path.endswith('.svg') for path in files)==1
 assert len(deleted.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}inline'))==2
 print('PASS: DOCX omits the deleted result while preserving surviving text, notes, merged table and SVG/raster drawings')
+
+# The focused presentation verifier also runs with the full native report suite.
+import runpy
+runpy.run_path(str(Path(__file__).with_name('verify-report-presentation.py')))

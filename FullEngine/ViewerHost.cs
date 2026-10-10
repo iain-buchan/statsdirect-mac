@@ -87,7 +87,7 @@ namespace StatsDirect.UI
         object IUserInterface.OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation)
         {
             CheckCancellation();
-            Html.Append(StatsDirect.R.ReportFragments.Resolve(new HtmlRenderer(this).Render(renderable)));
+            Html.Append(new HtmlRenderer(this).Render(renderable));
             return null;
         }
 

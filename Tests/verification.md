@@ -1,3 +1,7 @@
+# Engine 5.1.0 — 10 October 2026
+
+The engine submodule moves to Windows main `44203cc8` (StatsDirect 5.1.0: HTML reports with WebView2 editing, dockable help and the calculator on Windows; the RTF and EMF renderers removed). The Mac now uses the engine's `ReportPicture` for R charts and shows the R script as text, as Windows does, so `ReportFragments.cs` and the Mac copy of `Nonparametric.cs` are gone; the manifest records 866 files. The chart's size in the report comes from the PNG's recorded resolution. Build, `test.sh` and the native WebKit driver suite pass on this build.
+
 # LOESS curve fitting through R on the Mac — 9 October 2026
 
 The engine's R script steps now run on the Mac: `FullEngine/RController.cs` finds Rscript, runs each operation's script in its own folder under Application Support, shims the Windows metafile device to R's quartz PNG device and returns the chart and the script to the HTML report as fragments (`ReportFragments.cs`). LOESS curve fitting is enabled in the analysis menu; method comparison regression stays deferred until its `mcr` package path is verified. `Tests/test_r_operations.py` (in `test.sh`) checks the help example's four printed figures and the fits and standard errors written back against R called directly on the same data, rows with missing values, two predictors, an error inside R, R not installed and cancelling while R runs. The help replay baseline includes the LOESS page; the menu test counts 207 input hosts and one R deferral.

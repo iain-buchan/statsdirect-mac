@@ -344,7 +344,7 @@ internal static class HostParameters {
         if(DateTime.TryParseExact(text,new[]{"yyyy-MM-dd","yyyy-MM-dd HH:mm:ss","yyyy-MM-ddTHH:mm:ss","yyyy-MM-ddTHH:mm:ss.FFFFFFF"},CultureInfo.InvariantCulture,DateTimeStyles.None,out var date))return date;
         throw new ArgumentException("Enter the date as YYYY-MM-DD, optionally followed by HH:MM:SS.");
     }
-    internal static object ScalarOutputs(ParameterBag bag) => bag.Where(p => p.Value != null && p.Value.Direction == FilledParameterDirection.Output && !StatsDirect.R.ReportFragments.IsToken(p.Value.AsObject as string) && (p.Value.AsObject is string || p.Value.AsObject is bool || p.Value.AsObject is int || p.Value.AsObject is double d && double.IsFinite(d))).ToDictionary(p => p.Key, p => p.Value.AsObject);
+    internal static object ScalarOutputs(ParameterBag bag) => bag.Where(p => p.Value != null && p.Value.Direction == FilledParameterDirection.Output && (p.Value.AsObject is string || p.Value.AsObject is bool || p.Value.AsObject is int || p.Value.AsObject is double d && double.IsFinite(d))).ToDictionary(p => p.Key, p => p.Value.AsObject);
     internal static object FrameOutput(DataFrame frame, bool formulae) => FrameOutput(frame, formulae, null, false, null);
     // An output frame for the grid: cells (missing values left out), each variable's length, and how the
     // Windows shell would place it in the worksheet (placement, keepSelection, missingIndicator, formulae).

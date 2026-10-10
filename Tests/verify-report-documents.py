@@ -68,9 +68,9 @@ for name in ['resized-report','resized-reopened-report']:
     drawing='{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}'
     pictures=resized.findall('.//'+drawing+'inline')
     sizes={p.find(drawing+'docPr').get('descr'):p.find(drawing+'extent') for p in pictures}
-    raster=sizes.pop('Raster resize check'); rchart=sizes.pop('Chart drawn by R')
+    raster=sizes.pop('Raster resize check'); rchart=sizes.pop('R chart')
     assert int(raster.get('cx'))==200*9525 and int(raster.get('cy'))==100*9525
-    assert int(rchart.get('cx'))==504*9525 and rchart.get('cx')==rchart.get('cy')
+    assert int(rchart.get('cx'))==576*9525 and int(rchart.get('cy'))==384*9525   # R draws 864 by 576 pixels at 144 dots per inch
     assert len(pictures)==3 and len(sizes)==1 and int(next(iter(sizes.values())).get('cx'))==320*9525, (name,sizes)
     svg_extent=next(iter(sizes.values())).attrib
     if original_svg_extent is None: original_svg_extent=svg_extent

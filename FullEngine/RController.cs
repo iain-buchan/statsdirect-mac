@@ -16,8 +16,9 @@ namespace StatsDirect.R
     /// R in the registry, runs Rscript.exe in My Documents\StatsDirect\R and takes each chart back as a metafile. Here
     /// Rscript is found where the CRAN installer, Homebrew or the user put it; every run has its own folder under
     /// Application Support, beside the shell's R sessions, so nothing is shared between runs; the script's Windows metafile
-    /// device is shimmed to R's quartz PNG device, which needs no XQuartz; and the chart and the script reach the HTML
-    /// report as fragments (see ReportFragments). Packages a script installs go to one shared library folder.
+    /// device is shimmed to R's quartz PNG device, which needs no XQuartz (Windows 5.1.0 reads the picture with System.Drawing);
+    /// the chart reaches the HTML report as a ReportPicture and the script as text, as on Windows. Packages a script installs go
+    /// to one shared library folder.
     /// </summary>
     public static class RController
     {
@@ -87,8 +88,8 @@ win.metafile <- function(filename = """", width = 7, height = 7, ...) {
 
         /// <param name="host">Unused here (Windows shows its install dialog over the host window).</param>
         /// <param name="scriptBody">The operation's script, after the parameters written as R variables.</param>
-        /// <param name="rtfScriptBody">What the report shows under "R script to reproduce this result": here a report fragment token, not RTF.</param>
-        public static Process RunScriptAndQuit(ITemplateHost host, string scriptBody, out string rtfScriptBody)
+        /// <param name="reportScriptBody">What the report shows under "R script to reproduce this result": the script as it can be run again, as plain text.</param>
+        public static Process RunScriptAndQuit(ITemplateHost host, string scriptBody, out string reportScriptBody)
         {
             string rscript = FindRscript() ?? throw new InvalidOperationException(NotInstalledMessage);
             Directory.CreateDirectory(LibraryFolder);
@@ -100,7 +101,7 @@ win.metafile <- function(filename = """", width = 7, height = 7, ...) {
             string head = "userdir <- " + RQuote(run.Folder) + "\nrlib <- " + RQuote(LibraryFolder)
                 + "\ndir.create(rlib, recursive = TRUE, showWarnings = FALSE)\nsetwd(userdir)\n.libPaths(c(rlib, .libPaths()))";
             // The script the report shows can be run again as it is: without the shim and the message sink, which are this host's.
-            rtfScriptBody = ReportFragments.Script(head + "\n" + body);
+            reportScriptBody = head + "\n" + body;
             string script = head + "\n" + GraphicsShim + "\nzz <- file(" + RQuote(ERROR_FILE_NAME) + ", open = \"wt\")\nsink(zz, type = \"message\")\nreturning.to.statsdirect <- TRUE\n" + body + "\nquit()\n";
             string scriptPath = Path.Combine(run.Folder, RSCRIPT_NAME);
             File.WriteAllText(scriptPath, script, new UTF8Encoding(false));

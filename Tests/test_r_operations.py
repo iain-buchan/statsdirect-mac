@@ -64,13 +64,12 @@ try:
     values = st['values']
     stats, fits, ses = direct([float(v) for v in hgb['values']], [[float(v) for v in egfr['values']]])
     assert values['observations'] == stats[0] == 804 and close(values['parameters'], stats[1]) and close(values['residualse'], stats[2]) and close(values['df'], stats[3]), (values, stats)
-    assert not any(isinstance(v, str) and v.startswith('statsdirectfragment') for v in values.values()), values
-    img = re.search(r'<img class="r-chart"[^>]*>', st['html']); assert img, st['html'][:300]
-    assert 'width="504" height="504"' in img[0] and 'alt="Chart drawn by R"' in img[0], img[0][:200]
+    img = re.search(r'<img alt="R chart"[^>]*>', st['html']); assert img, st['html'][:300]
+    assert 'width="576" height="384"' in img[0], img[0][:200]   # the script draws 864 by 576 pixels at 144 dots per inch; the PNG records the resolution
     png = base64.b64decode(re.search(r'base64,([A-Za-z0-9+/=]+)', img[0])[1])
-    assert png[:8] == b'\x89PNG\r\n\x1a\n' and int.from_bytes(png[16:20], 'big') == 1008 and int.from_bytes(png[20:24], 'big') == 1008 and len(png) > 20000, len(png)
-    script = re.search(r'<pre class="r-script">([\s\S]*?)</pre>', st['html']); assert script, 'no script'
-    assert 'loess(model,span=span,degree=degree)' in script[1] and 'hgb &lt;- c(' in script[1] and 'returning.to.statsdirect &lt;- TRUE' not in script[1] and 'win.metafile &lt;- function' not in script[1], script[1][:300]
+    assert png[:8] == b'\x89PNG\r\n\x1a\n' and int.from_bytes(png[16:20], 'big') == 864 and int.from_bytes(png[20:24], 'big') == 576 and len(png) > 20000, len(png)
+    script = st['html'].split('R script to reproduce this result')[1]   # shown as text with line breaks, as on Windows
+    assert 'loess(model,span=span,degree=degree)' in script and 'hgb &lt;- c(' in script and '<br />' in script and 'returning.to.statsdirect &lt;- TRUE' not in script and 'win.metafile &lt;- function' not in script, script[:300]
     assert text.index('R script to reproduce this result') < text.index('userdir'), 'the script is shown under its heading'
     (fit_title, fit), (se_title, se) = (frame_values(f) for f in st['frames'])
     assert (fit_title, se_title) == ('LOESS fit', 'LOESS fit SE') and [f['placement'] for f in st['frames']] == ['AfterSelection'] * 2 and [f['lengths'] for f in st['frames']] == [[804], [804]], st['frames'][0].keys()
@@ -88,7 +87,7 @@ try:
     assert set(fit) == set(se) == set(range(16)) - gaps and [f['lengths'] for f in st['frames']] == [[16], [16]]
     kept = [i for i in range(16) if i not in gaps]
     assert all(close(fit[i], fits[k]) and close(se[i], ses[k]) for k, i in enumerate(kept))
-    assert '<img class="r-chart"' in st['html'], 'with one predictor the script always draws the scatter, with the fit and band only when asked'
+    assert '<img alt="R chart"' in st['html'], 'with one predictor the script always draws the scatter, with the fit and band only when asked'
     print('PASS: rows with a missing outcome are left out of the fit and left blank in the written fits, as the R script pads them')
 
     # Several predictors: the formula names them all, the plot prompts are not asked and no chart is drawn.

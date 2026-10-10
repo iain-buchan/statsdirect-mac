@@ -179,7 +179,7 @@ internal sealed class OperationJob {
     }
     void RunWithEngine() {
         try {
-            Check(); StatsDirect.R.ReportFragments.Clear();
+            Check();
             var host = new OperationHost(this);
             StatsDirect.UI.OperationHacks.Information = text => host.Warning(text,"Search results");
             // The Windows basic-search command only sends Ctrl+H to its shell. Use
@@ -352,7 +352,7 @@ internal sealed class OperationHost : ITemplateHost {
     public ParameterBag Amend(IFillable options, ParameterBag context) => HostAmendments.Amend(job, this, options, context);
     public void Error(string message, string caption) { job.Check(); throw new InvalidOperationException(caption + ": " + message); }
     public void Warning(string message, string caption) { Html.Append("<p class='note'>").Append(System.Net.WebUtility.HtmlEncode(caption + ": " + message)).Append("</p>"); }
-    public object OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation) { job.Check(); Html.Append(StatsDirect.R.ReportFragments.Resolve(new HtmlRenderer(this).Render(renderable))); return null; }
+    public object OutputReport(IRenderable renderable, Operation operation, object preferredOutputLocation) { job.Check(); Html.Append(new HtmlRenderer(this).Render(renderable)); return null; }
     public void OutputFrame(DataFrame frame, bool keepSelection, bool isFormulae, string missingIndicator, PaneAndPosition preferredOutputLocation, RelativePosition defaultPosition) {
         job.Check(); Frames.Add(HostParameters.FrameOutput(frame, isFormulae, defaultPosition.ToString(), keepSelection, missingIndicator ?? Formatting.ASTERISK));
     }

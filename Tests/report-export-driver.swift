@@ -66,7 +66,7 @@ import PDFKit
             _=try? await request(["action":"release","id":id])
             try check(output["state"] as? String=="complete","LOESS did not complete: \(output["error"] ?? "")")
             let html=output["html"] as? String ?? ""
-            try check(html.contains("<img class=\"r-chart\"") && html.contains("data:image/png;base64,") && html.contains("<pre class=\"r-script\">") && html.contains("Residual Standard Error"),"LOESS report lacks R's chart or script")
+            try check(html.contains("<img alt=\"R chart\"") && html.contains("data:image/png;base64,") && html.contains("userdir &lt;-") && html.contains("Residual Standard Error"),"LOESS report lacks R's chart or script")
             v.appendReport(ReportEntry(id:UUID().uuidString,title:"LOESS",operation:"LOESS",body:"<section class='engine-report'>"+html+"</section>",rPlan:nil))
             print("PASS: LOESS through R: the report carries R's PNG chart and the script");fflush(stdout)
         }
@@ -83,7 +83,7 @@ import PDFKit
                 let html=String(decoding:data,as:UTF8.self)
                 precondition(html.contains("56.111111")&&html.contains("8.64")&&html.contains("Observation 65"))
                 precondition(html.contains("<svg")&&html.contains("https://www.statsdirect.com/help/"))
-                precondition(html.contains("class=\"r-chart\"")&&html.contains("data:image/png;base64,")&&html.contains("Residual Standard Error"))
+                precondition(html.contains("alt=\"R chart\"")&&html.contains("data:image/png;base64,")&&html.contains("Residual Standard Error"))
                 precondition(!html.contains("onclick=") && !html.contains("statsDirectReport.postMessage") && !html.contains("file:///"))
                 print("PASS: HTML contains every result, inline vector chart, R's PNG chart and portable help links; no app handlers or file paths")
             }

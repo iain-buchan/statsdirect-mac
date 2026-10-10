@@ -21,6 +21,10 @@ extension Viewer {
         openReportInR(plan, title: entry.title)
     }
     @objc func continueActiveReportInR() { if let doc = active { continueReportInR(doc) } }
+    func continueResultInR(_ doc: Document, id: String) {
+        guard let entry = doc.reportEntries?.first(where: { $0.id == id }), let plan = entry.rPlan else { return }
+        openReportInR(plan, title: entry.title)
+    }
     func continueReportInR(_ report: Document) {
         guard let plan = report.rScriptPlan else { return }
         openReportInR(plan, title: report.reportEntries?.last?.title ?? report.title)

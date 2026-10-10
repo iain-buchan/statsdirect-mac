@@ -9,7 +9,8 @@ struct ReportEntry {
     let rPlan: RScriptPlan?
     var editedBody: String?
     var annotation = ""
-    var hiddenCharts: Set<Int> = []
+    // The method's help page for this result, offered by the context menu and F1 and written into saved reports as a link.
+    var helpPath: String? = nil
 }
 
 struct ReportBodyChange {
@@ -55,10 +56,17 @@ extension Viewer {
     }
 
     func renderReport(_ doc: Document) {
-        guard let entries = doc.reportEntries else { return }
+        guard var entries = doc.reportEntries else { return }
+        // Notes written in the earlier separate field become text of their result, editable with the rest.
+        for index in entries.indices where !entries[index].annotation.isEmpty {
+            entries[index].editedBody = (entries[index].editedBody ?? entries[index].body) + "<p class='report-note'>" + htmlEscape(entries[index].annotation) + "</p>"
+            entries[index].annotation = ""
+        }
+        doc.reportEntries = entries
         doc.rScriptPlan = entries.last?.rPlan
         doc.operationName = entries.last?.operation
-        let body = "<div id='report-empty' class='report-controls' \(entries.isEmpty ? "" : "hidden")><p class='muted'>New analysis results will be collected here. Use Add text to write in this report.</p></div><div id='report-results' tabindex='-1'>" + entries.map { reportEntryHTML($0) }.joined() + "</div>"
+        // The report is one editable region; each result is a block in it, identified by its id.
+        let body = "<div id='report-empty' class='report-controls' \(entries.isEmpty ? "" : "hidden")><p class='muted'>New analysis results will be collected here. Use Add text to write in this report.</p></div><div id='report-results' class='report-body' tabindex='-1' role='textbox' aria-label='Report'>" + entries.map { reportEntryHTML($0) }.joined() + "</div>"
         doc.hasSVG = body.contains("<svg")
         let notice = doc.reportImportNotice.map { "<p class='report-controls report-import-notice'>\(htmlEscape($0))</p>" } ?? ""
         let editor = (try? String(contentsOf: root.appendingPathComponent("Report/editor.js"), encoding: .utf8)) ?? ""
@@ -66,16 +74,20 @@ extension Viewer {
         doc.web.loadHTMLString(page(doc.title, reportToolbar(doc) + notice + body + bootstrap), baseURL: root)
     }
 
+    // A result as a block of the report: its id, the help page and R availability for the context menu, and its content.
     func reportEntryHTML(_ entry: ReportEntry) -> String {
         let body=entry.editedBody ?? entry.body
-        let hidden=entry.hiddenCharts.sorted().map(String.init).joined(separator: ",")
-        return "<article class='report-entry' id='result-\(entry.id)'>" + "<div class='report-body' data-result-id='\(entry.id)' data-hidden-charts='\(hidden)' role='textbox' aria-label=\"Report content for \(htmlEscape(entry.title))\">" + body + "</div><div class='report-controls'><label>Report notes</label></div><div class='report-annotation' contenteditable='plaintext-only' role='textbox' aria-label=\"Notes for \(htmlEscape(entry.title))\" data-placeholder='Add your interpretation or notes…' oninput=\"window.webkit.messageHandlers.statsDirectReport.postMessage({action:'annotate',resultID:'\(entry.id)',text:this.innerText})\">\(htmlEscape(entry.annotation))</div></article>"
+        let help=entry.helpPath.map { " data-help=\"\(htmlEscape($0))\"" } ?? ""
+        let r=entry.rPlan.map { " data-r='\($0.hasRecipe ? "recipe" : "data")'" } ?? ""
+        return "<article class='report-entry' id='result-\(entry.id)' data-result-id='\(entry.id)'\(help)\(r) aria-label=\"\(htmlEscape(entry.title))\">" + body + "</article>"
     }
     func editReport(_ doc: Document, _ body: [String:Any]) {
         guard let action=body["action"] as? String else { return }
         if action == "transferNotice", let text = body["text"] as? String { status.stringValue = text; return }
         if action == "clipboard", let command = body["command"] as? String, ["copy", "cut", "paste"].contains(command) { reportClipboardCommand(doc, command: command); return }
         if action == "editing" { doc.reportEditing = body["value"] as? Bool ?? false; return }
+        // What the pointer was on at a right-click, for the context menu the shell shows.
+        if action == "context" { doc.reportContext = body; return }
         if action == "addText" {
             let entry = ReportEntry(id: UUID().uuidString, title: "Text", operation: "", body: "<p>Enter your text here.</p>", rPlan: nil)
             pushReportChange(doc, ReportChange(edits: [], added: [IndexedReportEntry(index: doc.reportEntries?.count ?? 0, entry: entry)], typing: false))
@@ -111,15 +123,9 @@ extension Viewer {
         if action == "editBodies", let edits = body["edits"] as? [[String: String]] {
             recordReportEdits(doc, edits: edits, removing: body["remove"] as? [String] ?? [], typing: false); return
         }
-        guard let id=body["resultID"] as? String,let index=doc.reportEntries?.firstIndex(where:{$0.id==id}) else { return }
+        guard let id=body["resultID"] as? String, doc.reportEntries?.contains(where:{$0.id==id}) == true else { return }
         if action == "editBody" {
             if let html = body["html"] as? String { recordReportEdits(doc, edits: [["id": id, "html": html]], typing: body["typing"] as? Bool ?? false) }; return
-        }
-        if action == "annotate" {
-            if let text=body["text"] as? String,text.utf8.count<=100_000 {
-                if doc.reportEntries?[index].annotation != text { doc.reportRevision += 1 }
-                doc.reportEntries?[index].annotation=text
-            };return
         }
     }
 
@@ -270,5 +276,42 @@ extension Viewer {
         let report = appendReport(entry)
         let bridge = doc.kind == "analysis" ? "statsDirectChiSquare" : "statsDirectOperation"
         doc.web.evaluateJavaScript("window.\(bridge)?.resultKept(\(jsString(report.title)))")
+    }
+
+    // The report's context menu: the result under the pointer and what belongs to it. The editor
+    // posts the context at the right-click; WebKit opens the menu after that message has arrived.
+    func extendReportMenu(_ menu: NSMenu, for doc: Document) {
+        let context = doc.reportContext
+        guard context["inReport"] as? Bool == true else { return }
+        var items: [NSMenuItem] = []
+        func add(_ title: String, _ kind: String, _ value: String = "") {
+            let item = NSMenuItem(title: title, action: #selector(reportContextAction(_:)), keyEquivalent: "")
+            item.target = self; item.representedObject = ["kind": kind, "value": value, "document": doc.id]; items.append(item)
+        }
+        let id = context["resultId"] as? String
+        if let help = context["help"] as? String, !help.isEmpty { add("Method Help", "help", help) }
+        if let r = context["r"] as? String, let id { add(r == "recipe" ? "Continue in R" : "Open Data and Settings in R", "r", id) }
+        if let id { add("Select Result", "selectResult", id) }
+        add("Select All Results", "selectAll")
+        if context["picture"] as? Bool == true, doc.reportEditing {
+            add("Fit Chart to Width", "pictureFit")
+            add("Chart Width…", "pictureWidth")
+        }
+        guard !items.isEmpty else { return }
+        for (index, item) in items.enumerated() { menu.insertItem(item, at: index) }
+        menu.insertItem(.separator(), at: items.count)
+    }
+    @objc func reportContextAction(_ sender: NSMenuItem) {
+        guard let info = sender.representedObject as? [String: String], let kind = info["kind"], let doc = documents.first(where: { $0.id == info["document"] }) else { return }
+        let value = info["value"] ?? ""
+        switch kind {
+        case "help": openHelp(root.appendingPathComponent(value), title: doc.title)
+        case "r": continueResultInR(doc, id: value)
+        case "selectResult": doc.web.evaluateJavaScript("StatsDirectReportEditor.selectResult(\(jsString(value)))")
+        case "selectAll": doc.web.evaluateJavaScript("StatsDirectReportEditor.selectAll()")
+        case "pictureFit": doc.web.evaluateJavaScript("StatsDirectReportEditor.command('pictureFit')")
+        case "pictureWidth": doc.web.evaluateJavaScript("(()=>{const more=document.getElementById('report-more-tools'),toggle=document.getElementById('report-more-toggle');if(more&&toggle){more.hidden=false;toggle.setAttribute('aria-expanded','true');}document.querySelector('[data-format=pictureWidth]')?.focus();})()")
+        default: break
+        }
     }
 }

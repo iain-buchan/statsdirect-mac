@@ -120,6 +120,7 @@ import PDFKit
         print("PASS: standalone HTML reopens and exports to DOCX")
         v.tabs.selectTabViewItem(report.item)
         try await editing(v, report: report, output: output)
+        try await singleRegion(v, output: output)
         try await chartResizing(v, report: report, output: output)
         try await transfers(v, output: output)
         try await deletions(v, output: output)
@@ -250,8 +251,7 @@ import PDFKit
         """) as! [String:String]
         precondition(computed["font"]!.hasPrefix("Arial") && computed["custom"]!.contains("Georgia") && computed["chart"]!.contains("Georgia"))
         precondition(computed["ci"]=="rgb(0, 0, 255)" && computed["pval"]=="rgb(0, 128, 0)" && computed["warn"]=="rgb(255, 0, 0)")
-        // ResizeObserver repositions the disposable chart controls during layout/printing.
-        // Keep every content element and style in this invariant, excluding only those controls.
+        // The region holds content only: resizing the window and exporting change nothing in it.
         let snapshotScript="""
         (()=>{const body=document.querySelector('.report-body'),copy=body.cloneNode(true);copy.querySelectorAll('.report-controls').forEach(e=>e.remove());return {raw:body.innerHTML,content:copy.innerHTML};})()
         """
@@ -261,7 +261,7 @@ import PDFKit
         try await settled(report)
         let resized=try await report.web.evaluateJavaScript(snapshotScript) as! [String:String]
         v.window.setFrame(frame,display:true);try await settled(report)
-        precondition(initial["raw"] != resized["raw"] && initial["content"]==resized["content"] && report.reportRevision==revision,"Window resizing should change chart controls without changing report content")
+        precondition(initial["content"]==resized["content"] && report.reportRevision==revision,"Window resizing must not change report content")
         let before=try await report.web.evaluateJavaScript(snapshotScript) as! [String:String]
         for format in ReportFormat.allCases {try await v.reportExportData(report,format:format).write(to:output.appendingPathComponent("stylesheet-report."+format.rawValue))}
         let after=try await report.web.evaluateJavaScript(snapshotScript) as! [String:String]
@@ -270,7 +270,6 @@ import PDFKit
             print("BEFORE: \(before["content"]!)");print("AFTER: \(after["content"]!)");fflush(stdout)
         }
         precondition(before["content"]==after["content"] && report.reportRevision==revision,"Export must not style or revise the live document")
-        if before["raw"] != after["raw"] {print("PASS: export layout changed only disposable chart controls; all report content and styles remain identical");fflush(stdout)}
         let reopened=try await v.importReport(output.appendingPathComponent("stylesheet-report.html"));try await settled(reopened)
         try await v.reportExportData(reopened,format:.docx).write(to:output.appendingPathComponent("stylesheet-reopened.docx"))
         let preserved=try await reopened.web.evaluateJavaScript("getComputedStyle(document.querySelector('.report-body svg text')).fontFamily.includes('Georgia')") as! Bool
@@ -319,9 +318,14 @@ import PDFKit
     }
     @MainActor static func editing(_ v: Viewer, report: Document, output: URL) async throws {
         let id=UUID().uuidString
+        var trace:[String]=[]
+        func stage(_ label:String) async throws {
+            let dom=try await report.web.evaluateJavaScript("(()=>{const r=document.getElementById('report-results');const all=[...r.children],from=all.findIndex(c=>c.getAttribute('aria-label')==='Editing checks');return all.slice(Math.max(0,from)).map(c=>c.outerHTML.slice(0,c.outerHTML.indexOf('>')+1)+'['+[...c.children].map(k=>k.tagName+(k.id?'#'+k.id:'')).join(',')+']').join(' | ')})()") as? String ?? "?"
+            trace.append("\(label): active=\(try await report.web.evaluateJavaScript("document.activeElement?.tagName+'.'+(document.activeElement?.id||document.activeElement?.className||'')") as? String ?? "?") undo=\(report.reportUndo.count) :: \(dom.prefix(3000))")
+        }
         v.appendReport(ReportEntry(id:id,title:"Editing checks",operation:"",body:"<p id='edit-note'>Original interpretation</p><p id='edit-align'>Aligned note</p><p id='edit-heading'>Editable heading</p><p id='edit-bullet'>Interpretation bullet</p><p id='edit-number'>Interpretation step</p><p id='edit-font'>Formatting sample</p><p id='edit-super'>Superscript sample</p><p id='edit-sub'>Subscript sample</p><p id='edit-clear'>Clear sample</p><p id='edit-typing'>Typing: </p><p id='edit-indent'>Indented interpretation</p><p id='edit-nested'>Nested bullet</p><table><tr><th>Measure</th><th>Value</th></tr><tr><td>Estimate</td><td>12.5</td></tr></table>",rPlan:nil))
         try await settled(report)
-        try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true);let p=document.getElementById('edit-note');p.parentElement.focus();window.getSelection().selectAllChildren(p);document.execCommand('insertText',false,'Edited interpretation');")
+        try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true);let p=document.getElementById('edit-note');document.getElementById('report-results').focus();window.getSelection().selectAllChildren(p);document.execCommand('insertText',false,'Edited interpretation');")
         try await settled(report)
         precondition(report.reportEntries!.last!.editedBody!.contains("Edited interpretation") && report.reportDirty)
         try await report.web.evaluateJavaScript("window.getSelection().selectAllChildren(document.getElementById('edit-note'));StatsDirectReportEditor.command('bold');StatsDirectReportEditor.command('underline');")
@@ -353,6 +357,7 @@ import PDFKit
         })()
         """) as! [String:Any]
         print("Editor formatting:",controls);fflush(stdout)
+        try await stage("controls")
         precondition((controls["font"] as! String).contains("Times New Roman") && abs(Double((controls["size"] as! String).replacingOccurrences(of:"px",with:""))!-24.6667)<0.02)
         precondition(controls["color"] as! String=="rgb(192, 0, 0)" && controls["background"] as! String=="rgb(255, 255, 0)" && controls["line"] as! String=="2" && controls["selection"] as! String=="Formatting sample")
         try await settled(report)
@@ -363,6 +368,7 @@ import PDFKit
         try await report.web.evaluateJavaScript("StatsDirectReportEditor.command('redo');")
         try await settled(report)
         precondition(report.reportEntries!.last!.editedBody == sized)
+        try await stage("sized undo/redo")
         try await report.web.evaluateJavaScript("""
         (()=>{
           const e=StatsDirectReportEditor,s=window.getSelection();
@@ -377,20 +383,31 @@ import PDFKit
         try await settled(report)
         let typed=try await report.web.evaluateJavaScript("getComputedStyle(document.getElementById('edit-typing').lastElementChild).fontSize") as! String
         precondition(abs(Double(typed.replacingOccurrences(of:"px",with:""))!-26.6667)<0.02)
+        try await stage("second batch")
         // Native Format dispatch uses the same selection as the toolbar.
         try await report.web.evaluateJavaScript("window.getSelection().selectAllChildren(document.getElementById('edit-align'))")
         let menu=NSMenuItem(title:"Right",action:#selector(Viewer.reportFormatCommand(_:)),keyEquivalent:"");menu.representedObject=["command":"justifyRight","value":""]
         precondition(v.validateMenuItem(menu));v.reportFormatCommand(menu);try await settled(report)
         let right=try await report.web.evaluateJavaScript("document.getElementById('edit-align').style.textAlign") as! String
         precondition(right=="right")
+        try await stage("justifyRight")
         try await report.web.evaluateJavaScript("StatsDirectReportEditor.command('justifyCenter');")
         try await settled(report)
+        try await stage("justifyCenter")
         let chartHTML=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').outerHTML") as! String
-        try await report.web.evaluateJavaScript("window.getSelection().selectAllChildren(document.querySelector('.report-body'));StatsDirectReportEditor.command('fontSize','48');")
+        try await report.web.evaluateJavaScript("window.getSelection().selectAllChildren(document.querySelector('.report-entry'));StatsDirectReportEditor.command('fontSize','48');")
         let chartAfter=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').outerHTML") as! String
-        precondition(chartHTML==chartAfter)
+        precondition(chartHTML==chartAfter,"formatting a result must leave its chart unchanged")
+        try await stage("fontSize 48")
+        let noteBefore=try await report.web.evaluateJavaScript("document.getElementById('edit-note')?.outerHTML ?? 'missing'") as! String
+        let modelBefore=report.reportEntries!.first(where:{$0.id==id})?.editedBody ?? "nil"
         v.appendReport(ReportEntry(id:UUID().uuidString,title:"Later result",operation:"",body:"<p>Later result retained</p>",rPlan:nil))
         try await settled(report)
+        if !(report.reportEntries!.first(where:{$0.id==id})?.editedBody ?? "").contains("Edited interpretation") {
+            print("Editing entry before append (DOM):", noteBefore); print("Editing entry before append (model):", modelBefore.prefix(600))
+            print("Editing entry after append (model):", (report.reportEntries!.first(where:{$0.id==id})?.editedBody ?? "nil").prefix(600)); print("Entries:", report.reportEntries!.map{$0.id}, "undo:", report.reportUndo.count)
+            try await stage("append"); for line in trace {print(line)}; fflush(stdout)
+        }
         precondition(report.reportEntries!.first(where:{$0.id==id})!.editedBody!.contains("Edited interpretation"))
         let visible=try await report.web.evaluateJavaScript("document.body.innerText") as! String
         precondition(visible.contains("Edited interpretation") && visible.contains("Later result retained"))
@@ -416,47 +433,96 @@ import PDFKit
         print("PASS: report typing, formatting, native undo/redo, append preservation, plot removal/restore, edited HTML/PDF/DOCX and editable HTML reopen");fflush(stdout)
     }
 
+    // The report is one editable region: results are blocks in it, selection and commands cross them,
+    // Clear formatting works as a word processor's, and help, R and chart sizing live in the host's menus.
+    @MainActor static func singleRegion(_ v: Viewer, output: URL) async throws {
+        let report=v.makeReport(),a="region-a",b="region-b"
+        report.reportEntries=[
+            ReportEntry(id:a,title:"Alpha",operation:"TPaired",body:"<h1 id='sr-a-h'>Alpha</h1><p id='sr-a1'>Alpha one</p><p id='sr-a2' style='text-align:right;font-size:18pt'><b>Alpha</b> <span style='color:#ff0000'>two</span></p>",rPlan:RScriptPlan(script:"x <- 1",hasRecipe:true,detail:"Recipe"),helpPath:"Help/parametric_methods/paired_t.htm"),
+            ReportEntry(id:b,title:"Beta",operation:"",body:"<h1 id='sr-b-h'>Beta heading</h1><p id='sr-b1' style='font-style:italic'>Beta <u>one</u></p><svg id='sr-svg' viewBox='0 0 100 40' width='100' height='40'><text x='5' y='25'>Chart</text></svg><p id='sr-b2'>Beta two</p>",rPlan:nil)]
+        report.reportEditing=true;v.renderReport(report);try await settled(report)
+        func js(_ script:String) async throws -> Any {try await report.web.evaluateJavaScript(script) ?? NSNull()}
+        func check(_ expression:String,_ reason:String) async throws {
+            let ok=try await js(expression) as? Bool == true
+            if !ok {print("Region failure:",reason,try await js("document.getElementById('report-results').innerHTML"));fflush(stdout)}
+            precondition(ok,reason)
+        }
+        try await check("(()=>{const r=document.getElementById('report-results');return r.isContentEditable&&r.classList.contains('report-body')&&document.querySelectorAll('#report-results [contenteditable=\"true\"]').length===0&& !r.querySelector('.report-controls,.report-links,button,input,select,.report-annotation');})()","the region is the one editable element and holds no controls")
+        try await check("(()=>{const e=document.getElementById('result-region-a');return e.dataset.resultId==='region-a'&&e.dataset.help==='Help/parametric_methods/paired_t.htm'&&e.dataset.r==='recipe'&&e.getAttribute('aria-label')==='Alpha'&& !document.getElementById('result-region-b').dataset.r;})()","result blocks carry their id, help and R availability")
+        // A selection from one result into the next, formatted in one step: both results change, one undo restores both.
+        _ = try await js("(()=>{const r=document.createRange(),a=document.getElementById('sr-a2').lastChild.firstChild,b=document.getElementById('sr-b1').firstChild;document.getElementById('report-results').focus();r.setStart(a,1);r.setEnd(b,3);const s=getSelection();s.removeAllRanges();s.addRange(r);StatsDirectReportEditor.command('underline');})()")
+        try await settled(report)
+        precondition(report.reportUndo.last!.edits.count==2,"a command across two results is one transaction of two edits")
+        try await check("(()=>{const underlined=root=>!!root.querySelector('u,[style*=\"underline\"]');return underlined(document.getElementById('sr-a2'))&&underlined(document.getElementById('sr-b-h'))&&underlined(document.getElementById('sr-b1'));})()","the selection crossed the result boundary")
+        _ = try await js("StatsDirectReportEditor.command('undo')");try await settled(report)
+        try await check("!document.querySelector('#sr-a2 u,#sr-a2 [style*=\"underline\"],#sr-b-h u,#sr-b-h [style*=\"underline\"]')&&document.getElementById('sr-b1').querySelectorAll('u').length===1","undo restored both results")
+        // Clear formatting with a caret clears the paragraph at the caret: inline elements, inline styles and the block's own styles.
+        _ = try await js("(()=>{const r=document.createRange(),n=document.getElementById('sr-a2').lastChild.firstChild;document.getElementById('report-results').focus();r.setStart(n,1);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r);StatsDirectReportEditor.command('removeFormat');})()")
+        try await settled(report)
+        try await check("(()=>{const p=document.getElementById('sr-a2');return p.textContent==='Alpha two'&& !p.querySelector('b,span,font')&& !p.getAttribute('style')&& !!document.getElementById('sr-a1')&&document.getElementById('sr-b1').getAttribute('style')==='font-style:italic';})()","caret Clear formatting cleared only its paragraph")
+        _ = try await js("StatsDirectReportEditor.command('undo')");try await settled(report)
+        try await check("document.getElementById('sr-a2').getAttribute('style')==='text-align:right;font-size:18pt'&& !!document.querySelector('#sr-a2 b')","undo restored the paragraph's formatting")
+        // With a selection it clears every block the selection touches, across results, passing over the chart and keeping the heading.
+        let svgBefore=try await js("document.getElementById('sr-svg').outerHTML") as! String
+        _ = try await js("(()=>{const r=document.createRange(),a=document.getElementById('sr-a2').firstChild.firstChild,b=document.getElementById('sr-b2').firstChild;document.getElementById('report-results').focus();r.setStart(a,2);r.setEnd(b,4);const s=getSelection();s.removeAllRanges();s.addRange(r);StatsDirectReportEditor.command('removeFormat');})()")
+        try await settled(report)
+        // The partly selected paragraph loses its own styles and the formatting of the selected text; the unselected start keeps its bold.
+        try await check("(()=>{const a=document.getElementById('sr-a2'),b1=document.getElementById('sr-b1');return !a.getAttribute('style')&&a.lastChild.nodeType===3&&a.lastChild.textContent==='pha two'&&a.textContent==='Alpha two'&&!b1.getAttribute('style')&&!b1.querySelector('u')&&document.getElementById('sr-b-h').tagName==='H1'&&document.getElementById('sr-svg').outerHTML===\(v.jsString(svgBefore));})()","selection Clear formatting cleared every touched block, kept the heading and passed over the chart")
+        precondition(report.reportUndo.last!.edits.count==2)
+        _ = try await js("StatsDirectReportEditor.command('undo')");try await settled(report)
+        // What a right-click is on reaches the host: the result, its help and R, and whether a chart is there.
+        _ = try await js("document.getElementById('sr-b1').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");try await settled(report)
+        let context=try await js("StatsDirectReportEditor.contextTarget()") as! [String:Any]
+        precondition(context["resultId"] as? String==b && context["inReport"] as? Bool==true && context["picture"] as? Bool==false && (context["help"] is NSNull||context["help"]==nil) && report.reportContext["resultId"] as? String==b,"context target \(context) / host \(report.reportContext)")
+        _ = try await js("document.getElementById('sr-svg').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");try await settled(report)
+        precondition(report.reportContext["picture"] as? Bool==true && report.reportContext["resultId"] as? String==b)
+        _ = try await js("document.getElementById('sr-a1').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");try await settled(report)
+        precondition(report.reportContext["help"] as? String=="Help/parametric_methods/paired_t.htm" && report.reportContext["r"] as? String=="recipe")
+        let menu=NSMenu();v.extendReportMenu(menu,for:report)
+        let titles=menu.items.map(\.title)
+        precondition(titles.starts(with:["Method Help","Continue in R","Select Result","Select All Results"]),"context menu items: \(titles)")
+        // Typing on past the last result stays in that result; a result is revealed below the toolbar.
+        _ = try await js("(()=>{const p=document.getElementById('sr-b2'),r=document.createRange();document.getElementById('report-results').focus();r.selectNodeContents(p);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('insertParagraph');document.execCommand('insertText',false,'Tail text');})()")
+        try await settled(report)
+        try await check("document.getElementById('result-region-b').textContent.includes('Tail text')&&[...document.getElementById('report-results').children].every(e=>e.matches('.report-entry[data-result-id]'))","text typed after the last result belongs to it")
+        precondition((report.reportEntries!.last!.editedBody ?? "").contains("Tail text"))
+        precondition(try await js("StatsDirectReportEditor.reveal('region-b')&&document.getElementById('report-results').style.getPropertyValue('--reveal-room')!==''") as? Bool==true)
+        let exported=String(decoding:try await v.reportExportData(report,format:.html),as:UTF8.self)
+        precondition(exported.contains("https://www.statsdirect.com/help/parametric_methods/paired_t.htm") && !exported.contains("data-help") && !exported.contains("contenteditable"),"the saved report carries the method link, not the editing attributes")
+        v.remove(report)
+        print("PASS: one editable region: no controls in the report, commands and Clear formatting across results, context target with help/R/chart, text after the last result, reveal, and the method link in the saved report");fflush(stdout)
+    }
+
     @MainActor static func chartResizing(_ v: Viewer, report: Document, output: URL) async throws {
         v.tabs.selectTabViewItem(report.item)
         try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true)")
         let original=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').innerHTML") as! String
         let originalViewBox=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').getAttribute('viewBox')") as! String
         let undoCount=report.reportUndo.count
-        try await report.web.evaluateJavaScript("(()=>{const input=document.querySelector('.report-chart-sizing input');input.focus();input.value='324';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()")
+        // The chart is selected by a click; the toolbar's width field and Fit then size it. Nothing sits in the report itself.
+        try await report.web.evaluateJavaScript("(()=>{const s=document.querySelector('.report-body svg');s.dispatchEvent(new MouseEvent('click',{bubbles:true}));})()")
+        let none=try await report.web.evaluateJavaScript("!document.querySelector('.report-body .report-chart-sizing,.report-body .report-chart-resize,.report-body .report-controls')") as! Bool
+        precondition(none,"sizing controls must not be in the report")
+        let enabled=try await report.web.evaluateJavaScript("(()=>{const i=document.querySelector('[data-format=pictureWidth]');return !i.disabled&&Number(i.value)>0;})()") as! Bool
+        precondition(enabled,"the toolbar width field follows the selected chart")
+        try await report.web.evaluateJavaScript("(()=>{const input=document.querySelector('[data-format=pictureWidth]');input.focus();input.value='324';input.dispatchEvent(new Event('change',{bubbles:true}));})()")
         try await settled(report)
         precondition(report.reportUndo.count==undoCount+1)
         let width=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').getBoundingClientRect().width") as! Double
         precondition(abs(width-324)<1)
         let fieldHandled=try await report.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand('undo')") as! Bool
         precondition(!fieldHandled,"Width-field Undo must stay in the text input")
-        try await report.web.evaluateJavaScript("document.querySelector('.report-chart-resize').focus()")
+        try await report.web.evaluateJavaScript("document.querySelector('.report-body .report-media').focus()")
         let handled=try await report.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand('undo')") as! Bool
         precondition(handled);try await settled(report)
         precondition(report.reportUndo.count==undoCount)
         try await report.web.evaluateJavaScript("StatsDirectReportEditor.command('redo')");try await settled(report)
-        // Real pointer handlers: many moves form one native undo step. Escape
-        // cancels a drag, and keyboard resizing follows the same history path.
-        try await report.web.evaluateJavaScript("""
-        (()=>{const h=document.querySelector('.report-chart-resize');h.dispatchEvent(new PointerEvent('pointerdown',{pointerId:7,button:0,clientX:400,clientY:300,bubbles:true}));document.dispatchEvent(new PointerEvent('pointermove',{pointerId:7,clientX:380,clientY:290,bubbles:true}));document.dispatchEvent(new PointerEvent('pointermove',{pointerId:7,clientX:375,clientY:285,bubbles:true}));})()
-        """)
-        try await settled(report);precondition(report.reportUndo.count==undoCount+1)
-        try await report.web.evaluateJavaScript("document.dispatchEvent(new PointerEvent('pointerup',{pointerId:7,bubbles:true}))")
-        try await settled(report);precondition(report.reportUndo.count==undoCount+2)
-        let dragged=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').style.width") as! String
-        precondition(dragged=="274px")
-        try await report.web.evaluateJavaScript("""
-        (()=>{const h=document.querySelector('.report-chart-resize');h.dispatchEvent(new PointerEvent('pointerdown',{pointerId:8,button:0,clientX:400,clientY:300,bubbles:true}));document.dispatchEvent(new PointerEvent('pointermove',{pointerId:8,clientX:350,clientY:270,bubbles:true}));h.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));})()
-        """)
-        try await settled(report);precondition(report.reportUndo.count==undoCount+2)
-        let cancelled=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').style.width") as! String
-        precondition(cancelled==dragged)
-        try await report.web.evaluateJavaScript("document.querySelector('.report-chart-resize').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',shiftKey:true,bubbles:true}))")
+        let redone=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').style.width") as! String
+        precondition(redone=="324px")
+        // The context menu's commands act on the selected chart too.
+        try await report.web.evaluateJavaScript("(()=>{document.querySelector('.report-body svg').dispatchEvent(new MouseEvent('click',{bubbles:true}));StatsDirectReportEditor.command('pictureWidth','320');})()")
         try await settled(report)
-        let keyboard=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').style.width") as! String
-        precondition(keyboard=="299px")
-        try await report.web.evaluateJavaScript("(()=>{const input=document.querySelector('.report-chart-sizing input');input.value='320';input.dispatchEvent(new Event('change'));})()")
-        try await settled(report)
-        try await report.web.evaluateJavaScript("document.querySelector('.report-chart-sizing button').click()")
+        try await report.web.evaluateJavaScript("StatsDirectReportEditor.command('pictureFit')")
         try await settled(report)
         let fit=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').style.width") as! String
         precondition(fit=="100%")
@@ -467,7 +533,7 @@ import PDFKit
         precondition(narrow)
         let png=try await report.web.evaluateJavaScript("(()=>{const c=document.createElement('canvas');c.width=100;c.height=50;const x=c.getContext('2d');x.fillStyle='#197c70';x.fillRect(0,0,100,50);return c.toDataURL('image/png');})()") as! String
         v.appendReport(ReportEntry(id:UUID().uuidString,title:"Raster picture resize",operation:"",body:"<p>Raster picture resize</p><img alt='Raster resize check' src='\(png)'>",rPlan:nil));try await settled(report)
-        try await report.web.evaluateJavaScript("(()=>{const img=document.querySelector('.report-body img[alt=\"Raster resize check\"]'),input=img.closest('.report-media').querySelector('input');input.value='200';input.dispatchEvent(new Event('change'));})()")
+        try await report.web.evaluateJavaScript("(()=>{const img=document.querySelector('.report-body img[alt=\"Raster resize check\"]');img.dispatchEvent(new MouseEvent('click',{bubbles:true}));const input=document.querySelector('[data-format=pictureWidth]');input.value='200';input.dispatchEvent(new Event('change'));})()")
         try await settled(report)
         let raster=try await report.web.evaluateJavaScript("(()=>{const b=document.querySelector('.report-body img[alt=\"Raster resize check\"]').getBoundingClientRect();return b.width===200&&b.height===100;})()") as! Bool
         precondition(raster)
@@ -485,7 +551,7 @@ import PDFKit
         let bounds=try await reopened.web.evaluateJavaScript("document.querySelector('.report-body svg').getAttribute('viewBox')") as! String
         precondition(bounds==originalViewBox,"HTML reopening changed the generated chart's bounds or text alignment")
         try (await v.reportExportData(reopened,format:.docx)).write(to:output.appendingPathComponent("resized-reopened-report.docx"))
-        print("PASS: SVG/raster resize, pointer drag/cancel, keyboard, fit, single-step native undo/redo, responsive proportions, clipboard and HTML/PDF/DOCX persistence");fflush(stdout)
+        print("PASS: chart and picture sizing from the toolbar and the context menu's commands, single-step native undo/redo, responsive proportions, clipboard and HTML/PDF/DOCX persistence; no controls in the report");fflush(stdout)
     }
 
     @MainActor static func archived(_ v: Viewer, url: URL, output: URL) async throws {

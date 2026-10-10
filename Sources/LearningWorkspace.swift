@@ -135,9 +135,9 @@ import WebKit
             let plan = try? RScriptGenerator.generate(operation:operation,title:title,output:output,resources:viewer.root)
             let id = UUID().uuidString, html = output["html"] as? String ?? ""
             let history = String(decoding:try JSONSerialization.data(withJSONObject:output["history"] ?? [],options:[.prettyPrinted,.sortedKeys]),as:UTF8.self)
-            let body = "<h1>\(viewer.htmlEscape(title))</h1><p class='muted'>Calculated from the worksheet by StatsDirect \(viewer.htmlEscape(viewer.engineVersion)) · Learning</p>" + html + viewer.reportLinks(plan,helpPath:viewer.analysisCatalog[operation]?["help"] as? String,resultID:id) + "<details><summary>Inputs used for this report</summary><pre>\(viewer.htmlEscape(history))</pre></details>"
+            let body = "<h1>\(viewer.htmlEscape(title))</h1><p class='muted'>Calculated from the worksheet by StatsDirect \(viewer.htmlEscape(viewer.engineVersion)) · Learning</p>" + html + "<details><summary>Inputs used for this report</summary><pre>\(viewer.htmlEscape(history))</pre></details>"
             let previous = viewer.learningLastDocumentID
-            let report = viewer.appendReport(ReportEntry(id:id,title:title,operation:operation,body:body,rPlan:plan))
+            let report = viewer.appendReport(ReportEntry(id:id,title:title,operation:operation,body:body,rPlan:plan,helpPath:viewer.analysisCatalog[operation]?["help"] as? String))
             viewer.learningLastDocumentID = previous
             if let learner { viewer.tabs.selectTabViewItem(learner.item) }
             let result: [String:Any] = ["state":"complete","operation":operation,"engineVersion":viewer.engineVersion,"datasetId":datasetID,"report":report.title,"reportId":report.id,"resultId":id,"text":Self.plain(html),"inputHistory":output["history"] ?? [],"values":output["values"] ?? [:],"hasSVG":html.contains("<svg")]

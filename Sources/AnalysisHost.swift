@@ -110,11 +110,10 @@ extension Viewer {
         <h1>Chi-square R × C</h1><p class="lead">\(counts.count) × \(counts[0].count) contingency table</p><p class="muted">\(stamp)</p>
         <div class="summary"><div><span>Pearson chi-square</span><strong>\(number(values["chio"] as? Double ?? .nan))</strong></div><div><span>P</span><strong>\(number(values["po"] as? Double ?? .nan))</strong></div><div><span>Observations</span><strong>\(number(output["total"] as? Double ?? .nan))</strong></div></div>
         \(warnings)\(skipped)<section class="engine-report">\(html)</section>
-        \(reportLinks(rPlan, helpPath: "Help/chi_square_tests/rc.htm", helpLabel: "R × C contingency table: method and worked example →", resultID: resultID))
         <details><summary>Input counts and options used for this report</summary><table><thead><tr><th>Category</th>\(headers)</tr></thead><tbody>\(rows)</tbody></table><p>\(htmlEscape(options)) · \(number(confidence))% confidence</p>\(scores)</details>
         <p class="muted">Calculated by the full StatsDirect \(htmlEscape(engineVersion)) headless engine, operation ExactChiRbyCScreen, using its original HTML report renderer. The input form stays open for further edits.</p>
         """
-        previewResult(ReportEntry(id: resultID, title: "Chi-square R × C", operation: "ExactChiRbyCScreen", body: body, rPlan: rPlan), in: doc)
+        previewResult(ReportEntry(id: resultID, title: "Chi-square R × C", operation: "ExactChiRbyCScreen", body: body, rPlan: rPlan, helpPath: "Help/chi_square_tests/rc.htm"), in: doc)
     }
     func saveAnalysisTable(_ doc: Document) {
         let version = doc.gridVersion

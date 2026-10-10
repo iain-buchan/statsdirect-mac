@@ -268,11 +268,10 @@ extension Viewer {
         let body = """
         <div class="eyebrow">Analysis / StatsDirect</div><h1>\(htmlEscape(doc.title))</h1><p class="muted">\(stamp)</p>
         <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)\(note.map { "<p class=\"note\">\(htmlEscape($0))</p>" } ?? "")</section>
-        \(reportLinks(rPlan, helpPath: methodPath, resultID: resultID))
         <details><summary>Inputs used for this report</summary><pre>\(htmlEscape(String(decoding: inputData, as: UTF8.self)))</pre></details>
         <p class="muted">Calculated by the StatsDirect \(htmlEscape(engineVersion)) engine · \(htmlEscape(doc.operationName ?? ""))</p>
         """
-        let entry = ReportEntry(id: resultID, title: doc.title, operation: doc.operationName ?? "", body: body, rPlan: rPlan)
+        let entry = ReportEntry(id: resultID, title: doc.title, operation: doc.operationName ?? "", body: body, rPlan: rPlan, helpPath: methodPath)
         if doc.operationName.flatMap({ analysisCatalog[$0]?["instant"] as? Bool }) == true {
             previewResult(entry, in: doc)
         } else { appendReport(entry) }

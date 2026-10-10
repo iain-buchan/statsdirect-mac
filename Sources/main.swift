@@ -56,6 +56,8 @@ final class Document {
     var operationSnapshotSourceID: String?
     var operationInputEntered = false
     var reportEntries: [ReportEntry]?
+    // The result, help, R and chart under the pointer at the last right-click (from the editor's context message).
+    var reportContext: [String: Any] = [:]
     var reportUndo: [ReportChange] = []
     var reportRedo: [ReportChange] = []
     var reportEditing = false
@@ -72,10 +74,22 @@ final class Document {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.setURLSchemeHandler(SnapshotStore.shared, forURLScheme: SnapshotStore.scheme)
-        web = WKWebView(frame: .zero, configuration: config)
+        let view = ReportWebView(frame: .zero, configuration: config)
+        web = view
         item = NSTabViewItem(identifier: id)
+        view.document = self
         item.label = title
         item.view = web
+    }
+}
+
+// The web view of every document; for a report it adds the result's help, R script, selection and chart sizing
+// to the context menu, from what the editor reported at the right-click.
+final class ReportWebView: WKWebView {
+    weak var document: Document?
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        super.willOpenMenu(menu, with: event)
+        if let document, document.kind == "report", let viewer = NSApp.delegate as? Viewer { viewer.extendReportMenu(menu, for: document) }
     }
 }
 
@@ -580,7 +594,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         guard let doc = document(for: webView) else { return }
         if let id = doc.scrollToResultID {
             doc.scrollToResultID = nil
-            webView.evaluateJavaScript("document.getElementById(\(jsString("result-" + id)))?.scrollIntoView()")
+            webView.evaluateJavaScript("StatsDirectReportEditor.reveal(\(jsString(id)))")
         }
         if doc.kind == "help", webView.url?.lastPathComponent != "help-index.html" {
             webView.evaluateJavaScript("document.querySelector('h1')?.textContent?.trim() || document.title") { value, _ in

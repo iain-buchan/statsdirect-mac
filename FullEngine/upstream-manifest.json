@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "14461275e42883876d3a84be19e5052086073195",
+  "commit": "4ee43dc66c038f6deff1933e4fb8d42f52fafbec",
   "version": "5.0.14",
   "sha256": {
     "Layout/Axis.cs": "37b781cfd82f963f5ba9f24295b008af80fe12d9a4e3ddd0649140c14e8785ef",
@@ -110,7 +110,7 @@
     "StatsDirectUI/Assets/Operations/Kruskal.xml": "7a597a9763e528ef3bb1f974cfe9ce5389f70e7eda674e0fb494f1cf02da3347",
     "StatsDirectUI/Assets/Operations/KruskalSimulateExactP.xml": "c7e4cf426b93014e2ab1d4129169429d0fdd244e54c7c6a86912d283da869909",
     "StatsDirectUI/Assets/Operations/KruskalWallisMulti.xml": "44da09c3e2d01a917b39d45d547311bd5c462fc706ce2986d73874df7137003d",
-    "StatsDirectUI/Assets/Operations/LOESS.xml": "652af455ac9630cedbc2ec1cef42b8c1dc2c0504bebea034ba3389c5ae92c0f5",
+    "StatsDirectUI/Assets/Operations/LOESS.xml": "38354767689a7faeac49123edc561ba30c71db4298957c54f3e2f0cca3792e55",
     "StatsDirectUI/Assets/Operations/LadderPlot.xml": "d18515db87b657cd06a561669ef798f6946f0956c878f634e0278e3dfb89ba4c",
     "StatsDirectUI/Assets/Operations/LadderPowers.xml": "af0e4d0e600bb831c76a1df28d7cd5cee595a0d1e2bc60d20448fb579d190584",
     "StatsDirectUI/Assets/Operations/LatinSquare.xml": "812aee4cf9474194572249c058bccbb3bde316b10366c9191b76100ccddead66",

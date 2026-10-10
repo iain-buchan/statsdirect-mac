@@ -84,7 +84,10 @@ import PDFKit
   let grid=v.newDocument(kind:"grid",title:"Large selected table fixture",url:v.root.appendingPathComponent("Grid/index.html"))
   defer {v.remove(grid)}
   try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:!!window.statsDirectGrid})"))?["ok"] as? Bool == true}
-  _=try await asyncJavaScript(grid,"await statsDirectGrid.loadWorkbook({name:'Counts',sheets:[{name:'Counts',columns:2,rows:500001,headerRow:false,cells:[{col:0,row:0,text:'12',kind:'number'},{col:1,row:500000,text:'17',kind:'number'}]}]});return {ok:true};")
+  _=try await asyncJavaScript(grid,"window.entryWorkbookBeforeLoad=statsDirectGrid;await statsDirectGrid.loadWorkbook({name:'Counts',sheets:[{name:'Counts',columns:2,rows:500001,headerRow:false,cells:[{col:0,row:0,text:'12',kind:'number'},{col:1,row:500000,text:'17',kind:'number'}]}]});return {ok:true};")
+  // React publishes the new edit-command closure after loadWorkbook returns.
+  // Wait for that effect before selecting, as a user does after seeing the worksheet.
+  try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:statsDirectGrid!==window.entryWorkbookBeforeLoad&&document.querySelector('[role=status]')?.textContent.includes('Opened Counts')})"))?["ok"] as? Bool == true}
   _=try await v.learningJavaScript(grid,"({ok:statsDirectGrid.editCommand('selectAll','')})")
   try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:!!statsDirectGrid.analysisSource().screenDeferred})"))?["ok"] as? Bool == true}
   form.operationSourceID=grid.id

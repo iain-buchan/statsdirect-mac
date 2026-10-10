@@ -34,6 +34,11 @@ import WebKit
         UserDefaults.standard.set(false,forKey:"automaticUpdateChecks")
         let v=Viewer(); app.delegate=v
         let watchdog=DispatchWorkItem {
+            let sample=Process(), trace=FileManager.default.temporaryDirectory.appendingPathComponent("calculator-timeout.txt")
+            sample.executableURL=URL(fileURLWithPath:"/usr/bin/sample")
+            sample.arguments=[String(ProcessInfo.processInfo.processIdentifier),"1","-file",trace.path]
+            if (try? sample.run()) != nil { sample.waitUntilExit() }
+            if let output=try? String(contentsOf:trace,encoding:.utf8) { print(output) }
             print("FAIL: native calculator checks exceeded 120 seconds"); fflush(stdout); exit(1)
         }
         DispatchQueue.global().asyncAfter(deadline:.now()+120,execute:watchdog)
@@ -87,7 +92,10 @@ import WebKit
         try check(lines>1 && c.input.string==long,"long expressions visually wrap without changing expression text")
         c.calculate(); try await until { !c.busy }
         try check(c.result.string=="180","wrapped expression evaluates correctly")
-        c.input.string="ABC"; c.input.setSelectedRange(NSRange(location:1,length:1)); c.savedMenu.selectItem(withTag:0); c.selectionChanged()
+        // Earlier arithmetic cases assign text directly, bypassing NSTextView's
+        // undo registration. Start a fresh baseline before testing real edits.
+        c.input.breakUndoCoalescing(); c.input.string="ABC"; c.input.undoManager?.removeAllActions()
+        c.input.setSelectedRange(NSRange(location:1,length:1)); c.savedMenu.selectItem(withTag:0); c.selectionChanged()
         try check(c.input.string=="ABC" && c.recallButton.isEnabled && c.insertButton.isEnabled,"choosing a saved calculation does not modify the expression")
         c.useSaved()
         try check(c.input.string=="A2+\n3*4C","saved expression replaces selected input")
@@ -101,7 +109,8 @@ import WebKit
         c.recallSaved()
         try check(c.input.string=="2+\n3*4" && c.result.string=="14" && c.copyResultButton.isEnabled,"Recall restores the entire saved expression and result")
         try await historyCommand(v); try check(c.input.string=="ABC" && c.result.string.isEmpty,"Recall is undoable without leaving a stale answer")
-        c.input.string="2+3"; c.input.setSelectedRange(NSRange(location:1,length:1)); c.input.insertText("*",replacementRange:c.input.selectedRange())
+        c.input.breakUndoCoalescing(); c.input.string="2+3"; c.input.undoManager?.removeAllActions()
+        c.input.setSelectedRange(NSRange(location:1,length:1)); c.input.insertText("*",replacementRange:c.input.selectedRange())
         c.calculate(); try await until { !c.busy }
         let caret=c.input.selectedRange()
         c.toggleMode(); try await settle()

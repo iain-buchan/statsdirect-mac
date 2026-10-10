@@ -1,0 +1,48 @@
+name: Native interface checks
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release or draft providing the packaged engine and runtime
+        required: true
+      suite:
+        description: Native interface to check using the current source
+        required: true
+        type: choice
+        options: [calculator, help, report]
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      SUITE: ${{ inputs.suite }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Get the packaged runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          package="StatsDirect-${RELEASE_TAG#v}-macOS-arm64.zip"
+          gh release download "$RELEASE_TAG" --pattern "$package" --pattern SHA256SUMS.txt
+          shasum -a 256 -c <(grep -F "  $package" SHA256SUMS.txt)
+          ditto -x -k "$package" .
+      - name: Check the native interface
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .build
+          case "$SUITE" in
+            calculator) Scripts/test-calculator-pane.sh ;;
+            help) Scripts/test-help-pane.sh ;;
+            report) Scripts/test-report-export.sh ;;
+            *) exit 2 ;;
+          esac

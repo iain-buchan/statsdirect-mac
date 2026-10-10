@@ -38,6 +38,8 @@ cp "$BUILD_WORK/StatsDirect.icns" "$APP/Contents/Resources/StatsDirect.icns"
 cp Info.plist "$APP/Contents/Info.plist"
 python3 Scripts/bundle-chatgpt.py "$APP" "$BUILD_WORK/codex-runtime"
 cp STATSDIRECT-LICENSE.txt STATISTICALHELP-LICENSE.txt DOTNET-LICENSE.txt DOTNET-ThirdPartyNotices.txt "$APP/Contents/Resources/"
+# Replace the generated help as a unit so removed upstream assets cannot linger.
+rm -rf "$APP/Contents/Resources/Content/Help"
 ditto Content "$APP/Contents/Resources/Content"
 codesign --force --sign - "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
 codesign --force --sign - "$APP"

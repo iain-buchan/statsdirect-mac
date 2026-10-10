@@ -74,6 +74,10 @@ jobs:
           python3 Tests/test_excel_structures.py .build/workbook-driver
           python3 Tests/test_excel_compatibility.py .build/workbook-driver "$(command -v node)"
           python3 Tests/test_data_files.py .build/data-file-driver "$(command -v node)"
+      - name: Offline HTML5 help
+        run: |
+          python3 Tests/test_desktop_help.py
+          Scripts/test-help-pane.sh
       - name: Report export
         run: Scripts/test-report-export.sh
       - name: WebKit integration driver

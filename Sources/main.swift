@@ -84,6 +84,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var window: NSWindow!
     var closeApproved = false
     var tabs: NSTabView!
+    let workspaceSplit = NSSplitView()
+    lazy var helpPane = HelpPane(root: root.appendingPathComponent("Help"))
+    var helpKeyMonitor: Any?
     let documentTabs = NSStackView()
     let documentTabScroll = NSScrollView()
     var status: NSTextField!
@@ -151,14 +154,20 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         status = NSTextField(labelWithString: "Ready")
         status.font = .systemFont(ofSize: 11); status.textColor = .secondaryLabelColor
         status.lineBreakMode = .byTruncatingTail
-        for view in [bar, documentTabScroll, tabs!, status!] { view.translatesAutoresizingMaskIntoConstraints = false; container.addSubview(view) }
+        workspaceSplit.isVertical = true; workspaceSplit.dividerStyle = .thin
+        workspaceSplit.addArrangedSubview(tabs)
+        helpPane.attach(to: workspaceSplit, owner: window)
+        helpKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 122 { self?.currentMethodHelp(); return nil }; return event
+        }
+        for view in [bar, documentTabScroll, workspaceSplit, status!] { view.translatesAutoresizingMaskIntoConstraints = false; container.addSubview(view) }
         NSLayoutConstraint.activate([
             bar.heightAnchor.constraint(equalToConstant: 32), status.heightAnchor.constraint(equalToConstant: 16),
             bar.topAnchor.constraint(equalTo: container.topAnchor, constant: 4), bar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
             documentTabScroll.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 2),
             documentTabScroll.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), documentTabScroll.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8), documentTabScroll.heightAnchor.constraint(equalToConstant: 36),
-            tabs.topAnchor.constraint(equalTo: documentTabScroll.bottomAnchor, constant: 2), tabs.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), tabs.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-            status.topAnchor.constraint(equalTo: tabs.bottomAnchor, constant: 7), status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16), status.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16), status.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
+            workspaceSplit.topAnchor.constraint(equalTo: documentTabScroll.bottomAnchor, constant: 2), workspaceSplit.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), workspaceSplit.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+            status.topAnchor.constraint(equalTo: workspaceSplit.bottomAnchor, constant: 7), status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16), status.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16), status.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
         ])
         if let icon = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")) { NSApp.applicationIconImage = icon }
         setupMenu()
@@ -262,16 +271,17 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             if command=="toggle" {menuItem.title=doc.reportEditing ? "Done Editing Report" : "Edit Report";return true}
             return doc.reportEditing
         }
-        if menuItem.action == #selector(editCommand(_:)) { return active != nil }
-        if menuItem.action == #selector(back) { return active?.web.canGoBack == true }
-        if menuItem.action == #selector(forward) { return active?.web.canGoForward == true }
+        if menuItem.action == #selector(editCommand(_:)) { return helpPane.isFocused || active != nil }
+        if menuItem.action == #selector(closeTab), helpPane.isFocused { return true }
+        if menuItem.action == #selector(back) { return helpPane.web.canGoBack }
+        if menuItem.action == #selector(forward) { return helpPane.web.canGoForward }
         if [#selector(exportReportHTML), #selector(exportReportPDF), #selector(exportReportDOCX)].contains(menuItem.action) { return active?.kind == "report" && active?.fileBusy == false && active?.web.isLoading == false }
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
         if [#selector(saveActiveExcel), #selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
         if menuItem.action == #selector(continueActiveReportInR) { menuItem.title = active?.rScriptPlan?.hasRecipe == false ? "Open Report Data in R" : "Continue Report in R"; return active?.rScriptPlan != nil }
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
         if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
-        if menuItem.action == #selector(printPage) { return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
+        if menuItem.action == #selector(printPage) { if helpPane.isFocused { return true }; return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
         if menuItem.action == #selector(saveDocument) { menuItem.title = active?.kind == "learn" ? "Export Learning Record…" : active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV…") : active?.kind == "analysis" ? "Save Table…" : active?.kind == "report" ? "Save Report…" : "Save PDF…"; return active != nil && active?.kind != "operation" && active?.fileBusy == false }
         if [#selector(closeTab), #selector(printPage), #selector(saveDocument)].contains(menuItem.action) { return active != nil }
         return true
@@ -363,18 +373,14 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         updateWindowMenu(); return doc
     }
     func openHelp(_ url: URL, title: String) {
-        if let existing = documents.first(where: { $0.kind == "help" && $0.initialURL == url }) {
-            tabs.selectTabViewItem(existing.item)
-            if existing.web.url != url { existing.web.loadFileURL(url, allowingReadAccessTo: existing.access) }
-            return
-        }
-        newDocument(kind: "help", title: "Help · \(title)", url: url)
+        helpPane.open(url)
     }
-    @objc func helpLibrary() { openHelp(root.appendingPathComponent("help-index.html"), title: "Library") }
+    @objc func helpLibrary() { helpPane.contents() }
     @objc func currentMethodHelp() {
-        if let doc = active, let operation = doc.operationName, let path = analysisCatalog[operation]?["help"] as? String {
+        if let doc = active, let path = methodHelpPath(doc) {
             openHelp(root.appendingPathComponent(path), title: doc.title)
         } else if active?.kind == "analysis" { chiSquareHelp() }
+        else { helpLibrary() }
     }
     @objc func showAbout() {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0"
@@ -389,6 +395,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func editCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
+        if helpPane.isFocused { _ = fallback(); return }
         if let doc=active, doc.kind=="report", ["copy","cut","paste"].contains(command), window.attachedSheet==nil { reportClipboardCommand(doc, command: command); return }
         if let doc=active, doc.kind=="report", doc.reportEditing, ["undo","redo","selectAll"].contains(command), window.attachedSheet==nil {
             doc.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand(\(jsString(command)))") { handled, error in
@@ -414,6 +421,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func stopRSession() { active?.rPane?.stopSession() }
     @objc func saveRScript() { active?.rPane?.saveScript() }
     @objc func closeTab() {
+        if helpPane.isFocused { helpPane.hide(); return }
         guard let doc = active else { return }
         closeDocument(doc)
     }
@@ -466,8 +474,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         tabs.removeTabViewItem(doc.item)
         updateWindowMenu(); status.stringValue = "\(documents.count) open documents"
     }
-    @objc func back() { active?.web.goBack() }
-    @objc func forward() { active?.web.goForward() }
+    @objc func back() { helpPane.back() }
+    @objc func forward() { helpPane.forward() }
     @objc func openFile() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = (Self.excelExtensions + ["csv", "rds", "rdata", "rda", "html", "htm", "rtf"]).compactMap { UTType(filenameExtension: $0) }
@@ -496,6 +504,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>\(htmlEscape(title))</title><style>\(css)</style></head><body>\(body)</body></html>"
     }
     @objc func printPage() {
+        if helpPane.isFocused { helpPane.printHelp(); return }
         guard active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" else { return }
         guard let web = active?.web else { return }
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
@@ -564,6 +573,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         let allowed = applicationShouldTerminate(NSApp) == .terminateNow
         closeApproved = allowed
+        if allowed { helpPane.shutdown() }
         return allowed
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -578,7 +588,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         return .terminateNow
     }
-    func applicationWillTerminate(_ notification: Notification) { RInstaller.shared.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
+    func applicationWillTerminate(_ notification: Notification) { helpPane.shutdown(); if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }; RInstaller.shared.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 MainActor.assumeIsolated {

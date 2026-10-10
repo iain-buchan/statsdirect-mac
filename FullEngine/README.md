@@ -48,8 +48,9 @@ Review the upstream changes against the Mac platform copies listed above, especi
 
 ```sh
 python3 FullEngine/import_upstream.py
-# If Windows menu/help definitions changed, with a statisticalhelp checkout:
-python3 import_help.py /path/to/statisticalhelp
+# Import the published desktop help independently of the engine pin:
+python3 Scripts/import-desktop-help.py <published-Windows-commit>
+# If menu definitions changed, with a statisticalhelp checkout:
 python3 import_analysis.py FullEngine/Upstream /path/to/statisticalhelp
 # If the example workbook changed, copy it and update Content/Examples/README.md:
 cp FullEngine/Upstream/StatsDirectUI/Assets/Data/test.xlsx Content/Examples/test.xlsx

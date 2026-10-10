@@ -181,20 +181,24 @@ import PDFKit
   print("PASS: learning record HTML, paginated PDF and DOCX exports")
   let report=v.documents.first{$0.reportEntries?.isEmpty == false}!,id=report.reportEntries!.first!.id
   v.editReport(report,["action":"annotate","resultID":id,"text":"Interpret with the paired design in mind."])
-  v.editReport(report,["action":"hideChart","resultID":id,"index":0])
-  precondition(report.reportEntries!.first!.hiddenCharts.contains(0))
-  v.editReport(report,["action":"undoReport"])
+  for _ in 0..<100 where report.web.isLoading {try await Task.sleep(nanoseconds:50_000_000)}
+  try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true); document.querySelector('.report-body svg').dispatchEvent(new MouseEvent('click',{bubbles:true})); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true}));")
+  try await Task.sleep(nanoseconds:200_000_000)
+  precondition(!(report.reportEntries!.first!.editedBody ?? report.reportEntries!.first!.body).contains("<svg"))
+  v.editReport(report,["action":"undoText"])
   precondition(report.reportEntries!.first!.hiddenCharts.isEmpty && report.reportEntries!.first!.annotation.contains("paired design"))
   for _ in 0..<100 where report.web.isLoading {try await Task.sleep(nanoseconds:50_000_000)}
   let exported=String(decoding:try await v.reportExportData(report,format:.html),as:UTF8.self)
   precondition(exported.contains("Interpret with the paired design") && !exported.contains("Remove plot") && !exported.contains("contenteditable"))
-  v.editReport(report,["action":"removeResult","resultID":id]);precondition(!report.reportEntries!.contains{$0.id==id})
-  v.editReport(report,["action":"undoReport"]);precondition(report.reportEntries!.contains{$0.id==id})
-  v.editReport(report,["action":"hideChart","resultID":id,"index":0])
+  v.recordReportEdits(report,edits:[],removing:[id],typing:false);precondition(!report.reportEntries!.contains{$0.id==id})
+  v.editReport(report,["action":"undoText"]);precondition(report.reportEntries!.contains{$0.id==id})
+  for _ in 0..<100 where report.web.isLoading {try await Task.sleep(nanoseconds:50_000_000)}
+  try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true); document.querySelector('.report-body svg').dispatchEvent(new MouseEvent('click',{bubbles:true})); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true}));")
+  try await Task.sleep(nanoseconds:200_000_000)
   v.editReport(report,["action":"annotate","resultID":id,"text":"A newer annotation"])
   v.activeReportID=report.id
   v.appendReport(ReportEntry(id:"added-after-removal",title:"Later result",operation:"",body:"<p>Later result retained</p>",rPlan:nil))
-  v.editReport(report,["action":"undoReport"])
+  v.editReport(report,["action":"undoText"])
   precondition(report.reportEntries!.contains{$0.id=="added-after-removal"} && report.reportEntries!.first{$0.id==id}!.annotation=="A newer annotation")
   print("PASS: report notes exported, plots/results removed and restored; Undo preserves later results and annotations")
   let source:[String:Any]=["columns":["A","B"],"firstRow":1,"rows":3,"cells":[["col":0,"row":0,"text":"5","kind":"number"],["col":1,"row":2,"text":"9","kind":"number"]]]

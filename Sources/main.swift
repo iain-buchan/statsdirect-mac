@@ -56,9 +56,8 @@ final class Document {
     var operationSnapshotSourceID: String?
     var operationInputEntered = false
     var reportEntries: [ReportEntry]?
-    var reportUndo: [[ReportEntry]] = []
-    var reportTextUndo: [ReportTextChange] = []
-    var reportTextRedo: [ReportTextChange] = []
+    var reportUndo: [ReportChange] = []
+    var reportRedo: [ReportChange] = []
     var reportEditing = false
     var reportRevision = 0
     var reportSavedRevision = 0
@@ -391,7 +390,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         guard let command = sender.representedObject as? String else { return }
         let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
         if let doc=active, doc.kind=="report", ["copy","cut","paste"].contains(command), window.attachedSheet==nil { reportClipboardCommand(doc, command: command); return }
-        if let doc=active, doc.kind=="report", doc.reportEditing, ["undo","redo"].contains(command), window.attachedSheet==nil {
+        if let doc=active, doc.kind=="report", doc.reportEditing, ["undo","redo","selectAll"].contains(command), window.attachedSheet==nil {
             doc.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand(\(jsString(command)))") { handled, error in
                 if error != nil || handled as? Bool != true { _ = fallback() }
             }; return

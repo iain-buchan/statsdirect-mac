@@ -11,7 +11,8 @@ import PDFKit
                 do {
                     if let index=CommandLine.arguments.firstIndex(where:{$0=="--legacy-file" || $0=="--report-file"}),index+1<CommandLine.arguments.count {
                         try await archived(viewer, url:URL(fileURLWithPath:CommandLine.arguments[index+1]), output:URL(fileURLWithPath:CommandLine.arguments[1]))
-                    } else if CommandLine.arguments.contains("--transfer-only") {try await transfers(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    } else if CommandLine.arguments.contains("--deletion-only") {try await deletions(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--transfer-only") {try await transfers(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--legacy-only") {try await legacy(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))} else {try await run(viewer)}
                     print("PASS: native report exports");fflush(stdout)}
                 catch {print("FAIL:",error.localizedDescription,(error as NSError).userInfo);fflush(stdout);exit(1)}
@@ -63,6 +64,8 @@ import PDFKit
         v.appendReport(ReportEntry(id:UUID().uuidString,title:"Export table checks",operation:"",body:"<h1>Export table checks</h1><table><thead><tr><th rowspan='2'>Measurement</th><th colspan='3'>Results</th></tr><tr><th>Estimate</th><th>Difference</th><th>P value</th></tr></thead><tbody>\(rows)</tbody></table><p><strong>All report entries included</strong> — α = 0.05, 95% CI, χ<sup>2</sup> and CO<sub>2</sub>.</p>",rPlan:nil))
         let report=v.active!
         for _ in 0..<100 where report.web.isLoading {try await Task.sleep(nanoseconds:100_000_000)}
+        let chartFonts=try await report.web.evaluateJavaScript("[...document.querySelectorAll('.engine-report svg text')].every(el=>getComputedStyle(el).fontFamily.includes('Arial'))") as! Bool
+        precondition(chartFonts,"New engine SVG charts must use Arial")
         for format in ReportFormat.allCases {
             let data=try await v.reportExportData(report,format:format)
             try data.write(to:output.appendingPathComponent("combined-report."+format.rawValue))
@@ -109,7 +112,73 @@ import PDFKit
         try await editing(v, report: report, output: output)
         try await chartResizing(v, report: report, output: output)
         try await transfers(v, output: output)
+        try await deletions(v, output: output)
         try await legacy(v, output: output)
+        try await semanticContainers(v, output: output)
+        try await stylesheetPresentation(v, output: output)
+    }
+
+    @MainActor static func stylesheetPresentation(_ v: Viewer, output: URL) async throws {
+        let report=v.makeReport()
+        report.reportEntries=[ReportEntry(id:UUID().uuidString,title:"Stylesheet presentation",operation:"",body:"""
+        <p id="fresh-default">New report default font</p>
+        <p><span class="ci">CSS confidence interval</span> <span class="pval">CSS P value</span> <span class="warn">CSS warning</span></p>
+        <p class="custom-face">Custom Georgia face</p><p class="custom-face" style="font-family:'Times New Roman';font-size:18.5pt;color:#c00000">Inline font override</p>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80"><text x="10" y="40" font-family="Georgia" font-size="18">Custom chart face</text></svg>
+        """,rPlan:nil)]
+        v.renderReport(report);try await settled(report)
+        try await report.web.evaluateJavaScript("""
+        (()=>{const s=document.createElement('style');s.textContent='.report-body .ci{color:#0000ff}.report-body .pval{color:#008000}.report-body .warn{color:#ff0000}.report-body .custom-face{font-family:Georgia;font-size:13.5pt;font-style:italic}';document.head.append(s);})()
+        """)
+        let computed=try await report.web.evaluateJavaScript("""
+        (()=>{const style=s=>getComputedStyle(document.querySelector(s));return {font:style('#fresh-default').fontFamily,ci:style('.ci').color,pval:style('.pval').color,warn:style('.warn').color,custom:style('.custom-face').fontFamily,chart:style('.report-body svg text').fontFamily};})()
+        """) as! [String:String]
+        precondition(computed["font"]!.hasPrefix("Arial") && computed["custom"]!.contains("Georgia") && computed["chart"]!.contains("Georgia"))
+        precondition(computed["ci"]=="rgb(0, 0, 255)" && computed["pval"]=="rgb(0, 128, 0)" && computed["warn"]=="rgb(255, 0, 0)")
+        let before=try await report.web.evaluateJavaScript("document.querySelector('.report-body').innerHTML") as! String,revision=report.reportRevision
+        for format in ReportFormat.allCases {try await v.reportExportData(report,format:format).write(to:output.appendingPathComponent("stylesheet-report."+format.rawValue))}
+        let after=try await report.web.evaluateJavaScript("document.querySelector('.report-body').innerHTML") as! String
+        precondition(before==after && report.reportRevision==revision,"Export must not style or revise the live document")
+        let reopened=try await v.importReport(output.appendingPathComponent("stylesheet-report.html"));try await settled(reopened)
+        try await v.reportExportData(reopened,format:.docx).write(to:output.appendingPathComponent("stylesheet-reopened.docx"))
+        let preserved=try await reopened.web.evaluateJavaScript("getComputedStyle(document.querySelector('.report-body svg text')).fontFamily.includes('Georgia')") as! Bool
+        precondition(preserved,"Reopening must retain an existing custom chart font")
+        v.remove(reopened);v.remove(report)
+        print("PASS: new report Arial default, existing custom report/chart faces, stylesheet colours, HTML/PDF/DOCX export/reopen and unchanged live document/revision; Word styles checked separately")
+    }
+
+    @MainActor static func semanticContainers(_ v: Viewer, output: URL) async throws {
+        let wrappers = ["main", "header", "footer", "aside", "nav", "figure", "figcaption", "address", "report-output"]
+        let body = wrappers.map { tag in
+            """
+            <\(tag) style="font-family:Georgia;color:#245580">
+            <h2>\(tag) heading</h2><p>\(tag) before <strong>bold</strong> and <a href="https://www.statsdirect.com/help/">help link</a>.</p>
+            <table><thead><tr><th colspan="2">\(tag) merged heading</th></tr></thead><tbody><tr><td rowspan="2">\(tag) label</td><td>12.5</td></tr><tr><td>18.75</td></tr></tbody></table>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100" width="240" height="100" aria-label="\(tag) chart"><rect x="5" y="5" width="230" height="90" fill="#e0efff"/><text x="120" y="55" text-anchor="middle">\(tag) chart</text></svg>
+            <ol><li>\(tag) first step</li><li>\(tag) second step</li></ol><p>\(tag) after</p>
+            </\(tag)>
+            """
+        }.joined()
+        let report = v.makeReport()
+        report.reportEntries = [ReportEntry(id: UUID().uuidString, title: "Semantic containers", operation: "", body: body, rPlan: nil)]
+        v.renderReport(report); try await settled(report)
+        let count = try await report.web.evaluateJavaScript("document.querySelectorAll('.report-body table').length") as! Int
+        precondition(count == wrappers.count)
+        for format in ReportFormat.allCases {
+            let data = try await v.reportExportData(report, format: format)
+            try data.write(to: output.appendingPathComponent("semantic-containers." + format.rawValue))
+            if format == .pdf {
+                let text = PDFDocument(data: data)?.string ?? ""
+                precondition(wrappers.allSatisfy { text.contains($0 + " merged heading") && text.contains($0 + " chart") })
+            }
+        }
+        let reopened = try await v.importReport(output.appendingPathComponent("semantic-containers.html"))
+        try await settled(reopened)
+        let retained = try await reopened.web.evaluateJavaScript("({main:!!document.querySelector('.report-body main'),aside:!!document.querySelector('.report-body aside'),tables:document.querySelectorAll('.report-body table').length,charts:document.querySelectorAll('.report-body svg').length})") as! [String: Any]
+        precondition(retained["main"] as? Bool == true && retained["aside"] as? Bool == true && retained["tables"] as? Int == wrappers.count && retained["charts"] as? Int == wrappers.count)
+        try await v.reportExportData(reopened, format: .docx).write(to: output.appendingPathComponent("semantic-containers-reopened.docx"))
+        v.remove(reopened); v.remove(report)
+        print("PASS: semantic HTML containers retain all tables/charts through native HTML/PDF export and import; DOCX structures checked separately")
     }
 
     @MainActor static func settled(_ doc: Document) async throws {
@@ -193,12 +262,12 @@ import PDFKit
         precondition(report.reportEntries!.first(where:{$0.id==id})!.editedBody!.contains("Edited interpretation"))
         let visible=try await report.web.evaluateJavaScript("document.body.innerText") as! String
         precondition(visible.contains("Edited interpretation") && visible.contains("Later result retained"))
-        // Removing a plot, editing text, then restoring it must preserve the edits.
-        let first=report.reportEntries!.first!
-        v.editReport(report,["action":"hideChart","resultID":first.id,"index":0]);try await settled(report)
+        // Selected chart deletion uses the same history as text formatting.
+        try await report.web.evaluateJavaScript("(()=>{const picture=document.querySelector('.report-body svg');picture.dispatchEvent(new MouseEvent('click',{bubbles:true}));document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true}));})()")
+        try await settled(report)
         let hiddenHTML=String(decoding:try await v.reportExportData(report,format:.html),as:UTF8.self)
         precondition(!hiddenHTML.contains("<svg"))
-        v.editReport(report,["action":"undoReport"]);try await settled(report)
+        v.editReport(report,["action":"undoText"]);try await settled(report)
         for format in ReportFormat.allCases {
             let data=try await v.reportExportData(report,format:format)
             try data.write(to:output.appendingPathComponent("edited-report."+format.rawValue))
@@ -219,30 +288,33 @@ import PDFKit
         try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true)")
         let original=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').innerHTML") as! String
         let originalViewBox=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').getAttribute('viewBox')") as! String
-        let undoCount=report.reportTextUndo.count
+        let undoCount=report.reportUndo.count
         try await report.web.evaluateJavaScript("(()=>{const input=document.querySelector('.report-chart-sizing input');input.focus();input.value='324';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));})()")
         try await settled(report)
-        precondition(report.reportTextUndo.count==undoCount+1)
+        precondition(report.reportUndo.count==undoCount+1)
         let width=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').getBoundingClientRect().width") as! Double
         precondition(abs(width-324)<1)
+        let fieldHandled=try await report.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand('undo')") as! Bool
+        precondition(!fieldHandled,"Width-field Undo must stay in the text input")
+        try await report.web.evaluateJavaScript("document.querySelector('.report-chart-resize').focus()")
         let handled=try await report.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand('undo')") as! Bool
         precondition(handled);try await settled(report)
-        precondition(report.reportTextUndo.count==undoCount)
+        precondition(report.reportUndo.count==undoCount)
         try await report.web.evaluateJavaScript("StatsDirectReportEditor.command('redo')");try await settled(report)
         // Real pointer handlers: many moves form one native undo step. Escape
         // cancels a drag, and keyboard resizing follows the same history path.
         try await report.web.evaluateJavaScript("""
         (()=>{const h=document.querySelector('.report-chart-resize');h.dispatchEvent(new PointerEvent('pointerdown',{pointerId:7,button:0,clientX:400,clientY:300,bubbles:true}));document.dispatchEvent(new PointerEvent('pointermove',{pointerId:7,clientX:380,clientY:290,bubbles:true}));document.dispatchEvent(new PointerEvent('pointermove',{pointerId:7,clientX:375,clientY:285,bubbles:true}));})()
         """)
-        try await settled(report);precondition(report.reportTextUndo.count==undoCount+1)
+        try await settled(report);precondition(report.reportUndo.count==undoCount+1)
         try await report.web.evaluateJavaScript("document.dispatchEvent(new PointerEvent('pointerup',{pointerId:7,bubbles:true}))")
-        try await settled(report);precondition(report.reportTextUndo.count==undoCount+2)
+        try await settled(report);precondition(report.reportUndo.count==undoCount+2)
         let dragged=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').style.width") as! String
         precondition(dragged=="274px")
         try await report.web.evaluateJavaScript("""
         (()=>{const h=document.querySelector('.report-chart-resize');h.dispatchEvent(new PointerEvent('pointerdown',{pointerId:8,button:0,clientX:400,clientY:300,bubbles:true}));document.dispatchEvent(new PointerEvent('pointermove',{pointerId:8,clientX:350,clientY:270,bubbles:true}));h.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));})()
         """)
-        try await settled(report);precondition(report.reportTextUndo.count==undoCount+2)
+        try await settled(report);precondition(report.reportUndo.count==undoCount+2)
         let cancelled=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').style.width") as! String
         precondition(cancelled==dragged)
         try await report.web.evaluateJavaScript("document.querySelector('.report-chart-resize').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',shiftKey:true,bubbles:true}))")

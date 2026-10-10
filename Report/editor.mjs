@@ -1,5 +1,6 @@
 import {attachPictureSizing,detachPictureSizing} from './chart-size.mjs';
 import {installTransfer,transferring,prepareClipboard,cutPrepared,preparePaste,pastePrepared} from './transfer.mjs';
+import {installDeletion,selectAllResults} from './deletion.mjs';
 export {prepareClipboard,cutPrepared,preparePaste,pastePrepared};
 let editing=false, savedRange=null, pendingSize=null, performing=false;
 const fontSizes=[8,9,10,11,12,14,16,18,20,24,28,36,48,72];
@@ -67,8 +68,6 @@ function toolbar() {
   select(paragraph,'lineSpacing','Spacing',[['1','Single'],['1.15','1.15'],['1.5','1.5'],['2','Double']]);
   button(paragraph,'removeFormat','Clear formatting');
   const add=bar.querySelector('[data-command="addText"]');if(add){add.textContent='+ Text';add.title='Add a text section';add.setAttribute('aria-label','Add text');}
-  const removal=[...bar.children].find(el=>el.tagName==='BUTTON'&&el!==document.getElementById('report-edit-toggle')&&el!==add);
-  if(removal)removal.classList.add('report-undo-removal');
 }
 function updateControls() {
   if(!editing||document.activeElement?.closest('#report-format-tools'))return;
@@ -106,6 +105,7 @@ function selectionBody() {
   return (node?.nodeType===1?node:node?.parentElement)?.closest('.report-body');
 }
 function protect(body) {
+  if(!body.hasChildNodes())body.innerHTML='<p><br></p>';
   exactSizes(body);
   const hidden=new Set((body.dataset.hiddenCharts||'').split(',').filter(Boolean).map(Number));
   [...body.querySelectorAll('svg')].filter(svg=>!svg.parentElement.closest('svg')).forEach((svg,index)=>{
@@ -113,8 +113,6 @@ function protect(body) {
     const chart=Number(svg.dataset.reportChartIndex??index);svg.dataset.reportChartIndex=String(chart);
     const wrapper=document.createElement('div');wrapper.className='report-chart';wrapper.hidden=hidden.has(chart);
     const controls=document.createElement('div');controls.className='report-controls';
-    const button=document.createElement('button');button.textContent='Remove plot';
-    button.onclick=()=>post({action:'hideChart',resultID:body.dataset.resultId,index:chart});controls.append(button);
     svg.replaceWith(wrapper);wrapper.append(controls,svg);
     attachPictureSizing(svg,wrapper,controls,()=>changed(body),()=>editing);
   });
@@ -159,9 +157,23 @@ export function replace(id,html) {
   detachPictureSizing(old);old.replaceWith(replacement);const body=replacement.querySelector('.report-body');body.contentEditable=String(editing);protect(body);savedRange=null;
   if(editing&&hadFocus){body.focus();const range=document.createRange();range.selectNodeContents(body);range.collapse(false);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);window.scrollTo(0,scroll);}
 }
-export function replaceEntries(entries) {
-  const scroll=window.scrollY;
-  for(const {id,html} of entries)replace(id,html);
+export function replaceEntries(entries,order=null) {
+  const scroll=window.scrollY,container=document.getElementById('report-results');
+  const focused=document.activeElement?.closest('.report-entry'),index=focused?[...container.children].indexOf(focused):0;
+  const refocus=document.activeElement===container||!!focused;
+  if(order)for(const entry of [...container.children])if(!order.includes(entry.id.slice(7))){detachPictureSizing(entry);entry.remove();}
+  for(const {id,html} of entries) {
+    if(document.getElementById('result-'+id))replace(id,html);
+    else {const template=document.createElement('template');template.innerHTML=html;container.append(template.content);const body=document.getElementById('result-'+id).querySelector('.report-body');body.contentEditable=String(editing);protect(body);}
+  }
+  if(order)order.forEach((id,index)=>{const entry=document.getElementById('result-'+id);if(entry&&container.children[index]!==entry)container.insertBefore(entry,container.children[index]||null);});
+  document.getElementById('report-empty').hidden=container.children.length>0;
+  if(refocus&&!container.contains(document.activeElement)) {
+    const body=container.children[Math.min(index,container.children.length-1)]?.querySelector('.report-body');
+    if(body){body.focus({preventScroll:true});const range=document.createRange();range.selectNodeContents(body);range.collapse(true);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);}
+    else container.focus({preventScroll:true});
+  }
+  savedRange=null;
   window.scrollTo(0,scroll);
 }
 export function command(name,value=null) {
@@ -201,20 +213,24 @@ export function command(name,value=null) {
 }
 export function menuCommand(name,value=null) {
   if(!editing)return false;
-  if(['undo','redo'].includes(name)&&!document.activeElement?.closest('.report-body,#report-toolbar'))return false;
-  if(['undo','redo'].includes(name)&&document.activeElement?.closest('.report-media')){command(name);return true;}
+  if(['undo','redo','selectAll'].includes(name)) {
+    if(document.activeElement?.closest('input,textarea,select,.report-annotation'))return false;
+    if(!document.activeElement?.closest('#report-results,#report-toolbar'))return false;
+    if(name==='selectAll')selectAllResults();else command(name);return true;
+  }
   if(!selectionBody()&&!(savedRange&&document.contains(savedRange.commonAncestorContainer)))return false;
   command(name,value);return true;
 }
 export function start({editing:initial=false,undo=false,redo=false}={}) {
   toolbar();setEditing(initial,false);history(undo,redo);
   installTransfer({isEditing:()=>editing,serialize,protect,detach:detachPictureSizing,post,remember});
+  installDeletion({isEditing:()=>editing,serialize,protect,detach:detachPictureSizing,post,remember});
   document.getElementById('report-toolbar').addEventListener('mousedown',event=>{remember();if(event.target.closest('button'))event.preventDefault();});
   document.addEventListener('selectionchange',()=>{remember();updateControls();});
   document.addEventListener('pointerdown',event=>{if(event.target.closest('.report-body'))pendingSize=null;});
   document.addEventListener('input',event=>{const body=event.target.closest('.report-body');if(editing&&body&&!performing&&!transferring()&&!event.target.closest('.report-controls')){changed(body,event.inputType);updateControls();}});
   document.addEventListener('keydown',event=>{
-    if(!editing||!event.target.closest('.report-body'))return;
+    if(event.defaultPrevented||event.isComposing||!editing||event.target.closest('input,textarea,select,.report-annotation')||!event.target.closest('#report-results,#report-toolbar'))return;
     if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))pendingSize=null;
     if(!event.metaKey&&!event.ctrlKey)return;
     if(event.key.toLowerCase()==='z'){event.preventDefault();command(event.shiftKey?'redo':'undo');}

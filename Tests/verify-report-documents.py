@@ -52,7 +52,8 @@ assert paragraph.find('w:pPr/w:spacing',ns).get('{'+ns['w']+'}line')=='480'
 for text,value in [('Superscript sample','superscript'),('Subscript sample','subscript')]:
     assert run_for(edited,text).find('w:rPr/w:vertAlign',ns).get(key)==value
 assert run_for(edited,'Larger typing').find('w:rPr/w:sz',ns).get(key)=='40'
-assert run_for(edited,'Clear sample').find('w:rPr/w:b',ns) is None
+cleared_bold=run_for(edited,'Clear sample').find('w:rPr/w:b',ns)
+assert cleared_bold is None or cleared_bold.get(key) in {'false','0','off'}
 print('PASS: DOCX exact point sizes, fonts, colours, highlighting, strike, super/subscript, line spacing and true editable lists')
 
 indented=next(p for p in edited.findall('.//w:p',ns) if 'Indented interpretation' in ''.join(p.itertext()))
@@ -85,3 +86,51 @@ extent=moved.find('.//{http://schemas.openxmlformats.org/drawingml/2006/wordproc
 assert int(extent.get('cx'))==240*9525
 assert run_for(moved,'formatted finding').find('w:rPr/w:rFonts',ns).get('{'+ns['w']+'}ascii')=='Times New Roman'
 print('PASS: moved content exports with its font, merged table and 240px vector chart intact')
+
+wrappers=['main','header','footer','aside','nav','figure','figcaption','address','report-output']
+for name in ['semantic-containers','semantic-containers-reopened']:
+    semantic,files=package(name)
+    tables=semantic.findall('.//w:tbl',ns)
+    drawings=semantic.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}inline')
+    assert len(tables)==len(wrappers), (name,'lost semantic-container tables',len(tables))
+    assert len(drawings)==len(wrappers), (name,'lost semantic-container charts',len(drawings))
+    assert sum(path.endswith('.svg') for path in files)==len(wrappers)
+    assert sum(path.endswith('.png') for path in files)==len(wrappers)
+    paragraphs=semantic.findall('.//w:p',ns)
+    texts=[''.join(p.itertext()) for p in paragraphs]
+    for tag,table in zip(wrappers,tables):
+        assert tag+' merged heading' in ''.join(table.itertext())
+        assert table.find('w:tr/w:tc/w:tcPr/w:gridSpan',ns).get(key)=='2'
+        assert table.find('w:tr[2]/w:tc/w:tcPr/w:vMerge',ns).get(key)=='restart'
+        assert table.find('w:tr[3]/w:tc/w:tcPr/w:vMerge',ns).get(key)=='continue'
+        heading=next(p for p in paragraphs if ''.join(p.itertext())==tag+' heading')
+        assert heading.find('w:pPr/w:pStyle',ns).get(key)=='Heading2'
+        step=next(p for p in paragraphs if ''.join(p.itertext())==tag+' first step')
+        assert step.find('w:pPr/w:numPr',ns) is not None
+        assert texts.index(tag+' before bold and help link.')<texts.index(tag+' merged heading')<texts.index(tag+' first step')<texts.index(tag+' after')
+    assert len(semantic.findall('.//w:hyperlink',ns))==len(wrappers)
+print('PASS: DOCX semantic/custom containers preserve real tables and merges, SVG/PNG drawings, headings, lists, links and order, including after HTML import')
+
+for name in ['stylesheet-report','stylesheet-reopened']:
+    styled,files=package(name)
+    for text,color in [('CSS confidence interval','0000FF'),('CSS P value','008000'),('CSS warning','FF0000')]:
+        value=run_for(styled,text).find('w:rPr/w:color',ns)
+        assert value is not None and value.get(key)==color, (name,text,'lost stylesheet colour')
+    for text,font,size in [('New report default font','Arial',None),('Custom Georgia face','Georgia','27'),('Inline font override','Times New Roman','37')]:
+        properties=run_for(styled,text).find('w:rPr',ns)
+        assert properties.find('w:rFonts',ns).get('{'+ns['w']+'}ascii')==font,(name,text)
+        if size: assert properties.find('w:sz',ns).get(key)==size,(name,text)
+    with ZipFile(folder/(name+'.docx')) as archive:
+        chart=archive.read(next(path for path in files if path.endswith('.svg'))).decode()
+        assert 'Georgia' in chart and 'Custom chart face' in chart
+print('PASS: fresh and reopened DOCX preserve stylesheet colours, Arial defaults, custom font/point-size overrides and the existing chart font')
+
+deleted,files=package('selection-deleted')
+text=''.join(deleted.itertext())
+assert 'First result' in text and 'Last finding retained' in text and 'Keep these notes' in text
+assert 'Middle finding' not in text and 'Middle result' not in text
+tables=deleted.findall('.//w:tbl',ns)
+assert len(tables)==1 and tables[0].find('w:tr/w:tc/w:tcPr/w:gridSpan',ns).get(key)=='2'
+assert sum(path.endswith('.svg') for path in files)==1
+assert len(deleted.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}inline'))==2
+print('PASS: DOCX omits the deleted result while preserving surviving text, notes, merged table and SVG/raster drawings')

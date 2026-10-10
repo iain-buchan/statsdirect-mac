@@ -1,11 +1,19 @@
 import {numericValue, clipboardText, formatClipboardTables} from './clipboard.mjs';
 import {wordEquation} from './math.mjs';
 import {explicitPictureWidth} from './chart-size.mjs';
+import {inlinePresentation} from './fragment.mjs';
 import {Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, ExternalHyperlink, HeadingLevel, WidthType, TableLayoutType, AlignmentType, BorderStyle, LevelFormat, ShadingType} from 'docx';
 
 const MAX_HTML = 30_000_000;
 const printCSS = `@page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;font-size:11pt;line-height:1.4;color:#182b38}h1{font-size:19pt}h2{font-size:14pt}h1,h2,h3{break-after:avoid}table{width:100%;border-collapse:collapse;font-size:9pt}th,td{padding:5pt 7pt;overflow-wrap:anywhere}tr,svg,img{break-inside:avoid}thead{display:table-header-group}svg,img{max-width:100%;height:auto}.report-r-link{display:none}@media print{body{max-width:none!important;padding:0!important}details:not([open]){display:none}details[open]{display:block}svg,img{max-height:230mm}a{color:inherit}}`;
-const blockTags = new Set(['P','DIV','SECTION','ARTICLE','H1','H2','H3','H4','H5','H6','PRE','TABLE','UL','OL','LI','DETAILS','BLOCKQUOTE','SVG','IMG','HR']);
+const blockTags = new Set(['P','DIV','SECTION','ARTICLE','MAIN','HEADER','FOOTER','ASIDE','NAV','FIGURE','FIGCAPTION','ADDRESS','DL','DT','DD','H1','H2','H3','H4','H5','H6','PRE','TABLE','UL','OL','LI','DETAILS','BLOCKQUOTE','SVG','IMG','HR']);
+const blockSelector = [...blockTags].map(tag=>tag.toLowerCase()).join(',');
+function isBlock(node) {
+  // Host-specific/custom wrappers can contain structured report content too.
+  // Keep equations atomic: KaTeX's presentation tree can contain SVG elements.
+  return node.nodeType===Node.ELEMENT_NODE && !node.matches('.katex,math') &&
+    (blockTags.has(node.tagName.toUpperCase()) || [...node.querySelectorAll(blockSelector)].some(child=>!child.closest('.katex,math')));
+}
 const bytes = data => Uint8Array.from(atob(data.substring(data.indexOf(',')+1)), c=>c.charCodeAt(0));
 const text = node => (node.textContent ?? '').replace(/\s+/g,' ').trim();
 const safeLink = value => /^(https?:|mailto:|#)/i.test(value);
@@ -40,9 +48,16 @@ async function raster(data,width,height) {
   const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
   return canvas.toDataURL('image/png');
 }
-async function snapshot({title,helpRoot}) {
+async function snapshot({title,helpRoot,format}) {
   if(document.documentElement.outerHTML.length>MAX_HTML) throw new Error('This report is too large to export in one file. Save smaller reports.');
   const clone=document.documentElement.cloneNode(true);
+  // Word reads inline presentation, so capture stylesheet and inherited values
+  // from the live document before exporting its detached copy. Keep SVG styles
+  // and sizing untouched, and never modify the editor or its revision history.
+  if(format==='docx') {
+    const live=[...document.body.querySelectorAll('*')],styled=[...clone.querySelector('body').querySelectorAll('*')];
+    for(let i=0;i<live.length;i++)if(!live[i].closest('svg,.report-controls'))inlinePresentation(live[i],styled[i]);
+  }
   const visible=el=>!el.closest('.report-chart[hidden],.report-controls')&&!el.parentElement.closest('svg');
   const originals=[...document.querySelectorAll('svg,img,canvas')].filter(visible),copies=[...clone.querySelectorAll('svg,img,canvas')].filter(visible),pictures=new Map();
   if(originals.length>200) throw new Error('This report has too many charts to export in one file. Save smaller reports.');
@@ -155,7 +170,7 @@ function paragraphs(node,pictures,options={}) {
   const output=[];let pending=[];
   const flush=()=>{if(pending.some(n=>text(n)))output.push(new Paragraph({children:pending.flatMap(n=>inline(n,options)),alignment:options.alignment,indent:options.indent,spacing:{after:110,...options.spacing}}));pending=[];};
   for(const child of node.childNodes) {
-    if(child.nodeType!==Node.ELEMENT_NODE||!blockTags.has(child.tagName.toUpperCase())){pending.push(child);continue;}
+    if(!isBlock(child)){pending.push(child);continue;}
     flush();
     const tag=child.tagName.toUpperCase();
     if(tag==='TABLE') {output.push(table(child,pictures),new Paragraph({spacing:{after:70}}));continue;}

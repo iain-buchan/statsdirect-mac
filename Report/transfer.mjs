@@ -10,7 +10,7 @@ const selection=()=>window.getSelection();
 const blocked=node=>element(node)?.closest('.report-controls,.report-links,details,.report-import-warning');
 const ownedBodies=()=>[...document.querySelectorAll(bodySelector)];
 function message(text){host.post({action:'transferNotice',text});}
-function currentRange() {
+export function currentRange() {
   if(document.activeElement?.closest('input,textarea,select,.report-annotation'))return null;
   const sel=selection();return sel?.rangeCount?sel.getRangeAt(0).cloneRange():null;
 }
@@ -23,7 +23,7 @@ function intersects(range,node) {
   const other=fullRange(node);
   return range.compareBoundaryPoints(Range.END_TO_START,other)<0&&range.compareBoundaryPoints(Range.START_TO_END,other)>0;
 }
-function segments(range,{caret=false}={}) {
+export function segments(range,{caret=false}={}) {
   if(!range||(!caret&&range.collapsed)||blocked(range.startContainer)||blocked(range.endContainer))return [];
   const result=[];
   for(const body of ownedBodies()) {
@@ -90,7 +90,7 @@ export function preparePaste() {
 // Keep the layout of partially selected tables: clear exactly the highlighted
 // cell contents, leaving unselected cells and merged-cell boundaries intact.
 // A completely selected table is removed as a unit.
-function deletePiece({body,range}) {
+export function deletePiece({body,range}) {
   const actions=[];
   function visit(node) {
     if(!intersects(range,node))return;
@@ -135,7 +135,7 @@ export function cutPrepared(token) {
     [...pending.pieces].reverse().forEach(deletePiece);selectRange(pending.pieces[0].body,caret);
   });
 }
-function selectRange(body,range){body.focus({preventScroll:true});const sel=selection();sel.removeAllRanges();sel.addRange(range);}
+export function selectRange(body,range){body.focus({preventScroll:true});const sel=selection();sel.removeAllRanges();sel.addRange(range);}
 function insertion(html,body) {
   const holder=document.createElement('div');holder.innerHTML=html;
   let next=Math.max(-1,...[...body.querySelectorAll('svg[data-report-chart-index]')].map(el=>Number(el.dataset.reportChartIndex)),...(body.dataset.hiddenCharts||'').split(',').filter(Boolean).map(Number))+1;

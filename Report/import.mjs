@@ -60,9 +60,11 @@ export async function convert({html,pictures=[],legacy=false,tableRows=[]}) {
       // temporary viewport. Other document widths still adapt to the report.
       if(el.localName==='img')for(const name of ['width','height','max-width'])if(el.style.getPropertyValue(name))inline.setProperty(name,el.style.getPropertyValue(name));
       el.setAttribute('style',safeStyle(inline));
-      el.removeAttribute('id');el.removeAttribute('class');
     }
   }
+  // Ancestor classes/IDs still participate in descendant selectors while styles
+  // are resolved. Remove them only once every element's presentation is inlined.
+  for(const el of container.querySelectorAll('*'))if(!el.closest('svg')) {el.removeAttribute('id');el.removeAttribute('class');}
   for(const root of legacyRoots) {if(normalizedRoots.has(root))root.classList.add('legacy-report');else normalizeLegacyLayout(root,legacy?tableRows:[]);}
   for(const img of container.querySelectorAll('img'))if(!img.getAttribute('src')) {
     img.replaceWith(document.createTextNode('[Image unavailable: external images are not loaded from imported reports.]'));

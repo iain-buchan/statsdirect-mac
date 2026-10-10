@@ -31,11 +31,11 @@ extension ReportExportTests {
             precondition(result,reason)
         }
         try await choose("#transfer-source strong");try await command("cut")
-        precondition(report.reportTextUndo.count==1)
+        precondition(report.reportUndo.count==1)
         try await check("!document.getElementById('transfer-source').textContent.includes('formatted finding')","Cut did not remove selection")
         precondition(board.string(forType:Viewer.reportFragmentType)!.contains("Times New Roman"))
         try await choose("#transfer-target",caret:true);try await command("paste")
-        precondition(report.reportTextUndo.count==2)
+        precondition(report.reportUndo.count==2)
         try await check("(()=>{const p=document.getElementById('transfer-target'),s=[...p.querySelectorAll('span')].find(e=>e.textContent==='formatted finding'),c=getComputedStyle(s);return p.textContent==='Destination: formatted finding'&&c.fontSize==='24px'&&c.fontFamily.includes('Times New Roman')&&c.color==='rgb(0, 102, 204)'&&Number(c.fontWeight)>=700;})()","Formatted cut/paste changed text or styling")
         try await undo();try await check("document.getElementById('transfer-target').textContent==='Destination: '","Undo paste failed")
         try await undo();try await check("document.getElementById('transfer-source').textContent.includes('formatted finding')","Undo cut failed")
@@ -71,11 +71,11 @@ extension ReportExportTests {
             """)
             try await settled(report)
         }
-        let beforeDrag=report.reportTextUndo.count
+        let beforeDrag=report.reportUndo.count
         try await dragSelection(inside:true)
-        precondition(report.reportTextUndo.count==beforeDrag,"Dropping onto the selection should do nothing")
+        precondition(report.reportUndo.count==beforeDrag,"Dropping onto the selection should do nothing")
         try await dragSelection()
-        precondition(report.reportTextUndo.count==beforeDrag+1 && report.reportTextUndo.last!.edits.count==2,"Move must be one two-section undo transaction")
+        precondition(report.reportUndo.count==beforeDrag+1 && report.reportUndo.last!.edits.count==2,"Move must be one two-section undo transaction")
         try await check("(()=>{const a=document.querySelector('#result-\(sourceID) .report-body'),b=document.querySelector('#result-\(targetID) .report-body');return !a.querySelector('table,svg')&&a.textContent.includes('Unselected ending')&&b.querySelector('table')&&!!b.querySelector('svg');})()","Drag did not move the mixed selection")
         try await undo()
         try await check("document.querySelectorAll('.report-body svg').length===1&&!!document.getElementById('transfer-table')&&document.getElementById('transfer-target').textContent==='Destination: '","Undo move did not restore both sections")
@@ -86,7 +86,7 @@ extension ReportExportTests {
 
         // Moving words later within the same paragraph must track the live
         // destination through deletion, preserve spaces and remain one undo.
-        let beforeInline=report.reportTextUndo.count
+        let beforeInline=report.reportUndo.count
         _ = try await js("""
         (()=>{
           const p=document.getElementById('transfer-source'),r=document.createRange();p.closest('.report-body').focus();r.selectNodeContents(p.querySelector('strong'));const s=window.getSelection();s.removeAllRanges();s.addRange(r);
@@ -94,7 +94,7 @@ extension ReportExportTests {
           p.dispatchEvent(new DragEvent('dragstart',{dataTransfer:transfer,bubbles:true}));p.dispatchEvent(new DragEvent('drop',{dataTransfer:transfer,bubbles:true,cancelable:true,clientX:box.left+1,clientY:box.top+5}));p.dispatchEvent(new DragEvent('dragend',{dataTransfer:transfer,bubbles:true}));
         })()
         """);try await settled(report)
-        precondition(report.reportTextUndo.count==beforeInline+1)
+        precondition(report.reportUndo.count==beforeInline+1)
         try await check("document.getElementById('transfer-source').textContent==='Alpha  Omegaformatted finding'","Same-paragraph drag lost text or used the old destination offset")
         try await undo()
 
@@ -116,9 +116,9 @@ extension ReportExportTests {
             })()
             """);try await settled(report)
         }
-        let beforePointer=report.reportTextUndo.count
+        let beforePointer=report.reportUndo.count
         try await pointerMove("text")
-        precondition(report.reportTextUndo.count==beforePointer+1&&report.reportTextUndo.last!.edits.count==2)
+        precondition(report.reportUndo.count==beforePointer+1&&report.reportUndo.last!.edits.count==2)
         try await check("!document.getElementById('transfer-source').textContent.includes('formatted finding')&&document.getElementById('transfer-target').textContent.includes('formatted finding')&&document.getElementById('transfer-target').textContent.replace('formatted finding','')==='Destination: '","Direct text drag lost selected text or destination spacing")
         try await undo()
         try await pointerMove("chart")
@@ -128,15 +128,15 @@ extension ReportExportTests {
         try await check("document.querySelectorAll('.report-body svg').length===2&&document.querySelectorAll('.report-body table').length===2","Dragging a selected chart discarded the rest of its mixed selection")
         try await undo()
         try await pointerMove("mixed",cancel:true)
-        precondition(report.reportTextUndo.count==beforePointer,"Escape during a move changed the report")
+        precondition(report.reportUndo.count==beforePointer,"Escape during a move changed the report")
         try await check("!!document.getElementById('transfer-table')&&document.querySelectorAll('.report-body svg').length===1&&!document.querySelector('.report-drop-caret')","Cancelled pointer move left changed content or an insertion marker")
 
         // Clipboard paste replacing a selection that crosses result sections
         // should restore every affected section together when undone.
-        let beforeReplacement=report.reportTextUndo.count
+        let beforeReplacement=report.reportUndo.count
         _ = try await js("(()=>{const a=document.getElementById('transfer-tail'),b=document.getElementById('transfer-target'),r=document.createRange();a.closest('.report-body').focus();r.setStart(a.firstChild,11);r.setEnd(b.firstChild,12);const s=window.getSelection();s.removeAllRanges();s.addRange(r);})()")
         board.clearContents();board.setString("replacement",forType:.string);try await command("paste")
-        precondition(report.reportTextUndo.count==beforeReplacement+1&&report.reportTextUndo.last!.edits.count==2)
+        precondition(report.reportUndo.count==beforeReplacement+1&&report.reportUndo.last!.edits.count==2)
         try await check("document.getElementById('transfer-tail').textContent==='Unselected replacement'&&document.getElementById('transfer-target').textContent===' '","Multi-section paste removed the wrong content")
         try await undo()
 

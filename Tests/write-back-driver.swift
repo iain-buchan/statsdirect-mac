@@ -14,15 +14,22 @@ struct WriteBackTests {
         try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:!!document.querySelector('canvas')&&statsDirectGrid.analysisSource().columns.length===2})"))?["ok"] as? Bool == true}
         // Select the dose column in the real grid; the operation consumes that
         // selection immediately and uses its default output placement.
-        _=try await BetaFeedbackTests.asyncJavaScript(grid,"""
-        const b=document.querySelector('canvas').getBoundingClientRect(),x=b.x+48+89,y=b.y+18;
-        for(const [type,buttons] of [['mousemove',0],['mousedown',1],['mouseup',0]]){
-          document.elementFromPoint(x,y).dispatchEvent(new MouseEvent(type,{bubbles:true,clientX:x,clientY:y,button:0,buttons}));
-          await new Promise(r=>setTimeout(r,60));
+        // The grid takes the header click once it has laid out and attached its pointer handling, which the synthetic events can
+        // precede: the click is repeated until the selection shows, rather than read once in the events' own turn.
+        var headerSelected=false
+        for _ in 0..<40 where !headerSelected {
+            _=try await BetaFeedbackTests.asyncJavaScript(grid,"""
+            const b=document.querySelector('canvas').getBoundingClientRect(),x=b.x+48+89,y=b.y+18;
+            for(const [type,buttons] of [['mousemove',0],['mousedown',1],['mouseup',0]]){
+              document.elementFromPoint(x,y).dispatchEvent(new MouseEvent(type,{bubbles:true,clientX:x,clientY:y,button:0,buttons}));
+              await new Promise(r=>setTimeout(r,60));
+            }
+            await new Promise(r=>setTimeout(r,200));
+            return {ok:true};
+            """)
+            headerSelected=(try? await v.learningJavaScript(grid,"({ok:JSON.stringify(statsDirectGrid.analysisSource().selection)==='[0]'})"))?["ok"] as? Bool == true
         }
-        return {ok:true};
-        """)
-        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:JSON.stringify(statsDirectGrid.analysisSource().selection)==='[0]'})"))?["ok"] as? Bool == true}
+        try check(headerSelected,"the dose column is selected by a click on its header")
         let form=v.newDocument(kind:"operation",title:"Log transform fixture",url:v.root.appendingPathComponent("Grid/operation.html"))
         defer {v.remove(form)}
         form.operationSourceID=grid.id

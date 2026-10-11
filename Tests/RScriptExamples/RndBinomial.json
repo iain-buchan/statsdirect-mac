@@ -1,0 +1,1 @@
+{"operation":"RndBinomial","file":"random-binomial.R","nocompare":true,"settings":{"rows":5,"cols":2,"seed":1234,"nn":10,"p":0.3}}

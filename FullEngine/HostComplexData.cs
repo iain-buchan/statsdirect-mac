@@ -134,7 +134,7 @@ internal static class HostComplexData {
                 }
                 // Recorded as a frame of the three columns, so the report's inputs and the R script hold the data, group and sub-group together.
                 var record = new Dictionary<string, object>();
-                foreach (var property in input.EnumerateObject()) if (property.Name is "source" or "range" or "preserveRows" or "layout" or "roles") record[property.Name] = property.Value.Clone();
+                HostParameters.CopyProvenance(input, record);
                 record["identifiers"] = new[] { gTitle }; record["blocks"] = new[] { sTitle };
                 record["columns"] = new object[] { new { title = data.Title, values = Enumerable.Range(0, data.Length).Select(r => data.Data[r] == Constant.MISSING ? (object)"*" : data.Data[r]).ToArray() },
                     new { title = gTitle, mode = "GroupIdentifiers", values = (object)groups[0].values }, new { title = sTitle, mode = "GroupIdentifiers", values = (object)subgroups[0].values } };
@@ -256,7 +256,7 @@ internal static class HostComplexData {
                 }
                 // Recorded as a frame of the X, Y and identifier columns, so the report's inputs and the R script hold them together.
                 var record = new Dictionary<string, object>();
-                foreach (var property in input.EnumerateObject()) if (property.Name is "source" or "range" or "preserveRows" or "layout" or "roles") record[property.Name] = property.Value.Clone();
+                HostParameters.CopyProvenance(input, record);
                 record["identifiers"] = groups.Select(c => c.title).ToArray();
                 Func<DoubleVariable, object> column = v => new { title = v.Title, values = Enumerable.Range(0, v.Length).Select(r => v.Data[r] == Constant.MISSING ? (object)"*" : v.Data[r]).ToArray() };
                 record["columns"] = new[] { column(x) }.Concat(ys.Select(column)).Concat(groups.Select(c => (object)new { title = c.title, mode = "GroupIdentifiers", values = (object)c.values })).ToArray();

@@ -26,9 +26,12 @@ private typealias Free = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
         let html=paired["html"] as! String
         precondition(html.contains("56.111111") && html.contains("<svg") && html.contains("95%"))
         let report=try JSONSerialization.data(withJSONObject:paired,options:[.prettyPrinted,.sortedKeys]);try report.write(to:root.appendingPathComponent(".build/tutor-paired-output.json"))
-        let plan=try RScriptGenerator.generate(operation:"TPaired",title:"Paired t test",output:paired,resources:root.appendingPathComponent("Content"))
-        try plan.script.write(to:root.appendingPathComponent(".build/tutor-paired.R"),atomically:true,encoding:.utf8)
-        print("PASS: actual engine paired t test, default 95% interval, agreement SVG and equivalent R script")
+        // The engine's record of the run comes with the output (the report keeps it for Continue in R): the tutor's dataset is
+        // recorded as the worksheet frame it is, with its values, and the paired t test has a recipe.
+        let record=paired["record"] as? String ?? ""
+        precondition(paired["recipe"] as? Bool == true && record.contains("\"operation\":\"TPaired\"") && record.contains("312,242,340,388,296,254,391,402,290"),record)
+        try record.write(to:root.appendingPathComponent(".build/tutor-paired-record.json"),atomically:true,encoding:.utf8)
+        print("PASS: actual engine paired t test, default 95% interval, agreement SVG and the record of the run")
         for name in TutorTools.operations where name != "TPaired" {
             let values:[[Any]] = ["Chi2by2","ExactFisher"].contains(name) ? [[20,10],[10,20]] : ["UnivariateSummary","QuickSummary","Normality"].contains(name) ? [a] : [a,b]
             let result=try await TutorTools.run(operation:name,dataset:dataset(values),agreement:false,studyType:"neither",preferences:[:],request:request)

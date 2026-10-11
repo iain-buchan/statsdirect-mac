@@ -43,5 +43,5 @@ export function tutorData(workbook,sheetIndex,selection={},options={}) {
   })}));
   if(characters>50000)throw Error('The selected text is too large for the tutor. Choose a smaller range.');
   const columnLabel=columns.map(c=>columnName(c)).join(', ');
-  return {workbook:workbook.name,sheet:sheet.name,sheetIndex:index,firstRow,lastRow,rowCount,columns:data,range:`${columnLabel} · rows ${firstRow}–${lastRow}`,complete:true,hasErrors,hasStaleFormulas};
+  return {workbook:workbook.name,sheet:sheet.name,sheetIndex:index,headerRow:!!store.headerRow,firstRow,lastRow,rowCount,columns:data,range:`${columnLabel} · rows ${firstRow}–${lastRow}`,complete:true,hasErrors,hasStaleFormulas};
 }

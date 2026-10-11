@@ -104,7 +104,10 @@ extension Viewer {
         let confidence = (input["cco"] as? Double ?? 0.95) * 100
         let options = ["doExact": "Exact test requested", "show_pc": "Percentages", "xp": "Expected counts", "cs": "Cell chi-square", "xs": "Trend scores", "specify_scores": "Custom scores", "doMonteCarlo": "Monte Carlo simulation"].filter { input[$0.key] as? Bool == true }.map(\.value).sorted().joined(separator: " · ")
         let scores = input["specify_scores"] as? Bool == true ? "<p>Row scores: \(htmlEscape(String(describing: input["rowScores"] ?? "")))<br>Column scores: \(htmlEscape(String(describing: input["columnScores"] ?? "")))</p>" : "<p>Trend scores follow table order: 1, 2, 3, … on each axis.</p>"
-        let rPlan = try? RScriptGenerator.generate(operation: "ExactChiRbyCScreen", title: "Chi-square R × C", output: output, resources: root)
+        // The engine's record of the run (the table of counts as an entered frame and the screen's settings; nothing points at a
+        // worksheet) and whether the shared recipes cover it; the entry is titled by the record's friendly name, as on Windows.
+        let record = output["record"] as? String
+        let title = record.flatMap(RunRecordR.title(of:)) ?? analysisCatalog["ExactChiRbyCScreen"]?["title"] as? String ?? "Chi-square R × C"
         let body = """
         <div class="eyebrow">Analysis / Chi-square / Screen data</div>
         <h1>Chi-square R × C</h1><p class="lead">\(counts.count) × \(counts[0].count) contingency table</p><p class="muted">\(stamp)</p>
@@ -113,7 +116,7 @@ extension Viewer {
         <details><summary>Input counts and options used for this report</summary><table><thead><tr><th>Category</th>\(headers)</tr></thead><tbody>\(rows)</tbody></table><p>\(htmlEscape(options)) · \(number(confidence))% confidence</p>\(scores)</details>
         <p class="muted">Calculated by the full StatsDirect \(htmlEscape(engineVersion)) headless engine, operation ExactChiRbyCScreen, using its original HTML report renderer. The input form stays open for further edits.</p>
         """
-        previewResult(ReportEntry(id: resultID, title: "Chi-square R × C", operation: "ExactChiRbyCScreen", body: body, rPlan: rPlan, helpPath: "Help/chi_square_tests/rc.htm"), in: doc)
+        previewResult(ReportEntry(id: resultID, title: title, operation: "ExactChiRbyCScreen", body: body, record: record, recipe: output["recipe"] as? Bool ?? false, helpPath: "Help/chi_square_tests/rc.htm"), in: doc)
     }
     func saveAnalysisTable(_ doc: Document) {
         let version = doc.gridVersion

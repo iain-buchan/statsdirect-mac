@@ -1,0 +1,1 @@
+{"operation":"RateSmr","file":"rate-smr.R","data":[{"title":"rate","values":[5.859,13.050,46.937,161.503,271.358]},{"title":"doctors","values":[1080,12860,11510,10330,7790]},{"title":"age","values":["15-24","25-34","35-44","45-54","55-64"]}],"settings":{"nunit":1000000,"dead":14,"cco":0.95}}

@@ -214,7 +214,7 @@ import PDFKit
   try await removeChart()
   precondition(!reportBody().contains("<svg") && reportBody().contains("A newer note"))
   v.activeReportID=report.id
-  v.appendReport(ReportEntry(id:"added-after-removal",title:"Later result",operation:"",body:"<p>Later result retained</p>",rPlan:nil))
+  v.appendReport(ReportEntry(id:"added-after-removal",title:"Later result",operation:"",body:"<p>Later result retained</p>",record:nil))
   v.editReport(report,["action":"undoText"])
   precondition(report.reportEntries!.contains{$0.id=="added-after-removal"} && reportBody().contains("<svg") && reportBody().contains("A newer note"))
   print("PASS: report notes exported, plots/results removed and restored; Undo preserves later results and notes")

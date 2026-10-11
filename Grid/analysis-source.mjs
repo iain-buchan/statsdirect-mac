@@ -24,10 +24,15 @@ export function analysisMetadata(workbook, sheetIndex, selection) {
   const chosen = worksheetSelection(selection.columns ?? [], selection.range);
   const columnEnds = store.columns.map((_, c) => columnEnd(store, c));
   const used = store.usedColumns();
+  // The workbook and sheet names, the sheet index and whether row 1 holds the titles travel with
+  // every worksheet answer (operation-data.mjs worksheetInputFrom), so the run record kept with a
+  // result can point at the columns it read.
   const source = {
     name: workbook.name + ' / ' + sheet.name,
+    workbook: workbook.name,
     sheet: sheetIndex,
     sheetName: sheet.name,
+    hasTitle: !!store.headerRow,
     columns: store.columns.map((_, c) => store.columnTitle(c)),
     firstRow,
     rows: Math.max(firstRow, store.usedRows(), chosen.range?.last ?? 0),
@@ -58,8 +63,9 @@ export function checkColumnData(data) {
   if (data.uncached > 0) throw new Error('Recalculate and save this workbook in Excel, then reopen it before analysing formula cells.');
 }
 
-// The chosen columns over 1-based rows first..last as text, with counts of Excel error cells
-// and of formula cells whose saved result is missing or out of date.
+// The chosen columns over 1-based rows first..last as text, each cell's kind beside it (blank,
+// number, text, datetime, timespan, boolean or error, as the store derives it), with counts of
+// Excel error cells and of formula cells whose saved result is missing or out of date.
 // A request made from metadata names its sheet; the values come from that sheet, whichever
 // sheet the grid is showing now, and a sheet that is gone or renamed is refused.
 export function requestedSheet(workbook, sheetIndex, request) {
@@ -76,14 +82,14 @@ export function columnValues(workbook, sheetIndex, request) {
   if (!Number.isInteger(first) || !Number.isInteger(last) || first < 1 || last < first || last > MAX_ROWS) throw new Error('Enter a valid first and last worksheet row.');
   let errors = 0, uncached = 0;
   const out = columns.map(c => {
-    const values = new Array(last - first + 1);
+    const values = new Array(last - first + 1), kinds = new Array(last - first + 1);
     for (let r = first - 1; r < last; r++) {
-      const text = store.get(c, r);
-      values[r - first + 1] = text;
-      if (store.kind(c, r) === 'error') errors++;
+      const text = store.get(c, r), kind = store.kind(c, r);
+      values[r - first + 1] = text; kinds[r - first + 1] = kind;
+      if (kind === 'error') errors++;
       if (store.formula(c, r) && (store.formulasStale || text === '')) uncached++;
     }
-    return {title: store.columnTitle(c), values};
+    return {title: store.columnTitle(c), values, kinds};
   });
   return {name: workbook.name + ' / ' + sheet.name, columns: out, errors, uncached, first, last};
 }

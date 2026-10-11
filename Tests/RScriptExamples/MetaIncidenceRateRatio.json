@@ -1,0 +1,1 @@
+{"operation":"MetaIncidenceRateRatio","file":"meta-incidence-rate-ratio.R","data":[{"title":"pt1","values":[1516,949]},{"title":"a","values":[14,76]},{"title":"pt2","values":[1701,2245]},{"title":"b","values":[10,121]},{"title":"strata","values":["Age < 65","Age >= 65"]}],"settings":{"gamma":0.95}}

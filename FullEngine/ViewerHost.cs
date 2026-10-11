@@ -31,6 +31,8 @@ namespace StatsDirect.UI
         public Func<bool> Cancelled { get; set; } = () => false;
         public Action<IFillable> AmendOptions { get; set; }
         public List<string> Warnings { get; } = new();
+        /// <summary>The engine's record of the run (RunRecord) as it stood at the last report step, or null when none was written.</summary>
+        public string Record { get; private set; }
         private void CheckCancellation() { if (Cancelled()) throw new OperationCanceledException(); }
 
         Operation IUserInterface.Operation { get; set; }
@@ -88,6 +90,7 @@ namespace StatsDirect.UI
         {
             CheckCancellation();
             Html.Append(new HtmlRenderer(this).Render(renderable));
+            if (run is OperationRun operationRun && !string.IsNullOrEmpty(operationRun.Record)) Record = operationRun.Record;
             return null;
         }
 

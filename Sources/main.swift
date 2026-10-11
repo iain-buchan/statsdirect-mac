@@ -13,7 +13,6 @@ final class Document {
     var access: URL
     var initialURL: URL?
     var rPane: RPane?
-    var rScriptPlan: RScriptPlan?
     var gridDirty = false
     var gridVersion = 0
     var workbookID: String?
@@ -56,6 +55,8 @@ final class Document {
     var operationSnapshotSourceID: String?
     var operationInputEntered = false
     var reportEntries: [ReportEntry]?
+    // The result the R menu continues: the last entry, when it carries the record of its run.
+    var lastRecordEntry: ReportEntry? { reportEntries?.last.flatMap { $0.record == nil ? nil : $0 } }
     // The result, help, R and chart under the pointer at the last right-click (from the editor's context message).
     var reportContext: [String: Any] = [:]
     var reportUndo: [ReportChange] = []
@@ -124,6 +125,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var checkingUpdates = false
     var updateTimer: Timer?
     var rNumber = 0
+    // Results whose R script is being generated (one pane per click) and the recipe manifest, read once.
+    var rGenerating = Set<String>()
+    var recipeManifestCache: [String: RRecipe]?
     var libraryHandle: UnsafeMutableRawPointer?
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
     var engineInfo: [String: String] {
@@ -311,7 +315,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if [#selector(exportReportHTML), #selector(exportReportPDF), #selector(exportReportDOCX)].contains(menuItem.action) { return active?.kind == "report" && active?.fileBusy == false && active?.web.isLoading == false }
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
         if [#selector(saveActiveExcel), #selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
-        if menuItem.action == #selector(continueActiveReportInR) { menuItem.title = active?.rScriptPlan?.hasRecipe == false ? "Open Report Data in R" : "Continue Report in R"; return active?.rScriptPlan != nil }
+        if menuItem.action == #selector(continueActiveReportInR) { let entry = active?.lastRecordEntry; menuItem.title = entry?.recipe == false ? "Open Report Data in R" : "Continue Report in R"; return entry != nil }
         if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
         if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
         if menuItem.action == #selector(printPage) { if helpPane.isFocused { return true }; return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }

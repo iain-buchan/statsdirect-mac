@@ -74,8 +74,23 @@ test('edited/rejected answers take precedence over the original worksheet snapsh
 });
 
 import {worksheetInputFrom} from './operation-data.mjs';
+test('a worksheet answer carries its provenance: workbook, sheet, whether row 1 holds the titles, and the titles read', () => {
+  const lazy = {lazy: true, workbook: 'book.xlsx', sheet: 1, sheetName: 'S', hasTitle: true, name: 'book / S', firstRow: 2, rows: 4, columns: ['A', 'B'], columnEnds: [4, 3]};
+  const pending = worksheetInput(lazy, [1, 0], 2, 4);
+  assert.deepEqual([pending.workbook, pending.hasTitle], ['book.xlsx', true]);
+  const input = worksheetInputFrom(pending, {columns: [{title: 'B', values: ['20', '21', '']}, {title: 'A', values: ['12', '', '14']}]});
+  assert.deepEqual(input.worksheet, {workbook: 'book.xlsx', sheet: 1, sheetName: 'S', hasTitle: true, titles: ['B', 'A']});
+  assert.deepEqual(input.range, {firstRow: 2, lastRow: 4, columns: [1, 0]});
+  assert.deepEqual(input.columns.map(c => c.values), [['20', '21', ''], ['12', '', '14']]);
+  assert.equal(input.worksheet.cells, undefined);
+  // Without a header row the titles are not in the sheet, and the answer says so.
+  const untitled = worksheetInput({...lazy, hasTitle: false, firstRow: 1}, [0], 1, 4);
+  assert.equal(worksheetInputFrom(untitled, {columns: [{title: 'Column A', values: ['1', '2', '3', '4']}]}).worksheet.hasTitle, false);
+  // A lesson snapshot read here has no worksheet to point at.
+  assert.equal(worksheetInput(source, [1, 0], 2, 4).worksheet, undefined);
+});
 test('long data: the form sends the data column, the identifiers and the block, and the application receives them by role', () => {
-  const source = {lazy: true, sheet: 0, sheetName: 'S', name: 'book / S', firstRow: 2, rows: 13, columns: ['score', 'treatment', 'block', 'other'], columnEnds: [13, 13, 13, 0]};
+  const source = {lazy: true, workbook: 'book.xlsx', sheet: 0, sheetName: 'S', hasTitle: true, name: 'book / S', firstRow: 2, rows: 13, columns: ['score', 'treatment', 'block', 'other'], columnEnds: [13, 13, 13, 0]};
   const pending = worksheetInput(source, [], 2, 13, {mode: 'treatmentAndBlock', data: 0, identifiers: [1], block: 2});
   assert.deepEqual(pending.request.columns, [0, 1, 2]);
   assert.deepEqual(pending.layout, {mode: 'treatmentAndBlock', identifiers: 1, block: true});
@@ -87,9 +102,12 @@ test('long data: the form sends the data column, the identifiers and the block, 
   assert.deepEqual(input.blockIdentifiers, [{title: 'block', values: ['x', 'x']}]);
   assert.match(input.source, /groups by identifier/);
   assert.deepEqual(input.roles, {mode: 'treatmentAndBlock', identifiers: 1, block: true});
+  // The application keeps the pivoted groups as the columns, so the raw cells of every column read travel with the provenance.
+  assert.deepEqual(input.worksheet, {workbook: 'book.xlsx', sheet: 0, sheetName: 'S', hasTitle: true, titles: ['score', 'treatment', 'block'], cells: [['1', '2'], ['a', 'b'], ['x', 'x']]});
   const single = worksheetInput(source, [], 2, 13, {mode: 'single', data: 0, identifiers: [1, 2]});
   assert.deepEqual(single.request.columns, [0, 1, 2]);
   assert.equal(worksheetInputFrom(single, data).blockIdentifiers, undefined);
+  assert.equal(worksheetInputFrom(single, data).worksheet.cells.length, 3);
   assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'single', data: undefined, identifiers: [1]}), /data column/);
   assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'single', data: 0, identifiers: []}), /group identifier/);
   assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'single', data: 1, identifiers: [1]}), /different columns/);
@@ -115,6 +133,7 @@ test('long data for the analysis of covariance: the predictor, the outcomes and 
   assert.deepEqual(input.outcomeColumns, [{title: 'y1', values: ['3', '4']}, {title: 'y2', values: ['5', '6']}]);
   assert.equal(input.blockIdentifiers, undefined);
   assert.deepEqual(input.roles, {mode: 'covariance', identifiers: 1, block: false, outcomes: 2});
+  assert.deepEqual([input.worksheet.titles, input.worksheet.cells], [['x', 'group', 'y1', 'y2'], [['1', '2'], ['a', 'b'], ['3', '4'], ['5', '6']]]);
   assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'covariance', data: 0, identifiers: [3], outcomes: []}), /outcome \(Y\)/);
   assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'covariance', data: 0, identifiers: [3], outcomes: [0]}), /different columns/);
   assert.throws(() => worksheetInput(source, [], 2, 13, {mode: 'covariance', data: undefined, identifiers: [3], outcomes: [1]}), /predictor \(X\)/);

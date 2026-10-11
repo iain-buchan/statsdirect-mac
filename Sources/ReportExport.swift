@@ -89,11 +89,48 @@ extension Viewer {
         // An isolated JS world prevents imported HTML from replacing the export code or receiving native messages.
         guard let value=try await reportScript(doc,method:"capture",format:format == .docx ? "docx":"html") else { throw ReportExportError("The report returned no exportable content.") }
         switch format {
-        case .html: return Data(value.utf8)
+        case .html: return Data(await reportMetadata(doc, in: value).utf8)
         case .docx:
             guard let data=Data(base64Encoded:value), data.starts(with:[0x50,0x4b]) else { throw ReportExportError("The Word document could not be created.") }
             return data
         case .pdf: return try await ReportPDFPrinter.render(value)
+        }
+    }
+    /// The saved HTML carries the report's results as the Windows report writes them: a format marker in the head and, before the
+    /// body's end, an inert JSON block with each result's id, title, operation, help, markup and the record of its run (the engine's
+    /// text as it is), so a reopened report keeps its results apart and can continue them in R. A result's `html` is the markup of its
+    /// block in the exported page, with the presentation resolved as the page shows it (what the Windows report takes from each
+    /// `.report-body`, and rebuilds the result from when it opens the file); the result's own markup stands in only when the export
+    /// has no block for it. `<` is escaped so nothing can end the block.
+    func reportMetadata(_ doc: Document, in html: String) async -> String {
+        let exported = await exportedBlocks(doc, in: html)
+        var records: [String: String] = [:]
+        let entries = (doc.reportEntries ?? []).map { entry -> [String: Any] in
+            var item: [String: Any] = ["id": entry.id, "title": entry.title, "operation": entry.operation, "helpContextId": 0, "html": exported["result-" + entry.id] ?? entry.editedBody ?? entry.body]
+            if let helpPath = entry.helpPath { item["helpPath"] = helpPath }
+            if let record = entry.record, (try? JSONSerialization.jsonObject(with: Data(record.utf8))) is [String: Any] {
+                let token = "statsdirect-record-" + UUID().uuidString; records[token] = record; item["record"] = token
+            }
+            return item
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: ["version": 1, "entries": entries], options: [.withoutEscapingSlashes]) else { return html }
+        var block = String(decoding: data, as: UTF8.self)
+        for (token, record) in records { block = block.replacingOccurrences(of: "\"" + token + "\"", with: record) }
+        block = block.replacingOccurrences(of: "<", with: "\\u003c")
+        var page = html
+        if let head = page.range(of: "<head[^>]*>", options: .regularExpression) { page.insert(contentsOf: "<meta name=\"statsdirect-report-format\" content=\"1\">", at: head.upperBound) }
+        let script = "<script type=\"application/json\" id=\"statsdirect-report-data\">" + block + "</script>"
+        if let end = page.range(of: "</body>", options: .backwards) { page.insert(contentsOf: script, at: end.lowerBound) } else { page += script }
+        return page
+    }
+    /// The inner markup of each result's block (`article.report-entry`) in an exported page, by the block's id, parsed by the report's
+    /// own web view in the isolated world the export runs in; empty when it cannot be parsed.
+    func exportedBlocks(_ doc: Document, in html: String) async -> [String: String] {
+        await withCheckedContinuation { continuation in
+            doc.web.callAsyncJavaScript("return Object.fromEntries([...new DOMParser().parseFromString(html,'text/html').querySelectorAll('article.report-entry[id]')].map(a=>[a.id,a.innerHTML]))",
+                                        arguments: ["html": html], in: nil, in: .defaultClient) { result in
+                continuation.resume(returning: ((try? result.get()) as? [String: String]) ?? [:])
+            }
         }
     }
 }

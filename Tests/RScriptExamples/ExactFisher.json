@@ -1,0 +1,1 @@
+{"operation":"ExactFisher","file":"fisher-exact.R","table":{"counts":[[4,16],[1,21]],"rowLabels":["Breast fed","Bottle fed"],"columnLabels":["Normal","Malocclusion"],"rowsTitle":"feeding","columnsTitle":"teeth"}}

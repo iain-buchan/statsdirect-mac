@@ -69,14 +69,17 @@ test('analysis forms receive metadata and read columns on demand', () => {
   ]}]});
   const meta = analysisMetadata(book, 0, {columns: [1, 0]});
   assert.equal(meta.lazy, true);
-  assert.deepEqual([meta.sheet, meta.sheetName], [0, 'S']);
+  assert.deepEqual([meta.workbook, meta.sheet, meta.sheetName, meta.hasTitle], ['book.xlsx', 0, 'S', true]);
   assert.deepEqual([meta.firstRow, meta.rows, meta.columnEnds, meta.width, meta.selection], [2, 3, [3, 5, 0], 2, [1, 0]]);
   assert.equal(JSON.stringify(meta).includes('"12"'), false);
   assert.deepEqual(worksheetRows(meta, [0, 1]), {first: 2, last: 5});
   const pending = worksheetInput(meta, [1, 0], 2, 3);
   assert.deepEqual(pending.request, {sheet: 0, sheetName: 'S', columns: [1, 0], first: 2, last: 3});
   const data = columnValues(book, 0, pending.request);
-  assert.deepEqual(data.columns, [{title: 'After', values: ['8', '9']}, {title: 'Before', values: ['12', '15']}]);
+  assert.deepEqual(data.columns, [{title: 'After', values: ['8', '9'], kinds: ['number', 'number']}, {title: 'Before', values: ['12', '15'], kinds: ['number', 'number']}]);
+  // The answer points at where its columns came from, for the run record kept with the result.
+  assert.deepEqual(worksheetInputFrom(pending, data).worksheet, {workbook: 'book.xlsx', sheet: 0, sheetName: 'S', hasTitle: true, titles: ['After', 'Before']});
+  assert.deepEqual(columnValues(book, 0, {columns: [1], first: 2, last: 5}).columns[0].kinds, ['number', 'number', 'blank', 'blank']);
   assert.deepEqual(worksheetInputFrom(pending, data).columns[1].values, ['12', '15']);
   assert.equal(worksheetInputFrom(pending, data).range.lastRow, 3);
   assert.throws(() => worksheetInputFrom(pending, columnValues(book, 0, {columns: [1], first: 2, last: 5})), /Recalculate/);
@@ -95,6 +98,8 @@ test('analysis forms receive metadata and read columns on demand', () => {
   assert.deepEqual(screenSelection(screen, {screen: true, minColumns: 2, maxColumns: 9}), [['12', '8'], ['15', '9']]);
   book.sheets[0].store.setLoaded([{col: 0, row: 1, text: '#VALUE!', kind: 'error'}]);
   assert.match(analysisMetadata(book, 0, {columns: [], range: {x: 0, y: 1, width: 2, height: 2}}).screenError, /Excel errors/);
+  const flawed = columnValues(book, 0, {columns: [0], first: 2, last: 3});
+  assert.deepEqual([flawed.errors, flawed.columns[0].kinds], [1, ['error', 'number']]);
   // Derived worksheets copy the source columns through a snapshot, titles first when there is no header row.
   const records = snapshotColumns(book, 0, {columns: [0, 1], rowOffset: 1, header: true});
   assert.deepEqual(records.map(c => [c.col, Array.from(c.rows), [...c.texts]]), [[0, [0, 1, 2, 3], [[0, 'Before'], [1, 'Before'], [2, '#VALUE!']]], [1, [0, 1, 2, 3], [[0, 'After'], [1, 'After']]]]);

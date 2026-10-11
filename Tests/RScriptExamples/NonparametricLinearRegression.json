@@ -1,0 +1,1 @@
+{"operation":"NonparametricLinearRegression","file":"nonparametric-linear-regression.R","data":[{"title":"gpa","values":[4.0,4.0,3.9,3.8,3.7,3.6,3.5,3.5,3.5,3.3,3.2,3.2]},{"title":"gmat","values":[710,610,640,580,545,560,610,530,560,540,570,560]}],"settings":{"gamma":0.95}}

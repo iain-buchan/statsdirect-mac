@@ -35,19 +35,15 @@ struct RPaneChecks {
         run("plot(x); dev.off(); plot(x, -x)", plots: 2)
         print("PASS default plots, multiple pages/devices, errors and variables across runs")
 
-        let columns: [[String: Any]] = [
-            ["title": "Before", "values": [10, 20, 30, 40]],
-            ["title": "After", "values": [8, 17, 25, 32]]
-        ]
-        let output: [String: Any] = ["history": [
-            ["name": "data", "kind": "grid", "value": ["columns": columns]],
-            ["name": "gamma", "kind": "confidence", "value": 95],
-            ["name": "doAgreement", "kind": "boolean", "value": true]
-        ]]
-        let plan = try RScriptGenerator.generate(operation: "TPaired", title: "Paired t", output: output, resources: resources)
-        run(plan.script, plots: 1)
-        precondition(pane.console.string.contains("agreement.pdf"))
-        run(plan.script, plots: 1)
+        // A paired t test's script as the engine writes it from a record: the data as named vectors, the setting, then the body of
+        // the recipe in the program's R folder (its comment header, the lines the writer reads, left off).
+        let headerKeys = ["# StatsDirect recipe:", "# From the help", "# data:", "# table:", "# matrix:", "# settings:", "# hand-edited:"]
+        var recipe = try String(contentsOf: resources.appendingPathComponent("R/recipes/paired-t.R"), encoding: .utf8).components(separatedBy: "\n")
+        while let first = recipe.first, first.isEmpty || headerKeys.contains(where: { first.hasPrefix($0) }) { recipe.removeFirst() }
+        let script = "# Paired t, from StatsDirect\n# Paired t test with its agreement analysis\n\nbefore <- c(10, 20, 30, 40)   # Before\nafter <- c(8, 17, 25, 32)   # After\nconfidence <- 0.95\n\n" + recipe.joined(separator: "\n")
+        run(script, plots: 1)
+        precondition(pane.console.string.contains("Paired t-test"))
+        run(script, plots: 1)
         run("cat('No new plot\\n')", plots: 0)
         print("PASS generated agreement PDF appears inline, redraw is shown and unchanged plots are not repeated")
 

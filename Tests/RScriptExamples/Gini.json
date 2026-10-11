@@ -1,0 +1,1 @@
+{"operation":"Gini","file":"gini.R","inputs":[{"name":"data","columns":[{"title":"imr","values":[59,43,39,24,22]}]}],"cut":true,"settings":{"gamma":0.95,"boots":2000,"seed":2001}}

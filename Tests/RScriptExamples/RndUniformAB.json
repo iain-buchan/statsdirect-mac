@@ -1,0 +1,1 @@
+{"operation":"RndUniformAB","file":"random-uniform-ab.R","nocompare":true,"settings":{"rows":5,"cols":2,"seed":1234,"a":2,"b":5,"numberType":"interval"}}

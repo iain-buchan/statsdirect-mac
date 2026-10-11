@@ -99,7 +99,9 @@ public static class AnalysisIO {
         var result = ((ITemplateProcessor)new TemplateProcessor(host)).Execute(TemplateFactory.Operations["ExactChiRbyCScreen"], new ParameterBag()).ParameterBag;
         Check(); // A cancelled simulation may return partial output: never publish it as a completed report.
         return new { html = host.Html.ToString(), values = Scalars(result), input, total, warnings = host.Warnings,
-            operation = "ExactChiRbyCScreen", exactSkipped = input.DoExact && total > 100000 };
+            operation = "ExactChiRbyCScreen", exactSkipped = input.DoExact && total > 100000,
+            // The engine's record of the run (the table as an entered frame and the settings) and whether the shared recipes cover it.
+            record = host.Record, recipe = StatsDirect.R.RRecipes.Has("ExactChiRbyCScreen") };
     }
     static Dictionary<string, object> Scalars(ParameterBag bag) {
         var result = new Dictionary<string, object>();

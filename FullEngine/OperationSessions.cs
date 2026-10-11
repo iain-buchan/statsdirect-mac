@@ -99,6 +99,9 @@ internal sealed class OperationJob {
     object frames, outputs, analysisOptions, suggestions;
     // The engine's record of the run (RunRecord, shared with Windows) as it stood at the last report step: the report keeps it with the result.
     string record;
+    // Whether the shared R recipes (RRecipes, the manifest published beside the engine) hold one for this operation: the report
+    // offers Continue in R when they do and Open data and settings in R otherwise.
+    readonly bool recipe;
     internal sealed record InputRecord(string Title, object Value, string Name = null, string Kind = null, string Mode = null);
     readonly List<InputRecord> history = new();
     // A follow-on's report and R script list the parent's inputs before its own.
@@ -127,9 +130,10 @@ internal sealed class OperationJob {
     public OperationJob(string id, Operation operation, JsonElement preferences, ParameterBag context = null, string parent = null, List<InputRecord> inherited = null) {
         Id = id; Operation = operation; SavedPreferences = preferences; startContext = context; parentId = parent;
         if (inherited != null) history.AddRange(inherited);
+        recipe = StatsDirect.R.RRecipes.Has(operation.Name);
         var output = FirstOutputFrame(operation.Steps); writesWorksheet = output != null; placement = output?.DefaultPlacement.ToString();
     }
-    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, suggestions, parent = parentId, writesWorksheet, placement, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray(), record }; }
+    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, suggestions, parent = parentId, writesWorksheet, placement, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray(), record, recipe }; }
     static void NoteOperation(ParameterBag bag, string name) {
         if (!bag.ContainsKey(MemoryName)) bag.AddInput(MemoryName, new List<string>());
         var list = bag[MemoryName].AsStringList;
@@ -342,7 +346,7 @@ internal sealed class OperationHost : ITemplateHost {
                     }
                 }
                 HostParameters.Commit(p, filled, context);
-                job.Record(descriptor["prompt"] as string, HostParameters.Recorded(p, input, filled), p.Name, descriptor["kind"] as string, descriptor.TryGetValue("mode", out var acquisitionMode) ? acquisitionMode as string : null);
+                job.Record(descriptor["prompt"] as string, HostParameters.Recorded(p, input, filled), p.Name, HostParameters.RecordKind(p, descriptor["kind"] as string), descriptor.TryGetValue("mode", out var acquisitionMode) ? acquisitionMode as string : null);
                 return filled;
             } catch (ArgumentException ex) { error = ex.Message; }
         }

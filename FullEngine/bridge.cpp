@@ -22,6 +22,8 @@ static workbook_fn operationRequest = nullptr;
 static free_fn operationFree = nullptr;
 static workbook_fn calculatorRequest = nullptr;
 static free_fn calculatorFree = nullptr;
+static workbook_fn rScriptRequest = nullptr;
+static free_fn rScriptFree = nullptr;
 static std::once_flag initialized;
 static void initialize() {
     Dl_info location{};
@@ -69,6 +71,10 @@ static void initialize() {
     if (code < 0) calculatorRequest = nullptr;
     code = load(assembly.c_str(), "CalculatorIO, StatsDirect.Headless", "Free", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&calculatorFree);
     if (code < 0) calculatorFree = nullptr;
+    code = load(assembly.c_str(), "RScriptIO, StatsDirect.Headless", "Invoke", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&rScriptRequest);
+    if (code < 0) rScriptRequest = nullptr;
+    code = load(assembly.c_str(), "RScriptIO, StatsDirect.Headless", "Free", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&rScriptFree);
+    if (code < 0) rScriptFree = nullptr;
 }
 extern "C" int statsdirect_paired_t(const double* before, const double* after, int count, double confidence, double* output, int capacity) {
     std::call_once(initialized, initialize);
@@ -113,3 +119,10 @@ extern "C" char* statsdirect_calculator(const char* request) {
     return calculatorRequest && calculatorFree ? calculatorRequest(request) : nullptr;
 }
 extern "C" void statsdirect_calculator_free(char* result) { if (calculatorFree) calculatorFree(result); }
+
+// The R script of a result, written by the engine from the record of its run (RScriptIO).
+extern "C" char* statsdirect_r_script(const char* request) {
+    std::call_once(initialized, initialize);
+    return rScriptRequest && rScriptFree ? rScriptRequest(request) : nullptr;
+}
+extern "C" void statsdirect_r_script_free(char* result) { if (rScriptFree) rScriptFree(result); }

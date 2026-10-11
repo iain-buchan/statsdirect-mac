@@ -170,7 +170,9 @@ internal static class HostParameters {
             foreach (var variable in filled[f.Name].AsDataFrame.Variables) target.Variables.Add(variable); if (!context.ContainsKey(f.AppendToFrame)) filled.AddInput(f.AppendToFrame, target);
         }
     }
-    internal static DataFrame ReadFrame(JsonElement input, DataAcquisitionMode mode, OperationHost host = null, bool sequenceDates = false) {
+    // reread: the columns a record points to are read again for an R script, without a host: the dummy-coding prompts are not
+    // asked (a pointer frame was recorded 1:1 only when the coding was declined, so the declined result is the recorded one).
+    internal static DataFrame ReadFrame(JsonElement input, DataAcquisitionMode mode, OperationHost host = null, bool sequenceDates = false, bool reread = false) {
         if (!input.TryGetProperty("columns", out var cols) || cols.ValueKind != JsonValueKind.Array || cols.GetArrayLength() == 0) throw new ArgumentException("Choose worksheet columns or enter data in the table.");
         var frame = new DataFrame(); frame.Name = input.TryGetProperty("source", out var source) ? source.GetString() : "Entered data";
         if(mode==DataAcquisitionMode.CategoryCombineAllColumns) {
@@ -205,7 +207,7 @@ internal static class HostParameters {
                 }
                 cv.Groups = groups.Values.ToList();
                 if (mode == DataAcquisitionMode.NumericCodingTextToDummies) {
-                    var dummy = StatsDirect.Builtins.Sheet.ToDummyVariables(host, cv, true);
+                    var dummy = reread ? null : StatsDirect.Builtins.Sheet.ToDummyVariables(host, cv, true);
                     if (dummy == null) frame.Variables.Add(cv); else foreach (var v in dummy.Variables) frame.Variables.Add(v);
                 } else frame.Variables.Add(cv);
                 continue;
@@ -226,23 +228,72 @@ internal static class HostParameters {
                 var categories=data.Distinct().ToArray();
                 if(categories.Length>2 && categories.Length<Math.Min(data.Length,12)) {
                     var classifier=new ClassifierVariable {Title=title,Data=data.Select(n=>(double)Array.IndexOf(categories,n)).ToArray(),Groups=categories.Select((n,i)=>new Group(n.ToString(CultureInfo.InvariantCulture),i){NBin=data.Count(v=>v==n)}).ToList()};
-                    var dummy=StatsDirect.Builtins.Sheet.ToDummyVariables(host,classifier,true);
+                    var dummy=reread?null:StatsDirect.Builtins.Sheet.ToDummyVariables(host,classifier,true);
                     if(dummy!=null){foreach(var v in dummy.Variables)frame.Variables.Add(v);continue;}
                 }
             }
             frame.Variables.Add(new DoubleVariable(data, title));
         }
+        AttachOrigins(input, frame, mode);
         if (frame.MaxRows == 0) throw new ArgumentException("Enter at least one observation.");
         return frame;
     }
+    // Where a frame's columns came from, for the engine's record of the run (RunRecord, shared with Windows): the form's
+    // worksheet answer names the workbook, the sheet and the 0-based columns and 1-based rows it read (its "worksheet" and
+    // "range" blocks), and the Swift host adds the workbook's path when the document is saved. Each variable then gets the
+    // WorksheetOrigin the Windows grid would give it, and RunRecord writes the frame as pointers (file, sheet, column, rows,
+    // hash) instead of values, with the first such frame as the record's source. The Mac grid's titles are its header row:
+    // when the data start directly under it (firstRow 2 with hasTitle) the origin is rows [1, last] with the title row
+    // counted in, as Windows records a selection that included its title row; otherwise the rows as selected, untitled.
+    // An unsaved workbook has no path: its name is the path, so the record names the file and says it is unsaved. Nothing
+    // attaches, and the frame is recorded as entered with its values, when the answer has no worksheet block or no workbook
+    // name, when the columns do not map one to one onto the variables (dummy coding expanded a column, or every column was
+    // combined into one), or when the ranges are not those of a worksheet. A long layout (groups by identifier) is pivoted
+    // from a synthetic input without the block, so its groups are recorded as entered, as the Windows Gidx1/Gidx2 pivots
+    // leave them without an origin; the raw cells stay in the history's "worksheet" block.
+    internal static void AttachOrigins(JsonElement input, DataFrame frame, DataAcquisitionMode mode) {
+        if (input.ValueKind != JsonValueKind.Object || !input.TryGetProperty("worksheet", out var worksheet) || worksheet.ValueKind != JsonValueKind.Object) return;
+        string sheetName = OriginText(worksheet, "sheetName"); if (string.IsNullOrEmpty(sheetName)) return;
+        string workbook = OriginText(worksheet, "workbookPath"); if (string.IsNullOrEmpty(workbook)) workbook = OriginText(worksheet, "workbook"); if (string.IsNullOrEmpty(workbook)) return;
+        if (!input.TryGetProperty("range", out var range) || range.ValueKind != JsonValueKind.Object || !input.TryGetProperty("columns", out var columns) || columns.ValueKind != JsonValueKind.Array) return;
+        if (!range.TryGetProperty("columns", out var indices) || indices.ValueKind != JsonValueKind.Array || indices.GetArrayLength() != columns.GetArrayLength() || indices.GetArrayLength() != frame.VariableCount) return;
+        if (!OriginInteger(range, "firstRow", out int firstRow) || !OriginInteger(range, "lastRow", out int lastRow) || firstRow < 1 || lastRow < firstRow || lastRow > 1048576) return;
+        var columnIndices = new int[frame.VariableCount]; int i = 0;
+        foreach (var index in indices.EnumerateArray()) { if (index.ValueKind != JsonValueKind.Number || !index.TryGetInt32(out int c) || c < 0 || c > 16383) return; columnIndices[i++] = c; }
+        bool hasTitle = worksheet.TryGetProperty("hasTitle", out var titled) && titled.ValueKind == JsonValueKind.True && firstRow == 2;
+        int topRow = hasTitle ? 0 : firstRow - 1, rows = hasTitle ? lastRow : lastRow - firstRow + 1;
+        for (i = 0; i < frame.VariableCount; i++) frame.Variables[i].Origin = new WorksheetOrigin(workbook, sheetName, columnIndices[i], topRow, rows, mode, hasTitle, false, 0);
+    }
+    static string OriginText(JsonElement element, string name) => element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+    static bool OriginInteger(JsonElement element, string name, out int value) { value = 0; return element.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out value); }
     internal static bool IsLongLayout(JsonElement input) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty("layout", out var layout) && layout.ValueKind == JsonValueKind.String && layout.GetString() == "long";
-    // What the history records for a frame: the pivoted variables for long data, so the report's
-    // inputs, the R script and an instant rerun see exactly what the engine analysed.
+    // The answer's provenance kept with a record the host builds itself (a pivoted long layout, a two-dimensional or a
+    // covariance frame): where the columns came from (source, range and the worksheet pointers the form sends), how they
+    // were laid out (layout, roles) and that trailing blank cells were kept (preserveRows). The engine reads none of these.
+    internal static void CopyProvenance(JsonElement input, Dictionary<string, object> record) {
+        if (input.ValueKind != JsonValueKind.Object) return;
+        foreach (var property in input.EnumerateObject()) if (property.Name is "source" or "range" or "preserveRows" or "layout" or "roles" or "worksheet") record[property.Name] = property.Value.Clone();
+    }
+    // The kind the run record names for an input the form described by its control: a 2 by 2 table is asked as a grid,
+    // a date as text and picks as select lists (the Windows RunRecord.KindOf names).
+    internal static string RecordKind(Parameter p, string kind) => p switch { Double2By2Parameter => "table", DateParameter => "date", PickVariablesParameter => "variables", PickFromListParameter => "choice", _ => kind };
+    // What the history records for an input: the answer as given; for a 2 by 2 table also the labels of its rows and
+    // columns; for long data the pivoted variables, so the report's inputs, the R script and an instant rerun see exactly
+    // what the engine analysed, with the answer's provenance (source, rows, worksheet pointers, which columns identified the groups).
     internal static object Recorded(Parameter p, JsonElement input, ParameterBag filled) {
+        if (p is Double2By2Parameter t && input.ValueKind == JsonValueKind.Object) {
+            // As the Windows run notes a table typed in: a missing prompt is an empty label.
+            var table = new Dictionary<string, object>();
+            foreach (var property in input.EnumerateObject()) table[property.Name] = property.Value.Clone();
+            table["rowLabels"] = new[] { t.TopRowPrompt ?? "", t.BottomRowPrompt ?? "" };
+            table["columnLabels"] = new[] { t.LeftColumnPrompt ?? "", t.RightColumnPrompt ?? "" };
+            // What the rows and the columns stand for (e.g. Outcome and Characteristic): the dimnames of the matrix an R script builds.
+            table["rowsTitle"] = t.RowsPrompt ?? ""; table["columnsTitle"] = t.ColumnsPrompt ?? "";
+            return table;
+        }
         if (!(p is FrameParameter) || !IsLongLayout(input) || !filled.ContainsKey(p.Name)) return input;
-        // The pivoted variables, with the answer's provenance (source, rows, which columns identified the groups).
         var record = new Dictionary<string, object>();
-        foreach (var property in input.EnumerateObject()) if (property.Name is "source" or "range" or "preserveRows" or "layout" or "roles") record[property.Name] = property.Value.Clone();
+        CopyProvenance(input, record);
         record["identifiers"] = IdentifierColumns(input, "groupIdentifiers").Select(c => c.title).ToArray();
         var blocks = IdentifierColumns(input, "blockIdentifiers"); if (blocks.Length > 0) record["blocks"] = blocks.Select(c => c.title).ToArray();
         record["columns"] = ((dynamic)FrameInput(filled[p.Name].AsDataFrame)).columns;

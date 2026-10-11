@@ -232,6 +232,10 @@ function App() {
       redo: () => {
         if (store.redo()) changed();
       },
+      // The workbook's name after Save As, so the metadata the forms and the tutor read agrees with the Document that owns the file.
+      renameWorkbook: (name: string) => { workbook.name = String(name); refresh(n => n + 1); },
+      // A test hook: one cell's text through the store's paste path (one undo step); row 0 is the header row when the sheet has one.
+      setCellText: ({col, row, text}: {col: number, row: number, text: string}) => { attempt(() => { if (store.paste(col, row, String(text))) changed(); }); },
       setStatus: setMessage
     };
   });

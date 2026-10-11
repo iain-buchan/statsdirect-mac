@@ -147,7 +147,9 @@ enum RunRecordR {
     /// A record read from a file, kept as the JSON text it was saved with (the engine reads it exactly as it was written, its
     /// properties in their order) when it is one Windows or this program could have written: an object of version 1 naming an
     /// operation, its frame inputs pointing within the worksheet's bounds, its run time (and its source's modification time) an ISO
-    /// 8601 timestamp, no text longer than 4,096 characters, no control character in any string or key, and at most 4 MB.
+    /// 8601 timestamp, no text longer than 4,096 characters, no U+0000 in any string or key, and at most 4 MB. Any other control
+    /// character in a title or name is no bar: the engine's writer makes each one a space in the script's comment lines and
+    /// escapes it in its string literals; U+0000 alone R cannot hold in a string, so a script with one stops at R's parser.
     static func validated(_ raw: String) -> String? {
         guard raw.utf8.count <= 4_000_000, let object = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any] else { return nil }
         guard integer(object["version"]) == 1, let operation = object["operation"] as? String, isOperationName(operation) else { return nil }
@@ -171,33 +173,29 @@ enum RunRecordR {
                 }
             }
         }
-        guard textsWithinBounds(object, depth: 0), !holdsControlCharacters(object) else { return nil }
+        guard textsWithinBounds(object, depth: 0), !holdsNul(object, depth: 0) else { return nil }
         guard let run = object["run"] as? String, isTimestamp(run) else { return nil }
         if let source = object["source"] as? [String: Any], let modified = source["modified"], !(modified is NSNull) {
             guard let text = modified as? String, isTimestamp(text) else { return nil }
         }
         return raw
     }
-    /// Whether any string or key of a record, at any depth, holds a character of U+0000–U+001F or U+007F. The engine's writer puts the
-    /// record's title, file, sheet, column titles and parameter names into the script's `#` comment lines as they are, so a line feed in
-    /// one would end the comment and leave the rest of the text to run as R. No record Windows or this program writes has one; a record
-    /// read from a file that does is refused, and a live record that does (a worksheet title typed with a line break) is not written as
-    /// a script (ReportRHost) until the shared writer neutralises them, which is raised with Windows rather than diverged from here.
-    static func holdsControlCharacters(_ value: Any, depth: Int = 0) -> Bool {
+    /// Whether any string or key of a record, at any depth, holds U+0000: the one character the writer's string literals cannot
+    /// carry into R ("nul character not allowed" stops the whole script), raised with Windows for the writer to make a space.
+    static func holdsNul(_ value: Any, depth: Int) -> Bool {
         guard depth <= 32 else { return true }
-        if let s = value as? String { return holdsControlCharacter(s) }
-        if let items = value as? [Any] { return items.contains { holdsControlCharacters($0, depth: depth + 1) } }
-        if let pairs = value as? [String: Any] { return pairs.contains { holdsControlCharacter($0.key) || holdsControlCharacters($0.value, depth: depth + 1) } }
+        if let s = value as? String { return s.unicodeScalars.contains { $0.value == 0 } }
+        if let items = value as? [Any] { return items.contains { holdsNul($0, depth: depth + 1) } }
+        if let pairs = value as? [String: Any] { return pairs.contains { $0.key.unicodeScalars.contains { $0.value == 0 } || holdsNul($0.value, depth: depth + 1) } }
         return false
     }
-    static func holdsControlCharacter(_ s: String) -> Bool { s.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F } }
-    /// Whether a record's JSON text can go to the engine's writer: an object without a control character in any string or key.
-    static func scriptSafe(_ record: String) -> Bool {
+    /// Whether a live record can go to the engine's writer: an object without U+0000 in any string or key.
+    static func scriptable(_ record: String) -> Bool {
         guard let object = try? JSONSerialization.jsonObject(with: Data(record.utf8)) as? [String: Any] else { return false }
-        return !holdsControlCharacters(object)
+        return !holdsNul(object, depth: 0)
     }
-    /// A reason this program gives for a frame it could not read, with any control character made a space, since the writer puts it
-    /// into the script's Data comment line as it is (a workbook's name on disk may hold anything but a slash).
+    /// A reason this program gives for a frame it could not read, with any control character made a space, as the writer makes
+    /// those of the record's own texts in its comment lines (a workbook's name on disk may hold anything but a slash).
     static func plain(_ reason: String) -> String {
         String(String.UnicodeScalarView(reason.unicodeScalars.map { $0.value < 0x20 || $0.value == 0x7F ? " " : $0 }))
     }

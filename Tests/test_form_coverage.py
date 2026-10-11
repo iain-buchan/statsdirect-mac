@@ -19,9 +19,9 @@ menu = json.loads((ROOT / 'Content/analysis-menu.json').read_text())['operations
 excluded = {
     'ImportWorksheet': 'Native workbook/file host; covered by the separate file integration suites.',
     'ExportWorksheet': 'Native workbook/file host; covered by the separate file integration suites.',
-    'MethodComparisonRegression': 'Existing explicit R deferral; no Mac calculation form.',
+    'MethodComparisonRegression': 'Runs through R (the mcr package): completed in Tests/test_r_operations.py, which runs after this check.',
 }
-assert {op for op, definition in menu.items() if definition.get('unavailable')} == {'MethodComparisonRegression'}
+assert not {op for op, definition in menu.items() if definition.get('unavailable')}, 'every operation of the menu is hosted'
 assert set(excluded) <= operations
 expected = operations - set(excluded)
 completed = {}

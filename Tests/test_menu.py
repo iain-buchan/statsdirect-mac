@@ -76,7 +76,8 @@ if __name__=='__main__':
    rejected=s.request(action='start',id=str(uuid.uuid4()),operation=name);assert definition['unavailable']==rejected.get('error')
   else:
    id,state=s.start(name);assert state['state']=='input',(name,state);s.close(id)
- print('PASS: all 224 menu commands, 208 offline help links, 207 input hosts (LOESS through R) and 1 explicit R deferral',flush=True)
+ assert not any(d.get('unavailable') for d in catalog['operations'].values())
+ print('PASS: all 224 menu commands, 208 offline help links and 208 input hosts (LOESS and method comparison regression through R), nothing deferred',flush=True)
  id,state=s.start('ExactSign');old=state['token']
  other,other_state=s.start('TPaired');assert other_state['state']=='input'
  s.request(action='answer',id=id,token=old,value='NaN');state=s.wait(id)

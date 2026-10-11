@@ -938,29 +938,38 @@ extension ReportExportTests {
         try check(r.text.hasPrefix("# Paired Student t test, from StatsDirect, ") && r.text.contains("# Data: \"test.xlsx\", sheet \"Agreement\", the values the analysis used.") && r.text.contains("before <- c(190, 220, 260, 210") && r.status=="R script of the analysis opened","Continue in R on the Windows record: \(headLines(r.text)) · \(r.status)")
         print("PASS: a report saved by Windows reopens with its valid record (Continue in R works from its kept values) and drops the invalid one with an import note");fflush(stdout)
         v.remove(windows)
-        // 8. A record read from a file is refused when any string or key holds a control character (the engine's writer puts the title,
-        //    the file, the sheet, column titles and parameter names into the script's comment lines as they are, so a line feed would
-        //    leave R to run) or when its run time or its source's modification time is not a timestamp; a live record holding one is not
-        //    written as a script.
+        // 8. A record read from a file is refused when its run time or its source's modification time is not a timestamp. A control
+        //    character in a string or key is no bar: the engine's writer makes each one a space in the script's comment lines and
+        //    escapes it in its string literals, so such a record validates as written, and a live one is written as a script whose
+        //    head stays one comment where the character was.
         let plain="{\"version\":1,\"operation\":\"TPaired\",\"title\":\"Paired Student t test\",\"run\":\"2026-10-11T03:00:00.1234567+01:00\",\"source\":{\"file\":\"a.xlsx\",\"path\":\"/tmp/a.xlsx\",\"modified\":\"2026-10-01T08:00:00.0000000+01:00\"},\"inputs\":[{\"name\":\"data\",\"prompt\":\"Select data\",\"kind\":\"entered\",\"columns\":[{\"title\":\"x\",\"values\":[1,2,3]}]}],\"parameters\":{\"gamma\":0.95},\"values\":{\"t\":1.5}}"
         try check(RunRecordR.validated(plain)==plain,"a plain record validates")
-        let refused:[(String,String)]=[("a line feed in the title",plain.replacingOccurrences(of:"\"Paired Student t test\"",with:"\"Paired\\nsystem(\\\"echo INJECTED\\\")\"")),
-            ("a tab in a key",plain.replacingOccurrences(of:"\"gamma\"",with:"\"gam\\tma\"")),("DEL in a column title",plain.replacingOccurrences(of:"\"title\":\"x\"",with:"\"title\":\"x\\u007f\"")),
-            ("a carriage return in a value",plain.replacingOccurrences(of:"[1,2,3]",with:"[1,\"a\\rb\",3]")),("a line feed in the file name",plain.replacingOccurrences(of:"\"file\":\"a.xlsx\"",with:"\"file\":\"a\\n.xlsx\"")),
-            ("a run time that is not a timestamp",plain.replacingOccurrences(of:"2026-10-11T03:00:00.1234567+01:00",with:"11 Oct 2026")),
+        let refused:[(String,String)]=[("a run time that is not a timestamp",plain.replacingOccurrences(of:"2026-10-11T03:00:00.1234567+01:00",with:"11 Oct 2026")),
             ("a modification time that is not a timestamp",plain.replacingOccurrences(of:"2026-10-01T08:00:00.0000000+01:00",with:"yesterday")),
             ("no run time",plain.replacingOccurrences(of:"\"run\":\"2026-10-11T03:00:00.1234567+01:00\",",with:""))]
         for (what,text) in refused { try check(text != plain && RunRecordR.validated(text)==nil,"a record with \(what) must be refused") }
+        let neutralised:[(String,String)]=[("a line feed in the title",plain.replacingOccurrences(of:"\"Paired Student t test\"",with:"\"Paired\\nsystem(\\\"echo INJECTED\\\")\"")),
+            ("a tab in a key",plain.replacingOccurrences(of:"\"gamma\"",with:"\"gam\\tma\"")),("DEL in a column title",plain.replacingOccurrences(of:"\"title\":\"x\"",with:"\"title\":\"x\\u007f\"")),
+            ("a carriage return in a value",plain.replacingOccurrences(of:"[1,2,3]",with:"[1,\"a\\rb\",3]")),("a line feed in the file name",plain.replacingOccurrences(of:"\"file\":\"a.xlsx\"",with:"\"file\":\"a\\n.xlsx\""))]
+        for (what,text) in neutralised { try check(text != plain && RunRecordR.validated(text)==text,"a record with \(what) validates as written") }
+        // U+0000 alone stays refused: R cannot hold it in a string, and the writer's escape for it stops R's parser
+        let nul=plain.replacingOccurrences(of:"\"title\":\"x\"",with:"\"title\":\"x\\u0000y\"")
+        try check(nul != plain && RunRecordR.validated(nul)==nil && RunRecordR.validated(plain.replacingOccurrences(of:"\"gamma\"",with:"\"ga\\u0000mma\""))==nil,"a record with a NUL in a value or a key must be refused")
         for stamp in ["2026-10-11T03:00:00+01:00","2026-10-11T02:00:00Z","2026-10-11T02:00:00.123Z","2026-10-11T03:00:00"] {
             try check(RunRecordR.validated(plain.replacingOccurrences(of:"2026-10-11T03:00:00.1234567+01:00",with:stamp)) != nil,"a record run at \(stamp) validates")
         }
-        let unsafe=ReportEntry(id:UUID().uuidString,title:"Unsafe title",operation:"TPaired",body:"<p>Unsafe</p>",record:refused[0].1,recipe:true)
-        report.reportEntries!.append(unsafe); report.reportRevision += 1; v.renderReport(report)
-        let panes=v.documents.filter{$0.kind=="r"}.count
-        v.continueResultInR(report,id:unsafe.id)
-        try await wait("the refusal") { v.status.stringValue.hasPrefix("The R script was not written:") }
-        try check(v.documents.filter{$0.kind=="r"}.count==panes && v.status.stringValue.contains("holds a line break or control character"),"a live record with a line feed in its title must not be written as a script: \(v.status.stringValue)")
-        print("PASS: a record with a control character in any string or key, or without a timestamp, is refused from a file, and a live one is not written as a script");fflush(stdout)
+        let broken=ReportEntry(id:UUID().uuidString,title:"Broken title",operation:"TPaired",body:"<p>Broken</p>",record:neutralised[0].1,recipe:true)
+        report.reportEntries!.append(broken); report.reportRevision += 1; v.renderReport(report)
+        let r8=try await continueInR(report,id:broken.id)
+        let lines8=r8.text.split(separator:"\n",omittingEmptySubsequences:false).map(String.init)
+        try check(r8.status=="R script of the analysis opened" && (lines8.first ?? "").hasPrefix("# Paired system(\"echo INJECTED\"), from StatsDirect, ") && !lines8.contains{ $0.hasPrefix("system(") },"a live record with a line feed in its title is written with the break as a space, the head one comment: \(headLines(r8.text)) · \(r8.status)")
+        let nulEntry=ReportEntry(id:UUID().uuidString,title:"NUL title",operation:"TPaired",body:"<p>NUL</p>",record:nul,recipe:true)
+        report.reportEntries!.append(nulEntry); report.reportRevision += 1; v.renderReport(report)
+        let panes8=v.documents.filter{$0.kind=="r"}.count
+        v.continueResultInR(report,id:nulEntry.id)
+        try await wait("the NUL refusal") { v.status.stringValue.hasPrefix("The R script was not written:") }
+        try check(v.documents.filter{$0.kind=="r"}.count==panes8 && v.status.stringValue.contains("NUL character"),"a live record with a NUL must not be written as a script: \(v.status.stringValue)")
+        print("PASS: a record without a timestamp, or with a NUL, is refused from a file; one with any other control character validates, and a live one is scripted with the character made a space, a live one with a NUL not at all");fflush(stdout)
         // 9. A record pointing at more cells than can be read (its columns over the rows they span, alone or with the frames before it)
         //    leaves the frame unread with the reason; the script still opens and says so.
         func wholeColumns(_ columns:Int) -> String { (1...columns).map{"{\"title\":\"c\($0)\",\"column\":\($0),\"rows\":[1,1048576],\"hasTitle\":true,\"hash\":\"9f86d081884c7d65\"}"}.joined(separator:",") }

@@ -74,6 +74,55 @@ namespace StatsDirect.R
 
         public static bool IsInstalled => FindRscript() != null;
 
+        /// <summary>
+        /// The installed R as the operation definitions ask about it (a precondition such as "R 3.0.0 or later for the mcr
+        /// package"): its version from Rscript itself, read once per Rscript found. Null when R is not installed or does not
+        /// answer. Windows finds its versions in the registry; here there is one R, the Rscript FindRscript gives.
+        /// </summary>
+        public static RVersion PreferredRVersion()
+        {
+            string rscript = FindRscript();
+            if (rscript == null)
+                return null;
+            lock (versions)
+            {
+                if (versions.TryGetValue(rscript, out RVersion known))
+                    return known;
+                RVersion version = null;
+                try
+                {
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = rscript, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true
+                    };
+                    startInfo.ArgumentList.Add("--vanilla");
+                    startInfo.ArgumentList.Add("-e");
+                    startInfo.ArgumentList.Add("cat(R.version$major, R.version$minor, sep = '.')");
+                    using Process process = Process.Start(startInfo);
+                    // the output is read alongside the wait, so that an Rscript that never answers is killed after the time allowed
+                    System.Threading.Tasks.Task<string> standardOutput = process.StandardOutput.ReadToEndAsync(), standardError = process.StandardError.ReadToEndAsync();
+                    if (!process.WaitForExit(30000))
+                    {
+                        try { process.Kill(true); } catch (Exception) { }
+                        throw new TimeoutException("Rscript did not answer within 30 seconds");
+                    }
+                    string output = standardOutput.Result.Trim();
+                    _ = standardError.Result;
+                    if (process.ExitCode == 0 && Regex.IsMatch(output, @"^\d+\.\d+(\.\d+)?$"))
+                    {
+                        if (output.Split('.').Length == 2)
+                            output += ".0";   // RVersion reads three parts, major.minor.revision
+                        version = new RVersion { InstallPath = Path.GetDirectoryName(Path.GetDirectoryName(rscript)) ?? "", VersionString = output, IsX64 = true };
+                    }
+                }
+                catch (Exception) { version = null; }
+                if (version != null)
+                    versions[rscript] = version;
+                return version;
+            }
+        }
+        static readonly Dictionary<string, RVersion> versions = new();
+
         // The engine's scripts draw their charts with R's svg device. CRAN's R for the Mac needs XQuartz for that device
         // (its cairo library links X11), so the chart is drawn by the svglite package instead, installed from CRAN into
         // the shared library the first time it is needed; its SVG carries a viewBox and Arial text like the engine's own.
@@ -106,8 +155,10 @@ win.metafile <- function(filename = """", width = 7, height = 7, ...) {
             Directory.CreateDirectory(run.Folder);
             current = run;
             string body = Unconvertible.Replace(scriptBody.Replace("\r\n", "\n").Replace('\r', '\n'), "# (a parameter that R cannot take was left out)");
+            // The run's folder goes when the run is read back, so the head makes it again before moving there: the script the report
+            // shows (the same head) then runs again as it is, writing its charts into that folder.
             string head = "userdir <- " + RQuote(run.Folder) + "\nrlib <- " + RQuote(LibraryFolder)
-                + "\ndir.create(rlib, recursive = TRUE, showWarnings = FALSE)\nsetwd(userdir)\n.libPaths(c(rlib, .libPaths()))";
+                + "\ndir.create(userdir, recursive = TRUE, showWarnings = FALSE)\ndir.create(rlib, recursive = TRUE, showWarnings = FALSE)\nsetwd(userdir)\n.libPaths(c(rlib, .libPaths()))";
             // The script the report shows can be run again as it is: without the shim and the message sink, which are this host's.
             reportScriptBody = head + "\n" + body;
             string script = head + "\n" + GraphicsShim + "\nzz <- file(" + RQuote(ERROR_FILE_NAME) + ", open = \"wt\")\nsink(zz, type = \"message\")\nreturning.to.statsdirect <- TRUE\n" + body + "\nquit()\n";

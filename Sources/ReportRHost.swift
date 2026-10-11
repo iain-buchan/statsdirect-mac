@@ -31,9 +31,8 @@ extension Viewer {
     /// reading does nothing. The script is titled by the record's own title, the operation's friendly name, as on Windows.
     func openRecordInR(_ entry: ReportEntry) {
         guard let record = entry.record else { status.stringValue = "\(entry.title) has no record of its run to continue in R"; return }
-        // The writer puts the record's title, file, sheet, column titles and parameter names into the script's comment lines as they
-        // are, so a line break in one (a worksheet title typed with one) would leave R to run: such a record is not written as a script.
-        guard RunRecordR.scriptSafe(record) else { status.stringValue = "The R script was not written: a title or name in the record of \(entry.title) holds a line break or control character"; return }
+        // R cannot hold U+0000 in a string, and the writer's escape for it stops R's parser before any line of the script runs.
+        guard RunRecordR.scriptable(record) else { status.stringValue = "The R script was not written: a title, name or value in the record of \(entry.title) holds a NUL character, which R cannot take"; return }
         guard !rGenerating.contains(entry.id) else { return }
         rGenerating.insert(entry.id)
         status.stringValue = "Preparing the R script for \(entry.title)…"

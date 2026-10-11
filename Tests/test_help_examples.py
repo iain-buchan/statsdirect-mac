@@ -231,7 +231,6 @@ def run_example(s, example, operation, booleans=False, strategy='role', choice=0
     if override.get('columns'): example = dict(example, columns=override['columns'], instructions=example['instructions'] + ' ' + ' '.join(f'"{c}"' for c in override['columns']))
     named = expand_columns(example)
     if not named and not explicit: return {'status': 'no columns', 'detail': 'none of the quoted names is a column of the test workbook'}
-    if operation == 'MethodComparisonRegression': return {'status': 'deferred', 'detail': 'R-based menu host is not enabled; use an R session.'}
     id, st = s.start(operation); prompts = []; pending = list(named); groupwise = len(named) > len(example['columns'])
     try:
         for _ in range(60):

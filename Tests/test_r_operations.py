@@ -3,7 +3,7 @@ the inputs as R variables, the Mac host runs Rscript in a folder of its own, rea
 (a PNG from the quartz device, in place of the Windows metafile) and the script into the HTML report. The figures are
 checked against R called directly on the same data, the help example against its printed values, and the host's own
 paths: missing values, several predictors, R not installed, an R error, and cancelling while R runs."""
-import math, os, re, subprocess, sys, tempfile, time
+import json, math, os, re, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
 ARGS = sys.argv[1:]; sys.argv = sys.argv[:1]
 from test_menu import Session
@@ -13,6 +13,12 @@ from test_help_examples import column, frame_answer
 work = tempfile.mkdtemp(prefix='statsdirect-r-')
 os.environ['STATSDIRECT_R_FOLDER'] = work   # the engine's R runs and package library, kept out of Application Support
 RUNS = Path(work) / 'R Operations'
+# The packages the program's R runs install (svglite for the charts, mcr for method comparison regression) are in the program's own
+# library when it has run them before: the runs here share it, so that nothing is downloaded again; a fresh machine installs as the
+# program does.
+SHARED_LIBRARY = Path('~/Library/Application Support/StatsDirect Viewer/R Library').expanduser()
+if SHARED_LIBRARY.is_dir(): (Path(work) / 'R Library').symlink_to(SHARED_LIBRARY)
+R_ENV = dict(os.environ, R_LIBS=str(Path(work) / 'R Library'))
 
 def answer(s, operation, answers):
     id, st = s.start(operation); prompts = []
@@ -21,6 +27,7 @@ def answer(s, operation, answers):
         assert not p.get('error'), (name, p['error'])
         if name in answers: v = answers[name]
         elif p['kind'] == 'boolean': v = False
+        elif p['kind'] == 'options': v = {o['value']: o['selected'] for o in p['options']}   # the form's defaults
         elif p.get('defaultValue') is not None: v = p['defaultValue']
         elif p['kind'] == 'option': v = p['options'][0]['value']
         else: raise AssertionError(('unanswered', p))
@@ -115,6 +122,57 @@ try:
     st, _ = answer(s, 'LOESS', {'outcome': frame(Hgb=y), 'predictors': frame(eGFR=x)})
     assert st['state'] == 'failed' and st['error'].startswith('R is not installed. Choose R ▸ Install R…'), st
     print('PASS: without R the form says how to install it')
+finally:
+    s.finish()
+
+# Method comparison regression runs through R's mcr package, as on Windows (the operation's own script installs the package into
+# the program's library when it is missing; the Mac controller answers the definition's precondition with the installed R's version).
+# The help example: Deming regression with jackknife intervals of plasma against serum creatinine in 108 subjects, with the test
+# against reference plot square (equal axes, the line of identity at 45 degrees) and the difference plot wider, the figures the help
+# prints, R called directly through the package for the same, the script shown, and the record of the run for Continue in R.
+os.environ.pop('STATSDIRECT_RSCRIPT', None)   # R found again after the section without it
+s = Session()
+try:
+    serum, plasma = column('Serum Creatinine', 'Agreement'), column('Plasma Creatinine', 'Agreement')
+    METHODS = ['do.deming.jackknife', 'do.deming.bootstrap', 'do.deming.analytical', 'do.wdeming.jackknife', 'do.wdeming.nestedbootstrap', 'do.paba', 'do.paba.nestedbootstrap', 'do.pabalarge', 'do.pabalarge.nestedbootstrap']
+    CHARTS = ['plot.testvsreference', 'plot.modelcomparison', 'plot.bland.altman', 'plot.residuals', 'plot.bias']
+    st, prompts = answer(s, 'MethodComparisonRegression', {'testData': frame_answer([plasma]), 'referenceData': frame_answer([serum]),
+        'methods': {m: m == 'do.deming.jackknife' for m in METHODS}, 'desired-charts': {c: c in ('plot.testvsreference', 'plot.bland.altman') for c in CHARTS}, 'saveRScript': True})
+    assert st['state'] == 'complete', st.get('error')
+    assert prompts == ['testData', 'referenceData', 'methods', 'error-ratio', 'seed', 'desired-charts', 'saveRScript'], prompts
+    html = st['html']; svgs = re.findall(r'<svg\b[^>]*>', html)
+    assert len(svgs) == 2 and html.count('</svg>') == 2 and '<img' not in html and 'data:image/png' not in html, html[:300]
+    assert re.search(r"width=['\"]432(\.00)?pt['\"]", svgs[0]) and re.search(r"height=['\"]432(\.00)?pt['\"]", svgs[0]) and 'viewBox' in svgs[0], svgs[0]
+    assert re.search(r"width=['\"]432(\.00)?pt['\"]", svgs[1]) and re.search(r"height=['\"]288(\.00)?pt['\"]", svgs[1]), svgs[1]
+    text = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', html))
+    assert 'Test method: Plasma Creatinine' in text and 'Reference method: Serum Creatinine' in text and 'Sample size: 108' in text and 'Error ratio: 1' in text and 'Deming (jackknife CI)' in text, text[:400]
+    figures = re.search(r'Slope (\S+) (\S+) (\S+) to (\S+) Proportional differences Intercept (\S+) (\S+) (\S+) to (\S+) Systematic differences', text)
+    assert figures and figures.groups() == ('1.054539', '0.024883', '1.005207', '1.103872', '-0.058913', '0.034375', '-0.127066', '0.009239'), figures and figures.groups()   # the help's figures
+    # R through the package on the same data: the estimates, standard errors and limits to the six places the report shows
+    code = ('suppressPackageStartupMessages(library(mcr)); x <- c(%s); y <- c(%s); m <- mcreg(x, y, error.ratio = 1, alpha = 0.05, method.reg = "Deming", method.ci = "jackknife", na.rm = TRUE);'
+            ' cat(sprintf("%%.6f", c(m@para[2, ], m@para[1, ])), "\\n")') % (','.join(repr(float(v)) for v in serum['values']), ','.join(repr(float(v)) for v in plasma['values']))
+    direct_figures = subprocess.check_output([rscript(), '--vanilla', '-e', code], text=True, env=R_ENV, stderr=subprocess.DEVNULL).split()[-8:]   # after the package's note on the jackknife
+    assert direct_figures == list(figures.groups()), (direct_figures, figures.groups())
+    assert 'mcreg(' in html and 'userdir &lt;-' in html and 'R script to reproduce this result' in text, 'the script is shown with the result'
+    # the script shown runs again as it is (its run folder is made again by its head, since the program removes it after the run): R prints the
+    # package's summary of the Deming fit
+    shown = Path(work) / 'shown.R'; shown.write_text(st['values']['formattedRScript'])
+    rerun = subprocess.run([rscript(), '--vanilla', str(shown)], text=True, env=R_ENV, capture_output=True, cwd=work)
+    assert rerun.returncode == 0 and re.search(r'Slope\s+1\.0545393', rerun.stdout) and 'JACKKNIFE SUMMARY' in rerun.stdout, (rerun.returncode, rerun.stdout[-400:], rerun.stderr[-400:])
+    for folder in RUNS.iterdir(): shutil.rmtree(folder)   # the rerun made its run folder again; the program's own runs are gone
+    record = json.loads(st['record'])
+    assert [i['name'] for i in record['inputs']][:2] == ['testData', 'referenceData'] and record['parameters']['error-ratio'] == 1 and record['parameters']['ci'] == 0.95 and record['parameters']['do.deming.jackknife'] is True and st['recipe'] is True, (record['inputs'][:2], record['parameters'])
+    print('PASS: method comparison regression runs through R from the Mac form: the help example gives the help\'s figures and R\'s own, the test against reference plot is square and the difference plot wider, both inline SVG, the script is shown and the run is recorded with its recipe')
+    # The form's defaults: Deming with jackknife intervals and Passing-Bablok with bootstrap intervals, each with its test against reference plot;
+    # the form offers a fresh seed each time, and a run given the seed of an earlier one repeats its bootstrap intervals
+    first, _ = answer(s, 'MethodComparisonRegression', {'testData': frame_answer([plasma]), 'referenceData': frame_answer([serum])})
+    second, _ = answer(s, 'MethodComparisonRegression', {'testData': frame_answer([plasma]), 'referenceData': frame_answer([serum]), 'seed': json.loads(first['record'])['parameters']['seed']})
+    for st in (first, second):
+        assert st['state'] == 'complete', st.get('error')
+        text = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', st['html']))
+        assert 'Deming (jackknife CI)' in text and 'Passing-Bablok (bootstrap CI)' in text and st['html'].count('<svg') == 2 and 'R script to reproduce' not in text, text[:300]
+    assert re.sub(r'<svg.*?</svg>', '', first['html'], flags=re.S) == re.sub(r'<svg.*?</svg>', '', second['html'], flags=re.S), 'the bootstrap intervals differ between two runs from the same seed'
+    print('PASS: the form\'s default methods, Deming and Passing-Bablok, each give their estimates and plot, and a run repeats from its seed')
 finally:
     s.finish()
 

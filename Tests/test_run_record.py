@@ -657,7 +657,7 @@ check(not failures, 'every recipe prints the figures the help\'s script prints o
 # the real runs: the help's example inputs through the engine as entered frames
 INHERITING = {op: manifest[op]['inherits'] for op in operations if 'inherits' in manifest[op]}   # the follow-ons whose record carries the parent's frames
 FOLLOW_ONS = {'FollowUpLifeTable', 'FriedmanMulti', 'PolynomialRegressionChangeDegree'} | set(INHERITING)   # run from a parent result, not from the menu
-DEFERRED = {'MethodComparisonRegression'}   # R-based, not hosted on the Mac yet: its recipe is checked above, its real run waits for the host
+DEFERRED = set()   # operations the Mac does not host yet (none: the R-based ones run through the engine's R step)
 runnable = [op for op in operations if op not in FOLLOW_ONS and op not in DEFERRED]
 # A run leaves its record at the template's report step: the random number generators and the summary written to the worksheet alone have
 # no report step, and the quick summary reports through its builtin, so those runs leave no record (on Windows too; its harness builds
@@ -668,7 +668,7 @@ for op in runnable:
     try: real[op] = run_example(s, examples[op])
     except AssertionError as e: not_run[op] = str(e).replace('\n', ' | ')[:300]
 for op, why in sorted(not_run.items()): print('      not run, %s' % why, flush=True)
-check(not not_run, 'every operation of the manifest that is not a follow-on runs through the engine on the help\'s example (%d of %d; %s deferred on the Mac)' % (len(real), len(runnable), ', '.join(sorted(DEFERRED))) + ('; not run: ' + ', '.join(sorted(not_run)) if not_run else ''))
+check(not not_run, 'every operation of the manifest that is not a follow-on runs through the engine on the help\'s example (%d of %d%s)' % (len(real), len(runnable), '; deferred on the Mac: ' + ', '.join(sorted(DEFERRED)) if DEFERRED else '') + ('; not run: ' + ', '.join(sorted(not_run)) if not_run else ''))
 recorded = [op for op in runnable if op not in NO_REPORT_STEP]
 without = sorted(op for op in runnable if not isinstance(real[op].get('record'), str))
 check(all(isinstance(real[op].get('record'), str) for op in recorded) and without == sorted(NO_REPORT_STEP) and all(real[op].get('recipe') is True for op in runnable),

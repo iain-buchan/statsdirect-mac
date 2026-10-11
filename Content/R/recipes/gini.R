@@ -1,0 +1,59 @@
+# StatsDirect recipe: Gini coefficient of inequality with bootstrap intervals, as the help shows it in R.
+# From the help's R code (nonparametric_methods/gini.htm); the data and settings above come from the run.
+# data: imr = data, weights = weights
+# settings: confidence = gamma, boots = boots, seed = seed
+
+if (!is.null(weights)) imr <- rep(imr, floor(weights))   # frequency weights: each value as many times as its weight, as the report takes them
+# Gini coefficient of inequality: the StatsDirect help example (Pan American
+# Health Organisation 2001, infant mortality in five countries) in R
+pct <- paste0(100 * confidence, "%")
+n <- length(imr)
+
+# The Gini coefficient from the values in ascending order (the argument i lets
+# boot() below pass in a re-sample)
+gini <- function(x, i = seq_along(x)) {
+  x <- sort(x[i])
+  n <- length(x)
+  sum((2 * seq_len(n) - n - 1) * x) / (n * sum(x))
+}
+G <- gini(imr)
+six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
+cat("Positive non-zero observations =", n, "\n")
+cat("Variance coefficient =", six(sd(imr) / mean(imr)), "\n")
+cat("Gini coefficient =", six(G), "\n")
+cat("Unbiased estimator of population Gini coefficient =", six(G * n / (n - 1)), "\n")
+
+# Bootstrap confidence intervals with the boot package, which comes with R: 2000
+# re-samples as in the example (StatsDirect's default is 100,000). The limits
+# depend on the random re-samples, so they differ a little from run to run and
+# from StatsDirect's. R's bias is the mean re-sampled coefficient less G, the
+# opposite way round to StatsDirect's. The BCa interval is given the jackknife
+# influence values, so its acceleration is the one StatsDirect uses (Efron and
+# Tibshirani 1993). With so few values R warns that the BCa limits are unstable.
+if (!requireNamespace("boot", quietly = TRUE)) install.packages("boot", repos = "https://cloud.r-project.org")
+library(boot)
+set.seed(seed)
+b <- eval(bquote(boot(imr, gini, R = .(boots))))
+cat("Re-samples =", b$R, "\n")
+print(b)
+ci <- boot.ci(b, type = c("perc", "bca"), L = empinf(b, type = "jack"))
+print(ci)
+
+# StatsDirect multiplies the limits, like the coefficient, by n / (n - 1) for the
+# unbiased estimator
+cat("Unbiased percentile", pct, "CI =", six(ci$percent[4] * n / (n - 1)), "to",
+    six(ci$percent[5] * n / (n - 1)), "\n")
+cat("Unbiased BCa", pct, "CI =", six(ci$bca[4] * n / (n - 1)), "to",
+    six(ci$bca[5] * n / (n - 1)), "\n")
+
+# Brown's (1994) index from the two components, live births and infant deaths,
+# with the countries in ascending order of the rate
+
+# The Lorenz plot at the end of the report: the cumulative share of the variable
+# against the cumulative share of the sample (green), with the line of equality
+# (red)
+x <- sort(imr)
+plot(c(0, seq_len(n) / n), c(0, cumsum(x) / sum(x)), type = "b", col = "green",
+     xlim = c(0, 1), ylim = c(0, 1), xlab = "Proportion of sample",
+     ylab = "Proportion of variable")
+abline(0, 1, col = "red")

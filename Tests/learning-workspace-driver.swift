@@ -90,10 +90,8 @@ import Cocoa
         let again=try await workspace.call("statsdirect_run_analysis",["operation":"TPaired","datasetId":data["datasetId"]!,"agreement":true])
         precondition(again["resultId"] as? String==result["resultId"] as? String)
         let report=v.documents.first{$0.id==result["reportId"] as? String}!
-        precondition(report.reportEntries?.count==1 && report.rScriptPlan?.hasRecipe==true && v.active===learn)
-        let body=report.reportEntries![0].body
-        guard !body.contains("<details>"), report.rScriptPlan!.script.contains("input_history <-") else { throw ChatGPTTutor.Failure(message:"Tutor report must keep R input history without displaying its code") }
-        print("PASS: tutor report hides input code while retaining R data and settings")
+        precondition(report.reportEntries?.count==1 && report.lastRecordEntry != nil && v.recipeAvailable(for:"TPaired") && v.active===learn)
+        precondition(!report.reportEntries![0].body.contains("<details>"),"tutor report keeps the run record without displaying its code")
         print("PASS: real test.xlsx → exact nine PEFR pairs → engine → one active report with SVG and R link; repeated request reuses result")
         grid.gridVersion += 1
         do {_=try await workspace.call("statsdirect_run_analysis",["operation":"TPaired","datasetId":data["datasetId"]!]);throw ChatGPTTutor.Failure(message:"Stale worksheet accepted")} catch {precondition(error.localizedDescription.contains("changed"))}

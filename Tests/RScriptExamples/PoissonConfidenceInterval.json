@@ -1,0 +1,1 @@
+{"operation":"PoissonConfidenceInterval","file":"poisson-confidence-interval.R","data":[{"title":"counts","values":[2,1,1,0,2,1,0,2,3,1,0,1,2,2,1,0,0,1,1,2,2,1,1]}],"settings":{"gamma":0.95}}

@@ -1,6 +1,15 @@
 # Persistent local R session. Each submitted script gets a headless PDF device;
 # the Mac host displays new/updated plot files after the completion marker.
 options(warn = 1)
+# The program keeps a library for the packages its R operations install (svglite for charts, mcr for method comparison
+# regression) beside its runs; a script continued here finds them too. STATSDIRECT_R_FOLDER moves the folder, as for those runs.
+local({
+  folder <- Sys.getenv("STATSDIRECT_R_FOLDER")
+  if (!nzchar(folder)) folder <- path.expand("~/Library/Application Support/StatsDirect Viewer")
+  rlib <- file.path(folder, "R Library")
+  dir.create(rlib, recursive = TRUE, showWarnings = FALSE)
+  .libPaths(c(rlib, .libPaths()))
+})
 cat(R.version.string, "\n", sep = "")
 cat("Working directory: ", getwd(), "\n", sep = "")
 local({

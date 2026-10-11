@@ -111,7 +111,7 @@
                             <div class="body-container">
                                 <div data-mc-content-body="True">
                                     <div role="main" id="mc-main-content">
-                                        <h1><a name="kanchor186"></a>Gini Coefficient of Inequality</h1>
+                                        <h1><a name="kanchor187"></a>Gini Coefficient of Inequality</h1>
                                         <p>&#160;</p>
                                         <p>Menu location: <b>Analysis_Nonparametric_Gini Coefficient of Inequality</b></p>
                                         <p>&#160;</p>
@@ -277,6 +277,7 @@ cat("Unbiased estimator of population Gini coefficient =", six(G * n / (n - 1)),
 # opposite way round to StatsDirect's. The BCa interval is given the jackknife
 # influence values, so its acceleration is the one StatsDirect uses (Efron and
 # Tibshirani 1993). With so few values R warns that the BCa limits are unstable.
+if (!requireNamespace("boot", quietly = TRUE)) install.packages("boot", repos = "https://cloud.r-project.org")
 library(boot)
 set.seed(2001)
 b &lt;- boot(imr, gini, R = 2000)

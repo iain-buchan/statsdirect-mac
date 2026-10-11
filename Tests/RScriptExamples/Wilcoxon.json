@@ -1,0 +1,1 @@
+{"operation":"Wilcoxon","file":"wilcoxon-signed-ranks.R","data":[{"title":"first","values":[86,71,77,68,91,72,77,91,70,71,88,87]},{"title":"second","values":[88,77,76,64,96,72,65,90,65,80,81,72]}],"settings":{"gamma":0.95}}

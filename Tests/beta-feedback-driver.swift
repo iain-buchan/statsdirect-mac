@@ -3,6 +3,8 @@ import PDFKit
 
 @main struct BetaFeedbackTests {
  @MainActor static func main() {
+  // Line-buffer stdout so progress survives a trap when the output is a file.
+  setvbuf(stdout,nil,_IOLBF,0)
   let app=NSApplication.shared; app.setActivationPolicy(.regular)
   let viewer=Viewer(); app.delegate=viewer
         let fixtureRoot=URL(fileURLWithPath:FileManager.default.currentDirectoryPath)
@@ -26,6 +28,7 @@ import PDFKit
     try await run(viewer)
     viewer.newReport()
     try await ReportExportTests.run(viewer)
+    try await findReplace(viewer)
     try await largeGrid(viewer)
     try await entryTables(viewer)
     try await FormContractTests.run(viewer)
@@ -50,6 +53,42 @@ import PDFKit
     }
    }
   }
+ }
+ // Find and replace through the Mac functions, as the Windows report window's tests check them (tests/WebReports/FindReplace.cs):
+ // the first match selected, the next whatever its case, round to the start, an absent term not found, a case-sensitive match,
+ // the selected match replaced, every match replaced and counted; then the bar shows with the keyboard and hides back to the report.
+ @MainActor static func findReplace(_ v:Viewer) async throws {
+  v.newReport()
+  let report=v.appendReport(ReportEntry(id:"find-replace",title:"Find and replace",operation:"",body:"<p>zebra ostrich Zebra quokka</p>",record:nil))
+  for _ in 0..<150 where report.web.isLoading {try await Task.sleep(nanoseconds:50_000_000)}; try await Task.sleep(nanoseconds:200_000_000)
+  try await report.web.evaluateJavaScript("(()=>{StatsDirectReportEditor.setEditing(true);return true;})()")
+  func selected() async throws -> String { try await report.web.evaluateJavaScript("getSelection().toString()") as? String ?? "" }
+  func holds(_ text:String) async throws -> Bool { try await report.web.evaluateJavaScript("document.body.innerText.includes(\(v.jsString(text)))") as? Bool == true }
+  func found(_ term:String,_ matchCase:Bool) async throws -> String? {
+   if try await v.reportFindNext(report,term:term,matchCase:matchCase) { return try await selected() }
+   return nil
+  }
+  try check(try await found("zebra",false)=="zebra","Find selects the first match")
+  try check(try await found("zebra",false)=="Zebra","Find next goes on to the next match, whatever its case")
+  try check(try await found("zebra",false)=="zebra","Find next goes round to the start")
+  try check(try await found("wombat",false)==nil,"a term the report does not hold is not found")
+  try check(try await found("Zebra",true)=="Zebra","matching case finds only the match of that case")
+  let replaced=try await v.reportReplaceSelection(report,term:"Zebra",replacement:"emu",matchCase:true); let afterReplace=try await holds("ostrich emu quokka")
+  try check(replaced && afterReplace,"Replace replaces the selected match")
+  let count=try await v.reportReplaceAll(report,term:"zebra",replacement:"wombat",matchCase:false); let afterAll=try await holds("wombat ostrich emu quokka")
+  try check(count==1 && afterAll,"Replace all replaces every match")
+  // Replacing through the editor's insertText reaches the host as an edit, so it is in the report's undo history.
+  try await ProviderLearningTests.wait {report.reportEntries?.first?.editedBody?.contains("wombat ostrich emu quokka")==true && !report.reportUndo.isEmpty}
+  v.showFindBar(report,replace:false)
+  try check(report.findBar?.isHidden==false && report.findBar?.window===v.window && report.findBar?.term.currentEditor() != nil,"the find bar shows above the report with the keyboard in its term")
+  v.hideFindBar(report)
+  try check(report.findBar?.isHidden==true && v.window.firstResponder===report.web,"the find bar hides and gives the keyboard back to the report")
+  let item=NSMenuItem(title:"Find…",action:#selector(Viewer.showReportFind),keyEquivalent:"")
+  try check(v.validateMenuItem(item),"Find… is offered while the report is the active document")
+  let grid=v.newDocument(kind:"grid",title:"Find validation fixture",url:v.root.appendingPathComponent("Grid/index.html"))
+  try check(!v.validateMenuItem(item),"Find… is not offered for a worksheet")
+  v.remove(grid)
+  print("PASS: report find and replace with the Windows scripts: first match, next match whatever its case, round to the start, absent term, case-sensitive match, selected match replaced, every match replaced and counted into the undo history; the find bar shows with the keyboard and hides back to the report; Find… only for a report")
  }
  @MainActor static func entryTables(_ v:Viewer) async throws {
   let form=v.newDocument(kind:"operation",title:"Entry table scale fixture",url:v.root.appendingPathComponent("Grid/operation.html"))
@@ -155,6 +194,13 @@ import PDFKit
   _=try await v.learningJavaScript(learn,"({ok:document.querySelector('[data-code=r]').click()===undefined})")
   try await ProviderLearningTests.wait {v.active?.rPane?.editor.string == "x <- c(2, 4, 6)\nmean(x)"}
   precondition(v.active!.rPane?.isRunning == false)
+  // Open in R, as the Windows script window offers it: the script saved as an R file named after the window in the program's R Scripts
+  // folder (the opening of RStudio or R is left to the desktop; the check saves alone)
+  RPane.opensExternally=false
+  let rDoc=v.active!, saved=rDoc.rPane!.openInR()
+  let expectedName=rDoc.title.replacingOccurrences(of:"/",with:"_").replacingOccurrences(of:":",with:"_")+".R"
+  precondition(saved != nil && saved!.lastPathComponent==expectedName && saved!.deletingLastPathComponent().lastPathComponent=="R Scripts" && (try? String(contentsOf:saved!,encoding:.utf8))=="x <- c(2, 4, 6)\nmean(x)" && rDoc.rPane!.state.stringValue.hasPrefix("Saved "),"Open in R: \(saved?.path ?? "nil") · \(rDoc.rPane!.state.stringValue)")
+  print("PASS: Open in R saves the script as an R file named after the window in the program's R Scripts folder");fflush(stdout)
   v.tabs.selectTabViewItem(learn.item)
   _=try await v.learningJavaScript(learn,"({ok:document.querySelector('[data-lesson=diagnostic]').click()===undefined})")
   let switched=try await v.learningJavaScript(learn,"({old:!!document.querySelector('.katex')})");precondition(switched["old"] as? Bool == false)
@@ -183,27 +229,39 @@ import PDFKit
   }
   print("PASS: learning record HTML, paginated PDF and DOCX exports")
   let report=v.documents.first{$0.reportEntries?.isEmpty == false}!,id=report.reportEntries!.first!.id
-  v.editReport(report,["action":"annotate","resultID":id,"text":"Interpret with the paired design in mind."])
-  for _ in 0..<100 where report.web.isLoading {try await Task.sleep(nanoseconds:50_000_000)}
-  try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true); document.querySelector('.report-body svg').dispatchEvent(new MouseEvent('click',{bubbles:true})); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true}));")
-  try await Task.sleep(nanoseconds:200_000_000)
-  precondition(!(report.reportEntries!.first!.editedBody ?? report.reportEntries!.first!.body).contains("<svg"))
+  func reportSettled() async throws {for _ in 0..<150 where report.web.isLoading {try await Task.sleep(nanoseconds:50_000_000)}; try await Task.sleep(nanoseconds:200_000_000)}
+  func reportBody() -> String {let entry=report.reportEntries!.first{$0.id==id}!; return entry.editedBody ?? entry.body}
+  // Notes are ordinary paragraphs typed into the one editable region.
+  func addNote(_ text: String) async throws {
+   try await report.web.evaluateJavaScript("(()=>{StatsDirectReportEditor.setEditing(true); const e=document.getElementById('result-\(id)'); e.insertAdjacentHTML('beforeend',\(v.jsString("<p class='report-note'>"+text+"</p>"))); e.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText'}));})()")
+   try await reportSettled()
+  }
+  // A click selects the chart; Backspace removes it like any other selection.
+  func removeChart() async throws {
+   try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true); document.querySelector('#result-\(id) .report-media').dispatchEvent(new MouseEvent('click',{bubbles:true})); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true}));")
+   try await reportSettled()
+  }
+  try await reportSettled()
+  try await addNote("Interpret with the paired design in mind.")
+  precondition(reportBody().contains("paired design"))
+  try await removeChart()
+  precondition(!reportBody().contains("<svg"))
   v.editReport(report,["action":"undoText"])
-  precondition(report.reportEntries!.first!.hiddenCharts.isEmpty && report.reportEntries!.first!.annotation.contains("paired design"))
-  for _ in 0..<100 where report.web.isLoading {try await Task.sleep(nanoseconds:50_000_000)}
+  precondition(reportBody().contains("<svg") && reportBody().contains("paired design"))
+  try await reportSettled()
   let exported=String(decoding:try await v.reportExportData(report,format:.html),as:UTF8.self)
-  precondition(exported.contains("Interpret with the paired design") && !exported.contains("Remove plot") && !exported.contains("contenteditable"))
+  precondition(exported.contains("Interpret with the paired design") && !exported.contains("contenteditable") && !exported.contains("\"report-media\""))
   v.recordReportEdits(report,edits:[],removing:[id],typing:false);precondition(!report.reportEntries!.contains{$0.id==id})
   v.editReport(report,["action":"undoText"]);precondition(report.reportEntries!.contains{$0.id==id})
-  for _ in 0..<100 where report.web.isLoading {try await Task.sleep(nanoseconds:50_000_000)}
-  try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true); document.querySelector('.report-body svg').dispatchEvent(new MouseEvent('click',{bubbles:true})); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true}));")
-  try await Task.sleep(nanoseconds:200_000_000)
-  v.editReport(report,["action":"annotate","resultID":id,"text":"A newer annotation"])
+  try await reportSettled()
+  try await addNote("A newer note")
+  try await removeChart()
+  precondition(!reportBody().contains("<svg") && reportBody().contains("A newer note"))
   v.activeReportID=report.id
-  v.appendReport(ReportEntry(id:"added-after-removal",title:"Later result",operation:"",body:"<p>Later result retained</p>",rPlan:nil))
+  v.appendReport(ReportEntry(id:"added-after-removal",title:"Later result",operation:"",body:"<p>Later result retained</p>",record:nil))
   v.editReport(report,["action":"undoText"])
-  precondition(report.reportEntries!.contains{$0.id=="added-after-removal"} && report.reportEntries!.first{$0.id==id}!.annotation=="A newer annotation")
-  print("PASS: report notes exported, plots/results removed and restored; Undo preserves later results and annotations")
+  precondition(report.reportEntries!.contains{$0.id=="added-after-removal"} && reportBody().contains("<svg") && reportBody().contains("A newer note"))
+  print("PASS: report notes exported, plots/results removed and restored; Undo preserves later results and notes")
   let source:[String:Any]=["columns":["A","B"],"firstRow":1,"rows":3,"cells":[["col":0,"row":0,"text":"5","kind":"number"],["col":1,"row":2,"text":"9","kind":"number"]]]
   let frame:[String:Any]=["name":"Log","columns":1,"rows":3,"headerRow":true,"cells":[["col":0,"row":0,"text":"Log","kind":"text"],["col":0,"row":1,"text":"1.2","kind":"number"],["col":0,"row":2,"text":"1.4","kind":"number"]]]
   let derived=derivedWorksheet(source:source,range:["firstRow":2,"lastRow":3],frame:frame)!

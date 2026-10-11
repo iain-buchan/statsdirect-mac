@@ -12,7 +12,7 @@ extension ReportExportTests {
         <svg id="transfer-svg" viewBox="0 0 300 150" width="300" height="150" style="width:240px;height:auto"><defs><clipPath id="transfer-clip"><rect width="300" height="150"/></clipPath></defs><g clip-path="url(#transfer-clip)"><rect width="300" height="150" fill="white"/><path d="M10 120L140 20L270 110" fill="none" stroke="blue"/><text x="15" y="140" font-size="12">Vector chart</text></g></svg>
         <p id="transfer-tail">Unselected ending</p>
         """
-        report.reportEntries=[ReportEntry(id:sourceID,title:"Source",operation:"",body:source,rPlan:nil),ReportEntry(id:targetID,title:"Destination",operation:"",body:"<p id='transfer-target'>Destination: </p>",rPlan:nil)]
+        report.reportEntries=[ReportEntry(id:sourceID,title:"Source",operation:"",body:source,record:nil),ReportEntry(id:targetID,title:"Destination",operation:"",body:"<p id='transfer-target'>Destination: </p>",record:nil)]
         v.renderReport(report);try await settled(report)
         try await report.web.evaluateJavaScript("StatsDirectReportEditor.setEditing(true)")
         func js(_ script:String) async throws -> Any {

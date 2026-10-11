@@ -1,0 +1,1 @@
+{"operation":"Chi2by2","file":"chi-square-2-by-2.R","table":{"counts":[[41,216],[64,180]],"rowLabels":["A","B"],"columnLabels":["Dead","Alive"],"rowsTitle":"Treatment","columnsTitle":"Outcome"},"settings":{"cco":0.95,"study_type":"casecontrol","doFisher":true}}

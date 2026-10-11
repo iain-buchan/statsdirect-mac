@@ -36,10 +36,8 @@ struct FormContractTests {
         try await load("[[1,2,3,4],[3,4,5,6],[6,7,8,9]]")
         let cuzick=try await open("Cuzick")
         defer {v.remove(cuzick)}
-        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(cuzick,"({ok:document.querySelectorAll('.column-chooser input:checked').length===3})"))?["ok"] as? Bool == true}
-        try await submit(cuzick)
         do {
-            try await ProviderLearningTests.wait {(try? await v.learningJavaScript(cuzick,"({ok:formState.prompt?.name==='scores'&&!!document.querySelector('.grid-tools')&&!!document.querySelector('[aria-label=\"Selected data cell\"]')?.value})"))?["ok"] as? Bool == true}
+            try await ProviderLearningTests.wait {(try? await v.learningJavaScript(cuzick,"({ok:formState.prompt?.fields?.some(p=>p.name==='scores')&&!!document.querySelector('.grid-tools')&&!!document.querySelector('[aria-label=\"Selected data cell\"]')?.value})"))?["ok"] as? Bool == true}
         } catch {
             print("Cuzick native form diagnostic:",try await v.learningJavaScript(cuzick,"({state:formState,text:document.body.innerText,inputs:statsDirectOperation.tutorSnapshot()})"));fflush(stdout)
             throw error
@@ -54,6 +52,7 @@ struct FormContractTests {
         try await ProviderLearningTests.wait {(try? await v.learningJavaScript(cuzick,"({ok:JSON.stringify(statsDirectOperation.tutorSnapshot().inputs[0]?.value?.columns[0].values)==='[\"1\",\"2\",\"4\"]'})"))?["ok"] as? Bool == true}
         try await submit(cuzick)
         try await ProviderLearningTests.wait {cuzick.completedJobID != nil}
+        try await check(cuzick,"JSON.stringify(formState.history.find(h=>h.name==='data').value.columns.map(c=>c.values.map(Number)))==='[[1,2,3,4],[3,4,5,6],[6,7,8,9]]'","Selected measurement columns must reach Cuzick automatically before its scores form")
         try await check(cuzick,"formState.state==='complete'&&JSON.stringify(formState.history.find(h=>h.name==='scores').value.columns[0].values.map(Number))==='[1,2,4]'","Custom scores must reach the calculation engine")
         print("PASS: native Cuzick scores render as 1/2/3 despite a selected worksheet; edits survive rejection; corrected 1/2/4 scores reach the engine")
 

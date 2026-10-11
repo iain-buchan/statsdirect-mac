@@ -1,154 +1,969 @@
 {
-  "TPaired": {
-    "file": "paired.R",
-    "detail": "Paired t test, matched missing-value handling, selected confidence level and optional agreement plot (vector PDF)."
+  "AbridgedLifetable": {
+    "file": "abridged-lifetable.R",
+    "detail": "Abridged life table, as the help shows it in R."
   },
-  "TSingle": {
-    "file": "t-tests.R",
-    "detail": "Student t test; the independent-samples script reports both pooled-variance and Welch results."
+  "Agreement": {
+    "file": "agreement.R",
+    "detail": "Agreement of raters (intraclass correlation), as the help shows it in R."
   },
-  "TUnpaired": {
-    "file": "t-tests.R",
-    "detail": "Student t test; the independent-samples script reports both pooled-variance and Welch results."
+  "BarPlot": {
+    "file": "bar-plot.R",
+    "detail": "Bar or column plot of values with their labels, as the help shows it in R."
   },
-  "TSingleSummary": {
-    "file": "t-summary.R",
-    "detail": "Student t statistics and confidence intervals from the recorded summary inputs; both pooled and Welch for two groups."
+  "BarPlotFrequency": {
+    "file": "bar-plot-frequency.R",
+    "detail": "Bar plot of the frequencies of categorical values, after the help's bar plot in R."
   },
-  "TUnpairedSummary": {
-    "file": "t-summary.R",
-    "detail": "Student t statistics and confidence intervals from the recorded summary inputs; both pooled and Welch for two groups."
+  "Bonferroni": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
   },
-  "ExactSign": {
-    "file": "binomial.R",
-    "detail": "Exact binomial test and confidence interval. Additional mid-P, approximation and two-sided conventions can differ."
+  "BoxWhiskerPlot": {
+    "file": "box-whisker-plot.R",
+    "detail": "Box and whisker plot, as the help shows it in R."
   },
-  "PropSingle": {
-    "file": "binomial.R",
-    "detail": "Exact binomial test and confidence interval. Additional mid-P, approximation and two-sided conventions can differ."
-  },
-  "RatePoissonCI": {
-    "file": "poisson.R",
-    "detail": "Exact Poisson rate estimate and confidence interval."
+  "BoxWhiskerPlotText": {
+    "file": "box-whisker-plot-text.R",
+    "detail": "Box and whisker plot drawn as text, as the help shows it in R."
   },
   "Chi2by2": {
-    "file": "contingency.R",
-    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+    "file": "chi-square-2-by-2.R",
+    "detail": "2 by 2 chi-square test with and without the continuity correction, as the help shows it in R."
   },
-  "ExactFisher": {
-    "file": "contingency.R",
-    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  "Chi2byNLinearTrend": {
+    "file": "chi-2-by-k.R",
+    "detail": "Chi-square test of a 2 by k table with its test for trend, as the help shows them in R."
   },
-  "ExactFisherX": {
-    "file": "contingency.R",
-    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  "Chi2byNWithTrend": {
+    "file": "chi-2-by-k.R",
+    "detail": "Chi-square test of a 2 by k table with its test for trend, as the help shows them in R."
   },
-  "ExactORCML": {
-    "file": "contingency.R",
-    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  "Chi2byNWithoutTrend": {
+    "file": "chi-2-by-k.R",
+    "detail": "Chi-square test of a 2 by k table with its test for trend, as the help shows them in R."
   },
-  "ExactFisherRbyC": {
-    "file": "contingency.R",
-    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+  "ChiGFSimulateExactP": {
+    "file": "chi-square-goodness-of-fit.R",
+    "detail": "Chi-square goodness of fit test, as the help shows it in R.",
+    "inherits": "ChiSquareGoodnessOfFit"
+  },
+  "ChiSquareGoodnessOfFit": {
+    "file": "chi-square-goodness-of-fit.R",
+    "detail": "Chi-square goodness of fit test, as the help shows it in R."
+  },
+  "ChiWoolfScreen": {
+    "file": "chi-woolf-screen.R",
+    "detail": "Woolf chi-square analysis of a series of 2 by 2 tables typed on screen, as the help shows it in R."
+  },
+  "ChiWoolfWorksheet": {
+    "file": "chi-woolf-worksheet.R",
+    "detail": "Woolf chi-square analysis of a series of 2 by 2 tables, as the help shows it in R."
+  },
+  "CiMeanY": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "CochranQ": {
+    "file": "friedman.R",
+    "detail": "Friedman and Cochran Q tests of a two way layout, as the help shows them in R."
+  },
+  "CochranePlot": {
+    "file": "cochrane-plot.R",
+    "detail": "Forest (Cochrane) plot, as the help shows it in R."
+  },
+  "ConditionalLogisticRegression": {
+    "file": "conditional-logistic.R",
+    "detail": "Conditional logistic regression of matched sets, as the help shows it in R."
+  },
+  "ControlPlot": {
+    "file": "control-plot.R",
+    "detail": "Control chart, as the help shows it in R."
+  },
+  "CoxBaselineToReport": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "CoxBaselineToWorksheet": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "CoxHazardPlots": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "CoxHazardRatios": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "CoxModelAnalysis": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "CoxRegression": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R."
+  },
+  "CoxResiduals": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "Cronbach": {
+    "file": "pca.R",
+    "detail": "Principal components and scale reliability, as the help shows them in R.",
+    "inherits": "PCRCorrelation"
+  },
+  "Crossover": {
+    "file": "crossover.R",
+    "detail": "Crossover trial analysis, as the help shows it in R."
+  },
+  "Crosstabs": {
+    "file": "crosstabs.R",
+    "detail": "Crosstabs of two classifiers with the chi-square and exact tests, as the help shows them in R."
+  },
+  "Cuzick": {
+    "file": "cuzick.R",
+    "detail": "Cuzick trend test across ordered groups, as the help shows it in R."
+  },
+  "DistributionBinomial": {
+    "file": "distribution-binomial.R",
+    "detail": "Binomial distribution: the probabilities of exactly, at least and at most r successes in n trials, as the help shows them in R."
+  },
+  "DistributionChiSquare": {
+    "file": "distribution-chi-square.R",
+    "detail": "Chi-square distribution: the upper tail probability of a chi-square statistic, or the statistic of an upper tail, as the help shows them in R."
+  },
+  "DistributionF": {
+    "file": "distribution-f.R",
+    "detail": "F (variance ratio) distribution: the upper tail probability of F on its degrees of freedom, or the F of an upper tail, as the help shows them in R."
+  },
+  "DistributionKendall": {
+    "file": "distribution-kendall.R",
+    "detail": "Kendall's tau: the exact upper tail probability of S for n pairs, or the S of a tail probability, as the help shows them in R."
+  },
+  "DistributionNonCentralT": {
+    "file": "distribution-non-central-t.R",
+    "detail": "Non-central t distribution: the tail probabilities of t on its degrees of freedom and non-centrality, or the t of a tail probability, as the help shows them in R."
+  },
+  "DistributionNormal": {
+    "file": "distribution-normal.R",
+    "detail": "Normal distribution: the tail areas of a deviate, or the deviate of a tail area, as the help shows them in R."
+  },
+  "DistributionPoisson": {
+    "file": "distribution-poisson.R",
+    "detail": "Poisson distribution: the probabilities of exactly, at least and at most n events for a mean, or the mean of a probability, as the help shows them in R."
+  },
+  "DistributionQ": {
+    "file": "distribution-studentized-range.R",
+    "detail": "Studentized range (Q) distribution: the tail probabilities of Q for a number of samples and residual degrees of freedom, or the Q of an upper tail, as the help shows them in R."
+  },
+  "DistributionSpearman": {
+    "file": "distribution-spearman.R",
+    "detail": "Spearman's rho: the exact upper tail probability of the Hotelling-Pabst T for n pairs, or the T of a tail probability, as the help shows them in R."
+  },
+  "DistributionT": {
+    "file": "distribution-t.R",
+    "detail": "Student's t distribution: the tail areas of t on its degrees of freedom, or the t of a tail area, as the help shows them in R."
+  },
+  "Diversity": {
+    "file": "diversity.R",
+    "detail": "Diversity of classes with bootstrap intervals, as the help shows it in R."
+  },
+  "Dunnett": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
+  },
+  "Effect": {
+    "file": "effect.R",
+    "detail": "Effect size meta-analysis, as the help shows it in R."
+  },
+  "EqualityOfVariance": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
+  },
+  "ErrorPlot": {
+    "file": "error-plot.R",
+    "detail": "Error bar plot, as the help shows it in R."
   },
   "ExactChiRbyC": {
-    "file": "contingency.R",
-    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+    "file": "r-by-c.R",
+    "detail": "Exact and chi-square tests of an r by c table of counts, as the help shows them in R."
   },
   "ExactChiRbyCScreen": {
-    "file": "contingency.R",
-    "detail": "Pearson/G tests and requested Fisher or Monte Carlo tests. Trend, mid-P and additional risk estimates are not reproduced; simulation streams differ."
+    "file": "r-by-c.R",
+    "detail": "Exact and chi-square tests of an r by c table of counts, as the help shows them in R."
+  },
+  "ExactFisher": {
+    "file": "fisher-exact.R",
+    "detail": "Fisher exact test of a 2 by 2 table, as the help shows it in R."
+  },
+  "ExactFisherRbyC": {
+    "file": "r-by-c.R",
+    "detail": "Exact and chi-square tests of an r by c table of counts, as the help shows them in R."
+  },
+  "ExactFisherX": {
+    "file": "fisher-exact-extended.R",
+    "detail": "Fisher exact test of a 2 by 2 table with its one and two sided probabilities, as the help shows it in R."
   },
   "ExactMcNamar": {
     "file": "mcnemar.R",
-    "detail": "McNemar tests with and without continuity correction and exact discordant-pair binomial test."
+    "detail": "McNemar test of a paired 2 by 2 table with its exact probabilities, as the help shows it in R."
   },
   "ExactMcNamarChi": {
     "file": "mcnemar.R",
-    "detail": "McNemar tests with and without continuity correction and exact discordant-pair binomial test."
+    "detail": "McNemar test of a paired 2 by 2 table with its exact probabilities, as the help shows it in R."
   },
-  "Spearman": {
-    "file": "correlation.R",
-    "detail": "Rank correlation. R exact/asymptotic calculations and treatment of ties can give different P values."
+  "ExactORCML": {
+    "file": "odds-ratio-exact.R",
+    "detail": "Conditional maximum likelihood odds ratio of a 2 by 2 table with exact limits, as the help shows it in R."
+  },
+  "ExactSign": {
+    "file": "sign.R",
+    "detail": "Sign test with its exact binomial probabilities, as the help shows it in R."
+  },
+  "FollowUpLifeTable": {
+    "file": "follow-up-life-table.R",
+    "detail": "Follow-up life table, as the help shows it in R."
+  },
+  "Frequency": {
+    "file": "frequency.R",
+    "detail": "Frequencies, as the help shows it in R."
+  },
+  "Friedman": {
+    "file": "friedman.R",
+    "detail": "Friedman and Cochran Q tests of a two way layout, as the help shows them in R."
+  },
+  "FriedmanMulti": {
+    "file": "friedman.R",
+    "detail": "Friedman and Cochran Q tests of a two way layout, as the help shows them in R."
+  },
+  "FriedmanSimulateExactP": {
+    "file": "friedman.R",
+    "detail": "Friedman and Cochran Q tests of a two way layout, as the help shows them in R.",
+    "inherits": "Friedman"
+  },
+  "Gini": {
+    "file": "gini.R",
+    "detail": "Gini coefficient of inequality with bootstrap intervals, as the help shows it in R."
+  },
+  "GroupedCovariance": {
+    "file": "grouped-covariance.R",
+    "detail": "Grouped linear regression with covariance analysis, as the help shows it in R."
+  },
+  "GroupedLinearity": {
+    "file": "grouped-linearity.R",
+    "detail": "Linearity of grouped regression (replicates at each level of the predictor), as the help shows it in R."
+  },
+  "HistogramPlot": {
+    "file": "histogram-plot.R",
+    "detail": "Histogram, as the help shows it in R."
+  },
+  "HistogramPlotText": {
+    "file": "histogram-plot-text.R",
+    "detail": "Histogram (Text), as the help shows it in R."
+  },
+  "InterpolateXY": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "InterpolateYX": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "KaplanMeier": {
+    "file": "kaplan-meier.R",
+    "detail": "Kaplan-Meier survival estimates, as the help shows them in R."
+  },
+  "Kappa": {
+    "file": "kappa.R",
+    "detail": "Kappa agreement of two raters from their responses, as the help shows it in R."
+  },
+  "KappaScreen": {
+    "file": "kappa-screen.R",
+    "detail": "Kappa agreement of two raters from their table of counts, as the help shows it in R."
+  },
+  "KappaSimulateExactP": {
+    "file": "kappa.R",
+    "detail": "Kappa agreement of two raters from their responses, as the help shows it in R.",
+    "inherits": "Kappa"
   },
   "Kendall": {
-    "file": "correlation.R",
-    "detail": "Rank correlation. R exact/asymptotic calculations and treatment of ties can give different P values."
-  },
-  "Wilcoxon": {
-    "file": "rank-tests.R",
-    "detail": "Corresponding base-R rank/distribution test. Exact algorithms, ties and continuity corrections may differ."
-  },
-  "MannWhitney": {
-    "file": "rank-tests.R",
-    "detail": "Corresponding base-R rank/distribution test. Exact algorithms, ties and continuity corrections may differ."
-  },
-  "Smirnov": {
-    "file": "rank-tests.R",
-    "detail": "Corresponding base-R rank/distribution test. Exact algorithms, ties and continuity corrections may differ."
+    "file": "kendall.R",
+    "detail": "Kendall rank correlation with its exact probabilities, as the help shows it in R."
   },
   "Kruskal": {
-    "file": "rank-tests.R",
-    "detail": "Corresponding base-R rank/distribution test. Exact algorithms, ties and continuity corrections may differ."
+    "file": "kruskal-wallis.R",
+    "detail": "Kruskal-Wallis test with its adjustment for ties, as the help shows it in R."
   },
-  "OneWay": {
-    "file": "one-way.R",
-    "detail": "One-way ANOVA main test. Supplementary comparisons are left for explicit selection in R."
+  "KruskalSimulateExactP": {
+    "file": "kruskal-wallis.R",
+    "detail": "Kruskal-Wallis test with its adjustment for ties, as the help shows it in R.",
+    "inherits": "Kruskal"
   },
-  "SimpleLinearRegression": {
-    "file": "linear.R",
-    "detail": "Simple linear regression, coefficient confidence intervals and an editable lm model."
+  "KruskalWallisMulti": {
+    "file": "kruskal-wallis.R",
+    "detail": "Kruskal-Wallis test with its adjustment for ties, as the help shows it in R.",
+    "inherits": "Kruskal"
   },
-  "VarianceRatio": {
-    "file": "variance.R",
-    "detail": "F variance-ratio test, placing the larger variance in the numerator as StatsDirect does."
+  "LOESS": {
+    "file": "loess.R",
+    "detail": "LOESS curve fitting, as the help shows it in R."
   },
-  "UnivariateSummary": {
-    "file": "summary.R",
-    "detail": "Core descriptive statistics and mean confidence intervals. R type-7 quantiles are explicit; additional StatsDirect summaries are not reproduced."
+  "LadderPlot": {
+    "file": "ladder-plot.R",
+    "detail": "Ladder, as the help shows it in R."
   },
-  "QuickSummary": {
-    "file": "summary.R",
-    "detail": "Core descriptive statistics and mean confidence intervals. R type-7 quantiles are explicit; additional StatsDirect summaries are not reproduced."
+  "LatinSquare": {
+    "file": "latin-square.R",
+    "detail": "Latin square analysis of variance, as the help shows it in R."
   },
-  "UnivariateSummaryToWorksheetOnly": {
-    "file": "summary.R",
-    "detail": "Core descriptive statistics and mean confidence intervals. R type-7 quantiles are explicit; additional StatsDirect summaries are not reproduced."
+  "LinePlot": {
+    "file": "line-plot.R",
+    "detail": "Line, as the help shows it in R."
+  },
+  "LinearizedEstimateInterpolation": {
+    "file": "linearized-estimates.R",
+    "detail": "Linearized regression estimates, as the help shows them in R.",
+    "inherits": "LinearizedEstimates"
+  },
+  "LinearizedEstimatePlot": {
+    "file": "linearized-estimates.R",
+    "detail": "Linearized regression estimates, as the help shows them in R.",
+    "inherits": "LinearizedEstimates"
+  },
+  "LinearizedEstimates": {
+    "file": "linearized-estimates.R",
+    "detail": "Linearized regression estimates, as the help shows them in R."
+  },
+  "LinearizedEstimatesWithModel": {
+    "file": "linearized-estimates.R",
+    "detail": "Linearized regression estimates, as the help shows them in R.",
+    "inherits": "LinearizedEstimates"
+  },
+  "LogRank": {
+    "file": "log-rank.R",
+    "detail": "Log-rank and Wilcoxon tests of survival, as the help shows them in R."
+  },
+  "LogisticRegression": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R."
+  },
+  "LogisticRegressionBootstrap": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionClassification": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionDiagnostics": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionFitToReport": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionFitToWorksheet": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionModel": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionModelSelection": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionPrediction": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "Logit": {
+    "file": "logit.R",
+    "detail": "Logit Model, as the help shows it in R."
+  },
+  "MannWhitney": {
+    "file": "mann-whitney.R",
+    "detail": "Mann-Whitney U test with theta, its exact probabilities and the limits of the difference, as the help shows it in R."
+  },
+  "Mantel": {
+    "file": "mantel.R",
+    "detail": "Mantel-Haenszel analysis of a series of 2 by 2 tables, as the help shows it in R."
+  },
+  "MantelHaenszelScreen": {
+    "file": "mantel-haenszel-screen.R",
+    "detail": "Mantel-Haenszel analysis of a series of 2 by 2 tables typed on screen, as the help shows it in R."
+  },
+  "MetaCorrelation": {
+    "file": "meta-correlation.R",
+    "detail": "Correlation meta-analysis, as the help shows it in R."
+  },
+  "MetaIncidenceRateDifference": {
+    "file": "meta-incidence-rate-difference.R",
+    "detail": "Incidence rate difference meta-analysis, as the help shows it in R."
+  },
+  "MetaIncidenceRateRatio": {
+    "file": "meta-incidence-rate-ratio.R",
+    "detail": "Incidence rate ratio meta-analysis, as the help shows it in R."
+  },
+  "MetaSummary": {
+    "file": "meta-summary.R",
+    "detail": "Meta-analysis of summary statistics with their confidence limits, as the help shows it in R."
+  },
+  "MethodComparisonRegression": {
+    "file": "method-comparison.R",
+    "detail": "Method comparison regression (Deming) with the mcr package, as the help shows it in R."
+  },
+  "MiscDiagnostic": {
+    "file": "diagnostic-test.R",
+    "detail": "Diagnostic test of a 2 by 2 table, as the help shows it in R."
+  },
+  "MiscFalseResult": {
+    "file": "false-results.R",
+    "detail": "Screening test errors from the sensitivity, the false positive rate and the prevalence, as the help shows them in R."
+  },
+  "MiscLikely": {
+    "file": "likelihood-ratios.R",
+    "detail": "Likelihood ratios of a test with several levels, as the help shows them in R."
+  },
+  "MiscNumberNeededToTreat": {
+    "file": "number-needed-to-treat.R",
+    "detail": "Number needed to treat with its interval, as the help shows it in R."
+  },
+  "MiscRelRisk": {
+    "file": "risk-prospective.R",
+    "detail": "Risk in a prospective study (2 by 2), as the help shows it in R."
+  },
+  "MiscRetroRisk": {
+    "file": "risk-retrospective.R",
+    "detail": "Risk in a retrospective study (2 by 2), as the help shows it in R."
+  },
+  "MultipleLinearRegression": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R."
+  },
+  "MultipleLinearRegressionAnova": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "MultipleLinearRegressionBestSubset": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "MultipleLinearRegressionParameterDetail": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "MultipleLinearRegressionPrediction": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "MultipleLinearRegressionResiduals": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "NewmanKeuls": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
+  },
+  "NonparametricLinearRegression": {
+    "file": "nonparametric-linear-regression.R",
+    "detail": "Nonparametric Linear Regression, as the help shows it in R."
+  },
+  "NormalPlot": {
+    "file": "normal-plot.R",
+    "detail": "Normal plot with the scores of the method chosen, as the help shows it in R."
   },
   "Normality": {
     "file": "normality.R",
-    "detail": "Shapiro-Wilk test. Other normality diagnostics in the report are not reproduced; R accepts 3 to 5000 observations."
+    "detail": "Tests of normality, as the help shows them in R."
   },
-  "DistributionNormal": {
-    "file": "distribution.R",
-    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  "OneWay": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R."
   },
-  "DistributionT": {
-    "file": "distribution.R",
-    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  "PCRCoefficients": {
+    "file": "pca.R",
+    "detail": "Principal components and scale reliability, as the help shows them in R.",
+    "inherits": "PCRCorrelation"
   },
-  "DistributionF": {
-    "file": "distribution.R",
-    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  "PCRCorrelation": {
+    "file": "pca.R",
+    "detail": "Principal components and scale reliability, as the help shows them in R."
   },
-  "DistributionChiSquare": {
-    "file": "distribution.R",
-    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  "PCRCovariance": {
+    "file": "pca-covariance.R",
+    "detail": "Principal components of the covariance matrix and scale reliability, as the help shows them in R."
   },
-  "DistributionQ": {
-    "file": "distribution.R",
-    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  "PCRCovarianceNoFollowOns": {
+    "file": "pca-covariance.R",
+    "detail": "Principal components of the covariance matrix and scale reliability, as the help shows them in R."
   },
-  "DistributionNonCentralT": {
-    "file": "distribution.R",
-    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  "PCRMatrix": {
+    "file": "pca.R",
+    "detail": "Principal components and scale reliability, as the help shows them in R.",
+    "inherits": "PCRCorrelation"
   },
-  "DistributionBinomial": {
-    "file": "distribution.R",
-    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  "PCRScores": {
+    "file": "pca.R",
+    "detail": "Principal components and scale reliability, as the help shows them in R.",
+    "inherits": "PCRCorrelation"
   },
-  "DistributionPoisson": {
-    "file": "distribution.R",
-    "detail": "Corresponding base-R distribution probabilities using the recorded form values."
+  "PetoMeta": {
+    "file": "peto-meta.R",
+    "detail": "Peto odds ratio meta-analysis, as the help shows it in R."
+  },
+  "PlotMultipleLinearRegressionResiduals": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "PlotPredictionInterval": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "PlotResidualsSimple": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "PlotSeCi": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "PlotSimpleLinearRegression": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "PoissonConfidenceInterval": {
+    "file": "poisson-confidence-interval.R",
+    "detail": "Poisson confidence interval of a mean count, as the help shows it in R."
+  },
+  "PoissonRegression": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R."
+  },
+  "PoissonRegressionFitToReport": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R.",
+    "inherits": "PoissonRegression"
+  },
+  "PoissonRegressionFitToWorksheet": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R.",
+    "inherits": "PoissonRegression"
+  },
+  "PoissonRegressionIRR": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R.",
+    "inherits": "PoissonRegression"
+  },
+  "PoissonRegressionModel": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R.",
+    "inherits": "PoissonRegression"
+  },
+  "PoissonRegressionResiduals": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R.",
+    "inherits": "PoissonRegression"
+  },
+  "PolynomialRegression": {
+    "file": "polynomial-regression.R",
+    "detail": "Polynomial regression, as the help shows it in R."
+  },
+  "PolynomialRegressionChangeDegree": {
+    "file": "polynomial-regression.R",
+    "detail": "Polynomial regression, as the help shows it in R."
+  },
+  "Preferences": {
+    "file": "preferences.R",
+    "detail": "Allocation to groups by stated preferences, as the help shows it in R."
+  },
+  "Probit": {
+    "file": "probit.R",
+    "detail": "Probit Model, as the help shows it in R."
+  },
+  "ProbitInterpolateX": {
+    "file": "logit.R",
+    "detail": "Logit Model, as the help shows it in R.",
+    "inherits": "Logit"
+  },
+  "ProbitInterpolateY": {
+    "file": "logit.R",
+    "detail": "Logit Model, as the help shows it in R.",
+    "inherits": "Logit"
+  },
+  "ProbitMore": {
+    "file": "logit.R",
+    "detail": "Logit Model, as the help shows it in R.",
+    "inherits": "Logit"
+  },
+  "ProbitPlot": {
+    "file": "logit.R",
+    "detail": "Logit Model, as the help shows it in R.",
+    "inherits": "Logit"
+  },
+  "PropPairs": {
+    "file": "proportions-paired.R",
+    "detail": "Paired proportions, as the help shows them in R."
+  },
+  "PropSingle": {
+    "file": "single-proportion.R",
+    "detail": "Single proportion with its exact and approximate limits, as the help shows it in R."
+  },
+  "PropUnPaired": {
+    "file": "proportions-unpaired.R",
+    "detail": "Two independent proportions, as the help shows them in R."
+  },
+  "ProportionMeta": {
+    "file": "proportion-meta.R",
+    "detail": "Proportion meta-analysis, as the help shows it in R."
+  },
+  "PyramidPlot": {
+    "file": "pyramid-plot.R",
+    "detail": "Population pyramid, as the help shows it in R."
+  },
+  "Quantile": {
+    "file": "quantile.R",
+    "detail": "Quantile with its confidence interval, as the help shows it in R."
+  },
+  "QuickSummary": {
+    "file": "quick-summary.R",
+    "detail": "Quick descriptive statistics of a column, as the help shows them in R."
+  },
+  "ROCPlot": {
+    "file": "rocplot.R",
+    "detail": "ROC Curve Analysis, as the help shows it in R."
+  },
+  "RandomBlock": {
+    "file": "random-blocks.R",
+    "detail": "Randomized blocks allocation, as the help shows it in R."
+  },
+  "RandomPairs": {
+    "file": "random-pairs.R",
+    "detail": "Randomized intervention-control pairs, as the help shows them in R."
+  },
+  "RandomUnPaired": {
+    "file": "random-unpaired.R",
+    "detail": "Random allocation to two independent groups, as the help shows it in R."
+  },
+  "RandomXY": {
+    "file": "random-series.R",
+    "detail": "Random allocation of the numbers in a series, as the help shows it in R."
+  },
+  "Ranv": {
+    "file": "linearized-estimates.R",
+    "detail": "Linearized regression estimates, as the help shows them in R.",
+    "inherits": "LinearizedEstimates"
+  },
+  "RateCompareTwo": {
+    "file": "rate-compare-two.R",
+    "detail": "Two crude rates compared, as the help shows them in R."
+  },
+  "RateDirect": {
+    "file": "rate-direct.R",
+    "detail": "Direct standardization of rates, as the help shows it in R."
+  },
+  "RateDirectScreen": {
+    "file": "rate-direct-screen.R",
+    "detail": "Direct standardization of rates typed on screen, as the help shows it in R."
+  },
+  "RatePoissonCI": {
+    "file": "poisson-rate.R",
+    "detail": "Poisson rate with its exact confidence interval, as the help shows it in R."
+  },
+  "RateSmr": {
+    "file": "rate-smr.R",
+    "detail": "Indirect standardization and the standardized mortality ratio, as the help shows them in R."
+  },
+  "RateSmrScreen": {
+    "file": "rate-smr-screen.R",
+    "detail": "Indirect standardization and the standardized mortality ratio from rates typed on screen, as the help shows them in R."
+  },
+  "ReferenceRange": {
+    "file": "reference-range.R",
+    "detail": "Reference range with the confidence intervals of its limits, as the help shows it in R."
+  },
+  "RelativeRiskMeta": {
+    "file": "relative-risk-meta.R",
+    "detail": "Relative risk meta-analysis, as the help shows it in R."
+  },
+  "ReplicateTwoWay": {
+    "file": "replicate-two-way.R",
+    "detail": "Two way analysis of variance with repeated observations, as the help shows it in R."
+  },
+  "RiskDifference": {
+    "file": "risk-difference.R",
+    "detail": "Risk difference meta-analysis, as the help shows it in R."
+  },
+  "RndBeta": {
+    "file": "random-beta.R",
+    "detail": "Random numbers from the beta distribution, as the help shows R's generator."
+  },
+  "RndBinomial": {
+    "file": "random-binomial.R",
+    "detail": "Random numbers from the binomial distribution, as the help shows R's generator."
+  },
+  "RndCauchy": {
+    "file": "random-cauchy.R",
+    "detail": "Random numbers from the Cauchy distribution, as the help shows R's generator."
+  },
+  "RndChiSquare": {
+    "file": "random-chi-square.R",
+    "detail": "Random numbers from the chi-square distribution, as the help shows R's generator."
+  },
+  "RndExponential": {
+    "file": "random-exponential.R",
+    "detail": "Random numbers from the exponential distribution, as the help shows R's generator."
+  },
+  "RndF": {
+    "file": "random-f.R",
+    "detail": "Random numbers from the F distribution, as the help shows R's generator."
+  },
+  "RndGamma": {
+    "file": "random-gamma.R",
+    "detail": "Random numbers from the gamma distribution, as the help shows R's generator."
+  },
+  "RndGeometric": {
+    "file": "random-geometric.R",
+    "detail": "Random numbers from the geometric distribution, as the help shows R's generator."
+  },
+  "RndLogNormal": {
+    "file": "random-log-normal.R",
+    "detail": "Random numbers from the lognormal distribution, as the help shows R's generator."
+  },
+  "RndLogit": {
+    "file": "random-logit.R",
+    "detail": "Random numbers from the logistic distribution, as the help shows R's generator."
+  },
+  "RndNegativeBinomial": {
+    "file": "random-negative-binomial.R",
+    "detail": "Random numbers from the negative binomial distribution, as the help shows R's generator."
+  },
+  "RndNormal": {
+    "file": "random-normal.R",
+    "detail": "Random numbers from the normal distribution, as the help shows R's generator."
+  },
+  "RndPoisson": {
+    "file": "random-poisson.R",
+    "detail": "Random numbers from the Poisson distribution, as the help shows R's generator."
+  },
+  "RndT": {
+    "file": "random-t.R",
+    "detail": "Random numbers from the Student's t distribution, as the help shows R's generator."
+  },
+  "RndUniform01": {
+    "file": "random-uniform01.R",
+    "detail": "Random numbers from the uniform 0 to 1 distribution, as the help shows R's generator."
+  },
+  "RndUniformAB": {
+    "file": "random-uniform-ab.R",
+    "detail": "Random numbers from the uniform A to B distribution, as the help shows R's generator."
+  },
+  "RndWeibull": {
+    "file": "random-weibull.R",
+    "detail": "Random numbers from the Weibull distribution, as the help shows R's generator."
+  },
+  "ScatterPlot": {
+    "file": "scatter-plot.R",
+    "detail": "Scatter, as the help shows it in R."
+  },
+  "ScatterPlotText": {
+    "file": "scatter-plot-text.R",
+    "detail": "Scatter plot drawn as text, as the help shows it in R."
+  },
+  "Scheffe": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
+  },
+  "SimpleLinearRegression": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R."
+  },
+  "SimpleLinearRegressionCI": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "SizeCorrelation": {
+    "file": "size-correlation.R",
+    "detail": "Sample size for a correlation coefficient, as the help shows it in R."
+  },
+  "SizeIndCase": {
+    "file": "size-independent-case-control.R",
+    "detail": "Sample size for an unmatched case-control study, as the help shows it in R."
+  },
+  "SizeIndProp": {
+    "file": "size-independent-cohort.R",
+    "detail": "Sample size for an independent cohort study, as the help shows it in R."
+  },
+  "SizeMatchCase": {
+    "file": "size-matched-case-control.R",
+    "detail": "Sample size for a matched case-control study, as the help shows it in R."
+  },
+  "SizeMatchProp": {
+    "file": "size-paired-cohort.R",
+    "detail": "Sample size for a paired cohort study, as the help shows it in R."
+  },
+  "SizePaired": {
+    "file": "size-paired-t.R",
+    "detail": "Sample size for a paired or single sample t test, as the help shows it in R."
+  },
+  "SizePopSurvey": {
+    "file": "size-population-survey.R",
+    "detail": "Sample size for a population survey, as the help shows it in R."
+  },
+  "SizeSurvival": {
+    "file": "size-survival.R",
+    "detail": "Sample size for a comparison of survival times, as the help shows it in R."
+  },
+  "SizeUnPaired": {
+    "file": "size-unpaired-t.R",
+    "detail": "Sample size for an unpaired t test, as the help shows it in R."
+  },
+  "Smirnov": {
+    "file": "smirnov.R",
+    "detail": "Two sample Smirnov test, as the help shows it in R."
+  },
+  "Spearman": {
+    "file": "spearman.R",
+    "detail": "Spearman rank correlation with its exact probabilities, as the help shows it in R."
+  },
+  "SpreadPlot": {
+    "file": "spread-plot.R",
+    "detail": "Spread plot, as the help shows it in R."
+  },
+  "Stdrr": {
+    "file": "stdrr.R",
+    "detail": "Standardized rates of two groups compared, as the help shows them in R."
+  },
+  "SurvivalPlot": {
+    "file": "survival-plot.R",
+    "detail": "Survival plot of Kaplan-Meier estimates, as the help shows it in R."
+  },
+  "TPaired": {
+    "file": "paired-t.R",
+    "detail": "Paired t test with its agreement analysis, as the help shows it in R."
+  },
+  "TSingle": {
+    "file": "single-sample-t.R",
+    "detail": "Single sample t test against a population mean, as the help shows it in R."
+  },
+  "TSingleSummary": {
+    "file": "single-sample-t-summary.R",
+    "detail": "Single sample t test from its summary figures (n, mean and standard deviation) against a population mean, as the help shows the test in R."
+  },
+  "TUnpaired": {
+    "file": "unpaired-t.R",
+    "detail": "Unpaired t test, with equal and unequal variances, as the help shows it in R."
+  },
+  "TUnpairedSummary": {
+    "file": "unpaired-t-summary.R",
+    "detail": "Unpaired t test from the two samples' summary figures (sizes, means and standard deviations), with equal and unequal variances, as the help shows the test in R."
+  },
+  "TimeSeriesSummary": {
+    "file": "time-series-summary.R",
+    "detail": "Time series summary of repeated measurements, as the help shows it in R."
+  },
+  "Tukey": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
+  },
+  "TwoWay": {
+    "file": "two-way.R",
+    "detail": "Two way analysis of variance of a randomized block layout, as the help shows it in R."
+  },
+  "TwoWayNested": {
+    "file": "two-way-nested.R",
+    "detail": "Two way hierarchical (nested) analysis of variance, as the help shows it in R."
+  },
+  "TwoWayNestedMeans": {
+    "file": "two-way-nested.R",
+    "detail": "Two way hierarchical (nested) analysis of variance, as the help shows it in R.",
+    "inherits": "TwoWayNested"
+  },
+  "UnivariateSummary": {
+    "file": "univariate-summary.R",
+    "detail": "Descriptive statistics of a column, as the help shows them in R."
+  },
+  "UnivariateSummaryToWorksheetOnly": {
+    "file": "univariate-summary.R",
+    "detail": "Descriptive statistics of a column, as the help shows them in R."
+  },
+  "UniversalAgreement": {
+    "file": "universal-agreement.R",
+    "detail": "Universal R agreement coefficient, as the help shows it in R."
+  },
+  "UniversalAgreementSimulateExactP": {
+    "file": "universal-agreement.R",
+    "detail": "Universal R agreement coefficient, as the help shows it in R.",
+    "inherits": "UniversalAgreement"
+  },
+  "UniversalRCompare": {
+    "file": "universal-r-compare.R",
+    "detail": "Comparison of two universal R agreement coefficients, as the help shows it in R."
+  },
+  "VarianceRatio": {
+    "file": "variance-ratio.R",
+    "detail": "F test of two variances, as the help shows it in R."
+  },
+  "WeiLachin": {
+    "file": "wei-lachin.R",
+    "detail": "Wei-Lachin test of survival over repeated periods, as the help shows it in R."
+  },
+  "WeightedUnivariateSummary": {
+    "file": "weighted-univariate-summary.R",
+    "detail": "Weighted descriptive statistics of a column, as the help shows them in R."
+  },
+  "Wilcoxon": {
+    "file": "wilcoxon-signed-ranks.R",
+    "detail": "Wilcoxon signed ranks test with its exact probabilities and limits, as the help shows it in R."
+  },
+  "Xxi": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "ZSingle": {
+    "file": "zsingle.R",
+    "detail": "Single sample z test, as the help shows it in R."
+  },
+  "ZUnpaired": {
+    "file": "zunpaired.R",
+    "detail": "Unpaired z test of two samples by the normal approximation, after the help's single sample z test in R."
   }
 }

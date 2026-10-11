@@ -65,8 +65,19 @@ extension Viewer {
         case "start":
             startOperation(doc)
         case "answer":
-            guard let id = doc.analysisJobID, let token = body["token"], let value = body["value"] else { return }
-            if let input=value as? [String:Any], input["columns"] != nil { doc.operationInputRange=input["range"] as? [String:Any]; doc.operationInputEntered = input["range"] == nil }
+            guard let id = doc.analysisJobID, let token = body["token"], var value = body["value"] else { return }
+            if var input=value as? [String:Any], input["columns"] != nil {
+                doc.operationInputRange=input["range"] as? [String:Any]; doc.operationInputEntered = input["range"] == nil
+                // The workbook a worksheet frame came from, as the Document names it (the grid's own name differs for a new
+                // worksheet), and its path when saved: the engine attaches them to the frame's variables, so the record of the
+                // run points at the file as a Windows run's does (HostParameters.AttachOrigins).
+                if var worksheet = input["worksheet"] as? [String: Any],
+                   let source = documents.first(where: { $0.id == (doc.operationSnapshotSourceID ?? doc.operationSourceID ?? analysisSourceID) }), source.kind == "grid" {
+                    worksheet["workbook"] = source.workbookName
+                    if let path = source.workbookSourceURL?.path { worksheet["workbookPath"] = path } else { worksheet["workbookPath"] = nil }
+                    input["worksheet"] = worksheet; value = input
+                }
+            }
             operationRequest(["action": "answer", "id": id, "token": token, "value": value], doc: doc, id: id)
         case "cancel":
             guard let id = doc.analysisJobID else { return }
@@ -224,7 +235,11 @@ extension Viewer {
                 switch result {
                 case .success(let value):
                     let message = (value as? [String: Any])?["message"] as? String ?? "The results were written into the worksheet."
-                    // The worksheet's columns may have moved: the form's snapshot is refreshed so a rerun sees them.
+                    // The worksheet's columns may have moved: the form's snapshot is refreshed so a rerun sees them. The record of
+                    // the run was written at the report step, before this write-back, so when the output was inserted before the
+                    // analysed columns its pointers name those columns where they were. Windows does the same (frmSpreadsheetGear
+                    // inserts the output's columns with range.Insert, and its template writes the record at the report step, before
+                    // the output-frame step), so the pointers are left as recorded rather than shifted here: a change for both.
                     self.refreshOperationSource(doc) { self.finishOperationReport(doc, output, frames: [], note: message) }
                 case .failure(let error):
                     let reason = ((error as NSError).userInfo["WKJavaScriptExceptionMessage"] as? String) ?? error.localizedDescription
@@ -262,14 +277,23 @@ extension Viewer {
         let resultID = UUID().uuidString
         let html = output["html"] as? String ?? ""
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
-        let rPlan = try? RScriptGenerator.generate(operation: doc.operationName ?? "", title: doc.title, output: output, resources: root)
         let body = """
         <div class="eyebrow">Analysis / StatsDirect</div><h1>\(htmlEscape(doc.title))</h1><p class="muted">\(stamp)</p>
         <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)\(note.map { "<p class=\"note\">\(htmlEscape($0))</p>" } ?? "")</section>
         """
-        let entry = ReportEntry(id: resultID, title: doc.title, operation: doc.operationName ?? "", body: body, rPlan: rPlan, helpPath: doc.operationName.flatMap { analysisCatalog[$0]?["help"] as? String })
-        if doc.operationName.flatMap({ analysisCatalog[$0]?["instant"] as? Bool }) == true {
-            previewResult(entry, in: doc)
-        } else { appendReport(entry) }
+        let operation = doc.operationName ?? ""
+        let instant = doc.operationName.flatMap({ analysisCatalog[$0]?["instant"] as? Bool }) == true
+        // The engine's record of the run (its pointers to the worksheet columns with their hashes, the settings and the results)
+        // comes with the completed output, as does whether the shared recipes cover the operation; the entry is titled by the
+        // record's friendly name, as on Windows, so its R script is headed by it.
+        let record = output["record"] as? String
+        let entry = ReportEntry(id: resultID, title: record.flatMap(RunRecordR.title(of:)) ?? recordTitle(doc), operation: operation, body: body,
+                                record: record, recipe: output["recipe"] as? Bool ?? false, helpPath: methodHelpPath(doc))
+        if instant { previewResult(entry, in: doc) } else { appendReport(entry) }
+    }
+    // The operation's friendly name: the catalogue's title, else a follow-on's, else the operation name.
+    func recordTitle(_ doc: Document) -> String {
+        let operation = doc.operationName ?? ""
+        return analysisCatalog[operation]?["title"] as? String ?? doc.followOnDefinition?["title"] as? String ?? operation
     }
 }

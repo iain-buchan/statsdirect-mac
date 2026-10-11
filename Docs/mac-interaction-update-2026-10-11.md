@@ -1,8 +1,8 @@
 # Mac interaction update — 11 October 2026
 
-## Windows release boundary
+## Windows release boundary (initial UI work)
 
-The Windows repository and released application have not been modified. The Mac calculation engine remains pinned to `4ee43dc66c038f6deff1933e4fb8d42f52fafbec` (5.0.14); its source is unchanged. Do not import the later engine or R recipe updates until the separate Windows investigation is resolved.
+The Windows repository and released application have not been modified. The initial UI work kept the Mac engine at `4ee43dc66c038f6deff1933e4fb8d42f52fafbec` (5.0.14) pending the Windows investigation. That hold was superseded by the user's request to incorporate the verified engine updates, described below.
 
 The Mac checkout was missing the report editor already shipped by Windows. Its shared editor modules and generated bundles are now copied unchanged from `4e9f9d10a7dbf795c28fc3dc3e5924476a3bc1d6`, the revision named by the Windows `ReportEditor/README.md` and build script. Rebuilding `Report/build.mjs` reproduces that revision byte for byte. There are no new changes to that shared editor implementation for Windows to adopt.
 
@@ -24,7 +24,7 @@ This is host integration, not a rewrite of statistical routines. Complex group/i
 - Report suite: one editable region, formatting across results, blank-report typing/undo, contextual toolbar and native menus, chart sizing, cut/paste/drag, unified deletion/undo, HTML/PDF/DOCX, Office clipboard, legacy RTF and HTML sanitization. Export package checks verify tables, borders, numerical formatting and vector/raster pictures.
 - Release build and matching native debug symbols; shared editor source and bundle identity checked against the released Windows pin.
 
-The candidate app is `.build/mac-interaction-build/StatsDirect.app`. The existing running app was not replaced or restarted during the build. No push or release has been made for this update. `origin/main` is ahead of the local base and includes engine changes currently on hold; reconcile deliberately before a later push, rather than fast-forwarding the engine as part of this UI work.
+The initial candidate app was `.build/mac-interaction-build/StatsDirect.app`. At that stage, the existing running app was not replaced or restarted and the engine update was held for verification. The integration below supersedes that hold.
 
 ## Script AI dock
 
@@ -44,8 +44,8 @@ The sharing controls sit below the conversation and can be collapsed. See
 `Docs/Learn/TutorPrivacy.md` for the precise scope and in-memory retention behavior.
 
 Changes are restricted to the Mac Swift shell, Mac connection client, a new bundled
-script-assistant prompt, documentation and tests. The Windows repository and engine pin
-remain untouched. All 22 shared report editor modules/bundles checked remain byte-identical
+script-assistant prompt, documentation and tests. At that stage, the Windows repository and engine pin
+remained untouched. All 22 shared report editor modules/bundles checked remain byte-identical
 to the released Windows editor revision above.
 
 The new native suite reports 30 passing checks using a local protocol fixture and fictional
@@ -60,5 +60,32 @@ The existing native R integration and offline Help suites also pass against this
 The user's running application was not replaced or restarted.
 
 The AI candidate was subsequently launched at the user's request after confirming StatsDirect
-was already closed. The last source-only wording change shortens the sharing warning to end
-after "identifying free text." It has not yet been rebuilt into that running candidate.
+was already closed. The subsequent wording change shortens the sharing warning to end
+after "identifying free text." It is included in the integration build below.
+
+## Integration with verified engine 5.1.0
+
+At the user's request, the Mac main updates through `b5e0baa` are merged with the AI dock
+and interaction work from `3278ad2`. The engine is pinned to the Windows-verified
+`3cc4cbc92ab779880d7fc8f04d1a94ee47e2b620`. The submodule's numerical code, R recipes and
+report editor remain unchanged; no Windows repository files are edited or pushed.
+
+Reports retain the engine's shared run record. Continue in R uses its writer and the
+recorded options, confidence levels and selected data, including the corrected Poisson
+and conditional-logistic recipes. Generated scripts use the normal Mac script tab,
+including the AI dock, context help, reusable numbering and protection of subsequent
+edits. Reports retain the compact editable Mac presentation. Incoming Find/Replace,
+R-generated SVG/output links and Open in R behavior are preserved.
+
+Combined-form regressions now compare recorded inputs and settings as well as numerical
+and worksheet results. The shared template processor includes default values for disabled
+simulation controls in a combined-form record; tests explicitly permit only those known
+inactive defaults, with simulation still false, and require all active inputs to match.
+The Mac history applies the same parameter-kind mapping as the sequential host.
+Native form checks also caught a list-answer bug in the combined-form resolver: arrays
+have a `values()` iterator, which was being mistaken for form data. The Mac grid now
+recurses only into a form's values object and preserves list answers as arrays.
+
+The integration candidate is `.build/engine-ai-integration/StatsDirect.app`; its sharing
+warning includes the requested shortened wording. Verification results are recorded in
+`Tests/verification.md`. The user's running app is not replaced by this build.

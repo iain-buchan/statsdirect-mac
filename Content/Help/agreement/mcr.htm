@@ -111,7 +111,7 @@
                             </nav>
                             <div class="body-container">
                                 <div data-mc-content-body="True">
-                                    <div role="main" id="mc-main-content"><a name="kanchor117"></a>
+                                    <div role="main" id="mc-main-content"><a name="kanchor118"></a>
                                         <h1>Method Comparison Regression</h1>
                                         <p>&#160;</p>
                                         <p>Menu location: <b>Analysis_Agreement_Method Comparison Regression</b>.</p>
@@ -208,6 +208,7 @@
 # Agreement worksheet columns Serum Creatinine and Plasma Creatinine hold the same
 # pairs) in R. StatsDirect runs this analysis through the mcr package, so install it
 # first with install.packages("mcr")
+if (!requireNamespace("mcr", quietly = TRUE)) install.packages("mcr", repos = "https://cloud.r-project.org")
 library(mcr)
 data(creatinine)
 complete &lt;- complete.cases(creatinine)

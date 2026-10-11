@@ -3,6 +3,7 @@ import Cocoa
 @main
 struct RPaneChecks {
     @MainActor static func main() throws {
+        setvbuf(stdout, nil, _IOLBF, 0)
         _ = NSApplication.shared
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
         let pane = RPane(resources: resources)
@@ -34,19 +35,15 @@ struct RPaneChecks {
         run("plot(x); dev.off(); plot(x, -x)", plots: 2)
         print("PASS default plots, multiple pages/devices, errors and variables across runs")
 
-        let columns: [[String: Any]] = [
-            ["title": "Before", "values": [10, 20, 30, 40]],
-            ["title": "After", "values": [8, 17, 25, 32]]
-        ]
-        let output: [String: Any] = ["history": [
-            ["name": "data", "kind": "grid", "value": ["columns": columns]],
-            ["name": "gamma", "kind": "confidence", "value": 95],
-            ["name": "doAgreement", "kind": "boolean", "value": true]
-        ]]
-        let plan = try RScriptGenerator.generate(operation: "TPaired", title: "Paired t", output: output, resources: resources)
-        run(plan.script, plots: 1)
-        precondition(pane.console.string.contains("agreement.pdf"))
-        run(plan.script, plots: 1)
+        // A paired t test's script as the engine writes it from a record: the data as named vectors, the setting, then the body of
+        // the recipe in the program's R folder (its comment header, the lines the writer reads, left off).
+        let headerKeys = ["# StatsDirect recipe:", "# From the help", "# data:", "# table:", "# matrix:", "# settings:", "# hand-edited:"]
+        var recipe = try String(contentsOf: resources.appendingPathComponent("R/recipes/paired-t.R"), encoding: .utf8).components(separatedBy: "\n")
+        while let first = recipe.first, first.isEmpty || headerKeys.contains(where: { first.hasPrefix($0) }) { recipe.removeFirst() }
+        let script = "# Paired t, from StatsDirect\n# Paired t test with its agreement analysis\n\nbefore <- c(10, 20, 30, 40)   # Before\nafter <- c(8, 17, 25, 32)   # After\nconfidence <- 0.95\n\n" + recipe.joined(separator: "\n")
+        run(script, plots: 1)
+        precondition(pane.console.string.contains("Paired t-test"))
+        run(script, plots: 1)
         run("cat('No new plot\\n')", plots: 0)
         print("PASS generated agreement PDF appears inline, redraw is shown and unchanged plots are not repeated")
 
@@ -58,8 +55,31 @@ struct RPaneChecks {
         storage.enumerateAttribute(.link, in: NSRange(location: 0, length: storage.length)) { value, _, _ in
             if let url = value as? URL, FileManager.default.fileExists(atPath: url.path) { links += 1 }
         }
-        precondition(links == images().count)
+        precondition(links >= images().count)
         print("PASS plot attachments fit a narrow output column and retain original file links")
+        // The files a run writes are listed as links (as the Windows script window lists them), and the Output folder button opens the session folder.
+        run("write.csv(data.frame(a = 1:3), 'table.csv', row.names = FALSE)\ncat('written\\n')", plots: 0)
+        let folder = pane.outputFolder!
+        precondition(FileManager.default.fileExists(atPath: folder.appendingPathComponent("table.csv").path), folder.path)
+        var listed = [String]()
+        storage.enumerateAttribute(.link, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            if let url = value as? URL, url.lastPathComponent == "table.csv" { listed.append((storage.string as NSString).substring(with: range)) }
+        }
+        precondition(listed == ["table.csv\n"] && pane.console.string.contains("Files written, to open with a click:"), pane.console.string)
+        let listings = pane.console.string.components(separatedBy: "Files written").count
+        run("cat('nothing written\\n')", plots: 0)
+        precondition(pane.console.string.components(separatedBy: "Files written").count == listings, "an unchanged folder lists no files again")
+        func buttons(_ view: NSView) -> [NSButton] { view.subviews.flatMap { ($0 as? NSButton).map { [$0] } ?? buttons($0) } }
+        let folderButton = buttons(pane.view).first { $0.title == "Output folder" }
+        precondition(folderButton?.isEnabled == true, "Output folder button")
+        print("PASS files a run writes are listed as links once, and the Output folder button is offered for the session folder")
+        // Run script while a run is going stops that run and runs the edited script (the Windows script window does the same).
+        pane.editor.string = "Sys.sleep(20); cat('slow finished\\n')"; pane.runScript()
+        precondition(pane.isRunning, pane.state.stringValue)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        run("cat('edited script ran\\n')", plots: 0)
+        precondition(pane.console.string.contains("edited script ran") && !pane.console.string.contains("slow finished") && pane.console.string.contains("Run stopped"), pane.console.string.suffix(400).description)
+        print("PASS Run script during a run stops it and runs the edited script")
         precondition(pane.console.textStorage!.containsAttachments)
     }
 }

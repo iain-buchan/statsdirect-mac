@@ -1,0 +1,1 @@
+{"operation":"WeightedUnivariateSummary","file":"weighted-univariate-summary.R","inputs":[{"name":"data","columns":[{"title":"value","values":[1,2,3,4,5]}]},{"name":"weights","columns":[{"title":"weight","values":[2,1,3,1,1]}]}],"subset":true,"settings":{"gamma":0.95}}

@@ -4,7 +4,9 @@ struct GroupIdentifierTests {
     @MainActor static func run(_ v: Viewer) async throws {
         let defaults=UserDefaults.standard.object(forKey:"analysisDefaults")
         defer {UserDefaults.standard.set(defaults,forKey:"analysisDefaults")}
-        UserDefaults.standard.removeObject(forKey:"analysisDefaults")
+        // Open long-layout tests with the saved group-identifier choice so highlighted
+        // columns are not automatically accepted as separate groups.
+        UserDefaults.standard.set(["selectGroupsByIdentifier":true],forKey:"analysisDefaults")
         let grid=v.newDocument(kind:"grid",title:"Group identifier fixture",url:v.root.appendingPathComponent("Grid/index.html"))
         defer {v.remove(grid)}
         try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:!!window.statsDirectGrid})"))?["ok"] as? Bool == true}
@@ -48,8 +50,15 @@ struct GroupIdentifierTests {
         let history=result["history"] as! [[String:Any]],input=history.first{$0["name"] as? String=="data"}!["value"] as! [String:Any]
         let columns=input["columns"] as! [[String:Any]],range=input["range"] as! [String:Any]
         precondition(columns[0]["values"] as? [Int]==[2,3,4,5] && columns[1]["values"] as? [Int]==[6,7,8] && range["firstRow"] as? Int==2 && range["lastRow"] as? Int==8)
-        let r=try RScriptGenerator.generate(operation:"OneWay",title:"Grouping fixture",output:result,resources:v.root)
-        precondition(r.script.contains("c(2.0, 3.0, 4.0, 5.0)") && r.script.contains("c(6.0, 7.0, 8.0)"))
+        // The engine's record of the run comes with the completed output: a long layout is recorded as its pivoted groups, entered
+        // (as the Windows pivots leave them), so the groups' values are what the R script will hold.
+        func record(_ output:[String:Any]) throws -> [String:Any] {
+            guard let text=output["record"] as? String, let object=try JSONSerialization.jsonObject(with:Data(text.utf8)) as? [String:Any] else { throw NSError(domain:"GroupIdentifierTests",code:1,userInfo:[NSLocalizedDescriptionKey:"the completed output carries no record of the run"]) }
+            return object
+        }
+        let recorded=(try record(result)["inputs"] as? [[String:Any]])?.first{$0["name"] as? String=="data"}
+        let groups=(recorded?["columns"] as? [[String:Any]] ?? []).map{($0["values"] as? [Any] ?? []).compactMap{($0 as? NSNumber)?.intValue}}
+        precondition(recorded?["kind"] as? String=="entered" && groups.count>=2 && groups[0]==[2,3,4,5] && groups[1]==[6,7,8],"the record's groups: \(String(describing:recorded))")
         precondition(UserDefaults.standard.dictionary(forKey:"analysisDefaults")?["selectGroupsByIdentifier"] as? Bool==true)
         print("PASS: native group roles and custom rows survive rejection; corrected selection reaches ANOVA, input history and R; layout preference saved")
 
@@ -90,8 +99,10 @@ struct GroupIdentifierTests {
         let nestedHistory=nestedResult["history"] as! [[String:Any]]
         let nestedColumns=(nestedHistory.first{$0["name"] as? String=="data2d"}!["value"] as! [String:Any])["columns"] as! [[String:Any]]
         precondition(nestedColumns.count==3 && nestedColumns[1]["mode"] as? String=="GroupIdentifiers")
-        let nestedR=try RScriptGenerator.generate(operation:"TwoWayNested",title:"Nested fixture",output:nestedResult,resources:v.root)
-        precondition(nestedR.script.contains("c(\"01\", \"01\"") && nestedR.script.contains("\"north\""))
+        // The record holds the nested frame as the engine built it (a frame2d of subgroups), its titles keeping the numeric-looking
+        // identifier "01" as the text label it is (not 1) and naming the blocks, so the R script sees the labels.
+        let nestedRecord=nestedResult["record"] as? String ?? ""
+        precondition(nestedRecord.contains("\"kind\":\"frame2d\"") && nestedRecord.contains("_01 (") && nestedRecord.contains("Column C_north)"),"the nested record: \(nestedRecord)")
         print("PASS: native nested group/subgroup selection and layout fallback; distinct subgroups calculate; numeric-looking group identifiers stay as text in R")
 
         // Analysis of covariance from long data: a predictor column, two Y replicate columns and a group identifier column.
@@ -130,9 +141,13 @@ struct GroupIdentifierTests {
         let covColumns=covRecord["columns"] as? [[String:Any]] ?? []
         try check(covColumns.count==4 && covColumns[3]["mode"] as? String=="GroupIdentifiers" && (covRecord["roles"] as? [String:Any])?["outcomes"] as? Int==2, "covariance record: \(covRecord)")
         try check(covHistory.first{$0["name"] as? String=="layoutCovariance"}?["value"] as? String=="identifiers", "layout record missing")
-        let covR=try RScriptGenerator.generate(operation:"GroupedCovariance",title:"Covariance fixture",output:covResult,resources:v.root)
-        try check(covR.script.contains("\"a\"") && covR.script.contains("data_frames[["), "covariance R script")
-        try check(covR.script.contains("Confidence level") && covR.script.contains("95"), "covariance R settings must retain confidence")
+        // The engine's record of the covariance run (shared with Windows): the grouped data arrive as the engine's covariance input,
+        // recorded by its kind and type name rather than its columns, and the engine's results follow; the identifiers' labels and
+        // the confidence level stay in the history above (a parity point for the shared record, raised with Windows).
+        let covRun=try record(covResult)
+        let covInput=(covRun["inputs"] as? [[String:Any]])?.first
+        try check(covInput?["name"] as? String=="gcd" && covInput?["kind"] as? String=="covariance", "covariance record input: \(String(describing:covInput))")
+        try check(((covRun["values"] as? [String:Any])?["slope"] as? NSNumber)?.doubleValue==2, "covariance record must carry the engine's results: \(String(describing:covRun["values"]))")
         print("PASS: native analysis of covariance from long data: the layout choice, the X, Y replicate and identifier roles reach the engine, the input history and R")
 
     }

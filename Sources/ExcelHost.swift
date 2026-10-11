@@ -173,30 +173,42 @@ extension Viewer {
                 self.showError("Choose a new filename to keep the original workbook intact.")
                 return
             }
-            let version = doc.gridVersion
-            doc.fileBusy = true
-            // The grid stores a typed snapshot of the cells to write; the engine reads it by path.
-            doc.web.callAsyncJavaScript("return window.statsDirectGrid.excelSnapshot()", arguments: [:], in: nil, in: .page) { result in
-                guard case .success(let value) = result, let info = value as? [String: Any], let snapshotID = info["id"] as? String, let file = SnapshotStore.shared.file(for: snapshotID) else {
-                    doc.fileBusy = false
-                    if case .failure(let error) = result { self.showError("The workbook could not be read from the grid. " + self.javaScriptMessage(error)) }
-                    else { self.showError("The workbook could not be read from the grid.") }
-                    return
-                }
-                var request: [String: Any] = ["action": "save", "path": url.path, "snapshot": file.path]
-                if let id = doc.workbookID { request["id"] = id }
-                if let inserts = info["inserts"] as? [[String: Any]], !inserts.isEmpty { request["inserts"] = inserts }
-                self.gridStatus(doc, "Saving Excel workbook…")
-                self.workbookRequest(request) { result in
-                    SnapshotStore.shared.forget(snapshotID)
-                    doc.fileBusy = false
-                    switch result {
-                    case .failure(let error): self.gridStatus(doc, "Excel save failed"); self.showError(error.localizedDescription)
-                    case .success(let saved):
-                        if version == doc.gridVersion { doc.gridDirty = false }
-                        let missing = saved["uncachedFormulas"] as? Int ?? 0
-                        self.gridStatus(doc, "Saved all worksheets to " + url.lastPathComponent + (missing > 0 ? ". \(missing) formula results require recalculation in Excel." : ""))
-                    }
+            self.saveExcel(doc, to: url)
+        }
+    }
+    /// Writes every worksheet to the file through the engine. The saved file is then the grid's own: the Document and the grid take
+    /// its name and path, so a later analysis records that file (as a Windows run records the grid's saved path), and a record's
+    /// pointers are read back from it when the grid is closed.
+    func saveExcel(_ doc: Document, to url: URL) {
+        guard !doc.fileBusy else { return }
+        let version = doc.gridVersion
+        doc.fileBusy = true
+        // The grid stores a typed snapshot of the cells to write; the engine reads it by path.
+        doc.web.callAsyncJavaScript("return window.statsDirectGrid.excelSnapshot()", arguments: [:], in: nil, in: .page) { result in
+            guard case .success(let value) = result, let info = value as? [String: Any], let snapshotID = info["id"] as? String, let file = SnapshotStore.shared.file(for: snapshotID) else {
+                doc.fileBusy = false
+                if case .failure(let error) = result { self.showError("The workbook could not be read from the grid. " + self.javaScriptMessage(error)) }
+                else { self.showError("The workbook could not be read from the grid.") }
+                return
+            }
+            var request: [String: Any] = ["action": "save", "path": url.path, "snapshot": file.path]
+            if let id = doc.workbookID { request["id"] = id }
+            if let inserts = info["inserts"] as? [[String: Any]], !inserts.isEmpty { request["inserts"] = inserts }
+            self.gridStatus(doc, "Saving Excel workbook…")
+            self.workbookRequest(request) { result in
+                SnapshotStore.shared.forget(snapshotID)
+                doc.fileBusy = false
+                switch result {
+                case .failure(let error): self.gridStatus(doc, "Excel save failed"); self.showError(error.localizedDescription)
+                case .success(let saved):
+                    if version == doc.gridVersion { doc.gridDirty = false }
+                    guard self.documents.contains(where: { $0 === doc }) else { return }
+                    doc.workbookName = url.lastPathComponent; doc.workbookSourceURL = url.resolvingSymlinksInPath(); doc.workbookDataCopy = false
+                    doc.title = url.lastPathComponent; doc.item.label = doc.title; self.updateWindowMenu()
+                    if self.active === doc { self.window.title = "\(doc.title) · Mac prototype" }
+                    doc.web.evaluateJavaScript("window.statsDirectGrid?.renameWorkbook?.(\(self.jsString(doc.workbookName)))")
+                    let missing = saved["uncachedFormulas"] as? Int ?? 0
+                    self.gridStatus(doc, "Saved all worksheets to " + url.lastPathComponent + (missing > 0 ? ". \(missing) formula results require recalculation in Excel." : ""))
                 }
             }
         }

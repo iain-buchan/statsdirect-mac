@@ -17,14 +17,20 @@ enum TutorTools {
             tool("statsdirect_open_analysis","Open a StatsDirect analysis form with the referenced worksheet as input so the learner can review and run a method not supported by direct tutor calculation. This only opens the form; do not claim it calculated results.",["operation":string,"documentId":string],required:["operation","documentId"])
         ]
     }
-    static func frame(_ dataset: [String:Any]) throws -> [String:Any] {
+    static func frame(_ dataset: [String:Any], workbookName: String? = nil, workbookPath: String? = nil) throws -> [String:Any] {
         guard dataset["complete"] as? Bool == true, dataset["hasErrors"] as? Bool != true, dataset["hasStaleFormulas"] as? Bool != true,
               let columns = dataset["columns"] as? [[String:Any]], !columns.isEmpty, columns.count <= 32,
               let count = dataset["rowCount"] as? Int, count > 0, count <= 4000, count * columns.count <= 4000,
               columns.allSatisfy({($0["values"] as? [Any])?.count == count}) else {
             throw ChatGPTTutor.Failure(message:"The data range is incomplete, contains Excel errors or has stale formula results. Correct it in the worksheet before calculating.")
         }
-        return ["preserveRows":true,"range":["firstRow":dataset["firstRow"] ?? 1,"lastRow":dataset["lastRow"] ?? count,"columns":columns.map{$0["index"] ?? 0}],"columns":columns.map{["title":$0["title"] ?? "Variable","values":$0["values"] ?? []]},"source":"\(dataset["workbook"] ?? "Worksheet") / \(dataset["sheet"] ?? "") · \(dataset["range"] ?? "")","firstRow":dataset["firstRow"] ?? 1,"lastRow":dataset["lastRow"] ?? count]
+        // The worksheet provenance the operation form sends with a selection (Grid/operation-data.mjs worksheetInputFrom), so the
+        // run record of a tutor-run analysis points at the columns read, as a form-run one does: the workbook as the Document names
+        // it (the grid's own name can differ) and its path when saved.
+        let workbook = workbookName ?? (dataset["workbook"] as? String) ?? "Worksheet"
+        var worksheet: [String:Any] = ["workbook":workbook,"sheet":dataset["sheetIndex"] ?? 0,"sheetName":dataset["sheet"] ?? "","hasTitle":dataset["headerRow"] as? Bool ?? false,"titles":columns.map{$0["title"] ?? "Variable"}]
+        if let workbookPath { worksheet["workbookPath"] = workbookPath }
+        return ["preserveRows":true,"range":["firstRow":dataset["firstRow"] ?? 1,"lastRow":dataset["lastRow"] ?? count,"columns":columns.map{$0["index"] ?? 0}],"columns":columns.map{["title":$0["title"] ?? "Variable","values":$0["values"] ?? []]},"source":"\(workbook) / \(dataset["sheet"] ?? "") · \(dataset["range"] ?? "")","firstRow":dataset["firstRow"] ?? 1,"lastRow":dataset["lastRow"] ?? count,"worksheet":worksheet]
     }
     static func answer(_ prompt: [String:Any], frame: [String:Any], agreement: Bool, studyType: String? = nil) throws -> Any {
         if let error = prompt["error"] as? String, !error.isEmpty { throw ChatGPTTutor.Failure(message:error) }
@@ -50,9 +56,9 @@ enum TutorTools {
             throw ChatGPTTutor.Failure(message:"This analysis needs an additional choice. Open its StatsDirect form to continue.")
         }
     }
-    @MainActor static func run(operation: String, dataset: [String:Any], agreement: Bool, studyType: String? = nil, preferences: [String:Any], request: @escaping ([String:Any]) async throws -> [String:Any]) async throws -> [String:Any] {
+    @MainActor static func run(operation: String, dataset: [String:Any], agreement: Bool, studyType: String? = nil, workbookName: String? = nil, workbookPath: String? = nil, preferences: [String:Any], request: @escaping ([String:Any]) async throws -> [String:Any]) async throws -> [String:Any] {
         guard operations.contains(operation) else { throw ChatGPTTutor.Failure(message:"Use the StatsDirect form for this method.") }
-        let frame = try frame(dataset), id = UUID().uuidString
+        let frame = try frame(dataset,workbookName:workbookName,workbookPath:workbookPath), id = UUID().uuidString
         defer { Task { @MainActor in
             _ = try? await request(["action":"cancel","id":id])
             for _ in 0..<100 {

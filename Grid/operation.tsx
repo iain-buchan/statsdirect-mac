@@ -16,7 +16,8 @@ const empty:GridSelection={columns:CompactSelection.empty(),rows:CompactSelectio
 // analysis-source.mjs); entered data is already complete.
 const pendingColumns=new Map<string,{resolve:(v:any)=>void,reject:(e:Error)=>void}>();let columnToken=0;
 const fetchColumns=(request:any)=>new Promise<any>((resolve,reject)=>{const token=String(++columnToken);pendingColumns.set(token,{resolve,reject});native('columns',{token,...request});});
-const resolveInput=(v:any):Promise<any>=>v?.values?Promise.all(Object.entries(v.values).map(async([k,value])=>[k,await resolveInput(value)])).then(entries=>({...v,values:Object.fromEntries(entries)})):v?.lazy?fetchColumns(v.request).then((data:any)=>worksheetInputFrom(v,data)):Promise.resolve(v);
+// Arrays have a values() iterator too; only a form's values object needs recursion.
+const resolveInput=(v:any):Promise<any>=>v?.values&&typeof v.values==='object'&&!Array.isArray(v)&&!Array.isArray(v.values)?Promise.all(Object.entries(v.values).map(async([k,value])=>[k,await resolveInput(value)])).then(entries=>({...v,values:Object.fromEntries(entries)})):v?.lazy?fetchColumns(v.request).then((data:any)=>worksheetInputFrom(v,data)):Promise.resolve(v);
 function DataInput({p,source,onChange,initial,onChooseColumns}:{p:any,source:any,onChange:(v:any)=>void,initial:any,onChooseColumns:()=>void}) {
   // A rejected long-data answer comes back as `initial` with its worksheet columns and roles, so the same choices are shown again for correction.
   const longInitial=initial?.layout==='long'&&source?.lazy&&Array.isArray(initial.range?.columns)?initial:undefined;

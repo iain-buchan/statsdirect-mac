@@ -1,0 +1,1 @@
+{"operation":"Quantile","file":"quantile.R","data":[{"title":"tubes","values":[46.9,47.2,49.1,56.5,56.8,59.2,59.9,63.2,63.3,63.4,63.7,64.1,67.1,67.7,73.3,78.5]}],"settings":{"quantile":0.75,"gamma":0.90}}

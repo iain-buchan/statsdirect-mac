@@ -126,17 +126,21 @@ import WebKit
             if let result = results[key] { return result }
             guard !calculationBusy else { throw ChatGPTTutor.Failure(message:"A calculation is already running for this question. Wait for its result.") }
             calculationBusy = true; defer { calculationBusy = false }
-            let output = try await TutorTools.run(operation:operation,dataset:saved.value,agreement:agreement,studyType:arguments["studyType"] as? String,preferences:UserDefaults.standard.dictionary(forKey:"analysisDefaults") ?? [:]) { [viewer] input in
+            // The workbook's name and path as the Document holds them go with the dataset, so the record of the run points at the
+            // file as a form run's does.
+            let output = try await TutorTools.run(operation:operation,dataset:saved.value,agreement:agreement,studyType:arguments["studyType"] as? String,workbookName:doc.workbookName,workbookPath:doc.workbookSourceURL?.path,preferences:UserDefaults.standard.dictionary(forKey:"analysisDefaults") ?? [:]) { [viewer] input in
                 try await withCheckedThrowingContinuation { continuation in viewer.analysisRequest(input,entry:"statsdirect_operation") { continuation.resume(with:$0) } }
             }
             try check()
             guard doc.gridVersion == saved.version else { throw ChatGPTTutor.Failure(message:"The worksheet changed during calculation. Read and calculate the current data again.") }
-            let title = viewer.analysisCatalog[operation]?["title"] as? String ?? operation
-            let plan = try? RScriptGenerator.generate(operation:operation,title:title,output:output,resources:viewer.root)
+            // The engine's record of the run, as a form-run analysis keeps it, titles the entry; the tool result below does not
+            // carry the record (it names file paths).
+            let record = output["record"] as? String
+            let title = record.flatMap(RunRecordR.title(of:)) ?? viewer.analysisCatalog[operation]?["title"] as? String ?? operation
             let id = UUID().uuidString, html = output["html"] as? String ?? ""
             let body = "<h1>\(viewer.htmlEscape(title))</h1>" + html
             let previous = viewer.learningLastDocumentID
-            let report = viewer.appendReport(ReportEntry(id:id,title:title,operation:operation,body:body,rPlan:plan,helpPath:viewer.analysisCatalog[operation]?["help"] as? String))
+            let report = viewer.appendReport(ReportEntry(id:id,title:title,operation:operation,body:body,record:record,recipe:output["recipe"] as? Bool ?? false,helpPath:viewer.analysisCatalog[operation]?["help"] as? String))
             viewer.learningLastDocumentID = previous
             if let learner { viewer.tabs.selectTabViewItem(learner.item) }
             let result: [String:Any] = ["state":"complete","operation":operation,"engineVersion":viewer.engineVersion,"datasetId":datasetID,"report":report.title,"reportId":report.id,"resultId":id,"text":Self.plain(html),"inputHistory":output["history"] ?? [],"values":output["values"] ?? [:],"hasSVG":html.contains("<svg")]

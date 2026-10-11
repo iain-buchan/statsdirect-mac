@@ -1,0 +1,1 @@
+{"operation":"MiscLikely","file":"likelihood-ratios.R","inputs":[{"name":"data","columns":[{"title":"mi","values":[97,118,13,2]},{"title":"no_mi","values":[1,15,26,88]}]}],"subset":true,"settings":{"z1":0.95}}

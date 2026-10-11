@@ -16,6 +16,9 @@ public static unsafe class Exports {
         AppDomain.CurrentDomain.AssemblyResolve += (_, args) =>
             new System.Reflection.AssemblyName(args.Name).Name == typeof(Exports).Assembly.GetName().Name
                 ? typeof(Exports).Assembly : null;
+        // The R recipes shared with Windows (Content/R, published beside the engine as R/): the script writer and the
+        // completed snapshot's recipe flag read the manifest from here.
+        StatsDirect.R.RRecipes.Folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(typeof(Exports).Assembly.Location), "R");
     }
     private static string lastHtml = "";
     // C ABI: 0 success, 1 invalid input, 2 insufficient usable pairs,

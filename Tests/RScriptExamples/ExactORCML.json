@@ -1,0 +1,1 @@
+{"operation":"ExactORCML","file":"odds-ratio-exact.R","table":{"counts":[[10,2],[3,15]],"rowLabels":["convicted","not convicted"],"columnLabels":["monozygotic","dizygotic"]},"settings":{"gamma":0.95}}

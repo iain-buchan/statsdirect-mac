@@ -1,5 +1,6 @@
 from r_runtime import rscript as find_rscript
 """Exercise the 5.0.8 distributions through Mac forms, expressions and reports."""
+import json
 import math
 import re
 import subprocess
@@ -35,7 +36,10 @@ try:
             session.request(action='answer', id=ident, token=state['token'], value=inputs)
             result = session.wait(ident)
             assert result['state'] == 'complete', result
-            near(result['values'][side], expected, name + ' ' + side)
+            # The boxes are inputs of the run's record, as on Windows; a tail the calculator does not box (the lower tail of F and chi-square) is in the report.
+            recorded = json.loads(result['record'])['parameters']
+            tail = recorded[side] if side in recorded else float(re.search(side.capitalize() + r' tail = ([\d.Ee+\-]+)', result['html'])[1])
+            near(tail, expected, name + ' ' + side)
             if name == 'T':
                 reported = float(re.search(r'Two-sided P = ([\d.Ee+\-]+)', result['html'])[1])
                 near(reported, 2 * expected, name + ' reported two-sided P')

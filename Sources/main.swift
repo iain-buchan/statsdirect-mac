@@ -13,7 +13,6 @@ final class Document {
     var access: URL
     var initialURL: URL?
     var rPane: RPane?
-    var rScriptPlan: RScriptPlan?
     var gridDirty = false
     var gridVersion = 0
     var workbookID: String?
@@ -56,6 +55,9 @@ final class Document {
     var operationSnapshotSourceID: String?
     var operationInputEntered = false
     var reportEntries: [ReportEntry]?
+    // The result the R menu continues: the last entry, when it carries the record of its run.
+    var lastRecordEntry: ReportEntry? { reportEntries?.last.flatMap { $0.record == nil ? nil : $0 } }
+    // The result, help, R and chart under the pointer at the last right-click (from the editor's context message).
     var reportContext: [String: Any] = [:]
     var reportUndo: [ReportChange] = []
     var reportRedo: [ReportChange] = []
@@ -68,6 +70,8 @@ final class Document {
     var pendingResult: ReportEntry?
     var scrollToResultID: String?
     var hasSVG = false
+    // A report's find bar, above its page, shown by Edit > Find… (ReportFind.swift).
+    var findBar: ReportFindBar?
     init(kind: String, title: String, access: URL) {
         self.kind = kind; self.title = title; self.access = access
         let config = WKWebViewConfiguration()
@@ -78,10 +82,12 @@ final class Document {
         item = NSTabViewItem(identifier: id)
         view.document = self
         item.label = title
-        item.view = web
+        item.view = kind == "report" ? reportFindHost() : web
     }
 }
 
+// The web view of every document; for a report it adds the result's help, R script, selection and chart sizing
+// to the context menu, from what the editor reported at the right-click.
 final class ReportWebView: WKWebView {
     weak var document: Document?
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
@@ -122,6 +128,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var activeReportID: String?
     var checkingUpdates = false
     var updateTimer: Timer?
+    // Results whose R script is being generated (one pane per click) and the recipe manifest, read once.
+    var rGenerating = Set<String>()
+    var recipeManifestCache: [String: RRecipe]?
     var libraryHandle: UnsafeMutableRawPointer?
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
     var engineInfo: [String: String] {
@@ -257,6 +266,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             if command == "redo" { item.keyEquivalentModifierMask = [.command, .shift] }
             edit.addItem(item)
         }
+        edit.addItem(.separator())
+        add(edit, "Find…", #selector(showReportFind), "f")
+        add(edit, "Find Next", #selector(findReportNext), "g")
+        add(edit, "Find Previous", #selector(findReportPrevious), "g"); edit.items.last?.keyEquivalentModifierMask = [.command, .shift]
+        add(edit, "Replace…", #selector(showReportReplace), "f"); edit.items.last?.keyEquivalentModifierMask = [.command, .option]
+        add(edit, "Use Selection for Find", #selector(useReportSelectionForFind), "e")
         populateReportFormatMenu(menu("Format"))
         for title in ["Data", "Analysis", "Graphics"] {
             let operations = menu(title)
@@ -292,6 +307,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             guard !calculatorPane.isFocused, !helpPane.isFocused, !scriptAI.isFocused, let doc=active,doc.kind=="report",!doc.web.isLoading,window.attachedSheet==nil else {return false}
             return doc.reportEditing
         }
+        if isReportFindItem(menuItem) { return findableReport != nil }
         if menuItem.action == #selector(editCommand(_:)) { return calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused || active != nil }
         if menuItem.action == #selector(closeTab), calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused { return true }
         if menuItem.action == #selector(back) { return helpPane.web.canGoBack }
@@ -415,7 +431,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func editCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
-        if calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused { _ = fallback(); return }
+        if calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused || active?.findBar?.isFocused == true { _ = fallback(); return }
         if let doc=active, doc.kind=="report", ["copy","cut","paste"].contains(command), window.attachedSheet==nil { reportClipboardCommand(doc, command: command); return }
         if let doc=active, doc.kind=="report", doc.reportEditing, ["undo","redo","selectAll"].contains(command), window.attachedSheet==nil {
             doc.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand(\(jsString(command)))") { handled, error in
@@ -437,7 +453,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         while documents.contains(where: { $0.kind == "r" && ($0.title == "R Script \(number)" || $0.title.hasPrefix("R Script \(number): ")) }) { number += 1 }
         let name = "R Script \(number)" + (title.map { ": " + $0 } ?? "")
         let doc = newDocument(kind: "r", title: name)
-        let pane = RPane(script: script, saved: saved)
+        let pane = RPane(script: script, saved: saved); pane.scriptName = name
         doc.rPane = pane; doc.item.view = pane.view
         pane.showAI = { [weak self, weak doc] in if let self, let doc { self.scriptAI.open(doc) } }
         window.makeFirstResponder(pane.editor)

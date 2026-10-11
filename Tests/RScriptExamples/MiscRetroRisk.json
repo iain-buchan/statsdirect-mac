@@ -1,0 +1,1 @@
+{"operation":"MiscRetroRisk","file":"risk-retrospective.R","table":{"counts":[[255,49],[93,46]],"rowLabels":["Positive","Negative"],"columnLabels":["Present","Absent"],"rowsTitle":"Outcome","columnsTitle":"Factor"},"settings":{"cco":0.95,"pe":null}}

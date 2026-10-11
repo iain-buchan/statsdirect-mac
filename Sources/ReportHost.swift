@@ -7,7 +7,11 @@ struct ReportEntry {
     let title: String
     let operation: String
     let body: String
-    let rPlan: RScriptPlan?
+    // The engine's record of the run that produced this result (its JSON text: pointers to the worksheet columns, the settings and
+    // the results), from which the engine writes the R script on demand; nil for text and for results without one.
+    let record: String?
+    // Whether the shared R recipes hold one for the operation: from the engine's snapshot, or the manifest for a reopened report.
+    var recipe: Bool = false
     var editedBody: String?
     var annotation = ""
     // The method's help page for this result, offered by the context menu and F1 and written into saved reports as a link.
@@ -64,7 +68,6 @@ extension Viewer {
             entries[index].annotation = ""
         }
         doc.reportEntries = entries
-        doc.rScriptPlan = entries.last?.rPlan
         doc.operationName = entries.last?.operation
         // The report is one editable region; each result is a block in it, identified by its id.
         let body = "<div id='report-empty' class='report-controls' \(entries.isEmpty ? "" : "hidden")><p class='muted'>Type here or run an analysis to add results.</p></div><div id='report-results' class='report-body' tabindex='-1' role='textbox' aria-label='Report' aria-multiline='true' data-draft-id='text-\(doc.id)'>" + entries.map { reportEntryHTML($0) }.joined() + "</div>"
@@ -80,7 +83,7 @@ extension Viewer {
     func reportEntryHTML(_ entry: ReportEntry) -> String {
         let body=entry.editedBody ?? entry.body
         let help=entry.helpPath.map { " data-help=\"\(htmlEscape($0))\"" } ?? ""
-        let r=entry.rPlan.map { " data-r='\($0.hasRecipe ? "recipe" : "data")'" } ?? ""
+        let r=entry.record == nil ? "" : " data-r='\(entry.recipe ? "recipe" : "data")'"
         return "<article class='report-entry' id='result-\(entry.id)' data-result-id='\(entry.id)'\(help)\(r) aria-label=\"\(htmlEscape(entry.title))\">" + body + "</article>"
     }
     func editReport(_ doc: Document, _ body: [String:Any]) {
@@ -91,7 +94,7 @@ extension Viewer {
         // What the pointer was on at a right-click, for the context menu the shell shows.
         if action == "context" { doc.reportContext = body; return }
         if action == "addText" {
-            let entry = ReportEntry(id: UUID().uuidString, title: "Text", operation: "", body: "<p>Enter your text here.</p>", rPlan: nil)
+            let entry = ReportEntry(id: UUID().uuidString, title: "Text", operation: "", body: "<p>Enter your text here.</p>", record: nil)
             pushReportChange(doc, ReportChange(edits: [], added: [IndexedReportEntry(index: doc.reportEntries?.count ?? 0, entry: entry)], typing: false))
             doc.reportEntries?.append(entry)
             doc.reportEditing = true; doc.reportRevision += 1; doc.scrollToResultID = entry.id
@@ -136,7 +139,7 @@ extension Viewer {
     func recordReportEdits(_ doc: Document, edits: [[String: String]], removing: [String] = [], typing: Bool) {
         if doc.reportEntries?.isEmpty == true, edits.count == 1, removing.isEmpty,
            edits[0]["id"] == "text-" + doc.id, let html = edits[0]["html"], html.utf8.count <= 30_000_000 {
-            let entry = ReportEntry(id: "text-" + doc.id, title: "Text", operation: "", body: html, rPlan: nil)
+            let entry = ReportEntry(id: "text-" + doc.id, title: "Text", operation: "", body: html, record: nil)
             pushReportChange(doc, ReportChange(edits: [], added: [IndexedReportEntry(index: 0, entry: entry)], typing: false))
             doc.reportEntries = [entry]; doc.reportRevision += 1; doc.hasSVG = html.contains("<svg")
             reportEditHistory(doc); return
@@ -182,7 +185,7 @@ extension Viewer {
     }
     func syncReportEntries(_ doc: Document, changed: Set<String>) {
         let entries = doc.reportEntries ?? []
-        doc.rScriptPlan = entries.last?.rPlan; doc.operationName = entries.last?.operation
+        doc.operationName = entries.last?.operation
         doc.hasSVG = entries.contains { ($0.editedBody ?? $0.body).contains("<svg") }
         let replacements = entries.filter { changed.contains($0.id) }.map { ["id": $0.id, "html": reportEntryHTML($0)] }
         if let data = try? JSONSerialization.data(withJSONObject: replacements), let json = String(data: data, encoding: .utf8),
@@ -255,7 +258,7 @@ extension Viewer {
         report.reportRevision += 1
         // Engine output is outside edit history. Undo changes only the entries
         // recorded in its transaction, preserving any analyses appended later.
-        report.rScriptPlan = entry.rPlan; report.operationName = entry.operation
+        report.operationName = entry.operation
         report.scrollToResultID = entry.id
         renderReport(report)
         tabs.selectTabViewItem(report.item)

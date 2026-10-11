@@ -12,6 +12,7 @@ Tests/bridge-driver
 Grid/node_modules/
 
 Tests/operation-driver
+Tests/engine-driver
 Tests/**/bin/
 Tests/**/obj/
 

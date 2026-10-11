@@ -70,7 +70,7 @@ internal sealed partial class OperationHost {
                 foreach (var item in accepted) {
                     HostParameters.Commit(item.parameter, item.filled, working);
                     job.Record(item.descriptor["prompt"] as string, HostParameters.Recorded(item.parameter, item.input, item.filled), item.parameter.Name,
-                        item.descriptor["kind"] as string, item.descriptor.TryGetValue("mode", out var mode) ? mode as string : null);
+                        HostParameters.RecordKind(item.parameter, item.descriptor["kind"] as string), item.descriptor.TryGetValue("mode", out var mode) ? mode as string : null);
                 }
                 return filled;
             } catch (ArgumentException ex) { error = ex.Message; }

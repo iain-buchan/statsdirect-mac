@@ -11,19 +11,24 @@ struct WriteBackTests {
         defer {v.remove(grid)}
         try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:!!window.statsDirectGrid})"))?["ok"] as? Bool == true}
         _=try await BetaFeedbackTests.asyncJavaScript(grid,"await statsDirectGrid.loadWorkbook({name:'Write back',sheets:[{name:'Doses',columns:2,rows:5,headerRow:true,cells:[['dose','1','2','4','8'],['note','a','b','c','d']].flatMap((values,col)=>values.map((text,row)=>({col,row,text,kind:row&&!col?'number':'text'})))}]});return {ok:true};")
-        _=try await v.learningJavaScript(grid,"(()=>{statsDirectGrid.editCommand('selectAll','');return {ok:true};})()")
-        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:statsDirectGrid.analysisSource().range?.last===5})"))?["ok"] as? Bool == true}
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:!!document.querySelector('canvas')&&statsDirectGrid.analysisSource().columns.length===2})"))?["ok"] as? Bool == true}
+        // Select the dose column in the real grid; the operation consumes that
+        // selection immediately and uses its default output placement.
+        _=try await BetaFeedbackTests.asyncJavaScript(grid,"""
+        const b=document.querySelector('canvas').getBoundingClientRect(),x=b.x+48+89,y=b.y+18;
+        for(const [type,buttons] of [['mousemove',0],['mousedown',1],['mouseup',0]]){
+          document.elementFromPoint(x,y).dispatchEvent(new MouseEvent(type,{bubbles:true,clientX:x,clientY:y,button:0,buttons}));
+          await new Promise(r=>setTimeout(r,60));
+        }
+        return {ok:true};
+        """)
+        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:JSON.stringify(statsDirectGrid.analysisSource().selection)==='[0]'})"))?["ok"] as? Bool == true}
         let form=v.newDocument(kind:"operation",title:"Log transform fixture",url:v.root.appendingPathComponent("Grid/operation.html"))
         defer {v.remove(form)}
         form.operationSourceID=grid.id
         try await ProviderLearningTests.wait {form.operationReady && form.operationSourceSnapshot != nil}
         _=try await v.learningJavaScript(form,"(()=>{const update=statsDirectOperation.update;statsDirectOperation.update=s=>{window.wbState=s;update(s);};return {ok:true};})()")
         form.operationName="TransformLog";v.startOperation(form)
-        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(form,"({ok:window.wbState?.prompt?.kind==='grid'&&!!document.querySelector('select[name=output-placement]')})"))?["ok"] as? Bool == true}
-        // The definition's default (after the selected columns) is offered; the dose column alone is transformed, inserted after it.
-        _=try await v.learningJavaScript(form,"(()=>{const s=document.querySelector('select[name=output-placement]');if(s.value!=='AfterSelection')throw new Error('default placement '+s.value);const boxes=document.querySelectorAll('.column-chooser input');if(boxes[1].checked)boxes[1].click();return {ok:true};})()")
-        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(form,"({ok:document.querySelectorAll('.column-chooser input:checked').length===1})"))?["ok"] as? Bool == true}
-        _=try await v.learningJavaScript(form,"({ok:(document.querySelector('form').requestSubmit(),true)})")
         try await ProviderLearningTests.wait {form.completedJobID != nil}
         try await ProviderLearningTests.wait {(try? await v.learningJavaScript(grid,"({ok:statsDirectGrid.csvData().split(/\\r?\\n/)[0].split(',').length===3})"))?["ok"] as? Bool == true}
         let csv=(try await v.learningJavaScript(grid,"({csv:statsDirectGrid.csvData()})"))["csv"] as! String

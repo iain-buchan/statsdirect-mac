@@ -16,8 +16,9 @@ namespace StatsDirect.R
     /// R in the registry, runs Rscript.exe in My Documents\StatsDirect\R and takes each chart back as a metafile. Here
     /// Rscript is found where the CRAN installer, Homebrew or the user put it; every run has its own folder under
     /// Application Support, beside the shell's R sessions, so nothing is shared between runs; the script's Windows metafile
-    /// device is shimmed to R's quartz PNG device, which needs no XQuartz; and the chart and the script reach the HTML
-    /// report as fragments (see ReportFragments). Packages a script installs go to one shared library folder.
+    /// device is shimmed to R's quartz PNG device, which needs no XQuartz (Windows 5.1.0 reads the picture with System.Drawing);
+    /// the chart reaches the HTML report as a ReportPicture and the script as text, as on Windows. Packages a script installs go
+    /// to one shared library folder.
     /// </summary>
     public static class RController
     {
@@ -73,8 +74,65 @@ namespace StatsDirect.R
 
         public static bool IsInstalled => FindRscript() != null;
 
-        // The Windows metafile device, as R's PNG device: 144 dots per inch, so the report shows it at half size on a Retina display.
-        const string GraphicsShim = @"# StatsDirect for Mac: the chart goes into the report as a PNG drawn by R's quartz device
+        /// <summary>
+        /// The installed R as the operation definitions ask about it (a precondition such as "R 3.0.0 or later for the mcr
+        /// package"): its version from Rscript itself, read once per Rscript found. Null when R is not installed or does not
+        /// answer. Windows finds its versions in the registry; here there is one R, the Rscript FindRscript gives.
+        /// </summary>
+        public static RVersion PreferredRVersion()
+        {
+            string rscript = FindRscript();
+            if (rscript == null)
+                return null;
+            lock (versions)
+            {
+                if (versions.TryGetValue(rscript, out RVersion known))
+                    return known;
+                RVersion version = null;
+                try
+                {
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = rscript, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true
+                    };
+                    startInfo.ArgumentList.Add("--vanilla");
+                    startInfo.ArgumentList.Add("-e");
+                    startInfo.ArgumentList.Add("cat(R.version$major, R.version$minor, sep = '.')");
+                    using Process process = Process.Start(startInfo);
+                    // the output is read alongside the wait, so that an Rscript that never answers is killed after the time allowed
+                    System.Threading.Tasks.Task<string> standardOutput = process.StandardOutput.ReadToEndAsync(), standardError = process.StandardError.ReadToEndAsync();
+                    if (!process.WaitForExit(30000))
+                    {
+                        try { process.Kill(true); } catch (Exception) { }
+                        throw new TimeoutException("Rscript did not answer within 30 seconds");
+                    }
+                    string output = standardOutput.Result.Trim();
+                    _ = standardError.Result;
+                    if (process.ExitCode == 0 && Regex.IsMatch(output, @"^\d+\.\d+(\.\d+)?$"))
+                    {
+                        if (output.Split('.').Length == 2)
+                            output += ".0";   // RVersion reads three parts, major.minor.revision
+                        version = new RVersion { InstallPath = Path.GetDirectoryName(Path.GetDirectoryName(rscript)) ?? "", VersionString = output, IsX64 = true };
+                    }
+                }
+                catch (Exception) { version = null; }
+                if (version != null)
+                    versions[rscript] = version;
+                return version;
+            }
+        }
+        static readonly Dictionary<string, RVersion> versions = new();
+
+        // The engine's scripts draw their charts with R's svg device. CRAN's R for the Mac needs XQuartz for that device
+        // (its cairo library links X11), so the chart is drawn by the svglite package instead, installed from CRAN into
+        // the shared library the first time it is needed; its SVG carries a viewBox and Arial text like the engine's own.
+        // A script that still opens the Windows metafile device gets R's quartz PNG device at 144 dots per inch.
+        const string GraphicsShim = @"# StatsDirect for Mac: charts go into the report as SVG drawn by svglite (R's own svg device needs XQuartz here)
+svg <- function(filename = """", width = 7, height = 7, ...) {
+  if (!requireNamespace(""svglite"", quietly = TRUE))
+    utils::install.packages(""svglite"", lib = rlib, repos = ""https://cloud.r-project.org"", quiet = TRUE, type = ""binary"")
+  svglite::svglite(filename, width = width, height = height)
+}
 win.metafile <- function(filename = """", width = 7, height = 7, ...) {
   png <- sub(""\\.wmf$"", "".png"", filename, ignore.case = TRUE)
   tryCatch(grDevices::png(png, width = width, height = height, units = ""in"", res = 144, type = ""quartz""),
@@ -87,8 +145,8 @@ win.metafile <- function(filename = """", width = 7, height = 7, ...) {
 
         /// <param name="host">Unused here (Windows shows its install dialog over the host window).</param>
         /// <param name="scriptBody">The operation's script, after the parameters written as R variables.</param>
-        /// <param name="rtfScriptBody">What the report shows under "R script to reproduce this result": here a report fragment token, not RTF.</param>
-        public static Process RunScriptAndQuit(ITemplateHost host, string scriptBody, out string rtfScriptBody)
+        /// <param name="reportScriptBody">What the report shows under "R script to reproduce this result": the script as it can be run again, as plain text.</param>
+        public static Process RunScriptAndQuit(ITemplateHost host, string scriptBody, out string reportScriptBody)
         {
             string rscript = FindRscript() ?? throw new InvalidOperationException(NotInstalledMessage);
             Directory.CreateDirectory(LibraryFolder);
@@ -97,10 +155,12 @@ win.metafile <- function(filename = """", width = 7, height = 7, ...) {
             Directory.CreateDirectory(run.Folder);
             current = run;
             string body = Unconvertible.Replace(scriptBody.Replace("\r\n", "\n").Replace('\r', '\n'), "# (a parameter that R cannot take was left out)");
+            // The run's folder goes when the run is read back, so the head makes it again before moving there: the script the report
+            // shows (the same head) then runs again as it is, writing its charts into that folder.
             string head = "userdir <- " + RQuote(run.Folder) + "\nrlib <- " + RQuote(LibraryFolder)
-                + "\ndir.create(rlib, recursive = TRUE, showWarnings = FALSE)\nsetwd(userdir)\n.libPaths(c(rlib, .libPaths()))";
+                + "\ndir.create(userdir, recursive = TRUE, showWarnings = FALSE)\ndir.create(rlib, recursive = TRUE, showWarnings = FALSE)\nsetwd(userdir)\n.libPaths(c(rlib, .libPaths()))";
             // The script the report shows can be run again as it is: without the shim and the message sink, which are this host's.
-            rtfScriptBody = ReportFragments.Script(head + "\n" + body);
+            reportScriptBody = head + "\n" + body;
             string script = head + "\n" + GraphicsShim + "\nzz <- file(" + RQuote(ERROR_FILE_NAME) + ", open = \"wt\")\nsink(zz, type = \"message\")\nreturning.to.statsdirect <- TRUE\n" + body + "\nquit()\n";
             string scriptPath = Path.Combine(run.Folder, RSCRIPT_NAME);
             File.WriteAllText(scriptPath, script, new UTF8Encoding(false));

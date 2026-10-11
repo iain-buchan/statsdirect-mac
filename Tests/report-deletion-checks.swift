@@ -10,9 +10,9 @@ extension ReportExportTests {
         <table id="delete-table"><tbody><tr><th colspan="2">Merged heading</th></tr><tr><td>Label A</td><td>12.5</td></tr><tr><td>Keep B</td><td>27</td></tr></tbody></table>
         <svg id="delete-svg" viewBox="0 0 300 150" width="300" height="150" style="width:240px;height:auto"><text x="20" y="70">Vector chart</text></svg>
         <p id="delete-tail">Unselected ending</p>
-        """, rPlan: RScriptPlan(script: "# Deletion regression\nx <- 1", hasRecipe: true, detail: "Retained analysis recipe"), annotation: "Keep these notes")
-        let middle = ReportEntry(id: "delete-middle", title: "Middle result", operation: "Example", body: "<h1 id='middle-heading'>Middle result</h1><p id='middle-text'>Middle finding</p>", rPlan: nil)
-        let last = ReportEntry(id: "delete-last", title: "Last result", operation: "", body: "<h1 id='last-heading'>Last result</h1><p id='last-text'>Last finding retained</p><img id='delete-raster' width='1' height='1' src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='>", rPlan: nil)
+        """, record: #"{"version":1,"operation":"TPaired","title":"First result","run":"2026-10-11T03:00:00+01:00","inputs":[{"name":"data","prompt":"Select data","kind":"entered","columns":[{"title":"x","values":[1,2]}]}],"parameters":{},"values":{}}"#, recipe: true, annotation: "Keep these notes")
+        let middle = ReportEntry(id: "delete-middle", title: "Middle result", operation: "Example", body: "<h1 id='middle-heading'>Middle result</h1><p id='middle-text'>Middle finding</p>", record: nil)
+        let last = ReportEntry(id: "delete-last", title: "Last result", operation: "", body: "<h1 id='last-heading'>Last result</h1><p id='last-text'>Last finding retained</p><img id='delete-raster' width='1' height='1' src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='>", record: nil)
         func js(_ script: String) async throws -> Any { try await report.web.evaluateJavaScript(script) ?? NSNull() }
         func check(_ expression: String, _ message: String) async throws {
             let ok = try await js(expression) as? Bool == true
@@ -74,7 +74,7 @@ extension ReportExportTests {
         try await select("#delete-text strong"); try await key("Delete")
         try await click("#middle-heading"); try await key("Backspace")
         precondition(report.reportEntries!.map(\.id) == [first.id, last.id] && report.reportUndo.count == 2)
-        v.appendReport(ReportEntry(id: "delete-later", title: "Later output", operation: "Later", body: "<h1>Later output</h1><p>New engine result</p>", rPlan: nil)); try await settled(report)
+        v.appendReport(ReportEntry(id: "delete-later", title: "Later output", operation: "Later", body: "<h1>Later output</h1><p>New engine result</p>", record: nil)); try await settled(report)
         try await undo()
         precondition(report.reportEntries!.map(\.id) == [first.id, middle.id, last.id, "delete-later"])
         try await check("!document.getElementById('delete-text').textContent.includes('formatted finding')", "Undo removal also undid earlier text edit")
@@ -87,8 +87,7 @@ extension ReportExportTests {
         precondition(report.reportEntries!.map(\.id) == [first.id, middle.id, last.id, "delete-later"])
         // The notes of the earlier separate field are text of the result now, and come back with it.
         precondition((report.reportEntries!.first!.editedBody ?? report.reportEntries!.first!.body).contains(first.annotation) && report.reportEntries!.first!.operation == first.operation)
-        let restoredPlan = report.reportEntries!.first!.rPlan!
-        precondition(restoredPlan.script == first.rPlan!.script && restoredPlan.hasRecipe == first.rPlan!.hasRecipe && restoredPlan.detail == first.rPlan!.detail)
+        precondition(report.reportEntries!.first!.record != nil && report.reportEntries!.first!.record == first.record)
         print("PASS: chronological text/result undo/redo, grouped heading selection, original order/metadata and later engine output"); fflush(stdout)
 
         try await reset()
@@ -110,7 +109,7 @@ extension ReportExportTests {
         precondition(report.reportEntries!.map(\.id) == [first.id, middle.id, last.id])
         try await key("z", modifiers: ",metaKey:true,shiftKey:true")
         precondition(report.reportEntries!.isEmpty); try await undo()
-        try await reset([ReportEntry(id: "empty-result", title: "Empty", operation: "", body: "", rPlan: nil)])
+        try await reset([ReportEntry(id: "empty-result", title: "Empty", operation: "", body: "", record: nil)])
         try await select(".report-body"); try await key("a", modifiers: ",metaKey:true"); try await key("Delete")
         precondition(report.reportEntries!.isEmpty); try await key("z", modifiers: ",metaKey:true")
         precondition(report.reportEntries!.first!.id == "empty-result")

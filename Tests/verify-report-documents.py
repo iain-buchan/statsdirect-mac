@@ -24,7 +24,8 @@ assert heading.find('w:pPr/w:pStyle',ns).get(key)=='Heading2'
 assert next(p for p in edited.findall('.//w:p',ns) if 'Interpretation bullet' in ''.join(p.itertext())).find('w:pPr/w:numPr',ns) is not None
 assert next(p for p in edited.findall('.//w:p',ns) if 'Interpretation step' in ''.join(p.itertext())).find('w:pPr/w:numPr',ns) is not None
 assert len(edited.findall('.//w:tbl',ns))==4
-assert sum(name.endswith('.svg') for name in files)==1
+# The agreement chart deleted and restored by Undo, and the LOESS chart R drew: both vector pictures.
+assert sum(name.endswith('.svg') for name in files)==2
 legacy,files=package('legacy-converted')
 for text,tag in [('Legacy statistical report','b'),('Paired measurements','i'),('Reviewed','u')]:
     style=run_for(legacy,text).find('w:rPr/w:'+tag,ns)
@@ -67,12 +68,13 @@ for name in ['resized-report','resized-reopened-report']:
     resized,_=package(name)
     drawing='{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}'
     pictures=resized.findall('.//'+drawing+'inline')
-    sizes={p.find(drawing+'docPr').get('descr'):p.find(drawing+'extent') for p in pictures}
-    raster=sizes.pop('Raster resize check'); rchart=sizes.pop('Chart drawn by R')
+    extents=[(p.find(drawing+'docPr').get('descr'),p.find(drawing+'extent')) for p in pictures]
+    raster=next(e for d,e in extents if d=='Raster resize check')
     assert int(raster.get('cx'))==200*9525 and int(raster.get('cy'))==100*9525
-    assert int(rchart.get('cx'))==504*9525 and rchart.get('cx')==rchart.get('cy')
-    assert len(pictures)==3 and len(sizes)==1 and int(next(iter(sizes.values())).get('cx'))==320*9525, (name,sizes)
-    svg_extent=next(iter(sizes.values())).attrib
+    # The other two pictures are SVG: the engine chart resized to 320px and the LOESS chart R drew square, at six by six inches (432 by 432 points).
+    vectors=sorted((e for d,e in extents if d!='Raster resize check'),key=lambda e:int(e.get('cx')))
+    assert len(pictures)==3 and [int(e.get('cx')) for e in vectors]==[320*9525,576*9525] and int(vectors[1].get('cy'))==576*9525, (name,[(d,e.attrib) for d,e in extents])
+    svg_extent=vectors[0].attrib
     if original_svg_extent is None: original_svg_extent=svg_extent
     else: assert svg_extent==original_svg_extent, 'HTML reopening changed the SVG aspect ratio'
 print('PASS: DOCX uses the selected SVG/raster sizes and retains the LOESS chart before and after HTML reopen')

@@ -1,0 +1,1 @@
+{"operation":"ChiSquareGoodnessOfFit","file":"chi-square-goodness-of-fit.R","inputs":[{"name":"observed","columns":[{"title":"observed","values":[67,83,29,8]}]},{"name":"expected","columns":[{"title":"expected","values":[0.44,0.45,0.08,0.03]}]},{"name":"names","columns":[{"title":"names","values":["O","A","B","AB"]}]}]}

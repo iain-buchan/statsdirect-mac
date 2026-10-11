@@ -34,6 +34,12 @@ preferences = {
 s = Session()
 
 
+def tail(result, which):
+    """A tail of the calculation from its report line, to 15 significant figures (the calculation's only result, as on Windows: its record
+    holds the boxes as the calculator shows them, to 15 decimal places)."""
+    return float(re.search(('Upper' if which == 'upper' else 'Lower') + r' tail = ([\d.Ee+\-]+)', Text(result['html']).text)[1])
+
+
 def distribution(operation, inputs):
     ident, state = s.start(operation)
     try:
@@ -75,20 +81,20 @@ try:
 
     for z in (9, -9):
         result = distribution('DistributionNormal', {'x': z})
-        tail = result['values']['upper' if z > 0 else 'lower']
-        assert math.isclose(tail, normal_tail, rel_tol=1e-12, abs_tol=0), (z, tail, normal_tail)
+        small = tail(result, 'upper' if z > 0 else 'lower')
+        assert math.isclose(small, normal_tail, rel_tol=1e-12, abs_tol=0), (z, small, normal_tail)
         two_sided = float(re.search(r'Two-sided P = ([\d.Ee+\-]+)', Text(result['html']).text)[1])
         assert math.isclose(two_sided, 2 * normal_tail, rel_tol=1e-12, abs_tol=0)
     result = distribution('DistributionF', {'x': 1e20, 'df': 5, 'df2': 10})
-    assert math.isclose(result['values']['upper'], f_tail, rel_tol=1e-12, abs_tol=0)
+    assert math.isclose(tail(result, 'upper'), f_tail, rel_tol=1e-12, abs_tol=0)
     result = distribution('DistributionPoisson', {'df': 11, 'df2': 2})
     # The Windows calculator's upper tail includes the event count.
-    assert math.isclose(result['values']['upper'], poisson_tail, rel_tol=1e-10, abs_tol=0)
+    assert math.isclose(tail(result, 'upper'), poisson_tail, rel_tol=1e-10, abs_tol=0)
     print('PASS small normal, F and Poisson upper tails match R without subtraction loss')
 
     for tau in (-1, 0, 1):
         result = distribution('DistributionKendall', {'x': tau, 'df': 2})
-        assert 0 <= result['values']['upper'] <= 1
+        assert 0 <= tail(result, 'upper') <= 1
     ident, state = s.start('DistributionKendall')
     assert next(field for field in state['prompt']['fields'] if field['name'] == 'df')['min'] == 2
     s.request(action='answer', id=ident, token=state['token'], value={'x': 0, 'df': 1})

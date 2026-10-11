@@ -28,4 +28,4 @@ printf 'Test app: %s\n' "$TEST_APP"
 "$TEST_APP/Contents/MacOS/$EXECUTABLE" "$ROOT/.build/report-export-output" "${@:2}"
 
 if [[ " $* " == *" --presentation-only "* ]]; then python3 Tests/verify-report-presentation.py "$ROOT/.build/report-export-output"
-elif [[ " $* " != *" --deletion-only "* && " $* " != *" --transfer-only "* && " $* " != *" --legacy-only "* && " $* " != *" --legacy-file "* && " $* " != *" --report-file "* ]]; then python3 Tests/verify-report-documents.py "$ROOT/.build/report-export-output"; fi
+elif [[ " $* " != *" --deletion-only "* && " $* " != *" --transfer-only "* && " $* " != *" --legacy-only "* && " $* " != *" --records-only "* && " $* " != *" --legacy-file "* && " $* " != *" --report-file "* ]]; then python3 Tests/verify-report-documents.py "$ROOT/.build/report-export-output"; fi

@@ -57,7 +57,7 @@ import WebKit
         try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
         defer { try? FileManager.default.removeItem(at:folder) }
         let url=folder.appendingPathComponent("Example.R"), marker=folder.appendingPathComponent("executed.txt")
-        let source="writeLines('ran', \(RScriptGenerator.string(marker.path))); stopifnot(!exists('x')); cat('SECOND_SCRIPT\\n')"
+        let source="writeLines('ran', \(String(decoding:try JSONSerialization.data(withJSONObject:marker.path,options:[.fragmentsAllowed,.withoutEscapingSlashes]),as:UTF8.self))); stopifnot(!exists('x')); cat('SECOND_SCRIPT\\n')"
         try source.write(to:url,atomically:true,encoding:.utf8)
         v.openRScriptURL(url)
         let second=v.active!, other=second.rPane!
@@ -67,7 +67,7 @@ import WebKit
         try check(v.validateMenuItem(save) && save.title=="Save R Script…","File Save targets the active R script")
         let copy=try other.writeExternalScript(), firstCopy=try pane.writeExternalScript()
         let copyText=try String(contentsOf:copy,encoding:.utf8)
-        try check(copyText==source && copy.lastPathComponent=="Example.R" && copy.deletingLastPathComponent() != firstCopy.deletingLastPathComponent(),"Open in R saves exact code in independent session folders")
+        try check(copyText==source && copy.lastPathComponent=="Example.R" && copy.deletingLastPathComponent() != firstCopy.deletingLastPathComponent(),"session copies preserve exact code in independent output folders")
         other.editor.insertText("# Edited\n",replacementRange:NSRange(location:0,length:0))
         try check(other.hasUnsavedChanges,"editing an opened script marks it unsaved")
         _=try other.writeExternalScript()
@@ -104,7 +104,15 @@ import WebKit
         v.finishOperationReport(analysis,output,frames:[],note:nil)
         let report=v.active!, entry=report.reportEntries![0]
         try check(!entry.body.contains("<details>") && !entry.body.contains("Inputs used for this report") && entry.body.contains("<svg"),"paired report retains its result and SVG without the input-code expander")
-        try check(entry.rPlan!.script.contains("input_history <-") && entry.rPlan!.script.contains("data_frames <-"),"input history and worksheet values remain in the R handoff")
+        func scriptForRecord(_ record: String) async throws -> [String:Any] {
+            let frames=try await v.recordFrames(record)
+            return try await withCheckedThrowingContinuation { c in
+                v.analysisRequest(["record":record,"frames":frames,"title":NSNull()],entry:"statsdirect_r_script") { c.resume(with:$0) }
+            }
+        }
+        let expected=try await scriptForRecord(entry.record!)
+        let expectedScript=expected["text"] as! String
+        try check(entry.recipe && expectedScript.contains("before <-") && expectedScript.contains("confidence <- 0.95"),"record-backed R handoff retains the actual data and confidence level")
         try await wait {
             guard !report.web.isLoading else { return false }
             return (try? await report.web.evaluateJavaScript("!!document.querySelector('[data-command=continueInR]:not(:disabled)')")) as? Bool==true
@@ -113,7 +121,7 @@ import WebKit
         try await wait { v.active?.rPane != nil }
         let continued=v.active!, r=continued.rPane!
         try await wait { !r.isRunning && r.console.string.contains("Paired t-test") }
-        try check(r.editor.string==entry.rPlan!.script && r.console.textStorage!.containsAttachments,"Continue in R opens and runs the exact report script, including its agreement chart")
+        try check(r.editor.string==expectedScript && r.console.textStorage!.containsAttachments,"Continue in R opens and runs the exact report script, including its agreement chart")
         try check(continued.operationName=="TPaired" && v.methodHelpPath(continued)==v.analysisCatalog["TPaired"]?["help"] as? String,"continued script retains context help for its analysis")
         try check(!r.hasUnsavedChanges,"an unchanged generated script closes without a save prompt, like Windows")
         r.editor.insertText("# Note\n",replacementRange:NSRange(location:0,length:0))
@@ -126,9 +134,11 @@ import WebKit
         let contingency:[String:Any] = try await withCheckedThrowingContinuation { c in v.analysisRequest(["action":"run","id":UUID().uuidString,"input":input]) { c.resume(with:$0) } }
         let table=v.newDocument(kind:"analysis",title:"Contingency table")
         v.showChiSquareReport(contingency,in:table)
-        try check(table.pendingResult != nil && !table.pendingResult!.body.contains("<details>") && table.pendingResult!.rPlan != nil,"screen-data results also omit the input expander and retain their R handoff")
-        let starter=try RScriptGenerator.generate(operation:"UnmappedMethod",title:"Unmapped",output:output,resources:v.root)
-        try check(!starter.hasRecipe && starter.script.contains("data_frames <-"),"methods without an R recipe still provide the input data and settings")
+        try check(table.pendingResult != nil && !table.pendingResult!.body.contains("<details>") && table.pendingResult!.record != nil,"screen-data results also omit the input expander and retain their R handoff")
+        var unlisted=try JSONSerialization.jsonObject(with:Data(entry.record!.utf8)) as! [String:Any]
+        unlisted["operation"]="UnmappedMethod"
+        let starter=try await scriptForRecord(String(decoding:try JSONSerialization.data(withJSONObject:unlisted),as:UTF8.self))
+        try check(starter["hasRecipe"] as? Bool==false && (starter["text"] as? String ?? "").contains("# Add your analysis here."),"methods without an R recipe still provide an editable data/settings script")
         let missing=RPane(script:"cat('keep me')",saved:true,resources:v.root,executable:{nil})
         defer { missing.shutdown() }
         try check(buttons(missing.view).contains { $0.title=="Install R…" && !$0.isHidden } && missing.editor.string=="cat('keep me')","missing R keeps the script and offers setup inside its window")

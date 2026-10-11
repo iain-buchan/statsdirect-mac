@@ -1,0 +1,1 @@
+{"operation":"ExactMcNamarChi","file":"mcnemar.R","table":{"counts":[[20,12],[2,16]],"rowLabels":["Growth","No growth"],"columnLabels":["Growth","No growth"]},"settings":{"gamma":0.95}}

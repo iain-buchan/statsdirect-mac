@@ -39,6 +39,14 @@ final class RPane: NSObject, NSTextViewDelegate {
     private let runButton = NSButton(title: "Run", target: nil, action: nil)
     private let stopButton = NSButton(title: "Stop / Reset", target: nil, action: nil)
     private let installButton = NSButton(title: "Install R…", target: nil, action: nil)
+    // The folder the session runs in, where the files a script writes go (as the Windows script window's Output folder).
+    private let folderButton = NSButton(title: "Output folder", target: nil, action: nil)
+    /// The name the script is saved under by Open in R (the window's title, as on Windows: "Script 1_ Paired t test.R").
+    var scriptName = "Script"
+    /// Whether Open in R starts RStudio or R after saving the script (the native checks save alone).
+    nonisolated(unsafe) static var opensExternally = true
+    /// Where Open in R keeps its files: the program's own folder, as the Windows script window's StatsDirect/R folder.
+    static var scriptsFolder: URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Viewer/R Scripts", isDirectory: true) }
     private let installer: RInstaller
     private let executable: () -> String?
     private var requestingInstallation = false
@@ -57,6 +65,8 @@ final class RPane: NSObject, NSTextViewDelegate {
     private let resources: URL
     private struct PlotStamp: Equatable { let modified: Date; let size: Int }
     private var plotsBefore: [URL: PlotStamp] = [:]
+    private var filesBefore: [URL: PlotStamp] = [:]
+    var outputFolder: URL? { directory }
     var hasUnsavedChanges: Bool { editor.string != savedScript }
     var isRunning: Bool { busy }
 
@@ -83,15 +93,15 @@ final class RPane: NSObject, NSTextViewDelegate {
         stopButton.target = self; stopButton.action = #selector(stopSession)
         installButton.target = self; installButton.action = #selector(prepareSession)
         installButton.isHidden = true; stopButton.isEnabled = false
+        folderButton.target = self; folderButton.action = #selector(openOutputFolder); folderButton.isEnabled = false
+        folderButton.toolTip = "Open the folder the script runs in, where the files it writes go"
         let save = NSButton(title: "Save script…", target: self, action: #selector(saveScript))
+        let openInR = NSButton(title: "Open in R", target: self, action: #selector(openInR))
+        openInR.toolTip = "Save the script as an R file in the program's R Scripts folder and open it in RStudio, or in R's own application"
         let clear = NSButton(title: "Clear output", target: self, action: #selector(clearOutput))
-        let folder = NSButton(title: "Output folder", target: self, action: #selector(openOutputFolder))
-        folder.toolTip = "Open this script's folder of results and charts in Finder."
-        let external = NSButton(title: "Open in R", target: self, action: #selector(openInR))
-        external.toolTip = "Save a copy of this script and open it in RStudio, or R's own editor."
         let ai = NSButton(image: NSImage(systemSymbolName: "sparkles", accessibilityDescription: "AI assistance")!, target: self, action: #selector(openAI))
         ai.setAccessibilityLabel("AI assistance"); ai.toolTip = "Ask your AI for help with this script. You choose whether to share data and code."
-        let bar = NSStackView(views: [runButton, stopButton, ai, save, clear, folder, external, installButton]); bar.spacing = 6
+        let bar = NSStackView(views: [runButton, stopButton, ai, save, clear, folderButton, openInR, installButton]); bar.spacing = 6
         // Help can dock beside a script. Keep every control reachable in a
         // narrow pane without consuming a second row of report/output space.
         let toolbar = NSScrollView(); toolbar.documentView = bar
@@ -160,13 +170,13 @@ final class RPane: NSObject, NSTextViewDelegate {
                     self.process = nil; self.busy = false; self.runButton.isEnabled = true; self.stopButton.isEnabled = false
                     self.state.stringValue = "R session ended (\(task.terminationStatus)). Run script starts a fresh session."
                     if !self.pending.isEmpty { self.append(String(decoding: self.pending, as: UTF8.self)); self.pending.removeAll() }
-                    self.showNewPlots()
+                    self.showNewPlots(); self.listWrittenFiles()
                 }
                 // Retain files the user's R scripts create in the session working directory.
             }
             try child.run()
             process = child; input = incoming; output = outgoing; directory = folder
-            stopButton.isEnabled = true; state.stringValue = "Ready · \(executable)"
+            stopButton.isEnabled = true; folderButton.isEnabled = true; state.stringValue = "Ready · \(executable)"
         } catch {
             state.stringValue = "Could not start R: \(error.localizedDescription)"
             append(state.stringValue + "\n")
@@ -196,7 +206,7 @@ final class RPane: NSObject, NSTextViewDelegate {
             let line = String(decoding: pending[..<newline], as: UTF8.self)
             pending.removeSubrange(...newline)
             if line.trimmingCharacters(in: .whitespacesAndNewlines) == marker {
-                showNewPlots()
+                showNewPlots(); listWrittenFiles()
                 busy = false; runButton.isEnabled = true; state.stringValue = "Ready · R session retained"
             } else { append(line + "\n") }
         }
@@ -213,15 +223,33 @@ final class RPane: NSObject, NSTextViewDelegate {
         console.layoutManager?.invalidateLayout(forCharacterRange: NSRange(location: 0, length: storage.length), actualCharacterRange: nil)
         console.needsDisplay = true
     }
-    private func plotFiles() -> [URL: PlotStamp] {
+    // Every file in the session folder with its stamp; the scripts the pane writes for each run are not the user's files.
+    private func sessionFiles() -> [URL: PlotStamp] {
         guard let directory, let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey], options: [.skipsHiddenFiles]) else { return [:] }
         var result: [URL: PlotStamp] = [:]
         for case let url as URL in files {
-            guard ["pdf", "png", "jpg", "jpeg", "tif", "tiff"].contains(url.pathExtension.lowercased()),
-                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]), values.isRegularFile == true else { continue }
+            guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]), values.isRegularFile == true,
+                  !(url.lastPathComponent.hasPrefix("run-") && url.pathExtension == "R") else { continue }
             result[url] = PlotStamp(modified: values.contentModificationDate ?? .distantPast, size: values.fileSize ?? 0)
         }
         return result
+    }
+    private func plotFiles() -> [URL: PlotStamp] {
+        sessionFiles().filter { ["pdf", "png", "jpg", "jpeg", "tif", "tiff"].contains($0.key.pathExtension.lowercased()) }
+    }
+    // The files a run wrote (charts among them) as links the user can open, as the Windows script window lists them.
+    private func listWrittenFiles() {
+        let files = sessionFiles()
+        let written = files.keys.filter { files[$0] != filesBefore[$0] }.sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
+        filesBefore = files
+        guard !written.isEmpty, let storage = console.textStorage else { return }
+        append("\nFiles written, to open with a click:\n")
+        for url in written { storage.append(NSAttributedString(string: url.lastPathComponent + "\n", attributes: [.link: url, .font: NSFont.systemFont(ofSize: 12)])) }
+        console.scrollToEndOfDocument(nil)
+    }
+    @objc private func openOutputFolder() {
+        guard let directory else { return }
+        NSWorkspace.shared.open(directory)
     }
     private func showNewPlots() {
         let files = plotFiles()
@@ -254,15 +282,17 @@ final class RPane: NSObject, NSTextViewDelegate {
         console.scrollToEndOfDocument(nil)
     }
     @objc func runScript() {
-        guard !busy else { return }
+        // Run while a run is going stops that run and runs the edited script, as the Windows script window does
+        // (a dropped click looked like the unedited answers); the session starts afresh.
+        if busy { shutdown(); append("\nRun stopped; the edited script runs in a fresh R session.\n") }
         if executable() == nil { requestInstallation(run: true); return }
         if process == nil { startSession() }
         guard let process, process.isRunning, let input, let directory else { return }
         do {
-            plotsBefore = plotFiles()
+            filesBefore = sessionFiles(); plotsBefore = plotFiles()
             let script = directory.appendingPathComponent("run-" + UUID().uuidString + ".R")
             try editor.string.write(to: script, atomically: true, encoding: .utf8)
-            busy = true; runButton.isEnabled = false; state.stringValue = "Running R script…"; append("\n── Run script ──\n")
+            busy = true; state.stringValue = "Running R script… Run script again stops this run and runs the edited script"; append("\n── Run script ──\n")
             try input.fileHandleForWriting.write(contentsOf: Data((script.path + "\n").utf8))
         } catch { busy = false; runButton.isEnabled = true; state.stringValue = error.localizedDescription }
     }
@@ -287,10 +317,6 @@ final class RPane: NSObject, NSTextViewDelegate {
         directory = folder
         return folder
     }
-    @objc private func openOutputFolder() {
-        do { NSWorkspace.shared.open(try workingDirectory()) }
-        catch { state.stringValue = "Could not open the output folder: \(error.localizedDescription)" }
-    }
     /// This copy lives beside this session's output; it never overwrites a user's
     /// opened file or another tab's script and does not mark unsaved edits saved.
     func writeExternalScript() throws -> URL {
@@ -298,26 +324,25 @@ final class RPane: NSObject, NSTextViewDelegate {
         try editor.string.write(to: url, atomically: true, encoding: .utf8)
         return url
     }
-    @objc private func openInR() {
-        let workspace = NSWorkspace.shared
-        let app = workspace.urlForApplication(withBundleIdentifier: "org.rstudio.RStudio") ?? workspace.urlForApplication(withBundleIdentifier: "org.R-project.R")
-        guard let app else {
-            if executable() == nil {
-                installer.ensureInstalled { [weak self] installed in if installed { self?.openInR() } }
-            } else {
-                state.stringValue = "RStudio or the R app is needed to open an external editor. You can run and save this script here."
-            }
-            return
-        }
+    /// Open in R, as the Windows script window offers it: the script saved as an R file named after the window in the program's R Scripts
+    /// folder, then opened in RStudio when it is installed, else in R's own application (R.app), else in whatever opens R files.
+    @discardableResult @objc func openInR() -> URL? {
+        let folder = Self.scriptsFolder
+        let name = scriptName.components(separatedBy: CharacterSet(charactersIn: "/:")).joined(separator: "_").trimmingCharacters(in: .whitespaces)
+        let url = folder.appendingPathComponent((name.isEmpty ? "Script" : name) + ".R")
         do {
-            let url = try writeExternalScript()
-            workspace.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
-                DispatchQueue.main.async {
-                    if let error { self?.state.stringValue = "Could not open the script: \(error.localizedDescription)" }
-                    else { self?.state.stringValue = "Opened \(url.lastPathComponent) in \(app.deletingPathExtension().lastPathComponent)" }
-                }
-            }
-        } catch { state.stringValue = "Could not save the script: \(error.localizedDescription)" }
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try editor.string.write(to: url, atomically: true, encoding: .utf8); savedScript = editor.string
+        } catch { state.stringValue = "Open in R failed: \(error.localizedDescription)"; return nil }
+        guard Self.opensExternally else { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts"; return url }
+        let workspace = NSWorkspace.shared
+        if let rstudio = workspace.urlForApplication(withBundleIdentifier: "org.rstudio.RStudio") ?? workspace.urlForApplication(withBundleIdentifier: "com.rstudio.desktop") {
+            workspace.open([url], withApplicationAt: rstudio, configuration: NSWorkspace.OpenConfiguration()); state.stringValue = "Saved \(url.lastPathComponent) in R Scripts and opened it in RStudio"
+        } else if let r = workspace.urlForApplication(withBundleIdentifier: "org.R-project.R") {
+            workspace.open([url], withApplicationAt: r, configuration: NSWorkspace.OpenConfiguration()); state.stringValue = "Saved \(url.lastPathComponent) in R Scripts and opened it in R"
+        } else if workspace.open(url) { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts and opened it" }
+        else { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts; install RStudio or R to open it" }
+        return url
     }
     @objc func saveScript() {
         let panel = NSSavePanel(); panel.nameFieldStringValue = scriptFileName

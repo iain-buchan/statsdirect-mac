@@ -97,14 +97,17 @@ extension Viewer {
         let warnings = (output["warnings"] as? [String] ?? []).map { "<p class='note'>\(htmlEscape($0))</p>" }.joined()
         let skipped = output["exactSkipped"] as? Bool == true ? "<p class='note'>The engine skipped exact testing because the total exceeds 100,000 observations.</p>" : ""
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
-        let rPlan = try? RScriptGenerator.generate(operation: "ExactChiRbyCScreen", title: "Chi-square R × C", output: output, resources: root)
+        // The engine's record of the run (the table of counts as an entered frame and the screen's settings; nothing points at a
+        // worksheet) and whether the shared recipes cover it; the entry is titled by the record's friendly name, as on Windows.
+        let record = output["record"] as? String
+        let title = record.flatMap(RunRecordR.title(of:)) ?? analysisCatalog["ExactChiRbyCScreen"]?["title"] as? String ?? "Chi-square R × C"
         let body = """
         <div class="eyebrow">Analysis / Chi-square / Screen data</div>
         <h1>Chi-square R × C</h1><p class="lead">\(counts.count) × \(counts[0].count) contingency table</p><p class="muted">\(stamp)</p>
         <div class="summary"><div><span>Pearson chi-square</span><strong>\(number(values["chio"] as? Double ?? .nan))</strong></div><div><span>P</span><strong>\(number(values["po"] as? Double ?? .nan))</strong></div><div><span>Observations</span><strong>\(number(output["total"] as? Double ?? .nan))</strong></div></div>
         \(warnings)\(skipped)<section class="engine-report">\(html)</section>
         """
-        previewResult(ReportEntry(id: resultID, title: "Chi-square R × C", operation: "ExactChiRbyCScreen", body: body, rPlan: rPlan, helpPath: "Help/chi_square_tests/rc.htm"), in: doc)
+        previewResult(ReportEntry(id: resultID, title: title, operation: "ExactChiRbyCScreen", body: body, record: record, recipe: output["recipe"] as? Bool ?? false, helpPath: "Help/chi_square_tests/rc.htm"), in: doc)
     }
     func saveAnalysisTable(_ doc: Document) {
         let version = doc.gridVersion

@@ -17,7 +17,8 @@ export function worksheetRows(source, selected, requiredLength) {
 }
 // A snapshot with `cells` is read here. A lazy source (metadata of a live worksheet) yields a
 // request that the form sends to the worksheet; worksheetInputFrom builds the input from the
-// values that come back.
+// values that come back, with the worksheet's provenance (workbook, sheet index and name, whether
+// row 1 holds the titles) so the run record kept with the result points at the columns read.
 // `layout`, when given, describes long data: {mode:'single'|'treatmentAndBlock'|'groupAndSubgroup'|'covariance', data, identifiers:[...], block, outcomes:[...]}
 // (worksheet column indices). The columns travel as data, identifiers, then block, and the
 // application pivots them into one variable per group (HostParameters.PivotLongFrame).
@@ -40,7 +41,7 @@ export function worksheetInput(source, selected, first, last, layout) {
   if (new Set(selected).size !== selected.length) throw new Error(layout?.mode==='covariance'?'Choose different columns for the predictor, the outcomes and the identifiers.':layout?'Choose different columns for the data and the identifiers.':'Choose each column once.');
   if (!Number.isInteger(first) || !Number.isInteger(last) || first < source.firstRow || last < first || last > source.rows) throw new Error('Enter a valid first and last worksheet row.');
   selected.forEach(col=>{ if (!source.columns[col]) throw new Error('That column is no longer available. Refresh the worksheet.'); });
-  if (source.lazy) return {lazy:true, request:{sheet:source.sheet, sheetName:source.sheetName, columns:selected, first, last}, source:source.name+` · rows ${first}–${last}`, titles:selected.map(col=>source.columns[col]), layout:layout?{mode:layout.mode, identifiers:layout.identifiers.length, block:Number.isInteger(layout.block), ...(layout.mode==='covariance'?{outcomes:layout.outcomes.length}:{})}:undefined};
+  if (source.lazy) return {lazy:true, request:{sheet:source.sheet, sheetName:source.sheetName, columns:selected, first, last}, workbook:source.workbook, hasTitle:!!source.hasTitle, source:source.name+` · rows ${first}–${last}`, titles:selected.map(col=>source.columns[col]), layout:layout?{mode:layout.mode, identifiers:layout.identifiers.length, block:Number.isInteger(layout.block), ...(layout.mode==='covariance'?{outcomes:layout.outcomes.length}:{})}:undefined};
   if (layout) throw new Error('Groups by identifier need an open worksheet.');
   const indices = new Set(selected), cells = source.cells.filter(c=>indices.has(c.col) && c.row >= first-1 && c.row < last);
   if (cells.some(c=>c.kind==='error')) throw new Error('The selection contains Excel errors. Correct them in Excel and reopen the workbook.');
@@ -81,12 +82,16 @@ export function worksheetInputFrom(pending, data) {
   if (!data || !Array.isArray(data.columns)) throw new Error('The worksheet did not return the selected columns. Refresh the worksheet.');
   if (data.errors > 0) throw new Error('The selection contains Excel errors. Correct them in Excel and reopen the workbook.');
   if (data.uncached > 0) throw new Error('Recalculate and save this workbook in Excel, then reopen it before analysing formula cells.');
-  const {columns, first, last} = pending.request;
+  const {sheet, sheetName, columns, first, last} = pending.request;
   const read = data.columns.map(c=>({title:c.title,values:c.values.map(v=>v??'')}));
+  // Where the columns came from, for the run record: the engine ignores it and keeps it in the history.
+  const worksheet = {workbook:pending.workbook, sheet, sheetName, hasTitle:!!pending.hasTitle, titles:read.map(c=>c.title)};
   if (pending.layout) {
     const ids = read.slice(1, 1+pending.layout.identifiers), block = pending.layout.block ? read.slice(1+pending.layout.identifiers, 2+pending.layout.identifiers) : [];
     const outcomes = pending.layout.outcomes ? read.slice(1+pending.layout.identifiers+block.length) : [];
-    return {source:pending.source+' · groups by identifier', range:{firstRow:first,lastRow:last,columns}, preserveRows:true, layout:'long', roles:pending.layout, columns:[read[0]], groupIdentifiers:ids, ...(block.length?{blockIdentifiers:block}:{}), ...(outcomes.length?{outcomeColumns:outcomes}:{})};
+    // The application replaces `columns` with the pivoted groups, so the raw cells of every column read
+    // (data, identifiers, block, outcomes, in that order) travel with the provenance.
+    return {source:pending.source+' · groups by identifier', range:{firstRow:first,lastRow:last,columns}, preserveRows:true, layout:'long', roles:pending.layout, columns:[read[0]], groupIdentifiers:ids, ...(block.length?{blockIdentifiers:block}:{}), ...(outcomes.length?{outcomeColumns:outcomes}:{}), worksheet:{...worksheet, cells:read.map(c=>c.values)}};
   }
-  return {source:pending.source, range:{firstRow:first,lastRow:last,columns}, preserveRows:true, columns:read};
+  return {source:pending.source, range:{firstRow:first,lastRow:last,columns}, preserveRows:true, columns:read, worksheet};
 }

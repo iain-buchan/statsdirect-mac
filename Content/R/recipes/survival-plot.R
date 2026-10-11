@@ -9,6 +9,7 @@ group <- rep(if (is.null(names(times))) seq_along(times) else names(times), leng
 # Survival plot: the StatsDirect help illustration (Kaplan-Meier estimates of survival
 # in two groups of rats given different pre-treatments, the Kaplan-Meier example; the
 # test workbook's Survival worksheet columns Group Surv, Time Surv and Censor Surv) in R
+if (!requireNamespace("survival", quietly = TRUE)) install.packages("survival", repos = "https://cloud.r-project.org")
 library(survival)
 
 # The Kaplan-Meier function of the Analysis menu, asked to save its estimates, writes

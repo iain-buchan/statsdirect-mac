@@ -5,6 +5,7 @@
 # Cox (proportional hazards) regression: the StatsDirect help example (Armitage and
 # Berry 1994, survival in days of lymphoma patients by stage of disease; the test
 # workbook's Survival worksheet columns Stage group, Time and Censor) in R
+if (!requireNamespace("survival", quietly = TRUE)) install.packages("survival", repos = "https://cloud.r-project.org")
 library(survival)
 
 # R's standard model. The report handles tied event times by Breslow's

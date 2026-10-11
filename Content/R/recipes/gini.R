@@ -29,6 +29,7 @@ cat("Unbiased estimator of population Gini coefficient =", six(G * n / (n - 1)),
 # opposite way round to StatsDirect's. The BCa interval is given the jackknife
 # influence values, so its acceleration is the one StatsDirect uses (Efron and
 # Tibshirani 1993). With so few values R warns that the BCa limits are unstable.
+if (!requireNamespace("boot", quietly = TRUE)) install.packages("boot", repos = "https://cloud.r-project.org")
 library(boot)
 set.seed(seed)
 b <- eval(bquote(boot(imr, gini, R = .(boots))))

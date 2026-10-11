@@ -119,6 +119,10 @@ for op, entry in manifest.items():
     if re.search(r'^# table:', text, re.M) and '<double-2-by-2>' not in xml: mismatches.append('%s: %s takes a 2 by 2 table, and the operation asks for none' % (op, entry['file']))
     if re.search(r'^# nested:', text, re.M) and '<frame2d>' not in xml and '<grouped-covariance>' not in xml: mismatches.append('%s: %s takes a two-level input, and the operation asks for none' % (op, entry['file']))
     if not re.search(r'^# (data|table|matrix|nested|settings):', text, re.M): mismatches.append('%s: %s has no header' % (op, entry['file']))
+    # a package the recipe loads is installed first when it is missing, so that the script runs where the package is not yet
+    for library in re.finditer(r'^[ ]*library\((\w[\w.]*)\)', text, re.M):
+        if 'if (!requireNamespace("%s", quietly = TRUE)) install.packages("%s"' % (library.group(1), library.group(1)) not in text:
+            mismatches.append('%s: %s loads %s without installing it first when it is missing' % (op, entry['file'], library.group(1)))
 for definition in sorted((ROOT / 'FullEngine/publish/Operations').glob('*.xml')):   # every operation that continues one with a recipe has a recipe of its own
     prerequisite = re.search(r'<prerequisite-operation>\s*([^<\s]+)\s*</prerequisite-operation>', definition.read_text())
     if prerequisite and prerequisite.group(1) in manifest and definition.stem not in manifest: mismatches.append('%s: continues %s, which has a recipe, and has none of its own' % (definition.stem, prerequisite.group(1)))

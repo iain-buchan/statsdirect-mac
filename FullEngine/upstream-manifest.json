@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "9562045a4c0aa411364d282a9d635f9e68c25c1e",
+  "commit": "449b1adfbde18f58dfea9cdb73af617423d5ea01",
   "version": "5.1.0",
   "sha256": {
     "Layout/Axis.cs": "37b781cfd82f963f5ba9f24295b008af80fe12d9a4e3ddd0649140c14e8785ef",
@@ -727,7 +727,7 @@
     "StatsDirectUI/Numerics/Utilities.cs": "d09dd5054a67af7ed060f7c5bc803770414ebff662803dc331f9ff3fdd76d493",
     "StatsDirectUI/R/ColumnLocator.cs": "b319ce3aa470032c3f6814c2b52a627eb12ab130c1fd026dfc20386047e51428",
     "StatsDirectUI/R/FrameType.cs": "ba017754d6f796c31a6bfcc5a75ccb8ba464e24f190f5c15a63d7b59f2427903",
-    "StatsDirectUI/R/RController.cs": "2f1e7188418c4cb51683777ba57dba91bb5f943e2b0e20486e083de91b594c70",
+    "StatsDirectUI/R/RController.cs": "89b8b1b17967bb3551f22cd00deec2f755fa6db697bc3794a15fc0797e797280",
     "StatsDirectUI/R/RConvert.cs": "78c950cc5beebc25dca4a967731fcd314a7630e32cc50797cf6a6499d5a4d0a3",
     "StatsDirectUI/R/RRecipes.cs": "89b93e6e379880807a248b367e9a6466e7b542cd0d4d6b5c8eb32744570fd583",
     "StatsDirectUI/R/RResults.g4": "2f8eb1526de9e81d0f3363837421377b7900557bbe4897c640abbb083e0482eb",

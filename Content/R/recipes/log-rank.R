@@ -8,6 +8,7 @@ if (!is.numeric(stage)) stage <- as.integer(factor(stage, levels = unique(stage)
 # survival in days of lymphoma patients with stage III or stage IV disease; the test
 # workbook's Survival worksheet columns Stage group, Time and Censor) in R
 pct <- paste0(100 * confidence, "%")
+if (!requireNamespace("survival", quietly = TRUE)) install.packages("survival", repos = "https://cloud.r-project.org")
 library(survival)
 
 # R's standard test: the log-rank test. Its Observed and Expected are the report's

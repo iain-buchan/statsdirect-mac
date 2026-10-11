@@ -11,6 +11,7 @@ lowbwt <- data.frame(PAIRID = stratum, LBWT = case, as.data.frame(predictors, op
 # R's conditional logistic regression is in the survival package, which comes with
 # R: the strata are the matched pairs. The last place of the widest odds ratio
 # limits depends on where the iterations stop, in R as in StatsDirect
+if (!requireNamespace("survival", quietly = TRUE)) install.packages("survival", repos = "https://cloud.r-project.org")
 library(survival)
 fit <- clogit(reformulate(c(names(predictors), "strata(PAIRID)"), "LBWT"), data = lowbwt)
 print(summary(fit))

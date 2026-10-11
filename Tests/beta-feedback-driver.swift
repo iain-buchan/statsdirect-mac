@@ -194,6 +194,13 @@ import PDFKit
   _=try await v.learningJavaScript(learn,"({ok:document.querySelector('[data-code=r]').click()===undefined})")
   try await ProviderLearningTests.wait {v.active?.rPane?.editor.string == "x <- c(2, 4, 6)\nmean(x)"}
   precondition(v.active!.rPane?.isRunning == false)
+  // Open in R, as the Windows script window offers it: the script saved as an R file named after the window in the program's R Scripts
+  // folder (the opening of RStudio or R is left to the desktop; the check saves alone)
+  RPane.opensExternally=false
+  let rDoc=v.active!, saved=rDoc.rPane!.openInR()
+  let expectedName=rDoc.title.replacingOccurrences(of:"/",with:"_").replacingOccurrences(of:":",with:"_")+".R"
+  precondition(saved != nil && saved!.lastPathComponent==expectedName && saved!.deletingLastPathComponent().lastPathComponent=="R Scripts" && (try? String(contentsOf:saved!,encoding:.utf8))=="x <- c(2, 4, 6)\nmean(x)" && rDoc.rPane!.state.stringValue.hasPrefix("Saved "),"Open in R: \(saved?.path ?? "nil") · \(rDoc.rPane!.state.stringValue)")
+  print("PASS: Open in R saves the script as an R file named after the window in the program's R Scripts folder");fflush(stdout)
   v.tabs.selectTabViewItem(learn.item)
   _=try await v.learningJavaScript(learn,"({ok:document.querySelector('[data-lesson=diagnostic]').click()===undefined})")
   let switched=try await v.learningJavaScript(learn,"({old:!!document.querySelector('.katex')})");precondition(switched["old"] as? Bool == false)

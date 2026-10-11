@@ -15,6 +15,7 @@ censor <- do.call(cbind, censor)   # 1 = event, 0 = censored
 # test and rho = 1 the Peto-Peto version of the Wilcoxon test. Their chi-squares differ
 # from the Wei-Lachin univariate ones below, which weight by the proportion at risk
 # (Gehan) and use Wei and Lachin's variance estimate rather than the hypergeometric one
+if (!requireNamespace("survival", quietly = TRUE)) install.packages("survival", repos = "https://cloud.r-project.org")
 library(survival)
 print(survdiff(Surv(times[, 1], censor[, 1]) ~ group))
 

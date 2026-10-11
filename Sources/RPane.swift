@@ -36,6 +36,12 @@ final class RPane: NSObject, NSTextViewDelegate {
     private let installButton = NSButton(title: "Install R…", target: nil, action: nil)
     // The folder the session runs in, where the files a script writes go (as the Windows script window's Output folder).
     private let folderButton = NSButton(title: "Output folder", target: nil, action: nil)
+    /// The name the script is saved under by Open in R (the window's title, as on Windows: "Script 1_ Paired t test.R").
+    var scriptName = "Script"
+    /// Whether Open in R starts RStudio or R after saving the script (the native checks save alone).
+    nonisolated(unsafe) static var opensExternally = true
+    /// Where Open in R keeps its files: the program's own folder, as the Windows script window's StatsDirect/R folder.
+    static var scriptsFolder: URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Viewer/R Scripts", isDirectory: true) }
     private let installer: RInstaller
     private let executable: () -> String?
     private var requestingInstallation = false
@@ -80,8 +86,10 @@ final class RPane: NSObject, NSTextViewDelegate {
         folderButton.target = self; folderButton.action = #selector(openOutputFolder); folderButton.isEnabled = false
         folderButton.toolTip = "Open the folder the script runs in, where the files it writes go"
         let save = NSButton(title: "Save script…", target: self, action: #selector(saveScript))
+        let openInR = NSButton(title: "Open in R", target: self, action: #selector(openInR))
+        openInR.toolTip = "Save the script as an R file in the program's R Scripts folder and open it in RStudio, or in R's own application"
         let clear = NSButton(title: "Clear output", target: self, action: #selector(clearOutput))
-        let bar = NSStackView(views: [runButton, stopButton, folderButton, save, clear, installButton]); bar.spacing = 10
+        let bar = NSStackView(views: [runButton, stopButton, folderButton, save, openInR, clear, installButton]); bar.spacing = 10
         let label = NSTextField(labelWithString: "R script · Variables persist between runs. Stop / Reset clears the session.")
         label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor
         let split = NSSplitView(); split.isVertical = false; split.dividerStyle = .thin
@@ -279,6 +287,26 @@ final class RPane: NSObject, NSTextViewDelegate {
         busy = false; runButton.isEnabled = true; stopButton.isEnabled = false
     }
     @objc private func clearOutput() { console.string = "" }
+    /// Open in R, as the Windows script window offers it: the script saved as an R file named after the window in the program's R Scripts
+    /// folder, then opened in RStudio when it is installed, else in R's own application (R.app), else in whatever opens R files.
+    @discardableResult @objc func openInR() -> URL? {
+        let folder = Self.scriptsFolder
+        let name = scriptName.components(separatedBy: CharacterSet(charactersIn: "/:")).joined(separator: "_").trimmingCharacters(in: .whitespaces)
+        let url = folder.appendingPathComponent((name.isEmpty ? "Script" : name) + ".R")
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try editor.string.write(to: url, atomically: true, encoding: .utf8); savedScript = editor.string
+        } catch { state.stringValue = "Open in R failed: \(error.localizedDescription)"; return nil }
+        guard Self.opensExternally else { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts"; return url }
+        let workspace = NSWorkspace.shared
+        if let rstudio = workspace.urlForApplication(withBundleIdentifier: "org.rstudio.RStudio") ?? workspace.urlForApplication(withBundleIdentifier: "com.rstudio.desktop") {
+            workspace.open([url], withApplicationAt: rstudio, configuration: NSWorkspace.OpenConfiguration()); state.stringValue = "Saved \(url.lastPathComponent) in R Scripts and opened it in RStudio"
+        } else if let r = workspace.urlForApplication(withBundleIdentifier: "org.R-project.R") {
+            workspace.open([url], withApplicationAt: r, configuration: NSWorkspace.OpenConfiguration()); state.stringValue = "Saved \(url.lastPathComponent) in R Scripts and opened it in R"
+        } else if workspace.open(url) { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts and opened it" }
+        else { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts; install RStudio or R to open it" }
+        return url
+    }
     @objc func saveScript() {
         let panel = NSSavePanel(); panel.nameFieldStringValue = "analysis.R"
         guard let window = view.window else { return }

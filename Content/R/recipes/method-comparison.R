@@ -8,6 +8,7 @@
 # Agreement worksheet columns Serum Creatinine and Plasma Creatinine hold the same
 # pairs) in R. StatsDirect runs this analysis through the mcr package, so install it
 # first with install.packages("mcr")
+if (!requireNamespace("mcr", quietly = TRUE)) install.packages("mcr", repos = "https://cloud.r-project.org")
 library(mcr)
 
 # Deming regression of the test method (plasma) on the reference method (serum) with

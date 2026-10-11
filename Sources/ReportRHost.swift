@@ -149,7 +149,7 @@ extension Viewer {
     func openReportInR(text: String, title: String) {
         rNumber += 1
         let doc = newDocument(kind: "r", title: "R · \(title) · \(rNumber)")
-        let pane = RPane(script: text)
+        let pane = RPane(script: text); pane.scriptName = doc.title
         doc.rPane = pane; doc.item.view = pane.view
         pane.runScript()
         status.stringValue = "R session from " + title

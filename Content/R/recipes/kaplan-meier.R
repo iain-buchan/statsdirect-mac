@@ -8,6 +8,7 @@ if (is.null(group)) group <- rep(1, length(time))
 # of death from cancer in two groups of rats given different pre-treatments; the test
 # workbook's Survival worksheet columns Group Surv, Time Surv and Censor Surv) in R
 pct <- paste0(100 * confidence, "%")
+if (!requireNamespace("survival", quietly = TRUE)) install.packages("survival", repos = "https://cloud.r-project.org")
 library(survival)
 
 # The groups in the order in which they first occur, as StatsDirect lists them

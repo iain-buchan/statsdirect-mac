@@ -83,7 +83,7 @@ extension Viewer {
         case "openRCode":
             if let code=body["code"] as? String, code.utf8.count<=100_000 {
                 let session=newDocument(kind:"r",title:"R · Tutor example")
-                let pane=RPane(script:code);session.rPane=pane;session.item.view=pane.view
+                let pane=RPane(script:code);pane.scriptName=session.title;session.rPane=pane;session.item.view=pane.view
                 status.stringValue="Review the tutor's R code, then choose Run"
             }
         case "export": exportLearningRecord(doc,body:body,email:false)
@@ -250,7 +250,7 @@ extension Viewer {
         let title = lesson["title"] as? String ?? "Learning example"
         if inR, let script = lesson["r"] as? String {
             let doc = newDocument(kind:"r",title:"R · " + title)
-            let pane = RPane(script:script); doc.rPane = pane; doc.item.view = pane.view
+            let pane = RPane(script:script); pane.scriptName = doc.title; doc.rPane = pane; doc.item.view = pane.view
             if lesson["providerCourse"] as? Bool != true { pane.runScript() }
             return
         }

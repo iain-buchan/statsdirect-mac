@@ -459,7 +459,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         rNumber += 1
         let number = rNumber
         let doc = newDocument(kind: "r", title: "R · Session \(number)")
-        let pane = RPane()
+        let pane = RPane(); pane.scriptName = doc.title
         doc.rPane = pane; doc.item.view = pane.view
         pane.prepareSession()
     }

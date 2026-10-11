@@ -1,3 +1,17 @@
+# Mac 0.3.27 release verification — 11 October 2026
+
+The tested AI-dock build at `2de31e4` is packaged as 0.3.27, retaining engine 5.1.0
+at `3cc4cbc9`. Only its version and outer ad-hoc signature differ. Release preparation
+fixes timing in the paired-selection and workbook-notice test fixtures, and includes
+the report-toolbar/write-back fixture fixes from `3519ba3`; application, engine and
+shared-editor source are unchanged.
+
+The extracted package passed local native regression and Office-format checks, strict
+signatures, matching archived symbols, all 982 Help hashes and version checks. The
+complete GitHub build/regression suite and the separate macOS 15 packaged integration
+suite passed. [Checksums, exact scope and run links](../Docs/Validation/Beta-0.3.27/README.md).
+Apple Developer ID signing/notarisation remain outstanding.
+
 # Verified engine and AI dock integration — 11 October 2026
 
 The AI dock/interaction work from `3278ad2` is integrated with Mac main through `b5e0baa`.

@@ -9,15 +9,38 @@
   function current() {
     return active?.isConnected ? active : root.querySelector('.report-entry:last-child');
   }
+  // The R button's result, as the Windows toolbar's R button picks it (host.js 'currentTarget'): the result the selection or focus is
+  // in now, whether or not it has a record of its run (one without is reported as such rather than another result's script opened);
+  // else the latest result that has a record; none in a report with neither.
+  function entryAt(node) {
+    const element = node?.nodeType === 1 ? node : node?.parentElement;
+    const entry = element?.closest('.report-entry');
+    return entry && root.contains(entry) ? entry : null;
+  }
+  function rTarget() {
+    const selection = window.getSelection();
+    const at = entryAt(selection?.rangeCount ? selection.anchorNode : null) ?? entryAt(document.activeElement);
+    if (at) return {entry: at, how: 'selection'};
+    const latest = [...root.querySelectorAll('.report-entry[data-r]')].pop();
+    return latest ? {entry: latest, how: 'latest'} : {entry: null, how: 'none'};
+  }
   function update() {
-    const entry = current();
     for (const [action, button] of buttons) {
-      button.disabled = !entry?.dataset[action === 'methodHelp' ? 'help' : 'r'];
-      const label = action === 'methodHelp' ? 'Method Help' : entry?.dataset.r === 'data' ? 'Open Data and Settings in R' : 'Continue in R';
-      button.title = label; button.setAttribute('aria-label', label);
+      if (action === 'continueInR') {
+        const {entry, how} = rTarget();
+        button.disabled = false; button.dataset.how = how; button.dataset.target = entry?.dataset.resultId ?? '';
+        const label = entry?.dataset.r === 'data' ? 'Open Data and Settings in R' : 'Continue in R';
+        const title = label + ': the result the cursor is in, or the latest result, as an R script';
+        button.title = title; button.setAttribute('aria-label', title);
+        continue;
+      }
+      const entry = current();
+      button.disabled = !entry?.dataset.help;
+      button.title = 'Method Help'; button.setAttribute('aria-label', 'Method Help');
     }
   }
   function invoke(action) {
+    if (action === 'continueInR') { const {entry, how} = rTarget(); post({action, resultID: entry?.dataset.resultId ?? null, how}); return; }
     const entry = current();
     if (entry) post({action, resultID:entry.dataset.resultId});
   }

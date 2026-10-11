@@ -19,7 +19,11 @@ extension Viewer {
         editReport(doc, body)
     }
     func performReportAction(_ doc: Document, action: String, resultID: String?) {
-        guard let entry = doc.reportEntries?.first(where: { $0.id == resultID }) else { return }
+        guard let entry = doc.reportEntries?.first(where: { $0.id == resultID }) else {
+            // the toolbar's R button with no result to continue (a report with no recorded result): the status line says so, as on Windows
+            if action == "continueInR" { status.stringValue = "No result to continue in R: run an analysis into this report first." }
+            return
+        }
         if action == "continueInR" { openRecordInR(entry) }
         if action == "methodHelp", let path = entry.helpPath ?? (analysisCatalog[entry.operation]?["help"] as? String) {
             openHelp(root.appendingPathComponent(path), title: entry.title)

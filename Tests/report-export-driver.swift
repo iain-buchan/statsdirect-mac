@@ -607,7 +607,9 @@ import PDFKit
         // Nothing sits in the report but the chart's corner marker, shown while editing.
         let none=try await report.web.evaluateJavaScript("!document.querySelector('.report-body .report-chart-sizing')&&[...document.querySelectorAll('.report-body .report-controls')].every(c=>c.classList.contains('report-chart-resize'))&&getComputedStyle(document.querySelector('.report-body .report-media>.report-chart-resize')).display!=='none'") as! Bool
         precondition(none,"only the chart's corner marker may be in the report, and it must show while editing")
-        let enabled=try await report.web.evaluateJavaScript("(()=>{const i=document.querySelector('[data-format=pictureWidth]');return !i.disabled&&Number(i.value)>0;})()") as! Bool
+        // the toolbar follows the selection after the editor's selectionchange turn: wait for it rather than read it in the click's own turn
+        var enabled=false
+        for _ in 0..<50 where !enabled { try await Task.sleep(nanoseconds: 100_000_000); enabled=try await report.web.evaluateJavaScript("(()=>{const i=document.querySelector('[data-format=pictureWidth]');return !i.disabled&&Number(i.value)>0;})()") as! Bool }
         precondition(enabled,"the toolbar width field follows the selected chart")
         try await report.web.evaluateJavaScript("(()=>{const input=document.querySelector('[data-format=pictureWidth]');input.focus();input.value='324';input.dispatchEvent(new Event('change',{bubbles:true}));})()")
         try await settled(report)

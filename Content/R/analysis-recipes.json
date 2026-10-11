@@ -15,6 +15,11 @@
     "file": "bar-plot-frequency.R",
     "detail": "Bar plot of the frequencies of categorical values, after the help's bar plot in R."
   },
+  "Bonferroni": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
+  },
   "BoxWhiskerPlot": {
     "file": "box-whisker-plot.R",
     "detail": "Box and whisker plot, as the help shows it in R."
@@ -56,6 +61,11 @@
     "file": "chi-woolf-worksheet.R",
     "detail": "Woolf chi-square analysis of a series of 2 by 2 tables, as the help shows it in R."
   },
+  "CiMeanY": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
   "CochranQ": {
     "file": "friedman.R",
     "detail": "Friedman and Cochran Q tests of a two way layout, as the help shows them in R."
@@ -72,9 +82,44 @@
     "file": "control-plot.R",
     "detail": "Control chart, as the help shows it in R."
   },
+  "CoxBaselineToReport": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "CoxBaselineToWorksheet": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "CoxHazardPlots": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "CoxHazardRatios": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "CoxModelAnalysis": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
   "CoxRegression": {
     "file": "cox-regression.R",
     "detail": "Cox proportional hazards regression, as the help shows it in R."
+  },
+  "CoxResiduals": {
+    "file": "cox-regression.R",
+    "detail": "Cox proportional hazards regression, as the help shows it in R.",
+    "inherits": "CoxRegression"
+  },
+  "Cronbach": {
+    "file": "pca.R",
+    "detail": "Principal components and scale reliability, as the help shows them in R.",
+    "inherits": "PCRCorrelation"
   },
   "Crossover": {
     "file": "crossover.R",
@@ -132,9 +177,19 @@
     "file": "diversity.R",
     "detail": "Diversity of classes with bootstrap intervals, as the help shows it in R."
   },
+  "Dunnett": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
+  },
   "Effect": {
     "file": "effect.R",
     "detail": "Effect size meta-analysis, as the help shows it in R."
+  },
+  "EqualityOfVariance": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
   },
   "ErrorPlot": {
     "file": "error-plot.R",
@@ -217,6 +272,16 @@
     "file": "histogram-plot-text.R",
     "detail": "Histogram (Text), as the help shows it in R."
   },
+  "InterpolateXY": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "InterpolateYX": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
   "KaplanMeier": {
     "file": "kaplan-meier.R",
     "detail": "Kaplan-Meier survival estimates, as the help shows them in R."
@@ -268,9 +333,24 @@
     "file": "line-plot.R",
     "detail": "Line, as the help shows it in R."
   },
+  "LinearizedEstimateInterpolation": {
+    "file": "linearized-estimates.R",
+    "detail": "Linearized regression estimates, as the help shows them in R.",
+    "inherits": "LinearizedEstimates"
+  },
+  "LinearizedEstimatePlot": {
+    "file": "linearized-estimates.R",
+    "detail": "Linearized regression estimates, as the help shows them in R.",
+    "inherits": "LinearizedEstimates"
+  },
   "LinearizedEstimates": {
     "file": "linearized-estimates.R",
     "detail": "Linearized regression estimates, as the help shows them in R."
+  },
+  "LinearizedEstimatesWithModel": {
+    "file": "linearized-estimates.R",
+    "detail": "Linearized regression estimates, as the help shows them in R.",
+    "inherits": "LinearizedEstimates"
   },
   "LogRank": {
     "file": "log-rank.R",
@@ -279,6 +359,46 @@
   "LogisticRegression": {
     "file": "logistic-regression.R",
     "detail": "Logistic regression of grouped counts, as the help shows it in R."
+  },
+  "LogisticRegressionBootstrap": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionClassification": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionDiagnostics": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionFitToReport": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionFitToWorksheet": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionModel": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionModelSelection": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
+  },
+  "LogisticRegressionPrediction": {
+    "file": "logistic-regression.R",
+    "detail": "Logistic regression of grouped counts, as the help shows it in R.",
+    "inherits": "LogisticRegression"
   },
   "Logit": {
     "file": "logit.R",
@@ -369,6 +489,11 @@
     "detail": "Multiple linear regression, as the help shows it in R.",
     "inherits": "MultipleLinearRegression"
   },
+  "NewmanKeuls": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
+  },
   "NonparametricLinearRegression": {
     "file": "nonparametric-linear-regression.R",
     "detail": "Nonparametric Linear Regression, as the help shows it in R."
@@ -385,6 +510,11 @@
     "file": "one-way-anova.R",
     "detail": "One way analysis of variance, as the help shows it in R."
   },
+  "PCRCoefficients": {
+    "file": "pca.R",
+    "detail": "Principal components and scale reliability, as the help shows them in R.",
+    "inherits": "PCRCorrelation"
+  },
   "PCRCorrelation": {
     "file": "pca.R",
     "detail": "Principal components and scale reliability, as the help shows them in R."
@@ -397,6 +527,16 @@
     "file": "pca.R",
     "detail": "Principal components and scale reliability, as the help shows them in R."
   },
+  "PCRMatrix": {
+    "file": "pca.R",
+    "detail": "Principal components and scale reliability, as the help shows them in R.",
+    "inherits": "PCRCorrelation"
+  },
+  "PCRScores": {
+    "file": "pca.R",
+    "detail": "Principal components and scale reliability, as the help shows them in R.",
+    "inherits": "PCRCorrelation"
+  },
   "PetoMeta": {
     "file": "peto-meta.R",
     "detail": "Peto odds ratio meta-analysis, as the help shows it in R."
@@ -406,6 +546,26 @@
     "detail": "Multiple linear regression, as the help shows it in R.",
     "inherits": "MultipleLinearRegression"
   },
+  "PlotPredictionInterval": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "PlotResidualsSimple": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "PlotSeCi": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
+  "PlotSimpleLinearRegression": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
+  },
   "PoissonConfidenceInterval": {
     "file": "poisson-confidence-interval.R",
     "detail": "Poisson confidence interval of a mean count, as the help shows it in R."
@@ -413,6 +573,31 @@
   "PoissonRegression": {
     "file": "poisson-regression.R",
     "detail": "Poisson regression of counts with an exposure, as the help shows it in R."
+  },
+  "PoissonRegressionFitToReport": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R.",
+    "inherits": "PoissonRegression"
+  },
+  "PoissonRegressionFitToWorksheet": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R.",
+    "inherits": "PoissonRegression"
+  },
+  "PoissonRegressionIRR": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R.",
+    "inherits": "PoissonRegression"
+  },
+  "PoissonRegressionModel": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R.",
+    "inherits": "PoissonRegression"
+  },
+  "PoissonRegressionResiduals": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R.",
+    "inherits": "PoissonRegression"
   },
   "PolynomialRegression": {
     "file": "polynomial-regression.R",
@@ -429,6 +614,26 @@
   "Probit": {
     "file": "probit.R",
     "detail": "Probit Model, as the help shows it in R."
+  },
+  "ProbitInterpolateX": {
+    "file": "logit.R",
+    "detail": "Logit Model, as the help shows it in R.",
+    "inherits": "Logit"
+  },
+  "ProbitInterpolateY": {
+    "file": "logit.R",
+    "detail": "Logit Model, as the help shows it in R.",
+    "inherits": "Logit"
+  },
+  "ProbitMore": {
+    "file": "logit.R",
+    "detail": "Logit Model, as the help shows it in R.",
+    "inherits": "Logit"
+  },
+  "ProbitPlot": {
+    "file": "logit.R",
+    "detail": "Logit Model, as the help shows it in R.",
+    "inherits": "Logit"
   },
   "PropPairs": {
     "file": "proportions-paired.R",
@@ -477,6 +682,11 @@
   "RandomXY": {
     "file": "random-series.R",
     "detail": "Random allocation of the numbers in a series, as the help shows it in R."
+  },
+  "Ranv": {
+    "file": "linearized-estimates.R",
+    "detail": "Linearized regression estimates, as the help shows them in R.",
+    "inherits": "LinearizedEstimates"
   },
   "RateCompareTwo": {
     "file": "rate-compare-two.R",
@@ -594,9 +804,19 @@
     "file": "scatter-plot-text.R",
     "detail": "Scatter plot drawn as text, as the help shows it in R."
   },
+  "Scheffe": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
+  },
   "SimpleLinearRegression": {
     "file": "simple-linear-regression.R",
     "detail": "Simple linear regression with its limits, as the help shows it in R."
+  },
+  "SimpleLinearRegressionCI": {
+    "file": "simple-linear-regression.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "inherits": "SimpleLinearRegression"
   },
   "SizeCorrelation": {
     "file": "size-correlation.R",
@@ -678,6 +898,11 @@
     "file": "time-series-summary.R",
     "detail": "Time series summary of repeated measurements, as the help shows it in R."
   },
+  "Tukey": {
+    "file": "one-way-anova.R",
+    "detail": "One way analysis of variance, as the help shows it in R.",
+    "inherits": "OneWay"
+  },
   "TwoWay": {
     "file": "two-way.R",
     "detail": "Two way analysis of variance of a randomized block layout, as the help shows it in R."
@@ -685,6 +910,11 @@
   "TwoWayNested": {
     "file": "two-way-nested.R",
     "detail": "Two way hierarchical (nested) analysis of variance, as the help shows it in R."
+  },
+  "TwoWayNestedMeans": {
+    "file": "two-way-nested.R",
+    "detail": "Two way hierarchical (nested) analysis of variance, as the help shows it in R.",
+    "inherits": "TwoWayNested"
   },
   "UnivariateSummary": {
     "file": "univariate-summary.R",
@@ -722,6 +952,11 @@
   "Wilcoxon": {
     "file": "wilcoxon-signed-ranks.R",
     "detail": "Wilcoxon signed ranks test with its exact probabilities and limits, as the help shows it in R."
+  },
+  "Xxi": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
   },
   "ZSingle": {
     "file": "zsingle.R",

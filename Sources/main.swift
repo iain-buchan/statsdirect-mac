@@ -70,6 +70,8 @@ final class Document {
     var pendingResult: ReportEntry?
     var scrollToResultID: String?
     var hasSVG = false
+    // A report's find bar, above its page, shown by Edit > Find… (ReportFind.swift).
+    var findBar: ReportFindBar?
     init(kind: String, title: String, access: URL) {
         self.kind = kind; self.title = title; self.access = access
         let config = WKWebViewConfiguration()
@@ -80,7 +82,7 @@ final class Document {
         item = NSTabViewItem(identifier: id)
         view.document = self
         item.label = title
-        item.view = web
+        item.view = kind == "report" ? reportFindHost() : web
     }
 }
 
@@ -261,6 +263,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             if command == "redo" { item.keyEquivalentModifierMask = [.command, .shift] }
             edit.addItem(item)
         }
+        edit.addItem(.separator())
+        add(edit, "Find…", #selector(showReportFind), "f")
+        add(edit, "Find Next", #selector(findReportNext), "g")
+        add(edit, "Find Previous", #selector(findReportPrevious), "g"); edit.items.last?.keyEquivalentModifierMask = [.command, .shift]
+        add(edit, "Replace…", #selector(showReportReplace), "f"); edit.items.last?.keyEquivalentModifierMask = [.command, .option]
+        add(edit, "Use Selection for Find", #selector(useReportSelectionForFind), "e")
         populateReportFormatMenu(menu("Format"))
         for title in ["Data", "Analysis", "Graphics"] {
             let operations = menu(title)
@@ -308,6 +316,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             if command=="toggle" {menuItem.title=doc.reportEditing ? "Done Editing Report" : "Edit Report";return true}
             return doc.reportEditing
         }
+        if isReportFindItem(menuItem) { return findableReport != nil }
         if menuItem.action == #selector(editCommand(_:)) { return calculatorPane.isFocused || helpPane.isFocused || active != nil }
         if menuItem.action == #selector(closeTab), calculatorPane.isFocused || helpPane.isFocused { return true }
         if menuItem.action == #selector(back) { return helpPane.web.canGoBack }
@@ -433,7 +442,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func editCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
-        if calculatorPane.isFocused || helpPane.isFocused { _ = fallback(); return }
+        if calculatorPane.isFocused || helpPane.isFocused || active?.findBar?.isFocused == true { _ = fallback(); return }
         if let doc=active, doc.kind=="report", ["copy","cut","paste"].contains(command), window.attachedSheet==nil { reportClipboardCommand(doc, command: command); return }
         if let doc=active, doc.kind=="report", doc.reportEditing, ["undo","redo","selectAll"].contains(command), window.attachedSheet==nil {
             doc.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand(\(jsString(command)))") { handled, error in

@@ -873,6 +873,19 @@ extension ReportExportTests {
         r=try await continueInR(report,id:unsaved.id)
         try check(!r.text.contains("# NOTE:") && !r.text.contains(", 99.5, ") && r.status=="R script of the analysis opened","after undo: \(headLines(r.text)) · \(r.status)")
         print("PASS: a run over the embedding threshold is read back from the open grid under the recorded mode: no NOTE, one NOTE for the one edited column, none after undo");fflush(stdout)
+        // 3b. The columns moved along the sheet (a column inserted to their left, as an analysis writing its results there would): the record's
+        //     pointers are stale, and the columns are found again one to the right by their hash and title, noted as moved with their new place
+        _=try await asyncJS(big,"await statsDirectGrid.loadWorkbook({name:'Big',sheets:[{name:'Sheet1',columns:3,rows:2601,headerRow:true,cells:[{col:0,row:0,text:'inserted',kind:'text'},{col:1,row:0,text:'x',kind:'text'},{col:2,row:0,text:'y',kind:'text'}].concat(Array.from({length:2600},(_,r)=>[{col:1,row:r+1,text:String(100+Math.sin(r)*10),kind:'number'},{col:2,row:r+1,text:String(101+Math.cos(r)*10),kind:'number'}]).flat())}]});return true;")
+        try await wait("the shifted worksheet") { (try? await js(big,"({ok:statsDirectGrid.analysisSource().columns?.length===3})"))?["ok"] as? Bool == true }
+        r=try await continueInR(report,id:unsaved.id)
+        let moved=headLines(r.text).filter{$0.hasPrefix("# NOTE:")}
+        try check(moved==["# NOTE: \"x\" has moved along the sheet since the analysis ran, by columns inserted or removed to its left; its values are as they were.","# NOTE: \"y\" has moved along the sheet since the analysis ran, by columns inserted or removed to its left; its values are as they were."]
+                  && r.text.contains("   # x, column 2, rows 1 to 2601\n") && r.text.contains("   # y, column 3, rows 1 to 2601\n") && r.text.contains("\nbefore <- c(100, ") && !r.text.contains(" has changed ")
+                  && r.status.contains("2 columns moved along the sheet since the analysis, found again"),"after a column inserted to the left: \(headLines(r.text)) · \(r.status) · \(r.text.components(separatedBy:"\n").filter{$0.hasPrefix("before") || $0.hasPrefix("after")}.map{String($0.prefix(60)) + " … " + String($0.suffix(45))})")
+        print("PASS: after a column is inserted to the left of the data, both columns are found again one to the right by hash and title, noted as moved with their new places, their values as they were");fflush(stdout)
+        // the worksheet as it was, for the checks that follow
+        _=try await asyncJS(big,"await statsDirectGrid.loadWorkbook({name:'Big',sheets:[{name:'Sheet1',columns:2,rows:2601,headerRow:true,cells:[{col:0,row:0,text:'x',kind:'text'},{col:1,row:0,text:'y',kind:'text'}].concat(Array.from({length:2600},(_,r)=>[{col:0,row:r+1,text:String(100+Math.sin(r)*10),kind:'number'},{col:1,row:r+1,text:String(101+Math.cos(r)*10),kind:'number'}]).flat())}]});return true;")
+        try await wait("the worksheet restored") { (try? await js(big,"({ok:statsDirectGrid.analysisSource().columns?.length===2})"))?["ok"] as? Bool == true }
         // 4. Save As: the Document and the grid take the file's name and path, and a later run points at the file.
         let renamed=output.appendingPathComponent("renamed.xlsx"); try? FileManager.default.removeItem(at:renamed)
         v.saveExcel(big,to:renamed)
@@ -952,9 +965,9 @@ extension ReportExportTests {
             ("a tab in a key",plain.replacingOccurrences(of:"\"gamma\"",with:"\"gam\\tma\"")),("DEL in a column title",plain.replacingOccurrences(of:"\"title\":\"x\"",with:"\"title\":\"x\\u007f\"")),
             ("a carriage return in a value",plain.replacingOccurrences(of:"[1,2,3]",with:"[1,\"a\\rb\",3]")),("a line feed in the file name",plain.replacingOccurrences(of:"\"file\":\"a.xlsx\"",with:"\"file\":\"a\\n.xlsx\""))]
         for (what,text) in neutralised { try check(text != plain && RunRecordR.validated(text)==text,"a record with \(what) validates as written") }
-        // U+0000 alone stays refused: R cannot hold it in a string, and the writer's escape for it stops R's parser
+        // U+0000, which R cannot hold in a string, is no bar either: the writer makes it a space in its comment lines and its literals alike
         let nul=plain.replacingOccurrences(of:"\"title\":\"x\"",with:"\"title\":\"x\\u0000y\"")
-        try check(nul != plain && RunRecordR.validated(nul)==nil && RunRecordR.validated(plain.replacingOccurrences(of:"\"gamma\"",with:"\"ga\\u0000mma\""))==nil,"a record with a NUL in a value or a key must be refused")
+        try check(nul != plain && RunRecordR.validated(nul)==nul && RunRecordR.validated(plain.replacingOccurrences(of:"\"gamma\"",with:"\"ga\\u0000mma\"")) != nil,"a record with a NUL in a value or a key validates as written")
         for stamp in ["2026-10-11T03:00:00+01:00","2026-10-11T02:00:00Z","2026-10-11T02:00:00.123Z","2026-10-11T03:00:00"] {
             try check(RunRecordR.validated(plain.replacingOccurrences(of:"2026-10-11T03:00:00.1234567+01:00",with:stamp)) != nil,"a record run at \(stamp) validates")
         }
@@ -965,11 +978,9 @@ extension ReportExportTests {
         try check(r8.status=="R script of the analysis opened" && (lines8.first ?? "").hasPrefix("# Paired system(\"echo INJECTED\"), from StatsDirect, ") && !lines8.contains{ $0.hasPrefix("system(") },"a live record with a line feed in its title is written with the break as a space, the head one comment: \(headLines(r8.text)) · \(r8.status)")
         let nulEntry=ReportEntry(id:UUID().uuidString,title:"NUL title",operation:"TPaired",body:"<p>NUL</p>",record:nul,recipe:true)
         report.reportEntries!.append(nulEntry); report.reportRevision += 1; v.renderReport(report)
-        let panes8=v.documents.filter{$0.kind=="r"}.count
-        v.continueResultInR(report,id:nulEntry.id)
-        try await wait("the NUL refusal") { v.status.stringValue.hasPrefix("The R script was not written:") }
-        try check(v.documents.filter{$0.kind=="r"}.count==panes8 && v.status.stringValue.contains("NUL character"),"a live record with a NUL must not be written as a script: \(v.status.stringValue)")
-        print("PASS: a record without a timestamp, or with a NUL, is refused from a file; one with any other control character validates, and a live one is scripted with the character made a space, a live one with a NUL not at all");fflush(stdout)
+        let r8n=try await continueInR(report,id:nulEntry.id)
+        try check(r8n.status=="R script of the analysis opened" && r8n.text.contains("   # x y") && !r8n.text.contains("\\u0000") && !r8n.text.unicodeScalars.contains{$0.value==0},"a live record with a NUL in a column title is scripted with the NUL as a space: \(headLines(r8n.text)) · \(r8n.status)")
+        print("PASS: a record without a timestamp is refused from a file; one with a control character in a string or key, NUL included, validates, and a live one is scripted with the character made a space");fflush(stdout)
         // 9. A record pointing at more cells than can be read (its columns over the rows they span, alone or with the frames before it)
         //    leaves the frame unread with the reason; the script still opens and says so.
         func wholeColumns(_ columns:Int) -> String { (1...columns).map{"{\"title\":\"c\($0)\",\"column\":\($0),\"rows\":[1,1048576],\"hasTitle\":true,\"hash\":\"9f86d081884c7d65\"}"}.joined(separator:",") }

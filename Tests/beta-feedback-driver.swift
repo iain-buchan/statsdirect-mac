@@ -28,6 +28,7 @@ import PDFKit
     try await run(viewer)
     viewer.newReport()
     try await ReportExportTests.run(viewer)
+    try await findReplace(viewer)
     try await largeGrid(viewer)
     try await entryTables(viewer)
     try await FormContractTests.run(viewer)
@@ -52,6 +53,42 @@ import PDFKit
     }
    }
   }
+ }
+ // Find and replace through the Mac functions, as the Windows report window's tests check them (tests/WebReports/FindReplace.cs):
+ // the first match selected, the next whatever its case, round to the start, an absent term not found, a case-sensitive match,
+ // the selected match replaced, every match replaced and counted; then the bar shows with the keyboard and hides back to the report.
+ @MainActor static func findReplace(_ v:Viewer) async throws {
+  v.newReport()
+  let report=v.appendReport(ReportEntry(id:"find-replace",title:"Find and replace",operation:"",body:"<p>zebra ostrich Zebra quokka</p>",record:nil))
+  for _ in 0..<150 where report.web.isLoading {try await Task.sleep(nanoseconds:50_000_000)}; try await Task.sleep(nanoseconds:200_000_000)
+  try await report.web.evaluateJavaScript("(()=>{StatsDirectReportEditor.setEditing(true);return true;})()")
+  func selected() async throws -> String { try await report.web.evaluateJavaScript("getSelection().toString()") as? String ?? "" }
+  func holds(_ text:String) async throws -> Bool { try await report.web.evaluateJavaScript("document.body.innerText.includes(\(v.jsString(text)))") as? Bool == true }
+  func found(_ term:String,_ matchCase:Bool) async throws -> String? {
+   if try await v.reportFindNext(report,term:term,matchCase:matchCase) { return try await selected() }
+   return nil
+  }
+  try check(try await found("zebra",false)=="zebra","Find selects the first match")
+  try check(try await found("zebra",false)=="Zebra","Find next goes on to the next match, whatever its case")
+  try check(try await found("zebra",false)=="zebra","Find next goes round to the start")
+  try check(try await found("wombat",false)==nil,"a term the report does not hold is not found")
+  try check(try await found("Zebra",true)=="Zebra","matching case finds only the match of that case")
+  let replaced=try await v.reportReplaceSelection(report,term:"Zebra",replacement:"emu",matchCase:true); let afterReplace=try await holds("ostrich emu quokka")
+  try check(replaced && afterReplace,"Replace replaces the selected match")
+  let count=try await v.reportReplaceAll(report,term:"zebra",replacement:"wombat",matchCase:false); let afterAll=try await holds("wombat ostrich emu quokka")
+  try check(count==1 && afterAll,"Replace all replaces every match")
+  // Replacing through the editor's insertText reaches the host as an edit, so it is in the report's undo history.
+  try await ProviderLearningTests.wait {report.reportEntries?.first?.editedBody?.contains("wombat ostrich emu quokka")==true && !report.reportUndo.isEmpty}
+  v.showFindBar(report,replace:false)
+  try check(report.findBar?.isHidden==false && report.findBar?.window===v.window && report.findBar?.term.currentEditor() != nil,"the find bar shows above the report with the keyboard in its term")
+  v.hideFindBar(report)
+  try check(report.findBar?.isHidden==true && v.window.firstResponder===report.web,"the find bar hides and gives the keyboard back to the report")
+  let item=NSMenuItem(title:"Find…",action:#selector(Viewer.showReportFind),keyEquivalent:"")
+  try check(v.validateMenuItem(item),"Find… is offered while the report is the active document")
+  let grid=v.newDocument(kind:"grid",title:"Find validation fixture",url:v.root.appendingPathComponent("Grid/index.html"))
+  try check(!v.validateMenuItem(item),"Find… is not offered for a worksheet")
+  v.remove(grid)
+  print("PASS: report find and replace with the Windows scripts: first match, next match whatever its case, round to the start, absent term, case-sensitive match, selected match replaced, every match replaced and counted into the undo history; the find bar shows with the keyboard and hides back to the report; Find… only for a report")
  }
  @MainActor static func entryTables(_ v:Viewer) async throws {
   let form=v.newDocument(kind:"operation",title:"Entry table scale fixture",url:v.root.appendingPathComponent("Grid/operation.html"))

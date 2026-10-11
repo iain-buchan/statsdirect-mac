@@ -57,6 +57,9 @@ enum RunRecordR {
         var path: String
         var sheet: String
         var columns: [Pointer]
+        /// A column beyond the sheet's width read as blank cells rather than refused: for the band read either side of a column's
+        /// recorded place when the column is looked for along the sheet.
+        var blankBeyond = false
     }
     /// A frame to read, or why it cannot be, by input name.
     struct Request {
@@ -129,7 +132,7 @@ enum RunRecordR {
         let distinct = Array(Set(frame.columns.map { $0.column - 1 })).sorted()
         let last = frame.columns.map(\.rows.upperBound).max() ?? 1
         let first = min(frame.columns.map(\.firstRow).min() ?? 1, last)
-        let result = try await call("return window.statsDirectGrid.columnValues(request)", ["request": ["sheet": index, "sheetName": frame.sheet, "columns": distinct, "first": first, "last": last]])
+        let result = try await call("return window.statsDirectGrid.columnValues(request)", ["request": ["sheet": index, "sheetName": frame.sheet, "columns": distinct, "first": first, "last": last, "blankBeyond": frame.blankBeyond]])
         guard let read = result["columns"] as? [[String: Any]], read.count == distinct.count else { throw Failure(message: "the worksheet did not return the selected columns") }
         if (result["errors"] as? Int ?? 0) > 0 { throw Failure(message: "the selection contains Excel errors") }
         if (result["uncached"] as? Int ?? 0) > 0 { throw Failure(message: "the selection holds formula cells whose results are not saved") }
@@ -147,9 +150,9 @@ enum RunRecordR {
     /// A record read from a file, kept as the JSON text it was saved with (the engine reads it exactly as it was written, its
     /// properties in their order) when it is one Windows or this program could have written: an object of version 1 naming an
     /// operation, its frame inputs pointing within the worksheet's bounds, its run time (and its source's modification time) an ISO
-    /// 8601 timestamp, no text longer than 4,096 characters, no U+0000 in any string or key, and at most 4 MB. Any other control
-    /// character in a title or name is no bar: the engine's writer makes each one a space in the script's comment lines and
-    /// escapes it in its string literals; U+0000 alone R cannot hold in a string, so a script with one stops at R's parser.
+    /// 8601 timestamp, no text longer than 4,096 characters, and at most 4 MB. A control character in a title or name is no bar:
+    /// the engine's writer makes each one a space in the script's comment lines and escapes it in its string literals (U+0000, which
+    /// R cannot hold in a string, becomes a space there too).
     static func validated(_ raw: String) -> String? {
         guard raw.utf8.count <= 4_000_000, let object = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any] else { return nil }
         guard integer(object["version"]) == 1, let operation = object["operation"] as? String, isOperationName(operation) else { return nil }
@@ -173,26 +176,12 @@ enum RunRecordR {
                 }
             }
         }
-        guard textsWithinBounds(object, depth: 0), !holdsNul(object, depth: 0) else { return nil }
+        guard textsWithinBounds(object, depth: 0) else { return nil }
         guard let run = object["run"] as? String, isTimestamp(run) else { return nil }
         if let source = object["source"] as? [String: Any], let modified = source["modified"], !(modified is NSNull) {
             guard let text = modified as? String, isTimestamp(text) else { return nil }
         }
         return raw
-    }
-    /// Whether any string or key of a record, at any depth, holds U+0000: the one character the writer's string literals cannot
-    /// carry into R ("nul character not allowed" stops the whole script), raised with Windows for the writer to make a space.
-    static func holdsNul(_ value: Any, depth: Int) -> Bool {
-        guard depth <= 32 else { return true }
-        if let s = value as? String { return s.unicodeScalars.contains { $0.value == 0 } }
-        if let items = value as? [Any] { return items.contains { holdsNul($0, depth: depth + 1) } }
-        if let pairs = value as? [String: Any] { return pairs.contains { $0.key.unicodeScalars.contains { $0.value == 0 } || holdsNul($0.value, depth: depth + 1) } }
-        return false
-    }
-    /// Whether a live record can go to the engine's writer: an object without U+0000 in any string or key.
-    static func scriptable(_ record: String) -> Bool {
-        guard let object = try? JSONSerialization.jsonObject(with: Data(record.utf8)) as? [String: Any] else { return false }
-        return !holdsNul(object, depth: 0)
     }
     /// A reason this program gives for a frame it could not read, with any control character made a space, as the writer makes
     /// those of the record's own texts in its comment lines (a workbook's name on disk may hold anything but a slash).

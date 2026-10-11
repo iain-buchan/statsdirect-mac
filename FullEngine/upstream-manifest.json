@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "e99fe24a38ac04e2507699eacbbcdb38bd3c5948",
+  "commit": "9562045a4c0aa411364d282a9d635f9e68c25c1e",
   "version": "5.1.0",
   "sha256": {
     "Layout/Axis.cs": "37b781cfd82f963f5ba9f24295b008af80fe12d9a4e3ddd0649140c14e8785ef",
@@ -725,6 +725,7 @@
     "StatsDirectUI/Numerics/Summary.cs": "b3cbab37bb784119c1fafd00ec964abfdaa10e2db9a03e0045a804dc75bff5e9",
     "StatsDirectUI/Numerics/UniformXRNG.cs": "f975332db9aad6cc66828be3e31f61419200cec3896df58973e9015b215601e2",
     "StatsDirectUI/Numerics/Utilities.cs": "d09dd5054a67af7ed060f7c5bc803770414ebff662803dc331f9ff3fdd76d493",
+    "StatsDirectUI/R/ColumnLocator.cs": "b319ce3aa470032c3f6814c2b52a627eb12ab130c1fd026dfc20386047e51428",
     "StatsDirectUI/R/FrameType.cs": "ba017754d6f796c31a6bfcc5a75ccb8ba464e24f190f5c15a63d7b59f2427903",
     "StatsDirectUI/R/RController.cs": "2f1e7188418c4cb51683777ba57dba91bb5f943e2b0e20486e083de91b594c70",
     "StatsDirectUI/R/RConvert.cs": "78c950cc5beebc25dca4a967731fcd314a7630e32cc50797cf6a6499d5a4d0a3",
@@ -733,7 +734,7 @@
     "StatsDirectUI/R/RResults.g4.lexer.cs": "ba305865bea84bebfa6b3c9cc179cefcea2ac5d0c8d918a2bbd622a0fcb99147",
     "StatsDirectUI/R/RResults.g4.parser.cs": "701d5d19ebd13b68560a33ca9f0528094dada3bf8f2e90666c7096a74e5125e8",
     "StatsDirectUI/R/RResultsParserPartial.cs": "b8aca685310737fce8a3655d6534ce77b51d7a9d1cf5faa8bc9ba33c1557119b",
-    "StatsDirectUI/R/RScriptWriter.cs": "3e3ca6cb0da4bf55c8cfef8047070db0b122a12217239a451b766c2e019d7e0a",
+    "StatsDirectUI/R/RScriptWriter.cs": "59d8f9d7a9709bf12af60e859471add40dead0d9001974220e66d80247482a15",
     "StatsDirectUI/R/RVersion.cs": "c8866ea2fc494ccfc1ebf62c3e475ec0e9d6170a432cbe0a2552b47bf263acc6",
     "StatsDirectUI/StatsDirectUI.csproj": "e555dad4edeacb1446b1199c8d06af8ba5b06477babcddabfc0b82a8c61714bc",
     "StatsDirectUI/TemplateProcessing/CreoleHtmlReportRenderer.cs": "d3c751cb37fbaf9ea3329b93dc896156738ae9528689386e3916dac85069e3c9",
@@ -838,7 +839,7 @@
     "StatsDirectUI/Templates/ReportPicture.cs": "9d0bf6bebdcac64d23fcc69f4d245d7880ccafc0c8eaf2b6d6603308d1614e0c",
     "StatsDirectUI/Templates/ReportTemplate.cs": "c3e31992e4b6b86e9864c76ceade8b524546d366abfaa2b496add9a33ed452b5",
     "StatsDirectUI/Templates/ReportVectorPicture.cs": "1e582fc805325377ec84260e80e53ca01a5c7fcd2cf91e32f1770dccf8316d45",
-    "StatsDirectUI/Templates/RunRecord.cs": "d7a4ba1405c4c40ad76ab4c979109906f2f9a5597a331d60ece4cfbd68220e79",
+    "StatsDirectUI/Templates/RunRecord.cs": "c3a37e2826ae6a213b950dd25ef81d0b71e976c420b7235b28e390bddd7c6a74",
     "StatsDirectUI/Templates/SDPreferences.cs": "b35ad6b490ca0ee7beb4f6598a6059fb19e0f58bf7d758dfd7842d656c69fedc",
     "StatsDirectUI/Templates/SafeBuiltin.cs": "6dcb01f35a0c2d463b28c8ba0519c06923a91bfdc75bdd9f6e72d5203bebefb2",
     "StatsDirectUI/Templates/Step.cs": "12797067e27ff56adc31fe27ff6aee780edf3454521a8f92f49b12b7d31f3f3e",

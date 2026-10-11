@@ -1,0 +1,31 @@
+#!/bin/bash
+# A pictured tour of the app (Tests/app-tour-driver.swift): builds a test copy of the app with the tour as its main program, runs it,
+# and leaves PNGs of the window in the output directory given (default .build/app-tour). The app must have been built (./build.sh).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+ROOT="$PWD"
+source Scripts/native-build-flags.sh
+BASE="${STATSDIRECT_APP:-$ROOT/StatsDirect.app}"
+OUT="${1:-$ROOT/.build/app-tour}"
+TEST_WORK="$(mktemp -d "$ROOT/.build/app-tour.XXXXXX")"
+TEST_APP="$TEST_WORK/StatsDirect Tour.app"
+python3 - "$TEST_WORK" <<'PY'
+from pathlib import Path
+import sys
+source=Path('Sources/main.swift').read_text()
+Path(sys.argv[1],'Viewer.swift').write_text(source[:source.rindex('MainActor.assumeIsolated {')])
+PY
+SOURCES=()
+for source in Sources/*.swift; do
+  if [[ "$source" != 'Sources/main.swift' ]]; then SOURCES+=("$source"); fi
+done
+swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirectTour -emit-module-path "$TEST_WORK/StatsDirectTour.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/app-tour-driver.swift -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
+cp -cR "$BASE" "$TEST_APP"
+EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$TEST_APP/Contents/Info.plist")"
+cp "$TEST_WORK/driver" "$TEST_APP/Contents/MacOS/$EXECUTABLE"
+rsync -a Content/ "$TEST_APP/Contents/Resources/Content/"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.statsdirect.viewer.tour.${TEST_WORK##*.}" "$TEST_APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Tour' "$TEST_APP/Contents/Info.plist"
+codesign --force --sign - "$TEST_APP"
+"$TEST_APP/Contents/MacOS/$EXECUTABLE" "$OUT"
+ls -la "$OUT"

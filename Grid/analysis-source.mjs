@@ -77,12 +77,16 @@ export function requestedSheet(workbook, sheetIndex, request) {
 export function columnValues(workbook, sheetIndex, request) {
   const sheet = requestedSheet(workbook, sheetIndex, request), store = sheet.store;
   const columns = request?.columns, first = request?.first, last = request?.last;
-  if (!Array.isArray(columns) || !columns.length || !columns.every(c => Number.isInteger(c) && c >= 0 && c < store.columns.length)) throw new Error('That column is no longer available. Refresh the worksheet.');
+  // blankBeyond: a column beyond the sheet's width is read as blank cells rather than refused (the reader looking for a column that
+  // moved along the sheet reads a band either side of its recorded place, which may run past the sheet)
+  const width = store.columns.length, blankBeyond = !!request?.blankBeyond;
+  if (!Array.isArray(columns) || !columns.length || !columns.every(c => Number.isInteger(c) && c >= 0 && (blankBeyond || c < width))) throw new Error('That column is no longer available. Refresh the worksheet.');
   if (new Set(columns).size !== columns.length) throw new Error('Choose each column once.');
   if (!Number.isInteger(first) || !Number.isInteger(last) || first < 1 || last < first || last > MAX_ROWS) throw new Error('Enter a valid first and last worksheet row.');
   let errors = 0, uncached = 0;
   const out = columns.map(c => {
     const values = new Array(last - first + 1), kinds = new Array(last - first + 1);
+    if (c >= width) { values.fill(''); kinds.fill('blank'); return {title: '', values, kinds}; }
     for (let r = first - 1; r < last; r++) {
       const text = store.get(c, r), kind = store.kind(c, r);
       values[r - first + 1] = text; kinds[r - first + 1] = kind;

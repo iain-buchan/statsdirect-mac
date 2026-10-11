@@ -119,6 +119,9 @@ for op, entry in manifest.items():
     if re.search(r'^# table:', text, re.M) and '<double-2-by-2>' not in xml: mismatches.append('%s: %s takes a 2 by 2 table, and the operation asks for none' % (op, entry['file']))
     if re.search(r'^# nested:', text, re.M) and '<frame2d>' not in xml and '<grouped-covariance>' not in xml: mismatches.append('%s: %s takes a two-level input, and the operation asks for none' % (op, entry['file']))
     if not re.search(r'^# (data|table|matrix|nested|settings):', text, re.M): mismatches.append('%s: %s has no header' % (op, entry['file']))
+for definition in sorted((ROOT / 'FullEngine/publish/Operations').glob('*.xml')):   # every operation that continues one with a recipe has a recipe of its own
+    prerequisite = re.search(r'<prerequisite-operation>\s*([^<\s]+)\s*</prerequisite-operation>', definition.read_text())
+    if prerequisite and prerequisite.group(1) in manifest and definition.stem not in manifest: mismatches.append('%s: continues %s, which has a recipe, and has none of its own' % (definition.stem, prerequisite.group(1)))
 for mismatch in sorted(set(mismatches)): print('      mismatch: ' + mismatch, flush=True)
 check(not mismatches, 'every setting, input and kind of data a recipe takes is what the operations it serves ask for (%s known otherwise)' % ', '.join(sorted(KNOWN_BINDING_MISMATCHES)))
 
@@ -236,6 +239,54 @@ first['columns'] = first['columns'][:1]; second['columns'] = second['columns'][1
 script = rs.write(two, None, [{'name': 'data', 'columns': same[0]['columns'][:1]}, {'name': 'data', 'columns': same[0]['columns'][1:]}])
 check(script['asked'] == ['data', 'data'] and 'NOTE' not in script['text'] and re.search(r'^before <- c\(100, ', script['text'], re.M) and re.search(r'^after <- c\(111, ', script['text'], re.M),
       'two inputs of one name, asked once per pass of a loop, take the frames supplied in the record\'s order, each with its own values and no NOTE')
+# --- a column that has moved along the sheet since the run (output columns written to its left, a column inserted or removed by hand), as
+# tests/RScript/Relocate.cs checks ColumnLocator on Windows and FrameReader applies it: the entry looks for a column whose hash no longer
+# matches among the candidate columns the host supplies (one column at a time to the right and the left, within 64), by hash and title;
+# without candidates it names the columns to look for, and the host supplies them in a second call
+blank = [''] * 2600
+def band(columns):
+    """Candidate columns by place: {place: (title, values)}."""
+    return [{'column': place, 'title': title, 'values': [str(v) for v in values], 'kinds': ['number' if v != '' else 'blank' for v in values]} for place, (title, values) in sorted(columns.items())]
+def at_recorded(x_title, x_values, y_title, y_values):
+    return {'name': 'data', 'index': 0, 'columns': [{'title': x_title, 'values': [str(v) for v in x_values], 'kinds': ['number'] * 2600}, {'title': y_title, 'values': [str(v) for v in y_values], 'kinds': ['number'] * 2600}]}
+# 1. the first call, without candidates: the columns at the recorded places hold other values, and the engine asks the host to look
+shifted = at_recorded('x', blank, 'y', x)   # a column inserted to the left: blanks at 4, x's values at 5
+script = rs.write(big_record, None, [shifted])
+check(script['relocate'] == [{'frame': 0, 'name': 'data', 'column': 0, 'place': 4, 'firstRow': 1, 'lastRow': 2601, 'hasTitle': True, 'sheet': 'Big'},
+                             {'frame': 0, 'name': 'data', 'column': 1, 'place': 5, 'firstRow': 1, 'lastRow': 2601, 'hasTitle': True, 'sheet': 'Big'}] and script['text'].count('# NOTE:') == 2 and ' has moved ' not in script['text'],
+      'without candidates the entry names each column whose values are not at its recorded place, by frame, place and rows, and the script says they changed for now')
+# 2. the second call, with the band either side: x found at 5 and y at 6, each noted as moved with its new place, values as they were
+shifted['candidates'] = band({3: ('', blank), 5: ('x', x), 6: ('y', y), 7: ('', blank)})
+script = rs.write(big_record, None, [shifted])
+notes = [l for l in script['text'].split('\n') if l.startswith('# NOTE:')]
+check(script['relocate'] == [] and notes == ['# NOTE: "x" has moved along the sheet since the analysis ran, by columns inserted or removed to its left; its values are as they were.',
+                                            '# NOTE: "y" has moved along the sheet since the analysis ran, by columns inserted or removed to its left; its values are as they were.']
+      and '   # x, column 5, rows 1 to 2601\n' in script['text'] and '   # y, column 6, rows 1 to 2601\n' in script['text'] and re.search(r'^before <- c\(100, ', script['text'], re.M) and re.search(r'^after <- c\(111, ', script['text'], re.M),
+      'a column inserted to the left: both columns found one to the right by hash and title, noted as moved with their new places, their values as they were')
+# 3. a column removed to the left: y found at 4, one to the left
+removed = at_recorded('x', y, 'y', blank); removed['candidates'] = band({3: ('x', x), 4: ('y', y), 6: ('', blank)})
+script = rs.write(big_record, None, [removed])
+check([l for l in script['text'].split('\n') if l.startswith('# NOTE:')] == ['# NOTE: "x" has moved along the sheet since the analysis ran, by columns inserted or removed to its left; its values are as they were.',
+                                                                                 '# NOTE: "y" has moved along the sheet since the analysis ran, by columns inserted or removed to its left; its values are as they were.']
+      and '   # x, column 3, rows 1 to 2601\n' in script['text'] and '   # y, column 4, rows 1 to 2601\n' in script['text'], 'columns removed to the left: both found to the left')
+# 4. values that have changed are found nowhere: changed, not moved; a column with the right values under another title is not taken
+changed_values = [v + 1 for v in x]
+altered = at_recorded('x', changed_values, 'y', y); altered['candidates'] = band({3: ('x', changed_values), 5: ('z', x), 6: ('', blank)})
+script = rs.write(big_record, None, [altered])
+check([l for l in script['text'].split('\n') if l.startswith('# NOTE:')] == ['# NOTE: "x" has changed in the workbook since the analysis ran; these are its values now.'] and '   # x, column 4, rows 1 to 2601\n' in script['text'] and re.search(r'^before <- c\(101, ', script['text'], re.M),
+      'a column whose values changed is noted as changed at its recorded place; the values under another title are not taken for it')
+# 5. a column beyond the reach is not found; without a title to go by the hash alone identifies a column
+far = at_recorded('x', blank, 'y', y); far['candidates'] = band({70: ('x', x)})
+script = rs.write(big_record, None, [far])
+check(script['text'].count('# NOTE: "x" has changed') == 1 and ' has moved ' not in script['text'], 'a column beyond the reach of 64 is not found')
+untitled = json.loads(big_record); untitled['inputs'][0]['columns'][0]['hasTitle'] = False; untitled['inputs'][0]['columns'][0]['rows'] = [2, 2601]
+plain_frame = at_recorded('x', blank, 'y', y); plain_frame['candidates'] = band({5: ('something else', x)})
+script = rs.write(untitled, None, [plain_frame])
+check('# NOTE: "x" has moved along the sheet' in script['text'] and '   # x, column 5, rows 2 to 2601\n' in script['text'], 'without a title the hash alone identifies the column')
+# 6. a pointer without a hash keeps its recorded place
+unhashed = json.loads(big_record); del unhashed['inputs'][0]['columns'][0]['hash']
+script = rs.write(unhashed, None, [at_recorded('x', blank, 'y', y)])
+check('# NOTE:' not in script['text'] and script['relocate'] == [] and re.search(r'^before <- c\(NA, NA, ', script['text'], re.M), 'a pointer without a hash keeps its recorded place and is not looked for')
 script = rs.write(big_record, None, [])
 check(script['dataUnavailable'] and ('could not be read (the workbook test.xlsx is not open and was not found at %s): put the values in by hand.' % WORKBOOK) in script['text'],
       'a frame the host did not supply is reported as not open and not found at the recorded path')
@@ -764,22 +815,32 @@ check(not unexpected and not newly_agreeing, 'the scripts of the real runs print
 # (the same recipe on the same data) where it asked for no frame of its own, and holds every line of the parent's where it did; and its
 # text is what the writer's rules give for its record (an inherited frame no variable of the recipe takes is left out)
 FOLLOW_ON_ANSWERS = {}   # answers to the prompts a follow-on puts of its own, beyond its example's settings, by operation
-follow_on_problems = []; inherited_frames = 0
+# follow-ons with no report step (they write their result to the worksheet alone) leave no record, as on Windows: they must run, and leave none
+FOLLOW_ON_NO_REPORT_STEP = {'CoxBaselineToWorksheet', 'LogisticRegressionFitToWorksheet', 'PoissonRegressionFitToWorksheet', 'SimpleLinearRegressionCI'}
+follow_on_problems = []; inherited_frames = 0; without_record = 0
 for op, parent_op in sorted(INHERITING.items()):
     try:
         parent_state = run_example(s, examples[parent_op], keep=True)
         try: child = run_example(s, examples[op], parent=parent_state['jobId'], extra=FOLLOW_ON_ANSWERS.get(op))
         finally: s.close(parent_state['jobId'])
+        assert isinstance(parent_state.get('record'), str), 'the parent %s left no record at a report step' % parent_op
+        if op in FOLLOW_ON_NO_REPORT_STEP:
+            assert child.get('state') == 'complete' and child.get('record') is None, 'expected to run and leave no record, as it has no report step'
+            without_record += 1; continue
+        assert isinstance(child.get('record'), str), 'the follow-on left no record at a report step (it writes to the worksheet or draws alone?)'
         pr = json.loads(parent_state['record']); cr = json.loads(child['record'])
         inherited = [i for i in cr['inputs'] if i.get('inherited') is True]
-        own = [i for i in cr['inputs'] if i.get('inherited') is not True and i['kind'] in ('frame', 'entered', 'table')]
+        own = [i for i in cr['inputs'] if i.get('inherited') is not True and i['kind'] in ('frame', 'entered', 'table', 'frame2d', 'covariance')]
         # the frames the parent asked for (a frame the parent itself held in the bag, the prediction grid's source, may be the follow-on's own input)
-        parent_frames = [i for i in pr['inputs'] if i['kind'] in ('frame', 'entered') and i.get('inherited') is not True]
+        parent_frames = [i for i in pr['inputs'] if i['kind'] in ('frame', 'entered', 'frame2d', 'covariance') and i.get('inherited') is not True]
         assert cr['operation'] == op and child.get('recipe') is True, 'operation %r or recipe flag %r' % (cr['operation'], child.get('recipe'))
-        assert inherited and all(i['kind'] == 'entered' and i.get('prompt') == '' for i in inherited), 'no frame marked inherited among the inputs %s' % [(i['name'], i['kind'], i.get('inherited')) for i in cr['inputs']]
+        assert inherited and all(i['kind'] in ('entered', 'frame2d') and i.get('prompt') == '' for i in inherited), 'no frame marked inherited among the inputs %s' % [(i['name'], i['kind'], i.get('inherited')) for i in cr['inputs']]
         for frame in parent_frames:
             match = [i for i in inherited if i['name'] == frame['name']]
-            assert match and match[0]['columns'] == frame['columns'], 'the parent\'s frame %s is not inherited with its columns' % frame['name']
+            if frame['kind'] in ('frame2d', 'covariance'):   # a two-level frame is inherited as frame2d with its blocks or groups
+                assert match and match[0]['kind'] == 'frame2d' and match[0].get('value', {}).get('frames') == frame.get('value', {}).get('frames'), 'the parent\'s two-level frame %s is not inherited with its frames' % frame['name']
+            else:
+                assert match and match[0]['columns'] == frame['columns'], 'the parent\'s frame %s is not inherited with its columns' % frame['name']
         inherited_frames += len(inherited)
         parent_script = rs.write(parent_state['record'], None, []); child_script = rs.write(child['record'], None, [])
         a, b = parent_script['text'].split('\n')[1:], child_script['text'].split('\n')[1:]
@@ -789,7 +850,7 @@ for op, parent_op in sorted(INHERITING.items()):
         expected = expected_script(cr, *recipe_of(op))
         assert child_script['text'] == expected, 'line %d differs from the writer\'s rules: engine %r, expected %r' % first_difference(child_script['text'], expected)
     except AssertionError as e: follow_on_problems.append(op); print('      %s: %s' % (op, str(e).replace('\n', ' | ')[:600]), flush=True)
-check(not follow_on_problems, 'the %d follow-on operations run from a parent run record the frames they inherit (%d), marked inherited, and their scripts are the parent run\'s, the recipe on the inherited data' % (len(INHERITING), inherited_frames)
+check(not follow_on_problems, 'the %d follow-on operations run from a parent run record the frames they inherit (%d), marked inherited, and their scripts are the parent run\'s, the recipe on the inherited data (the %d writing to the worksheet alone leave no record)' % (len(INHERITING), inherited_frames, without_record)
       + ('; failing: ' + ', '.join(follow_on_problems) if follow_on_problems else ''))
 
 # --- the inverse records of the Distributions calculator, as Inverse.cs checks them: every figure printed is among the help script's

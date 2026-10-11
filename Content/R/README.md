@@ -42,7 +42,9 @@ whose help works from two rankings); those must run and print figures, and the c
 A follow-on operation (a prediction, the residuals, a parameter detail, an exact P by simulation, the multiple comparisons) continues
 the run of the operation it was asked from without asking for the data again. The record of its run carries the frames it inherited
 from that run, marked `"inherited": true`, so its recipe is the earlier operation's and binds the same inputs; the manifest names
-the operation it continues under `inherits`. A table typed on screen (the 2 by k tables, the standardization screens, kappa from
+the operation it continues under `inherits`. Every operation that continues one with a recipe (its prerequisite operation, or the root of a
+chain of them) takes that recipe this way, so the follow-ons of the regressions, the one way analysis and the survival and
+correlation analyses all give the script of the run they continue. A table typed on screen (the 2 by k tables, the standardization screens, kappa from
 counts, the likelihood ratios, the Woolf and Mantel-Haenszel strata) reaches the record as an entered frame under the grid's name, usually `data`, its columns `Column 1`, `Column 2` and so on
 in the grid's order, and its recipe binds them by that name.
 
@@ -59,3 +61,7 @@ so on, which the input names in `held`. The writer gathers the inputs of one nam
 every input it takes gets only those: the run's other inputs, such as a grid of new values a prediction asks for, and the frames the
 operation left in the bag are not written; a rest list (`rest...`) likewise leaves out the bag's frames when the run asked for frames of
 its own.
+
+A column that is not at its recorded place when the script is written, because the analysis wrote its result columns to the left of
+its data or a column was inserted or removed by hand, is found again by its hash and its title within 64 columns to either side
+(`ColumnLocator`); the script notes the move, and the column's comment gives its new place.

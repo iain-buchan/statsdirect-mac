@@ -17,8 +17,10 @@ example, shared with a Windows run of the same dialog, are listed and must stay 
 run through the engine, as FollowOn.cs and Regression.cs do, their records carrying the parent's frames marked inherited and their
 scripts the parent's; the two-level inputs (the replicated two-way and nested analyses of variance, the grouped covariance) run
 through the Mac's own prompts and are recorded as the frame2d and covariance kinds the "# nested:" header takes; and the inverse records
-of the Distributions calculator print figures the help's scripts print. The scripts run with the program's own R library on the path,
-where the method comparison recipe's mcr package is installed when missing."""
+of the Distributions calculator print figures the help's scripts print; and, as Options.cs, Options2.cs and Options3.cs do, runs with the
+options, sizes and confidence levels the help's examples do not have go through the Mac's own prompts, their scripts run in R, and the
+figures and limits R prints are compared with the engine's. The scripts run with the program's own R library on the path, where the
+method comparison recipe's mcr package is installed when missing."""
 import sys, json, hashlib, math, os, re, subprocess, tempfile
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -91,14 +93,15 @@ check(len(manifest) >= 28 and not missing and not headed and all((ROOT / 'Conten
 # takes is a parameter of each operation it serves (or a cell of its 2 by 2 table, or a box of the Distributions calculator), and the data it
 # takes are of the kind the operation asks for
 KNOWN_BINDING_MISMATCHES = set()   # operations whose recipe is known to bind an input the operation does not ask for (raised with Windows)
+def definition(op): return re.sub(r'<!--.*?-->', '', (ROOT / 'FullEngine/publish/Operations' / (op + '.xml')).read_text(), flags=re.S)   # a parameter commented out is not asked, so no run records it
 mismatches = []
 for op, entry in manifest.items():
-    text = (ROOT / 'Content/R/recipes' / entry['file']).read_text(); xml = (ROOT / 'FullEngine/publish/Operations' / (op + '.xml')).read_text()
-    parameters = {m.strip() for m in re.findall(r'<name>([^<]+)</name>', xml)[1:]}
+    text = (ROOT / 'Content/R/recipes' / entry['file']).read_text(); xml = definition(op)
+    parameters = {m.strip() for m in re.findall(r'<name>([^<]+)</name>', xml)[1:]} | set(re.findall(r'<option name="([^"]+)"', xml))   # the options of a set of options, which the dialog records one by one under their names
     # a follow-on operation continues an earlier run and may take that operation's parameters and frames
     if 'inherits' in entry:
-        parent = (ROOT / 'FullEngine/publish/Operations' / (entry['inherits'] + '.xml')).read_text()
-        parameters |= {m.strip() for m in re.findall(r'<name>([^<]+)</name>', parent)[1:]}
+        parent = definition(entry['inherits'])
+        parameters |= {m.strip() for m in re.findall(r'<name>([^<]+)</name>', parent)[1:]} | set(re.findall(r'<option name="([^"]+)"', parent))
         if '<frame>' in parent: xml += '<frame>'
     parameters |= {m.strip() for m in re.findall(r'<(?:top-left|top-right|bottom-left|bottom-right)-name>([^<]+)</', xml)}
     if re.search(r'<builtin function-name="dist[A-Za-z]+"', xml): parameters |= {'value', 'df', 'df2', 'lower', 'upper', 'two_sided', 'asked'}
@@ -508,8 +511,11 @@ def expected_script(record, recipe, detail):
         out = [head, binding['matrix'] + ' <- cbind(' + ',\n  '.join(quote(c['title']) + ' = ' + vector(c['values']) for c in columns) + ')\n']; names.add(binding['matrix'])
     parameters = record.get('parameters') if isinstance(record.get('parameters'), dict) else None
     if binding:
+        # a bound setting the record holds is written as its literal (a list of marks as list(...), null as NULL); one the run skipped or was
+        # not asked for is NULL with a note, so that the script does not stop on the missing name
         for variable, parameter in binding['settings']:
-            if parameters is not None and parameter in parameters and is_scalar(parameters[parameter]): out.append(variable + ' <- ' + literal(parameters[parameter]) + '\n')
+            if parameters is not None and parameter in parameters and (is_scalar(parameters[parameter]) or parameters[parameter] is None or isinstance(parameters[parameter], list)): out.append(variable + ' <- ' + literal(parameters[parameter]) + '\n')
+            else: out.append(variable + ' <- NULL   # the run had no ' + plain(parameter) + '\n')
     elif parameters is not None:
         for key, value in parameters.items():
             if is_scalar(value) and not key.lower().startswith('statsdirect'): out.append(safe_name(key, names) + ' <- ' + literal(value) + '   # ' + plain(key) + '\n')
@@ -571,11 +577,11 @@ def _survival_plot_s():
 REAL_RUN_COLUMNS = {'Chi2byNWithTrend': {'data': [{'title': 'score', 'values': [1, 2, 3]}]}, 'SurvivalPlot': {'ydatNew': _survival_plot_s()}}
 # settings a form asks for that the example leaves to the help's layout: the number of groups or repeats whose frames it then asks for one by one
 REAL_RUN_SETTINGS = {'SurvivalPlot': {'group-count': 2}, 'WeiLachin': {'nr': 4}, 'PoissonRegression': {'has-exposure': 'true'}}
-def run_example(session, example, parent=None, keep=False, extra=None):
+def run_example(session, example, parent=None, keep=False, extra=None, preferences=None):
     """Answers the operation's prompts from the example: frames by the name the operation asks them by, else the example's columns in order (one
     at a time to a single-column prompt, the rest to a wider one), a screen-typed 2 by 2 from its cell settings, the Distributions calculator's
     boxes, settings by parameter name (a confidence level as a percentage, an option as its value), optional frames skipped, defaults otherwise."""
-    id, state = session.start(example['operation'], parent=parent); used = set(); settings = dict(example.get('settings') or {}); settings.update(REAL_RUN_SETTINGS.get(example['operation'], {})); settings.update(extra or {})
+    id, state = session.start(example['operation'], preferences, parent=parent); used = set(); settings = dict(example.get('settings') or {}); settings.update(REAL_RUN_SETTINGS.get(example['operation'], {})); settings.update(extra or {})
     pool = [dict(c) for key in ('data', 'list') for c in example.get(key, [])]
     # the example's named inputs, each a pool of columns: a prompt put once for each group or repeat takes the next of them (as many as it
     # allows), and a prompt named otherwise than the example's input (a table typed on screen) takes the next input not yet used
@@ -607,6 +613,8 @@ def run_example(session, example, parent=None, keep=False, extra=None):
             if kind == 'grid' and prompt.startswith('Select predictor (X) series'): return {'columns': [level[0] for level in nested_frames], 'source': 'Help example'}
             if kind == 'boolean' and prompt == 'Use Y replicates': return True
         if name not in settings and prompt in settings: name = prompt   # a question put by its text (a yes/no question of the host)
+        if name in settings and settings[name] is None and p.get('skip'): return {'skip': True}   # a setting given as null: the optional prompt skipped, as a Windows run without it
+        if kind == 'options' and any(o['value'] in settings for o in p['options']): return {o['value']: bool(settings.get(o['value'], o['selected'])) for o in p['options']}   # the options as the record holds them, one boolean under each option's name
         if kind == 'grid':
             if p.get('screen') and len(p.get('labels') or []) == 2:
                 keys = ('a', 'b', 'c', 'd') if 'c' in settings else ('a', 'b', 'pt1', 'pt2')
@@ -630,6 +638,8 @@ def run_example(session, example, parent=None, keep=False, extra=None):
         if name in settings and settings[name] is not None:
             v = settings[name]
             if kind == 'confidence': return v * 100
+            if kind == 'options' and isinstance(v, list): return {o['value']: o['value'] in v for o in p['options']}   # the record's list of the options chosen (the method comparison's regressions)
+            if kind == 'selectList' and isinstance(v, list) and all(isinstance(x, bool) for x in v): return [i for i, flag in enumerate(v) if flag]   # the record's marks of a pick from a list, as the form sends the indices
             if kind == 'grid': return v
             if kind == 'option':
                 values = [o['value'] for o in p['options']]
@@ -733,7 +743,9 @@ check(all(isinstance(real[op].get('record'), str) for op in recorded) and withou
 # default answers do not take; worked out from the inputs the dialog takes instead; written back by the operation as a result under the same
 # name), and the plots, which sort their columns before the report step. The rank correlation calculators record the score (df2) they work
 # out of the correlation, as the Windows calculator shows and records it.
-DIALOG_SETTINGS = {'SizeIndCase': {'p1'}, 'SizeIndProp': {'p1'}, 'SizeMatchProp': {'p1'}, 'SizeSurvival': {'hr'}}
+# The regenerated examples (2570f206) also state settings the dialog asks only on another branch: the Fisher test of a cohort or neither
+# study, the control responders when there are controls.
+DIALOG_SETTINGS = {'SizeIndCase': {'p1'}, 'SizeIndProp': {'p1'}, 'SizeMatchProp': {'p1'}, 'SizeSurvival': {'hr'}, 'Chi2by2': {'doFisher'}, 'Logit': {'nrc'}, 'Probit': {'nrc'}}
 SORTED_COLUMNS = {'BoxWhiskerPlotText', 'SpreadPlot'}
 RENAMED_INPUTS = {}   # an example naming an input otherwise than the parameter the dialog records it under (none now)
 REAL_RUN_SUBSET = {'MiscRelRisk'}   # the dialog's labels (Present, Absent) differ from the help's, which carry digits: every figure printed is among the help's
@@ -761,6 +773,7 @@ for op in recorded:
         wanted = [(None, c) for key in ('data', 'list') for c in example.get(key, [])]
         for named in example.get('inputs', []) if isinstance(example.get('inputs'), list) else []:
             name = renamed.get(named['name'], named['name'])
+            if not named['columns']: assert name not in kinds, 'the optional input %s, which the example does not give, is recorded (%s)' % (name, kinds.get(name)); continue   # an optional frame the example leaves out: skipped in the run
             assert kinds.get(name) == 'entered', 'the input %s is not recorded as entered (%s)' % (name, kinds.get(name))
             wanted += [(name, c) for c in named['columns']]
         every = [c for columns in entered.values() for c in columns]
@@ -809,7 +822,11 @@ agreed, failures = compare_with_help(zip(recorded, r_outputs([real_scripts[op]['
 # Mac's real runs found on 11 October 2026 (Crosstabs's text classifiers, KappaScreen's binding, LogisticRegression's rest list, the
 # survival plot's and Wei-Lachin's frames asked once per group kept as the last ask alone) were changed in the shared code at e99fe24a,
 # and MiscRelRisk's labels are covered by the subset comparison above.
-EXPECTED_REAL_DIFFERENCES = set()
+# The 2 by 2 example takes the Fisher test, which the dialog asks only for a cohort or neither study: a case-control run records no
+# doFisher, so its script prints no Fisher P, as the engine's own report for that run has none. (At 2570f206 the Mac's real runs found two
+# recipes binding a setting no dialog run records, the method comparison's "methods" and the normal plot's score method; Windows changed
+# both at 3cc4cbc9, and the real runs below check them.)
+EXPECTED_REAL_DIFFERENCES = {'Chi2by2'}
 unexpected = sorted(set(failures) - EXPECTED_REAL_DIFFERENCES); newly_agreeing = sorted(EXPECTED_REAL_DIFFERENCES - set(failures))
 check(not unexpected and not newly_agreeing, 'the scripts of the real runs print the help\'s figures: %d of %d agree%s' % (agreed, len(recorded), ('; differing as listed: ' + ', '.join(sorted(failures))) if failures else '')
       + ('; unexpected: ' + ', '.join(unexpected) if unexpected else '') + ('; now agreeing, remove from the list: ' + ', '.join(newly_agreeing) if newly_agreeing else ''))
@@ -819,12 +836,15 @@ check(not unexpected and not newly_agreeing, 'the scripts of the real runs print
 # (the same recipe on the same data) where it asked for no frame of its own, and holds every line of the parent's where it did; and its
 # text is what the writer's rules give for its record (an inherited frame no variable of the recipe takes is left out)
 FOLLOW_ON_ANSWERS = {}   # answers to the prompts a follow-on puts of its own, beyond its example's settings, by operation
+# a parent run answered otherwise than its example, so that it offers the follow-on: the agreement analysis offers the exact P simulation
+# only when no observer is marked as the reference standard, and the example (2570f206) marks observer 1
+PARENT_ANSWERS = {'UniversalAgreementSimulateExactP': {'reference': None}}
 # follow-ons with no report step (they write their result to the worksheet alone) leave no record, as on Windows: they must run, and leave none
 FOLLOW_ON_NO_REPORT_STEP = {'CoxBaselineToWorksheet', 'LogisticRegressionFitToWorksheet', 'PoissonRegressionFitToWorksheet', 'SimpleLinearRegressionCI'}
 follow_on_problems = []; inherited_frames = 0; without_record = 0
 for op, parent_op in sorted(INHERITING.items()):
     try:
-        parent_state = run_example(s, examples[parent_op], keep=True)
+        parent_state = run_example(s, examples[parent_op], keep=True, extra=PARENT_ANSWERS.get(op))
         try: child = run_example(s, examples[op], parent=parent_state['jobId'], extra=FOLLOW_ON_ANSWERS.get(op))
         finally: s.close(parent_state['jobId'])
         assert isinstance(parent_state.get('record'), str), 'the parent %s left no record at a report step' % parent_op
@@ -856,6 +876,325 @@ for op, parent_op in sorted(INHERITING.items()):
     except AssertionError as e: follow_on_problems.append(op); print('      %s: %s' % (op, str(e).replace('\n', ' | ')[:600]), flush=True)
 check(not follow_on_problems, 'the %d follow-on operations run from a parent run record the frames they inherit (%d), marked inherited, and their scripts are the parent run\'s, the recipe on the inherited data (the %d writing to the worksheet alone leave no record)' % (len(INHERITING), inherited_frames, without_record)
       + ('; failing: ' + ', '.join(follow_on_problems) if follow_on_problems else ''))
+
+# --- runs with the options and sizes the help's examples do not have, as tests/RScript/Options.cs and Options2.cs check them on Windows
+# (a reviewer's findings on the 5.1.0 scripts, 11 October 2026: the scripts fitted the help's example rather than the run). Each run goes
+# through the engine with its options set, the writer writes its script, R runs it, and the figures R prints are compared with the
+# engine's: its scalar outputs, or the report's own lines where the figure sits in a table. The data are small and made up: R is the
+# independent route to the same model. Where the engine runs R itself (LOESS, the method comparison) or the record is built by hand on
+# Windows, the record is built here from the example and the script's run checked.
+import html as html_module
+def report_text(h):
+    """The report's text, a line for each block, as the help replay reads a page."""
+    t = re.sub(r'<script.*?</script>', '', h or '', flags=re.S); t = re.sub(r'</(p|div|h[1-6]|li|tr|table)>', '\n', t, flags=re.I); t = re.sub(r'<br\s*/?>', '\n', t, flags=re.I)
+    x = html_module.unescape(re.sub(r'<[^>]+>', ' ', t)).replace('\xa0', ' ')
+    return '\n'.join(l for l in (re.sub(r'[ \t]+', ' ', line).strip() for line in x.split('\n')) if l)
+def numbers(text, pattern): return [float(m.group(1)) for m in re.finditer(pattern, text, re.M)]
+# R prints the recipe's figures to 6 decimal places, so a figure near 0 can differ from the engine's by half a unit in the sixth
+def near(a, b, rel=1e-5): return abs(a - b) <= rel * max(abs(a), abs(b)) + 6e-7
+def agree(r, engine, rel=1e-5): return len(r) == len(engine) > 0 and all(near(a, b, rel) for a, b in zip(r, engine))
+def shown(v): return ' '.join('%.7g' % x for x in v)
+def columns_of(*pairs): return [{'title': title, 'values': list(values)} for title, values in pairs]
+def option_run(operation, inputs, settings):
+    """A run through the engine with the options given (a null setting skips its optional prompt): the state, the record, the script's text,
+    what R printed for it and the report's text."""
+    example = {'operation': operation, 'inputs': [{'name': name, 'columns': columns_of(*pairs)} for name, pairs in inputs], 'settings': settings}
+    state = run_example(s, example, extra=settings, preferences={'use-default-ci': False}); script = rs.write(state['record'], None, [])   # the confidence level asked, not the default taken
+    if not script['hasRecipe']: raise AssertionError('%s: the run\'s script has no recipe' % operation)
+    return state, json.loads(state['record']), script['text'], run_r(script['text']), report_text(state.get('html'))
+def built(example):
+    """The script of a record built from an example, as Recipes.cs's RecordOf builds it, and what R printed for it."""
+    text = rs.write(record_of(example), None, [])['text']; return text, run_r(text)
+CONTINUOUS = 'Choose the reference category for %s'   # the dialog put for an integer predictor of 3 to 11 distinct values, as on Windows: -2 treats it as continuous
+
+# multiple linear regression without an intercept and with weights: lm gets the formula without the intercept and the weights
+y = [12.1, 14.3, 15.2, 18.9, 20.4, 22.8, 23.9, 27.1, 29.6, 30.2, 33.8, 35.1]; x1 = list(range(1, 13)); x2 = [3.2, 1.5, 4.8, 2.2, 5.9, 3.1, 6.4, 2.8, 7.1, 4.4, 8.3, 5.0]; w = [1, 2, 1, 3, 1, 2, 1, 3, 1, 2, 1, 3]
+state, record, script, r, report = option_run('MultipleLinearRegression', [('outcome', [('y', y)]), ('weights', [('w', w)]), ('predictors', [('x1', x1), ('x2', x2)])], {'ci': 0.95, 'calculateIntercept': False, 'useWeights': True})
+check('intercept <- FALSE' in script and 'weights <- c(1, 2, 1, 3' in script and 'intercept = intercept' in script and 'weights = weights' in script,
+      'the regression\'s script carries the run\'s intercept option and weights and hands them to lm')
+engine_b = numbers(report, r'^\S+ b\d+ = (-?[0-9.]+) r = '); engine_t = numbers(report, r'^\S+ b\d+ = -?[0-9.]+ r = -?[0-9.]+ t = (-?[0-9.]+)')
+r_b = numbers(r, r'^.+ b\d+ = (-?[0-9.]+)'); r_t = numbers(r, r'^.+ b\d+ = .*  t = (-?[0-9.]+)')
+print('      weighted regression without an intercept: engine b %s, R b %s; t %s and %s' % (shown(engine_b), shown(r_b), shown(engine_t), shown(r_t)), flush=True)
+check(agree(r_b, engine_b) and agree(r_t, engine_t) and len(engine_b) == 2, 'R\'s weighted regression without an intercept gives the engine\'s two coefficients and t statistics')
+
+# logistic regression of individual responses with one predictor and a 99% interval: the rows are merged by covariate pattern as the
+# report does, the one predictor's loop runs, and the interval is the run's level (the dose of four levels kept continuous, as the
+# Windows check's frame is)
+dose = [1]*4 + [2]*4 + [3]*4 + [4]*4; response = [0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0]
+state, record, script, r, report = option_run('LogisticRegression', [('response', [('response', response)]), ('predictors', [('dose', dose)])],
+                                              {'grouping': 'individual', 'accuracy': '0.0000001', 'intercept': True, 'weights': False, 'gamma': 0.99, CONTINUOUS % 'dose': '-2'})
+check('total <- NULL' in script and 'confidence <- 0.99' in script and 'if (is.null(total))' in script, 'the logistic script of individual responses has no totals, the run\'s confidence level, and the merging of the rows')
+engine_or = numbers(report, r'^\S+ (-?[0-9.]+) \(-?[0-9.]+ to -?[0-9.]+\) -?[0-9.]+ P'); engine_lo = numbers(report, r'^\S+ -?[0-9.]+ \((-?[0-9.]+) to'); engine_hi = numbers(report, r'^\S+ -?[0-9.]+ \(-?[0-9.]+ to (-?[0-9.]+)\)')
+r_or = numbers(r, r'^\S+ odds ratio = (-?[0-9.]+)'); r_lo = numbers(r, r'^\S+ odds ratio = -?[0-9.]+ +\( +(-?[0-9.]+) to'); r_hi = numbers(r, r'^\S+ odds ratio = -?[0-9.]+ +\( +-?[0-9.]+ to (-?[0-9.]+)')
+r_dev = numbers(r, r'^Deviance goodness of fit chi-square = (-?[0-9.]+)')[0]; engine_dev = state['values']['dev']
+print('      individual logistic: engine OR %s (%s to %s), deviance %.7g; R %s (%s to %s), deviance %.7g' % (shown(engine_or), shown(engine_lo), shown(engine_hi), engine_dev, shown(r_or), shown(r_lo), shown(r_hi), r_dev), flush=True)
+check(agree(r_or, engine_or) and agree(r_lo, engine_lo, 1e-4) and agree(r_hi, engine_hi, 1e-4) and len(engine_or) == 1 and near(r_dev, engine_dev),
+      'R\'s logistic regression of the individual responses gives the engine\'s odds ratio, its 99% limits and the deviance of the merged rows')
+# logistic regression of grouped counts without an intercept and with prior weights
+total = [20]*6; responders = [3, 6, 9, 12, 14, 17]; level = [-2, -1, 0, 1, 2, 3]; second = [1, 0, 1, 0, 1, 0]; prior = [1, 2, 1, 2, 1, 2]
+state, record, script, r, report = option_run('LogisticRegression', [('total', [('total', total)]), ('response', [('responders', responders)]), ('weight', [('prior', prior)]), ('predictors', [('level', level), ('second', second)])],
+                                              {'grouping': 'grouped', 'accuracy': '0.0000001', 'intercept': False, 'weights': True, 'gamma': 0.95})
+engine_or = numbers(report, r'^\S+ (-?[0-9.]+) \(-?[0-9.]+ to -?[0-9.]+\) -?[0-9.]+ P'); r_or = numbers(r, r'^\S+ odds ratio = (-?[0-9.]+)')
+print('      weighted logistic without an intercept: engine OR %s, R %s' % (shown(engine_or), shown(r_or)), flush=True)
+check('intercept <- FALSE' in script and 'weight <- c(1, 2, 1, 2, 1, 2)' in script and agree(r_or, engine_or) and len(engine_or) == 2, 'R\'s logistic regression without an intercept and with the prior weights gives the engine\'s two odds ratios')
+
+# Poisson regression of counts alone (no exposure) with one predictor, then with an exposure and prior weights
+counts = [2, 3, 6, 7, 8, 9, 10, 12, 15]; xp = list(range(1, 10))
+state, record, script, r, report = option_run('PoissonRegression', [('response', [('counts', counts)]), ('predictors', [('xp', xp)])],
+                                              {'gamma': 0.95, 'grouping': 'individual', 'accuracy': '0.0000001', 'intercept': True, 'weights': False, 'has-exposure': 'false'})
+check('exposure <- NULL' in script, 'the Poisson script of counts alone has no exposure')
+engine_coef = numbers(report, r'^\S+ b\d+ = (-?[0-9.]+)'); r_coef = numbers(r, r'^.+ b\d+ = (-?[0-9.]+)  z = ')
+print('      Poisson of counts alone: engine b %s, R b %s' % (shown(engine_coef), shown(r_coef)), flush=True)
+check(agree(r_coef, engine_coef) and len(engine_coef) == 2, 'R\'s Poisson regression of the counts alone with one predictor gives the engine\'s two coefficients')
+exposure = [10, 12, 15, 14, 16, 15, 18, 20, 22]; pw = [1, 1, 2, 1, 2, 1, 1, 2, 1]
+state, record, script, r, report = option_run('PoissonRegression', [('response', [('counts', counts)]), ('exposure', [('exposure', exposure)]), ('weight', [('pw', pw)]), ('predictors', [('xp', xp)])],
+                                              {'gamma': 0.95, 'grouping': 'individual', 'accuracy': '0.0000001', 'intercept': True, 'weights': True, 'has-exposure': 'true'})
+engine_coef = numbers(report, r'^\S+ b\d+ = (-?[0-9.]+)'); r_coef = numbers(r, r'^.+ b\d+ = (-?[0-9.]+)  z = ')
+print('      Poisson with an exposure and prior weights: engine b %s, R b %s' % (shown(engine_coef), shown(r_coef)), flush=True)
+check('weight <- c(1, 1, 2, 1, 2, 1, 1, 2, 1)' in script and agree(r_coef, engine_coef) and len(engine_coef) == 2, 'R\'s Poisson regression with the exposure as an offset and the prior weights gives the engine\'s coefficients')
+
+# polynomial regression of degree 3: the script fits the run's degree
+py = [1.2, 1.9, 4.1, 8.3, 15.2, 26.1, 40.8, 60.9, 86.2, 118.1, 157.5, 204.2]
+state, record, script, r, report = option_run('PolynomialRegression', [('y', [('y', py)]), ('x', [('x', x1)])], {'degree': '3'})
+engine_b = numbers(report, r'^\S+ b\d+ *= (-?[0-9.]+)'); r_b = numbers(r, r'^.+ b\d+ *= (-?[0-9.]+)')
+print('      polynomial of degree 3: engine b %s, R b %s' % (shown(engine_b), shown(r_b)), flush=True)
+check(re.search(r'^degree <- "?3"?', script, re.M) and 'poly(size, .(degree), raw = TRUE)' in script and agree(r_b, engine_b) and len(engine_b) == 4, 'R\'s polynomial regression of degree 3 gives the engine\'s four coefficients')
+
+# Cox regression with strata: the model is stratified as the run was
+times = [6, 7, 10, 15, 19, 25, 2, 4, 8, 12, 14, 20, 23, 30]; events = [1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0]; treatment = [0, 1]*7; stratum = [1]*7 + [2]*7
+state, record, script, r, report = option_run('CoxRegression', [('times', [('times', times)]), ('events', [('events', events)]), ('predictors', [('treatment', treatment)]), ('strata', [('stratum', stratum)])],
+                                              {'accuracy': 0.000000001, 'centre-continuous-covariates': True, 'useTimesAdjustment': False})
+engine_cox = numbers(report, r'^\S+ b1 = (-?[0-9.]+)')[0]; r_cox = numbers(r, r'^\S+ b1 = (-?[0-9.]+)')[0]
+print('      stratified Cox: engine b %.7g, R b %.7g' % (engine_cox, r_cox), flush=True)
+check('stratum <- c(' in script and 'strata(sd_stratum)' in script and near(r_cox, engine_cox), 'R\'s stratified Cox regression gives the engine\'s coefficient')
+
+# conditional logistic regression with one predictor: the loops take the run's number of coefficients (ten matched pairs, case then
+# control: five pairs with the case alone exposed, one with the control alone, four concordant, so that the estimate is finite, log 5)
+pair = [i for i in range(1, 11) for _ in (0, 1)]; case_control = [1, 0]*10; exposure1 = [1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0]
+state, record, script, r, report = option_run('ConditionalLogisticRegression', [('stratum', [('pair', pair)]), ('case-control', [('case', case_control)]), ('predictors', [('exposure1', exposure1)])],
+                                              {'gamma': 0.95, 'accuracy': '0.0000001', 'show-counts': False})
+engine_cond = numbers(report, r'^exposure1 (-?[0-9.]+) -?[0-9.]+ z =')[0]; r_cond = numbers(r, r'^exposure1 (-?[0-9.]+) -?[0-9.]+  z =')[0]
+print('      conditional logistic with one predictor: engine b %.7g, R b %.7g' % (engine_cond, r_cond), flush=True)
+check(near(r_cond, engine_cond, 1e-4), 'R\'s conditional logistic regression with one predictor runs and gives the engine\'s coefficient')
+
+# the log-rank test with strata and the Gehan-Breslow weight: the script's stratified test agrees with R's survdiff on the run's strata
+state, record, script, r, report = option_run('LogRank', [('gid', [('group', [1, 2]*7)]), ('times', [('time', times)]), ('deaths', [('dead', events)]), ('strata', [('stratum', stratum)])], {'gamma': 0.95, 'wt_method': '2'})
+survdiff = numbers(r, r'Chisq= *(-?[0-9.]+) +on 1 degrees of freedom')[-1]; combined = numbers(r, r'^overall chi-square = (-?[0-9.]+)')[0]
+print('      stratified log-rank: survdiff %.7g, the script\'s combined test %.7g' % (survdiff, combined), flush=True)
+check('wt_method <- "2"' in script and 'Generalised Wilcoxon (Gehan-Breslow)' in r and 'STRATUM 2 of 2' in r and '1976, 1990, 2240' not in r and abs(round(combined, 1) - survdiff) < 1e-9,   # survdiff prints its chi-square rounded to one decimal place
+      'the log-rank script runs the stratified test on the run\'s strata, agreeing with survdiff, with the run\'s Wilcoxon weight and none of the help\'s data')
+
+# a bar chart of four series and a box plot of three groups: the scripts draw the run's series and groups
+bar_script, _ = built({'operation': 'BarPlot', 'inputs': [{'name': 'labels', 'columns': columns_of(('Blood group', ['O', 'A', 'B', 'AB']))},
+                                                           {'name': 'values', 'columns': columns_of(('First', [44, 45, 8, 3]), ('Second', [79, 16, 4, 1]), ('Third', [61, 39, 0, 0]), ('Fourth', [50, 30, 15, 5]))}]})
+box_script, r = built({'operation': 'BoxWhiskerPlotText', 'list': columns_of(('One', [12, 15, 11, 19, 22, 14, 30]), ('Two', [20, 25, 21, 29, 32, 24, 27]), ('Three', [5, 8, 11, 9, 6, 40, 7]))})
+check('rep_len(shade, nrow(values))' in bar_script and len(re.findall(r'^\S+ \(n = 7\)', r, re.M)) == 3, 'the bar chart of four series and the box plot of three groups draw the run\'s series and groups')
+
+# kappa with quadratic weights, then with a table of weights given (not symmetric, so that the table's orientation tells)
+rater1 = [1, 1, 2, 2, 3, 3, 1, 2, 3, 1, 2, 3, 2, 1, 3, 3]; rater2 = [1, 2, 2, 3, 3, 3, 1, 1, 2, 1, 2, 3, 3, 1, 2, 3]
+state, record, script, r, report = option_run('Kappa', [('responses', [('first', rater1), ('second', rater2)])], {'ci': 0.95, 'method': '2'})
+r_kappa = numbers(r, r'^Kappa = (-?[0-9.]+)'); engine_kw = state['values']['kappaw']
+print('      quadratic kappa: engine %.7g, R unweighted and weighted %s' % (engine_kw, shown(r_kappa)), flush=True)
+check('method <- "2"' in script and len(r_kappa) == 2 and near(r_kappa[1], engine_kw, 1e-4), 'R\'s quadratically weighted kappa gives the engine\'s')
+state, record, script, r, report = option_run('Kappa', [('responses', [('first', rater1), ('second', rater2)]), ('weights', [('w1', [1, 0.6, 0]), ('w2', [0.3, 1, 0.6]), ('w3', [0, 0.3, 1])])], {'ci': 0.95, 'method': '3'})
+r_kappa = numbers(r, r'^Kappa = (-?[0-9.]+)'); engine_kw = state['values']['kappaw']
+print('      kappa with a table of weights: engine %.7g, R %s' % (engine_kw, shown(r_kappa)), flush=True)
+check('weights <- list(' in script and len(r_kappa) == 2 and near(r_kappa[1], engine_kw, 1e-4), 'R\'s kappa with the run\'s table of weights gives the engine\'s, with the table as the run gave it')
+
+# the Gini coefficient with frequency weights
+state, record, script, r, report = option_run('Gini', [('data', [('income', [1, 2, 3, 4, 10])]), ('weights', [('freq', [3, 1, 2, 1, 1])])], {'gamma': 0.95, 'boots': 200, 'seed': 7})
+r_gini = numbers(r, r'^Gini coefficient = (-?[0-9.]+)')[0]; engine_gini = numbers(report, r'^Gini coefficient = (-?[0-9.]+)')[0]
+print('      Gini with frequency weights: engine %.7g, R %.7g' % (engine_gini, r_gini), flush=True)
+check('rep(imr, floor(weights))' in script and 'births <-' not in script and near(r_gini, engine_gini), 'R\'s Gini coefficient of the values repeated by their frequency weights gives the engine\'s, without the help\'s own births and deaths')
+
+# the effect size meta-analysis as a weighted mean difference, then from effect sizes given
+en = [20, 25, 30]; em = [5.1, 4.8, 5.5]; es = [1.2, 1.5, 1.1]; cn = [22, 24, 28]; cm = [4.2, 4.1, 4.9]; cs = [1.3, 1.4, 1.0]
+state, record, script, r, report = option_run('Effect', [('en', [('en', en)]), ('em', [('em', em)]), ('es', [('es', es)]), ('cn', [('cn', cn)]), ('cm', [('cm', cm)]), ('cs', [('cs', cs)])], {'gamma': 0.95, 'type': 'm', 'strata': None})
+r_pooled = numbers(r, r'^Pooled effect size d\+ = (-?[0-9.]+)')[0]; engine_pooled = numbers(report, r'^Pooled effect size \S+ = (-?[0-9.]+)')[0]
+print('      weighted mean difference: engine d+ %.7g, R %.7g' % (engine_pooled, r_pooled), flush=True)
+check('type <- "m"' in script and near(r_pooled, engine_pooled, 1e-4), 'R\'s pooled weighted mean difference gives the engine\'s')
+state, record, script, r, report = option_run('Effect', [('en', [('en', en)]), ('cn', [('cn', cn)]), ('g', [('g', [0.5, 0.3, 0.8])])], {'gamma': 0.95, 'type': 'g', 'strata': None})
+r_pooled = numbers(r, r'^Pooled effect size d\+ = (-?[0-9.]+)')[0]; engine_pooled = numbers(report, r'^Pooled effect size \S+ = (-?[0-9.]+)')[0]
+print('      effect sizes given: engine d+ %.7g, R %.7g' % (engine_pooled, r_pooled), flush=True)
+check('gin <- c(0.5, 0.3, 0.8)' in script and 'em <- NULL' in script and near(r_pooled, engine_pooled, 1e-4), 'R\'s pooled effect size from the sizes given gives the engine\'s')
+
+# the single sample z test with the population standard deviation known
+state, record, script, r, report = option_run('ZSingle', [('data', [('speed', [9.1, 10.4, 11.2, 8.7, 10.9, 9.8, 12.1, 10.2])])], {'gamma': 0.95, 'popmean': 10.0, 'popsd': 2.5})
+r_z = numbers(r, r'^Standard normal deviate \(z\) = (-?[0-9.]+)')[0]; engine_z = state['values']['z']
+print('      z with the population sd: engine %.7g, R %.7g' % (engine_z, r_z), flush=True)
+check('popsd <- 2.5' in script and 'speed[1:50]' not in script and near(r_z, engine_z, 1e-4), 'R\'s z with the population standard deviation gives the engine\'s, without the help\'s own first and last 50')
+
+# principal components of five items without the reversal correction, then of the covariance matrix
+items = [[3, 4, 5, 2, 4, 3, 5, 1, 4, 2], [2, 4, 4, 1, 5, 3, 4, 2, 3, 2], [4, 3, 2, 5, 2, 3, 1, 5, 2, 4], [1, 2, 3, 2, 4, 3, 5, 2, 4, 1], [5, 3, 4, 2, 4, 4, 5, 1, 3, 3]]
+state, record, script, r, report = option_run('PCRCorrelation', [('data', [('i%d' % (i + 1), items[i]) for i in range(5)])], {'correctForReversal': False})
+r_eigen = numbers(r, r'^[1-5] (-?[0-9.]+) '); engine_eigen = numbers(report, r'^[1-5] (-?[0-9.]+) ')
+print('      principal components: engine eigenvalues %s, R %s' % (shown(engine_eigen), shown(r_eigen)), flush=True)
+check('correct <- FALSE' in script and 'Sign was reversed' not in r and len(r_eigen) == 5 and agree(r_eigen, engine_eigen, 1e-4), 'R\'s principal components of five items without the reversal correction give the engine\'s eigenvalues')
+state, record, script, r, report = option_run('PCRCovariance', [('data', [('i%d' % (i + 1), items[i]) for i in range(5)])], {'ci': 0.95, 'correctForReversal': True})
+r_eigen = numbers(r, r'^[1-5] (-?[0-9.]+) '); engine_eigen = numbers(report, r'^[1-5] (-?[0-9.]+) ')
+print('      principal components of the covariance matrix: engine eigenvalues %s, R %s' % (shown(engine_eigen), shown(r_eigen)), flush=True)
+check('scale. = FALSE' in script and len(r_eigen) == 5 and agree(r_eigen, engine_eigen, 1e-4), 'R\'s principal components of the covariance matrix give the engine\'s eigenvalues')
+
+# the logit model with the doses as logarithms and another centile
+state, record, script, r, report = option_run('Logit', [('dose', [('dose', [1, 2, 4, 8, 16])]), ('subjects', [('subjects', [20]*5)]), ('responders', [('responders', [2, 5, 10, 15, 19])])], {'conf': 0.95, 'calc-log10-doses': True, 'nc': 0, 'nrc': 0, 'qld': 80.0})
+r_median = numbers(r, r'^Median \* Dose = (-?[0-9.]+)')[0]; r_centile = numbers(r, r'^\* Dose for centile 80 = (-?[0-9.]+)')[0]
+engine_median = state['values']['mxd']; engine_centile = state['values']['doseq']   # the report gives the doses back as doses, not their logarithms
+print('      logit with log doses: engine median %.7g and centile 80 %.7g, R %.7g and %.7g' % (engine_median, engine_centile, r_median, r_centile), flush=True)
+check('log_doses <- TRUE' in script and 'centile <- 80' in script and near(engine_median, r_median, 1e-4) and near(engine_centile, r_centile, 1e-4), 'R\'s logit on the log doses gives the engine\'s median dose and its dose for the centile chosen, as doses')
+
+# the meta-analysis of relative risks given with their standard errors
+state, record, script, r, report = option_run('MetaSummary', [('y', [('rr', [1.2, 0.8, 1.5])]), ('se_y', [('se', [0.1, 0.2, 0.15])])], {'gamma': 0.95, 'type': 'relativeRisk', 'use_ci': 'false', 'studies': None})
+r_meta = numbers(r, r'^Pooled odds ratio = (-?[0-9.]+)')[0]; engine_meta = state['values']['rmh']
+print('      relative risks with standard errors: engine pooled %.7g, R %.7g' % (engine_meta, r_meta), flush=True)
+check('se_in <- c(0.1, 0.2, 0.15)' in script and 'lower <- NULL' in script and near(r_meta, engine_meta, 1e-4), 'R\'s pooled relative risk from the standard errors given gives the engine\'s')
+
+# the proportion meta-analysis with Miller's inverse (the dialog's "Weights = n +" choice does not reach the engine, which adds 0.5 whatever is chosen)
+state, record, script, r, report = option_run('ProportionMeta', [('sn', [('n', [50, 60, 40])]), ('sr', [('r', [20, 30, 10])])], {'gamma': 0.95, 'method': 'doubleArcsine', 'strata': None})
+r_prop = numbers(r, r'^Pooled proportion = +(-?[0-9.]+)')[0]; engine_prop = state['values']['rmh']
+print('      proportions by Miller\'s inverse: engine pooled %.7g, R %.7g' % (engine_prop, r_prop), flush=True)
+check('method <- "doubleArcsine"' in script and near(r_prop, engine_prop, 1e-4), 'R\'s pooled proportion by Miller\'s inverse gives the engine\'s')
+
+# the 2 by 2 chi-square of a cohort study without the exact test
+state, record, script, r, report = option_run('Chi2by2', [], {'a': 30, 'b': 10, 'c': 20, 'd': 40, 'cco': 0.95, 'study_type': 'cohort', 'doFisher': False})
+r_rr = numbers(r, r'^Relative risk = (-?[0-9.]+)')[0]; engine_rr = numbers(report, r'^Risk ratio \(relative risk in incidence study\) = (-?[0-9.]+)')[0]
+r_koop = numbers(r, r'^Approximate \(Koopman\) 95% confidence interval = (-?[0-9.]+)')[0]; engine_koop = numbers(report, r'^Approximate \(Koopman\) 95% confidence interval = (-?[0-9.]+)')[0]
+print('      2 by 2 cohort: engine relative risk %.7g from %.7g, R %.7g from %.7g' % (engine_rr, engine_koop, r_rr, r_koop), flush=True)
+check('study <- "cohort"' in script and 'Odds Ratio =' not in r and "Fisher's Exact Test" not in r and near(r_rr, engine_rr, 1e-4) and near(r_koop, engine_koop, 1e-4), 'R\'s 2 by 2 of a cohort study gives the engine\'s relative risk and Koopman limit, with no odds ratio and no exact test')
+
+# the crossover trial with baselines
+state, record, script, r, report = option_run('Crossover', [(name, [(title, values)]) for name, title, values in [('group1drug', 'd1', [12, 15, 11, 14, 13, 16]), ('group1placebo', 'p1', [10, 12, 9, 11, 12, 13]), ('group1baseline', 'b1', [9, 11, 8, 10, 11, 12]),
+                                                                                                                 ('group2drug', 'd2', [14, 13, 15, 12, 16, 14]), ('group2placebo', 'p2', [11, 10, 12, 10, 13, 11]), ('group2baseline', 'b2', [10, 9, 11, 9, 12, 10])]], {'gamma': 0.95})
+r_cross = numbers(r, r'^diff 1 - diff 2 = (-?[0-9.]+)')[0]; engine_cross = state['values']['treatment_diff']
+print('      crossover with baselines: engine treatment difference %.7g, R %.7g' % (engine_cross, r_cross), flush=True)
+check('baseline1 <- c(9, 11, 8' in script and near(r_cross, engine_cross, 1e-4), 'R\'s crossover analysis with the baselines taken from both periods gives the engine\'s treatment difference')
+
+# the time series summary with an observation of 0 at time 0 for each subject
+ts_times = [1, 2, 4]*6; ts_obs = [5, 9, 4, 6, 10, 5, 4, 8, 3, 7, 12, 6, 5, 11, 2, 8, 9, 7]; ts_ids = [i for i in range(1, 7) for _ in range(3)]
+state, record, script, r, report = option_run('TimeSeriesSummary', [('times', [('time', ts_times)]), ('observations', [('value', ts_obs)]), ('subjectIds', [('subject', ts_ids)])],
+                                              {'ci': 0.95, 'addZeroObservationAtZeroTime': True, 'doExactP': False, 'iterations': 1000, 'seed': 1, 'groups': None})
+r_auc = numbers(r[r.index('Subject ID'):], r'^1 (?:\S+ ){5}(-?[0-9.]+) ?$')[0]; engine_auc = numbers(report[report.index('Subject ID'):], r'^1 (?:\S+ ){5}(-?[0-9.]+)$')[0]   # subject 1's line after the header: id, baseline, min, max, time to max, slope, AUC
+print('      time series with a zero at time 0: engine AUC of subject 1 %.7g, R %.7g' % (engine_auc, r_auc), flush=True)
+check('zero_at_start <- TRUE' in script and near(r_auc, engine_auc, 1e-4), 'R\'s area under the curve with the zero at time 0 gives the engine\'s')
+
+# the number needed to treat with an expected risk, and the risk analysis with a population proportion exposed and without one
+state, record, script, r, report = option_run('MiscNumberNeededToTreat', [], {'cco': 0.95, 'nc': 100.0, 'xc': 30.0, 'nt': 100.0, 'xt': 15.0, 'brr': 0.2})
+r_nnt = numbers(r, r'^NNT \[odds ratio\] = (-?[0-9.]+)')[0]; engine_nnt = numbers(report, r'^NNT \[odds ratio\] = (-?[0-9.]+)')[0]
+print('      number needed to treat at an expected risk of 20%%: engine from the odds ratio %.7g, R %.7g' % (engine_nnt, r_nnt), flush=True)
+check('brr <- 0.2' in script and 'Expected risk of event without treatment = 20%' in r and near(r_nnt, engine_nnt, 1e-4), 'R\'s number needed to treat from the odds ratio at the expected risk given gives the engine\'s')
+state, record, script, r, report = option_run('MiscRelRisk', [], {'a': 72, 'b': 20, 'c': 684, 'd': 553, 'pe': 0.4, 'cco': 0.95})
+r_par = numbers(r, r'^Population attributable risk % = (-?[0-9.]+)')[0]; engine_par = numbers(report, r'^Population attributable risk % = (-?[0-9.]+)')[0]
+print('      attributable risk with 40%% exposed: engine %.7g, R %.7g%%' % (engine_par, r_par), flush=True)
+check('pe <- 0.4' in script and (near(r_par, engine_par, 1e-4) or near(r_par, 100 * engine_par, 1e-4)), 'R\'s population attributable risk with the proportion exposed given gives the engine\'s')
+state, record, script, r, report = option_run('MiscRelRisk', [], {'a': 72, 'b': 20, 'c': 684, 'd': 553, 'pe': None, 'cco': 0.95})
+check('pe' not in record['parameters'] and 'pe <- NULL   # the run had no pe' in script and 'Population exposure %' in report, 'a setting the run skipped is NULL in the script, with a note, and the engine worked the exposure out from the table')
+
+# the reference range of more than 200 values with the conservative limits
+big = [50 + 8 * math.sin(i * 0.7) + 3 * math.cos(i * 1.9) + (i % 7) for i in range(250)]
+state, record, script, r, report = option_run('ReferenceRange', [('data', [('x', big)])], {'gamma': 0.95, 'reference-interval': 0.95, 'do_conservative': True})
+r_cons = numbers(r, r'^Approximate 95% confidence interval \(conservative\) = (-?[0-9.]+) to'); engine_from_any = state['values']['from_any']
+print('      reference range, conservative lower limits: engine %.7g, R %s' % (engine_from_any, shown(r_cons)), flush=True)
+check('conservative <- TRUE' in script and len(r_cons) == 2 and near(r_cons[0], engine_from_any, 1e-6), 'R\'s conservative confidence limit of the lower quantile of a reference range gives the engine\'s')
+
+# the abridged life table with utility weights: the adjusted expectation of life (a cohort that halves within the table, so that it has a median)
+state, record, script, r, report = option_run('AbridgedLifetable', [('intervals', [('n', [1, 4, 5, 10])]), ('population', [('P', [1000, 4000, 5000, 9000, 8000])]), ('deaths', [('D', [50, 40, 100, 1500, 4000])]), ('weights', [('u', [1, 1, 0.9, 0.8, 0.7])])],
+                                              {'gamma': 0.95, 'save': False, 'iterations': '10000', 'fractions': None})
+r_adjusted = numbers(r, r'^0 to 1 \d+ (-?[0-9.]+) ?$')[-1]; engine_adjusted = numbers(report[report.index('Adjusted (u) expectation'):], r'^0 to 1 (-?[0-9.]+)$')[0]
+print('      life table with utility weights: engine adjusted expectation at birth %.7g, R %.7g' % (engine_adjusted, r_adjusted), flush=True)
+check('u <- c(1, 1, 0.9, 0.8, 0.7)' in script and near(r_adjusted, engine_adjusted, 1e-4), 'R\'s adjusted expectation of life with the utility weights gives the engine\'s')
+
+# the universal agreement coefficient with observer 2 as the reference standard (the pick from the list of observers, as the form sends it)
+measure = [1.2, 1.4, 1.1, 1.3, 1.5, 1.3, 1.5, 1.0, 1.4, 1.6, 1.1, 1.3, 1.2, 1.2, 1.4]; raters = [1]*5 + [2]*5 + [3]*5; objects = [1, 2, 3, 4, 5]*3
+state, record, script, r, report = option_run('UniversalAgreement', [('data', [('measure', measure)]), ('raters', [('rater', raters)]), ('objects', [('object', objects)])], {'categories': None, 'reference': [False, True, False]})
+r_r = numbers(r, r'^Agreement coefficient R: (-?[0-9.]+)'); engine_r = state['values'].get('R', numbers(report, r'^Agreement coefficient R: (-?[0-9.]+)') + [None])[0] if 'R' not in state['values'] else state['values']['R']
+print('      agreement with observer 2 as the reference: engine R %s, R %s' % (engine_r, shown(r_r)), flush=True)
+check(record['parameters']['reference'] == [False, True, False] and 'reference <- list(FALSE, TRUE, FALSE)' in script and 'Reference standard: Observer 2' in r and len(r_r) == 2 and engine_r is not None and near(r_r[1], engine_r, 1e-4),
+      'the record keeps the observer marked as the reference, and R\'s agreement coefficient with that observer as the reference gives the engine\'s')
+
+# --- intervals at the run's confidence level, as tests/RScript/Options3.cs checks them (the reviewer's recheck: intervals the recipes had
+# fixed at 95%, and a predictor whose title has a space): each run goes through the engine at 90% or 99%, with the exact methods of the
+# meta-analyses on where the exact limits are compared, and the limits R prints are compared with the engine's
+def pair_of(text, pattern):
+    m = re.search(pattern, text, re.M)
+    if not m: raise AssertionError('FAIL R did not print ' + pattern)
+    return float(m.group(1)), float(m.group(2))
+def engine_pair(state, report, keys, pattern):
+    """The engine's limits: its scalar outputs under the keys, else the report line the pattern finds."""
+    if all(k in state['values'] for k in keys): return state['values'][keys[0]], state['values'][keys[1]]
+    return pair_of(report, pattern)
+def interval(what, script, setting, r_pair, engine, rel=1e-4):
+    print('      %s: engine %.7g to %.7g, R %.7g to %.7g' % (what, engine[0], engine[1], r_pair[0], r_pair[1]), flush=True)
+    check(setting in script and near(r_pair[0], engine[0], rel) and near(r_pair[1], engine[1], rel), 'R\'s %s are the engine\'s at the run\'s level' % what)
+def exact_run(operation, inputs, settings):
+    """A run with the meta-analyses' exact methods on, as the Windows checking host's MetaExact preference."""
+    example = {'operation': operation, 'inputs': [{'name': name, 'columns': columns_of(*pairs)} for name, pairs in inputs], 'settings': settings}
+    state = run_example(s, example, extra=settings, preferences={'use-default-ci': False, 'meta-exact': True}); script = rs.write(state['record'], None, [])
+    if not script['hasRecipe']: raise AssertionError('%s: the run\'s script has no recipe' % operation)
+    return state, json.loads(state['record']), script['text'], run_r(script['text']), report_text(state.get('html'))
+# Poisson regression at 99%
+state, record, script, r, report = option_run('PoissonRegression', [('response', [('counts', counts)]), ('exposure', [('exposure', exposure)]), ('predictors', [('xp', xp)])],
+                                              {'gamma': 0.99, 'grouping': 'individual', 'accuracy': '0.0000001', 'intercept': True, 'weights': False, 'has-exposure': 'true'})
+interval('Poisson rate ratio limits at 99%', script, 'confidence <- 0.99', pair_of(r, r'^xp -?[0-9.]+ -?[0-9.]+ (-?[0-9.]+) to (-?[0-9.]+)'), pair_of(report, r'^xp b\d+ = -?[0-9.]+ -?[0-9.]+ (-?[0-9.]+) to (-?[0-9.]+)'))
+# conditional logistic regression at 99%, with a predictor whose title has a space
+state, record, script, r, report = option_run('ConditionalLogisticRegression', [('stratum', [('pair', pair)]), ('case-control', [('case', case_control)]), ('predictors', [('Smoking status', exposure1)])],
+                                              {'gamma': 0.99, 'accuracy': '0.0000001', 'show-counts': False})
+interval('conditional logistic odds ratio limits at 99%, for a predictor titled with a space', script, 'confidence <- 0.99', pair_of(r, r'^`?Smoking status`? -?[0-9.]+ (-?[0-9.]+) to (-?[0-9.]+)'), pair_of(report, r'^Smoking status -?[0-9.]+ (-?[0-9.]+) to (-?[0-9.]+)$'))
+# simple linear regression at 90%
+state, record, script, r, report = option_run('SimpleLinearRegression', [('y', [('increase', [15, 14, 12, 11, 10, 8, 7, 6])]), ('x', [('weight', [2.1, 2.5, 2.8, 3.0, 3.2, 3.5, 3.8, 4.1])])], {'gamma': 0.9})
+interval('slope limits at 90%', script, 'confidence <- 0.9', pair_of(r, r'^90% CI for population value of slope = (-?[0-9.]+) to (-?[0-9.]+)'), engine_pair(state, report, ('se_from', 'se_to'), r'^90% CI for population value of slope = (-?[0-9.]+) to (-?[0-9.]+)'))
+# the Mann-Whitney test at 90% (R names the level the exact interval reaches)
+state, record, script, r, report = option_run('MannWhitney', [('data', [('farm', [14.8, 7.3, 5.6, 6.3, 9.0, 4.2, 10.6, 12.5, 12.9, 16.1]), ('town', [12.7, 14.2, 12.6, 2.1, 17.7, 11.8, 16.9, 7.9, 16.0, 10.5])])], {'gamma': 0.9})
+interval('Mann-Whitney difference limits at 90%', script, 'confidence <- 0.9', pair_of(r, r'[0-9.]+ percent confidence interval:\s*\n\s*(-?[0-9.]+)\s+(-?[0-9.]+)'), engine_pair(state, report, ('from', 'to'), r'^K = \d+ Median difference = -?[0-9.]+ \(CI: (-?[0-9.]+) to (-?[0-9.]+)\)$'))   # the report's line for the difference's limits
+# the diagnostic test at 90%
+state, record, script, r, report = option_run('MiscDiagnostic', [], {'cco': 0.9, 'a': 40, 'b': 10, 'c': 15, 'd': 60})
+interval('exact odds ratio limits of the diagnostic test at 90%', script, 'confidence <- 0.9', pair_of(r, r'^Conditional maximum likelihood estimate = -?[0-9.]+ \((-?[0-9.]+) to (-?[0-9.]+)\)'), engine_pair(state, report, ('cmle_from', 'cmle_to'), r'^Conditional maximum likelihood estimate = -?[0-9.]+ \((-?[0-9.]+) to (-?[0-9.]+)\)'))
+# agreement of three raters at 90%
+state, record, script, r, report = option_run('Agreement', [('data', [('first', [10, 12, 14, 9, 11, 13, 15, 8]), ('second', [11, 12, 13, 10, 11, 14, 14, 9]), ('third', [9, 13, 14, 9, 12, 12, 16, 8])])], {'ci': 0.9})
+interval('intraclass correlation limits at 90%', script, 'confidence <- 0.9', pair_of(r, r'\(90% CI = (-?[0-9.]+) to (-?[0-9.]+) \)'), engine_pair(state, report, ('icc_lcl', 'icc_ucl'), r'90% CI = (-?[0-9.]+) to (-?[0-9.]+)'))
+# the proportion meta-analysis at 90%: each study's exact limits
+state, record, script, r, report = option_run('ProportionMeta', [('sn', [('n', [50, 60, 40])]), ('sr', [('r', [20, 30, 10])])], {'gamma': 0.9, 'method': 'arcsine', 'strata': None})
+interval('first study\'s proportion limits at 90%', script, 'confidence <- 0.9', pair_of(r, r'^ *1 +-?[0-9.]+ +(-?[0-9.]+) +(-?[0-9.]+) '), pair_of(report[report.index('Proportion 90% CI'):], r'^1 -?[0-9.]+ (-?[0-9.]+) (-?[0-9.]+)$'))
+# the incidence rate ratio meta-analysis at 90%: the exact limits (small counts, within the reach of the exact method)
+state, record, script, r, report = exact_run('MetaIncidenceRateRatio', [('a', [('a', [4, 3, 5])]), ('pt1', [('pt1', [1000, 800, 1200])]), ('b', [('b', [2, 3, 2])]), ('pt2', [('pt2', [1100, 900, 1300])])], {'gamma': 0.9, 'strata': None})
+interval('exact limits of the pooled rate ratio at 90%', script, 'confidence <- 0.9', pair_of(r, r'^Exact Fisher 90% confidence interval = (-?[0-9.]+) to (-?[0-9.]+)'), engine_pair(state, report, ('llf', 'ulf'), r'^Exact Fisher 90% confidence interval = (-?[0-9.]+) to (-?[0-9.]+)'))
+# the effect size meta-analysis at 90%: the first study's exact limits (of g, with the correction J) and approximate limits (of d), and the
+# inconsistency's limits, which are the non-central ones only with the exact preference on
+state, record, script, r, report = exact_run('Effect', [('en', [('en', en)]), ('em', [('em', em)]), ('es', [('es', es)]), ('cn', [('cn', cn)]), ('cm', [('cm', cm)]), ('cs', [('cs', cs)])], {'gamma': 0.9, 'type': 'd', 'strata': None})
+interval('first study\'s exact effect size limits at 90%', script, 'confidence <- 0.9', pair_of(r, r'^ *Trial 1 +-?[0-9.]+ +-?[0-9.]+ +(-?[0-9.]+) +(-?[0-9.]+)'), pair_of(report[report.index('Exact 90% CI'):], r'^1 -?[0-9.]+ -?[0-9.]+ (-?[0-9.]+) (-?[0-9.]+)$'))
+interval('first study\'s approximate effect size limits at 90%', script, 'confidence <- 0.9', pair_of(r, r'^ *Trial 1 +\d+ +\d+ +-?[0-9.]+ +(-?[0-9.]+) +(-?[0-9.]+)'), pair_of(report[report.index('Approximate 90% CI'):], r'^1 \d+ \d+ -?[0-9.]+ (-?[0-9.]+) (-?[0-9.]+)$'))
+INCONSISTENCY = r'^I(?:²|2|-squared) \(inconsistency\) = -?[0-9.]+% \( ?90% ?CI = (-?[0-9.]+)% to (-?[0-9.]+)% ?\)'   # the report's line, to the decimal place it prints, as R's
+i_low, i_high = pair_of(r, r'^I-squared \(inconsistency\) = -?[0-9.]+% \(90% ?CI = (-?[0-9.]+)% to (-?[0-9.]+)%\)'); engine_i = engine_pair(state, report, ('llisq', 'ulisq'), INCONSISTENCY)
+print('      inconsistency limits at 90%%: engine %.7g%% to %.7g%%, R %s%% to %s%%' % (engine_i[0], engine_i[1], i_low, i_high), flush=True)
+check(abs(round(engine_i[0], 1) - i_low) < 1e-9 and abs(round(engine_i[1], 1) - i_high) < 1e-9, 'R\'s inconsistency limits of the effect size meta-analysis are the engine\'s at the run\'s level, to the decimal place R prints')
+# the Mantel-Haenszel analysis at 90%: the inconsistency's limits
+state, record, script, r, report = exact_run('Mantel', [('sn', [('sn', [100, 120, 90])]), ('sr', [('sr', [30, 45, 20])]), ('xn', [('xn', [110, 100, 95])]), ('xr', [('xr', [20, 25, 18])])], {'gamma': 0.9, 'strata': None})
+i_low, i_high = pair_of(r, r'^I2 \(inconsistency\) = -?[0-9.]+% \(90% ?CI = (-?[0-9.]+)% to (-?[0-9.]+)%\)'); engine_i = engine_pair(state, report, ('llisq', 'ulisq'), INCONSISTENCY)
+print('      Mantel-Haenszel inconsistency limits at 90%%: engine %.7g%% to %.7g%%, R %s%% to %s%%' % (engine_i[0], engine_i[1], i_low, i_high), flush=True)
+check('confidence <- 0.9' in script and abs(round(engine_i[0], 1) - i_low) < 1e-9 and abs(round(engine_i[1], 1) - i_high) < 1e-9, 'R\'s inconsistency limits of the Mantel-Haenszel analysis are the engine\'s at the run\'s level, to the decimal place R prints')
+
+# records built from an example, for the operations that run R themselves or whose prompts the Windows harness cannot answer
+script, r = built({'operation': 'LOESS', 'inputs': [{'name': 'outcome', 'columns': columns_of(('y', [3.1, 4.2, 5.9, 7.1, 8.8, 9.9, 12.2, 13.1, 15.3, 16.8]))},
+                                                     {'name': 'predictors', 'columns': columns_of(('x1', list(range(1, 11))), ('Age (years)', [30, 35, 41, 28, 52, 47, 60, 33, 45, 58]))}],
+                   'settings': {'span': 0.9, 'degree': '1', 'model': 'y~x1+age..years.', 'title': 'A fit', 'xlab': 'x1', 'ylab': 'y'}})
+check('model <- "y~x1+age..years."' in script and 'Equivalent Number of Parameters' in r and re.search(r'y ~ x1 \+ age\.\.years\.', r), 'the LOESS script fits the run\'s formula over its two predictors, named as the program names them for R')
+script, r = built({'operation': 'MethodComparisonRegression', 'inputs': [{'name': 'testData', 'columns': columns_of(('test', [1.1, 2.3, 2.9, 4.2, 5.1, 5.8, 7.2, 8.1, 8.8, 10.3, 11.1, 12.4]))},
+                                                                          {'name': 'referenceData', 'columns': columns_of(('reference', list(range(1, 13))))}],
+                   'settings': {'error-ratio': 1, 'ci': 0.95, 'seed': 3, 'do.deming.jackknife': False, 'do.deming.analytical': True}})
+check('do.deming.analytical <- TRUE' in script and re.search(r'^Slope: ', r, re.M) and 'jackknife' not in r, 'the method comparison script runs the regression the run chose, the Deming line with Wald limits, and not the help\'s jackknife')
+# the same through the engine, which records the regressions as one boolean under each option's name, as the dialog fills them
+MCR_OPTIONS = ('do.deming.jackknife', 'do.deming.bootstrap', 'do.deming.analytical', 'do.wdeming.jackknife', 'do.wdeming.nestedbootstrap', 'do.paba', 'do.paba.nestedbootstrap', 'do.pabalarge', 'do.pabalarge.nestedbootstrap')
+state, record, script, r, report = option_run('MethodComparisonRegression', [('testData', [('test', [1.1, 2.3, 2.9, 4.2, 5.1, 5.8, 7.2, 8.1, 8.8, 10.3, 11.1, 12.4])]), ('referenceData', [('reference', list(range(1, 13)))])],
+                                              {'error-ratio': 1.0, 'ci': 0.95, 'seed': 3, 'saveRScript': False, **{name: name == 'do.deming.analytical' for name in MCR_OPTIONS}})
+r_slope = numbers(r, r'^Slope: (-?[0-9.]+) ')[0]; engine_slope = state['values']['slope'] if is_number(state['values'].get('slope')) else numbers(report, r'^Slope:? +(-?[0-9.]+)')[0]
+print('      method comparison through the engine: engine slope %.7g, R %.7g' % (engine_slope, r_slope), flush=True)
+check('do.deming.analytical <- TRUE' in script and 'do.paba <- FALSE' in script and near(r_slope, engine_slope, 1e-4), 'a real method comparison run\'s script runs the regression the run ticked and gives the engine\'s slope')
+script, r = built({'operation': 'LinearizedEstimates', 'data': columns_of(('kwh', [2, 4, 9, 16, 26, 38]), ('size', [1, 2, 3, 4, 5, 6])), 'settings': {'model': '1'}})
+check('The model fitted in StatsDirect: Geometric / power' in r, 'the linearized estimates script names the model the run chose')
+# a real normal plot run records no score method (it is asked in the chart options): the script draws the default and keeps the help's
+# remark on its own example to that example
+state, record, script, r, report = option_run('NormalPlot', [('X', [('pimax', [40, 55, 62, 70, 76, 81, 88, 95, 103, 120])])], {})
+check('method <- "1"' in script and '"2" = blom' in script and 'van der Waerden scores from' in r and 'The four values of 75' not in r, 'a real normal plot run, which records no score method, has a script that draws the default scores and keeps the help\'s remark on its example to that example')
+script, r = built({'operation': 'UnivariateSummary', 'data': columns_of(('speed', [12, 15, 11, 19, 22, 14, 30, 25, 17, 21, 16, 18])), 'settings': {'gamma': 0.95, 'report-udca': 0.1, 'report-udcb': 0.9}})
+check('Centile 90 ' in r and 'Centile 10 ' in r and 'Centile 95' not in r, 'the summary\'s script gives the two centiles the run chose')
 
 # --- the inverse records of the Distributions calculator, as Inverse.cs checks them: every figure printed is among the help script's
 INVERSE = [('DistributionNormal', {'upper': 0.025, 'asked': 'invert-upper'}), ('DistributionNormal', {'lower': 0.975, 'asked': 'invert-lower'}), ('DistributionNormal', {'two_sided': 0.05, 'asked': 'invert-two-sided'}),

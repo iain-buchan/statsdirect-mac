@@ -1,1 +1,1 @@
-{"operation":"MiscRelRisk","file":"risk-prospective.R","table":{"counts":[[72,20],[684,553]],"rowLabels":["Yes","No"],"columnLabels":["220 or more","Under 220"],"rowsTitle":"CHD","columnsTitle":"Cholesterol"},"settings":{"cco":0.95}}
+{"operation":"MiscRelRisk","file":"risk-prospective.R","table":{"counts":[[72,20],[684,553]],"rowLabels":["Yes","No"],"columnLabels":["220 or more","Under 220"],"rowsTitle":"CHD","columnsTitle":"Cholesterol"},"settings":{"cco":0.95,"pe":null}}

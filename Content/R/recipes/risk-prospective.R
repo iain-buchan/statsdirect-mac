@@ -1,7 +1,7 @@
 # StatsDirect recipe: Risk in a prospective study (2 by 2), as the help shows it in R.
 # From the help's R code (clinical_epidemiology/risk_prospective.htm); the data and settings above come from the run.
 # table: counts
-# settings: confidence = cco
+# settings: confidence = cco, pe = pe
 
 # Risk (prospective): the StatsDirect help example (Sahai and Khurshid 1996, coronary
 # heart disease after six years in 1329 Framingham men aged 40 to 59, by serum
@@ -106,7 +106,7 @@ cat("Approximate (Miettinen)", pct, "confidence interval =", six(mn[1]), "to", s
 # the same as 1 - (b / (b + d)) / ((a + b) / n): the share of the overall incidence
 # that would go if the whole cohort had the rate of the unexposed. Its large sample
 # variance is Walter's (1978). All three are printed as percentages.
-px <- n1 / n
+px <- if (is.null(pe)) n1 / n else pe   # the population proportion exposed when one was given
 par <- px * (rr - 1) / (1 + px * (rr - 1))
 var_par <- b * n * (a * d * (n - b) + b^2 * c) / (m1^3 * n2^3)
 cat("Population exposure % =", six(100 * px), "\n")

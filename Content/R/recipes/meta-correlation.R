@@ -73,7 +73,7 @@ ncp_limit <- function(p) {
   # the bracket Q + 1000 is ample: the distribution function there is near 0
   uniroot(function(l) pchisq(Q, df, ncp = l) - p, c(0, Q + 1000), tol = 1e-10)$root
 }
-lambda <- c(ncp_limit(0.975), ncp_limit(0.025))
+lambda <- c(ncp_limit((1 + confidence) / 2), ncp_limit((1 - confidence) / 2))
 i2_ci <- 100 * lambda / (df + lambda)
 cat("I-squared (inconsistency) = ", one(max(0, 100 * (Q - df) / Q)), "% (", pct, "CI = ",
     one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")

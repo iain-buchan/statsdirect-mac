@@ -1,7 +1,8 @@
-# StatsDirect recipe: Normal, as the help shows it in R.
+# StatsDirect recipe: Normal plot with the scores of the method chosen, as the help shows it in R.
 # From the help's R code (graphics/normal.htm); the data and settings above come from the run.
 # data: pimax
 
+method <- "1"   # the score method: 1 van der Waerden (the chart options' default, which the run does not record), 2 Blom, 3 expected normal order
 # Normal plot: an illustration for the StatsDirect help (maximal static inspiratory
 # pressure, PImax, of 25 patients with cystic fibrosis, Altman 1991; the test
 # workbook's Graphics worksheet column "PImax (cm H2O)") in R
@@ -30,7 +31,7 @@ pv <- function(p) {
 cat("Sample size =", n, "\n")
 cat("van der Waerden scores from", six(min(vdw)), paste0("(PImax ", min(pimax), ")"),
     "to", six(max(vdw)), paste0("(PImax ", max(pimax), ")"), "\n")
-cat("The four values of 75 have rank", r[pimax == 75][1], "and score",
+if (any(pimax == 75)) cat("The four values of 75 have rank", r[pimax == 75][1], "and score",
     six(vdw[pimax == 75][1]), "\n")
 
 # The other score methods offered in the chart options: Blom's scores, the
@@ -45,6 +46,9 @@ enos <- function(r, n) {
 eno <- sapply(round(r), enos, n = n)
 cat("Blom scores from", six(min(blom)), "to", six(max(blom)), "\n")
 cat("Expected normal order scores from", six(min(eno)), "to", six(max(eno)), "\n")
+# The plot of the scores the run chose (1 van der Waerden, 2 Blom, 3 expected normal order)
+chosen <- switch(as.character(method), "2" = blom, "3" = eno, vdw)
+plot(chosen, pimax, xlab = paste0("Normal scores (", c("1" = "van der Waerden", "2" = "Blom", "3" = "expected normal order")[as.character(method)], ")"), ylab = "Observed", main = "Normal plot")
 
 # With scaled normal scores selected in the chart options the scores are put on
 # the scale of the data (mean + score * SD, with SD taken over n) and the line of

@@ -1,6 +1,6 @@
 # StatsDirect recipe: Cox proportional hazards regression, as the help shows it in R.
 # From the help's R code (survival_analysis/cox_regression.htm); the data and settings above come from the run.
-# data: time = times, censor = events, predictors... = predictors
+# data: time = times, censor = events, predictors... = predictors, stratum = strata
 
 # Cox (proportional hazards) regression: the StatsDirect help example (Armitage and
 # Berry 1994, survival in days of lymphoma patients by stage of disease; the test
@@ -13,7 +13,8 @@ library(survival)
 # gives b = 0.961322 here). The report's z and P are the Wald test of each
 # coefficient, its deviance chi-square is R's likelihood ratio test, and its hazard
 # ratio and 95% limits are exp(coef) with the lower .95 and upper .95 limits.
-fit <- coxph(Surv(time, censor) ~ ., data = as.data.frame(predictors), ties = "breslow")
+fit <- if (is.null(stratum)) coxph(Surv(time, censor) ~ ., data = as.data.frame(predictors), ties = "breslow") else
+  coxph(Surv(time, censor) ~ . - sd_stratum + strata(sd_stratum), data = cbind(as.data.frame(predictors), sd_stratum = stratum), ties = "breslow")
 print(summary(fit))
 
 # The report's lines to 6 places
@@ -29,15 +30,14 @@ cat(fit$n, "subjects with", fit$nevent, "events\n")
 cat("Deviance (likelihood ratio) chi-square =", six(dev), " df =", df, " ",
     pv(pchisq(dev, df, lower.tail = FALSE)), "\n")
 s <- summary(fit)$coefficients
-cat(paste(names(predictors)[1], "b1 ="), six(s[1, "coef"]), " z =", six(s[1, "z"]), " ",
-    pv(s[1, "Pr(>|z|)"]), "\n")
+for (i in seq_len(nrow(s))) cat(paste(rownames(s)[i], paste0("b", i, " =")), six(s[i, "coef"]), " z =", six(s[i, "z"]), " ", pv(s[i, "Pr(>|z|)"]), "\n")
 
 # Hazard ratios: exp of the coefficient, with Wald limits on the log scale
-half <- qnorm(0.975) * s[1, "se(coef)"]
-cat(paste(names(predictors)[1], "hazard ratio ="), six(exp(s[1, "coef"])), " 95% CI =",
-    six(exp(s[1, "coef"] - half)), "to", six(exp(s[1, "coef"] + half)), "\n")
-cat(paste(names(predictors)[1], "coefficient ="), six(s[1, "coef"]), " standard error =",
-    six(s[1, "se(coef)"]), "\n")
+for (i in seq_len(nrow(s))) {
+  half <- qnorm(0.975) * s[i, "se(coef)"]
+  cat(paste(rownames(s)[i], "hazard ratio ="), six(exp(s[i, "coef"])), " 95% CI =", six(exp(s[i, "coef"] - half)), "to", six(exp(s[i, "coef"] + half)), "\n")
+  cat(paste(rownames(s)[i], "coefficient ="), six(s[i, "coef"]), " standard error =", six(s[i, "se(coef)"]), "\n")
+}
 
 # Model analysis: the log likelihoods and their deviance chi-square
 cat("Log likelihood with no covariates =", six(ll[1]), "\n")
@@ -52,8 +52,10 @@ cat("Deviance (likelihood ratio) chi-square =", six(dev), " df =", df, " ",
 # In R these are survfit's stype = 1 and ctype = 1 at that covariate value. R's
 # direct estimate agrees with the report's to 6 places here, though the two can
 # differ at a time when everyone still at risk dies at the same time.
+if (is.null(stratum)) {   # the baseline of a stratified model is a curve for each stratum, which the report does not give
 base <- survfit(fit, newdata = as.data.frame(lapply(predictors, function(v) 0)), stype = 1, ctype = 1)
 at_event <- base$n.event > 0
 cat("First baseline rows: time, survival probability, cumulative hazard\n")
-print(data.frame(time = base$time[at_event], survival = six(base$surv[at_event]),
-                 hazard = six(base$cumhaz[at_event]))[1:5, ], row.names = FALSE)
+print(head(data.frame(time = base$time[at_event], survival = six(base$surv[at_event]),
+                 hazard = six(base$cumhaz[at_event])), 5), row.names = FALSE)
+}

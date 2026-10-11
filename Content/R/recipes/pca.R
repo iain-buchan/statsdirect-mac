@@ -1,21 +1,24 @@
 # StatsDirect recipe: Principal components and scale reliability, as the help shows them in R.
 # From the help's R code (regression_and_correlation/pca.htm); the data and settings above come from the run.
 # data: q... = data
+# settings: correct = correctForReversal
 
 q <- as.data.frame(q)
 # Principal components and scale reliability: the StatsDirect help example (four
 # questionnaire items answered by 60 people) in R. The data are the test workbook's
 # Agreement worksheet columns Question 1 to 4.
-names(q) <- paste("Question", 1:4)
+if (is.null(names(q)) || any(names(q) == "")) names(q) <- paste("Item", seq_along(q))
 
 # Items that load on the first component with the opposite sign to the first item
 # are reversed, as the report did for questions 3 and 4, so that all the items
 # point the same way (a component's sign is arbitrary, so the first item fixes
 # it); then R's standard principal components analysis of the correlation matrix
-loading1 <- prcomp(q, scale. = TRUE)$rotation[, 1]
-reversed <- names(q)[sign(loading1) != sign(loading1[1])]
-cat("Sign was reversed for:", paste(reversed, collapse = "; "), "\n")
-for (item in reversed) q[[item]] <- max(q[[item]]) + min(q[[item]]) - q[[item]]
+if (isTRUE(correct)) {   # items whose first loading has the other sign are reversed, when the run asked
+  loading1 <- prcomp(q, scale. = TRUE)$rotation[, 1]
+  reversed <- names(q)[sign(loading1) != sign(loading1[1])]
+  cat("Sign was reversed for:", paste(reversed, collapse = "; "), "\n")
+  for (item in reversed) q[[item]] <- max(q[[item]]) + min(q[[item]]) - q[[item]]
+}
 pc <- prcomp(q, scale. = TRUE)
 print(summary(pc))
 

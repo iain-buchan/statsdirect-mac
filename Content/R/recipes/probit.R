@@ -1,8 +1,11 @@
 # StatsDirect recipe: Probit Model, as the help shows it in R.
 # From the help's R code (regression_and_correlation/probit_analysis.htm); the data and settings above come from the run.
 # data: age, girls, menses
-# settings: confidence = conf
+# settings: confidence = conf, log_doses = calc-log10-doses, nc = nc, nrc = nrc, centile = qld
 
+if (isTRUE(log_doses)) age <- log10(age)   # the doses as logarithms, as the run asked; the doses found are given back as doses
+back <- if (isTRUE(log_doses)) function(v) 10^v else identity
+if (!is.null(nc) && !is.null(nrc) && nc > 0 && nrc > 0) cat("NOTE: the report allows for the natural response of", nrc, "of", nc, "controls; this script fits the responses as they are\n")
 # Probit analysis, logit model: the StatsDirect help example (Finney 1971, age at
 # menarche of 3918 Warsaw girls) in R
 
@@ -40,12 +43,12 @@ fieller <- function(p, conf = 0.95) {
   centre <- m + g * (m + v[1, 2] / v[2, 2]) / (1 - g)
   c(centre - half / (1 - g), centre + half / (1 - g))
 }
-cat("Median * Dose =", six(dose_for(0.5)), "\n")
-cat("Confidence interval (No Heterogeneity) =", six(fieller(0.5)[1]), "to",
-    six(fieller(0.5)[2]), "\n")
-cat("* Dose for centile 90 =", six(dose_for(0.9)), "\n")
-cat("Confidence interval (No Heterogeneity) =", six(fieller(0.9)[1]), "to",
-    six(fieller(0.9)[2]), "\n")
+cat("Median * Dose =", six(back(dose_for(0.5))), "\n")
+cat("Confidence interval (No Heterogeneity) =", six(back(fieller(0.5)[1])), "to",
+    six(back(fieller(0.5)[2])), "\n")
+cat("* Dose for centile", centile, "=", six(back(dose_for(centile / 100))), "\n")
+cat("Confidence interval (No Heterogeneity) =", six(back(fieller(centile / 100)[1])), "to",
+    six(back(fieller(centile / 100)[2])), "\n")
 
 # Heterogeneity of the observed proportions about the fitted curve: Pearson's
 # chi-square with n - 2 degrees of freedom; the test of the slope is b over its

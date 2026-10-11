@@ -1,7 +1,7 @@
 # StatsDirect recipe: Effect size meta-analysis, as the help shows it in R.
 # From the help's R code (meta_analysis/effect_size.htm); the data and settings above come from the run.
-# data: en = en, em = em, es = es, cn = cn, cm = cm, cs = cs, trial = strata
-# settings: confidence = gamma
+# data: en = en, em = em, es = es, cn = cn, cm = cm, cs = cs, gin = g, trial = strata
+# settings: confidence = gamma, type = type
 
 if (is.null(trial)) trial <- paste("Trial", seq_along(en))
 # Effect size meta-analysis: the StatsDirect help example (Freemantle, personal
@@ -22,11 +22,13 @@ pv <- function(p) {
 }
 n <- en + cn
 m <- n - 2
-s <- sqrt(((en - 1) * es^2 + (cn - 1) * cs^2) / m)
-g <- (em - cm) / s
+if (type == "g") g <- gin else {   # the effect sizes given, or from the means and standard deviations
+  s <- sqrt(((en - 1) * es^2 + (cn - 1) * cs^2) / m)
+  g <- (em - cm) / s
+}
 J <- ifelse(m < 200, exp(lgamma(m / 2) - lgamma((m - 1) / 2)) / sqrt(m / 2),
             1 - 3 / (4 * m - 1))
-d <- J * g
+d <- if (type == "m") em - cm else J * g   # the weighted mean difference is the difference itself
 z <- qnorm((1 + confidence) / 2)
 
 # The approximate confidence interval for d uses its large sample variance. The
@@ -37,7 +39,7 @@ z <- qnorm((1 + confidence) / 2)
 # 97.5th or the 2.5th percentile, found with uniroot and pt. R's pt is accurate
 # for noncentrality parameters up to 37.62 (see its help page); here the largest is
 # under 5, so a guard is only needed for a very large trial with a large effect
-vard <- n / (en * cn) + d^2 / (2 * n)
+vard <- if (type == "m") es^2 / en + cs^2 / cn else n / (en * cn) + d^2 / (2 * n)
 lcid <- d - z * sqrt(vard)
 ucid <- d + z * sqrt(vard)
 scale <- sqrt(en * cn / n)
@@ -45,11 +47,13 @@ ncp_limit <- function(t, df, hw, p) {
   f <- function(nc) pt(t, df, ncp = nc) - p
   uniroot(f, if (p > 0.5) c(t - 2 * hw, t) else c(t, t + 2 * hw), tol = 1e-10)$root
 }
+if (type != "m") {   # the exact limits and the table of g: not for a mean difference
 hw <- z * sqrt(vard) * scale
-lcig <- mapply(ncp_limit, g * scale, m, hw, 0.975) / scale
-ucig <- mapply(ncp_limit, g * scale, m, hw, 0.025) / scale
+lcig <- mapply(ncp_limit, g * scale, m, hw, (1 + confidence) / 2) / scale
+ucig <- mapply(ncp_limit, g * scale, m, hw, (1 - confidence) / 2) / scale
 print(data.frame(trial, J = six(J), g = six(g), exact_lower = six(lcig),
                  exact_upper = six(ucig)), row.names = FALSE)
+}
 print(data.frame(trial, en, cn, d = six(d), approx_lower = six(lcid),
                  approx_upper = six(ucid)), row.names = FALSE)
 
@@ -79,7 +83,7 @@ ncp_chisq <- function(p) {
   uniroot(function(lambda) pchisq(Q, df, ncp = lambda) - p, c(0, 10 * Q + 100),
           tol = 1e-10)$root
 }
-lambda_ci <- c(ncp_chisq(0.975), ncp_chisq(0.025))
+lambda_ci <- c(ncp_chisq((1 + confidence) / 2), ncp_chisq((1 - confidence) / 2))
 isq_ci <- 100 * lambda_ci / (df + lambda_ci)
 pc1 <- function(x) formatC(x, digits = 1, format = "f", drop0trailing = TRUE)
 cat("Non-combinability of studies\n")

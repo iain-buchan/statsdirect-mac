@@ -1,8 +1,10 @@
 # StatsDirect recipe: Crossover trial analysis, as the help shows it in R.
 # From the help's R code (analysis_of_variance/crossover.htm); the data and settings above come from the run.
-# data: drug1 = group1drug, placebo1 = group1placebo, drug2 = group2drug, placebo2 = group2placebo
+# data: drug1 = group1drug, placebo1 = group1placebo, baseline1 = group1baseline, drug2 = group2drug, placebo2 = group2placebo, baseline2 = group2baseline
 # settings: confidence = gamma
 
+if (!is.null(baseline1)) { drug1 <- drug1 - baseline1; placebo1 <- placebo1 - baseline1 }   # a baseline, when given, is taken from both periods, as the report does
+if (!is.null(baseline2)) { drug2 <- drug2 - baseline2; placebo2 <- placebo2 - baseline2 }
 # Crossover trial: the StatsDirect help example (Armitage and Berry 1994, dry
 # nights out of 14 in two groups of bedwetters, drug then placebo or placebo
 # then drug) in R

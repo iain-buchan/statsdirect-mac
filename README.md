@@ -16,7 +16,7 @@ Open your data with **File → Open**, or choose **Help → Example workbook**, 
 
 - Open Excel workbooks (`.xlsx`, `.xls`, `.xlsb`, `.xlsm` and templates), including password-protected files. Save data as `.xlsx`, CSV or R files.
 - Keep results together in an editable report with SVG charts; open legacy RTF reports and save as HTML, PDF or Word documents.
-- Continue supported analyses in editable R sessions; install R through the app if needed. Right-click a result for **Continue in R** (180 analyses have an R recipe from the help's R code, the follow-on analyses among them) or **Open Data and Settings in R** when the method has no recipe yet: the script is written from the record of the run the result keeps, also after reopening a saved HTML report, including one saved by StatsDirect for Windows.
+- Continue supported analyses in editable R sessions; install R through the app if needed. Right-click a result for **Continue in R** (227 analyses have an R recipe from the help's R code, the follow-on analyses among them; each takes the options the run set) or **Open Data and Settings in R** when the method has no recipe yet: the script is written from the record of the run the result keeps, also after reopening a saved HTML report, including one saved by StatsDirect for Windows.
 - Open **Tools → Calculator** for the StatsDirect expression calculator. It docks below your work or pops out, with wrapping input and saved calculations for the current session.
 - Use **Help → Learning** for biostatistics, epidemiology, practice questions and a tutor connected to your open work. **Use my ChatGPT** signs in through your browser; your account’s Codex access and usage allowance apply.
 

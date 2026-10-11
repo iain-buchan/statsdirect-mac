@@ -212,7 +212,7 @@ ncp_limit <- function(p) {
   # the bracket Q + 1000 is ample: the distribution function there is near 0
   uniroot(function(l) pchisq(q, df, ncp = l) - p, c(0, q + 1000), tol = 1e-10)$root
 }
-lambda <- c(ncp_limit(0.975), ncp_limit(0.025))
+lambda <- c(ncp_limit((1 + confidence) / 2), ncp_limit((1 - confidence) / 2))
 i2_ci <- 100 * lambda / (df + lambda)
 one <- function(x) formatC(x, digits = 1, format = "f", drop0trailing = TRUE)
 cat("Non-combinability of studies\n")

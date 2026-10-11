@@ -1,8 +1,12 @@
 # StatsDirect recipe: Time series summary of repeated measurements, as the help shows it in R.
 # From the help's R code (basic_descriptive_statistics/time_series.htm); the data and settings above come from the run.
 # data: time = times, zidovudine = observations, patient = subjectIds, group = groups
-# settings: confidence = ci
+# settings: confidence = ci, zero_at_start = addZeroObservationAtZeroTime
 
+if (isTRUE(zero_at_start) && !any(time == 0)) {   # an observation of 0 at time 0 for each subject, as the run asked
+  ids <- unique(patient); first <- match(ids, patient)
+  time <- c(time, rep(0, length(ids))); zidovudine <- c(zidovudine, rep(0, length(ids))); if (!is.null(group)) group <- c(group, group[first]); patient <- c(patient, ids)
+}
 if (is.null(group)) group <- rep("All", length(time))
 d <- data.frame(Time = time, Zidovudine = zidovudine, Patient = patient, Group = group)
 # Time series summary: the StatsDirect help example (Bland 2000, blood levels of
@@ -20,6 +24,7 @@ iqr <- function(x) diff(quantile(x, c(0.25, 0.75), type = 2))
 # R has no standard function for this summary, so it is built here. For each
 # group and time: the number of observations, mean, SD, SE, median and IQR
 # (quartiles by centile type 1, which is type 2 in R).
+aucs <- list()
 for (g in unique(d$Group)) {
   cat("Group:", g, "\n")
   s <- d[d$Group == g, ]
@@ -72,8 +77,8 @@ for (g in unique(d$Group)) {
     (mean(b) - mean(auc)) / (sd(b) / sqrt(n))
   })
   cat(pct, "bootstrap-t interval for mean AUC (10000 iterations):",
-      two(mean(auc) + quantile(tstar, 0.025, type = 2) * se), "to",
-      two(mean(auc) + quantile(tstar, 0.975, type = 2) * se), "\n")
+      two(mean(auc) + quantile(tstar, 0.025, type = 2, na.rm = TRUE) * se), "to",
+      two(mean(auc) + quantile(tstar, 0.975, type = 2, na.rm = TRUE) * se), "\n")
   cat(pct, "z-interval for mean AUC:", two(mean(auc) - qnorm((1 + confidence) / 2) * se), "to",
       two(mean(auc) + qnorm((1 + confidence) / 2) * se), "\n")
   cat("Median (IQR) area under curve:", two(median(auc)),
@@ -90,21 +95,24 @@ for (g in unique(d$Group)) {
     p <- s[s$Patient == id, ]
     lines(p$Time[order(p$Time)], p$Zidovudine[order(p$Time)], type = "b")
   }
-  assign(paste0("auc_", g), auc)
+  aucs[[g]] <- auc
 }
 
 # The areas of the two groups compared with Welch's t test (R's default), which
 # is what StatsDirect reports, followed in the report by its bootstrap version
-r <- t.test(auc_Malabsorbtion, auc_Normal, conf.level = confidence)
-cat("Group comparison: Malabsorbtion vs. Normal\n")
+groups <- sort(names(aucs))
+if (length(groups) == 2) {   # two groups: their areas compared, as the report does
+r <- t.test(aucs[[groups[1]]], aucs[[groups[2]]], conf.level = confidence)
+cat("Group comparison:", groups[1], "vs.", groups[2], "\n")
 cat("Welch t (SE of difference):", two(r$statistic), paste0("(", two(r$stderr), ")"),
     "\n")
 cat("DF (Satterthwaite):", two(r$parameter), "\n")
 cat("Two sided P =", formatC(r$p.value, digits = 4, format = "f"), "\n")
 cat("AUC difference (", pct, "CI):", two(diff(rev(r$estimate))),
     paste0("(", two(r$conf.int[1]), " to ", two(r$conf.int[2]), ")"), "\n")
+}
 
 # The normal plot of the areas that ends the report (all subjects)
-qqnorm(c(auc_Malabsorbtion, auc_Normal), main = "Normal Plot for AUC",
+qqnorm(unlist(aucs), main = "Normal Plot for AUC",
        ylab = "Area Under Curve")
-qqline(c(auc_Malabsorbtion, auc_Normal))
+qqline(unlist(aucs))

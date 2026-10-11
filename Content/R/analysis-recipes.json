@@ -500,7 +500,7 @@
   },
   "NormalPlot": {
     "file": "normal-plot.R",
-    "detail": "Normal, as the help shows it in R."
+    "detail": "Normal plot with the scores of the method chosen, as the help shows it in R."
   },
   "Normality": {
     "file": "normality.R",
@@ -520,12 +520,12 @@
     "detail": "Principal components and scale reliability, as the help shows them in R."
   },
   "PCRCovariance": {
-    "file": "pca.R",
-    "detail": "Principal components and scale reliability, as the help shows them in R."
+    "file": "pca-covariance.R",
+    "detail": "Principal components of the covariance matrix and scale reliability, as the help shows them in R."
   },
   "PCRCovarianceNoFollowOns": {
-    "file": "pca.R",
-    "detail": "Principal components and scale reliability, as the help shows them in R."
+    "file": "pca-covariance.R",
+    "detail": "Principal components of the covariance matrix and scale reliability, as the help shows them in R."
   },
   "PCRMatrix": {
     "file": "pca.R",

@@ -1,14 +1,14 @@
 # StatsDirect recipe: Multiple linear regression, as the help shows it in R.
 # From the help's R code (regression_and_correlation/multiple_linear.htm); the data and settings above come from the run.
-# data: outcome = outcome, predictors... = predictors
-# settings: confidence = ci
+# data: outcome = outcome, predictors... = predictors, weights = weights
+# settings: confidence = ci, intercept = calculateIntercept
 
 # Multiple linear regression: the StatsDirect help example (Armitage and Berry 1994,
 # recovery time after a hypotensive drug, 53 patients) in R
 
 # R's standard regression: coefficients, t tests, the F test, R squared and the
 # adjusted R squared (Ra squared); its residual standard error is the root MSE
-fit <- eval(bquote(lm(.(reformulate(sprintf("`%s`", names(predictors)), "outcome")), data = as.data.frame(predictors, optional = TRUE))))
+fit <- eval(bquote(lm(.(reformulate(sprintf("`%s`", names(predictors)), "outcome", intercept = intercept)), data = as.data.frame(predictors, optional = TRUE), weights = weights)))
 print(summary(fit))
 print(anova(fit))
 
@@ -24,8 +24,8 @@ pv <- function(p) {
 s <- summary(fit)$coefficients
 df <- fit$df.residual
 for (i in seq_len(nrow(s))) {
-  cat(rownames(s)[i], " b", i - 1, " = ", six(s[i, 1]),
-      if (i > 1) paste("  r =", six(s[i, 3] / sqrt(s[i, 3]^2 + df))) else "",
+  cat(rownames(s)[i], " b", if (intercept) i - 1 else i, " = ", six(s[i, 1]),
+      if (!intercept || i > 1) paste("  r =", six(s[i, 3] / sqrt(s[i, 3]^2 + df))) else "",
       "  t = ", six(s[i, 3]), "  ", pv(s[i, 4]), "\n", sep = "")
 }
 a <- anova(fit)
@@ -34,8 +34,8 @@ ssreg <- sum(a$"Sum Sq"[1:k])
 ssres <- a$"Sum Sq"[k + 1]
 cat("Regression", six(ssreg), k, six(ssreg / k), "\n")
 cat("Residual", six(ssres), df, six(ssres / df), "\n")
-cat("Total (corrected)", six(ssreg + ssres), df + k, "\n")
-cat("outcome =", six(s[1, 1]), paste("+", six(s[-1, 1]), rownames(s)[-1], collapse = " "), "\n")
+cat(if (intercept) "Total (corrected)" else "Total (uncorrected)", six(ssreg + ssres), df + k, "\n")
+if (intercept) cat("outcome =", six(s[1, 1]), paste("+", six(s[-1, 1]), rownames(s)[-1], collapse = " "), "\n") else cat("outcome =", paste("+", six(s[, 1]), rownames(s), collapse = " "), "\n")
 cat("Root MSE =", six(sqrt(ssres / df)), "\n")
 f <- summary(fit)$fstatistic
 cat("F =", six(f[1]), " ", pv(pf(f[1], f[2], f[3], lower.tail = FALSE)), "\n")

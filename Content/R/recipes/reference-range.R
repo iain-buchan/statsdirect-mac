@@ -1,7 +1,7 @@
 # StatsDirect recipe: Reference range with the confidence intervals of its limits, as the help shows it in R.
 # From the help's R code (parametric_methods/reference_range.htm); the data and settings above come from the run.
 # data: igm
-# settings: confidence = gamma, range = reference-interval
+# settings: confidence = gamma, range = reference-interval, conservative = do_conservative
 
 # Reference range: the StatsDirect help example (Altman 1991, serum IgM in 298
 # children) in R
@@ -43,7 +43,7 @@ normal_range(log(igm), exp)
 # normal approximation to that distribution, at np plus or minus z sqrt(np(1-p)),
 # and then gives the exact probability that they cover the quantile; with fewer
 # it searches the binomial distribution itself, as in the quantile topic.
-stopifnot(n > 200)
+if (n > 200) {   # the distribution-free range needs more than 200 values
 cat("For any data\n")
 x <- sort(igm)
 for (p in c((1 - range) / 2, (1 + range) / 2)) {
@@ -54,4 +54,11 @@ for (p in c((1 - range) / 2, (1 + range) / 2)) {
       x[hi + 1], "\n")
   cat(sprintf("Exact confidence level = %s%%\n",
               six(100 * (pbinom(hi, n, p) - pbinom(lo, n, p)))))
+  if (isTRUE(conservative)) {   # the conservative limits: the nearest order statistics with at least the confidence
+    cum <- pbinom(0:n, n, p)
+    lo_c <- max(which(cum <= (1 - confidence) / 2)) - 1
+    hi_c <- min(which(cum >= 1 - (1 - confidence) / 2)) - 1
+    cat("Approximate", pct, "confidence interval (conservative) =", x[lo_c + 1], "to", x[hi_c + 1], "\n")
+  }
+}
 }

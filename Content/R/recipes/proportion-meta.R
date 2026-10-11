@@ -1,7 +1,7 @@
 # StatsDirect recipe: Proportion meta-analysis, as the help shows it in R.
 # From the help's R code (meta_analysis/proportion.htm); the data and settings above come from the run.
 # data: total, adherent, trial
-# settings: confidence = gamma
+# settings: confidence = gamma, method = method
 
 if (is.null(trial)) trial <- paste("Trial", seq_along(total))
 # Proportion meta-analysis: the StatsDirect help example (adherence with medication in
@@ -25,9 +25,9 @@ p <- adherent / total
 # Each study's proportion with its exact (Clopper-Pearson) 95% confidence interval, as
 # binom.test() gives it; when every subject responds, as in the Zu trial, the interval
 # is one sided and its lower limit is the 97.5% limit
-ci <- t(sapply(seq_len(k), function(i) binom.test(adherent[i], total[i])$conf.int))
+ci <- t(sapply(seq_len(k), function(i) binom.test(adherent[i], total[i], conf.level = confidence)$conf.int))
 one_sided <- ifelse(adherent == 0 | adherent == total, "[97.5% one-sided CI]", "")
-cat("Method: Stuart-Ord (inverse double arcsine square root)\n")
+cat("Method:", if (method == "doubleArcsine") "Miller (exact inverse Freeman-Tukey double arcsine)" else "Stuart-Ord (inverse double arcsine square root)", "\n")
 print(data.frame(Study = seq_len(k), Proportion = six(p), Lower = six(ci[, 1]),
                  Upper = six(ci[, 2]), Trial = paste(trial, one_sided)),
       row.names = FALSE, right = FALSE)
@@ -47,7 +47,8 @@ print(data.frame(Study = seq_len(k), Transform = six(x), Variance = six(v),
                  Fixed = six(100 * w / sum(w)), Random = six(100 * wr / sum(wr)),
                  Trial = paste(trial, one_sided)), row.names = FALSE, right = FALSE)
 
-inv <- function(t) sin(t / 2)^2
+hmn <- length(total) / sum(1 / total)   # the harmonic mean of the numbers of subjects, for the Miller inverse
+inv <- function(t) if (method == "doubleArcsine") 0.5 * (1 - sign(cos(t)) * sqrt(1 - (sin(t) + (sin(t) - 1 / sin(t)) / hmn)^2)) else sin(t / 2)^2
 cat("Fixed effects (inverse variance)\n")
 cat("Pooled proportion = ", six(inv(xf)), " (", pct, "CI = ", six(inv(xf - z * se_f)),
     " to ", six(inv(xf + z * se_f)), ")\n", sep = "")

@@ -1,7 +1,7 @@
 # StatsDirect recipe: Kappa agreement of two raters from their responses, as the help shows it in R.
 # From the help's R code (agreement/kappa.htm); the data and settings above come from the run.
-# data: mast = responses, rast = responses
-# settings: confidence = ci
+# data: mast = responses, rast = responses, weights... = weights
+# settings: confidence = ci, method = method
 
 # the grades in the order they appear (numbers in their own order), and the table of the two raters' responses
 grades <- if (is.numeric(c(mast, rast))) sort(unique(c(mast, rast))) else unique(c(mast, rast))
@@ -47,7 +47,7 @@ cat("z (for k = 0) =", six(kappa / se0), " ",
 
 # Weighted kappa with the default linear weights: a disagreement of one grade counts
 # three quarters of full agreement, and so on down to zero across the whole scale
-w <- 1 - abs(outer(1:g, 1:g, "-")) / (g - 1)
+w <- if (method == "2") 1 - (outer(1:g, 1:g, "-") / (g - 1))^2 else if (method == "3" && !is.null(weights)) unname(as.matrix(as.data.frame(weights))) else 1 - abs(outer(1:g, 1:g, "-")) / (g - 1)   # the weights of the run: linear, quadratic or the table given
 print(w)
 pow <- sum(w * p)
 pew <- sum(w * outer(row_p, col_p))
@@ -61,7 +61,7 @@ for (i in 1:g) for (j in 1:g) {
   s <- s + p[i, j] * (w[i, j] * (1 - pew) - (wi[i] + wj[j]) * (1 - pow))^2
 }
 sew <- sqrt((s - (pow * pew - 2 * pew + pow)^2) / (n * (1 - pew)^4))
-cat("Cohen's kappa (weighted by 1-abs(i-j)/(k-1))\n")
+cat("Cohen's kappa (weighted by ", c("1" = "1-abs(i-j)/(k-1)", "2" = "1-[(i-j)/(k-1)]^2", "3" = "the table of weights")[as.character(method)], ")\n", sep = "")
 cat("Observed agreement =", pc2(pow), "\n")
 cat("Expected agreement =", pc2(pew), "\n")
 cat("Kappa = ", six(kappaw), " (se_0 = ", six(se0w), ", se = ", six(sew), ")\n",

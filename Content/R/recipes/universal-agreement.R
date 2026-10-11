@@ -1,6 +1,7 @@
 # StatsDirect recipe: Universal R agreement coefficient, as the help shows it in R.
 # From the help's R code (agreement/universal_agreement.htm); the data and settings above come from the run.
 # data: measurement = data, observer = raters, object = objects, dimension = categories
+# settings: reference = reference
 
 if (is.null(dimension)) dimension <- rep(1, length(measurement))
 n <- length(unique(object))    # objects
@@ -71,36 +72,10 @@ report <- function(pairs, average, reference) {
   cat("Significance:", pv(p_type3((observed - mu) / sqrt(v), skew)), "\n")
 }
 cat("Number of measurements:", length(measurement), " observers:", b, " objects:", n,
-    " dimensions: 3\n")
+    " dimensions:", length(unique(dimension)), "\n")
 report(combn(b, 2), TRUE, "None")
 
 # With observer 1 as the reference standard, delta is the sum over the other observers
 # of their mean distance from the reference
-report(rbind(1, 2:b), FALSE, "Observer 1")
-
-# Comparison example: R for two independent groups of observers, with the mean,
-# variance and skewness of delta that each group's report gives. The difference is
-# tested on the delta scale (Berry and Mielke 1997a): its variance and skewness come
-# from the two groups' moments, and the P value for the difference is two sided, twice
-# the lesser of its two tails. The P value under each group is that of its own R: the
-# delta that the group observed is its mean delta times 1 - R
-r1 <- 0.11578
-r2 <- 0.19780
-mu1 <- 1.27050
-mu2 <- 1.60240
-var1 <- 0.4678E-03
-var2 <- 0.1010E-02
-skew1 <- -0.34145
-skew2 <- -0.28425
-vard <- (mu1^2 * var2 + mu2^2 * var1) / (mu1^2 * mu2^2)
-skewd <- (mu1^3 * var2^1.5 * skew2 - mu2^3 * var1^1.5 * skew1) /
-  (mu1^3 * mu2^3 * vard^1.5)
-cat("R:", six(r1), six(r2), six(r1 - r2), "\n")
-cat("Delta:", six(mu1), six(mu2), six(mu1 - mu2), "\n")
-cat("Variance:", six(var1), six(var2), six(vard), "\n")
-cat("Skewness:", six(skew1), six(skew2), six(skewd), "\n")
-lower <- p_type3((r1 - r2) / sqrt(vard), skewd)
-upper <- p_type3((r2 - r1) / sqrt(vard), -skewd)
-cat("Significance:", pv(p_type3((mu1 * (1 - r1) - mu1) / sqrt(var1), skew1)),
-    pv(p_type3((mu2 * (1 - r2) - mu2) / sqrt(var2), skew2)),
-    pv(min(1, 2 * min(lower, upper))), "\n")
+ref <- if (is.null(reference)) NULL else match(sort(unique(observer))[which(unlist(reference))[1]], unique(observer))   # the observer marked as the reference standard (the mark is on the observers sorted by name)
+if (!is.null(ref)) report(rbind(ref, setdiff(1:b, ref)), FALSE, paste("Observer", ref))

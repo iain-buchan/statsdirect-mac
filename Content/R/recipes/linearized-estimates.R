@@ -1,7 +1,9 @@
 # StatsDirect recipe: Linearized regression estimates, as the help shows them in R.
 # From the help's R code (regression_and_correlation/linear_estimates.htm); the data and settings above come from the run.
 # data: kwh, size
+# settings: model = model
 
+cat("The model fitted in StatsDirect:", c("Exponential", "Geometric / power", "Hyperbolic")[as.integer(model) + 1], "\n")   # the help fits all three
 # Linearized regression estimates: an illustration with the electricity
 # consumption and home size data of the polynomial regression topic (McClave and
 # Dietrich 1991, the test workbook's Home Size and KW Hrs/Mnth) in R

@@ -30,9 +30,9 @@ msw <- a["Residuals", "Mean Sq"]
 icc <- (msb - msw) / (msb + (m - 1) * msw)
 f <- msb / msw
 fu <- qf((1 + confidence) / 2, n - 1, n * (m - 1))
-fl <- qf(0.025, n - 1, n * (m - 1))
+fl <- qf((1 - confidence) / 2, n - 1, n * (m - 1))
 cat("Intra-class correlation coefficient (one way random effects) =", six(icc),
-    "(95% CI =", six((f / fu - 1) / (f / fu + m - 1)), "to",
+    paste0("(", pct, " CI ="), six((f / fu - 1) / (f / fu + m - 1)), "to",
     six((f / fl - 1) / (f / fl + m - 1)), ")\n")
 sw <- sqrt(msw)
 cat("Estimated within-subjects standard deviation =", six(sw), "\n")

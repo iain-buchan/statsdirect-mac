@@ -21,8 +21,8 @@ bottom_legend <- function(labels, fill) {
 # Clustered (StatsDirect's default type of plot): a bar for each column of values at
 # each label, the columns' titles in a legend below the chart. StatsDirect titles
 # the chart "Bar chart" until you type a title in the chart options.
-barplot(values, beside = TRUE, col = shade[1:3], main = "Bar chart")
-bottom_legend(rownames(values), shade[1:3])
+barplot(values, beside = TRUE, col = rep_len(shade, nrow(values)), main = "Bar chart")
+bottom_legend(rownames(values), rep_len(shade, nrow(values)))
 
 # Stacked: StatsDirect turns the table round, one stack for each column of values
 # with a segment for each label, so the height of a stack is its column's total

@@ -1,6 +1,7 @@
 # Survival plot: the StatsDirect help illustration (Kaplan-Meier estimates of survival
 # in two groups of rats given different pre-treatments, the Kaplan-Meier example; the
 # test workbook's Survival worksheet columns Group Surv, Time Surv and Censor Surv) in R
+if (!requireNamespace("survival", quietly = TRUE)) install.packages("survival", repos = "https://cloud.r-project.org")
 library(survival)
 group <- c(2, 1, 2, 2, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2,
            2, 2, 1, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 2, 2)

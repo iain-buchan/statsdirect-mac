@@ -1,17 +1,23 @@
 # StatsDirect recipe: Logistic regression of grouped counts, as the help shows it in R.
 # From the help's R code (regression_and_correlation/logistic.htm); the data and settings above come from the run.
-# data: total = total, responders = response, predictors... = predictors
+# data: total = total, responders = response, predictors... = predictors, weight = weight
+# settings: confidence = gamma, intercept = intercept
 
+if (is.null(total)) {   # individual responses: one trial in each row, merged by covariate pattern (and prior weight) as the report does
+  sd_rows <- cbind(as.data.frame(predictors, optional = TRUE), sd_r = responders, sd_n = 1, sd_w = if (is.null(weight)) 1 else weight)
+  sd_merged <- aggregate(cbind(sd_r, sd_n) ~ ., data = sd_rows, FUN = sum)
+  predictors <- sd_merged[names(predictors)]; responders <- sd_merged$sd_r; total <- sd_merged$sd_n; if (!is.null(weight)) weight <- sd_merged$sd_w
+}
 # Logistic regression: the StatsDirect help example (Altman 1991, hypertension and
 # smoking, obesity and snoring in 433 total) in R
 
 # R's standard model for grouped binomial data: responders and non-responders in
 # each row. Its residual deviance is the deviance goodness of fit, and the drop
 # from the null deviance is the likelihood ratio chi-square for the covariates
-fit <- glm(cbind(responders, total - responders) ~ ., data = as.data.frame(predictors),
-           family = binomial)
+model <- if (intercept) cbind(responders, total - responders) ~ . else cbind(responders, total - responders) ~ . + 0   # the formula as a variable, so that the echo of the call has no stray figure
+fit <- glm(model, data = as.data.frame(predictors, optional = TRUE), family = binomial, weights = weight)
 print(summary(fit))
-print(exp(cbind(OR = coef(fit), confint.default(fit))))
+print(exp(cbind(OR = coef(fit), confint.default(fit, level = confidence))))
 
 # The report's lines to 6 places
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
@@ -27,13 +33,13 @@ df_lr <- fit$df.null - fit$df.residual
 cat("Deviance (likelihood ratio) chi-square =", six(lr), " df =", df_lr, " ",
     pv(pchisq(lr, df_lr, lower.tail = FALSE)), "\n")
 s <- summary(fit)$coefficients
-ci <- confint.default(fit)   # Wald limits, as the report's
-for (i in 2:4) {
+ci <- confint.default(fit, level = confidence)   # Wald limits, as the report's
+for (i in (if (intercept) 2 else 1):nrow(s)) {
   cat(rownames(s)[i], "odds ratio =", six(exp(s[i, 1])), " (", six(exp(ci[i, 1])), "to",
       six(exp(ci[i, 2])), ")  z =", six(s[i, 3]), " ", pv(s[i, 4]), "\n")
 }
-cat("logit Hypertensive =", six(s[1, 1]), six(s[2, 1]), "Smoking",
-    paste0("+", six(s[3, 1])), "Obesity", paste0("+", six(s[4, 1])), "Snoring\n")
+slopes <- if (intercept) s[-1, 1] else s[, 1]
+cat("logit =", if (intercept) six(s[1, 1]) else "", paste0(ifelse(slopes >= 0, "+", ""), six(slopes), " ", if (intercept) rownames(s)[-1] else rownames(s), collapse = " "), "\n")
 
 # The model analysis. The report's log likelihood is the sum over the total of
 # log p or log(1 - p) (without the binomial coefficients that R's logLik adds), the
@@ -43,9 +49,10 @@ cat("logit Hypertensive =", six(s[1, 1]), six(s[2, 1]), "Smoking",
 k <- length(coef(fit))
 n <- length(total)
 p <- fitted(fit)
-ll <- sum(responders * log(p) + (total - responders) * log(1 - p))
-p0 <- sum(responders) / sum(total)
-ll0 <- sum(responders * log(p0) + (total - responders) * log(1 - p0))
+w <- if (is.null(weight)) 1 else weight   # the prior weights, as the report weights the rows
+ll <- sum(w * (responders * log(p) + (total - responders) * log(1 - p)))
+p0 <- sum(w * responders) / sum(w * total)
+ll0 <- sum(w * (responders * log(p0) + (total - responders) * log(1 - p0)))
 cat("Log likelihood with all covariates =", formatC(ll, digits = 4, format = "f"), "\n")
 cat("Deviance with all covariates =", six(dev), " df =", fit$df.residual,
     " rank =", k, "\n")
@@ -82,4 +89,4 @@ hl <- sum((o - e)^2 / (e * (1 - e / size)))
 cat("Hosmer-Lemeshow test =", six(hl), " df =", length(o) - 2, " ",
     pv(pchisq(hl, length(o) - 2, lower.tail = FALSE)), "\n")
 cat("Coefficients and standard errors:\n")
-for (i in 1:4) cat(rownames(s)[i], six(s[i, 1]), six(s[i, 2]), "\n")
+for (i in seq_len(nrow(s))) cat(rownames(s)[i], six(s[i, 1]), six(s[i, 2]), "\n")

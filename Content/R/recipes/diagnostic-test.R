@@ -21,7 +21,7 @@ pc <- function(x) {
   paste0(formatC(100 * x, digits = 2, format = "f", drop0trailing = TRUE), "%")
 }
 rate <- function(x, n) {
-  ci <- binom.test(x, n)$conf.int
+  ci <- binom.test(x, n, conf.level = confidence)$conf.int
   paste0(six(x / n), " (", six(ci[1]), " to ", six(ci[2]), "), ", pc(x / n), " (",
          pc(ci[1]), " to ", pc(ci[2]), ")")
 }
@@ -98,7 +98,7 @@ dens <- function(log_or) {
 }
 solve_or <- function(f) exp(uniroot(f, c(-40, 40), tol = 1e-13)$root)
 cmle <- solve_or(function(lo) sum(x * dens(lo)) - tp)
-cmle_lower <- solve_or(function(lo) sum(dens(lo)[x >= tp]) - 0.025)
-cmle_upper <- solve_or(function(lo) sum(dens(lo)[x <= tp]) - 0.025)
+cmle_lower <- solve_or(function(lo) sum(dens(lo)[x >= tp]) - (1 - confidence) / 2)
+cmle_upper <- solve_or(function(lo) sum(dens(lo)[x <= tp]) - (1 - confidence) / 2)
 cat("Conditional maximum likelihood estimate = ", six(cmle), " (", six(cmle_lower),
     " to ", six(cmle_upper), ")\n", sep = "")

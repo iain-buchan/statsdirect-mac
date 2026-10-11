@@ -1,6 +1,6 @@
 # StatsDirect recipe: Number needed to treat with its interval, as the help shows it in R.
 # From the help's R code (clinical_epidemiology/nnt.htm); the data and settings above come from the run.
-# settings: nc = nc, xc = xc, nt = nt, xt = xt, level = cco
+# settings: nc = nc, xc = xc, nt = nt, xt = xt, level = cco, brr = brr
 
 # Number needed to treat: the StatsDirect help example (Haynes and Sackett 1993, a trial
 # of an ACE inhibitor in severe congestive heart failure: 123 of 607 controls and 94 of
@@ -117,9 +117,11 @@ nnt("risk difference", 1 / rd)
 # Given an expected risk of the event without treatment at the optional prompt, the
 # report adds the NNTs that assume the relative risk of event, the relative risk of no
 # event or the odds ratio holds at that risk, by the formulae above: here 30%
-er <- 0.3
-cat("Expected risk of event without treatment = 30%\n")
+if (!is.null(brr)) {   # the expected risk without treatment, when one was given
+er <- brr
+cat("Expected risk of event without treatment =", paste0(100 * er, "%"), "\n")
 nnt("risk difference", 1 / rd)
 nnt("relative risk of event", 1 / (er * rrr))
 nnt("relative risk of no event", 1 / ((1 - er) * (rrne - 1)))
 nnt("odds ratio", (1 - er * (1 - oor)) / ((1 - er) * er * (1 - oor)))
+}

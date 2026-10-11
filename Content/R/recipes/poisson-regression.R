@@ -1,7 +1,7 @@
 # StatsDirect recipe: Poisson regression of counts with an exposure, as the help shows it in R.
 # From the help's R code (regression_and_correlation/poisson.htm); the data and settings above come from the run.
-# data: response = response, exposure = exposure, predictors... = predictors
-# settings: confidence = gamma
+# data: response = response, exposure = exposure, predictors... = predictors, weight = weight
+# settings: confidence = gamma, intercept = intercept
 
 # Poisson regression: the StatsDirect help example (Armitage, Berry and Matthews
 # 2001, response in veterans and non-veterans by age group, with the subject-exposure
@@ -11,7 +11,8 @@
 # exposure as an offset; the age group factor gives the same dummy variables as
 # the report, with the youngest group as the baseline
 pct <- paste0(100 * confidence, "%")
-fit <- glm(response ~ ., offset = log(exposure), data = as.data.frame(predictors, optional = TRUE), family = poisson)
+model <- if (intercept) response ~ . else response ~ . + 0   # the formula as a variable, so that the echo of the call has no stray figure
+fit <- glm(model, offset = if (is.null(exposure)) NULL else log(exposure), data = as.data.frame(predictors, optional = TRUE), family = poisson, weights = weight)
 print(summary(fit))
 
 # The report's lines to 6 places
@@ -28,20 +29,20 @@ df_lr <- fit$df.null - fit$df.residual
 cat("Deviance (likelihood ratio) chi-square =", six(lr), " df =", df_lr, " ",
     pv(pchisq(lr, df_lr, lower.tail = FALSE)), "\n")
 s <- summary(fit)$coefficients
-lab <- c("Intercept", names(predictors))
-for (i in 1:12) {
+lab <- if (intercept) c("Intercept", names(predictors)) else names(predictors)
+slopes <- if (intercept) seq_len(nrow(s))[-1] else seq_len(nrow(s))
+for (i in seq_len(nrow(s))) {
   cat(lab[i], " b", i - 1, " = ", six(s[i, 1]), "  z = ", six(s[i, 3]), "  ",
       pv(s[i, 4]), "\n", sep = "")
 }
 
-signed <- paste0(ifelse(s[3:12, 1] >= 0, "+", ""), six(s[3:12, 1]), " ", lab[3:12])
-cat("log Cancers [offset log(Subject-exposure)] =", six(s[1, 1]), six(s[2, 1]), "Veterans",
-    paste(signed, collapse = " "), "\n")
+signed <- paste0(ifelse(s[slopes, 1] >= 0, "+", ""), six(s[slopes, 1]), " ", lab[slopes])
+cat("log(response)", if (is.null(exposure)) "" else "[offset log(exposure)]", "=", if (intercept) six(s[1, 1]) else "", paste(signed, collapse = " "), "\n")
 
 # Incidence rate ratios: exp of the coefficients, with Wald limits (the intercept's
 # row is the baseline rate per subject-year)
-ci <- confint.default(fit)
-for (i in 1:12) {
+ci <- confint.default(fit, level = confidence)
+for (i in seq_len(nrow(s))) {
   cat(lab[i], six(s[i, 1]), six(exp(s[i, 1])), six(exp(ci[i, 1])), "to",
       six(exp(ci[i, 2])), "\n")
 }
@@ -51,11 +52,12 @@ for (i in 1:12) {
 # coefficient plus the veteran coefficient, with the standard error of that sum
 # from the covariance matrix; among the non-veterans they are the ratios above
 vc <- vcov(fit)
-for (i in 3:12) {
-  est <- s[i, 1] + s[2, 1]
-  se_sum <- sqrt(vc[i, i] + vc[2, 2] + 2 * vc[i, 2])
+first <- slopes[1]   # the first predictor, the veterans in the help
+for (i in slopes[-1]) {
+  est <- s[i, 1] + s[first, 1]
+  se_sum <- sqrt(vc[i, i] + vc[first, first] + 2 * vc[i, first])
   half <- qnorm((1 + confidence) / 2) * se_sum
-  cat("Veterans = 1:", lab[i], six(s[i, 1]), six(exp(est)), six(exp(est - half)), "to",
+  cat(paste0(lab[first], " = 1:"), lab[i], six(s[i, 1]), six(exp(est)), six(exp(est - half)), "to",
       six(exp(est + half)), "\n")
 }
 
@@ -65,7 +67,7 @@ for (i in 3:12) {
 # offset alone as the null model), Pearson's chi-square and the over-dispersion
 # scale, which is Pearson's chi-square over its degrees of freedom
 ll <- as.numeric(logLik(fit))
-ll0 <- as.numeric(logLik(glm(response ~ 1, offset = log(exposure), family = poisson)))
+ll0 <- as.numeric(logLik(glm(response ~ 1, offset = if (is.null(exposure)) NULL else log(exposure), family = poisson, weights = weight)))
 k <- length(coef(fit))
 n <- length(response)
 cat("Log likelihood with all covariates =", six(ll), "\n")
@@ -88,7 +90,7 @@ cat("Scaled Pearson goodness of fit =", six(pearson / scale), " df =", fit$df.re
 cat("Scaled Deviance goodness of fit =", six(dev / scale), " df =", fit$df.residual,
     " ", pv(pchisq(dev / scale, fit$df.residual, lower.tail = FALSE)), "\n")
 cat("Coefficients, standard errors, then the scaled standard errors and Wald z:\n")
-for (i in 1:12) {
+for (i in seq_len(nrow(s))) {
   cat(lab[i], six(s[i, 1]), six(s[i, 2]), six(s[i, 2] * sqrt(scale)),
       six(s[i, 1] / (s[i, 2] * sqrt(scale))),
       pv(2 * pnorm(-abs(s[i, 1] / (s[i, 2] * sqrt(scale))))), "\n")

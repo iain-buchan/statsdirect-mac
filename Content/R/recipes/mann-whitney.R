@@ -14,7 +14,7 @@ n2 <- length(town)
 # use a normal approximation with continuity correction, as exact = FALSE does
 # (two sided P = 0.5279).
 # Use alternative = "less" for the lower side P and "greater" for the upper.
-print(wilcox.test(farm, town, conf.int = TRUE))
+print(wilcox.test(farm, town, conf.int = TRUE, conf.level = confidence))
 
 # Medians, rank sum, U, U' and theta
 r <- rank(c(farm, town))                  # tied values share a mid-rank

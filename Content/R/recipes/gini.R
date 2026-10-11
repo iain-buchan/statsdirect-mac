@@ -1,8 +1,9 @@
 # StatsDirect recipe: Gini coefficient of inequality with bootstrap intervals, as the help shows it in R.
 # From the help's R code (nonparametric_methods/gini.htm); the data and settings above come from the run.
-# data: imr = data
+# data: imr = data, weights = weights
 # settings: confidence = gamma, boots = boots, seed = seed
 
+if (!is.null(weights)) imr <- rep(imr, floor(weights))   # frequency weights: each value as many times as its weight, as the report takes them
 # Gini coefficient of inequality: the StatsDirect help example (Pan American
 # Health Organisation 2001, infant mortality in five countries) in R
 pct <- paste0(100 * confidence, "%")
@@ -47,13 +48,6 @@ cat("Unbiased BCa", pct, "CI =", six(ci$bca[4] * n / (n - 1)), "to",
 
 # Brown's (1994) index from the two components, live births and infant deaths,
 # with the countries in ascending order of the rate
-births <- c(250, 621, 308, 889, 568)
-deaths <- c(14750, 26703, 12012, 21336, 12496)
-o <- order(imr)
-X <- c(0, cumsum(births[o]) / sum(births))
-Y <- c(0, cumsum(deaths[o]) / sum(deaths))
-gb <- 1 - sum((Y[-1] + Y[-(n + 1)]) * (X[-1] - X[-(n + 1)]))
-cat("Brown's G b =", formatC(gb, digits = 4, format = "f"), "\n")
 
 # The Lorenz plot at the end of the report: the cumulative share of the variable
 # against the cumulative share of the sample (green), with the line of equality

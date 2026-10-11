@@ -1,8 +1,9 @@
 # StatsDirect recipe: Abridged life table, as the help shows it in R.
 # From the help's R code (survival_analysis/abridged_life_table.htm); the data and settings above come from the run.
-# data: n = intervals, P = population, D = deaths, a = fractions
+# data: n = intervals, P = population, D = deaths, a = fractions, u = weights
 # settings: confidence = gamma
 
+if (is.null(a)) { a <- rep(0.5, length(n)); if (n[1] <= 1) a[1] <- 0.1; if (length(n) > 1 && n[2] <= 5) a[2] <- 0.4 }
 # Abridged life table: the StatsDirect help example (Chiang 1984, p. 141, the total
 # population of California in 1970; the test workbook's Survival worksheet columns
 # Interval, Population, Deaths and Fraction a) in R
@@ -49,6 +50,11 @@ cat("Interval  Expectation of life [ex]  SE of ex", pct, "CI for ex\n")
 for (i in 1:(w - 1)) cat(label[i], six(e[i]), six(sqrt(ve[i])), ci(e[i], sqrt(ve[i])),
                          "\n")
 cat(label[w], six(e[w]), "* * to *\n")
+if (!is.null(u)) {   # utility weights: the years in each interval weighted, and the adjusted expectation of life at the start of each
+  Tu <- rev(cumsum(rev(u * L)))
+  cat("Interval  Weighted years [uLx]  Adjusted expectation of life\n")
+  for (i in 1:w) cat(label[i], whole(u[i] * L[i]), six(Tu[i] / l[i]), "\n")
+}
 
 # The median: the age at which the cohort has fallen to 50000, by linear
 # interpolation within the interval where that happens (75 to 79 here; if the
@@ -72,7 +78,7 @@ lifetable <- function(D) {
 }
 set.seed(1)
 sim <- replicate(20000, lifetable(rpois(w, D)))
-mc <- function(v) paste(six(quantile(v, 0.025)), "to", six(quantile(v, 0.975)))
+mc <- function(v) paste(six(quantile(v, (1 - confidence) / 2)), "to", six(quantile(v, (1 + confidence) / 2)))
 cat("Median expectation of life (age at which half of original cohort survives) =",
     six(med), "\n")
 cat(pct, "CI by Monte Carlo (20000) simulation =", mc(sim["median", ]), "\n")

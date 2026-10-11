@@ -147,10 +147,10 @@ tail_p <- function(psi, upper, half = 1) {
 }
 root <- function(f) uniroot(f, c(0.01, 100), tol = 1e-10)$root  # brackets this example
 cmle <- root(function(psi) sum(x * cond(psi)) - s)
-fisher <- c(root(function(psi) tail_p(psi, TRUE) - 0.025),
-            root(function(psi) tail_p(psi, FALSE) - 0.025))
-mid <- c(root(function(psi) tail_p(psi, TRUE, 0.5) - 0.025),
-         root(function(psi) tail_p(psi, FALSE, 0.5) - 0.025))
+fisher <- c(root(function(psi) tail_p(psi, TRUE) - (1 - confidence) / 2),
+            root(function(psi) tail_p(psi, FALSE) - (1 - confidence) / 2))
+mid <- c(root(function(psi) tail_p(psi, TRUE, 0.5) - (1 - confidence) / 2),
+         root(function(psi) tail_p(psi, FALSE, 0.5) - (1 - confidence) / 2))
 p_null <- cond(1)
 one_f <- min(tail_p(1, TRUE), tail_p(1, FALSE))
 two_f <- sum(p_null[p_null <= p_null[x == s]])

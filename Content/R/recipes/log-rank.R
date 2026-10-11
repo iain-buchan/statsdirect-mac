@@ -1,7 +1,7 @@
 # StatsDirect recipe: Log-rank and Wilcoxon tests of survival, as the help shows them in R.
 # From the help's R code (survival_analysis/logrank.htm); the data and settings above come from the run.
-# data: stage = gid, time = times, dead = deaths
-# settings: confidence = gamma
+# data: stage = gid, time = times, dead = deaths, stratum = strata
+# settings: confidence = gamma, wt_method = wt_method
 
 if (!is.numeric(stage)) stage <- as.integer(factor(stage, levels = unique(stage)))   # groups named in text are numbered in order of appearance
 # Log-rank and Wilcoxon tests: the StatsDirect help example (Armitage and Berry 1994,
@@ -42,7 +42,7 @@ rank_test <- function(time, dead, group, wilcoxon = FALSE) {
     d <- sum(dead[time == t])
     di <- tabulate(group[time == t & dead == 1], k)
     surv <- surv * (n - d + 1) / (n + 1)
-    w <- if (wilcoxon) surv else 1
+    w <- if (!wilcoxon) 1 else if (wt_method == "2") n / (length(time) + 1) else if (wt_method == "3") sqrt(n) else surv
     E <- E + d * ni / n
     U <- U + w * (di - d * ni / n)
     if (n > 1) {
@@ -144,12 +144,12 @@ mean_deaths <- function(log_ratio) sum(prob(exp(log_ratio)) * support) - A
 cmle <- exp(uniroot(mean_deaths, c(-30, 30), tol = 1e-12)$root)
 cat("Conditional maximum likelihood estimates:\n")
 cat("Hazard Ratio =", six(cmle), "\n")
-cat("Exact Fisher", pct, "confidence interval =", six(limit(0.025, 0)), "to",
-    six(limit(0.975, 1)), "\n")
+cat("Exact Fisher", pct, "confidence interval =", six(limit((1 - confidence) / 2, 0)), "to",
+    six(limit((1 + confidence) / 2, 1)), "\n")
 cat("Exact Fisher one sided ", pv(min(upper, lower)), ", two sided ",
     pv(sum(p[p <= p[observed]])), "\n", sep = "")
-cat("Exact mid-P", pct, "confidence interval =", six(limit(0.025, 0.5)), "to",
-    six(limit(0.975, 0.5)), "\n")
+cat("Exact mid-P", pct, "confidence interval =", six(limit((1 - confidence) / 2, 0.5)), "to",
+    six(limit((1 + confidence) / 2, 0.5)), "\n")
 cat("Exact mid-P one sided ", pv(min(upper_mid, 1 - upper_mid)), ", two sided ",
     pv(min(1, 2 * min(upper_mid, 1 - upper_mid))), "\n", sep = "")
 
@@ -157,38 +157,35 @@ cat("Exact mid-P one sided ", pv(min(upper_mid, 1 - upper_mid)), ", two sided ",
 # Kaplan-Meier estimate as the weight (rho = 1): chi-square 5.45, against the report's
 # 5.488 with the Peto-Prentice weight described above
 print(survdiff(Surv(time, dead) ~ stage, rho = 1))
-cat("Generalised Wilcoxon (Peto-Prentice):\n")
+wilcoxon_name <- c("Peto-Prentice", "Gehan-Breslow", "Tarone-Ware")[as.integer(wt_method)]
+cat("Generalised Wilcoxon (", wilcoxon_name, "):\n", sep = "")
 show_test(rank_test(time, dead, stage, wilcoxon = TRUE), groups = FALSE)
 
-# The stratified example (Peto et al. 1977; the test workbook's Survival worksheet
-# columns Group, Trial Time, Censorship and Strat): the test within each stratum, then
-# the scores and variance matrices summed over the strata for the combined test
-trial <- c(8, 8, 13, 18, 23, 52, 63, 63, 70, 70, 180, 195, 210, 220, 365, 632, 700,
-           852, 1296, 1296, 1328, 1460, 1976, 1990, 2240)
-event <- c(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0)
-arm <- c(1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 1, 1, 2, 2, 1, 2, 1, 1, 1, 1, 2, 2)
-stratum <- c(1, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
-print(survdiff(Surv(trial, event) ~ arm + strata(stratum)))
-combined <- function(wilcoxon) {
-  total <- NULL
-  for (s in 1:2) {
-    r <- rank_test(trial[stratum == s], event[stratum == s], arm[stratum == s],
-                   wilcoxon)
-    cat("STRATUM", s, "of 2\n")
-    show_test(r, groups = !wilcoxon)
-    total <- if (is.null(total)) r else Map("+", total, r)
+# A stratified run: the test within each stratum, then the scores and variance matrices summed over the strata for the combined test
+if (!is.null(stratum)) {
+  if (!is.numeric(stratum)) stratum <- as.integer(factor(stratum, levels = unique(stratum)))
+  strata <- sort(unique(stratum))
+  print(survdiff(Surv(time, dead) ~ stage + strata(stratum)))
+  combined <- function(wilcoxon) {
+    total <- NULL
+    for (s in strata) {
+      r <- rank_test(time[stratum == s], dead[stratum == s], stage[stratum == s], wilcoxon)
+      cat("STRATUM", s, "of", length(strata), "\n")
+      show_test(r, groups = !wilcoxon)
+      total <- if (is.null(total)) r else Map("+", total, r)
+    }
+    cat("COMBINED STRATA: group, deaths, extent of exposure to risk of death, relative rate\n")
+    for (i in seq_along(total$O)) cat(i, total$O[i], six(total$E[i]), six(total$O[i] / total$E[i]), "\n")
+    k <- length(total$O)
+    chi <- as.numeric(t(total$U[-k]) %*% solve(total$V[-k, -k]) %*% total$U[-k])
+    cat("overall chi-square =", six(chi), " ", pv(pchisq(chi, k - 1, lower.tail = FALSE)), "\n")
+    total
   }
-  cat("COMBINED STRATA: group, deaths, extent of exposure to risk of death,",
-      "relative rate\n")
-  for (i in 1:2) cat(i, total$O[i], six(total$E[i]), six(total$O[i] / total$E[i]), "\n")
-  chi <- total$U[1]^2 / total$V[1, 1]
-  cat("overall chi-square =", six(chi), " ", pv(pchisq(chi, 1, lower.tail = FALSE)),
-      "\n")
-  total
+  cat("Log-rank (Peto), stratified:\n")
+  total <- combined(wilcoxon = FALSE)
+  cat("Hazard Ratio (approximate", pct, "confidence interval)\n")
+  hazard_ratio(total$O, total$E, 1, 2)
+  cat("Generalised Wilcoxon (", wilcoxon_name, "), stratified:\n", sep = "")
+  total <- combined(wilcoxon = TRUE)
 }
-cat("Log-rank (Peto), stratified:\n")
-total <- combined(wilcoxon = FALSE)
-cat("Hazard Ratio (approximate", pct, "confidence interval)\n")
-hazard_ratio(total$O, total$E, 1, 2)
-cat("Generalised Wilcoxon (Peto-Prentice), stratified:\n")
-total <- combined(wilcoxon = TRUE)
+

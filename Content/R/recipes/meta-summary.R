@@ -1,7 +1,7 @@
 # StatsDirect recipe: Meta-analysis of summary statistics with their confidence limits, as the help shows it in R.
 # From the help's R code (meta_analysis/summary.htm); the data and settings above come from the run.
-# data: or = y, lower = ll_y, upper = ul_y, study = studies
-# settings: confidence = gamma
+# data: or = y, lower = ll_y, upper = ul_y, se_in = se_y, study = studies
+# settings: confidence = gamma, type = type, use_ci = use_ci
 
 if (is.null(study)) study <- paste("Study", seq_along(or))
 # Summary data meta-analysis: the StatsDirect help example (the odds ratio of each of
@@ -23,8 +23,11 @@ pv <- function(p) {
 # ratio is recovered from its limits as their log difference over twice the normal
 # deviate (had standard errors been given instead, the limits would be recovered
 # from them the other way round), and the inverse variance weights follow
-y <- log(or)
-se <- (log(upper) - log(lower)) / (2 * z)
+ratio <- type %in% c("oddsRatio", "relativeRisk", "otherRatio")   # a ratio is pooled on the log scale, a difference as it is
+y <- if (ratio) log(or) else or
+se <- if (!is.null(se_in)) se_in else if (ratio) (log(upper) - log(lower)) / (2 * z) else (upper - lower) / (2 * z)
+if (is.null(lower)) { lower <- if (ratio) exp(y - z * se) else y - z * se; upper <- if (ratio) exp(y + z * se) else y + z * se }
+back <- if (ratio) exp else identity
 w <- 1 / se^2
 cat("Study  Odds ratio  SE  Approximate", pct, "CI\n")
 for (i in 1:k) {
@@ -57,8 +60,8 @@ for (i in 1:k) {
 }
 
 cat("Fixed effects (inverse variance)\n")
-cat("Pooled odds ratio = ", six(exp(pooled)), " (", pct, "CI = ",
-    six(exp(pooled - z * se_pooled)), " to ", six(exp(pooled + z * se_pooled)), ")\n",
+cat("Pooled odds ratio = ", six(back(pooled)), " (", pct, "CI = ",
+    six(back(pooled - z * se_pooled)), " to ", six(back(pooled + z * se_pooled)), ")\n",
     sep = "")
 cat("Z (test Odds Ratio differs from 1) =", six(z_fixed), " ",
     pv(2 * pnorm(-abs(z_fixed))), "\n")
@@ -86,8 +89,8 @@ cat("I2 (inconsistency) = ", one(i2), "% (", pct, "CI = ",
     one(100 * lim[2] / (dfree + lim[2])), "%)\n", sep = "")
 
 cat("Random effects (DerSimonian-Laird)\n")
-cat("Pooled odds ratio = ", six(exp(pooled_dl)), " (", pct, "CI = ",
-    six(exp(pooled_dl - z * se_dl)), " to ", six(exp(pooled_dl + z * se_dl)), ")\n",
+cat("Pooled odds ratio = ", six(back(pooled_dl)), " (", pct, "CI = ",
+    six(back(pooled_dl - z * se_dl)), " to ", six(back(pooled_dl + z * se_dl)), ")\n",
     sep = "")
 cat("Z (test Odds Ratio) =", six(z_dl), " ", pv(2 * pnorm(-abs(z_dl))), "\n")
 

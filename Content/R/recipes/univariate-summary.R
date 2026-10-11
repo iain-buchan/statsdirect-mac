@@ -1,7 +1,7 @@
 # StatsDirect recipe: Descriptive statistics of a column, as the help shows them in R.
 # From the help's R code (basic_descriptive_statistics/univariate_summary.htm); the data and settings above come from the run.
 # data: speed
-# settings: confidence = gamma
+# settings: confidence = gamma, centile_a = report-udca, centile_b = report-udcb
 # hand-edited: the confidence level and the data come from the run, as the header says
 
 # Univariate summary: the StatsDirect help example (Michelson's 100 measurements
@@ -35,7 +35,7 @@ cat("Kurtosis", twelve(m(4) / m(2)^2), "\n")
 
 # Centile type 2 interpolates between the ordered values at p(n + 1): type 6 in
 # R, whose default, type 7, interpolates at 1 + p(n - 1) instead
-q <- quantile(speed, c(0.05, 0.25, 0.5, 0.75, 0.95), type = 6)
+q <- quantile(speed, c(centile_a, 0.25, 0.5, 0.75, centile_b), type = 6)   # the two centiles the run chose
 cat("Maximum", max(speed), "\n")
 cat("Upper quartile", twelve(q[4]), "\n")
 cat("Median", twelve(q[3]), "\n")
@@ -43,6 +43,6 @@ cat("Lower quartile", twelve(q[2]), "\n")
 cat("Interquartile range", twelve(q[4] - q[2]), "\n")
 cat("Minimum", min(speed), "\n")
 cat("Range", twelve(max(speed) - min(speed)), "\n")
-cat("Centile 95", twelve(q[5]), "\n")
-cat("Centile 5", twelve(q[1]), "\n")
+cat(paste("Centile", 100 * centile_b), twelve(q[5]), "\n")
+cat(paste("Centile", 100 * centile_a), twelve(q[1]), "\n")
 

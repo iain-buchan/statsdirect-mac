@@ -37,12 +37,12 @@ b <- mapply(five, groups, names(groups), SIMPLIFY = FALSE)
 # the whiskers as above. bxp() draws a box plot from given statistics; the
 # program lists the first column selected at the top, so Town Boys is drawn at 2.
 z <- list(stats = sapply(b, `[[`, "stats"), n = lengths(groups),
-          names = c("Town Boys", "Farm Boys"))
-bxp(z, at = 2:1, horizontal = TRUE, main = "Box & whisker plot",
+          names = names(groups))
+bxp(z, at = rev(seq_along(groups)), horizontal = TRUE, main = "Box & whisker plot",
     xlab = "min < LQ < median > UQ > max, fences (1.5 & 3.0 IQR)", las = 1,
     medlty = "blank", boxwex = 0.5)
-points(z$stats[3, ], 2:1, pch = 8)
+points(z$stats[3, ], rev(seq_along(groups)), pch = 8)
 # Any values beyond the fences: a circle beyond the inner, a dot beyond the outer
-for (i in 1:2) {
-  points(b[[i]]$out, rep(3 - i, length(b[[i]]$out)), pch = b[[i]]$pch)
+for (i in seq_along(groups)) {
+  points(b[[i]]$out, rep(length(groups) + 1 - i, length(b[[i]]$out)), pch = b[[i]]$pch)
 }

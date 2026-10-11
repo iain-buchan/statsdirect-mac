@@ -24,7 +24,7 @@ namespace StatsDirect.R
         const string RSCRIPT_NAME = "script.r";
         const string RESULTS_FILE_NAME = "results.txt";
         const string ERROR_FILE_NAME = "error.txt";
-        public const string NotInstalledMessage = "R is not installed. Choose R ▸ Install R… from the menu bar, or install R from cran.r-project.org, then run this analysis again.";
+        public const string NotInstalledMessage = "R is not installed. Choose File ▸ New R Script, then Install R…, or install R from cran.r-project.org, then run this analysis again.";
         static readonly string[] Candidates = { "/Library/Frameworks/R.framework/Resources/bin/Rscript", "/opt/homebrew/bin/Rscript", "/usr/local/bin/Rscript" };
 
         /// <summary>Where runs and the package library live. STATSDIRECT_R_FOLDER overrides it (tests use a temporary folder).</summary>
@@ -126,7 +126,7 @@ win.metafile <- function(filename = """", width = 7, height = 7, ...) {
             return process;
         }
 
-        /// <summary>Windows asks the user to install R here. The Mac shell installs R from its own menu, so the operation stops with that advice.</summary>
+        /// <summary>Windows asks the user to install R here. The Mac shell installs R from its script window, so the operation stops with that advice.</summary>
         public static bool UserMightHaveInstalledR()
         {
             throw new InvalidOperationException(NotInstalledMessage);

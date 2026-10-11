@@ -4,9 +4,13 @@ import PDFKit
 
 final class RPaneView: NSView {
     weak var split: NSSplitView?
+    weak var toolbar: NSScrollView?
     private var positioned = false
     override func layout() {
         super.layout()
+        if let toolbar, let bar = toolbar.documentView {
+            bar.setFrameSize(NSSize(width: max(bar.fittingSize.width, toolbar.contentView.bounds.width), height: 32))
+        }
         if !positioned, let split, split.bounds.height > 300 {
             positioned = true
             split.setPosition(split.bounds.height * 0.42, ofDividerAt: 0)
@@ -24,14 +28,15 @@ private final class RPlotAttachment: NSTextAttachment {
     }
 }
 
-/// An independent, persistent R process per tab. Scripts run only on explicit Run.
+/// An independent, persistent R process per tab. Opening a file never runs it;
+/// a report's Continue in R action explicitly runs its generated script once.
 @MainActor
 final class RPane: NSObject, NSTextViewDelegate {
     let view = RPaneView()
     let editor = NSTextView()
     let console = NSTextView()
     let state = NSTextField(labelWithString: "Starting R…")
-    private let runButton = NSButton(title: "Run script  ⌘↩", target: nil, action: nil)
+    private let runButton = NSButton(title: "Run", target: nil, action: nil)
     private let stopButton = NSButton(title: "Stop / Reset", target: nil, action: nil)
     private let installButton = NSButton(title: "Install R…", target: nil, action: nil)
     private let installer: RInstaller
@@ -47,19 +52,22 @@ final class RPane: NSObject, NSTextViewDelegate {
     private var marker = ""
     private var busy = false
     private var savedScript = ""
+    var scriptFileName = "analysis.R"
+    var showAI: (() -> Void)?
     private let resources: URL
     private struct PlotStamp: Equatable { let modified: Date; let size: Int }
     private var plotsBefore: [URL: PlotStamp] = [:]
     var hasUnsavedChanges: Bool { editor.string != savedScript }
     var isRunning: Bool { busy }
 
-    init(script: String = "", resources: URL = Bundle.main.resourceURL!.appendingPathComponent("Content"), installer: RInstaller? = nil, executable: @escaping () -> String? = { RRuntime.executable() }) {
+    init(script: String = "", saved: Bool = false, resources: URL = Bundle.main.resourceURL!.appendingPathComponent("Content"), installer: RInstaller? = nil, executable: @escaping () -> String? = { RRuntime.executable() }) {
         self.resources = resources
         self.installer = installer ?? .shared; self.executable = executable
         super.init()
         editor.string = script
-        savedScript = ""
+        savedScript = saved ? script : ""
         editor.delegate = self
+        editor.allowsUndo = true
         editor.isRichText = false; editor.isAutomaticQuoteSubstitutionEnabled = false
         editor.isAutomaticDashSubstitutionEnabled = false; editor.isAutomaticTextReplacementEnabled = false
         editor.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
@@ -70,14 +78,29 @@ final class RPane: NSObject, NSTextViewDelegate {
         console.textContainerInset = NSSize(width: 14, height: 12)
         console.setAccessibilityLabel("R output: text and plots")
         runButton.target = self; runButton.action = #selector(runScript)
+        runButton.keyEquivalent = "\r"; runButton.keyEquivalentModifierMask = [.command]
+        runButton.toolTip = "Run this script (⌘Return). Results and charts appear below."
         stopButton.target = self; stopButton.action = #selector(stopSession)
         installButton.target = self; installButton.action = #selector(prepareSession)
         installButton.isHidden = true; stopButton.isEnabled = false
         let save = NSButton(title: "Save script…", target: self, action: #selector(saveScript))
         let clear = NSButton(title: "Clear output", target: self, action: #selector(clearOutput))
-        let bar = NSStackView(views: [runButton, stopButton, save, clear, installButton]); bar.spacing = 10
+        let folder = NSButton(title: "Output folder", target: self, action: #selector(openOutputFolder))
+        folder.toolTip = "Open this script's folder of results and charts in Finder."
+        let external = NSButton(title: "Open in R", target: self, action: #selector(openInR))
+        external.toolTip = "Save a copy of this script and open it in RStudio, or R's own editor."
+        let ai = NSButton(image: NSImage(systemSymbolName: "sparkles", accessibilityDescription: "AI assistance")!, target: self, action: #selector(openAI))
+        ai.setAccessibilityLabel("AI assistance"); ai.toolTip = "Ask your AI for help with this script. You choose whether to share data and code."
+        let bar = NSStackView(views: [runButton, stopButton, ai, save, clear, folder, external, installButton]); bar.spacing = 6
+        // Help can dock beside a script. Keep every control reachable in a
+        // narrow pane without consuming a second row of report/output space.
+        let toolbar = NSScrollView(); toolbar.documentView = bar
+        toolbar.hasHorizontalScroller = true; toolbar.autohidesScrollers = true
+        toolbar.scrollerStyle = .overlay; toolbar.drawsBackground = false
+        view.toolbar = toolbar
         let label = NSTextField(labelWithString: "R script · Variables persist between runs. Stop / Reset clears the session.")
         label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
         let split = NSSplitView(); split.isVertical = false; split.dividerStyle = .thin
         view.split = split
         for text in [editor, console] {
@@ -90,31 +113,34 @@ final class RPane: NSObject, NSTextViewDelegate {
                 NotificationCenter.default.addObserver(self, selector: #selector(outputResized), name: NSView.frameDidChangeNotification, object: scroll.contentView)
             }
         }
-        for child in [bar, label, split, state] { child.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(child) }
+        for child in [toolbar, label, split, state] { child.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(child) }
         NSLayoutConstraint.activate([
-            bar.heightAnchor.constraint(equalToConstant: 32), label.heightAnchor.constraint(equalToConstant: 18), state.heightAnchor.constraint(equalToConstant: 16),
-            bar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16), bar.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
-            label.leadingAnchor.constraint(equalTo: bar.leadingAnchor), label.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 10),
+            toolbar.heightAnchor.constraint(equalToConstant: 32), label.heightAnchor.constraint(equalToConstant: 18), state.heightAnchor.constraint(equalToConstant: 16),
+            toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16), toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16), toolbar.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
+            label.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor), label.trailingAnchor.constraint(equalTo: toolbar.trailingAnchor), label.topAnchor.constraint(equalTo: toolbar.bottomAnchor, constant: 10),
             split.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 10), split.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16), split.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            state.topAnchor.constraint(equalTo: split.bottomAnchor, constant: 8), state.leadingAnchor.constraint(equalTo: bar.leadingAnchor), state.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16), state.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
+            state.topAnchor.constraint(equalTo: split.bottomAnchor, constant: 8), state.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor), state.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16), state.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
             split.arrangedSubviews[0].heightAnchor.constraint(greaterThanOrEqualToConstant: 150), split.arrangedSubviews[1].heightAnchor.constraint(greaterThanOrEqualToConstant: 120)
         ])
         state.font = .systemFont(ofSize: 11); state.lineBreakMode = .byTruncatingMiddle
         startSession()
     }
 
+    @objc private func openAI() { showAI?() }
+
     private func startSession() {
         guard process == nil else { return }
         guard let executable = executable() else {
             installButton.isHidden = false; stopButton.isEnabled = false
+            view.needsLayout = true
             state.stringValue = "R is not installed. Choose Install R to download and set it up."
             return
         }
         installButton.isHidden = true
+        view.needsLayout = true
         let token = UUID(); generation = token; marker = "STATSDIRECT_R_DONE_" + token.uuidString
-        let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Viewer/R Sessions/" + token.uuidString, isDirectory: true)
         do {
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let folder = try workingDirectory(fresh: true)
             let script = resources.appendingPathComponent("R/session.R")
             guard FileManager.default.isReadableFile(atPath: script.path) else { throw CocoaError(.fileReadNoSuchFile) }
             let child = Process(), incoming = Pipe(), outgoing = Pipe()
@@ -247,18 +273,59 @@ final class RPane: NSObject, NSTextViewDelegate {
     func shutdown() {
         generation = UUID(); output?.fileHandleForReading.readabilityHandler = nil
         requestingInstallation = false; runAfterInstallation = false; installButton.isEnabled = true
+        // Keep this tab's files accessible through Output folder after Reset.
         let child = process; process = nil
         try? input?.fileHandleForWriting.close(); input = nil; output = nil; pending.removeAll()
         if let child, child.isRunning { child.terminate() }
         busy = false; runButton.isEnabled = true; stopButton.isEnabled = false
     }
     @objc private func clearOutput() { console.string = "" }
+    private func workingDirectory(fresh: Bool = false) throws -> URL {
+        if let directory, !fresh { return directory }
+        let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Viewer/R Sessions/" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        directory = folder
+        return folder
+    }
+    @objc private func openOutputFolder() {
+        do { NSWorkspace.shared.open(try workingDirectory()) }
+        catch { state.stringValue = "Could not open the output folder: \(error.localizedDescription)" }
+    }
+    /// This copy lives beside this session's output; it never overwrites a user's
+    /// opened file or another tab's script and does not mark unsaved edits saved.
+    func writeExternalScript() throws -> URL {
+        let url = try workingDirectory().appendingPathComponent(scriptFileName)
+        try editor.string.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+    @objc private func openInR() {
+        let workspace = NSWorkspace.shared
+        let app = workspace.urlForApplication(withBundleIdentifier: "org.rstudio.RStudio") ?? workspace.urlForApplication(withBundleIdentifier: "org.R-project.R")
+        guard let app else {
+            if executable() == nil {
+                installer.ensureInstalled { [weak self] installed in if installed { self?.openInR() } }
+            } else {
+                state.stringValue = "RStudio or the R app is needed to open an external editor. You can run and save this script here."
+            }
+            return
+        }
+        do {
+            let url = try writeExternalScript()
+            workspace.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
+                DispatchQueue.main.async {
+                    if let error { self?.state.stringValue = "Could not open the script: \(error.localizedDescription)" }
+                    else { self?.state.stringValue = "Opened \(url.lastPathComponent) in \(app.deletingPathExtension().lastPathComponent)" }
+                }
+            }
+        } catch { state.stringValue = "Could not save the script: \(error.localizedDescription)" }
+    }
     @objc func saveScript() {
-        let panel = NSSavePanel(); panel.nameFieldStringValue = "analysis.R"
+        let panel = NSSavePanel(); panel.nameFieldStringValue = scriptFileName
+        panel.allowedContentTypes = [UTType(filenameExtension: "R") ?? .plainText]
         guard let window = view.window else { return }
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
-            do { try self.editor.string.write(to: url, atomically: true, encoding: .utf8); self.savedScript = self.editor.string; self.state.stringValue = "Saved \(url.lastPathComponent)" }
+            do { try self.editor.string.write(to: url, atomically: true, encoding: .utf8); self.savedScript = self.editor.string; self.scriptFileName = url.lastPathComponent; self.state.stringValue = "Saved \(url.lastPathComponent)" }
             catch { self.state.stringValue = "Save failed: \(error.localizedDescription)" }
         }
     }

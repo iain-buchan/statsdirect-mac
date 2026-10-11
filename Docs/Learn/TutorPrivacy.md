@@ -25,6 +25,33 @@ when sending in Lessons only mode. Previously shared content may remain in that 
 Do not put person identifiers in any of these materials. These local controls do not establish
 an institution's contractual, account, retention or residency arrangements with its AI provider.
 
+## R script assistance
+
+The script toolbar's **AI assistance** icon opens a right-hand conversation dock using
+the same **Use my ChatGPT** account connection. ChatGPT is currently the supported
+provider; this feature does not add Claude, Gemini or another sign-in mechanism.
+
+Each script has a separate conversation. Document sharing starts off. The user can
+choose the current script and R output, one named workbook, both, or neither. Sharing
+documents requires a no-person-identifiers confirmation for each question. The reminder
+covers script comments, output and identifying free text as well as workbook cells.
+Opening the dock checks the account connection but sends no document context or question.
+
+Approved script/output are fixed excerpts (up to 12,000/8,000 characters, with explicit
+truncation); approved workbook reads use the existing identifier-heading protections,
+exact missing-cell positions and 4,000-cell/32-column limit. Workbook edits invalidate
+that question's document access. Other documents, including those opened afterwards,
+are excluded. The assistant can read approved context and bundled method help, but has
+no tools to run R, change documents, execute analyses or read arbitrary files. Suggested
+code is for the user to review and run.
+
+Question-only mode still sends the question and recent conversation. Earlier shared
+content may remain in replies; **New conversation** removes the earlier history from
+subsequent requests. Each sent question is annotated locally with its sharing choice.
+Unlike the Learning portfolio, script conversations are held in memory only and are
+discarded when their script closes or StatsDirect quits. They are not saved in the R
+script or included in the learning record. No chat logging or provider key is added.
+
 ## Disable the online tutor
 
 Administrators can deploy the Boolean managed preference **DisableOnlineTutor = true**
@@ -43,7 +70,8 @@ The native app and tutor transport check this policy before starting the connect
 signing in, sending a question or returning host-tool data. A detected policy change stops
 an existing tutor connection. Connection and sharing controls become unavailable. Bundled
 lessons, question bank, help, local analysis, R examples and learning-record exports remain
-available. This setting does not sign the learner out of other applications.
+available. The policy also disables the script AI dock's connection and Send controls.
+This setting does not sign the learner out of other applications.
 
 ## Verification
 
@@ -51,3 +79,8 @@ available. This setting does not sign the learner out of other applications.
 in-flight cancellation. `Tests/run_beta_feedback.py` checks the native confirmation, saved
 record, refusal before consent, failed-save/changed-data handling, single-document scope,
 and offline UI with the policy enabled. No live AI request is needed by these tests.
+
+`Scripts/test-script-ai.sh` runs the native dock against a local protocol fixture with
+fictional data. It checks question-only requests, consent enforcement, scoped workbook
+reads, identifier rejection, frozen script excerpts, changed-workbook rejection,
+conversation isolation, cancellation, keyboard handling and Help/AI dock switching.

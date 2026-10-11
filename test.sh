@@ -11,4 +11,5 @@ for test in engine agreement menu data_graphics sessions analysis_defaults form_
   python3 "Tests/test_${test}.py"
 done
 python3 Tests/test_form_coverage.py
+python3 Tests/test_combined_forms.py
 if command -v node >/dev/null 2>&1; then node --test Grid/*.test.mjs Learn/*.test.mjs Report/*.test.mjs; fi

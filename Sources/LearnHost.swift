@@ -82,8 +82,7 @@ extension Viewer {
             if let code=body["code"] as? String, code.utf8.count<=100_000 { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(code,forType:.string) }
         case "openRCode":
             if let code=body["code"] as? String, code.utf8.count<=100_000 {
-                let session=newDocument(kind:"r",title:"R · Tutor example")
-                let pane=RPane(script:code);session.rPane=pane;session.item.view=pane.view
+                makeRScript(script: code, title: "Tutor example", saved: true)
                 status.stringValue="Review the tutor's R code, then choose Run"
             }
         case "export": exportLearningRecord(doc,body:body,email:false)
@@ -92,26 +91,30 @@ extension Viewer {
         }
     }
     func configureLearningAI(_ doc: Document) {
-        guard !TutorPolicy.disabled else { learningSettings(doc); learningScript(doc,"notice",TutorPolicy.message); return }
+        func notice(_ text: String) {
+            if doc.kind == "learn" { self.learningScript(doc,"notice",text) }
+            else { self.scriptAI.showNotice(text) }
+        }
+        guard !TutorPolicy.disabled else { learningSettings(doc); notice(TutorPolicy.message); return }
         guard !openingTutorConnection else { return }
         openingTutorConnection = true
         Task { @MainActor in
             defer { self.openingTutorConnection = false }
             do { if !TutorPolicy.disabled { try await self.chatGPTTutor.refreshAccount() } }
-            catch { self.learningScript(doc,"notice",error.localizedDescription); return }
+            catch { notice(error.localizedDescription); return }
             guard self.documents.contains(where:{$0 === doc}), !TutorPolicy.disabled else { return }
             let tutor = self.chatGPTTutor
             let alert = NSAlert()
             if let account = tutor.account {
                 alert.messageText = "Connected to ChatGPT"
                 let identity = account.email.isEmpty ? "Your ChatGPT account" : account.email
-                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\nYour tutor uses this account's Codex access and usage allowance. Each Send shares your question, recent learning conversation, learning options and relevant course excerpts with OpenAI. Document sharing starts off. If you select document context, each question asks you to confirm that the listed documents contain no person identifiers before any names, headings or content are sent. The tutor can then read those documents and request engine calculations.\n\nSigning out here leaves your local learning record and your other apps unchanged."
+                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\nStatsDirect AI uses this account's Codex access and usage allowance. Each Send shares your question and recent conversation with OpenAI. Learning also includes relevant learning options and course excerpts. Document sharing starts off. If you select document context, each question asks you to confirm that the listed documents contain no person identifiers before any names, headings or content are sent. The learning tutor can read approved documents and request engine calculations. Script assistance has read-only access to the chosen workbook and script/output; it cannot run or edit your code.\n\nSigning out here leaves your local learning record and your other apps unchanged."
                 alert.addButton(withTitle:"Done"); alert.addButton(withTitle:"Sign Out")
                 alert.beginSheetModal(for:self.window) { response in
                     if response == .alertSecondButtonReturn {
                         Task { @MainActor in
                             do { try await tutor.signOut() }
-                            catch { self.learningScript(doc,"notice",error.localizedDescription) }
+                            catch { notice(error.localizedDescription) }
                         }
                     }
                 }
@@ -125,7 +128,7 @@ extension Viewer {
                 }
             } else {
                 alert.messageText = "Use my ChatGPT"
-                alert.informativeText = "Sign in with your own ChatGPT account in your browser. No API key is needed.\n\nThe tutor uses the Codex access and usage allowance included with your account, subject to your plan and workspace settings. It teaches inside StatsDirect; your existing ChatGPT chats are not imported.\n\nWhen you press Send, your question, recent learning conversation, learning options and relevant course excerpts are shared with OpenAI. Open documents are excluded unless you choose document context and confirm sharing for that question. Do not include person identifiers in questions, conversations or course packs."
+                alert.informativeText = "Sign in with your own ChatGPT account in your browser. No API key is needed.\n\nStatsDirect AI uses the Codex access and usage allowance included with your account, subject to your plan and workspace settings. It works inside StatsDirect; your existing ChatGPT chats are not imported.\n\nWhen you press Send, your question and recent conversation are shared with OpenAI. Learning also includes learning options and relevant course excerpts. Open documents are excluded unless you choose document context and confirm sharing for that question. Do not include person identifiers in questions, conversations or course packs."
                 alert.addButton(withTitle:"Use my ChatGPT"); alert.addButton(withTitle:"Not Now")
                 alert.beginSheetModal(for:self.window) { response in
                     guard response == .alertFirstButtonReturn else { return }
@@ -133,8 +136,8 @@ extension Viewer {
                         do {
                             let url = try await tutor.signIn()
                             if !NSWorkspace.shared.open(url) { throw ChatGPTTutor.Failure(message:"The browser could not open. Choose Tutor connection to reopen the sign-in page.") }
-                            self.learningScript(doc,"notice","Finish signing in in your browser, then return here and send your question.")
-                        } catch { self.learningScript(doc,"notice",error.localizedDescription) }
+                            notice("Finish signing in in your browser, then return here and send your question.")
+                        } catch { notice(error.localizedDescription) }
                     }
                 }
             }
@@ -249,9 +252,8 @@ extension Viewer {
     func openLearningExample(_ lesson: [String:Any], inR: Bool) {
         let title = lesson["title"] as? String ?? "Learning example"
         if inR, let script = lesson["r"] as? String {
-            let doc = newDocument(kind:"r",title:"R · " + title)
-            let pane = RPane(script:script); doc.rPane = pane; doc.item.view = pane.view
-            if lesson["providerCourse"] as? Bool != true { pane.runScript() }
+            let doc = makeRScript(script: script, title: title, saved: true)
+            if lesson["providerCourse"] as? Bool != true { doc.rPane?.runScript() }
             return
         }
         guard let operation = lesson["operation"] as? String, let definition = analysisCatalog[operation] else { return }

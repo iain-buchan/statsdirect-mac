@@ -1,5 +1,6 @@
 import Cocoa
 import WebKit
+import UniformTypeIdentifiers
 
 struct ReportEntry {
     let id: String
@@ -9,7 +10,8 @@ struct ReportEntry {
     let rPlan: RScriptPlan?
     var editedBody: String?
     var annotation = ""
-    var hiddenCharts: Set<Int> = []
+    // The method's help page for this result, offered by the context menu and F1 and written into saved reports as a link.
+    var helpPath: String? = nil
 }
 
 struct ReportBodyChange {
@@ -55,27 +57,39 @@ extension Viewer {
     }
 
     func renderReport(_ doc: Document) {
-        guard let entries = doc.reportEntries else { return }
+        guard var entries = doc.reportEntries else { return }
+        // Notes written in the earlier separate field become text of their result, editable with the rest.
+        for index in entries.indices where !entries[index].annotation.isEmpty {
+            entries[index].editedBody = (entries[index].editedBody ?? entries[index].body) + "<p class='report-note'>" + htmlEscape(entries[index].annotation) + "</p>"
+            entries[index].annotation = ""
+        }
+        doc.reportEntries = entries
         doc.rScriptPlan = entries.last?.rPlan
         doc.operationName = entries.last?.operation
-        let body = "<div id='report-empty' class='report-controls' \(entries.isEmpty ? "" : "hidden")><p class='muted'>New analysis results will be collected here. Use Add text to write in this report.</p></div><div id='report-results' tabindex='-1'>" + entries.map { reportEntryHTML($0) }.joined() + "</div>"
+        // The report is one editable region; each result is a block in it, identified by its id.
+        let body = "<div id='report-empty' class='report-controls' \(entries.isEmpty ? "" : "hidden")><p class='muted'>Type here or run an analysis to add results.</p></div><div id='report-results' class='report-body' tabindex='-1' role='textbox' aria-label='Report' aria-multiline='true' data-draft-id='text-\(doc.id)'>" + entries.map { reportEntryHTML($0) }.joined() + "</div>"
         doc.hasSVG = body.contains("<svg")
         let notice = doc.reportImportNotice.map { "<p class='report-controls report-import-notice'>\(htmlEscape($0))</p>" } ?? ""
         let editor = (try? String(contentsOf: root.appendingPathComponent("Report/editor.js"), encoding: .utf8)) ?? ""
-        let bootstrap = "<script>" + editor + "\nStatsDirectReportEditor.start({editing:\(doc.reportEditing),undo:\(!doc.reportUndo.isEmpty),redo:\(!doc.reportRedo.isEmpty)});</script>"
+        let macHost = (try? String(contentsOf: root.appendingPathComponent("Mac/report-host.js"), encoding: .utf8)) ?? ""
+        let bootstrap = "<script>" + editor + "\nStatsDirectReportEditor.start({editing:\(doc.reportEditing),undo:\(!doc.reportUndo.isEmpty),redo:\(!doc.reportRedo.isEmpty)});\n" + macHost + "</script>"
         doc.web.loadHTMLString(page(doc.title, reportToolbar(doc) + notice + body + bootstrap), baseURL: root)
     }
 
+    // A result as a block of the report: its id, the help page and R availability for the context menu, and its content.
     func reportEntryHTML(_ entry: ReportEntry) -> String {
         let body=entry.editedBody ?? entry.body
-        let hidden=entry.hiddenCharts.sorted().map(String.init).joined(separator: ",")
-        return "<article class='report-entry' id='result-\(entry.id)'>" + "<div class='report-body' data-result-id='\(entry.id)' data-hidden-charts='\(hidden)' role='textbox' aria-label=\"Report content for \(htmlEscape(entry.title))\">" + body + "</div><div class='report-controls'><label>Report notes</label></div><div class='report-annotation' contenteditable='plaintext-only' role='textbox' aria-label=\"Notes for \(htmlEscape(entry.title))\" data-placeholder='Add your interpretation or notes…' oninput=\"window.webkit.messageHandlers.statsDirectReport.postMessage({action:'annotate',resultID:'\(entry.id)',text:this.innerText})\">\(htmlEscape(entry.annotation))</div></article>"
+        let help=entry.helpPath.map { " data-help=\"\(htmlEscape($0))\"" } ?? ""
+        let r=entry.rPlan.map { " data-r='\($0.hasRecipe ? "recipe" : "data")'" } ?? ""
+        return "<article class='report-entry' id='result-\(entry.id)' data-result-id='\(entry.id)'\(help)\(r) aria-label=\"\(htmlEscape(entry.title))\">" + body + "</article>"
     }
     func editReport(_ doc: Document, _ body: [String:Any]) {
         guard let action=body["action"] as? String else { return }
         if action == "transferNotice", let text = body["text"] as? String { status.stringValue = text; return }
         if action == "clipboard", let command = body["command"] as? String, ["copy", "cut", "paste"].contains(command) { reportClipboardCommand(doc, command: command); return }
         if action == "editing" { doc.reportEditing = body["value"] as? Bool ?? false; return }
+        // What the pointer was on at a right-click, for the context menu the shell shows.
+        if action == "context" { doc.reportContext = body; return }
         if action == "addText" {
             let entry = ReportEntry(id: UUID().uuidString, title: "Text", operation: "", body: "<p>Enter your text here.</p>", rPlan: nil)
             pushReportChange(doc, ReportChange(edits: [], added: [IndexedReportEntry(index: doc.reportEntries?.count ?? 0, entry: entry)], typing: false))
@@ -111,21 +125,22 @@ extension Viewer {
         if action == "editBodies", let edits = body["edits"] as? [[String: String]] {
             recordReportEdits(doc, edits: edits, removing: body["remove"] as? [String] ?? [], typing: false); return
         }
-        guard let id=body["resultID"] as? String,let index=doc.reportEntries?.firstIndex(where:{$0.id==id}) else { return }
+        guard let id=body["resultID"] as? String else { return }
         if action == "editBody" {
             if let html = body["html"] as? String { recordReportEdits(doc, edits: [["id": id, "html": html]], typing: body["typing"] as? Bool ?? false) }; return
-        }
-        if action == "annotate" {
-            if let text=body["text"] as? String,text.utf8.count<=100_000 {
-                if doc.reportEntries?[index].annotation != text { doc.reportRevision += 1 }
-                doc.reportEntries?[index].annotation=text
-            };return
         }
     }
 
     // A drag between result sections is one transaction, including both the
     // removal and insertion. Validate all sections before changing any of them.
     func recordReportEdits(_ doc: Document, edits: [[String: String]], removing: [String] = [], typing: Bool) {
+        if doc.reportEntries?.isEmpty == true, edits.count == 1, removing.isEmpty,
+           edits[0]["id"] == "text-" + doc.id, let html = edits[0]["html"], html.utf8.count <= 30_000_000 {
+            let entry = ReportEntry(id: "text-" + doc.id, title: "Text", operation: "", body: html, rPlan: nil)
+            pushReportChange(doc, ReportChange(edits: [], added: [IndexedReportEntry(index: 0, entry: entry)], typing: false))
+            doc.reportEntries = [entry]; doc.reportRevision += 1; doc.hasSVG = html.contains("<svg")
+            reportEditHistory(doc); return
+        }
         let ids = edits.compactMap { $0["id"] } + removing
         guard !ids.isEmpty, ids.count <= (doc.reportEntries?.count ?? 0), Set(ids).count == ids.count else { return }
         var changes: [ReportBodyChange] = []
@@ -192,7 +207,6 @@ extension Viewer {
             let item=NSMenuItem(title:title,action:nil,keyEquivalent:"");let child=NSMenu(title:title)
             item.submenu=child;menu.addItem(item);return child
         }
-        add(menu,"Edit Report","toggle");menu.addItem(.separator())
         let font=submenu("Font")
         let available=Set(NSFontManager.shared.availableFontFamilies)
         for name in ["Arial","Calibri","Cambria","Courier New","Georgia","Helvetica","Menlo","Times New Roman","Trebuchet MS","Verdana"] where available.contains(name) {add(font,name,"fontName",name)}
@@ -223,16 +237,9 @@ extension Viewer {
     }
 
     func reportToolbar(_ doc: Document) -> String {
-        func button(_ name: String, _ label: String, _ value: String? = nil) -> String {
-            let parameter = value.map { ",&quot;\(htmlEscape($0))&quot;" } ?? ""
-            return "<button type='button' data-command='\(name)' onclick='StatsDirectReportEditor.command(&quot;\(name)&quot;\(parameter))'>\(label)</button>"
-        }
         return """
-        <div id='report-toolbar' class='report-controls report-toolbar' role='toolbar' aria-label='Report editing'>
-        <button id='report-edit-toggle' onclick="StatsDirectReportEditor.command('toggle')">Edit report</button>
-        \(button("addText", "Add text"))
-        <div id='report-format-tools' hidden>
-        </div></div>
+        <div id='report-toolbar' class='report-controls report-toolbar' role='toolbar' aria-label='Report formatting'>
+        <div id='report-format-tools'></div></div>
         """
     }
 
@@ -270,5 +277,73 @@ extension Viewer {
         let report = appendReport(entry)
         let bridge = doc.kind == "analysis" ? "statsDirectChiSquare" : "statsDirectOperation"
         doc.web.evaluateJavaScript("window.\(bridge)?.resultKept(\(jsString(report.title)))")
+    }
+
+    // The report's context menu: the result under the pointer and what belongs to it. The editor
+    // posts the context at the right-click; WebKit opens the menu after that message has arrived.
+    func extendReportMenu(_ menu: NSMenu, for doc: Document) {
+        let context = doc.reportContext
+        guard context["inReport"] as? Bool == true else { return }
+        var items: [NSMenuItem] = []
+        func add(_ title: String, _ kind: String, _ value: String = "") {
+            let item = NSMenuItem(title: title, action: #selector(reportContextAction(_:)), keyEquivalent: "")
+            item.target = self; item.representedObject = ["kind": kind, "value": value, "document": doc.id]; items.append(item)
+        }
+        let id = context["resultId"] as? String
+        if let help = context["help"] as? String, !help.isEmpty { add("Method Help", "help", help) }
+        if let r = context["r"] as? String, let id { add(r == "recipe" ? "Continue in R" : "Open Data and Settings in R", "r", id) }
+        if let id { add("Select Result", "selectResult", id) }
+        add("Select All Results", "selectAll")
+        if context["picture"] as? Bool == true, doc.reportEditing {
+            add("Fit Chart to Width", "pictureFit")
+            add("Chart Width…", "pictureWidth")
+        }
+        // A chart as a file, as the Windows report's menu offers: its own markup, or a PNG at twice its size on the page.
+        if context["picture"] as? Bool == true {
+            if context["chartKind"] as? String == "svg" { add("Save Chart as SVG…", "saveChart", "svg") }
+            add("Save Chart as PNG…", "saveChart", "png")
+        }
+        guard !items.isEmpty else { return }
+        for (index, item) in items.enumerated() { menu.insertItem(item, at: index) }
+        menu.insertItem(.separator(), at: items.count)
+    }
+    func saveReportChart(_ doc: Document, format: String) {
+        let png = format == "png"
+        let panel = NSSavePanel(); panel.title = png ? "Save Chart as PNG" : "Save Chart as SVG"; panel.prompt = "Save"
+        panel.nameFieldStringValue = png ? "chart.png" : "chart.svg"
+        panel.allowedContentTypes = [png ? UTType.png : UTType.svg]
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            doc.web.callAsyncJavaScript("return await StatsDirectReportEditor.chartImage(format, scale)", arguments: ["format": format, "scale": 2], in: nil, in: .page) { result in
+                switch result {
+                case .failure(let error):
+                    self.showError("The chart could not be saved: " + (((error as NSError).userInfo["WKJavaScriptExceptionMessage"] as? String) ?? error.localizedDescription))
+                case .success(let value):
+                    guard let text = value as? String else { self.showError("The chart could not be saved."); return }
+                    do {
+                        let prefix = "data:image/png;base64,"
+                        if png {
+                            guard text.hasPrefix(prefix), let data = Data(base64Encoded: String(text.dropFirst(prefix.count))) else { self.showError("The chart could not be drawn."); return }
+                            try data.write(to: url, options: .atomic)
+                        } else { try Data(text.utf8).write(to: url, options: .atomic) }
+                        self.status.stringValue = "Chart saved as " + url.lastPathComponent
+                    } catch { self.showError("The chart could not be saved: " + error.localizedDescription) }
+                }
+            }
+        }
+    }
+    @objc func reportContextAction(_ sender: NSMenuItem) {
+        guard let info = sender.representedObject as? [String: String], let kind = info["kind"], let doc = documents.first(where: { $0.id == info["document"] }) else { return }
+        let value = info["value"] ?? ""
+        switch kind {
+        case "help": openHelp(root.appendingPathComponent(value), title: doc.title)
+        case "r": continueResultInR(doc, id: value)
+        case "selectResult": doc.web.evaluateJavaScript("StatsDirectReportEditor.selectResult(\(jsString(value)))")
+        case "selectAll": doc.web.evaluateJavaScript("StatsDirectReportEditor.selectAll()")
+        case "pictureFit": doc.web.evaluateJavaScript("StatsDirectReportEditor.command('pictureFit')")
+        case "saveChart": saveReportChart(doc, format: value)
+        case "pictureWidth": doc.web.evaluateJavaScript("(()=>{const more=document.getElementById('report-more-tools'),toggle=document.getElementById('report-more-toggle');if(more&&toggle){more.hidden=false;toggle.setAttribute('aria-expanded','true');}document.querySelector('[data-format=pictureWidth]')?.focus();})()")
+        default: break
+        }
     }
 }

@@ -16,11 +16,11 @@ const empty:GridSelection={columns:CompactSelection.empty(),rows:CompactSelectio
 // analysis-source.mjs); entered data is already complete.
 const pendingColumns=new Map<string,{resolve:(v:any)=>void,reject:(e:Error)=>void}>();let columnToken=0;
 const fetchColumns=(request:any)=>new Promise<any>((resolve,reject)=>{const token=String(++columnToken);pendingColumns.set(token,{resolve,reject});native('columns',{token,...request});});
-const resolveInput=(v:any)=>v?.lazy?fetchColumns(v.request).then((data:any)=>worksheetInputFrom(v,data)):Promise.resolve(v);
+const resolveInput=(v:any):Promise<any>=>v?.values?Promise.all(Object.entries(v.values).map(async([k,value])=>[k,await resolveInput(value)])).then(entries=>({...v,values:Object.fromEntries(entries)})):v?.lazy?fetchColumns(v.request).then((data:any)=>worksheetInputFrom(v,data)):Promise.resolve(v);
 function DataInput({p,source,onChange,initial,onChooseColumns}:{p:any,source:any,onChange:(v:any)=>void,initial:any,onChooseColumns:()=>void}) {
   // A rejected long-data answer comes back as `initial` with its worksheet columns and roles, so the same choices are shown again for correction.
   const longInitial=initial?.layout==='long'&&source?.lazy&&Array.isArray(initial.range?.columns)?initial:undefined;
-  const [useSheet,setUseSheet]=useState(!!source && !p.screen && (!initial||!!longInitial)),[selected,setSelected]=useState<number[]>(()=>source?.selection?.slice(0,p.maxColumns)??[]);
+  const [useSheet,setUseSheet]=useState(!!source && !p.screen && (!initial||!!longInitial)),[selected,setSelected]=useState<number[]>(()=>p.clearSelection||source?.selection?.length>p.maxColumns?[]:source?.selection??[]);
   // Long data: one data column with group identifiers (or treatment and block identifiers), as the Windows "groups by identifier" setting.
   // Only a live worksheet can serve it; lesson sources carry their cells and stay in separate columns.
   // Paired modes (treatment and block; group and sub-group for two-dimensional frames) take one identifier and one block column.
@@ -44,7 +44,7 @@ function DataInput({p,source,onChange,initial,onChooseColumns}:{p:any,source:any
     // range; reset the selection only when the worksheet actually changes or is refreshed.
     if(previousSource.current===source)return;
     previousSource.current=source;
-    setRowOverride(null);if(source?.selection)setSelected(source.selection.slice(0,p.maxColumns));
+    setRowOverride(null);if(source?.selection)setSelected(p.clearSelection||source.selection.length>p.maxColumns?[]:source.selection);
     // Columns the refreshed worksheet no longer has are dropped from the long-data choices.
     const count=source?.columns?.length??0;setDataCol(d=>Number.isInteger(d)&&d!<count?d:undefined);setIdCols(a=>a.filter(n=>n<count));setBlockCol(b=>Number.isInteger(b)&&b!<count?b:undefined);setOutcomeCols(a=>a.filter(n=>n<count));},[source]);
   const [table,setTable]=useState(()=>new EntryTable(p,null,longInitial?undefined:initial));
@@ -109,33 +109,112 @@ function Prompt({p,source,onSubmit,onCancel,initial,busy,embedded=false,register
   useEffect(()=>{tutorInputs.set(tutorKey.current,()=>({prompt:p.prompt,name:p.name,kind:p.kind,value:p.kind==='grid'?gridValue.current():value}));return()=>{tutorInputs.delete(tutorKey.current);};},[p,value]);
   const Container=embedded?'div':'form';
   function submit(e:React.FormEvent){e.preventDefault();if(resolving.current)return;try{const v=p.kind==='grid'?gridValue.current():value;setError('');resolving.current=true;resolveInput(v).then(resolved=>{resolving.current=false;onSubmit(resolved);}).catch((err:Error)=>{resolving.current=false;setError(err.message);});}catch(e){setError((e as Error).message);}}
-  return <Container className={embedded?'embedded-prompt':p.kind==='settings'?'settings-form':undefined} onSubmit={embedded?undefined:submit}><fieldset disabled={busy}><div className="prompt-body"><h2>{p.kind==='settings'?'Current defaults':p.prompt==='Enter a value'&&p.kind==='confidence'?'Confidence level':p.prompt==='Enter a value'&&p.kind==='grid'?'Enter the data table':p.prompt||p.title}</h2>{p.rubric&&<p className="rubric">{p.rubric}</p>}{p.error&&<p className="error" role="alert">{p.error}</p>}
+  return <Container className={embedded?'embedded-prompt':p.kind==='settings'?'settings-form':undefined} onSubmit={embedded?undefined:submit}><fieldset disabled={busy}><div className="prompt-body">{!(embedded&&p.kind==='boolean')&&<h2>{p.kind==='settings'?'Current defaults':p.prompt==='Enter a value'&&p.kind==='confidence'?'Confidence level':p.prompt==='Enter a value'&&p.kind==='grid'?'Enter the data table':p.prompt||p.title}</h2>}{p.rubric&&<p className="rubric">{p.rubric}</p>}{p.error&&<p className="error" role="alert">{p.error}</p>}
     {p.kind==='settings'?<><p>These defaults are saved for new analyses. Analyses already open keep their current settings.</p><div className="settings">{p.fields.map((f:any)=><div key={f.name} className="field">{f.kind==='boolean'?<label><input type="checkbox" disabled={f.disabled} checked={!!value[f.name]} onChange={e=>setValue({...value,[f.name]:e.target.checked})}/>{f.prompt}</label>:<label>{f.prompt}<select aria-label={f.prompt} value={value[f.name]} onChange={e=>setValue({...value,[f.name]:e.target.value})}>{f.options.map((o:any)=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>}{f.note&&<span className="hint">{f.note}</span>}</div>)}</div><p className="hint" hidden={!p.fields.some((f:any)=>f.name==='use-default-ci')}>Turn off “Use a default confidence interval” to choose confidence separately for each analysis. Methods that require an explicit confidence or probability still ask for it.</p></>:
-    p.kind==='boolean'?<div className="yesno"><label><input type="radio" name={`boolean-${p.name}`} checked={value===true} onChange={()=>setValue(true)}/>Yes</label><label><input type="radio" name={`boolean-${p.name}`} checked={value!==true} onChange={()=>setValue(false)}/>No</label></div>:
+    p.kind==='boolean'&&embedded?<label className="field"><input type="checkbox" checked={value===true} onChange={e=>setValue(e.target.checked)}/>{p.prompt}</label>:p.kind==='boolean'?<div className="yesno"><label><input type="radio" name={`boolean-${p.name}`} checked={value===true} onChange={()=>setValue(true)}/>Yes</label><label><input type="radio" name={`boolean-${p.name}`} checked={value!==true} onChange={()=>setValue(false)}/>No</label></div>:
     p.kind==='options'?<div className="choices">{p.options.map((o:any)=><label key={o.value}><input type="checkbox" checked={!!value[o.value]} onChange={e=>setValue({...value,[o.value]:e.target.checked})}/>{o.label}</label>)}</div>:
     p.kind==='option'?<div className="choices">{p.options.map((o:any)=><label key={o.value}><input type="radio" name={`choice-${p.name}`} checked={value===o.value} onChange={()=>setValue(o.value)}/>{o.label}</label>)}</div>:
     p.kind==='selectList'?<div className="choices">{p.allowNone&&!p.multiple&&<label><input type="radio" name={`list-${p.name}`} checked={value.length===0} onChange={()=>setValue([])}/>None</label>}{p.options.map((o:any)=><label key={o.value}><input type={p.multiple?'checkbox':'radio'} name={`list-${p.name}`} checked={value.includes(Number(o.value))} onChange={e=>setValue(p.multiple?(e.target.checked?[...value,Number(o.value)]:value.filter((x:number)=>x!==Number(o.value))):[Number(o.value)])}/>{o.label}</label>)}</div>:
     p.kind==='grid'?<DataInput onChooseColumns={()=>onSubmit({layout:"columns"})} p={p} source={source} initial={initial??p.initial} onChange={f=>gridValue.current=f}/>:
     p.kind==='fields'?<div className="fields">{p.fields.map((f:any)=><label className="field" key={f.name}>{f.label}<input type={f.kind==='text'?'text':'number'} step={f.kind==='integer'?1:'any'} value={value[f.name]??''} min={f.min??undefined} max={f.max??undefined} required={f.kind!=='text'} onChange={e=>setValue({...value,[f.name]:e.target.value})}/></label>)}</div>:
-    <label className="field">{p.kind==='confidence'?(p.prompt==='Enter a value'?'Confidence level (%)':'Percentage (%)'):'Value'}<input autoFocus aria-label={p.kind==='confidence'?(p.prompt==='Enter a value'?'Confidence level (%)':'Percentage (%)'):'Value'} required={p.kind!=='text'} type={p.kind==='text'?'text':'number'} maxLength={p.kind==='text'&&p.maxLength>0?p.maxLength:undefined} step={p.kind==='integer'?1:'any'} min={p.min??undefined} max={p.max??undefined} value={value} onChange={e=>setValue(e.target.value)}/></label>}
+    <label className="field">{p.kind==='confidence'?(p.prompt==='Enter a value'?'Confidence level (%)':'Percentage (%)'):'Value'}<input autoFocus={!embedded} aria-label={p.kind==='confidence'?(p.prompt==='Enter a value'?'Confidence level (%)':'Percentage (%)'):'Value'} required={p.kind!=='text'} type={p.kind==='text'?'text':'number'} maxLength={p.kind==='text'&&p.maxLength>0?p.maxLength:undefined} step={p.kind==='integer'?1:'any'} min={p.min??undefined} max={p.max??undefined} value={value} onChange={e=>setValue(e.target.value)}/></label>}
     {error&&<p className="error" role="alert">{error}</p>}</div>{!embedded&&<div className="actions"><button className="primary" type="submit">{p.kind==='settings'?'Save defaults':'Continue →'}</button>{p.kind==='settings'&&<button type="button" onClick={onCancel}>Cancel</button>}{p.skip&&<button type="button" onClick={()=>onSubmit({skip:true})}>{p.skip}</button>}{p.kind==='settings'&&busy&&<span role="status">Saving defaults…</span>}</div>}</fieldset></Container>;
+}
+// The paired-test data and agreement choice share one Run, as on Windows.
+// The engine still validates both answers through its normal input boundary.
+function PairedPrompt({p,source,initial,initialAgreement,busy,onSubmit}:{p:any,source:any,initial:any,initialAgreement:boolean,busy:boolean,onSubmit:(input:any,agreement:boolean)=>void}) {
+  const [editing,setEditing]=useState(!!initial),[agreement,setAgreement]=useState(initialAgreement),[error,setError]=useState(''),[loading,setLoading]=useState(false),[columnCount,setColumnCount]=useState(0);
+  const reader=useRef<()=>any>(()=>{throw new Error('Choose the paired measurements.');}),resolving=useRef(false),tutorKey=useRef(Symbol());
+  const selected=source?.selection??[];
+  // Never silently reduce a wider selection to two columns. Keep identifier layouts
+  // in the normal chooser so their data/group roles remain explicit.
+  const compact=!editing&&!p.error&&source&&selected.length>=1&&selected.length<=2&&
+    selected.every((c:number)=>Number.isInteger(c)&&c>=0&&c<source.columns.length)&&!(p.groupIdentifiers&&p.groupsByIdentifier);
+  const chooserSource=React.useMemo(()=>source?.selection?.length>2?{...source,selection:[]}:source,[source]);
+  const rows=worksheetRows(source,selected,p.length);
+  const read=()=>compact?worksheetInput(source,selected,rows.first,rows.last):reader.current();
+  const count=compact?selected.length:columnCount;
+  useEffect(()=>{tutorInputs.set(tutorKey.current,()=>({prompt:p.prompt,name:p.name,kind:p.kind,value:read(),agreement:agreement&&count!==1}));return()=>{tutorInputs.delete(tutorKey.current);};});
+  async function submit(e:React.FormEvent) {
+    e.preventDefault();if(resolving.current||busy)return;
+    resolving.current=true;setLoading(true);setError('');
+    try { const input=await resolveInput(read());onSubmit(input,agreement&&(input.layout==='long'||input.columns.length===2)); }
+    catch(e){setError((e as Error).message);}
+    finally {resolving.current=false;setLoading(false);}
+  }
+  return <form className="paired-inputs" onSubmit={submit}><fieldset disabled={busy||loading}>
+    <h2>Paired measurements</h2>
+    {p.error&&<p className="error" role="alert">{p.error}</p>}
+    {compact?<><p className="source">{source.name}</p><p className="selection">{selected.map((c:number)=>source.columns[c]).join(' → ')}<br/>Worksheet rows {rows.first}–{rows.last}</p><button type="button" onClick={()=>setEditing(true)}>Change data…</button></>:
+      <DataInput p={p} source={chooserSource} initial={initial??p.initial} onChooseColumns={()=>onSubmit({layout:'columns'},agreement)} onChange={f=>{reader.current=f;try{const input=f();setColumnCount(input.layout?0:input.lazy?input.request.columns.length:input.columns.length);}catch{setColumnCount(0);}}}/>}
+    <p><label><input type="checkbox" name="paired-agreement" disabled={count===1} checked={agreement&&count!==1} onChange={e=>setAgreement(e.target.checked)}/>Agreement analysis</label></p>
+    {count===1&&<p className="hint">One column is treated as differences. Agreement analysis needs the two original measurement columns.</p>}
+    {error&&<p className="error" role="alert">{error}</p>}
+    <div className="actions"><button className="primary" type="submit">Run</button>{loading&&<span role="status">Reading selected data…</span>}</div>
+  </fieldset></form>;
+}
+function AnalysisForm({p,source,busy,initial,onSubmit,embedded=false,register}:{p:any,source:any,busy:boolean,initial?:any,onSubmit:(v:any)=>void,embedded?:boolean,register?:(reader:()=>any)=>void}) {
+  const readers=useRef(new Map<string,()=>any>()),values=useRef<any>({...p.values,...initial?.values}),timer=useRef<ReturnType<typeof setTimeout>>(),resolving=useRef(false);
+  const [error,setError]=useState('');
+  const read=(preview=false)=>{
+    const next={...values.current};
+    for(const field of p.fields)try{next[field.name]=readers.current.get(field.name)?.()??next[field.name];}catch(e){if(!preview)throw e;}
+    return {values:next,preview};
+  };
+  const latest=useRef({p,busy,onSubmit});latest.current={p,busy,onSubmit};
+  useEffect(()=>{register?.(()=>read());});
+  useEffect(()=>()=>clearTimeout(timer.current),[]);
+  async function submit(preview=false) {
+    clearTimeout(timer.current);if(resolving.current||latest.current.busy)return;
+    try {
+      resolving.current=true;const input=await resolveInput(read(preview));values.current=input.values;setError('');latest.current.onSubmit(input);
+    } catch(e){if(!preview)setError((e as Error).message);}
+    finally {resolving.current=false;}
+  }
+  const Container=embedded?'div':'form';
+  return <Container className="analysis-form" onSubmit={embedded?undefined:e=>{e.preventDefault();void submit();}} onChange={()=>{
+    if(embedded)return;clearTimeout(timer.current);timer.current=setTimeout(()=>void submit(true),300);
+  }}>
+    {p.error&&<p className="error" role="alert">{p.error}</p>}
+    {p.fields.map((f:any)=><Prompt key={f.name} p={f} source={source} initial={values.current[f.name]??p.values?.[f.name]} busy={busy} embedded register={read=>readers.current.set(f.name,read)} onSubmit={()=>{}} onCancel={()=>{}}/>)}
+    {error&&<p className="error" role="alert">{error}</p>}
+    {!embedded&&<div className="actions"><button className="primary" disabled={busy} type="submit">Run</button></div>}
+  </Container>;
 }
 function InstantEditor({steps,onRun,busy}:{steps:any[],onRun:(steps:any[])=>void,busy:boolean}) {
   const readers=useRef(new Map<number,()=>any>()),[error,setError]=useState(''),resolving=useRef(false);
   return <form className="instant-inputs" onSubmit={e=>{e.preventDefault();if(resolving.current)return;try{const values=steps.map((s,i)=>readers.current.get(i)!());setError('');resolving.current=true;Promise.all(values.map(resolveInput)).then(resolved=>{resolving.current=false;onRun(steps.map((s,i)=>({...s,value:resolved[i]})));}).catch((err:Error)=>{resolving.current=false;setError(err.message);});}catch(e){setError((e as Error).message);}}}>
     <h2>Data and parameters</h2>
-    {steps.map((s,i)=><Prompt key={i} p={s.p} initial={s.value} source={null} busy={busy} onSubmit={()=>{}} onCancel={()=>{}} embedded register={reader=>readers.current.set(i,reader)}/>)}
+    {steps.map((s,i)=>s.p.kind==='form'?<AnalysisForm key={i} p={s.p} initial={s.value} source={null} busy={busy} onSubmit={()=>{}} embedded register={reader=>readers.current.set(i,reader)}/>:<Prompt key={i} p={s.p} initial={s.value} source={null} busy={busy} onSubmit={()=>{}} onCancel={()=>{}} embedded register={reader=>readers.current.set(i,reader)}/>)}
     {error&&<p className="error" role="alert">{error}</p>}
     <div className="actions"><button className="primary" disabled={busy}>Recalculate</button></div>
   </form>;
 }
 function App(){
   const [config,setConfig]=useState<any>({title:'Analysis'}),[source,setSource]=useState<any>(null),[state,setState]=useState<any>({state:'ready'}),[busy,setBusy]=useState(false),[error,setError]=useState('');
-  const answers=useRef(new InstantAnswers());
+  const autoSelection=useRef(new Set<number>());
+  const answers=useRef(new InstantAnswers()),pairedAgreement=useRef(false),pendingAgreement=useRef<boolean|undefined>(undefined);
   const [result,setResult]=useState<any>(null),[steps,setSteps]=useState<any[]>([]);
   // Where output frames go: the definition's placement in a live worksheet, as on Windows, else a new document.
   const [placement,setPlacement]=useState<string|undefined>(undefined),[includeSource,setIncludeSource]=useState(true);
-  useEffect(()=>{window.statsDirectOperation={tutorSnapshot:()=>({inputs:Array.from(tutorInputs.values()).map(read=>{try{const input=read();return JSON.stringify(input).length<=50000?input:{error:'Input too large for the tutor; choose a smaller worksheet range.'};}catch(e){return {error:(e as Error).message};}})}),configure:(c:any)=>setConfig(c),setSource:(s:any)=>setSource(s),columnData:(r:any)=>{const p=pendingColumns.get(r?.token);if(!p)return;pendingColumns.delete(r.token);if(r.error)p.reject(new Error(r.error));else p.resolve(r);},update:(s:any)=>{setState(s);setBusy(false);setError('');if(s.state==='input'){const next=answers.current.next(s.prompt);if(next.found){setBusy(true);native('answer',{token:s.token,value:next.value});}}if(s.state==='complete')setSteps(answers.current.finish());},showResult:(r:any)=>{setResult(r);window.scrollTo(0,0);},resultKept:(name:string)=>setResult((r:any)=>r?{...r,kept:name}:r),error:(s:string)=>{setError(s);setBusy(false);}};native('ready');return()=>{delete window.statsDirectOperation;};},[]);
+  useEffect(()=>{window.statsDirectOperation={tutorSnapshot:()=>({inputs:Array.from(tutorInputs.values()).map(read=>{try{const input=read();return JSON.stringify(input).length<=50000?input:{error:'Input too large for the tutor; choose a smaller worksheet range.'};}catch(e){return {error:(e as Error).message};}})}),configure:(c:any)=>setConfig(c),setSource:(s:any)=>setSource(s),columnData:(r:any)=>{const p=pendingColumns.get(r?.token);if(!p)return;pendingColumns.delete(r.token);if(r.error)p.reject(new Error(r.error));else p.resolve(r);},update:(s:any)=>{setState(previous=>s.state==='running'&&previous.prompt?.kind==='form'?{...s,state:'input',prompt:previous.prompt}:s);setBusy(s.state==='running');setError('');if(s.state==='input'){
+      if(s.prompt.kind==='boolean'&&s.prompt.name==='doAgreement'&&pendingAgreement.current!==undefined&&!s.prompt.error){
+        const value=pendingAgreement.current;pendingAgreement.current=undefined;answers.current.record(s.prompt,value);
+        setState({...s,state:'running',progress:'Calculating…'});setBusy(true);native('answer',{token:s.token,value});return;
+      }
+      if(s.prompt.error&&s.prompt.kind==='grid'&&s.prompt.name==='data')pendingAgreement.current=undefined;
+      const next=answers.current.next(s.prompt);if(next.found){setBusy(true);native('answer',{token:s.token,value:next.value});}}if(['complete','cancelled','failed'].includes(s.state))pendingAgreement.current=undefined;if(s.state==='complete')setSteps(answers.current.finish());},showResult:(r:any)=>{setResult(r);window.scrollTo(0,0);},resultKept:(name:string)=>setResult((r:any)=>r?{...r,kept:name}:r),error:(s:string)=>{setError(s);setBusy(false);}};native('ready');return()=>{delete window.statsDirectOperation;};},[]);
+  useEffect(()=>{
+    const p=state.prompt,selected=source?.selection??[];
+    if(state.state!=='input'||busy||config.id==='TPaired'||!p?.autoSelect||p.screen||p.initial||p.error||!source||
+      (p.groupIdentifiers&&p.groupsByIdentifier)||selected.length<p.minColumns||selected.length>p.maxColumns||
+      selected.some((c:number)=>!Number.isInteger(c)||c<0||c>=source.columns.length)||autoSelection.current.has(state.token))return;
+    autoSelection.current.add(state.token);setBusy(true);
+    const rows=worksheetRows(source,selected,p.length);
+    Promise.resolve().then(()=>resolveInput(worksheetInput(source,selected,rows.first,rows.last))).then(value=>{
+      answers.current.record(p,value);native('answer',{token:state.token,value});
+    }).catch((e:Error)=>{setError(e.message);setBusy(false);});
+  },[state,source,busy,config.id]);
   const isActive=['input','running'].includes(state.state),isSettings=['AnalysisOptions','MetaCalculationOptions','MetaPlotOptions'].includes(config.id);
   return <main className={isSettings?'options-page':undefined}><header><div><div className="eyebrow">ANALYSIS / STATSDIRECT</div><h1>{config.title}</h1><p>{isSettings?"Review all defaults below, then save them together.":"Results collect in the active report. Use File → New Report to start another."}</p></div><button onClick={()=>native('help')}>Method help ↗</button></header>
     {error&&<p className="error" role="alert">{error}</p>}
@@ -144,12 +223,14 @@ function App(){
     <ResultPreview result={result} busy={busy} onKeep={()=>native('keepResult',{id:result.id})}/>
     {state.state==='complete'&&state.suggestions?.length>0&&<section className="follow-on"><h2>Follow-on analyses</h2><p>These methods continue from the inputs and results of this analysis, as StatsDirect for Windows offers after a result.</p>
       <div className="choices">{state.suggestions.map((s:any)=><button key={s.operation} type="button" onClick={()=>native('followOn',{operation:s.operation,title:s.title,help:s.help??null})}>{s.title}</button>)}</div></section>}
-    {config.instant&&state.state==='complete'&&steps.length>0&&<InstantEditor steps={steps} busy={busy} onRun={edited=>{answers.current.restart(edited);setResult(null);setBusy(true);native('start');}}/>}
+    {config.instant&&state.state==='complete'&&steps.length>0&&<InstantEditor steps={steps} busy={busy} onRun={edited=>{answers.current.restart(edited);autoSelection.current.clear();setResult(null);setBusy(true);native('start');}}/>}
     {state.state==='ready'&&<section><h2>{config.unavailable?'Method help available':error?'Unable to open the form':'Opening input form…'}</h2>{config.unavailable&&<p className="notice">{config.unavailable}</p>}{error&&!config.unavailable&&<button className="primary" disabled={busy} onClick={()=>{setBusy(true);native('start');}}>Try again</button>}</section>}
     {/* A rejected answer is shown again for correction, except for an option prompt, whose re-ask carries the engine's corrected default (the layout choice after a columns-only source). */}
-    {state.state==='input'&&<Prompt key={state.token} p={state.prompt} source={source} busy={busy} initial={state.prompt.error&&state.prompt.kind!=='option'?answers.current.previous(state.prompt):undefined} onCancel={()=>{setBusy(true);native('cancel');}} onSubmit={value=>{answers.current.record(state.prompt,value);if((state.prompt.name==='layout2d'||state.prompt.name==='layoutCovariance')&&state.prompt.kind==='option')native('groupsByIdentifier',{value:value==='identifiers'});setBusy(true);native('answer',{token:state.token,value});}}/>}
+    {state.state==='input'&&(state.prompt.kind==='form'?<AnalysisForm key={state.prompt.name} p={state.prompt} source={source} busy={busy} onSubmit={value=>{if(!value.preview)answers.current.record(state.prompt,value);setBusy(true);native('answer',{token:state.token,value});}}/>:config.id==='TPaired'&&state.prompt.kind==='grid'&&state.prompt.name==='data'?
+      <PairedPrompt key={state.token} p={state.prompt} source={source} busy={busy} initial={state.prompt.error?answers.current.previous(state.prompt):undefined} initialAgreement={pairedAgreement.current} onSubmit={(value,agreement)=>{pairedAgreement.current=agreement;pendingAgreement.current=agreement;answers.current.record(state.prompt,value);setBusy(true);native('answer',{token:state.token,value});}}/>:
+      <Prompt key={state.token} p={state.prompt} source={source} busy={busy} initial={state.prompt.error&&state.prompt.kind!=='option'?answers.current.previous(state.prompt):undefined} onCancel={()=>{setBusy(true);native('cancel');}} onSubmit={value=>{answers.current.record(state.prompt,value);if((state.prompt.name==='layout2d'||state.prompt.name==='layoutCovariance')&&state.prompt.kind==='option')native('groupsByIdentifier',{value:value==='identifiers'});setBusy(true);native('answer',{token:state.token,value});}}/>)}
     {state.state==='running'&&<section aria-live="polite"><h2>{state.progress||'Calculating…'}</h2><progress value={state.fraction??undefined} max={1}/><p>You can read help and earlier reports while this calculation runs.</p></section>}
-    {!isActive&&state.state!=='ready'&&!(config.instant&&state.state==='complete')&&<section><h2>{state.state==='complete'?(isSettings?'Analysis defaults saved':'Analysis complete'):state.state==='cancelled'?(isSettings?'Changes cancelled':'Analysis cancelled'):'Analysis could not finish'}</h2><p className={state.state==='failed'?'error':''}>{state.error|| (state.state==='complete'?(isSettings?'These settings will be used by new analyses, including after restarting StatsDirect.':'Your results have been added to the active report.'):(isSettings?'Your saved defaults are unchanged.':'No final report was created.'))}</p><button className="primary" disabled={busy} onClick={()=>{answers.current=new InstantAnswers();setResult(null);setBusy(true);native('start');}}>{isSettings?'Edit defaults':'Run again'}</button></section>}
+    {!isActive&&state.state!=='ready'&&!(config.instant&&state.state==='complete')&&<section><h2>{state.state==='complete'?(isSettings?'Analysis defaults saved':'Analysis complete'):state.state==='cancelled'?(isSettings?'Changes cancelled':'Analysis cancelled'):'Analysis could not finish'}</h2><p className={state.state==='failed'?'error':''}>{state.error|| (state.state==='complete'?(isSettings?'These settings will be used by new analyses, including after restarting StatsDirect.':'Your results have been added to the active report.'):(isSettings?'Your saved defaults are unchanged.':'No final report was created.'))}</p><button className="primary" disabled={busy} onClick={()=>{answers.current=new InstantAnswers();autoSelection.current.clear();setResult(null);setBusy(true);native('start');}}>{isSettings?'Edit defaults':'Run again'}</button></section>}
     {isActive&&(!isSettings||state.state==='running')&&<div className="cancel"><button onClick={()=>{setBusy(true);native('cancel');}}>{isSettings?'Cancel':'Cancel analysis'}</button><span>{busy?'Waiting for the engine…':'Answers are checked by the StatsDirect engine.'}</span></div>}
     {!isSettings&&!!state.history?.length&&<details className="history"><summary>{state.history.length} completed input steps</summary><ol>{state.history.map((h:any,i:number)=><li key={i}>{h.title||`Input ${i+1}`}</li>)}</ol></details>}
   </main>;

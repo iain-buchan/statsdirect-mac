@@ -1,3 +1,23 @@
+# Mac analysis and report interaction — 11 October 2026
+
+Reports open as one editable area. Mac-only controls provide contextual Help and Continue in R in the toolbar and native context menu; Edit/Add text buttons, separate Report notes, engine-credit footer and visible input-history code are removed. Blank reports accept typing with undo/redo. Shared editor sources and rebuilt bundles are byte-identical to `4e9f9d10a7dbf795c28fc3dc3e5924476a3bc1d6`, the revision already released by Windows. No Windows source or engine pin was changed.
+
+Compatible highlighted worksheet data is used automatically by the general forms. Engine parameter groups share Run, with conditional previews, original validation and saved confidence defaults. Dedicated weight/role selections remain separate; over-wide selections are not cropped. All 207 commands open and 66 grouped cases match sequential numeric/frame output. The complete `test.sh` suite (including 107 JavaScript tests), native analysis/paired/R suites, report editing/clipboard/export/import suite and Word package checks passed. Release build, TypeScript and signature/debug-symbol checks passed. [Implementation and release-boundary note](../Docs/mac-interaction-update-2026-10-11.md).
+
+# Paired t-test click parity with Windows — 11 October 2026
+
+Selecting the measurement columns and choosing Analysis → Parametric → Paired t now opens one form with the selected column names/range, an Agreement analysis checkbox and Run. The optional Change data button reveals the existing data-entry and group-layout controls. Both answers still pass through the original engine's validation; the saved confidence default is used without a separate step. One differences column disables agreement, and a selection wider than two columns is not silently cropped.
+
+`Scripts/test-paired-workflow.sh` passed 35 native integration assertions through the actual worksheet, Parametric menu, WebKit message bridge, engine and active report. Checks include a single heading drag followed by checkbox/Run, the nine PEFR pairs (despite an unrelated longer column), the Windows mean and 95% confidence limits, all nine SVG markers, unchecked agreement, one differences column, optional data changes, cancellation, a saved 99% confidence level and the explicit-confidence preference. All 72 grid model tests, TypeScript checking, regenerated bundle and app signature verification passed. The suite is included in CI. The calculation engine and its pin were unchanged.
+
+The updated local app was opened on its bundled test.xlsx PEFR selection; the selected rows 2–10, Agreement checkbox and Run were also verified visually. The source changes are not yet committed or published.
+
+# Dragging to select worksheet columns — 11 October 2026
+
+Column headings now support dragging to select adjacent whole columns, with horizontal edge scrolling. Shift/Command clicks, cell rectangles and edge resizing retain their existing behavior. Selection uses compact column ranges, including on sparse worksheets with Excel's maximum dimensions. Worksheet changes, mouse release, loss of focus and Escape cancel the drag.
+
+Validation: all 72 grid model tests and the TypeScript check passed. `Scripts/test-grid-selection.sh` passed 18 assertions in actual WKWebView: both drag directions, starting on selected headings, clipboard column order, modifier clicks, cell selection, release outside the grid, focus loss, resizing, edge scrolling, pre-scrolled sheets, worksheet reload and Excel dimensions. The suite is included in CI. Desktop automation only clicked at the drag start for both the new column gesture and the existing cell gesture, so a physical-mouse check remains. Removed an obsolete width-reset call when switching worksheet tabs; widths already belong to their worksheet's column objects.
+
 # LOESS curve fitting through R on the Mac — 9 October 2026
 
 The engine's R script steps now run on the Mac: `FullEngine/RController.cs` finds Rscript, runs each operation's script in its own folder under Application Support, shims the Windows metafile device to R's quartz PNG device and returns the chart and the script to the HTML report as fragments (`ReportFragments.cs`). LOESS curve fitting is enabled in the analysis menu; method comparison regression stays deferred until its `mcr` package path is verified. `Tests/test_r_operations.py` (in `test.sh`) checks the help example's four printed figures and the fits and standard errors written back against R called directly on the same data, rows with missing values, two predictors, an error inside R, R not installed and cancelling while R runs. The help replay baseline includes the LOESS page; the menu test counts 207 input hosts and one R deferral.
@@ -734,3 +754,33 @@ Native UI checks on the user’s saved Windows/Mac comparison report confirm a 4
 - The combined native suite passes locally, including report transfer/deletion/export, 10,000 × 10 paste, a 1,048,576-row entered summary, 500,001 × 2 selection prefill, MacForms, grouping, write-back and Excel insertion/undo. The large-selection fixture now waits for React to publish the loaded worksheet's edit commands before Select All, avoiding a race with the previous empty store. Actual Word XML and Excel clipboard styles are checked separately.
 - The release archive was extracted and compared with the built application, with strict local signatures, all 979 offline Help assets and matching native debug symbols verified. Its SHA-256 is `d5a60f6d528a360d3396693d50c6ef6539c854f52d48a852ae5bb94adeb6bfa2`; the GitHub asset has the same digest. Apple Developer ID signing and notarisation remain excluded from this beta.
 - The packaged runtime passes the complete [macOS 15 native integration suite](https://github.com/iain-buchan/statsdirect-mac/actions/runs/38049314450), including the generated Word packages and Excel clipboard checks. Separate [calculator](https://github.com/iain-buchan/statsdirect-mac/actions/runs/38048021376), [report](https://github.com/iain-buchan/statsdirect-mac/actions/runs/38048332859) and [archive assembly/checksum](https://github.com/iain-buchan/statsdirect-mac/actions/runs/38047430512) jobs pass. Test and workflow follow-ups do not change the released application sources or content from `2433c86`.
+
+## R integration and report input display — 11 October 2026
+
+Compared the Windows `frmMain` and `frmScript` at `84706e463c2158bd2e6dabcbd1af0d5045b9bf88`. Removed the Mac's separate R menu from both menu bars. File → New R Script starts a numbered script tab; File → Open accepts `.R` without executing it; File → Save saves the active script. Report links continue the selected result in an editable script and run it once, with inline charts and context help. Generated scripts can close without a prompt until edited, matching Windows. The script toolbar owns Run (⌘Return), Stop / Reset, Save, Clear output, Output folder, Open in R (RStudio preferred, otherwise R.app), and missing-R setup. Its single row scrolls when Help narrows the document. Each R process keeps its own directory; stopping retains access to its files, while restarting uses a fresh directory.
+
+Removed the input-history/code expander from ordinary, dedicated contingency-table and tutor-generated reports. The R script retains the original values, input history, settings and results. User-requested R scripts printed by engine operations, such as LOESS, remain part of those results. The engine pin and statistical recipes were not updated.
+
+Checks: Release build, 873-file engine provenance verification and 1,552 distribution regression assertions; native `Scripts/test-r-integration.sh` (menus, ⌘Return, independent tabs, safe file opening, output copies, resets, minimum width/docked Help, real paired report → R with agreement plot, HTML export, screen-data report, fallback labels and missing R); all 45 generated-script/comparison pass cases; all six engine/R host scenarios; native R plot, persistence, resize and installation checks; and `Scripts/test-learning-workspace.sh` with the actual nine PEFR pairs. The standalone learning test's wait helper is now self-contained, fixing its dependency on the combined beta harness. Native R integration is included in the main CI workflow.
+
+The final optimised app passed strict bundle verification and was promoted to the local `StatsDirect.app`, retaining the previous app in `.build/before-r-integration-g3nqvdn8`. A live UI check confirmed both menu bars omit R, File starts R Script 1, the compact toolbar renders correctly, and Open in R opens the exact script in the installed R.app editor. The temporary example text was cleared; the updated app is open with a blank R script. No installer or GitHub release was published in this change.
+# 2026-10-11 — R script AI dock
+
+The Mac script toolbar now opens a native ChatGPT conversation in the right-hand dock.
+`Scripts/test-script-ai.sh` passes 30 checks against a local mock server with fictional
+worksheet values. Coverage includes no document request on opening, question-only payloads,
+per-question sharing consent enforced by the host, approved dynamic worksheet reads,
+identifier and unrelated-document rejection, frozen script excerpts, changed-workbook
+rejection, separate per-script conversations, cancellation, institutional policy, minimum
+window layout, Help/AI switching and keyboard routing. Native accessibility and screenshot
+inspection confirmed the icon, dock, sharing warning and disabled Send before confirmation.
+
+Existing ChatGPT transport and policy regressions, R integration, and native offline Help
+tests pass. The separate Release candidate `.build/script-ai-build/StatsDirect.app` passes
+the 873-file engine provenance check, 1,552 distribution regressions, matching debug symbols,
+and strict deep signature verification. All 22 checked shared report editor modules/bundles
+remain byte-identical to Windows' released editor pin. The engine stays at 5.0.14
+`4ee43dc66c038f6deff1933e4fb8d42f52fafbec`; no Windows source changes were made.
+
+No live provider question was sent. The user's existing app was not replaced/restarted.
+Script conversations are in memory only; see `Docs/Learn/TutorPrivacy.md` for sharing scope.

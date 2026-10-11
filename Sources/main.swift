@@ -56,9 +56,10 @@ final class Document {
     var operationSnapshotSourceID: String?
     var operationInputEntered = false
     var reportEntries: [ReportEntry]?
+    var reportContext: [String: Any] = [:]
     var reportUndo: [ReportChange] = []
     var reportRedo: [ReportChange] = []
-    var reportEditing = false
+    var reportEditing = true
     var reportRevision = 0
     var reportSavedRevision = 0
     var reportDirty: Bool { reportRevision != reportSavedRevision }
@@ -72,10 +73,20 @@ final class Document {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.setURLSchemeHandler(SnapshotStore.shared, forURLScheme: SnapshotStore.scheme)
-        web = WKWebView(frame: .zero, configuration: config)
+        let view = ReportWebView(frame: .zero, configuration: config)
+        web = view
         item = NSTabViewItem(identifier: id)
+        view.document = self
         item.label = title
         item.view = web
+    }
+}
+
+final class ReportWebView: WKWebView {
+    weak var document: Document?
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        super.willOpenMenu(menu, with: event)
+        if let document, document.kind == "report", let viewer = NSApp.delegate as? Viewer { viewer.extendReportMenu(menu, for: document) }
     }
 }
 
@@ -88,6 +99,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     let documentSplit = NSSplitView()
     lazy var helpPane = HelpPane(root: root.appendingPathComponent("Help"))
     let calculatorPane = CalculatorPane()
+    lazy var scriptAI = ScriptAIPane(viewer: self)
     var helpKeyMonitor: Any?
     let documentTabs = NSStackView()
     let documentTabScroll = NSScrollView()
@@ -98,6 +110,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         tutor.changed = { [weak self] in
             guard let self else { return }
             for doc in self.documents where doc.kind == "learn" { self.learningSettings(doc) }
+            self.scriptAI.updateConnection()
         }
         return tutor
     }()
@@ -109,7 +122,6 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var activeReportID: String?
     var checkingUpdates = false
     var updateTimer: Timer?
-    var rNumber = 0
     var libraryHandle: UnsafeMutableRawPointer?
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
     var engineInfo: [String: String] {
@@ -139,7 +151,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 4
         let symbol = NSImageView(); symbol.image = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")); symbol.imageScaling = .scaleProportionallyUpOrDown
         symbol.setAccessibilityLabel("StatsDirect"); symbol.widthAnchor.constraint(equalToConstant:26).isActive = true; symbol.heightAnchor.constraint(equalToConstant:26).isActive = true; bar.addArrangedSubview(symbol)
-        for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "R", "Help", "Window"] {
+        for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "Help", "Window"] {
             let button = NSButton(title: title + " ▾", target: self, action: #selector(showDropdown(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(title)
             button.isBordered = false; button.refusesFirstResponder = true
@@ -161,6 +173,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         documentSplit.addArrangedSubview(tabs)
         workspaceSplit.addArrangedSubview(documentSplit)
         helpPane.attach(to: workspaceSplit, owner: window)
+        helpPane.willShow = { [weak self] in self?.scriptAI.hide() }
         calculatorPane.attach(to: documentSplit, owner: window)
         calculatorPane.showHelp = { [weak self] in self?.calculatorHelp() }
         calculatorPane.evaluate = { [weak self] expression, completion in
@@ -170,6 +183,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             }
         }
         helpKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 36, event.modifierFlags.contains(.command), self?.scriptAI.isFocused == true { self?.scriptAI.send(); return nil }
             if event.keyCode == 122 { self?.currentMethodHelp(); return nil }; return event
         }
         for view in [bar, documentTabScroll, workspaceSplit, status!] { view.translatesAutoresizingMaskIntoConstraints = false; container.addSubview(view) }
@@ -216,7 +230,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let file = menu("File")
         add(file, "New Worksheet", #selector(newWorksheet), "n")
         add(file, "New Report", #selector(newReport))
-        add(file, "New R Session", #selector(newRTab), "r")
+        add(file, "New R Script", #selector(newRTab), "r")
         file.addItem(.separator())
         add(file, "Open…", #selector(openFile), "o")
         file.addItem(.separator())
@@ -252,15 +266,6 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
                 add(operations, "Calculator", #selector(showCalculator))
             }
         }
-        let rMenu = menu("R")
-        add(rMenu, "New R Session", #selector(newRTab), "")
-        add(rMenu, "Continue Report in R", #selector(continueActiveReportInR))
-        rMenu.addItem(.separator())
-        add(rMenu, "Run Script", #selector(runRScript), "\r")
-        add(rMenu, "Stop / Reset Session", #selector(stopRSession))
-        add(rMenu, "Save Script…", #selector(saveRScript))
-        rMenu.addItem(.separator())
-        add(rMenu, "Install R…", #selector(installR))
         let help = menu("Help")
         add(help, "Learning", #selector(openLearning))
         add(help, "Learning Options…", #selector(openLearningOptions))
@@ -280,26 +285,20 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(installR) { menuItem.title = RRuntime.executable() == nil ? "Install R…" : "R Is Installed"; return RRuntime.executable() == nil }
         if menuItem.action == #selector(checkUpdates) { return !checkingUpdates && window.attachedSheet == nil }
         if menuItem.action == #selector(toggleAutomaticUpdates) { menuItem.state = automaticUpdates ? .on : .off; return true }
         if menuItem.action == #selector(currentMethodHelp) { return calculatorPane.isFocused || active?.operationName != nil || active?.kind == "analysis" }
         if menuItem.action == #selector(reportFormatCommand(_:)) {
-            guard !calculatorPane.isFocused, !helpPane.isFocused, let doc=active,doc.kind=="report",!doc.web.isLoading,window.attachedSheet==nil else {return false}
-            let command=(menuItem.representedObject as? [String:String])?["command"]
-            if command=="toggle" {menuItem.title=doc.reportEditing ? "Done Editing Report" : "Edit Report";return true}
+            guard !calculatorPane.isFocused, !helpPane.isFocused, !scriptAI.isFocused, let doc=active,doc.kind=="report",!doc.web.isLoading,window.attachedSheet==nil else {return false}
             return doc.reportEditing
         }
-        if menuItem.action == #selector(editCommand(_:)) { return calculatorPane.isFocused || helpPane.isFocused || active != nil }
-        if menuItem.action == #selector(closeTab), calculatorPane.isFocused || helpPane.isFocused { return true }
+        if menuItem.action == #selector(editCommand(_:)) { return calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused || active != nil }
+        if menuItem.action == #selector(closeTab), calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused { return true }
         if menuItem.action == #selector(back) { return helpPane.web.canGoBack }
         if menuItem.action == #selector(forward) { return helpPane.web.canGoForward }
         if [#selector(exportReportHTML), #selector(exportReportPDF), #selector(exportReportDOCX)].contains(menuItem.action) { return active?.kind == "report" && active?.fileBusy == false && active?.web.isLoading == false }
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
         if [#selector(saveActiveExcel), #selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
-        if menuItem.action == #selector(continueActiveReportInR) { menuItem.title = active?.rScriptPlan?.hasRecipe == false ? "Open Report Data in R" : "Continue Report in R"; return active?.rScriptPlan != nil }
-        if menuItem.action == #selector(runRScript) { return active?.rPane != nil && active?.rPane?.isRunning == false }
-        if [#selector(stopRSession), #selector(saveRScript)].contains(menuItem.action) { return active?.rPane != nil }
         if menuItem.action == #selector(printPage) { if helpPane.isFocused { return true }; return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
         if menuItem.action == #selector(saveDocument) { menuItem.title = active?.kind == "learn" ? "Export Learning Record…" : active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV…") : active?.kind == "analysis" ? "Save Table…" : active?.kind == "report" ? "Save Report…" : "Save PDF…"; return active != nil && active?.kind != "operation" && active?.fileBusy == false }
         if [#selector(closeTab), #selector(printPage), #selector(saveDocument)].contains(menuItem.action) { return active != nil }
@@ -365,6 +364,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         if let doc = active {
+            scriptAI.activeDocumentChanged(doc)
             if doc.kind == "learn" { refreshLearningWorkspace(doc) }
             else { learningLastDocumentID = doc.id }
         }
@@ -415,7 +415,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func editCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
-        if calculatorPane.isFocused || helpPane.isFocused { _ = fallback(); return }
+        if calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused { _ = fallback(); return }
         if let doc=active, doc.kind=="report", ["copy","cut","paste"].contains(command), window.attachedSheet==nil { reportClipboardCommand(doc, command: command); return }
         if let doc=active, doc.kind=="report", doc.reportEditing, ["undo","redo","selectAll"].contains(command), window.attachedSheet==nil {
             doc.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand(\(jsString(command)))") { handled, error in
@@ -429,18 +429,30 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
     }
     @objc func newRTab() {
-        rNumber += 1
-        let number = rNumber
-        let doc = newDocument(kind: "r", title: "R · Session \(number)")
-        let pane = RPane()
-        doc.rPane = pane; doc.item.view = pane.view
-        pane.prepareSession()
+        let doc = makeRScript()
+        doc.rPane?.prepareSession()
     }
-    @objc func installR() { RInstaller.shared.ensureInstalled { [weak self] installed in if installed { self?.status.stringValue = "R is installed and ready" } } }
-    @objc func runRScript() { active?.rPane?.runScript() }
-    @objc func stopRSession() { active?.rPane?.stopSession() }
-    @objc func saveRScript() { active?.rPane?.saveScript() }
+    @discardableResult func makeRScript(script: String = "", title: String? = nil, saved: Bool = false) -> Document {
+        var number = 1
+        while documents.contains(where: { $0.kind == "r" && ($0.title == "R Script \(number)" || $0.title.hasPrefix("R Script \(number): ")) }) { number += 1 }
+        let name = "R Script \(number)" + (title.map { ": " + $0 } ?? "")
+        let doc = newDocument(kind: "r", title: name)
+        let pane = RPane(script: script, saved: saved)
+        doc.rPane = pane; doc.item.view = pane.view
+        pane.showAI = { [weak self, weak doc] in if let self, let doc { self.scriptAI.open(doc) } }
+        window.makeFirstResponder(pane.editor)
+        return doc
+    }
+    func openRScriptURL(_ url: URL) {
+        do {
+            let script = try String(contentsOf: url, encoding: .utf8)
+            let doc = makeRScript(script: script, title: url.lastPathComponent, saved: true)
+            doc.rPane?.scriptFileName = url.lastPathComponent
+            status.stringValue = "Opened " + url.lastPathComponent + ". Choose Run to run the script."
+        } catch { showError(error.localizedDescription) }
+    }
     @objc func closeTab() {
+        if scriptAI.isFocused { scriptAI.hide(); return }
         if calculatorPane.isFocused { calculatorPane.hide(); return }
         if helpPane.isFocused { helpPane.hide(); return }
         guard let doc = active else { return }
@@ -492,6 +504,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         doc.learningResourceTask?.cancel(); doc.learningResourceTask = nil
         doc.rPane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }
+        scriptAI.documentClosed(doc)
         tabs.removeTabViewItem(doc.item)
         updateWindowMenu(); status.stringValue = "\(documents.count) open documents"
     }
@@ -499,9 +512,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func forward() { helpPane.forward() }
     @objc func openFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = (Self.excelExtensions + ["csv", "rds", "rdata", "rda", "html", "htm", "rtf"]).compactMap { UTType(filenameExtension: $0) }
+        panel.allowedContentTypes = (Self.excelExtensions + ["csv", "rds", "rdata", "rda", "r", "html", "htm", "rtf"]).compactMap { UTType(filenameExtension: $0) }
         panel.allowsMultipleSelection = true; panel.canChooseDirectories = false
-        panel.message = "Open Excel, CSV or R data, or an HTML or legacy RTF report."
+        panel.message = "Open Excel, CSV or R data, an R script, or an HTML or legacy RTF report."
         panel.beginSheetModal(for: window) { response in
             guard response == .OK else { return }
             for url in panel.urls {
@@ -509,6 +522,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
                 case let ext where Self.excelExtensions.contains(ext): self.openExcelURL(url)
                 case "csv": self.openCSVURL(url)
                 case "rds", "rdata", "rda": self.openRDataURL(url)
+                case "r": self.openRScriptURL(url)
                 default: self.openReportURL(url)
                 }
             }
@@ -580,7 +594,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         guard let doc = document(for: webView) else { return }
         if let id = doc.scrollToResultID {
             doc.scrollToResultID = nil
-            webView.evaluateJavaScript("document.getElementById(\(jsString("result-" + id)))?.scrollIntoView()")
+            webView.evaluateJavaScript("StatsDirectReportEditor.reveal(\(jsString(id)))")
         }
         if doc.kind == "help", webView.url?.lastPathComponent != "help-index.html" {
             webView.evaluateJavaScript("document.querySelector('h1')?.textContent?.trim() || document.title") { value, _ in
@@ -594,7 +608,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         let allowed = applicationShouldTerminate(NSApp) == .terminateNow
         closeApproved = allowed
-        if allowed { helpPane.shutdown(); calculatorPane.shutdown() }
+        if allowed { helpPane.shutdown(); calculatorPane.shutdown(); scriptAI.shutdown() }
         return allowed
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -609,7 +623,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         return .terminateNow
     }
-    func applicationWillTerminate(_ notification: Notification) { helpPane.shutdown(); calculatorPane.shutdown(); if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }; RInstaller.shared.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
+    func applicationWillTerminate(_ notification: Notification) { helpPane.shutdown(); calculatorPane.shutdown(); scriptAI.shutdown(); if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }; RInstaller.shared.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 MainActor.assumeIsolated {

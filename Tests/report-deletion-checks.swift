@@ -85,7 +85,8 @@ extension ReportExportTests {
         precondition(report.reportEntries!.map(\.id) == ["delete-later"])
         try await undo()
         precondition(report.reportEntries!.map(\.id) == [first.id, middle.id, last.id, "delete-later"])
-        precondition(report.reportEntries!.first!.annotation == first.annotation && report.reportEntries!.first!.operation == first.operation)
+        // The notes of the earlier separate field are text of the result now, and come back with it.
+        precondition((report.reportEntries!.first!.editedBody ?? report.reportEntries!.first!.body).contains(first.annotation) && report.reportEntries!.first!.operation == first.operation)
         let restoredPlan = report.reportEntries!.first!.rPlan!
         precondition(restoredPlan.script == first.rPlan!.script && restoredPlan.hasRecipe == first.rPlan!.hasRecipe && restoredPlan.detail == first.rPlan!.detail)
         print("PASS: chronological text/result undo/redo, grouped heading selection, original order/metadata and later engine output"); fflush(stdout)
@@ -125,24 +126,20 @@ extension ReportExportTests {
         _ = try await js("document.querySelector('[data-format=fontSize]').focus()")
         try await key("z", modifiers: ",metaKey:true"); try await key("Backspace"); precondition(report.reportUndo.count == 1)
         try await check("!StatsDirectReportEditor.menuCommand('undo')&&!StatsDirectReportEditor.menuCommand('selectAll')", "Toolbar input commands escaped into report history")
-        _ = try await js("document.querySelector('.report-annotation').focus()")
-        try await key("z", modifiers: ",metaKey:true"); precondition(report.reportUndo.count == 1)
-        try await check("!StatsDirectReportEditor.menuCommand('undo')", "Notes input undo escaped into report history")
         _ = try await js("StatsDirectReportEditor.setEditing(false)")
         try await select("#delete-tail"); try await key("Backspace"); try await key("z", modifiers: ",metaKey:true")
         precondition(report.reportUndo.count == 1)
         try await check("document.getElementById('delete-tail').textContent==='Unselected ending'", "Read-only selection was deleted")
         _ = try await js("StatsDirectReportEditor.setEditing(true)")
         try await click("#middle-heading"); try await key("Delete"); try await undo()
-        v.editReport(report, ["action": "annotate", "resultID": middle.id, "text": "Updated notes"])
-        try await redo(); try await undo()
-        precondition(report.reportEntries!.first(where: { $0.id == middle.id })!.annotation == "Updated notes")
+        // Notes of an earlier version are text of their result now, editable and exported with it.
+        try await check("document.querySelector('#result-delete-first .report-note')?.textContent==='Keep these notes'", "Earlier notes were not carried into the result")
         // Add text is structural editing too, with the same chronology.
         v.editReport(report, ["action": "addText"]); try await settled(report)
         let addedID = report.reportEntries!.last!.id
         try await undo(); precondition(!report.reportEntries!.contains { $0.id == addedID })
         try await redo(); precondition(report.reportEntries!.last!.id == addedID)
-        print("PASS: beforeinput deletion, composition/read-only/input guards, updated notes across redo, and Add text undo"); fflush(stdout)
+        print("PASS: beforeinput deletion, composition/read-only/input guards, earlier notes carried into the result, and Add text undo"); fflush(stdout)
 
         try await reset()
         try await click("#middle-heading"); try await key("Delete")

@@ -27,6 +27,8 @@ internal static class HostParameters {
             case OptionsParameter o: d["kind"] = "options"; d["options"] = o.Options.Select(x => Choice(x.Name, x.Label, Previous(x.Name,context)?.AsObject is bool selected ? selected : x.Selected)).ToArray(); break;
             case FrameParameter f:
                 Grid(d, f.MinimumColumns(processor, context), f.MaximumColumns(processor, context));
+                d["autoSelect"] = f.CanSelect && !f.ShouldClearSelectionFirst;
+                d["clearSelection"] = f.ShouldClearSelectionFirst;
                 d["mode"] = f.DataAcquisitionMode.ToString(); d["equalLength"] = f.ColumnsAreSameLength;
                 if (!f.CanSelect) d["screen"] = true;
                 if (f.HasLength) d["length"] = f.Length(processor, context);

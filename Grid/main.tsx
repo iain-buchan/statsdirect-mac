@@ -12,6 +12,7 @@ import {analysisMetadata, columnValues, snapshotColumns, requestedSheet} from '.
 import {planWriteBack} from './write-back.mjs';
 import { WorkbookStore, cellKind } from './workbook.mjs';
 import { selectAdjacentCell, cellMovement, arrowKeyEditor } from './navigation';
+import { useColumnDragSelection } from './column-selection';
 declare global {
   interface Window {
     webkit?: any;
@@ -57,6 +58,7 @@ function App() {
   const grid = useRef<DataEditorRef>(null),
     selectionRef = useRef(selection);
   selectionRef.current = selection;
+  const columnDrag = useColumnDragSelection(grid, store.columns.length, setSelection, store);
   const [containerSize, setSize] = useState({
     width: 800,
     height: 400
@@ -294,7 +296,6 @@ function App() {
   {workbook.sheets.length > 1 && <div className="sheetbar" role="tablist" aria-label="Worksheets">{workbook.sheets.map((sheet: any, i: number) => <button key={sheet.name} role="tab" aria-selected={i === sheetIndex} onClick={() => {
         setSheetIndex(i);
         setSelection(empty);
-        setWidths({});
         setMessage(sheet.name + (sheet.hidden ? " (hidden in Excel)" : ""));
       }}>{sheet.name}{sheet.hidden ? " (hidden)" : ""}</button>)}</div>}
   <div className="formula"><label htmlFor="cellValue">{current ? columnName(current[0]) + (current[1] + 1) : 'Cell'}</label><input id="cellValue" aria-label="Selected cell value" placeholder="Select a cell, then edit its value here or double-click the cell" disabled={!current || !!store.formula(current[0], current[1])} value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => {
@@ -308,11 +309,11 @@ function App() {
           });
         }
       }} /><span>{current && store.formula(current[0], current[1]) ? (store.formulasStale ? "Original Excel formula (save and reopen to refresh): " : "Formula: ") + store.formula(current[0], current[1]) : "↵ to save and move down"}</span></div>
-  <div className="canvas" ref={container}><DataEditor ref={grid} provideEditor={arrowKeyEditor} trapFocus width={containerSize.width} height={containerSize.height} columns={store.columns.map((title: string, c: number) => ({
+  <div className="canvas" ref={container} onMouseDownCapture={columnDrag.onMouseDownCapture}><DataEditor ref={grid} provideEditor={arrowKeyEditor} trapFocus width={containerSize.width} height={containerSize.height} columns={store.columns.map((title: string, c: number) => ({
         id: String(c),
         title: store.headerRow ? columnName(c) + ' · ' + store.columnTitle(c) : columnName(c),
         width: store.cols[c]?.displayWidth ?? 178
-      }))} rows={store.rows} getCellContent={getCell} getCellsForSelection={true} rowMarkers="both" rowMarkerWidth={48} headerHeight={36} rowHeight={29} freezeColumns={0} smoothScrollX smoothScrollY gridSelection={selection} onGridSelectionChange={setSelection} onColumnResize={(_col, width, index) => {store.col(index).displayWidth = width; refresh(n => n+1);}} onCellsEdited={items => {
+      }))} rows={store.rows} getCellContent={getCell} getCellsForSelection={true} rowMarkers="both" rowMarkerWidth={48} headerHeight={36} rowHeight={29} freezeColumns={0} smoothScrollX smoothScrollY gridSelection={selection} onGridSelectionChange={setSelection} onItemHovered={columnDrag.onItemHovered} onVisibleRegionChanged={columnDrag.onVisibleRegionChanged} onColumnResizeStart={columnDrag.onColumnResizeStart} onColumnResize={(_col, width, index) => {store.col(index).displayWidth = width; refresh(n => n+1);}} onCellsEdited={items => {
         attempt(() => {
           store.apply(items.map(({
             location: [c, r],

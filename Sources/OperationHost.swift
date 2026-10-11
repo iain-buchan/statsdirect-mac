@@ -83,7 +83,7 @@ extension Viewer {
         doc.operationInputRange = nil; doc.operationInputEntered = false
         let id = UUID().uuidString; doc.analysisJobID = id; doc.analysisCancelled = false; doc.operationStarting = true
         operationScript(doc, "update", ["state": "running", "progress": "Opening input form…"])
-        var request: [String: Any] = ["action": "start", "id": id, "operation": operation]
+        var request: [String: Any] = ["action": "start", "id": id, "operation": operation, "interactiveForms": true]
         // A follow-on runs on the parent form's current result, which the parent may have replaced since.
         if let parentDocument = doc.parentDocumentID {
             if let parentJob = documents.first(where: { $0.id == parentDocument })?.completedJobID { doc.parentJobID = parentJob; request["parent"] = parentJob }
@@ -261,18 +261,13 @@ extension Viewer {
     func finishOperationReport(_ doc: Document, _ output: [String: Any], frames: [[String: Any]], note: String?) {
         let resultID = UUID().uuidString
         let html = output["html"] as? String ?? ""
-        let methodPath = methodHelpPath(doc)
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
-        let inputData = (try? JSONSerialization.data(withJSONObject: output["history"] ?? [], options: [.prettyPrinted, .sortedKeys])) ?? Data()
         let rPlan = try? RScriptGenerator.generate(operation: doc.operationName ?? "", title: doc.title, output: output, resources: root)
         let body = """
         <div class="eyebrow">Analysis / StatsDirect</div><h1>\(htmlEscape(doc.title))</h1><p class="muted">\(stamp)</p>
         <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)\(note.map { "<p class=\"note\">\(htmlEscape($0))</p>" } ?? "")</section>
-        \(reportLinks(rPlan, helpPath: methodPath, resultID: resultID))
-        <details><summary>Inputs used for this report</summary><pre>\(htmlEscape(String(decoding: inputData, as: UTF8.self)))</pre></details>
-        <p class="muted">Calculated by the StatsDirect \(htmlEscape(engineVersion)) engine · \(htmlEscape(doc.operationName ?? ""))</p>
         """
-        let entry = ReportEntry(id: resultID, title: doc.title, operation: doc.operationName ?? "", body: body, rPlan: rPlan)
+        let entry = ReportEntry(id: resultID, title: doc.title, operation: doc.operationName ?? "", body: body, rPlan: rPlan, helpPath: doc.operationName.flatMap { analysisCatalog[$0]?["help"] as? String })
         if doc.operationName.flatMap({ analysisCatalog[$0]?["instant"] as? Bool }) == true {
             previewResult(entry, in: doc)
         } else { appendReport(entry) }

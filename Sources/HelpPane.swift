@@ -78,6 +78,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     private var observations: [NSKeyValueObservation] = []
     private var aliases: [String:String] = [:]
     // Injectable only for native verification; normal clicks use the system browser.
+    var willShow: (() -> Void)?
     var externalLink: (URL) -> Void = { NSWorkspace.shared.open($0) }
 
     init(root: URL) {
@@ -136,6 +137,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         return URL(string:relative,relativeTo:HelpResources.origin)?.absoluteURL
     }
     func open(_ file: URL? = nil) {
+        willShow?()
         var target = url(for:"1000") ?? HelpResources.origin.appendingPathComponent("index.html")
         if let file {
             if file.isFileURL {

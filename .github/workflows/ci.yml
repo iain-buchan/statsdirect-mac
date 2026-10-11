@@ -64,6 +64,10 @@ jobs:
         run: ./test.sh
       - name: JavaScript tests
         run: node --test Grid/*.test.mjs Report/*.test.mjs Learn/*.test.mjs
+      - name: Worksheet column selection gestures
+        run: Scripts/test-grid-selection.sh
+      - name: Paired t-test workflow
+        run: Scripts/test-paired-workflow.sh
       - name: Excel and data file tests
         run: |
           clang++ -std=c++17 -arch arm64 Tests/workbook-driver.cpp -o .build/workbook-driver
@@ -83,8 +87,14 @@ jobs:
           clang++ -std=c++17 -arch arm64 Tests/calculator-driver.cpp -o .build/calculator-driver
           python3 Tests/test_calculator.py
           Scripts/test-calculator-pane.sh
+      - name: Analysis selection and forms
+        run: Scripts/test-analysis-workflow.sh
       - name: Report export
         run: Scripts/test-report-export.sh
+      - name: R script integration
+        run: Scripts/test-r-integration.sh
+      - name: Script AI dock and sharing
+        run: Scripts/test-script-ai.sh
       - name: WebKit integration driver
         run: |
           set -o pipefail

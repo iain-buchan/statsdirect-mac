@@ -22,7 +22,7 @@ public static class OperationSessions {
     internal static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
     static readonly ConcurrentDictionary<string, OperationJob> jobs = new();
     static readonly object gate = new();
-    public sealed record Request(string Action, string Id, string Operation, int Token, JsonElement Value, JsonElement Preferences, string Parent);
+    public sealed record Request(string Action, string Id, string Operation, int Token, JsonElement Value, JsonElement Preferences, string Parent, bool InteractiveForms = false);
     public static string Execute(string input) {
         try {
             var r = JsonSerializer.Deserialize<Request>(input, Json) ?? throw new Exception("Missing operation request.");
@@ -60,7 +60,7 @@ public static class OperationSessions {
                     // context has deliberately discarded its working arrays for output;
                     // it is suitable for interpolation, but cannot be transformed/refitted.
                     if (r.Operation == "LinearizedEstimatesWithModel") context?.Remove("context");
-                    var job = new OperationJob(r.Id, operation, r.Preferences, context, r.Parent, parent?.HistorySnapshot()); jobs[r.Id] = job;
+                    var job = new OperationJob(r.Id, operation, r.Preferences, context, r.Parent, parent?.HistorySnapshot(), r.InteractiveForms); jobs[r.Id] = job;
                     Task.Factory.StartNew(job.Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
                     result = job.Snapshot();
                 }
@@ -88,6 +88,7 @@ internal sealed class OperationJob {
     public string Id { get; }
     public Operation Operation { get; }
     public JsonElement SavedPreferences { get; }
+    public bool InteractiveForms { get; }
     public volatile bool Cancelled;
     public volatile bool Finished;
     int token;
@@ -122,8 +123,8 @@ internal sealed class OperationJob {
         }
         return null;
     }
-    public OperationJob(string id, Operation operation, JsonElement preferences, ParameterBag context = null, string parent = null, List<InputRecord> inherited = null) {
-        Id = id; Operation = operation; SavedPreferences = preferences; startContext = context; parentId = parent;
+    public OperationJob(string id, Operation operation, JsonElement preferences, ParameterBag context = null, string parent = null, List<InputRecord> inherited = null, bool interactiveForms = false) {
+        InteractiveForms = interactiveForms; Id = id; Operation = operation; SavedPreferences = preferences; startContext = context; parentId = parent;
         if (inherited != null) history.AddRange(inherited);
         var output = FirstOutputFrame(operation.Steps); writesWorksheet = output != null; placement = output?.DefaultPlacement.ToString();
     }
@@ -209,7 +210,7 @@ internal sealed class OperationJob {
     }
 }
 
-internal sealed class OperationHost : ITemplateHost {
+internal sealed partial class OperationHost : ITemplateHost {
     readonly OperationJob job;
     readonly Dictionary<string, ParameterBag> savedPerOperation = new();
     readonly ParameterBag savedAcrossOperations = new();
@@ -231,10 +232,16 @@ internal sealed class OperationHost : ITemplateHost {
     public ParameterBag SessionParametersAcrossOperations => savedAcrossOperations;
     readonly List<Parameter> settingsParameters = new();
     bool IsSettings => job.Operation.Name is "AnalysisOptions" or "MetaCalculationOptions" or "MetaPlotOptions";
-    public bool CanCombine(Parameter p) => IsSettings && p is BooleanParameter or OptionParameter;
+    public bool CanCombine(Parameter p) => IsSettings ? p is BooleanParameter or OptionParameter :
+        job.InteractiveForms && job.Operation.Name != "TPaired" && p switch {
+            FrameParameter f => !f.CanSelect && f.Data == null,
+            SpecialParameter s => s.SpecialType is "chi-2-column" or "chi-3-column" or "likelihood" or "person-time-size" or "rr-index" or "1-to-n" or "raters-2d",
+            BooleanParameter or ConfidenceIntervalParameter or DoubleParameter or IntegerParameter or StringParameter or DateParameter or OptionParameter or OptionsParameter or Double2By2Parameter or Double2By2ByKParameter or PickVariablesParameter or EditGridParameter or PickFromListParameter => true,
+            _ => false
+        };
     public void PrepareParameter(ITemplateProcessor processor, Parameter p, ParameterBag context) { job.Check(); }
     public ParameterBag FillAndValidateCombinedParameters(ITemplateProcessor processor, ParameterBag context) {
-        if (!IsSettings) throw new InvalidOperationException("Unexpected combined parameter request.");
+        if (!IsSettings) return FillForm(processor, context);
         var fields = settingsParameters.Select(p => {
             var d=HostParameters.Describe(p,processor,context,Preferences);
             if (p.Name=="default-ci") d["prompt"]="Default confidence level";
@@ -265,8 +272,8 @@ internal sealed class OperationHost : ITemplateHost {
     }
     public ParameterBag FillParameter(ITemplateProcessor processor, Parameter p, ParameterBag context, bool shouldCombine) {
         job.Check();
-        if (!Acquire(p, processor, context)) return new ParameterBag();
         if (shouldCombine && CanCombine(p)) { settingsParameters.Add(p); return new ParameterBag(); }
+        if (!Acquire(p, processor, context)) return new ParameterBag();
         // Basic search is exact whole-cell replacement. Advanced search retains
         // its numeric comparisons, expressions and row/cell deletion choices.
         if (job.Operation.Name == "SearchAndReplace" && p.Name is "search-type" or "search-rule" or "action") {
@@ -319,25 +326,7 @@ internal sealed class OperationHost : ITemplateHost {
             try {
                 var filled = HostParameters.Parse(p, input, processor, context, this);
                 if (p is FrameParameter pivotable && descriptor.ContainsKey("groupIdentifiers")) GroupsByIdentifier = HostParameters.IsLongLayout(input);
-                HostInputChecks.Validate(job.Operation.Name,p.Name,filled,context);
-                var combined = new ParameterBag(); foreach (var pair in context) combined[pair.Key] = pair.Value; foreach (var pair in filled) combined[pair.Key] = pair.Value;
-                if (p.Validators != null && filled.Count > 0) foreach (var validator in p.Validators) {
-                    if (validator.HasTestIfTrueExpression && !(bool)processor.Evaluate(validator.TestIfTrueExpression, combined)) continue;
-                    // Search's literal text fields are quoted by its builtin. Only
-                    // expression mode should be passed to the expression validator.
-                    bool literalText = combined.ContainsKey("search-type") && combined["search-type"].AsString == "text" &&
-                        (p.Name == "search-expression" && combined["search-rule"].AsString != "match" ||
-                         p.Name == "replace-expression" && combined["action"].AsString == "replace-value");
-                    if (validator.ValidatorName == "Expression" && literalText) continue;
-                    var validation = ValidationProcessor.Validate(this, validator.ValidatorName, p, combined, p.ValidationFailMessage);
-                    if (validation.Validity == Validity.Invalid) throw new ArgumentException(validation.FailedValidationMessage);
-                    if (validation.Validity == Validity.NeedMoreInformation) {
-                        bool yes = GetBoolean(validation.PromptForMoreInformation, validation.TitleForMoreInformation, false, out _);
-                        var action = yes ? validation.ActionOnMoreInformationYes : validation.ActionOnMoreInformationNo;
-                        if (action == ValidationAction.CancelOperation) { job.Cancel(); job.Check(); }
-                        if (action == ValidationAction.RequestAgain) throw new ArgumentException(validation.FailedValidationMessage);
-                    }
-                }
+                ValidateInput(p, filled, processor, context);
                 HostParameters.Commit(p, filled, context);
                 job.Record(descriptor["prompt"] as string, HostParameters.Recorded(p, input, filled), p.Name, descriptor["kind"] as string, descriptor.TryGetValue("mode", out var acquisitionMode) ? acquisitionMode as string : null);
                 return filled;

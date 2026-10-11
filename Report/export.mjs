@@ -21,13 +21,21 @@ const text = node => (node.textContent ?? '').replace(/\s+/g,' ').trim();
 const safeLink = value => /^(https?:|mailto:|#)/i.test(value);
 
 function clean(root, helpRoot) {
+  // A result's help lives on its block for the host's context menu; a saved or
+  // exported report carries it as a link, so the method stays one click away.
+  for(const entry of root.querySelectorAll('.report-entry[data-help]')) {
+    if(entry.querySelector('.report-links a[href]'))continue;
+    const links=document.createElement('p');links.className='report-links';
+    const link=document.createElement('a');link.setAttribute('href',entry.getAttribute('data-help'));link.textContent='Method and worked example →';
+    links.append(link);entry.append(links);
+  }
   root.querySelectorAll('.report-chart[hidden],.report-annotation:empty').forEach(e=>e.remove());
   root.querySelectorAll('script,iframe,object,embed,form,button,input,textarea,select,link,base,meta[http-equiv],.report-r-link,.report-links span,.report-controls,.code-actions').forEach(e=>e.remove());
   root.querySelectorAll('.report-media,.report-chart').forEach(e=>e.replaceWith(...e.childNodes));
   for(const el of [root,...root.querySelectorAll('*')]) {
     el.classList.remove('report-editing');
     if(el.getAttribute('role')==='textbox')el.removeAttribute('role');
-    for(const name of ['data-report-chart-index','data-result-id','data-hidden-charts'])el.removeAttribute(name);
+    for(const name of ['data-report-chart-index','data-result-id','data-hidden-charts','data-help','data-r'])el.removeAttribute(name);
     for(const attr of [...el.attributes]) if(/^on/i.test(attr.name)||['srcdoc','action','formaction','contenteditable','nonce','integrity'].includes(attr.name.toLowerCase())) el.removeAttribute(attr.name);
     if(el.localName==='a') {
       const original=el.getAttribute('href')??'';
@@ -286,10 +294,9 @@ export async function clipboard(options) {
     // Excel treats image HTML attributes as points but lays out CSS dimensions as pixels.
     img.width=Math.round(displayWidth*.75);img.height=Math.round(displayHeight*.75);
     img.style.cssText=`width:${displayWidth}px;height:${displayHeight}px`;
+    // Word showed every line break after a picture as an empty line, and Excel
+    // places the next text below the picture without them.
     const holder=document.createElement('div');holder.append(img);
-    // Excel places HTML pictures over cells. Reserve the extra vertical space caused by
-    // its different point/pixel interpretation, keeping the next result unobscured.
-    for(let n=0;n<Math.ceil(img.height*.25/12)+2;n++)holder.append(document.createElement('br'));
     svg.replaceWith(holder);
   }
   flattenOfficeTableBorders(root);

@@ -1,17 +1,30 @@
-import {attachPictureSizing,detachPictureSizing} from './chart-size.mjs';
-import {installTransfer,transferring,prepareClipboard,cutPrepared,preparePaste,pastePrepared} from './transfer.mjs';
-import {installDeletion,selectAllResults} from './deletion.mjs';
-export {prepareClipboard,cutPrepared,preparePaste,pastePrepared};
-let editing=false, savedRange=null, pendingSize=null, performing=false;
+import {explicitPictureWidth,wrapPicture,applyPictureWidth,fitPicture,pictureWidth,ensureHandle,installPictureSizing} from './chart-size.mjs';
+import {installTransfer,transferring,prepareClipboard,cutPrepared,preparePaste,pastePrepared,selectRange,clampSelection} from './transfer.mjs';
+import {installDeletion,selectAllResults,selectResult} from './deletion.mjs';
+import {region,entries,entryOf,entryById,entrySelector,inRegion,elementOf,field,emptyNotice,protectedSelector} from './region.mjs';
+export {prepareClipboard,cutPrepared,preparePaste,pastePrepared,selectResult,explicitPictureWidth};
+let contextPicture=null;   // the chart under the pointer at the last right-click, for Save chart as SVG or PNG
+// The report is one editable region (see region.mjs). Results are blocks in it,
+// identified by their result id, so that the host can replace a result, add the
+// further output of a run to it, undo its edits and offer its help and R script.
+// Nothing in the region is a control: help, chart sizing and the R script are
+// offered by the host's toolbar and context menu.
+let editing=false, savedRange=null, pendingSize=null, performing=false, context={};
+let post=message=>{if(window.webkit?.messageHandlers?.statsDirectReport)window.webkit.messageHandlers.statsDirectReport.postMessage(message);else window.statsDirectReportHost?.post(message);};
+const snapshots=new Map();   // result id -> the markup last reported to or received from the host
 const fontSizes=[8,9,10,11,12,14,16,18,20,24,28,36,48,72];
 const fonts=['Arial','Calibri','Cambria','Courier New','Georgia','Helvetica','Menlo','Times New Roman','Trebuchet MS','Verdana'];
 const toggles=['bold','italic','underline','strikeThrough','subscript','superscript','insertUnorderedList','insertOrderedList','justifyLeft','justifyCenter','justifyRight','justifyFull'];
-const allowed=new Set([...toggles,'fontName','fontSize','formatBlock','foreColor','hiliteColor','indent','outdent','lineSpacing','removeFormat']);
-const elementOf=node=>node?.nodeType===1?node:node?.parentElement;
+const allowed=new Set([...toggles,'fontName','fontSize','formatBlock','foreColor','hiliteColor','indent','outdent','lineSpacing','removeFormat','pictureWidth','pictureFit']);
+const blockSelector='p,h1,h2,h3,h4,h5,h6,li,div,blockquote,td,th,pre';
+const inlineStyled='font,b,strong,i,em,u,s,strike,del,sub,sup,span,mark,code,small,big';
+const mac=/Mac|iPhone|iPad/.test(navigator.platform);
+const key=label=>mac?'⌘'+label:'Ctrl+'+label;
+const shiftKey=label=>mac?'⇧⌘'+label:'Ctrl+Shift+'+label;
 function remember() {
   if(document.activeElement?.closest('#report-toolbar'))return;
   const selection=window.getSelection();
-  if(selectionBody()&&selection?.rangeCount)savedRange=selection.getRangeAt(0).cloneRange();
+  if(selection?.rangeCount&&inRegion(selection.anchorNode))savedRange=selection.getRangeAt(0).cloneRange();
 }
 function toolbar() {
   const bar=document.getElementById('report-toolbar'),tools=document.getElementById('report-format-tools');tools.replaceChildren();
@@ -43,7 +56,7 @@ function toolbar() {
     input.append(new Option(label,''));for(const [value,text] of options)input.append(new Option(text,value));
     input.onchange=()=>{if(input.value)command(name,input.value);};wrap.append(input);parent.append(wrap);return input;
   }
-  button(top,'undo','Undo','Undo (⌘Z)');button(top,'redo','Redo','Redo (⇧⌘Z)');
+  button(top,'undo','Undo','Undo ('+key('Z')+')');button(top,'redo','Redo','Redo ('+shiftKey('Z')+')');
   select(top,'formatBlock','Style',[['p','Normal'],['h1','Heading 1'],['h2','Heading 2'],['h3','Heading 3']]);
   select(top,'fontName','Font',fonts.map(f=>[f,f]));
   const label=document.createElement('label');label.title='Font size in points';
@@ -52,7 +65,7 @@ function toolbar() {
   size.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();size.onchange();}};
   const list=document.createElement('datalist');list.id='report-font-sizes';for(const n of fontSizes)list.append(new Option(String(n),String(n)));
   label.append(size,list);top.append(label);
-  for(const [name,text,title] of [['bold','B','Bold (⌘B)'],['italic','I','Italic (⌘I)'],['underline','U','Underline (⌘U)']])button(top,name,text,title).classList.add('report-icon-button');
+  for(const [name,text,title] of [['bold','B','Bold ('+key('B')+')'],['italic','I','Italic ('+key('I')+')'],['underline','U','Underline ('+key('U')+')']])button(top,name,text,title).classList.add('report-icon-button');
   for(const [name,text] of [['insertUnorderedList','Bullets'],['insertOrderedList','Numbering'],['justifyLeft','Align left'],['justifyCenter','Centre'],['justifyRight','Align right'],['justifyFull','Justify']])button(top,name,text);
   const toggle=document.createElement('button');toggle.type='button';toggle.id='report-more-toggle';toggle.textContent='More ⋯';toggle.title='More formatting';toggle.setAttribute('aria-label','More formatting');toggle.setAttribute('aria-controls',more.id);toggle.setAttribute('aria-expanded','false');top.append(toggle);
   function showMore(value) {more.hidden=!value;toggle.setAttribute('aria-expanded',String(value));}
@@ -67,15 +80,42 @@ function toolbar() {
   for(const [name,text] of [['outdent','Decrease indent'],['indent','Increase indent']])button(paragraph,name,text);
   select(paragraph,'lineSpacing','Spacing',[['1','Single'],['1.15','1.15'],['1.5','1.5'],['2','Double']]);
   button(paragraph,'removeFormat','Clear formatting');
+  // The selected chart or picture: its width in pixels, or the report's width. Shown while a picture is selected.
+  const picture=document.createElement('span');picture.className='report-picture-tools';picture.hidden=true;top.append(picture);
+  const widthLabel=document.createElement('label');widthLabel.append('Width ');
+  const width=document.createElement('input');width.type='number';width.min='80';width.step='1';width.dataset.format='pictureWidth';width.setAttribute('aria-label','Chart width in pixels');width.title='Width of the selected chart or picture, in pixels';
+  width.onchange=()=>{if(width.value)command('pictureWidth',width.value);};
+  width.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();width.onchange();}};
+  widthLabel.append(width,' px');picture.append(widthLabel);
+  button(picture,'pictureFit','Fit','Fit the selected chart to the report width');
   const add=bar.querySelector('[data-command="addText"]');if(add){add.textContent='+ Text';add.title='Add a text section';add.setAttribute('aria-label','Add text');}
+}
+// The selected picture, when the selection is exactly one chart or picture.
+export function selectedPicture() {
+  const active=document.activeElement?.closest?.('.report-media');if(active&&inRegion(active))return active.querySelector('svg,img');
+  const selection=window.getSelection();
+  if(document.activeElement?.closest?.('#report-toolbar')&&savedRange&&document.contains(savedRange.commonAncestorContainer)) {
+    const node=savedRange.collapsed?null:savedRange.startContainer.childNodes?.[savedRange.startOffset];
+    const wrapper=node?.nodeType===1&&node.matches('.report-media')?node:elementOf(savedRange.startContainer)?.closest?.('.report-media');
+    if(wrapper&&inRegion(wrapper))return wrapper.querySelector('svg,img');
+  }
+  if(!selection?.rangeCount)return null;
+  const range=selection.getRangeAt(0);
+  const node=range.startContainer,media=range.collapsed?null:elementOf(node)?.closest?.('.report-media')||(node.nodeType===1?node.childNodes[range.startOffset]:null);
+  const wrapper=media?.classList?.contains('report-media')?media:media?.closest?.('.report-media');
+  return wrapper&&inRegion(wrapper)?wrapper.querySelector('svg,img'):null;
 }
 function updateControls() {
   if(!editing||document.activeElement?.closest('#report-format-tools'))return;
-  const selection=window.getSelection(),body=selectionBody();if(!body)return;
+  // The picture tools follow the selected picture, or the one whose wrapper or corner marker has the focus,
+  // whatever the text selection is doing. The field keeps its focus (and its value) while it is being typed in.
+  const picture=selectedPicture(),width=document.querySelector('[data-format="pictureWidth"]'),fit=document.querySelector('[data-command="pictureFit"]'),tools=document.querySelector('.report-picture-tools');
+  if(width&&tools&&document.activeElement!==width&&document.activeElement!==fit){tools.hidden=!picture;width.disabled=!picture;fit.disabled=!picture;width.value=picture?String(pictureWidth(picture)):'';}
+  const selection=window.getSelection(),root=region();if(!root||!selection?.rangeCount||!inRegion(selection.anchorNode))return;
   for(const name of toggles)document.querySelector(`[data-command="${name}"]`)?.setAttribute('aria-pressed',String(document.queryCommandState(name)));
   const range=selection.getRangeAt(0),nodes=[];
   if(range.collapsed)nodes.push(elementOf(selection.anchorNode));
-  else {const walker=document.createTreeWalker(body,NodeFilter.SHOW_TEXT);let node;while((node=walker.nextNode()))if(node.textContent.trim()&&range.intersectsNode(node)&&!(range.startContainer===node&&range.startOffset===node.length)&&!(range.endContainer===node&&range.endOffset===0)&&!node.parentElement.closest('[contenteditable="false"]'))nodes.push(node.parentElement);}
+  else {const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node;while((node=walker.nextNode()))if(node.textContent.trim()&&range.intersectsNode(node)&&!(range.startContainer===node&&range.startOffset===node.length)&&!(range.endContainer===node&&range.endOffset===0)&&!node.parentElement.closest('[contenteditable="false"]'))nodes.push(node.parentElement);}
   const common=property=>{const values=new Set(nodes.map(n=>getComputedStyle(n)[property]));return values.size===1?[...values][0]:'';};
   const family=common('fontFamily').split(',')[0].replace(/["']/g,'').trim();
   const font=document.querySelector('[data-format="fontName"]');if(family&&![...font.options].some(o=>o.value===family))font.append(new Option(family,family));font.value=family;
@@ -85,56 +125,144 @@ function updateControls() {
 }
 // WebKit's fontSize command uses HTML sizes 1–7. Convert its temporary size 7
 // immediately to an exact point size; the pending value also covers new typing.
-function exactSizes(body,size=pendingSize) {
-  for(const font of body.querySelectorAll('font[size]')) {
+function exactSizes(root,size=pendingSize) {
+  for(const font of root.querySelectorAll('font[size]')) {
     font.style.fontSize=Number(font.getAttribute('size'))===7&&size?`${size}pt`:`${[0,8,10,12,14,18,24,36][Number(font.getAttribute('size'))]||12}pt`;
     font.removeAttribute('size');
     if(font.face){font.style.fontFamily=font.face;font.removeAttribute('face');}
     if(font.color){font.style.color=font.color;font.removeAttribute('color');}
   }
 }
-function selectedBlocks(body,range) {
-  const selector='p,h1,h2,h3,h4,h5,h6,li,div,blockquote,td,th';
-  if(range.collapsed){const block=elementOf(range.startContainer)?.closest(selector);return block&&body.contains(block)&&block!==body?[block]:[];}
-  return [...body.querySelectorAll(selector)].filter(el=>range.intersectsNode(el)&&!el.closest('[contenteditable="false"]')&&![...el.querySelectorAll(selector)].some(child=>range.intersectsNode(child)));
+// The innermost blocks the range touches, anywhere in the region, leaving out protected content.
+function selectedBlocks(range) {
+  const root=region();
+  if(range.collapsed){const block=elementOf(range.startContainer)?.closest(blockSelector);return block&&root.contains(block)&&!block.matches(entrySelector)&&block!==root?[block]:[];}
+  return [...root.querySelectorAll(blockSelector)].filter(el=>range.intersectsNode(el)&&!el.closest('[contenteditable="false"]')&&!el.matches(entrySelector)&&![...el.querySelectorAll(blockSelector)].some(child=>range.intersectsNode(child)));
 }
-const post=message=>window.webkit.messageHandlers.statsDirectReport.postMessage(message);
-const bodies=()=>[...document.querySelectorAll('.report-body')];
-function selectionBody() {
-  const selection=window.getSelection(),node=selection?.anchorNode;
-  return (node?.nodeType===1?node:node?.parentElement)?.closest('.report-body');
-}
-function protect(body) {
-  if(!body.hasChildNodes())body.innerHTML='<p><br></p>';
-  exactSizes(body);
-  const hidden=new Set((body.dataset.hiddenCharts||'').split(',').filter(Boolean).map(Number));
-  [...body.querySelectorAll('svg')].filter(svg=>!svg.parentElement.closest('svg')).forEach((svg,index)=>{
-    if(svg.closest('.report-chart'))return;
-    const chart=Number(svg.dataset.reportChartIndex??index);svg.dataset.reportChartIndex=String(chart);
-    const wrapper=document.createElement('div');wrapper.className='report-chart';wrapper.hidden=hidden.has(chart);
-    const controls=document.createElement('div');controls.className='report-controls';
-    svg.replaceWith(wrapper);wrapper.append(controls,svg);
-    attachPictureSizing(svg,wrapper,controls,()=>changed(body),()=>editing);
-  });
-  for(const img of body.querySelectorAll('img')) {
-    if(img.closest('.report-media,svg,.report-links'))continue;
-    const wrapper=document.createElement('div'),controls=document.createElement('div');controls.className='report-controls';
-    img.replaceWith(wrapper);wrapper.append(controls,img);
-    attachPictureSizing(img,wrapper,controls,()=>changed(body),()=>editing);
+const INDENT_STEP=40;
+function indentBlock(block,inward) {
+  const current=parseFloat(block.style.marginLeft)||0;
+  if(inward)block.style.marginLeft=(current+INDENT_STEP)+'px';
+  else if(current>0)block.style.marginLeft=current>INDENT_STEP?(current-INDENT_STEP)+'px':'';
+  else if(block.parentElement?.matches('blockquote')&&inRegion(block.parentElement)&&!block.parentElement.matches(entrySelector)) {
+    // A quotation from an earlier editor or a pasted document is the indentation it stands for.
+    const quote=block.parentElement;quote.replaceWith(...quote.childNodes);
   }
-  body.querySelectorAll('.report-media,.report-chart,.report-links,details,svg,img,.report-import-warning').forEach(el=>el.contentEditable='false');
+  if(!block.getAttribute('style'))block.removeAttribute('style');
 }
-export function serialize(body) {
-  const clone=body.cloneNode(true);
+const textProperties=['font-family','font-size','font-weight','font-style','text-decoration','text-decoration-line','text-decoration-color','text-decoration-style','color','background-color','vertical-align','letter-spacing','text-transform','text-shadow'];
+const blockProperties=[...textProperties,'line-height','text-align','text-indent','margin-left','margin-right','padding-left'];
+// Clear formatting as a word processor does: with a caret the paragraph at the
+// caret, with a selection every block the selection touches. Inline formatting
+// elements are unwrapped and inline text styles removed; block styles too. The
+// headings and lists of a result are its structure and stay. Protected content
+// (a chart, the inputs record) is passed over, never a reason to stop.
+function clearFormatting(range) {
+  const blocks=selectedBlocks(range);
+  const whole=block=>range.collapsed||(range.compareBoundaryPoints(Range.START_TO_START,fullRange(block))<=0&&range.compareBoundaryPoints(Range.END_TO_END,fullRange(block))>=0);
+  const fullRange=node=>{const r=document.createRange();r.selectNode(node);return r;};
+  const touched=blocks.filter(block=>!block.closest('[contenteditable="false"]'));
+  if(!range.collapsed&&touched.some(block=>!whole(block))) {
+    // Partial blocks: the browser's own command clears the selected run of text.
+    document.execCommand('styleWithCSS',false,true);document.execCommand('removeFormat',false,null);
+  }
+  for(const block of touched) {
+    if(whole(block)) {
+      for(const el of [...block.querySelectorAll(inlineStyled)].reverse())if(!el.closest('[contenteditable="false"]')&&!el.closest('svg')) {
+        if(el.matches('span,font,mark,small,big')||el.matches('b,strong,i,em,u,s,strike,del,sub,sup,code'))el.replaceWith(...el.childNodes);
+      }
+      for(const el of block.querySelectorAll('[style]'))if(!el.closest('[contenteditable="false"]')&&!el.closest('svg'))for(const property of textProperties)el.style.removeProperty(property);
+    }
+    for(const property of blockProperties)block.style.removeProperty(property);
+    if(!block.getAttribute('style'))block.removeAttribute('style');
+    block.normalize();
+  }
+  return touched.length>0;
+}
+// Every piece of a result remembers its result. WebKit's block commands (a heading,
+// a list, an alignment, an indent) can lift a piece out of its result's block or
+// split the block in two; the pieces go back to their result, in order, and split
+// halves become one block again. Content that lands between results with no
+// known owner (new nodes) joins the result the selection is in, or its neighbour.
+const owners=new WeakMap();
+function tagOwners() {
+  for(const entry of entries())for(const child of entry.children)owners.set(child,entry.dataset.resultId);
+}
+function ownerOf(node) {
+  if(node.nodeType!==Node.ELEMENT_NODE)return null;
+  if(owners.has(node))return owners.get(node);
+  for(const el of node.querySelectorAll('*'))if(owners.has(el))return owners.get(el);
+  return null;
+}
+function absorbStrays(root) {
+  const selection=window.getSelection(),focused=selection?.rangeCount?entryOf(selection.anchorNode):null;
+  for(const node of [...root.childNodes]) {
+    if(node.nodeType===Node.ELEMENT_NODE&&node.matches(entrySelector))continue;
+    if(node.nodeType===Node.TEXT_NODE&&!node.textContent.trim()){node.remove();continue;}
+    const owner=ownerOf(node),known=owner?entryById(owner):null;
+    let target=known&&known.parentElement===root?known:focused&&focused.parentElement===root?focused:null;
+    if(!target) {
+      let previous=node.previousSibling;while(previous&&!(previous.nodeType===1&&previous.matches(entrySelector)))previous=previous.previousSibling;
+      let next=node.nextSibling;while(next&&!(next.nodeType===1&&next.matches(entrySelector)))next=next.nextSibling;
+      target=previous||next;
+    }
+    if(!target){node.remove();continue;}
+    if(node.compareDocumentPosition(target)&Node.DOCUMENT_POSITION_FOLLOWING)target.prepend(node);else target.append(node);
+  }
+  // A result block inside another (pasted, or cloned by the browser's block editing) is its content: one level of results only.
+  for(const nested of [...root.querySelectorAll('article')].reverse())if(nested.parentElement!==root)nested.replaceWith(...nested.childNodes);
+  // Split halves are one result again, in order.
+  let previous=null;
+  for(const entry of [...root.children]) {
+    if(!entry.matches(entrySelector)){previous=null;continue;}
+    if(previous&&previous.dataset.resultId===entry.dataset.resultId){previous.append(...entry.childNodes);entry.remove();continue;}
+    previous=entry;
+  }
+  tagOwners();
+}
+function protect() {
+  const root=region();if(!root)return;
+  absorbStrays(root);
+  for(const entry of entries()) {
+    if(!entry.hasChildNodes())entry.innerHTML='<p><br></p>';
+    exactSizes(entry);
+    [...entry.querySelectorAll('svg')].filter(svg=>!svg.parentElement.closest('svg')).forEach((svg,index)=>{
+      if(svg.closest('.report-media'))return;
+      svg.dataset.reportChartIndex=String(Number(svg.dataset.reportChartIndex??index));
+      wrapPicture(svg);
+    });
+    for(const img of entry.querySelectorAll('img'))if(!img.closest('.report-media,svg,.report-links'))wrapPicture(img);
+    for(const media of entry.querySelectorAll('.report-media'))ensureHandle(media);
+    entry.querySelectorAll(protectedSelector).forEach(el=>{el.contentEditable='false';});
+  }
+  const notice=emptyNotice();if(notice)notice.hidden=entries().length>0;
+}
+export function serialize(entry) {
+  const clone=entry.cloneNode(true);
   clone.querySelectorAll('.report-controls').forEach(el=>el.remove());
   clone.querySelectorAll('.report-media,.report-chart').forEach(el=>el.replaceWith(...el.childNodes));
-  clone.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
+  clone.querySelectorAll('[contenteditable],[tabindex],[draggable]').forEach(el=>{el.removeAttribute('contenteditable');el.removeAttribute('tabindex');el.removeAttribute('draggable');});
+  clone.querySelectorAll('.report-media-selected').forEach(el=>el.classList.remove('report-media-selected'));
   return clone.innerHTML;
 }
-function changed(body,inputType='') {
-  if(!body)return;
-  protect(body);
-  post({action:'editBody',resultID:body.dataset.resultId,html:serialize(body),typing:inputType==='insertText'||inputType==='deleteContentBackward'||inputType==='deleteContentForward'});
+function remeasure(entry){snapshots.set(entry.dataset.resultId,serialize(entry));}
+// What changed since the host last heard: the results whose markup differs,
+// those that are gone (deleted as a whole or emptied by editing), as one message.
+function changed(inputType='') {
+  const root=region();if(!root)return;
+  protect();
+  const present=new Map(entries().map(entry=>[entry.dataset.resultId,entry]));
+  const remove=[];
+  for(const [id,entry] of present)if(!entry.textContent.trim()&&!entry.querySelector('svg,img,table,hr')){entry.remove();present.delete(id);remove.push(id);}
+  for(const id of snapshots.keys())if(!present.has(id)&&!remove.includes(id))remove.push(id);
+  const edits=[];
+  for(const [id,entry] of present){const html=serialize(entry);if(html!==snapshots.get(id)){edits.push({id,html});snapshots.set(id,html);}}
+  for(const id of remove)snapshots.delete(id);
+  const notice=emptyNotice();if(notice)notice.hidden=present.size>0;
+  if(!edits.length&&!remove.length)return;
+  const typing=inputType==='insertText'||inputType==='deleteContentBackward'||inputType==='deleteContentForward';
+  if(edits.length===1&&!remove.length)post({action:'editBody',resultID:edits[0].id,html:edits[0].html,typing});
+  else post({action:'editBodies',edits,remove});
 }
 export function history(undo,redo) {
   document.querySelector('[data-command="undo"]').disabled=!undo;
@@ -143,97 +271,219 @@ export function history(undo,redo) {
 export function setEditing(value,notify=true) {
   editing=value;
   document.body.classList.toggle('report-editing',value);
-  for(const body of bodies()) {body.contentEditable=String(value);protect(body);}
-  const toggle=document.getElementById('report-edit-toggle');toggle.textContent=value?'Done':'Edit report';toggle.title=value?'Done editing':'Edit report';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-pressed',String(value));
-  document.getElementById('report-format-tools').hidden=!value;
-  if(!value){savedRange=null;pendingSize=null;document.getElementById('report-more-tools').hidden=true;document.getElementById('report-more-toggle').setAttribute('aria-expanded','false');}
+  const root=region();if(root){root.contentEditable=String(value);protect();}
+  const toggle=document.getElementById('report-edit-toggle');
+  if(toggle){toggle.textContent=value?'Done':'Edit report';toggle.title=value?'Done editing':'Edit report';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-pressed',String(value));}
+  const tools=document.getElementById('report-format-tools');if(tools)tools.hidden=!value;
+  if(!value){savedRange=null;pendingSize=null;const more=document.getElementById('report-more-tools');if(more)more.hidden=true;document.getElementById('report-more-toggle')?.setAttribute('aria-expanded','false');}
   if(notify)post({action:'editing',value});
   updateControls();
 }
-export function replace(id,html) {
-  const old=document.getElementById('result-'+id);if(!old)return;
-  const template=document.createElement('template');template.innerHTML=html;const replacement=template.content.firstElementChild;
-  const hadFocus=old.contains(document.activeElement),scroll=window.scrollY;
-  detachPictureSizing(old);old.replaceWith(replacement);const body=replacement.querySelector('.report-body');body.contentEditable=String(editing);protect(body);savedRange=null;
-  if(editing&&hadFocus){body.focus();const range=document.createRange();range.selectNodeContents(body);range.collapse(false);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);window.scrollTo(0,scroll);}
+// A result's markup from the host: the whole block (an article with its result id).
+function parse(html) {
+  const template=document.createElement('template');template.innerHTML=html;
+  const block=template.content.firstElementChild;
+  if(!block||!block.matches(entrySelector))throw new Error('A report result must be a block with its result id.');
+  return block;
 }
-export function replaceEntries(entries,order=null) {
-  const scroll=window.scrollY,container=document.getElementById('report-results');
-  const focused=document.activeElement?.closest('.report-entry'),index=focused?[...container.children].indexOf(focused):0;
-  const refocus=document.activeElement===container||!!focused;
-  if(order)for(const entry of [...container.children])if(!order.includes(entry.id.slice(7))){detachPictureSizing(entry);entry.remove();}
-  for(const {id,html} of entries) {
-    if(document.getElementById('result-'+id))replace(id,html);
-    else {const template=document.createElement('template');template.innerHTML=html;container.append(template.content);const body=document.getElementById('result-'+id).querySelector('.report-body');body.contentEditable=String(editing);protect(body);}
+export function replace(id,html) {
+  const old=entryById(id);if(!old)return;
+  const replacement=parse(html);
+  const hadFocus=old.contains(document.activeElement)||(inRegion(document.activeElement)&&old.contains(window.getSelection()?.anchorNode)),scroll=window.scrollY;
+  old.replaceWith(replacement);protect();remeasure(replacement);savedRange=null;
+  if(editing&&hadFocus){const range=document.createRange();range.selectNodeContents(replacement);range.collapse(false);selectRange(range);window.scrollTo(0,scroll);}
+}
+export function replaceEntries(list,order=null) {
+  const scroll=window.scrollY,root=region();
+  const focused=entryOf(document.activeElement)||entryOf(window.getSelection()?.anchorNode),index=focused?entries().indexOf(focused):0;
+  const refocus=document.activeElement===root||!!focused;
+  if(order){
+    for(const entry of entries())if(!order.includes(entry.dataset.resultId))entry.remove();
+    for(const id of [...snapshots.keys()])if(!order.includes(id))snapshots.delete(id);
   }
-  if(order)order.forEach((id,index)=>{const entry=document.getElementById('result-'+id);if(entry&&container.children[index]!==entry)container.insertBefore(entry,container.children[index]||null);});
-  document.getElementById('report-empty').hidden=container.children.length>0;
-  if(refocus&&!container.contains(document.activeElement)) {
-    const body=container.children[Math.min(index,container.children.length-1)]?.querySelector('.report-body');
-    if(body){body.focus({preventScroll:true});const range=document.createRange();range.selectNodeContents(body);range.collapse(true);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);}
-    else container.focus({preventScroll:true});
+  for(const {id,html} of list) {
+    if(entryById(id))replace(id,html);
+    else {const block=parse(html);root.append(block);protect();remeasure(block);}
+  }
+  if(order)order.forEach((id,position)=>{const entry=entryById(id);const current=entries();if(entry&&current[position]!==entry)root.insertBefore(entry,current[position]||null);});
+  protect();
+  if(refocus&&!inRegion(document.activeElement)&&!inRegion(window.getSelection()?.anchorNode)) {
+    const current=entries(),target=current[Math.min(index,current.length-1)];
+    if(target){const range=document.createRange();range.selectNodeContents(target);range.collapse(true);selectRange(range);}
+    else root.focus({preventScroll:true});
   }
   savedRange=null;
   window.scrollTo(0,scroll);
+}
+// More of a result into its block (a chart after its analysis): added by the host, not an edit.
+export function extend(id,html) {
+  const entry=entryById(id);if(!entry)return false;
+  const template=document.createElement('template');template.innerHTML=html;
+  entry.append(template.content);protect();remeasure(entry);return true;
+}
+// A result scrolled so that its top is just below the toolbar; a result near
+// the end of the report gets the room below it to reach there.
+export function reveal(id) {
+  const entry=entryById(id),root=region();if(!entry||!root)return false;
+  const bar=document.getElementById('report-toolbar'),gap=(bar?bar.getBoundingClientRect().height:0)+8;
+  // A report that fits the window stays at the top: with the window at the top and the result wholly in view below
+  // the toolbar, nothing moves. Anywhere else the result's top goes just below the toolbar, as a result just run or
+  // just given more output is what the user wants to see, and the page gets the room below it that this needs.
+  const box=entry.getBoundingClientRect();
+  if(window.scrollY===0&&box.top>=gap&&box.bottom<=window.innerHeight){root.style.setProperty('--reveal-room','0px');return true;}
+  root.style.setProperty('--reveal-room','0px');
+  const top=entry.getBoundingClientRect().top+window.scrollY;
+  const below=document.documentElement.scrollHeight-(top+box.height);
+  const room=Math.max(0,window.innerHeight-gap-box.height-below);
+  if(room>0)root.style.setProperty('--reveal-room',room+'px');
+  window.scrollTo({top:Math.max(0,top-gap),behavior:'auto'});
+  return true;
+}
+export function selectAll(){return selectAllResults();}
+// What a right-click is on, for the host's context menu: the result, its help
+// and R, whether text is selected, whether a chart is there and the place is editable.
+export function contextTarget(){return context;}
+function describe(node) {
+  const entry=entryOf(node),selection=window.getSelection(),picture=elementOf(node)?.closest('.report-media')?.querySelector('svg,img')||null;
+  contextPicture=picture;
+  return {resultId:entry?.dataset.resultId??null,help:entry?.dataset.help||null,r:entry?.dataset.r||null,title:entry?.getAttribute('aria-label')||null,
+    hasSelection:!!selection&&!selection.isCollapsed&&inRegion(selection.anchorNode),editable:editing&&inRegion(node)&&!elementOf(node)?.closest('[contenteditable="false"]'),
+    picture:!!picture,pictureWidth:picture?pictureWidth(picture):null,chartKind:picture?(picture.localName==='img'?'png':'svg'):null,inReport:inRegion(node)};
+}
+// The chart under the pointer as a file, for the host's Save chart as SVG or PNG: its own markup for an SVG file (the xmlns
+// ensured), or a PNG drawn from it on a canvas at the given scale of its size on the page, on white. A raster picture gives
+// its own data as it is, and no SVG.
+// A chart as other programs read it (the Windows host's exportableSvg, shared here): the engine's charts carry text
+// anchoring and font styling in style attributes on tspans and baseline shifts as dy in em, which Office's converter to
+// shapes does not read, so every label was placed by its left edge at its anchor and off its baseline. The copy sets
+// xmlns, drops data-* attributes, derives the height from the width and the viewBox when missing, puts each text's
+// font-family (quotes removed), font-size, font-weight, font-style, fill and text-anchor as attributes of the text from
+// the declarations on it and its spans, folds a span's dy (em or px) into the text's y and drops the spans when they
+// carry nothing else, removes transform="rotate(0)", and turns shape style declarations into presentation attributes.
+export function exportableSvg(el) {
+  const svg=el.cloneNode(true);
+  svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  for(const a of [...svg.attributes])if(a.name.startsWith('data-'))svg.removeAttribute(a.name);
+  const box=(svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
+  if(box.length===4&&box[2]>0&&box[3]>0){
+    const w=svg.getAttribute('width'),m=w&&/^([\d.]+)([a-z%]*)$/i.exec(w);
+    if(m&&!svg.getAttribute('height'))svg.setAttribute('height',(Math.round(Number(m[1])*box[3]/box[2]*1000)/1000)+(m[2]||''));
+    else if(!w){svg.setAttribute('width',String(box[2]));svg.setAttribute('height',String(box[3]));}
+  }
+  const declared=style=>{const out={};for(const d of (style||'').split(';')){const i=d.indexOf(':');if(i<0)continue;const k=d.slice(0,i).trim(),v=d.slice(i+1).trim();if(k&&v)out[k]=v;}return out;};
+  for(const text of svg.querySelectorAll('text')){
+    const spans=[...text.querySelectorAll('tspan')],props={};
+    for(const node of [text,...spans])for(const [k,v] of Object.entries(declared(node.getAttribute('style'))))if(!(k in props))props[k]=v;
+    for(const k of ['font-family','font-size','font-weight','font-style','fill','text-anchor'])if(props[k]!==undefined)text.setAttribute(k,props[k].replace(/['"]/g,''));
+    const size=parseFloat(props['font-size'])||16;
+    let shift=0;
+    for(const s of spans){
+      const dy=s.getAttribute('dy'),m=dy&&/^(-?[\d.]+)(em|px)?$/.exec(dy.trim());
+      if(m){shift+=Number(m[1])*(m[2]==='em'?size:1);s.removeAttribute('dy');}
+      s.removeAttribute('style');
+      for(const a of ['x','y'])if(s.getAttribute(a)==='0')s.removeAttribute(a);
+    }
+    if(shift)text.setAttribute('y',String((parseFloat(text.getAttribute('y'))||0)+shift));
+    text.removeAttribute('style');
+    if(/^rotate\(\s*0\s*\)$/.test(text.getAttribute('transform')||''))text.removeAttribute('transform');
+    if(spans.length&&spans.every(s=>!s.attributes.length))text.textContent=spans.map(s=>s.textContent).join('');
+  }
+  for(const node of svg.querySelectorAll('line,ellipse,circle,rect,path,polyline,polygon,g')){
+    const style=node.getAttribute('style');if(!style)continue;
+    for(const [k,v] of Object.entries(declared(style)))if(!node.hasAttribute(k))node.setAttribute(k,v);
+    node.removeAttribute('style');
+  }
+  return svg;
+}
+export async function chartImage(format,scale=1) {
+  const el=contextPicture;if(!el||!el.isConnected)throw new Error('No chart is under the pointer.');
+  if(el.localName==='img'){if(format==='svg')throw new Error('This picture is not a vector chart.');return el.src;}
+  const svg=exportableSvg(el);
+  if(format==='svg')return new XMLSerializer().serializeToString(svg);
+  const box=el.getBoundingClientRect(),w=Math.max(1,Math.round(box.width)),h=Math.max(1,Math.round(box.height));
+  svg.setAttribute('width',w);svg.setAttribute('height',h);
+  const img=new Image();
+  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=()=>bad(new Error('The chart could not be drawn.'));img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg));});
+  const k=Math.max(1,Number(scale)||1),canvas=document.createElement('canvas');canvas.width=w*k;canvas.height=h*k;
+  const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.scale(k,k);ctx.drawImage(img,0,0,w,h);
+  return canvas.toDataURL('image/png');
 }
 export function command(name,value=null) {
   if(name==='toggle'){setEditing(!editing);return;}
   if(name==='addText'){post({action:'addText'});return;}
   if(name==='undo'||name==='redo'){pendingSize=null;post({action:name==='undo'?'undoText':'redoText'});return;}
+  if(name==='selectAll'){selectAllResults();return;}
   if(!editing||!allowed.has(name))return;
   if(name==='fontSize'&&(!Number.isFinite(Number(value))||Number(value)<6||Number(value)>96))return;
   if(name==='lineSpacing'&&!['1','1.15','1.5','2'].includes(String(value)))return;
   if(name==='formatBlock'&&!['p','h1','h2','h3'].includes(value))return;
+  if(name==='pictureWidth'||name==='pictureFit') {
+    const picture=selectedPicture();if(!picture)return;
+    const did=name==='pictureFit'?fitPicture(picture):applyPictureWidth(picture,Number(value));
+    if(did)changed();updateControls();return;
+  }
   // Controls can own focus while the report selection remains visible in WebKit.
   if(!document.activeElement?.closest('#report-toolbar'))remember();
-  const selection=window.getSelection();
+  const selection=window.getSelection(),root=region();
   if(savedRange&&document.contains(savedRange.commonAncestorContainer)){selection.removeAllRanges();selection.addRange(savedRange);}
-  const body=selectionBody();if(!body||!selection.rangeCount)return;
+  if(!root||!selection.rangeCount)return;
   const range=selection.getRangeAt(0);
-  if(!body.contains(range.endContainer)||elementOf(range.startContainer)?.closest('[contenteditable="false"]'))return;
-  if([...body.querySelectorAll('[contenteditable="false"]')].some(el=>range.intersectsNode(el)))return;
-  body.focus();performing=true;
+  if(!inRegion(range.startContainer)||!inRegion(range.endContainer)||elementOf(range.startContainer)?.closest('[contenteditable="false"]'))return;
+  root.focus({preventScroll:true});performing=true;
   try {
     if(name==='fontSize') {
-      exactSizes(body);pendingSize=Number(value);
-      document.execCommand('styleWithCSS',false,false);document.execCommand('fontSize',false,'7');exactSizes(body,pendingSize);if(!range.collapsed)pendingSize=null;
+      exactSizes(root);pendingSize=Number(value);
+      document.execCommand('styleWithCSS',false,false);document.execCommand('fontSize',false,'7');exactSizes(root,pendingSize);if(!range.collapsed)pendingSize=null;
     } else if(name==='lineSpacing') {
-      let blocks=selectedBlocks(body,range);
-      if(!blocks.length){document.execCommand('formatBlock',false,'p');blocks=selectedBlocks(body,selection.getRangeAt(0));}
+      let blocks=selectedBlocks(range);
+      if(!blocks.length){document.execCommand('formatBlock',false,'p');blocks=selectedBlocks(selection.getRangeAt(0));}
       for(const block of blocks)block.style.lineHeight=value;
+    } else if(name==='removeFormat') {
+      pendingSize=null;clearFormatting(range);
+    } else if(name==='indent'||name==='outdent') {
+      let blocks=selectedBlocks(range);
+      if(!blocks.length){document.execCommand('formatBlock',false,'p');blocks=selectedBlocks(selection.getRangeAt(0));}
+      const items=blocks.filter(block=>block.matches('li'));
+      // List items nest within their list through the browser; every other block moves its left margin,
+      // as the browser's command would split the result's block to wrap the paragraph in a quotation.
+      if(items.length&&items.length===blocks.length){document.execCommand('styleWithCSS',false,true);document.execCommand(name,false,null);}
+      else for(const block of blocks)indentBlock(block,name==='indent');
     } else {
       document.execCommand('styleWithCSS',false,true);document.execCommand(name,false,value);
-      if(name==='removeFormat') {
-        pendingSize=null;
-        for(const block of selectedBlocks(body,selection.getRangeAt(0)).filter(el=>selection.toString().includes(el.textContent)))for(const prop of ['font-family','font-size','font-weight','font-style','text-decoration','text-decoration-line','color','background-color','vertical-align'])block.style.removeProperty(prop);
-      }
     }
-    remember();changed(body);updateControls();
+    remember();changed();updateControls();
   } finally {performing=false;}
 }
 export function menuCommand(name,value=null) {
   if(!editing)return false;
   if(['undo','redo','selectAll'].includes(name)) {
-    if(document.activeElement?.closest('input,textarea,select,.report-annotation'))return false;
-    if(!document.activeElement?.closest('#report-results,#report-toolbar'))return false;
+    if(field(document.activeElement))return false;
+    if(!document.activeElement?.closest('#report-results,#results,#report-toolbar'))return false;
     if(name==='selectAll')selectAllResults();else command(name);return true;
   }
-  if(!selectionBody()&&!(savedRange&&document.contains(savedRange.commonAncestorContainer)))return false;
+  if(!inRegion(window.getSelection()?.anchorNode)&&!(savedRange&&document.contains(savedRange.commonAncestorContainer)))return false;
   command(name,value);return true;
 }
-export function start({editing:initial=false,undo=false,redo=false}={}) {
-  toolbar();setEditing(initial,false);history(undo,redo);
-  installTransfer({isEditing:()=>editing,serialize,protect,detach:detachPictureSizing,post,remember});
-  installDeletion({isEditing:()=>editing,serialize,protect,detach:detachPictureSizing,post,remember});
+export function start({editing:initial=false,undo=false,redo=false,post:bridge=null}={}) {
+  if(bridge)post=bridge;
+  toolbar();
+  for(const entry of entries())remeasure(entry);
+  setEditing(initial,false);history(undo,redo);
+  const hooks={isEditing:()=>editing,serialize,protect,detach:()=>{},post:m=>post(m),remember};
+  installTransfer(hooks);
+  installDeletion(hooks);
+  installPictureSizing({isEditing:()=>editing,changed:()=>{changed();updateControls();},select:media=>{const range=document.createRange();range.selectNode(media);selectRange(range);updateControls();}});
   document.getElementById('report-toolbar').addEventListener('mousedown',event=>{remember();if(event.target.closest('button'))event.preventDefault();});
   document.addEventListener('selectionchange',()=>{remember();updateControls();});
-  document.addEventListener('pointerdown',event=>{if(event.target.closest('.report-body'))pendingSize=null;});
-  document.addEventListener('input',event=>{const body=event.target.closest('.report-body');if(editing&&body&&!performing&&!transferring()&&!event.target.closest('.report-controls')){changed(body,event.inputType);updateControls();}});
+  document.addEventListener('pointerdown',event=>{if(inRegion(event.target))pendingSize=null;});
+  document.addEventListener('input',event=>{if(editing&&inRegion(event.target)&&!performing&&!transferring()&&!field(event.target)){changed(event.inputType);updateControls();}});
+  document.addEventListener('contextmenu',event=>{context=describe(event.target);post({action:'context',...context});});
   document.addEventListener('keydown',event=>{
-    if(event.defaultPrevented||event.isComposing||!editing||event.target.closest('input,textarea,select,.report-annotation')||!event.target.closest('#report-results,#report-toolbar'))return;
+    if(event.defaultPrevented||event.isComposing||!editing||field(event.target)||!event.target.closest('#report-results,#results,#report-toolbar'))return;
     if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))pendingSize=null;
     if(!event.metaKey&&!event.ctrlKey)return;
     if(event.key.toLowerCase()==='z'){event.preventDefault();command(event.shiftKey?'redo':'undo');}
+    if(event.key.toLowerCase()==='y'&&!event.shiftKey){event.preventDefault();command('redo');}
     if(event.target.closest('.report-controls'))return;
     if(['b','i','u'].includes(event.key.toLowerCase())){event.preventDefault();command({b:'bold',i:'italic',u:'underline'}[event.key.toLowerCase()]);}
   });

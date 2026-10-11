@@ -43,10 +43,10 @@ extension ReportExportTests {
 
         // Whole mixed selection: table spans, lists, font, exact chart width and
         // SVG clip references must survive the private/native clipboard path.
-        try await choose("#result-\(sourceID) .report-body");try await command("copy")
+        try await choose("#result-\(sourceID)");try await command("copy")
         precondition(board.string(forType:.html)!.contains("data:image/png;base64,") && board.string(forType:Viewer.reportFragmentType)!.contains("<svg"))
         try await choose("#transfer-target",caret:true);try await command("paste")
-        try await check("(()=>{const b=document.querySelector('#result-\(targetID) .report-body'),s=b.querySelector('svg'),clip=s.querySelector('clipPath');return b.querySelector('th').colSpan===2&&b.querySelectorAll('ol li').length===2&&b.textContent.includes('12.5')&&s.style.width==='240px'&&clip.id!=='transfer-clip'&&s.querySelector('g').getAttribute('clip-path')==='url(#'+clip.id+')'&&b.querySelectorAll('.report-media').length===1;})()","Mixed paste lost table/list/vector content")
+        try await check("(()=>{const b=document.querySelector('#result-\(targetID)'),s=b.querySelector('svg'),clip=s.querySelector('clipPath');return b.querySelector('th').colSpan===2&&b.querySelectorAll('ol li').length===2&&b.textContent.includes('12.5')&&s.style.width==='240px'&&clip.id!=='transfer-clip'&&s.querySelector('g').getAttribute('clip-path')==='url(#'+clip.id+')'&&b.querySelectorAll('.report-media').length===1;})()","Mixed paste lost table/list/vector content")
         try await undo()
 
         // A partial table cut clears selected cell content without deleting the
@@ -76,7 +76,7 @@ extension ReportExportTests {
         precondition(report.reportUndo.count==beforeDrag,"Dropping onto the selection should do nothing")
         try await dragSelection()
         precondition(report.reportUndo.count==beforeDrag+1 && report.reportUndo.last!.edits.count==2,"Move must be one two-section undo transaction")
-        try await check("(()=>{const a=document.querySelector('#result-\(sourceID) .report-body'),b=document.querySelector('#result-\(targetID) .report-body');return !a.querySelector('table,svg')&&a.textContent.includes('Unselected ending')&&b.querySelector('table')&&!!b.querySelector('svg');})()","Drag did not move the mixed selection")
+        try await check("(()=>{const a=document.querySelector('#result-\(sourceID)'),b=document.querySelector('#result-\(targetID)');return !a.querySelector('table,svg')&&a.textContent.includes('Unselected ending')&&b.querySelector('table')&&!!b.querySelector('svg');})()","Drag did not move the mixed selection")
         try await undo()
         try await check("document.querySelectorAll('.report-body svg').length===1&&!!document.getElementById('transfer-table')&&document.getElementById('transfer-target').textContent==='Destination: '","Undo move did not restore both sections")
         try await redo();try await undo()
@@ -122,7 +122,7 @@ extension ReportExportTests {
         try await check("!document.getElementById('transfer-source').textContent.includes('formatted finding')&&document.getElementById('transfer-target').textContent.includes('formatted finding')&&document.getElementById('transfer-target').textContent.replace('formatted finding','')==='Destination: '","Direct text drag lost selected text or destination spacing")
         try await undo()
         try await pointerMove("chart")
-        try await check("!document.querySelector('#result-\(sourceID) .report-body svg')&&document.querySelector('#result-\(targetID) .report-body svg').style.width==='240px'","Direct SVG drag failed")
+        try await check("!document.querySelector('#result-\(sourceID) svg')&&document.querySelector('#result-\(targetID) svg').style.width==='240px'","Direct SVG drag failed")
         try await undo()
         try await pointerMove("mixed",copy:true)
         try await check("document.querySelectorAll('.report-body svg').length===2&&document.querySelectorAll('.report-body table').length===2","Dragging a selected chart discarded the rest of its mixed selection")
@@ -153,11 +153,11 @@ extension ReportExportTests {
         // External rich HTML is sanitized but its useful presentation remains.
         board.clearContents();board.setString("<style>.pasted{font-family:Georgia;font-size:20px;color:rgb(128,0,0)}</style><p class='pasted' onclick='window.reportPasteUnsafe=1'>External rich text</p><script>window.reportPasteUnsafe=1</script><img src='https://example.invalid/tracker.png'><a href='javascript:alert(1)'>Bad link</a>",forType:.html)
         try await choose("#transfer-target",caret:true);try await command("paste")
-        try await check("(()=>{const b=document.querySelector('#result-\(targetID) .report-body'),p=[...b.querySelectorAll('p')].find(p=>p.textContent==='External rich text');return !window.reportPasteUnsafe&&!b.querySelector('script,style,img[src^=http],[onclick],a[href^=javascript]')&&p.style.fontFamily==='Georgia'&&p.style.fontSize==='20px';})()","External paste lost formatting or retained active content")
+        try await check("(()=>{const b=document.querySelector('#result-\(targetID)'),p=[...b.querySelectorAll('p')].find(p=>p.textContent==='External rich text');return !window.reportPasteUnsafe&&!b.querySelector('script,style,img[src^=http],[onclick],a[href^=javascript]')&&p.style.fontFamily==='Georgia'&&p.style.fontSize==='20px';})()","External paste lost formatting or retained active content")
         try await undo()
         board.clearContents();board.setData(Data("{\\rtf1\\ansi Bold \\b RTF emphasis\\b0 .}".utf8),forType:.rtf)
         try await choose("#transfer-target",caret:true);try await command("paste")
-        try await check("document.querySelector('#result-\(targetID) .report-body').textContent.includes('RTF emphasis')","RTF paste failed")
+        try await check("document.querySelector('#result-\(targetID)').textContent.includes('RTF emphasis')","RTF paste failed")
         try await undo()
 
         // Finish with a moved table/chart, then save and reopen it.

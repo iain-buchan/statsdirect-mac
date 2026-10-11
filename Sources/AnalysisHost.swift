@@ -94,27 +94,17 @@ extension Viewer {
         guard let html = output["html"] as? String, let input = output["input"] as? [String: Any],
               let counts = input["counts"] as? [[Double]], let values = output["values"] as? [String: Any] else { showError("The engine returned an incomplete report."); return }
         let resultID = UUID().uuidString
-        let rowLabels = input["rowLabels"] as? [String] ?? counts.indices.map { "Row \($0 + 1)" }
-        let columnLabels = input["columnLabels"] as? [String] ?? counts[0].indices.map { "Column \($0 + 1)" }
-        let headers = columnLabels.map { "<th>\(htmlEscape($0))</th>" }.joined()
-        let rows = counts.enumerated().map { r, row in "<tr><th>\(htmlEscape(rowLabels[r]))</th>" + row.map { "<td>\(number($0))</td>" }.joined() + "</tr>" }.joined()
         let warnings = (output["warnings"] as? [String] ?? []).map { "<p class='note'>\(htmlEscape($0))</p>" }.joined()
         let skipped = output["exactSkipped"] as? Bool == true ? "<p class='note'>The engine skipped exact testing because the total exceeds 100,000 observations.</p>" : ""
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
-        let confidence = (input["cco"] as? Double ?? 0.95) * 100
-        let options = ["doExact": "Exact test requested", "show_pc": "Percentages", "xp": "Expected counts", "cs": "Cell chi-square", "xs": "Trend scores", "specify_scores": "Custom scores", "doMonteCarlo": "Monte Carlo simulation"].filter { input[$0.key] as? Bool == true }.map(\.value).sorted().joined(separator: " · ")
-        let scores = input["specify_scores"] as? Bool == true ? "<p>Row scores: \(htmlEscape(String(describing: input["rowScores"] ?? "")))<br>Column scores: \(htmlEscape(String(describing: input["columnScores"] ?? "")))</p>" : "<p>Trend scores follow table order: 1, 2, 3, … on each axis.</p>"
         let rPlan = try? RScriptGenerator.generate(operation: "ExactChiRbyCScreen", title: "Chi-square R × C", output: output, resources: root)
         let body = """
         <div class="eyebrow">Analysis / Chi-square / Screen data</div>
         <h1>Chi-square R × C</h1><p class="lead">\(counts.count) × \(counts[0].count) contingency table</p><p class="muted">\(stamp)</p>
         <div class="summary"><div><span>Pearson chi-square</span><strong>\(number(values["chio"] as? Double ?? .nan))</strong></div><div><span>P</span><strong>\(number(values["po"] as? Double ?? .nan))</strong></div><div><span>Observations</span><strong>\(number(output["total"] as? Double ?? .nan))</strong></div></div>
         \(warnings)\(skipped)<section class="engine-report">\(html)</section>
-        \(reportLinks(rPlan, helpPath: "Help/chi_square_tests/rc.htm", helpLabel: "R × C contingency table: method and worked example →", resultID: resultID))
-        <details><summary>Input counts and options used for this report</summary><table><thead><tr><th>Category</th>\(headers)</tr></thead><tbody>\(rows)</tbody></table><p>\(htmlEscape(options)) · \(number(confidence))% confidence</p>\(scores)</details>
-        <p class="muted">Calculated by the full StatsDirect \(htmlEscape(engineVersion)) headless engine, operation ExactChiRbyCScreen, using its original HTML report renderer. The input form stays open for further edits.</p>
         """
-        previewResult(ReportEntry(id: resultID, title: "Chi-square R × C", operation: "ExactChiRbyCScreen", body: body, rPlan: rPlan), in: doc)
+        previewResult(ReportEntry(id: resultID, title: "Chi-square R × C", operation: "ExactChiRbyCScreen", body: body, rPlan: rPlan, helpPath: "Help/chi_square_tests/rc.htm"), in: doc)
     }
     func saveAnalysisTable(_ doc: Document) {
         let version = doc.gridVersion

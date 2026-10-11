@@ -15,6 +15,13 @@ import Cocoa
         }
         app.run()
     }
+    @MainActor static func wait(_ condition: () async throws -> Bool) async throws {
+        for _ in 0..<100 {
+            if try await condition() { return }
+            try await Task.sleep(nanoseconds:100_000_000)
+        }
+        throw ChatGPTTutor.Failure(message:"Timed out waiting for the learning workspace")
+    }
     @MainActor static func run(_ v:Viewer) async throws {
         v.openExampleWorkbook()
         var grid:Document?
@@ -55,7 +62,7 @@ import Cocoa
         precondition(cancelled.allowed.isEmpty)
         // Exercise the real native confirmation: Share is disabled until the checkbox is selected.
         let authorization=Task {try await workspace.authorize()}
-        try await ProviderLearningTests.wait {v.window.attachedSheet != nil}
+        try await wait {v.window.attachedSheet != nil}
         func buttons(_ view:NSView)->[NSButton] { (view as? NSButton).map{[$0]} ?? view.subviews.flatMap(buttons) }
         let sheetWindow=v.window.attachedSheet!,controls=buttons(sheetWindow.contentView!)
         let share=controls.first{$0.title=="Share for This Question"}!,confirm=controls.first{$0.title.hasPrefix("I have checked")}!
@@ -84,6 +91,9 @@ import Cocoa
         precondition(again["resultId"] as? String==result["resultId"] as? String)
         let report=v.documents.first{$0.id==result["reportId"] as? String}!
         precondition(report.reportEntries?.count==1 && report.rScriptPlan?.hasRecipe==true && v.active===learn)
+        let body=report.reportEntries![0].body
+        guard !body.contains("<details>"), report.rScriptPlan!.script.contains("input_history <-") else { throw ChatGPTTutor.Failure(message:"Tutor report must keep R input history without displaying its code") }
+        print("PASS: tutor report hides input code while retaining R data and settings")
         print("PASS: real test.xlsx → exact nine PEFR pairs → engine → one active report with SVG and R link; repeated request reuses result")
         grid.gridVersion += 1
         do {_=try await workspace.call("statsdirect_run_analysis",["operation":"TPaired","datasetId":data["datasetId"]!]);throw ChatGPTTutor.Failure(message:"Stale worksheet accepted")} catch {precondition(error.localizedDescription.contains("changed"))}
@@ -122,7 +132,7 @@ import Cocoa
         do {_=try await v.chatGPTTutor.signIn();fatalError("Disabled tutor started sign-in")}catch{precondition(error.localizedDescription.contains("disabled"))}
         do {_=try await v.chatGPTTutor.converse(context:"",messages:[["role":"user","text":"Synthetic policy test"]]);fatalError("Disabled tutor sent question")}catch{precondition(error.localizedDescription.contains("disabled"))}
         do {_=try await changed.overview();fatalError("Disabled policy exposed workspace")}catch{precondition(error.localizedDescription.contains("disabled"))}
-        try await ProviderLearningTests.wait {(try? await v.learningJavaScript(learn,"({ok:document.getElementById('send').disabled && document.getElementById('settings').disabled && document.getElementById('workspaceChoice').disabled})"))?["ok"] as? Bool == true}
+        try await wait {(try? await v.learningJavaScript(learn,"({ok:document.getElementById('send').disabled && document.getElementById('settings').disabled && document.getElementById('workspaceChoice').disabled})"))?["ok"] as? Bool == true}
         _=try await v.learningJavaScript(learn,"({ok:(document.getElementById('practiceNav').click(),true)})")
         let local=try await v.learningJavaScript(learn,"({practice:!document.getElementById('supported').disabled,lessons:!document.querySelector('[data-lesson]').disabled})")
         precondition(local["practice"] as? Bool==true && local["lessons"] as? Bool==true)

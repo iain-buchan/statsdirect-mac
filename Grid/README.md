@@ -12,6 +12,12 @@ Native Edit commands call `statsDirectGrid.editCommand` for cell selections, fal
 
 Data are held in the open tab until saved. Excel and RData save all worksheets; CSV and RDS save the current worksheet. Saving CSV does not clear unsaved workbook/R metadata, and saving one RDS does not mark a multiple-table document saved. Closing an edited grid or quitting prompts before discarding unsaved data. R sessions are independent and start with an empty script editor.
 
+Drag across the column headings to select adjacent whole columns, including by dragging beyond the visible edge to scroll. Shift-click extends a selection; Command-click toggles individual columns. Dragging a heading's right edge resizes it. Dragging within cells selects a rectangle.
+
+For a paired t test, select the two measurement columns and choose Analysis → Parametric → Paired t. The form uses that selection immediately, with an Agreement analysis checkbox and one Run button. The engine uses the saved confidence level and produces its original SVG chart when agreement is selected. Change data is optional; one differences column, manual entry and groups by identifier remain supported. `Scripts/test-paired-workflow.sh` exercises the menu, worksheet bridge, form, engine and active report together.
+
+Other analysis forms also use a compatible highlighted worksheet selection automatically. Controls in the same engine parameter group share one Run form, including conditional options such as Fisher’s exact test. Distinct-role prompts (for example, weights) request their own columns, and a wider selection is never silently cropped. The engine retains validation, cancellation and saved confidence defaults.
+
 ## Build and checks
 
 With Node.js and pnpm available, run these commands in this directory:
@@ -22,7 +28,7 @@ pnpm test
 pnpm build
 ```
 
-Then run `../build.sh` to rebuild the Mac application. The generated browser bundle is checked in, so the Mac build can use it without Node.js. Regenerate it whenever Grid source changes.
+Then run `../build.sh` to rebuild the Mac application. The generated browser bundle is checked in, so the Mac build can use it without Node.js. Regenerate it whenever Grid source changes. From the repository root, `Scripts/test-grid-selection.sh` checks the actual column selection and resizing gestures in WKWebView, including edge scrolling and Excel-sized sparse worksheets.
 
 The native bridge is `Sources/GridHost.swift`. Only the bundled grid's main frame has access to its clipboard and document message handler. The underlying statistical algorithms remain unchanged.
 

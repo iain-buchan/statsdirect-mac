@@ -37,3 +37,10 @@ operation; the generated files are written whole and must not be edited by hand.
 are. The checks in `tests/RScript` compare every recipe's figures with the help's script on the help's example, except the few whose
 example file says `nocompare` (the random number generators, whose output has no fixed figures, and the rank correlation calculators,
 whose help works from two rankings); those must run and print figures, and the calculators' figures are checked in `Inverse.cs`.
+
+A follow-on operation (a prediction, the residuals, a parameter detail, an exact P by simulation, the multiple comparisons) continues
+the run of the operation it was asked from without asking for the data again. The record of its run carries the frames it inherited
+from that run, marked `"inherited": true`, so its recipe is the earlier operation's and binds the same inputs; the manifest names
+the operation it continues under `inherits`. A table typed on screen (the 2 by k tables, the standardization screens, kappa from
+counts, the likelihood ratios, the Woolf and Mantel-Haenszel strata) reaches the record as an entered frame under the grid's name, usually `data`, its columns `Column 1`, `Column 2` and so on
+in the grid's order, and its recipe binds them by that name.

@@ -7,6 +7,14 @@
     "file": "agreement.R",
     "detail": "Agreement of raters (intraclass correlation), as the help shows it in R."
   },
+  "BarPlot": {
+    "file": "bar-plot.R",
+    "detail": "Bar or column plot of values with their labels, as the help shows it in R."
+  },
+  "BarPlotFrequency": {
+    "file": "bar-plot-frequency.R",
+    "detail": "Bar plot of the frequencies of categorical values, after the help's bar plot in R."
+  },
   "BoxWhiskerPlot": {
     "file": "box-whisker-plot.R",
     "detail": "Box and whisker plot, as the help shows it in R."
@@ -19,9 +27,30 @@
     "file": "chi-square-2-by-2.R",
     "detail": "2 by 2 chi-square test with and without the continuity correction, as the help shows it in R."
   },
+  "Chi2byNLinearTrend": {
+    "file": "chi-2-by-k.R",
+    "detail": "Chi-square test of a 2 by k table with its test for trend, as the help shows them in R."
+  },
+  "Chi2byNWithTrend": {
+    "file": "chi-2-by-k.R",
+    "detail": "Chi-square test of a 2 by k table with its test for trend, as the help shows them in R."
+  },
+  "Chi2byNWithoutTrend": {
+    "file": "chi-2-by-k.R",
+    "detail": "Chi-square test of a 2 by k table with its test for trend, as the help shows them in R."
+  },
+  "ChiGFSimulateExactP": {
+    "file": "chi-square-goodness-of-fit.R",
+    "detail": "Chi-square goodness of fit test, as the help shows it in R.",
+    "inherits": "ChiSquareGoodnessOfFit"
+  },
   "ChiSquareGoodnessOfFit": {
     "file": "chi-square-goodness-of-fit.R",
     "detail": "Chi-square goodness of fit test, as the help shows it in R."
+  },
+  "ChiWoolfScreen": {
+    "file": "chi-woolf-screen.R",
+    "detail": "Woolf chi-square analysis of a series of 2 by 2 tables typed on screen, as the help shows it in R."
   },
   "ChiWoolfWorksheet": {
     "file": "chi-woolf-worksheet.R",
@@ -34,6 +63,14 @@
   "CochranePlot": {
     "file": "cochrane-plot.R",
     "detail": "Forest (Cochrane) plot, as the help shows it in R."
+  },
+  "ConditionalLogisticRegression": {
+    "file": "conditional-logistic.R",
+    "detail": "Conditional logistic regression of matched sets, as the help shows it in R."
+  },
+  "ControlPlot": {
+    "file": "control-plot.R",
+    "detail": "Control chart, as the help shows it in R."
   },
   "CoxRegression": {
     "file": "cox-regression.R",
@@ -99,6 +136,10 @@
     "file": "effect.R",
     "detail": "Effect size meta-analysis, as the help shows it in R."
   },
+  "ErrorPlot": {
+    "file": "error-plot.R",
+    "detail": "Error bar plot, as the help shows it in R."
+  },
   "ExactChiRbyC": {
     "file": "r-by-c.R",
     "detail": "Exact and chi-square tests of an r by c table of counts, as the help shows them in R."
@@ -151,6 +192,11 @@
     "file": "friedman.R",
     "detail": "Friedman and Cochran Q tests of a two way layout, as the help shows them in R."
   },
+  "FriedmanSimulateExactP": {
+    "file": "friedman.R",
+    "detail": "Friedman and Cochran Q tests of a two way layout, as the help shows them in R.",
+    "inherits": "Friedman"
+  },
   "Gini": {
     "file": "gini.R",
     "detail": "Gini coefficient of inequality with bootstrap intervals, as the help shows it in R."
@@ -158,6 +204,10 @@
   "GroupedLinearity": {
     "file": "grouped-linearity.R",
     "detail": "Linearity of grouped regression (replicates at each level of the predictor), as the help shows it in R."
+  },
+  "HistogramPlot": {
+    "file": "histogram-plot.R",
+    "detail": "Histogram, as the help shows it in R."
   },
   "HistogramPlotText": {
     "file": "histogram-plot-text.R",
@@ -171,6 +221,15 @@
     "file": "kappa.R",
     "detail": "Kappa agreement of two raters from their responses, as the help shows it in R."
   },
+  "KappaScreen": {
+    "file": "kappa-screen.R",
+    "detail": "Kappa agreement of two raters from their table of counts, as the help shows it in R."
+  },
+  "KappaSimulateExactP": {
+    "file": "kappa.R",
+    "detail": "Kappa agreement of two raters from their responses, as the help shows it in R.",
+    "inherits": "Kappa"
+  },
   "Kendall": {
     "file": "kendall.R",
     "detail": "Kendall rank correlation with its exact probabilities, as the help shows it in R."
@@ -178,6 +237,16 @@
   "Kruskal": {
     "file": "kruskal-wallis.R",
     "detail": "Kruskal-Wallis test with its adjustment for ties, as the help shows it in R."
+  },
+  "KruskalSimulateExactP": {
+    "file": "kruskal-wallis.R",
+    "detail": "Kruskal-Wallis test with its adjustment for ties, as the help shows it in R.",
+    "inherits": "Kruskal"
+  },
+  "KruskalWallisMulti": {
+    "file": "kruskal-wallis.R",
+    "detail": "Kruskal-Wallis test with its adjustment for ties, as the help shows it in R.",
+    "inherits": "Kruskal"
   },
   "LOESS": {
     "file": "loess.R",
@@ -219,6 +288,10 @@
     "file": "mantel.R",
     "detail": "Mantel-Haenszel analysis of a series of 2 by 2 tables, as the help shows it in R."
   },
+  "MantelHaenszelScreen": {
+    "file": "mantel-haenszel-screen.R",
+    "detail": "Mantel-Haenszel analysis of a series of 2 by 2 tables typed on screen, as the help shows it in R."
+  },
   "MetaCorrelation": {
     "file": "meta-correlation.R",
     "detail": "Correlation meta-analysis, as the help shows it in R."
@@ -235,9 +308,21 @@
     "file": "meta-summary.R",
     "detail": "Meta-analysis of summary statistics with their confidence limits, as the help shows it in R."
   },
+  "MethodComparisonRegression": {
+    "file": "method-comparison.R",
+    "detail": "Method comparison regression (Deming) with the mcr package, as the help shows it in R."
+  },
   "MiscDiagnostic": {
     "file": "diagnostic-test.R",
     "detail": "Diagnostic test of a 2 by 2 table, as the help shows it in R."
+  },
+  "MiscFalseResult": {
+    "file": "false-results.R",
+    "detail": "Screening test errors from the sensitivity, the false positive rate and the prevalence, as the help shows them in R."
+  },
+  "MiscLikely": {
+    "file": "likelihood-ratios.R",
+    "detail": "Likelihood ratios of a test with several levels, as the help shows them in R."
   },
   "MiscNumberNeededToTreat": {
     "file": "number-needed-to-treat.R",
@@ -254,6 +339,31 @@
   "MultipleLinearRegression": {
     "file": "multiple-linear-regression.R",
     "detail": "Multiple linear regression, as the help shows it in R."
+  },
+  "MultipleLinearRegressionAnova": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "MultipleLinearRegressionBestSubset": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "MultipleLinearRegressionParameterDetail": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "MultipleLinearRegressionPrediction": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
+  "MultipleLinearRegressionResiduals": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
   },
   "NonparametricLinearRegression": {
     "file": "nonparametric-linear-regression.R",
@@ -287,9 +397,18 @@
     "file": "peto-meta.R",
     "detail": "Peto odds ratio meta-analysis, as the help shows it in R."
   },
+  "PlotMultipleLinearRegressionResiduals": {
+    "file": "multiple-linear-regression.R",
+    "detail": "Multiple linear regression, as the help shows it in R.",
+    "inherits": "MultipleLinearRegression"
+  },
   "PoissonConfidenceInterval": {
     "file": "poisson-confidence-interval.R",
     "detail": "Poisson confidence interval of a mean count, as the help shows it in R."
+  },
+  "PoissonRegression": {
+    "file": "poisson-regression.R",
+    "detail": "Poisson regression of counts with an exposure, as the help shows it in R."
   },
   "PolynomialRegression": {
     "file": "polynomial-regression.R",
@@ -363,6 +482,10 @@
     "file": "rate-direct.R",
     "detail": "Direct standardization of rates, as the help shows it in R."
   },
+  "RateDirectScreen": {
+    "file": "rate-direct-screen.R",
+    "detail": "Direct standardization of rates typed on screen, as the help shows it in R."
+  },
   "RatePoissonCI": {
     "file": "poisson-rate.R",
     "detail": "Poisson rate with its exact confidence interval, as the help shows it in R."
@@ -370,6 +493,10 @@
   "RateSmr": {
     "file": "rate-smr.R",
     "detail": "Indirect standardization and the standardized mortality ratio, as the help shows them in R."
+  },
+  "RateSmrScreen": {
+    "file": "rate-smr-screen.R",
+    "detail": "Indirect standardization and the standardized mortality ratio from rates typed on screen, as the help shows them in R."
   },
   "ReferenceRange": {
     "file": "reference-range.R",
@@ -515,6 +642,10 @@
     "file": "stdrr.R",
     "detail": "Standardized rates of two groups compared, as the help shows them in R."
   },
+  "SurvivalPlot": {
+    "file": "survival-plot.R",
+    "detail": "Survival plot of Kaplan-Meier estimates, as the help shows it in R."
+  },
   "TPaired": {
     "file": "paired-t.R",
     "detail": "Paired t test with its agreement analysis, as the help shows it in R."
@@ -555,9 +686,26 @@
     "file": "universal-agreement.R",
     "detail": "Universal R agreement coefficient, as the help shows it in R."
   },
+  "UniversalAgreementSimulateExactP": {
+    "file": "universal-agreement.R",
+    "detail": "Universal R agreement coefficient, as the help shows it in R.",
+    "inherits": "UniversalAgreement"
+  },
+  "UniversalRCompare": {
+    "file": "universal-r-compare.R",
+    "detail": "Comparison of two universal R agreement coefficients, as the help shows it in R."
+  },
   "VarianceRatio": {
     "file": "variance-ratio.R",
     "detail": "F test of two variances, as the help shows it in R."
+  },
+  "WeiLachin": {
+    "file": "wei-lachin.R",
+    "detail": "Wei-Lachin test of survival over repeated periods, as the help shows it in R."
+  },
+  "WeightedUnivariateSummary": {
+    "file": "weighted-univariate-summary.R",
+    "detail": "Weighted descriptive statistics of a column, as the help shows them in R."
   },
   "Wilcoxon": {
     "file": "wilcoxon-signed-ranks.R",
@@ -566,5 +714,9 @@
   "ZSingle": {
     "file": "zsingle.R",
     "detail": "Single sample z test, as the help shows it in R."
+  },
+  "ZUnpaired": {
+    "file": "zunpaired.R",
+    "detail": "Unpaired z test of two samples by the normal approximation, after the help's single sample z test in R."
   }
 }

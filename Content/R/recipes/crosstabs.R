@@ -1,7 +1,7 @@
 # StatsDirect recipe: Crosstabs of two classifiers with the chi-square and exact tests, as the help shows them in R.
 # From the help's R code (basic_descriptive_statistics/crosstabs.htm); the data and settings above come from the run.
 # data: sex = c1, reaction = c2
-# settings: confidence = ci
+# settings: confidence = cco
 
 # Crosstabs: the StatsDirect help example (sex and grade of skin reaction to an
 # antigen in 10 patients) in R, with the contingency table analysis that follows

@@ -3,6 +3,7 @@
 # data: stage = gid, time = times, dead = deaths
 # settings: confidence = gamma
 
+if (!is.numeric(stage)) stage <- as.integer(factor(stage, levels = unique(stage)))   # groups named in text are numbered in order of appearance
 # Log-rank and Wilcoxon tests: the StatsDirect help example (Armitage and Berry 1994,
 # survival in days of lymphoma patients with stage III or stage IV disease; the test
 # workbook's Survival worksheet columns Stage group, Time and Censor) in R

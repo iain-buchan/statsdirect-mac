@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "b46f5f04d674bb59165fb76f81956a30e31ad35f",
+  "commit": "a10638813286d28043e29428c2049018525ed1d7",
   "version": "5.1.0",
   "sha256": {
     "Layout/Axis.cs": "37b781cfd82f963f5ba9f24295b008af80fe12d9a4e3ddd0649140c14e8785ef",
@@ -733,7 +733,7 @@
     "StatsDirectUI/R/RResults.g4.lexer.cs": "ba305865bea84bebfa6b3c9cc179cefcea2ac5d0c8d918a2bbd622a0fcb99147",
     "StatsDirectUI/R/RResults.g4.parser.cs": "701d5d19ebd13b68560a33ca9f0528094dada3bf8f2e90666c7096a74e5125e8",
     "StatsDirectUI/R/RResultsParserPartial.cs": "b8aca685310737fce8a3655d6534ce77b51d7a9d1cf5faa8bc9ba33c1557119b",
-    "StatsDirectUI/R/RScriptWriter.cs": "31d8c2f8e8873429ad55d6966aee6d14c17ba51080389fb77f6d7ca3dc36a058",
+    "StatsDirectUI/R/RScriptWriter.cs": "869385e323afc0cd8a33a8557571323477f962a8f6cf5e8aab716a3e8a8b464b",
     "StatsDirectUI/R/RVersion.cs": "c8866ea2fc494ccfc1ebf62c3e475ec0e9d6170a432cbe0a2552b47bf263acc6",
     "StatsDirectUI/StatsDirectUI.csproj": "e555dad4edeacb1446b1199c8d06af8ba5b06477babcddabfc0b82a8c61714bc",
     "StatsDirectUI/TemplateProcessing/CreoleHtmlReportRenderer.cs": "d3c751cb37fbaf9ea3329b93dc896156738ae9528689386e3916dac85069e3c9",
@@ -838,7 +838,7 @@
     "StatsDirectUI/Templates/ReportPicture.cs": "9d0bf6bebdcac64d23fcc69f4d245d7880ccafc0c8eaf2b6d6603308d1614e0c",
     "StatsDirectUI/Templates/ReportTemplate.cs": "c3e31992e4b6b86e9864c76ceade8b524546d366abfaa2b496add9a33ed452b5",
     "StatsDirectUI/Templates/ReportVectorPicture.cs": "1e582fc805325377ec84260e80e53ca01a5c7fcd2cf91e32f1770dccf8316d45",
-    "StatsDirectUI/Templates/RunRecord.cs": "3759ea724e36ae9d7a3a1d63cad662f4443e7c4757a5fd7d35b2e280053357b5",
+    "StatsDirectUI/Templates/RunRecord.cs": "50b5b7cee5ae057be414c4f59b13b9bbc001d673afa91a58e022e832b8fe10b6",
     "StatsDirectUI/Templates/SDPreferences.cs": "b35ad6b490ca0ee7beb4f6598a6059fb19e0f58bf7d758dfd7842d656c69fedc",
     "StatsDirectUI/Templates/SafeBuiltin.cs": "6dcb01f35a0c2d463b28c8ba0519c06923a91bfdc75bdd9f6e72d5203bebefb2",
     "StatsDirectUI/Templates/Step.cs": "12797067e27ff56adc31fe27ff6aee780edf3454521a8f92f49b12b7d31f3f3e",

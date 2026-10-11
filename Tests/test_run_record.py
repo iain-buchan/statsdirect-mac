@@ -12,8 +12,11 @@ the same files as Windows's tests/RScript/examples), compared line by line with 
 record (an independent rendering here of RScriptWriter.cs: the head, the column lines, the matrix, the settings and the body), run in
 R and its figures compared with the help's own script; the help's example inputs are also run through the engine as entered frames,
 the record of each real run checked against the definition (kinds, values, settings as proportions, the 2 by 2 table with what its
-rows and columns stand for) and its script rendered, compared and run the same way; and the inverse records of the Distributions
-calculator print figures the help's scripts print."""
+rows and columns stand for) and its script rendered, compared and run the same way (the differences a real run has from the help's
+example, shared with a Windows run of the same dialog, are listed and must stay as listed); the follow-on operations run from a parent
+run through the engine, as FollowOn.cs and Regression.cs do, their records carrying the parent's frames marked inherited and their
+scripts the parent's; and the inverse records of the Distributions calculator print figures the help's scripts print. The scripts run
+with the program's own R library on the path, where the method comparison recipe's mcr package is installed when missing."""
 import sys, json, hashlib, math, os, re, subprocess, tempfile
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -52,12 +55,21 @@ class RScript:
         self.p.stdin.write(json.dumps({'record': record, 'title': title, 'frames': list(frames)}) + '\n'); self.p.stdin.flush()
         return json.loads(self.p.stdout.readline())
     def close(self): self.p.stdin.close(); self.p.wait()
+# The packages the help's scripts and the recipes load beyond R's own (mcr for method comparison regression) live in the library the
+# program keeps for R beside its own runs, where its R operations install what they need; the scripts here run with that library on
+# R's path, as the program's do, and the package is installed there first when it is missing (on a fresh runner, say).
+R_LIBRARY = Path(os.environ.get('STATSDIRECT_R_LIBRARY') or os.path.join(os.environ.get('STATSDIRECT_R_FOLDER') or os.path.expanduser('~/Library/Application Support/StatsDirect Viewer'), 'R Library'))
+R_ENV = dict(os.environ, R_LIBS=str(R_LIBRARY))
+def ensure_r_packages(*packages):
+    R_LIBRARY.mkdir(parents=True, exist_ok=True)
+    p = subprocess.run([RSCRIPT, '--vanilla', '-e', 'for (x in commandArgs(TRUE)) if (!requireNamespace(x, quietly = TRUE)) utils::install.packages(x, lib = Sys.getenv("R_LIBS"), repos = "https://cloud.r-project.org", quiet = TRUE, type = "binary"); cat(sapply(commandArgs(TRUE), requireNamespace, quietly = TRUE))', *packages], env=R_ENV, capture_output=True, text=True)
+    if p.returncode != 0 or 'FALSE' in p.stdout: raise AssertionError('FAIL the R packages %s could not be installed in %s:\n%s\n%s' % (', '.join(packages), R_LIBRARY, p.stdout, p.stderr))
 def run_r(text):
-    """Runs a script as the Windows check does (Rscript --vanilla in its own folder) and returns what it printed."""
+    """Runs a script as the Windows check does (Rscript --vanilla in its own folder, the program's R library on the path) and returns what it printed."""
     (ROOT / '.build').mkdir(exist_ok=True)
     folder = Path(tempfile.mkdtemp(prefix='run-record-r-', dir=ROOT / '.build'))
     script = folder / 'script.R'; script.write_text(text)
-    p = subprocess.run([RSCRIPT, '--vanilla', '--encoding=UTF-8', str(script)], cwd=folder, capture_output=True, text=True)
+    p = subprocess.run([RSCRIPT, '--vanilla', '--encoding=UTF-8', str(script)], cwd=folder, env=R_ENV, capture_output=True, text=True)
     if p.returncode != 0: raise AssertionError('FAIL R exited %d:\n%s\n%s' % (p.returncode, p.stdout, p.stderr))
     return p.stdout
 def close(a, b, rel): return abs(a - b) <= rel * max(abs(a), abs(b)) + 1e-12
@@ -76,10 +88,18 @@ check(len(manifest) >= 28 and not missing and not headed and all((ROOT / 'Conten
 # the recipes against the definitions of the operations they are mapped to, as tests/RScript/Script.cs CheckRecipes: every setting a recipe
 # takes is a parameter of each operation it serves (or a cell of its 2 by 2 table, or a box of the Distributions calculator), and the data it
 # takes are of the kind the operation asks for
+# raised with Windows (the shared recipe binds the screen grid as "data", where the parameter is responsesCrosstab, so a real run's script
+# gets no counts); its real run is listed among the expected differences below until the recipe is corrected
+KNOWN_BINDING_MISMATCHES = {'KappaScreen'}
 mismatches = []
 for op, entry in manifest.items():
     text = (ROOT / 'Content/R/recipes' / entry['file']).read_text(); xml = (ROOT / 'FullEngine/publish/Operations' / (op + '.xml')).read_text()
     parameters = {m.strip() for m in re.findall(r'<name>([^<]+)</name>', xml)[1:]}
+    # a follow-on operation continues an earlier run and may take that operation's parameters and frames
+    if 'inherits' in entry:
+        parent = (ROOT / 'FullEngine/publish/Operations' / (entry['inherits'] + '.xml')).read_text()
+        parameters |= {m.strip() for m in re.findall(r'<name>([^<]+)</name>', parent)[1:]}
+        if '<frame>' in parent: xml += '<frame>'
     parameters |= {m.strip() for m in re.findall(r'<(?:top-left|top-right|bottom-left|bottom-right)-name>([^<]+)</', xml)}
     if re.search(r'<builtin function-name="dist[A-Za-z]+"', xml): parameters |= {'value', 'df', 'df2', 'lower', 'upper', 'two_sided', 'asked'}
     settings = re.search(r'^# settings:\s*(.*)$', text, re.M)
@@ -87,11 +107,18 @@ for op, entry in manifest.items():
         for item in [x.strip() for x in settings.group(1).split(',') if '=' in x]:
             parameter = item[item.index('=') + 1:].strip()
             if parameter not in parameters: mismatches.append('%s: %s takes the setting "%s"' % (op, entry['file'], parameter))
-    if re.search(r'^# (data|matrix):', text, re.M) and '<frame>' not in xml: mismatches.append('%s: %s takes columns, and the operation asks for no frame' % (op, entry['file']))
+    # a grid typed on screen (a special parameter of one of these types) reaches the run as a frame too
+    frames = '<frame>' in xml or '<double-2-by-2-by-k>' in xml or re.search(r'<type>(chi-2-column|chi-3-column|person-time-size|rr-index|raters-2d|likelihood|1-to-n|frame)</type>', xml) is not None
+    if re.search(r'^# (data|matrix):', text, re.M) and not frames: mismatches.append('%s: %s takes columns, and the operation asks for no frame' % (op, entry['file']))
+    data = re.search(r'^# data:\s*(.*)$', text, re.M)
+    if data:
+        for item in [x.strip() for x in data.group(1).split(',') if '=' in x]:
+            bound_input = item[item.index('=') + 1:].strip()
+            if bound_input not in parameters and op not in KNOWN_BINDING_MISMATCHES: mismatches.append('%s: %s takes the input "%s", which the operation does not ask for' % (op, entry['file'], bound_input))
     if re.search(r'^# table:', text, re.M) and '<double-2-by-2>' not in xml: mismatches.append('%s: %s takes a 2 by 2 table, and the operation asks for none' % (op, entry['file']))
     if not re.search(r'^# (data|table|matrix|settings):', text, re.M): mismatches.append('%s: %s has no header' % (op, entry['file']))
 for mismatch in sorted(set(mismatches)): print('      mismatch: ' + mismatch, flush=True)
-check(not mismatches, 'every setting and kind of data a recipe takes is what the operations it serves ask for')
+check(not mismatches, 'every setting, input and kind of data a recipe takes is what the operations it serves ask for (%s known otherwise)' % ', '.join(sorted(KNOWN_BINDING_MISMATCHES)))
 
 s = Session()
 # --- the record of a pointer run, as tests/RScript/Record.cs checks it on Windows
@@ -263,6 +290,9 @@ def quote(value):
         elif ord(ch) < 32 or ord(ch) == 0x7f: out += '\\u%04x' % ord(ch)
         else: out += ch
     return out + '"'
+def plain(value):
+    """Text for a comment line as RScriptWriter.Plain gives it: each control character (a line break in a title, say) a space."""
+    return ''.join(' ' if ord(ch) < 32 or ord(ch) == 0x7f else ch for ch in (value or ''))
 def is_number(v): return isinstance(v, (int, float)) and not isinstance(v, bool)
 def is_scalar(v): return is_number(v) or isinstance(v, (bool, str))
 def literal(v):
@@ -340,22 +370,23 @@ def expected_script(record, recipe, detail):
         if kind not in ('frame', 'entered'): continue
         if kind == 'frame': raise AssertionError('expected_script renders records without pointer frames')
         for c in inp.get('columns', []) if isinstance(inp.get('columns'), list) else []:
-            columns.append({'title': text_of(c, 'title') or '', 'values': objects(c.get('values'))})
+            columns.append({'title': text_of(c, 'title') or '', 'values': objects(c.get('values')), 'inherited': inp.get('inherited') is True})
         groups.append((name, start, len(columns) - start))
-    head = '# %s, from StatsDirect, %s\n' % (title, run_time(record))
-    if detail is not None: head += '# ' + detail + '\n'
+    head = '# %s, from StatsDirect, %s\n' % (plain(title), run_time(record))
+    if detail is not None: head += '# ' + plain(detail) + '\n'
     head += '\n'
     out = [head]; names = set(); bound = set()
     def assign(variable, column):
-        names.add(variable); out.append(variable + ' <- ' + vector(column['values']) + '   # ' + column['title'] + '\n')
+        names.add(variable); out.append(variable + ' <- ' + vector(column['values']) + '   # ' + plain(column['title']) + '\n')
     def list_of(variable, indices):
         out.append(variable + ' <- list(' + ',\n  '.join(quote(columns[i]['title']) + ' = ' + vector(columns[i]['values']) for i in indices) + ')\n'); names.add(variable)
     def missing(variable, why): names.add(variable); out.append(variable + ' <- NULL   # ' + why + '\n')
     if binding:
         for variable, source, is_list in [d for d in binding['data'] if d[1] is not None]:
-            at = next((k for k, g in enumerate(groups) if g[0] == source), -1)
-            if at < 0 or groups[at][2] == 0: missing(variable, 'no "%s" in this run' % source); continue
-            _, start, count = groups[at]; indices = [i for i in range(start, start + count) if i not in bound]
+            # a prompt repeated for each series, group or period gives several inputs of one name: a list takes every one of their
+            # columns, a vector the first not yet taken
+            indices = [i for _, start, count in groups if _ == source for i in range(start, start + count) if i not in bound]
+            if not any(g[0] == source for g in groups): missing(variable, 'no "%s" in this run' % source); continue
             if is_list: list_of(variable, indices); bound.update(indices)
             elif indices: assign(variable, columns[indices[0]]); bound.add(indices[0])
             else: missing(variable, 'no column of "%s" is left for it' % source)
@@ -372,7 +403,7 @@ def expected_script(record, recipe, detail):
     if binding and binding['list'] is not None:
         list_of(binding['list'], [i for i in range(len(columns)) if i not in bound]); nxt = len(columns)
     while nxt < len(columns):
-        if nxt not in bound: assign(safe_name(columns[nxt]['title'], names), columns[nxt])
+        if nxt not in bound and not (binding and columns[nxt]['inherited']): assign(safe_name(columns[nxt]['title'], names), columns[nxt])   # an inherited frame the recipe does not take is left out
         nxt += 1
     for rows, row_labels, column_labels, rows_title, columns_title in tables:
         variable = binding['table'] if binding and binding['table'] else safe_name('counts', names)
@@ -389,7 +420,7 @@ def expected_script(record, recipe, detail):
             if parameters is not None and parameter in parameters and is_scalar(parameters[parameter]): out.append(variable + ' <- ' + literal(parameters[parameter]) + '\n')
     elif parameters is not None:
         for key, value in parameters.items():
-            if is_scalar(value) and not key.lower().startswith('statsdirect'): out.append(safe_name(key, names) + ' <- ' + literal(value) + '   # ' + key + '\n')
+            if is_scalar(value) and not key.lower().startswith('statsdirect'): out.append(safe_name(key, names) + ' <- ' + literal(value) + '   # ' + plain(key) + '\n')
     out.append('\n')
     out.append(binding['body'].rstrip('\n') + '\n' if binding else '# Add your analysis here.\n')
     return ''.join(out)
@@ -430,13 +461,40 @@ def record_of(example):
     return {'version': 1, 'operation': example['operation'], 'title': 'Example', 'run': '2026-10-11T03:00:00+01:00', 'inputs': inputs, 'parameters': example.get('settings', {}), 'values': {}}
 
 # --- the help's example inputs through the engine as entered frames: the record of a real run
-def run_example(session, example):
+def survival_proportions(times, events):
+    """Kaplan-Meier S at each subject's time, the rows in time order as the Kaplan-Meier function saves them."""
+    s, out, i, n = 1.0, [], 0, len(times)
+    while i < n:
+        j = i
+        while j < n and times[j] == times[i]: j += 1
+        s *= 1 - sum(1 for k in range(i, j) if events[k]) / (n - i); out.extend([s] * (j - i)); i = j
+    return out
+def _survival_plot_s():
+    e = json.loads((EXAMPLES / 'SurvivalPlot.json').read_text()); frames = {i['name']: i['columns'] for i in e['inputs']}
+    return [{'title': t['title'], 'values': survival_proportions(t['values'], c['values'])} for t, c in zip(frames['xdatNew'], frames['cdatNew'])]
+# columns a form wants beyond the example's: the 2 by k trend test's scores, and the survival plot's survival proportion of each group, which
+# the help's script works out from the times and events with survfit (the dialog takes the column the Kaplan-Meier function saved)
+REAL_RUN_COLUMNS = {'Chi2byNWithTrend': {'data': [{'title': 'score', 'values': [1, 2, 3]}]}, 'SurvivalPlot': {'ydatNew': _survival_plot_s()}}
+# settings a form asks for that the example leaves to the help's layout: the number of groups or repeats whose frames it then asks for one by one
+REAL_RUN_SETTINGS = {'SurvivalPlot': {'group-count': 2}, 'WeiLachin': {'nr': 4}, 'PoissonRegression': {'has-exposure': 'true'}}
+def run_example(session, example, parent=None, keep=False, extra=None):
     """Answers the operation's prompts from the example: frames by the name the operation asks them by, else the example's columns in order (one
     at a time to a single-column prompt, the rest to a wider one), a screen-typed 2 by 2 from its cell settings, the Distributions calculator's
     boxes, settings by parameter name (a confidence level as a percentage, an option as its value), optional frames skipped, defaults otherwise."""
-    id, state = session.start(example['operation']); used = set(); settings = example.get('settings') or {}
+    id, state = session.start(example['operation'], parent=parent); used = set(); settings = dict(example.get('settings') or {}); settings.update(REAL_RUN_SETTINGS.get(example['operation'], {})); settings.update(extra or {})
     pool = [dict(c) for key in ('data', 'list') for c in example.get(key, [])]
-    named = {i['name']: i for i in example.get('inputs', [])} if isinstance(example.get('inputs'), list) else {}
+    # the example's named inputs, each a pool of columns: a prompt put once for each group or repeat takes the next of them (as many as it
+    # allows), and a prompt named otherwise than the example's input (a table typed on screen) takes the next input not yet used
+    named = {i['name']: list(i['columns']) for i in example.get('inputs', [])} if isinstance(example.get('inputs'), list) else {}
+    for extra_name, extra_columns in REAL_RUN_COLUMNS.get(example['operation'], {}).items(): named.setdefault(extra_name, []).extend(extra_columns)
+    def from_named(name, p):
+        if name not in named:
+            rest = [n for n in named if named[n]]
+            if not rest: return None
+            name = rest[0]
+        if not named[name]: return None
+        k = min(p.get('maxColumns') or len(named[name]), len(named[name])); take = named[name][:k]; del named[name][:k]
+        return {'columns': take, 'source': 'Help example'}
     def answer(p):
         name = p.get('name'); kind = p['kind']
         if kind == 'grid':
@@ -445,7 +503,9 @@ def run_example(session, example):
                 if all(k in settings for k in keys):
                     a, b, c, d = (settings[k] for k in keys)
                     return {'columns': [{'title': p['labels'][0], 'values': [a, c]}, {'title': p['labels'][1], 'values': [b, d]}], 'source': 'Help example'}
-            if name in named and name not in used: used.add(name); return {'columns': named[name]['columns'], 'source': 'Help example'}
+            if name in named or not p.get('skip'):   # an optional frame the example does not give (a baseline, a confidence limit) is skipped below
+                answer_from_named = from_named(name, p)
+                if answer_from_named is not None: return answer_from_named
             for key in ('matrix', 'table'):
                 if isinstance(example.get(key), dict) and key not in used:
                     used.add(key); t = example[key]; counts = t['counts']; labels = t.get('columnLabels', [])
@@ -460,6 +520,7 @@ def run_example(session, example):
         if name in settings and settings[name] is not None:
             v = settings[name]
             if kind == 'confidence': return v * 100
+            if kind == 'grid': return v
             if kind == 'option':
                 values = [o['value'] for o in p['options']]
                 return str(v) if str(v) in values else (v if v in values else values[0])
@@ -477,8 +538,9 @@ def run_example(session, example):
         p = state['prompt']; value = answer(p)
         if value is None or p.get('error'): session.close(id); raise AssertionError('%s: %s' % (example['operation'], p.get('error') or 'unanswered prompt %s (%s)' % (p.get('name'), p['kind'])))
         session.request(action='answer', id=id, token=state['token'], value=value); state = session.wait(id)
-    session.close(id)
+    if not keep or state.get('state') != 'complete': session.close(id)
     if state.get('state') != 'complete': raise AssertionError('%s: %s' % (example['operation'], state.get('error')))
+    if keep: state['jobId'] = id
     return state
 
 def r_outputs(texts):
@@ -497,6 +559,7 @@ for op in operations:
     file = manifest[op]['file']
     if file not in help_scripts: help_scripts[file] = (EXAMPLES / (op + '.R')).read_text().replace('\r', '')
 help_files = sorted(help_scripts)
+ensure_r_packages('mcr')   # the help's method comparison regression, through the mcr package as the operation runs it
 help_figures = dict(zip(help_files, [figures(o) if not isinstance(o, AssertionError) else o for o in r_outputs([help_scripts[f] for f in help_files])]))
 broken = [f for f, o in help_figures.items() if isinstance(o, AssertionError)]
 check(not broken, 'the help\'s %d scripts run in R (%s)' % (len(help_files), RSCRIPT) + ('; failed: ' + ', '.join(broken) if broken else ''))
@@ -525,8 +588,8 @@ def compare_with_help(outputs, what):
             if ours: agreed += 1
             else: failures.append(op + ' (printed no figure)')
             continue
-        expected = help_figures[manifest[op]['file']]
-        if ours == expected or (example.get('cut') is True and ours and expected.startswith(ours + ' ')): agreed += 1
+        expected = help_figures[manifest[op]['file']]; allowed = set(expected.split())
+        if ours == expected or (example.get('cut') is True and ours and expected.startswith(ours + ' ')) or (example.get('subset') is True and ours and all(f in allowed for f in ours.split())): agreed += 1
         else:
             failures.append(op); a, b = ours.split(' '), expected.split(' '); i = 0
             while i < len(a) and i < len(b) and a[i] == b[i]: i += 1
@@ -536,14 +599,20 @@ agreed, failures = compare_with_help(zip(operations, r_outputs([harness[op][1]['
 check(not failures, 'every recipe prints the figures the help\'s script prints on the help\'s example: %d of %d agree' % (agreed, len(operations)) + ('; differing: ' + ', '.join(failures) if failures else ''))
 
 # the real runs: the help's example inputs through the engine as entered frames
-FOLLOW_ONS = {'FollowUpLifeTable', 'FriedmanMulti', 'PolynomialRegressionChangeDegree'}   # run from a parent result, not from the menu
-runnable = [op for op in operations if op not in FOLLOW_ONS]
+INHERITING = {op: manifest[op]['inherits'] for op in operations if 'inherits' in manifest[op]}   # the follow-ons whose record carries the parent's frames
+FOLLOW_ONS = {'FollowUpLifeTable', 'FriedmanMulti', 'PolynomialRegressionChangeDegree'} | set(INHERITING)   # run from a parent result, not from the menu
+DEFERRED = {'MethodComparisonRegression'}   # R-based, not hosted on the Mac yet: its recipe is checked above, its real run waits for the host
+runnable = [op for op in operations if op not in FOLLOW_ONS and op not in DEFERRED]
 # A run leaves its record at the template's report step: the random number generators and the summary written to the worksheet alone have
 # no report step, and the quick summary reports through its builtin, so those runs leave no record (on Windows too; its harness builds
 # their records by hand, as the checks above did).
 NO_REPORT_STEP = {op for op in operations if op.startswith('Rnd')} | {'UnivariateSummaryToWorksheetOnly', 'QuickSummary'}
-real = {}
-for op in runnable: real[op] = run_example(s, examples[op])
+real = {}; not_run = {}
+for op in runnable:
+    try: real[op] = run_example(s, examples[op])
+    except AssertionError as e: not_run[op] = str(e).replace('\n', ' | ')[:300]
+for op, why in sorted(not_run.items()): print('      not run, %s' % why, flush=True)
+check(not not_run, 'every operation of the manifest that is not a follow-on runs through the engine on the help\'s example (%d of %d; %s deferred on the Mac)' % (len(real), len(runnable), ', '.join(sorted(DEFERRED))) + ('; not run: ' + ', '.join(sorted(not_run)) if not_run else ''))
 recorded = [op for op in runnable if op not in NO_REPORT_STEP]
 without = sorted(op for op in runnable if not isinstance(real[op].get('record'), str))
 check(all(isinstance(real[op].get('record'), str) for op in recorded) and without == sorted(NO_REPORT_STEP) and all(real[op].get('recipe') is True for op in runnable),
@@ -553,32 +622,49 @@ check(all(isinstance(real[op].get('record'), str) for op in recorded) and withou
 # default answers do not take; worked out from the inputs the dialog takes instead; written back by the operation as a result under the same
 # name), and the plots, which sort their columns before the report step. The rank correlation calculators record the score (df2) they work
 # out of the correlation, as the Windows calculator shows and records it.
-DIALOG_SETTINGS = {'Crosstabs': {'ci'}, 'SizeIndCase': {'p1'}, 'SizeIndProp': {'p1'}, 'SizeMatchProp': {'p1'}, 'SizePaired': {'sd'}, 'SizeUnPaired': {'sd'}, 'SizeSurvival': {'hr'}}
+DIALOG_SETTINGS = {'SizeIndCase': {'p1'}, 'SizeIndProp': {'p1'}, 'SizeMatchProp': {'p1'}, 'SizeSurvival': {'hr'}}
 SORTED_COLUMNS = {'BoxWhiskerPlotText', 'SpreadPlot'}
+RENAMED_INPUTS = {'KappaScreen': {'data': 'responsesCrosstab'}}   # the example names an input otherwise than the parameter the dialog records it under
+def equivalent(got, values, op):
+    """Whether a recorded column holds the example's values: as numbers or their texts (a categorical column), a date typed as text recorded as
+    the worksheet's serial day, a shorter column of an entered frame padded with missing values to the frame's height, or sorted for the plots."""
+    def norm(v): return csharp(v) if is_number(v) else v
+    def serial(v): return (datetime.strptime(v, '%Y-%m-%d') - datetime(1899, 12, 30)).days if isinstance(v, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}', v) else v
+    g = list(got); v = list(values)
+    while len(g) > len(v) and g[-1] is None: g.pop()
+    if len(g) != len(v): return False
+    if all(a == b or (a is not None and b is not None and norm(a) == norm(b)) or a == serial(b) for a, b in zip(g, v)): return True
+    return op in SORTED_COLUMNS and sorted(map(norm, g)) == sorted(map(norm, v))
 problems = []
 for op in recorded:
     example = examples[op]; r = json.loads(real[op]['record']); settings = example.get('settings') or {}
     try:
         assert r['version'] == 1 and r['operation'] == op and r['title'] == friendly_name(op), 'version, operation or title (%r)' % r.get('title')
         assert abs(datetime.now(iso(r['run']).tzinfo) - iso(r['run'])) < timedelta(minutes=10) and 'source' not in r and 'data' not in r, 'run time, or a source for entered data'
-        entered = {c['title']: c['values'] for i in r['inputs'] if i['kind'] == 'entered' for c in i['columns']}
+        entered = {}   # the entered columns under each input's name, those of a prompt put once for each group or repeat gathered
+        for i in r['inputs']:
+            if i['kind'] == 'entered': entered.setdefault(i['name'], []).extend(i['columns'])
+        kinds = {i['name']: i['kind'] for i in r['inputs']}; renamed = RENAMED_INPUTS.get(op, {})
         tables = [i for i in r['inputs'] if i['kind'] == 'table']
+        wanted = [(None, c) for key in ('data', 'list') for c in example.get(key, [])]
         for named in example.get('inputs', []) if isinstance(example.get('inputs'), list) else []:
-            kinds = {i['name']: i['kind'] for i in r['inputs']}
-            assert kinds.get(named['name']) == 'entered', 'the input %s is not recorded as entered (%s)' % (named['name'], kinds.get(named['name']))
-        for column in [c for key in ('data', 'list') for c in example.get(key, [])] + [c for named in (example.get('inputs') or []) for c in named['columns']]:
-            got = entered.get(column['title'])
-            assert got is not None, 'no entered column titled %r' % column['title']
-            same = lambda g, v: g == v or (isinstance(g, str) and v is not None and g == csharp(v))
-            norm = lambda v: csharp(v) if is_number(v) else str(v)
-            assert len(got) == len(column['values']) and (all(same(g, v) for g, v in zip(got, column['values'])) or (op in SORTED_COLUMNS and sorted(map(norm, got)) == sorted(map(norm, column['values'])))), 'the values of %r differ' % column['title']
+            name = renamed.get(named['name'], named['name'])
+            assert kinds.get(name) == 'entered', 'the input %s is not recorded as entered (%s)' % (name, kinds.get(name))
+            wanted += [(name, c) for c in named['columns']]
+        every = [c for columns in entered.values() for c in columns]
+        for name, column in wanted:
+            # a frame asked once per group or repeat is recorded under its name for the last ask, and the frame the asks built up
+            # (the operation's own) carries every column: a column not under the name is looked for in the rest
+            titled = [c['values'] for c in (entered.get(name, []) if name else []) + every if c['title'] == column['title']]
+            assert titled, 'no entered column titled %r%s' % (column['title'], ' under ' + name if name else '')
+            assert any(equivalent(got, column['values'], op) for got in titled), 'the values of %r differ: recorded %s' % (column['title'], json.dumps(titled[0])[:120])
         if isinstance(example.get('table'), dict):
             assert tables and tables[0]['counts'] == example['table']['counts'] and isinstance(tables[0].get('rowsTitle'), str) and isinstance(tables[0].get('columnsTitle'), str) \
                    and len(tables[0]['rowLabels']) == 2 and len(tables[0]['columnLabels']) == 2 and len(tables[0]['columns']) == 2 and tables[0]['columns'][0]['values'] == [row[0] for row in example['table']['counts']], 'the table'
             assert r['parameters']['counts'] == example['table']['counts'] and r['parameters']['rowsTitle'] == tables[0]['rowsTitle'], 'the table among the settings'
         if isinstance(example.get('matrix'), dict):
-            labels = example['matrix']['columnLabels']
-            assert [entered.get(label) for label in labels] == [[row[c] for row in example['matrix']['counts']] for c in range(len(labels))], 'the matrix columns'
+            labels = example['matrix']['columnLabels']; every = [c for columns in entered.values() for c in columns]
+            assert [next((c['values'] for c in every if c['title'] == label), None) for label in labels] == [[row[c] for row in example['matrix']['counts']] for c in range(len(labels))], 'the matrix columns'
         for key, value in settings.items():
             if value is None or key in ('a', 'b', 'c', 'd', 'pt1', 'pt2') or key in DIALOG_SETTINGS.get(op, ()): continue
             got = r['parameters'].get(key)
@@ -602,15 +688,50 @@ check(not mismatched, 'the engine writes each real run\'s script exactly as the 
 # the real runs' scripts against the help: the same figures where the run's settings are the help's; where the dialog differs from the help's
 # example (a stated default the help's script does not take, a seed the form chose, the dialog's own labels), the difference is listed
 agreed, failures = compare_with_help(zip(recorded, r_outputs([real_scripts[op]['text'] for op in recorded])), 'real run')
-# Expected, and the same for a Windows run of the dialog (to raise with Windows rather than diverge): Crosstabs's recipe takes `ci`, which the
-# dialog asks only with Monte Carlo (its confidence level is `cco`); LogRank's group identifier is recorded as text labels, which the recipe's
-# tabulate() does not take; MiscRelRisk's help labels its columns "220 or more" and "Under 220", whose digits count as figures, where the
-# dialog's labels are Present and Absent; SizePaired and SizeUnPaired write the standard deviation back as a result under the parameter's own
-# name `sd`, so the record's settings lack it.
-EXPECTED_REAL_DIFFERENCES = {'Crosstabs', 'LogRank', 'MiscRelRisk', 'SizePaired', 'SizeUnPaired'}
+# Expected, and the same for a Windows run of the dialog (raised with Windows rather than diverged from): Crosstabs's classifiers are recorded
+# as text ("0", "1"), as the category mode reads them, and the recipe takes the help's numbers (mean(v) of text is NA); KappaScreen's recipe
+# binds "data" where the grid's parameter is responsesCrosstab; LogisticRegression's recipe takes the rest of the columns as the predictors,
+# and the rest includes the prediction grid's source (Name, Value, Old value) the regression leaves in the bag, which the writer leaves out
+# of named vectors but not of the rest list; MiscRelRisk's help labels its columns "220 or more" and "Under 220", whose digits count as
+# figures, where the dialog's labels are Present and Absent; SurvivalPlot's and WeiLachin's frames are asked once for each group or repeat,
+# and the record keeps a parameter's last ask alone (OperationRun.Note), so their scripts hold the last group's columns.
+EXPECTED_REAL_DIFFERENCES = {'Crosstabs', 'KappaScreen', 'LogisticRegression', 'MiscRelRisk', 'SurvivalPlot', 'WeiLachin'}
 unexpected = sorted(set(failures) - EXPECTED_REAL_DIFFERENCES); newly_agreeing = sorted(EXPECTED_REAL_DIFFERENCES - set(failures))
 check(not unexpected and not newly_agreeing, 'the scripts of the real runs print the help\'s figures: %d of %d agree%s' % (agreed, len(recorded), ('; differing as listed: ' + ', '.join(sorted(failures))) if failures else '')
       + ('; unexpected: ' + ', '.join(unexpected) if unexpected else '') + ('; now agreeing, remove from the list: ' + ', '.join(newly_agreeing) if newly_agreeing else ''))
+
+# --- the follow-on operations through the engine from a parent run, as FollowOn.cs and Regression.cs check them on Windows: the record
+# carries the frames the follow-on inherited from the parent's run, marked inherited, with the parent's columns; its script is the parent's
+# (the same recipe on the same data) where it asked for no frame of its own, and holds every line of the parent's where it did; and its
+# text is what the writer's rules give for its record (an inherited frame no variable of the recipe takes is left out)
+FOLLOW_ON_ANSWERS = {}   # answers to the prompts a follow-on puts of its own, beyond its example's settings, by operation
+follow_on_problems = []; inherited_frames = 0
+for op, parent_op in sorted(INHERITING.items()):
+    try:
+        parent_state = run_example(s, examples[parent_op], keep=True)
+        try: child = run_example(s, examples[op], parent=parent_state['jobId'], extra=FOLLOW_ON_ANSWERS.get(op))
+        finally: s.close(parent_state['jobId'])
+        pr = json.loads(parent_state['record']); cr = json.loads(child['record'])
+        inherited = [i for i in cr['inputs'] if i.get('inherited') is True]
+        own = [i for i in cr['inputs'] if i.get('inherited') is not True and i['kind'] in ('frame', 'entered', 'table')]
+        # the frames the parent asked for (a frame the parent itself held in the bag, the prediction grid's source, may be the follow-on's own input)
+        parent_frames = [i for i in pr['inputs'] if i['kind'] in ('frame', 'entered') and i.get('inherited') is not True]
+        assert cr['operation'] == op and child.get('recipe') is True, 'operation %r or recipe flag %r' % (cr['operation'], child.get('recipe'))
+        assert inherited and all(i['kind'] == 'entered' and i.get('prompt') == '' for i in inherited), 'no frame marked inherited among the inputs %s' % [(i['name'], i['kind'], i.get('inherited')) for i in cr['inputs']]
+        for frame in parent_frames:
+            match = [i for i in inherited if i['name'] == frame['name']]
+            assert match and match[0]['columns'] == frame['columns'], 'the parent\'s frame %s is not inherited with its columns' % frame['name']
+        inherited_frames += len(inherited)
+        parent_script = rs.write(parent_state['record'], None, []); child_script = rs.write(child['record'], None, [])
+        a, b = parent_script['text'].split('\n')[1:], child_script['text'].split('\n')[1:]
+        if not own: assert b == a, 'the scripts differ at line %d: parent %r, follow-on %r' % first_difference(parent_script['text'], child_script['text'])
+        else:
+            rest = iter(b); assert all(line in rest for line in a), 'the parent\'s script lines are not all in the follow-on\'s (which asked for %s itself)' % [i['name'] for i in own]
+        expected = expected_script(cr, *recipe_of(op))
+        assert child_script['text'] == expected, 'line %d differs from the writer\'s rules: engine %r, expected %r' % first_difference(child_script['text'], expected)
+    except AssertionError as e: follow_on_problems.append(op); print('      %s: %s' % (op, str(e).replace('\n', ' | ')[:600]), flush=True)
+check(not follow_on_problems, 'the %d follow-on operations run from a parent run record the frames they inherit (%d), marked inherited, and their scripts are the parent run\'s, the recipe on the inherited data' % (len(INHERITING), inherited_frames)
+      + ('; failing: ' + ', '.join(follow_on_problems) if follow_on_problems else ''))
 
 # --- the inverse records of the Distributions calculator, as Inverse.cs checks them: every figure printed is among the help script's
 INVERSE = [('DistributionNormal', {'upper': 0.025, 'asked': 'invert-upper'}), ('DistributionNormal', {'lower': 0.975, 'asked': 'invert-lower'}), ('DistributionNormal', {'two_sided': 0.05, 'asked': 'invert-two-sided'}),

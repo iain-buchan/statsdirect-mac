@@ -1,1 +1,1 @@
-{"operation":"Crosstabs","file":"crosstabs.R","inputs":[{"name":"c1","columns":[{"title":"sex","values":[0,1,1,0,1,0,0,0,1,1]}]},{"name":"c2","columns":[{"title":"reaction","values":[0,1,2,2,2,1,0,1,2,0]}]}],"settings":{"ci":0.95}}
+{"operation":"Crosstabs","file":"crosstabs.R","inputs":[{"name":"c1","columns":[{"title":"sex","values":[0,1,1,0,1,0,0,0,1,1]}]},{"name":"c2","columns":[{"title":"reaction","values":[0,1,2,2,2,1,0,1,2,0]}]}],"settings":{"cco":0.95}}

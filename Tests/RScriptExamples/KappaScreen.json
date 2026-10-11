@@ -1,0 +1,1 @@
+{"operation":"KappaScreen","file":"kappa-screen.R","inputs":[{"name":"data","columns":[{"title":"V1","values":[86,26,20,11,3]},{"title":"V2","values":[3,0,2,1,0]},{"title":"V3","values":[14,10,22,37,15]},{"title":"V4","values":[0,4,4,16,24]},{"title":"V5","values":[2,0,1,14,48]}]}],"settings":{"ci":0.95}}

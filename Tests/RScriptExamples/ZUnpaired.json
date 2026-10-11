@@ -1,0 +1,1 @@
+{"operation":"ZUnpaired","file":"zunpaired.R","inputs":[{"name":"data","columns":[{"title":"Sample A","values":[1,2,3,4,5]},{"title":"Sample B","values":[2,3,4,5,6,7]}]}],"nocompare":true,"settings":{"gamma":0.95}}

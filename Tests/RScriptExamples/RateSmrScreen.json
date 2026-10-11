@@ -1,0 +1,1 @@
+{"operation":"RateSmrScreen","file":"rate-smr-screen.R","inputs":[{"name":"data","columns":[{"title":"rate","values":[5.859,13.050,46.937,161.503,271.358]},{"title":"doctors","values":[1080,12860,11510,10330,7790]}]}],"subset":true,"settings":{"nunit":1000000,"dead":14,"cco":0.95}}

@@ -1,0 +1,1 @@
+{"operation":"Chi2byNLinearTrend","file":"chi-2-by-k.R","inputs":[{"name":"data","columns":[{"title":"carriers","values":[19,29,24]},{"title":"non_carriers","values":[497,560,269]}]}]}

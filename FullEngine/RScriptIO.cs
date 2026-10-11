@@ -32,9 +32,16 @@ public static class RScriptIO {
             var record = parsed != null ? parsed.RootElement : given;
             if (record.ValueKind != JsonValueKind.Object) throw new Exception("The record of the run is not a JSON object.");
             string title = root.TryGetProperty("title", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null;
-            var frames = new Dictionary<string, JsonElement>();
+            // the frames the host supplies, by input name and in order: a frame asked once per pass of a loop (the groups of a survival
+            // plot) is several inputs of one name, and the writer reads them in the record's order, so each read takes the next supplied
+            var frames = new Dictionary<string, Queue<JsonElement>>();
             if (root.TryGetProperty("frames", out var list) && list.ValueKind == JsonValueKind.Array)
-                foreach (var frame in list.EnumerateArray()) { var name = RScriptWriter.Text(frame, "name"); if (name != null) frames[name] = frame; }
+                foreach (var frame in list.EnumerateArray()) {
+                    var name = RScriptWriter.Text(frame, "name");
+                    if (name == null) continue;
+                    if (!frames.TryGetValue(name, out var queue)) frames[name] = queue = new Queue<JsonElement>();
+                    queue.Enqueue(frame);
+                }
             RuntimeHelpers.RunClassConstructor(typeof(Exports).TypeHandle);
             _ = SdApplication.SoleInstance;
             var asked = new List<string>();
@@ -44,11 +51,12 @@ public static class RScriptIO {
         } catch (Exception ex) { return JsonSerializer.Serialize(new { error = ex.Message }, json); }
     }
     // The values of a pointer frame from what the host supplied, with the Windows FrameReader's wording when they cannot be read.
-    static FrameValues Read(FramePointer pointer, Dictionary<string, JsonElement> frames, List<string> asked) {
+    static FrameValues Read(FramePointer pointer, Dictionary<string, Queue<JsonElement>> frames, List<string> asked) {
         asked.Add(pointer.Name ?? "");
         if (pointer.Columns.Count == 0) return new FrameValues { Unavailable = "the record names no columns" };
         string file = string.IsNullOrEmpty(pointer.Path) ? pointer.File : pointer.Path;
-        if (pointer.Name == null || !frames.TryGetValue(pointer.Name, out var frame)) return new FrameValues { Unavailable = $"the workbook {pointer.File} is not open and was not found at {file}" };
+        if (pointer.Name == null || !frames.TryGetValue(pointer.Name, out var queue) || queue.Count == 0) return new FrameValues { Unavailable = $"the workbook {pointer.File} is not open and was not found at {file}" };
+        var frame = queue.Dequeue();
         if (RScriptWriter.Text(frame, "unavailable") is string reason) return new FrameValues { Unavailable = reason };
         string mismatch = $"sheet {pointer.Sheet} of {pointer.File} no longer gives {pointer.Columns.Count} columns at the recorded place";
         if (!frame.TryGetProperty("columns", out var columns) || columns.ValueKind != JsonValueKind.Array || columns.GetArrayLength() != pointer.Columns.Count) return new FrameValues { Unavailable = mismatch };

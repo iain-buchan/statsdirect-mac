@@ -3,12 +3,18 @@
 # data: sex = c1, reaction = c2
 # settings: confidence = cco
 
+score <- function(v) {   # the row and column scores: the codes as numbers when they are numbers, else the levels in order
+  n <- suppressWarnings(as.numeric(as.character(v)))
+  if (anyNA(n[!is.na(v)])) as.numeric(factor(v)) else n
+}
 # Crosstabs: the StatsDirect help example (sex and grade of skin reaction to an
 # antigen in 10 patients) in R, with the contingency table analysis that follows
 
 # R's standard cross tabulation, with the percentages of each row and column
 pct <- paste0(100 * confidence, "%")
 tab <- table(Sex = sex, Reaction = reaction)
+sex <- score(sex)
+reaction <- score(reaction)
 print(tab)
 print(round(100 * prop.table(tab, 1), 2))       # % of row
 print(round(100 * prop.table(tab, 2), 2))       # % of col

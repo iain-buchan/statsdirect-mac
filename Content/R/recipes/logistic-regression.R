@@ -1,6 +1,6 @@
 # StatsDirect recipe: Logistic regression of grouped counts, as the help shows it in R.
 # From the help's R code (regression_and_correlation/logistic.htm); the data and settings above come from the run.
-# data: total, responders, predictors...
+# data: total = total, responders = response, predictors... = predictors
 
 # Logistic regression: the StatsDirect help example (Altman 1991, hypertension and
 # smoking, obesity and snoring in 433 total) in R

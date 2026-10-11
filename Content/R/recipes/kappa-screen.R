@@ -1,6 +1,6 @@
 # StatsDirect recipe: Kappa agreement of two raters from their table of counts, as the help shows it in R.
 # From the help's R code (agreement/kappa.htm); the data and settings above come from the run.
-# data: counts... = data
+# data: counts... = responsesCrosstab
 # settings: confidence = ci
 
 counts <- as.matrix(do.call(cbind, counts))   # the table typed in: the first rater's grades as rows, the second's as columns

@@ -64,7 +64,9 @@ enum RunRecordR {
         var frame: Frame?
         var unavailable: String?
     }
-    /// The frame inputs whose values must be read (kind "frame" and not among the record's `data`), in prompt order. A pointer the
+    /// The frame inputs whose values must be read (kind "frame" and not among the record's `data`, under the input's own name or,
+    /// for a frame asked once per pass of a loop, the key its `held` names), in prompt order; a name asked in several passes gives
+    /// several requests of that name, in order, and the engine takes the frames supplied in that order. A pointer the
     /// record does not describe within the worksheet's bounds, or a frame pointing at more cells than can be read (its distinct
     /// columns over the rows it spans, alone or with the frames before it), makes its frame unavailable with the reason, so nothing
     /// is read by it; the script still opens, its Data line saying why.
@@ -73,7 +75,7 @@ enum RunRecordR {
         var requests: [Request] = []
         var cells = 0
         for input in record["inputs"] as? [[String: Any]] ?? [] {
-            guard input["kind"] as? String == "frame", let name = input["name"] as? String, held[name] == nil else { continue }
+            guard input["kind"] as? String == "frame", let name = input["name"] as? String, held[input["held"] as? String ?? name] == nil else { continue }
             let file = input["file"] as? String ?? ""
             let path = (input["path"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? file
             var columns: [Pointer] = []

@@ -201,6 +201,10 @@
     "file": "gini.R",
     "detail": "Gini coefficient of inequality with bootstrap intervals, as the help shows it in R."
   },
+  "GroupedCovariance": {
+    "file": "grouped-covariance.R",
+    "detail": "Grouped linear regression with covariance analysis, as the help shows it in R."
+  },
   "GroupedLinearity": {
     "file": "grouped-linearity.R",
     "detail": "Linearity of grouped regression (replicates at each level of the predictor), as the help shows it in R."
@@ -506,6 +510,10 @@
     "file": "relative-risk-meta.R",
     "detail": "Relative risk meta-analysis, as the help shows it in R."
   },
+  "ReplicateTwoWay": {
+    "file": "replicate-two-way.R",
+    "detail": "Two way analysis of variance with repeated observations, as the help shows it in R."
+  },
   "RiskDifference": {
     "file": "risk-difference.R",
     "detail": "Risk difference meta-analysis, as the help shows it in R."
@@ -673,6 +681,10 @@
   "TwoWay": {
     "file": "two-way.R",
     "detail": "Two way analysis of variance of a randomized block layout, as the help shows it in R."
+  },
+  "TwoWayNested": {
+    "file": "two-way-nested.R",
+    "detail": "Two way hierarchical (nested) analysis of variance, as the help shows it in R."
   },
   "UnivariateSummary": {
     "file": "univariate-summary.R",

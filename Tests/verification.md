@@ -1,4 +1,4 @@
-# Mac follow-on analysis validation — 12 October 2026 (after 0.3.28)
+# Mac 0.3.29 — follow-on analysis validation — 12 October 2026
 
 Fixed a Mac host issue where follow-on worksheet output could lose the parent's
 input range, worksheet snapshot or entered-data flag. Follow-ons now retain those
@@ -35,7 +35,7 @@ Validation passed:
 
 The new native suite is included in build CI and is available as the `follow-ons`
 packaged-runtime workflow choice. Numerical/isolation checks are in `test.sh`.
-This local build has not replaced the published 0.3.28 download.
+These fixes are packaged as 0.3.29, retaining the tested 5.1.0 engine from 0.3.28.
 
 # Mac 0.3.28 — report and Script toolbars, Open in R — 12 October 2026
 

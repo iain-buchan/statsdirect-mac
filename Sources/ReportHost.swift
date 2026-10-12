@@ -49,6 +49,13 @@ struct ReportChange {
 }
 
 extension Viewer {
+    // Reports and instant-answer previews use the engine's Creole presentation;
+    // the generic workspace page also serves other, non-report windows.
+    func reportPage(_ title: String, _ body: String) -> String {
+        let css = (try? String(contentsOf: root.appendingPathComponent("Mac/report.css"), encoding: .utf8)) ?? ""
+        return page(title, body, bodyClass: "engine-report", additionalCSS: css)
+    }
+
     @objc func newReport() { _ = makeReport() }
 
     func makeReport() -> Document {
@@ -75,8 +82,11 @@ extension Viewer {
         let notice = doc.reportImportNotice.map { "<p class='report-controls report-import-notice'>\(htmlEscape($0))</p>" } ?? ""
         let editor = (try? String(contentsOf: root.appendingPathComponent("Report/editor.js"), encoding: .utf8)) ?? ""
         let macHost = (try? String(contentsOf: root.appendingPathComponent("Mac/report-host.js"), encoding: .utf8)) ?? ""
-        let bootstrap = "<script>" + editor + "\nStatsDirectReportEditor.start({editing:\(doc.reportEditing),undo:\(!doc.reportUndo.isEmpty),redo:\(!doc.reportRedo.isEmpty)});\n" + macHost + "</script>"
-        doc.web.loadHTMLString(page(doc.title, reportToolbar(doc) + notice + body + bootstrap), baseURL: root)
+        let toolbar = (try? String(contentsOf: root.appendingPathComponent("Mac/toolbar.js"), encoding: .utf8)) ?? ""
+        let icons = (try? String(contentsOf: root.appendingPathComponent("Mac/toolbar-icons.json"), encoding: .utf8)) ?? "{}"
+        let style = "<style>" + ((try? String(contentsOf: root.appendingPathComponent("Mac/toolbar.css"), encoding: .utf8)) ?? "") + "</style>"
+        let bootstrap = style + "<script>window.StatsDirectToolbarIcons=" + icons + ";\n" + toolbar + "\n" + editor + "\nStatsDirectReportEditor.start({editing:\(doc.reportEditing),undo:\(!doc.reportUndo.isEmpty),redo:\(!doc.reportRedo.isEmpty)});\n" + macHost + "</script>"
+        doc.web.loadHTMLString(reportPage(doc.title, reportToolbar(doc) + notice + body + bootstrap), baseURL: root)
     }
 
     // A result as a block of the report: its id, the help page and R availability for the context menu, and its content.
@@ -90,6 +100,8 @@ extension Viewer {
         guard let action=body["action"] as? String else { return }
         if action == "transferNotice", let text = body["text"] as? String { status.stringValue = text; return }
         if action == "clipboard", let command = body["command"] as? String, ["copy", "cut", "paste"].contains(command) { reportClipboardCommand(doc, command: command); return }
+        if action == "save" { saveReport(doc); return }
+        if action == "find" { showFindBar(doc, replace: false); return }
         if action == "editing" { doc.reportEditing = body["value"] as? Bool ?? false; return }
         // What the pointer was on at a right-click, for the context menu the shell shows.
         if action == "context" { doc.reportContext = body; return }
@@ -270,7 +282,7 @@ extension Viewer {
     func previewResult(_ entry: ReportEntry, in doc: Document) {
         doc.pendingResult = entry
         let bridge = doc.kind == "analysis" ? "statsDirectChiSquare" : "statsDirectOperation"
-        let preview = page(entry.title, "<style>.report-links{display:none}body{padding:12px 18px}</style>" + entry.body)
+        let preview = reportPage(entry.title, "<style>.report-links{display:none}body{padding:12px 18px}</style><div class='report-body'>" + entry.body + "</div>")
         doc.web.evaluateJavaScript("window.\(bridge)?.showResult({id:\(jsString(entry.id)),page:\(jsString(preview))})")
         status.stringValue = "\(entry.title) complete · Add to report to keep these results"
     }

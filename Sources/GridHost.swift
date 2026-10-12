@@ -29,7 +29,14 @@ extension Viewer: WKScriptMessageHandler {
         case "openExample": openExampleWorkbook()
         case "saveExcel": saveExcel(doc)
         case "changed": doc.gridDirty = true; doc.gridVersion += 1
+        case "saveDocument": saveWorksheet(doc)
         case "save": saveGrid(doc)
+        case "cut":
+            if let text = body["text"] as? String, let token = body["token"] as? String {
+                NSPasteboard.general.clearContents()
+                let success = NSPasteboard.general.setString(text, forType: .string)
+                web.evaluateJavaScript("window.statsDirectGrid.completeCut(\(jsString(token)),\(success))")
+            }
         case "copy":
             if let text = body["text"] as? String {
                 NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
@@ -41,6 +48,12 @@ extension Viewer: WKScriptMessageHandler {
             } else { gridStatus(doc, "The clipboard does not contain text to paste.") }
         default: break
         }
+    }
+    func saveWorksheet(_ doc: Document) {
+        guard !doc.fileBusy, window.attachedSheet == nil else { return }
+        if let format = doc.rDataFormat { saveRData(doc, format: format) }
+        else if doc.csvSaveName != nil { saveGrid(doc) }
+        else { saveExcel(doc) }
     }
     func jsString(_ text: String) -> String {
         let data = try! JSONSerialization.data(withJSONObject: [text], options: [.fragmentsAllowed])
@@ -69,6 +82,7 @@ extension Viewer: WKScriptMessageHandler {
                     doc.workbookName = url.lastPathComponent
                     doc.csvSaveName = url.deletingPathExtension().lastPathComponent + "-edited.csv"
                     doc.pendingCSV = text
+                    doc.openedFileURL = url
                 }
             }
         }
@@ -81,7 +95,7 @@ extension Viewer: WKScriptMessageHandler {
             if let error {
                 self.remove(doc)
                 self.showError("CSV import failed: " + error.localizedDescription)
-            } else { self.status.stringValue = "Opened " + doc.workbookName }
+            } else { self.didOpenDocument(doc); self.status.stringValue = "Opened " + doc.workbookName }
         }
     }
     func saveGrid(_ doc: Document) {
@@ -104,7 +118,9 @@ extension Viewer: WKScriptMessageHandler {
                         switch result {
                         case .failure(let error): self.showError(error.localizedDescription)
                         case .success:
+                            self.noteRecentDocument(url)
                             if completeDocument {
+                                doc.openedFileURL = url
                                 doc.csvSaveName = url.lastPathComponent; doc.rDataFormat = nil
                                 if doc.gridVersion == version { doc.gridDirty = false }
                             }

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """Local script-assistant transport fixture; no credentials or external calls."""
-import json, os, sys
+import json, os, sys, time
 from pathlib import Path
 home=Path(os.environ['CODEX_HOME'])
 assert home.name=='chatgpt-mock'
@@ -42,6 +42,22 @@ for line in sys.stdin:
   question=payload['conversation'][-1]['text'];result={'turn':{'id':'turn'}}
   send({'id':request['id'],'result':result})
   if question=='CANCEL_TEST':continue
+  if question=='STREAM_TEST':
+   assert context['documents']==[] and 'currentScript' not in context
+   answer='Earlier reading and copying should stay stable.\n'+''.join(f'Paragraph {i}: Paired measurements, 95% confidence intervals, and Unicode α 🧪.\n' for i in range(180))+'```r\nmean(c(1, 2, 3))\n```\n'
+   for step in range(5):
+    chunk=(answer if step==0 else '')+f'STREAM_STEP_{step}\n'
+    if step>0:answer+=chunk
+    else:answer+=f'STREAM_STEP_{step}\n'
+    notify('item/agentMessage/delta',{'threadId':thread,'turnId':'turn','itemId':'answer','delta':chunk})
+    gate=home/f'stream-step-{step}'
+    deadline=time.monotonic()+25
+    while not gate.exists():
+     assert time.monotonic()<deadline, f'Stream step {step} was not acknowledged'
+     time.sleep(.01)
+   notify('item/completed',{'threadId':thread,'turnId':'turn','item':{'id':'answer','type':'agentMessage','text':answer}})
+   notify('turn/completed',{'threadId':thread,'turn':{'id':'turn','status':'completed'}})
+   continue
   if question=='NO_SHARING':
    assert context['documents']==[] and 'currentScript' not in context
    assert 'PRIVATE_SCRIPT' not in json.dumps(payload) and 'PRIVATE_WORKBOOK' not in json.dumps(payload)

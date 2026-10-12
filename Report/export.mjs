@@ -1,6 +1,6 @@
 import {clipboardText, formatClipboardTables, formatOfficePresentation, flattenOfficeTableBorders} from './clipboard.mjs';
 import {wordEquation} from './math.mjs';
-import {explicitPictureWidth} from './chart-size.mjs';
+import {explicitPictureWidth,pictureAlignment,setPictureAlignment} from './chart-size.mjs';
 import {inlinePresentation} from './fragment.mjs';
 import {Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, ExternalHyperlink, HeadingLevel, WidthType, TableLayoutType, AlignmentType, BorderStyle, LevelFormat, ShadingType, VerticalAlignTable} from 'docx';
 
@@ -72,6 +72,7 @@ async function snapshot({title,helpRoot,format}) {
   for(let i=0;i<originals.length;i++) {
     const src=originals[i],dst=copies[i];
     if(src.closest('script,iframe,object,embed')) continue;
+    const alignment=pictureAlignment(src);
     let width,height,png,svg;
     if(src.localName==='svg') {
       const view=src.viewBox?.baseVal;
@@ -92,7 +93,10 @@ async function snapshot({title,helpRoot,format}) {
       if(src.localName==='canvas') {const image=document.createElement('img');image.src=png;dst.replaceWith(image);copies[i]=image;} else {dst.src=png;dst.removeAttribute('srcset');}
     }
     const factor=Math.min(explicitPictureWidth(src,width)/width,640/width,820/height);
-    pictures.set(copies[i],{svg,png,width:Math.round(width*factor),height:Math.round(height*factor),alt:src.getAttribute('aria-label')||src.getAttribute('alt')||src.querySelector('title')?.textContent||'StatsDirect chart'});
+    setPictureAlignment(copies[i],alignment);
+    // Export removes the editable wrapper that normally supplies block layout.
+    copies[i].style.display='block';
+    pictures.set(copies[i],{svg,png,alignment,width:Math.round(width*factor),height:Math.round(height*factor),alt:src.getAttribute('aria-label')||src.getAttribute('alt')||src.querySelector('title')?.textContent||'StatsDirect chart'});
   }
   clean(clone,helpRoot);
   const head=clone.querySelector('head');let css='';
@@ -190,7 +194,7 @@ function paragraphs(node,pictures,options={}) {
     if(tag==='TABLE') {output.push(table(child,pictures),new Paragraph({spacing:{after:70}}));continue;}
     if(pictures.has(child)) {
       const p=pictures.get(child),image=p.svg?{type:'svg',data:new TextEncoder().encode(p.svg),fallback:{type:'png',data:bytes(p.png)}}:{type:'png',data:bytes(p.png)};
-      output.push(new Paragraph({alignment:AlignmentType.CENTER,children:[new ImageRun({...image,transformation:{width:p.width,height:p.height},altText:{title:p.alt,description:p.alt,name:p.alt}})],spacing:{before:120,after:160}}));continue;
+      output.push(new Paragraph({alignment:p.alignment,children:[new ImageRun({...image,transformation:{width:p.width,height:p.height},altText:{title:p.alt,description:p.alt,name:p.alt}})],spacing:{before:120,after:160}}));continue;
     }
     if(tag==='DETAILS'&&!child.open)continue;
     if(tag==='HR'){output.push(new Paragraph({spacing:{after:160}}));continue;}
@@ -279,11 +283,15 @@ export async function clipboard(options) {
   // Keep text formatting for Word and other rich editors. Table formatting
   // below still supplies the numeric/cell hints Excel needs.
   for(const img of root.querySelectorAll('img'))if(widths.get(img)) {
+    const alignment=pictureAlignment(img);
     await timeout(img.decode());
     const width=Math.min(640,widths.get(img)),height=Math.round(width*img.naturalHeight/img.naturalWidth);
     img.width=Math.round(width*.75);img.height=Math.round(height*.75);img.style.cssText=`width:${width}px;height:${height}px`;
+    setPictureAlignment(img,alignment);
+    const holder=document.createElement('div');holder.style.textAlign=alignment;img.replaceWith(holder);holder.append(img);
   }
   for(const svg of root.querySelectorAll('svg')) {
+    const alignment=pictureAlignment(svg);
     const box=svg.viewBox?.baseVal,width=box?.width||640,height=box?.height||400;
     svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
     svg.setAttribute('width',String(width));svg.setAttribute('height',String(height));
@@ -294,9 +302,10 @@ export async function clipboard(options) {
     // Excel treats image HTML attributes as points but lays out CSS dimensions as pixels.
     img.width=Math.round(displayWidth*.75);img.height=Math.round(displayHeight*.75);
     img.style.cssText=`width:${displayWidth}px;height:${displayHeight}px`;
+    setPictureAlignment(img,alignment);
     // Word showed every line break after a picture as an empty line, and Excel
     // places the next text below the picture without them.
-    const holder=document.createElement('div');holder.append(img);
+    const holder=document.createElement('div');holder.style.textAlign=alignment;holder.append(img);
     svg.replaceWith(holder);
   }
   flattenOfficeTableBorders(root);

@@ -1,6 +1,11 @@
 import Cocoa
 
+@MainActor private final class ScriptAIControlsStack: NSStackView {
+    override var isFlipped: Bool { true }
+}
+
 @MainActor final class ScriptAIPane: NSObject {
+    private static let confirmationNotice="Check the selected content for person identifiers, then confirm before sending."
     final class Conversation {
         var messages: [[String:String]]=[]
         var draft=""
@@ -30,6 +35,7 @@ import Cocoa
     private(set) var requestID: UUID?
     private var task: Task<Void,Never>?
     private var partial=""
+    private weak var renderedConversation: Conversation?
     private var dockWidth: CGFloat=460
     private var conversation: Conversation? { scriptID.flatMap{conversations[$0]} }
     var isBusy: Bool { task != nil }
@@ -77,15 +83,35 @@ import Cocoa
         stopButton.target=self;stopButton.action=#selector(stop);stopButton.isEnabled=false
         let actions=NSStackView(views:[sendButton,stopButton]);actions.spacing=8
         notice.font = .systemFont(ofSize:11);notice.textColor = .secondaryLabelColor
-        let stack=NSStackView(views:[header,sourceLabel,connection,history,contextButton,contextPanel,composer,actions,reminder,notice])
-        stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=7
+        let questionLabel=NSTextField(labelWithString:"Your question"),conversationLabel=NSTextField(labelWithString:"Conversation")
+        for label in [questionLabel,conversationLabel] { label.font = .systemFont(ofSize:11,weight:.semibold) }
+        let controls=ScriptAIControlsStack(views:[connection,contextButton,contextPanel,questionLabel,composer,actions,reminder,notice])
+        controls.orientation = .vertical;controls.alignment = .leading;controls.spacing=7;controls.detachesHiddenViews=true
+        controls.translatesAutoresizingMaskIntoConstraints=false
+        let controlsScroll=NSScrollView();controlsScroll.hasVerticalScroller=true;controlsScroll.autohidesScrollers=true
+        controlsScroll.drawsBackground=false;controlsScroll.documentView=controls
+        let controlsHeight=controlsScroll.heightAnchor.constraint(equalTo:controls.heightAnchor)
+        controlsHeight.priority = .defaultHigh
+        // Short docks scroll the question/sharing controls instead of clipping them
+        // or taking away the conversation's minimum reading area.
+        let stack=NSStackView(views:[header,sourceLabel,controlsScroll,conversationLabel,history])
+        stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=7;stack.detachesHiddenViews=true
         stack.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(stack)
-        for child in [header,sourceLabel,history,contextButton,contextPanel,composer,reminder,notice,warning,dataRow,acknowledgement] {
+        for child in [header,sourceLabel,controlsScroll,conversationLabel,history] {
             child.widthAnchor.constraint(equalTo:stack.widthAnchor).isActive=true
+        }
+        for child in [contextButton,contextPanel,questionLabel,composer,reminder,notice,warning,dataRow,acknowledgement] {
+            child.widthAnchor.constraint(equalTo:controls.widthAnchor).isActive=true
+        }
+        for child in controls.arrangedSubviews+contextPanel.arrangedSubviews+[header,sourceLabel,conversationLabel] {
+            child.setContentCompressionResistancePriority(.required,for:.vertical)
         }
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo:view.topAnchor,constant:8),stack.bottomAnchor.constraint(equalTo:view.bottomAnchor,constant:-8),
             stack.leadingAnchor.constraint(equalTo:view.leadingAnchor,constant:10),stack.trailingAnchor.constraint(equalTo:view.trailingAnchor,constant:-10),
+            controls.topAnchor.constraint(equalTo:controlsScroll.contentView.topAnchor),controls.leadingAnchor.constraint(equalTo:controlsScroll.contentView.leadingAnchor),
+            controls.widthAnchor.constraint(equalTo:controlsScroll.contentView.widthAnchor),controlsHeight,
+            controlsScroll.heightAnchor.constraint(lessThanOrEqualTo:controls.heightAnchor),controlsScroll.heightAnchor.constraint(greaterThanOrEqualToConstant:100),
             composer.heightAnchor.constraint(equalToConstant:82),history.heightAnchor.constraint(greaterThanOrEqualToConstant:100)
         ])
         history.setContentHuggingPriority(.defaultLow,for:.vertical)
@@ -97,7 +123,7 @@ import Cocoa
             if conversations[doc.id]==nil { let chat=Conversation();chat.workbookID=viewer.documents.first(where:{$0.kind=="grid" && $0.id==viewer.analysisSourceID})?.id ?? viewer.documents.last(where:{$0.kind=="grid"})?.id;conversations[doc.id]=chat }
             input.string=conversation!.draft;shareScript.state=conversation!.shareScript ? .on:.off;shareWorkbook.state=conversation!.shareWorkbook ? .on:.off
         }
-        acknowledgement.state = .off;contextPanel.isHidden=false;contextButton.title="Sharing for this question ▾"
+        acknowledgement.state = .off;setContextExpanded(true)
         sourceLabel.stringValue=doc.title
         refreshWorkbooks();render();updateConnection()
         if !visible {
@@ -138,7 +164,7 @@ import Cocoa
         viewer.configureLearningAI(doc)
     }
     @objc func sharingChanged() {
-        acknowledgement.state = .off;saveChoices();updateControls()
+        acknowledgement.state = .off;setContextExpanded(true);saveChoices();updateControls()
     }
     private func saveChoices() {
         guard let chat=conversation else { return }
@@ -153,11 +179,32 @@ import Cocoa
         stopButton.isEnabled=isBusy;shareScript.isEnabled = !isBusy
         shareWorkbook.isEnabled = !isBusy && workbookPicker.numberOfItems>0
         workbookPicker.isEnabled = !isBusy && shareWorkbook.state == .on
+        updateContextTitle()
     }
-    @objc private func acknowledge() { updateControls() }
-    @objc private func toggleContext() {
-        contextPanel.isHidden.toggle();contextButton.title=contextPanel.isHidden ? "Sharing for this question ▸" : "Sharing for this question ▾"
+    @objc private func acknowledge() {
+        updateControls()
+        if acknowledgement.state == .on && (shareScript.state == .on || shareWorkbook.state == .on) {
+            if notice.stringValue==Self.confirmationNotice { showNotice("") }
+            setContextExpanded(false)
+            viewer.window.makeFirstResponder(input)
+        }
     }
+    private func setContextExpanded(_ expanded: Bool) {
+        contextPanel.isHidden = !expanded
+        updateContextTitle()
+    }
+    private func updateContextTitle() {
+        let sharing=shareScript.state == .on || shareWorkbook.state == .on
+        if !contextPanel.isHidden { contextButton.title="Sharing for this question ▾" }
+        else if sharing && !isBusy && acknowledgement.state != .on { contextButton.title="Review sharing for the next question ▸" }
+        else if sharing {
+            let scope=[shareScript.state == .on ? "script and R output":nil,shareWorkbook.state == .on ? "workbook":nil].compactMap{$0}.joined(separator:" + ")
+            contextButton.title="Sharing: "+scope+" ▸"
+        } else { contextButton.title="Question only · Sharing options ▸" }
+        contextButton.toolTip=contextPanel.isHidden ? "Review or change what is shared with ChatGPT" : "Hide sharing options"
+        contextButton.setAccessibilityValue(contextPanel.isHidden ? "Collapsed" : "Expanded")
+    }
+    @objc private func toggleContext() { setContextExpanded(contextPanel.isHidden) }
     func showNotice(_ text: String) { notice.stringValue=text }
     @objc func send() {
         guard !isBusy, let chat=conversation, let source=viewer.documents.first(where:{$0.id==scriptID}), !TutorPolicy.disabled else { return }
@@ -166,7 +213,7 @@ import Cocoa
         guard question.count<=8000 else { showNotice("Please shorten this question to 8,000 characters.");return }
         guard viewer.chatGPTTutor.account != nil else { showNotice("Choose Use my ChatGPT to connect your account first.");return }
         let sharing=shareScript.state == .on || shareWorkbook.state == .on
-        guard !sharing || acknowledgement.state == .on else { showNotice("Check the selected content for person identifiers, then confirm before sending.");return }
+        guard !sharing || acknowledgement.state == .on else { showNotice(Self.confirmationNotice);return }
         let workbook=shareWorkbook.state == .on ? viewer.documents.first(where:{$0.kind=="grid" && $0.id==workbookPicker.selectedItem?.representedObject as? String}) : nil
         guard shareWorkbook.state != .on || workbook != nil else { showNotice("Choose an open workbook to share.");return }
         let token=UUID();requestID=token;saveChoices()
@@ -220,7 +267,7 @@ import Cocoa
         func add(_ value:String,_ attributes:[NSAttributedString.Key:Any]) { text.append(NSAttributedString(string:value,attributes:attributes)) }
         let normal: [NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:13),.foregroundColor:NSColor.textColor]
         let messages=conversation?.messages ?? []
-        if messages.isEmpty { add("Ask for help understanding, improving or debugging your R script.\n\nChoose below whether to share workbook data and scripts, or send a question without documents. Nothing is sent until you press Send.",normal) }
+        if messages.isEmpty { add("Ask for help understanding, improving or debugging your R script.\n\nChoose above whether to share workbook data and scripts, or send a question without documents. Nothing is sent until you press Send.",normal) }
         for row in messages + (partial.isEmpty ? [] : [["role":"assistant","text":partial]]) {
             add((row["role"]=="user" ? "You" : "ChatGPT")+"\n",[.font:NSFont.systemFont(ofSize:12,weight:.semibold),.foregroundColor:NSColor.secondaryLabelColor])
             if let context=row["context"] { add(context+"\n",[.font:NSFont.systemFont(ofSize:10),.foregroundColor:NSColor.secondaryLabelColor]) }
@@ -231,6 +278,44 @@ import Cocoa
             }
             add("\n",normal)
         }
-        transcript.textStorage?.setAttributedString(text);transcript.scrollToEndOfDocument(nil)
+        guard let storage=transcript.textStorage else { return }
+        let sameConversation=renderedConversation === conversation
+        var prefix=0
+        if sameConversation {
+            for (old,new) in zip(storage.string.utf16,text.string.utf16) {
+                if old != new { break };prefix+=1
+            }
+            // A completed code fence can change formatting without changing text.
+            var offset=0
+            while offset<prefix {
+                var oldRun=NSRange(),newRun=NSRange()
+                let old=storage.attributes(at:offset,effectiveRange:&oldRun)
+                let new=text.attributes(at:offset,effectiveRange:&newRun)
+                if !NSDictionary(dictionary:old).isEqual(to:new) { prefix=offset;break }
+                offset=min(prefix,NSMaxRange(oldRun),NSMaxRange(newRun))
+            }
+            if prefix==storage.length && prefix==text.length { return }
+        }
+        // Never split a surrogate pair or a composed character at the edit boundary.
+        if prefix<storage.length { prefix=min(prefix,(storage.string as NSString).rangeOfComposedCharacterSequence(at:prefix).location) }
+        if prefix<text.length { prefix=min(prefix,(text.string as NSString).rangeOfComposedCharacterSequence(at:prefix).location) }
+        let scroll=transcript.enclosingScrollView,clip=scroll?.contentView
+        if let container=transcript.textContainer { transcript.layoutManager?.ensureLayout(for:container) }
+        let origin=clip?.bounds.origin ?? .zero
+        let selections=transcript.selectedRanges.map(\.rangeValue)
+        let followEnd = !sameConversation || (selections.allSatisfy{$0.length==0} && (clip?.documentVisibleRect.maxY ?? 0)>=transcript.bounds.maxY-3)
+        storage.beginEditing()
+        storage.replaceCharacters(in:NSRange(location:prefix,length:storage.length-prefix),with:text.attributedSubstring(from:NSRange(location:prefix,length:text.length-prefix)))
+        storage.endEditing()
+        renderedConversation=conversation
+        if sameConversation {
+            transcript.selectedRanges=selections.map { range in
+                let start=min(range.location,text.length)
+                return NSValue(range:NSRange(location:start,length:min(range.length,text.length-start)))
+            }
+        } else { transcript.setSelectedRange(NSRange(location:0,length:0)) }
+        if let container=transcript.textContainer { transcript.layoutManager?.ensureLayout(for:container) }
+        if followEnd { transcript.scrollToEndOfDocument(nil) }
+        else if let clip { clip.scroll(to:origin);scroll?.reflectScrolledClipView(clip) }
     }
 }

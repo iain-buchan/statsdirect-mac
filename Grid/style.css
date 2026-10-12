@@ -25,3 +25,7 @@ footer span:last-child { flex-shrink: 0; }
 .formula-note { font-size: 11px; line-height: 1.4; color: #735719; margin: 0; }
 #portal { position: fixed; inset: 0; pointer-events: none; z-index: 9999; }
 #portal > * { pointer-events: auto; }
+
+.grid-find { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.grid-find input { flex:1; min-width:60px; font:inherit; padding:5px; }
+.sd-toolbar { z-index:5; }

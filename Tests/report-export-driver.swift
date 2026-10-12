@@ -23,6 +23,8 @@ import PDFKit
                         try await archived(viewer, url:URL(fileURLWithPath:CommandLine.arguments[index+1]), output:URL(fileURLWithPath:CommandLine.arguments[1]))
                     } else if CommandLine.arguments.contains("--deletion-only") {try await deletions(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--presentation-only") {try await presentation(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--creole-only") {try await creolePresentation(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--alignment-only") {try await chartAlignment(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--transfer-only") {try await transfers(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--legacy-only") {try await legacy(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--records-only") {try await runRecords(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))} else {try await run(viewer)}
@@ -82,6 +84,12 @@ import PDFKit
         for _ in 0..<100 where report.web.isLoading {try await Task.sleep(nanoseconds:100_000_000)}
         let chartFonts=try await report.web.evaluateJavaScript("[...document.querySelectorAll('.engine-report svg text')].every(el=>getComputedStyle(el).fontFamily.includes('Arial'))") as! Bool
         precondition(chartFonts,"New engine SVG charts must use Arial")
+        precondition(try await report.web.evaluateJavaScript("getComputedStyle(document.querySelector('.report-body .ci')).color==='rgb(0, 0, 255)'&&getComputedStyle(document.querySelector('.report-body .pval')).color==='rgb(0, 127, 0)'") as? Bool == true,"real paired-test and chi-square output uses the Creole palette")
+        try await report.web.evaluateJavaScript("window.scrollTo(0,0)")
+        let picture = try await report.web.takeSnapshot(configuration: nil)
+        if let tiff = picture.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]) {
+            try png.write(to: output.appendingPathComponent("creole-native-preview.png"))
+        }
         for format in ReportFormat.allCases {
             let data=try await v.reportExportData(report,format:format)
             try data.write(to:output.appendingPathComponent("combined-report."+format.rawValue))
@@ -102,8 +110,8 @@ import PDFKit
             print("Wrote",format.rawValue,data.count,"bytes");fflush(stdout)
         }
         // Exercise the actual WebKit selection path without changing the system clipboard.
-        try await report.web.evaluateJavaScript("window.getSelection().selectAllChildren(document.body)")
-        let copied=try await v.reportScript(report,method:"clipboard")!
+        try await report.web.evaluateJavaScript("document.querySelector('.report-body').focus();window.getSelection().selectAllChildren(document.querySelector('.report-body'))")
+        guard let copied=try await v.reportScript(report,method:"clipboard") else { throw LegacyReportError("The report selection was empty during clipboard verification.") }
         let clipboard=try JSONSerialization.jsonObject(with:Data(copied.utf8)) as! [String:String]
         precondition(clipboard["html"]!.contains("data:image/png;base64,") && !clipboard["html"]!.contains("<svg"))
         precondition(clipboard["html"]!.contains("x:str=\"Observation 65\"") && clipboard["html"]!.contains("mso-number-format"))
@@ -159,6 +167,8 @@ import PDFKit
         try await stylesheetPresentation(v, output: output)
         try await presentation(v, output: output)
         try await runRecords(v, output: output)
+        try await creolePresentation(v, output: output)
+        try await chartAlignment(v, output: output)
     }
 
     @MainActor static func macReportControls(_ v: Viewer) async throws {
@@ -508,7 +518,9 @@ import PDFKit
         _ = try await js("(()=>{const r=document.createRange(),a=document.getElementById('sr-a2').lastChild.firstChild,b=document.getElementById('sr-b1').firstChild;document.getElementById('report-results').focus();r.setStart(a,1);r.setEnd(b,3);const s=getSelection();s.removeAllRanges();s.addRange(r);StatsDirectReportEditor.command('underline');})()")
         try await settled(report)
         precondition(report.reportUndo.last!.edits.count==2,"a command across two results is one transaction of two edits")
-        try await check("(()=>{const underlined=root=>!!root.querySelector('u,[style*=\"underline\"]');return underlined(document.getElementById('sr-a2'))&&underlined(document.getElementById('sr-b-h'))&&underlined(document.getElementById('sr-b1'));})()","the selection crossed the result boundary")
+        // Creole headings are already underlined by their stylesheet; WebKit
+        // need not insert a redundant inline underline inside the heading.
+        try await check("(()=>{const underlined=root=>getComputedStyle(root).textDecorationLine.includes('underline')||!!root.querySelector('u,[style*=\"underline\"]');return underlined(document.getElementById('sr-a2'))&&underlined(document.getElementById('sr-b-h'))&&underlined(document.getElementById('sr-b1'));})()","the selection crossed the result boundary")
         _ = try await js("StatsDirectReportEditor.command('undo')");try await settled(report)
         try await check("!document.querySelector('#sr-a2 u,#sr-a2 [style*=\"underline\"],#sr-b-h u,#sr-b-h [style*=\"underline\"]')&&document.getElementById('sr-b1').querySelectorAll('u').length===1","undo restored both results")
         // Clear formatting with a caret clears the paragraph at the caret: inline elements, inline styles and the block's own styles.
@@ -634,7 +646,7 @@ import PDFKit
         try await report.web.evaluateJavaScript("StatsDirectReportEditor.command('redo')");try await settled(report)
         let redone=try await report.web.evaluateJavaScript("document.querySelector('.report-body svg').style.width") as! String
         precondition(redone=="324px")
-        // The corner marker drags to resize (the right edge moves half as far as the width grows, as pictures are centred); Escape cancels a drag.
+        // New Mac charts are left aligned: the free edge follows the pointer; Escape cancels a drag.
         let dragged=try await report.web.evaluateJavaScript("""
         (()=>{const h=document.querySelector('.report-body .report-media>.report-chart-resize'),s=h.parentElement.querySelector('svg'),before=s.getBoundingClientRect().width,r=h.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
           const ev=(type,target,dx)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:7,button:0,clientX:x+dx,clientY:y}));
@@ -643,7 +655,7 @@ import PDFKit
           return {before,after,cancelled,left:parseFloat(h.style.left)>0};})()
         """) as! [String:Any]
         try await settled(report)
-        precondition(abs((dragged["after"] as! Double)-(dragged["before"] as! Double)-60)<2 && abs((dragged["cancelled"] as! Double)-(dragged["after"] as! Double))<1 && dragged["left"] as? Bool==true,"corner marker drag: \(dragged)")
+        precondition(abs((dragged["after"] as! Double)-(dragged["before"] as! Double)-30)<2 && abs((dragged["cancelled"] as! Double)-(dragged["after"] as! Double))<1 && dragged["left"] as? Bool==true,"corner marker drag: \(dragged)")
         precondition(report.reportUndo.count==undoCount+2,"a drag is one undo step and a cancelled drag none")
         // With the focus on the marker, arrow keys adjust the size, Shift in larger steps; the toolbar field follows.
         let keyed=try await report.web.evaluateJavaScript("(()=>{const h=document.querySelector('.report-body .report-media>.report-chart-resize'),s=h.parentElement.querySelector('svg'),before=s.getBoundingClientRect().width;h.focus();h.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));h.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',shiftKey:true,bubbles:true,cancelable:true}));return {before,after:s.getBoundingClientRect().width,field:Number(document.querySelector('[data-format=pictureWidth]').value)};})()") as! [String:Any]
@@ -681,8 +693,8 @@ import PDFKit
             let data=try await v.reportExportData(report,format:format)
             try data.write(to:output.appendingPathComponent("resized-report."+format.rawValue))
         }
-        try await report.web.evaluateJavaScript("window.getSelection().selectAllChildren(document.body)")
-        let copied=try await v.reportScript(report,method:"clipboard")!
+        try await report.web.evaluateJavaScript("document.querySelector('.report-body').focus();window.getSelection().selectAllChildren(document.querySelector('.report-body'))")
+        guard let copied=try await v.reportScript(report,method:"clipboard") else { throw LegacyReportError("The resized report selection was empty during clipboard verification.") }
         let clipboard=try JSONSerialization.jsonObject(with:Data(copied.utf8)) as! [String:String]
         precondition(clipboard["html"]!.contains("width: 320px")&&clipboard["html"]!.contains("width: 200px"))
         let reopened=try await v.importReport(output.appendingPathComponent("resized-report.html"));try await settled(reopened)

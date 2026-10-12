@@ -4,6 +4,7 @@ import {validateMetafile} from './metafile.mjs';
 import {convertMetafileToSvg} from 'emf-converter';
 import {chartFontMap,restoreChartFontFallbacks,fitChartText} from './fonts.mjs';
 import {normalizeLegacyLayout} from './legacy-layout.mjs';
+import {pictureAlignment,setPictureAlignment} from './chart-size.mjs';
 
 const properties = new Set(['font-family','font-size','font-style','font-weight','text-decoration','text-decoration-line','text-align','vertical-align','color','background-color','white-space','line-height','margin-left','margin-right','margin-top','margin-bottom','padding','padding-left','padding-right','padding-top','padding-bottom','border','border-top','border-bottom','border-left','border-right','border-collapse','border-spacing','width','height','max-width','list-style-type','fill','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-dasharray','stroke-dashoffset','stroke-miterlimit','opacity','fill-opacity','stroke-opacity','fill-rule','clip-rule','clip-path','mask','filter','marker-start','marker-mid','marker-end','text-anchor','dominant-baseline','stop-color','stop-opacity',...borderProperties]);
 function safeStyle(style) {
@@ -51,6 +52,7 @@ export async function convert({html,pictures=[],legacy=false,tableRows=[]}) {
   const legacyRoots=legacy?[container]:[...container.querySelectorAll('.legacy-report,.report-body')].filter(el=>el.classList.contains('legacy-report')||(!el.querySelector('.legacy-report,.engine-report')&&el.querySelector('svg[aria-label^="Imported EMF"],svg[aria-label^="Imported WMF"]')));
   const normalizedRoots=new Set(legacyRoots.filter(el=>el.classList.contains('legacy-report')));
   for(const el of container.querySelectorAll('*')) {
+    const alignment=el.localName==='img'||el.localName==='svg'&&!el.parentElement.closest('svg')?pictureAlignment(el):null;
     if(!el.closest('svg')) {
       const computed=getComputedStyle(el), inline=document.createElement('span').style;
       for(const name of properties) {
@@ -62,6 +64,9 @@ export async function convert({html,pictures=[],legacy=false,tableRows=[]}) {
       if(el.localName==='img')for(const name of ['width','height','max-width'])if(el.style.getPropertyValue(name))inline.setProperty(name,el.style.getPropertyValue(name));
       el.setAttribute('style',safeStyle(inline));
     }
+    // Keep responsive auto margins instead of freezing the import viewport's
+    // pixel offsets. SVG elements skip the ordinary text-style flattening above.
+    if(alignment)setPictureAlignment(el,alignment);
   }
   // Ancestor classes/IDs still participate in descendant selectors while styles
   // are resolved. Remove them only once every element's presentation is inlined.

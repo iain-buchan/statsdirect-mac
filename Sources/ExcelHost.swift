@@ -99,6 +99,7 @@ extension Viewer {
                 doc.workbookID = workbook["id"] as? String
                 doc.workbookName = url.lastPathComponent
                 doc.workbookSourceURL = url.resolvingSymlinksInPath()
+                doc.openedFileURL = url
                 doc.workbookDataCopy = workbook["dataCopy"] as? Bool == true
                 self.stageSnapshots(in: &workbook, for: doc)
                 doc.pendingWorkbook = workbook
@@ -152,7 +153,7 @@ extension Viewer {
             for id in doc.snapshotIDs { SnapshotStore.shared.forget(id) }; doc.snapshotIDs = []
             switch result {
             case .failure(let error): self.showError("The worksheet could not be displayed: " + self.javaScriptMessage(error))
-            case .success: doc.pendingWorkbook = nil
+            case .success: doc.pendingWorkbook = nil; self.didOpenDocument(doc)
             }
         }
     }
@@ -204,6 +205,7 @@ extension Viewer {
                     if version == doc.gridVersion { doc.gridDirty = false }
                     guard self.documents.contains(where: { $0 === doc }) else { return }
                     doc.workbookName = url.lastPathComponent; doc.workbookSourceURL = url.resolvingSymlinksInPath(); doc.workbookDataCopy = false
+                    doc.openedFileURL = url; self.noteRecentDocument(url)
                     doc.title = url.lastPathComponent; doc.item.label = doc.title; self.updateWindowMenu()
                     if self.active === doc { self.window.title = "\(doc.title) · Mac prototype" }
                     doc.web.evaluateJavaScript("window.statsDirectGrid?.renameWorkbook?.(\(self.jsString(doc.workbookName)))")

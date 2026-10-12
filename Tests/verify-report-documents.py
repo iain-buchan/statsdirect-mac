@@ -140,3 +140,4 @@ print('PASS: DOCX omits the deleted result while preserving surviving text, note
 # The focused presentation verifier also runs with the full native report suite.
 import runpy
 runpy.run_path(str(Path(__file__).with_name('verify-report-presentation.py')))
+runpy.run_path(str(Path(__file__).with_name('verify-report-creole.py')))

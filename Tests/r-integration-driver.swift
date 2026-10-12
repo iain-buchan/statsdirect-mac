@@ -54,6 +54,7 @@ import WebKit
         }
         func edit(_ command: String) throws {
             guard let button=buttons(pane.view).first(where:{$0.identifier?.rawValue==command}) else { throw CocoaError(.validationMissingMandatoryProperty) }
+            pane.view.toolbar?.refresh()
             button.performClick(nil)
         }
         pane.editor.string="before <- c(1, 2)\nafter <- c(3, 4)"
@@ -68,6 +69,13 @@ import WebKit
         let beforeOutputEdit=pane.editor.string
         try edit("cut"); try edit("paste")
         try check(pane.editor.string==beforeOutputEdit && pane.console.string=="RESULT 42","Cut and Paste on read-only output cannot change an unrelated script selection")
+        let moreButton=buttons(pane.view).first { $0.title=="More commands" }!
+        v.window.makeFirstResponder(moreButton)
+        try edit("copy")
+        try check(pasteboard.string(forType:.string)=="RESULT 42","Copy retains the output target when keyboard focus moves to More")
+        v.window.makeFirstResponder(moreButton)
+        try edit("cut"); try edit("paste")
+        try check(pane.editor.string==beforeOutputEdit,"More cannot cut a stale script selection while output is selected")
         pane.editor.undoManager?.removeAllActions()
         pane.editor.string="x <- 41; cat('FIRST_SCRIPT', x, '\\n'); plot(1:5)"
         v.window.makeFirstResponder(pane.editor)
@@ -110,14 +118,24 @@ import WebKit
         try await wait { !other.isRunning && other.console.string.contains("RESET_READY") }
         let restartedCopy=try other.writeExternalScript()
         try check(restartedCopy.deletingLastPathComponent() != resetCopy.deletingLastPathComponent(),"a restarted process uses a fresh folder, isolated from a stopping run")
-        let controls=buttons(other.view).filter { !$0.isHidden }
+        let controls=buttons(other.view).filter { !$0.isHiddenOrHasHiddenAncestor }
         v.window.setContentSize(NSSize(width:850,height:520)); v.window.contentView!.layoutSubtreeIfNeeded()
         try check(controls.allSatisfy { other.view.bounds.contains(other.view.convert($0.bounds,from:$0)) },"R controls fit the minimum main window")
         v.helpLibrary(); v.window.contentView!.layoutSubtreeIfNeeded()
         v.workspaceSplit.setPosition(350,ofDividerAt:0); v.window.contentView!.layoutSubtreeIfNeeded()
-        let external=buttons(other.view).first { $0.title=="Open in R" }!
-        external.scrollToVisible(external.bounds)
-        try check(!external.visibleRect.isEmpty && other.view.toolbar!.frame.width < 400,"script toolbar scrolls to its last control with Help docked in a narrow window")
+        let toolbar=other.view.toolbar!, overflow=toolbar.overflowMenu()
+        try check(buttons(toolbar).first { $0.title=="More commands" }?.imagePosition == .imageOnly,"More uses its outline icon without clipped label text")
+        try check(toolbar.frame.width < 400 && overflow.items.contains { $0.title == "Open in R" && $0.isEnabled },"Open in R is reachable in More with Help docked in a narrow window")
+        try check(buttons(toolbar).filter { !$0.isHiddenOrHasHiddenAncestor }.allSatisfy { toolbar.bounds.contains(toolbar.convert($0.bounds,from:$0)) },"narrow script toolbar has one unclipped row")
+        let commandOrder=toolbar.items.map { $0.button.identifier?.rawValue ?? $0.button.title }
+        try check(Array(commandOrder.prefix(7)) == ["Save script…","undo","redo","cut","copy","paste","Find"],"script command order matches reports and worksheets")
+        other.showFind()
+        try await wait { other.editor.enclosingScrollView?.isFindBarVisible == true }
+        try check(true,"Script Find opens the native Find bar")
+        if let bitmap=other.view.bitmapImageRepForCachingDisplay(in:other.view.bounds) {
+            other.view.cacheDisplay(in:other.view.bounds,to:bitmap)
+            try bitmap.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:FileManager.default.currentDirectoryPath).appendingPathComponent(".build/unified-toolbar-output/script-narrow.png"))
+        }
         v.helpPane.hide()
         v.window.setContentSize(NSSize(width:1180,height:850))
 

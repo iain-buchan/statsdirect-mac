@@ -11,6 +11,32 @@ export function explicitPictureWidth(picture, fallback) {
   return size&&Number(size[1])>0?Number(size[1])*units[(size[2]||'px').toLowerCase()]:fallback;
 }
 
+// Keep alignment on the picture, since editable wrappers are removed on save/copy.
+// Resolve CSS defaults from the rendered margins; explicit auto margins retain the
+// chosen alignment even when a full-width picture temporarily fills its container.
+export function pictureAlignment(picture) {
+  const computed=getComputedStyle(picture);
+  const left=picture.style.marginLeft||computed.marginLeft,right=picture.style.marginRight||computed.marginRight;
+  if(left==='auto')return right==='auto'?'center':'right';
+  if(right==='auto')return 'left';
+  const parent=picture.closest('.report-media')||picture.parentElement;
+  if(!parent)return 'left';
+  const box=picture.getBoundingClientRect(),outer=parent.getBoundingClientRect(),style=getComputedStyle(parent);
+  const l=box.left-outer.left-(parseFloat(style.paddingLeft)||0)-(parseFloat(style.borderLeftWidth)||0);
+  const r=outer.right-box.right-(parseFloat(style.paddingRight)||0)-(parseFloat(style.borderRightWidth)||0);
+  return l>1&&Math.abs(l-r)<2?'center':l>1&&Math.abs(r)<2?'right':'left';
+}
+export function setPictureAlignment(picture,alignment) {
+  picture.style.marginLeft=alignment==='left'?'0px':'auto';
+  picture.style.marginRight=alignment==='right'?'0px':'auto';
+}
+export function alignPicture(picture,alignment) {
+  if(!['left','center','right'].includes(alignment)||pictureAlignment(picture)===alignment)return false;
+  setPictureAlignment(picture,alignment);
+  const wrapper=picture.closest('.report-media');if(wrapper)layoutHandle(wrapper);
+  return true;
+}
+
 // Pictures are edited as units: the wrapper is not editable text, can take the
 // focus (the keyboard selects and deletes it) and names itself for assistive technology.
 export function wrapPicture(picture,wrapper=document.createElement('div')) {
@@ -21,7 +47,7 @@ export function wrapPicture(picture,wrapper=document.createElement('div')) {
   ensureHandle(wrapper);
   return wrapper;
 }
-// The one control a chart carries: the corner marker at its bottom right while editing, which drags to
+// The one control a chart carries: the bottom free-corner marker while editing, which drags to
 // resize it (proportions kept). With the focus on the marker, the arrow keys adjust the size, Shift in
 // larger steps. It is a control, so it is never part of the result's text or of a saved report.
 const HANDLE='report-chart-resize';
@@ -41,7 +67,9 @@ export function layoutHandle(wrapper) {
   const handle=wrapper.querySelector(':scope>.'+HANDLE),picture=pictureIn(wrapper);
   if(!handle||!picture)return;
   const box=picture.getBoundingClientRect(),parent=wrapper.getBoundingClientRect();
-  handle.style.left=`${Math.round(box.right-parent.left-10)}px`;handle.style.top=`${Math.round(box.bottom-parent.top-10)}px`;
+  const right=pictureAlignment(picture)==='right';
+  handle.style.left=`${Math.round((right?box.left:box.right)-parent.left-10)}px`;handle.style.top=`${Math.round(box.bottom-parent.top-10)}px`;
+  handle.style.cursor=right?'nesw-resize':'nwse-resize';
   handle.setAttribute('aria-label',`Resize chart, ${Math.round(box.width)} pixels wide`);
 }
 export function installPictureSizing({isEditing,changed,select}) {
@@ -66,8 +94,9 @@ export function installPictureSizing({isEditing,changed,select}) {
   function move(event) {
     if(event.pointerId!==drag?.pointer)return;
     event.preventDefault();
-    // Pictures are centred: the right edge moves half as far as the width changes. A vertical drag works too, in proportion.
-    const x=(event.clientX-drag.x)*2,y=(event.clientY-drag.y)*drag.ratio;
+    // Resize from the free edge: right for left/centre, left for right alignment.
+    // A centred picture grows on both sides. Vertical dragging keeps proportions.
+    const x=(event.clientX-drag.x)*drag.horizontalScale,y=(event.clientY-drag.y)*drag.ratio;
     applyPictureWidth(drag.picture,drag.width+(Math.abs(x)>Math.abs(y)?x:y));
   }
   document.addEventListener('pointerdown',event=>{
@@ -76,7 +105,8 @@ export function installPictureSizing({isEditing,changed,select}) {
     if(!picture||!isEditing()||event.button!==0||drag)return;
     event.preventDefault();event.stopPropagation();
     const box=picture.getBoundingClientRect();
-    drag={handle,picture,pointer:event.pointerId,x:event.clientX,y:event.clientY,width:box.width,ratio:box.width/box.height||1,before:picture.getAttribute('style')};
+    const alignment=pictureAlignment(picture);
+    drag={handle,picture,pointer:event.pointerId,x:event.clientX,y:event.clientY,width:box.width,ratio:box.width/box.height||1,horizontalScale:alignment==='center'?2:alignment==='right'?-1:1,before:picture.getAttribute('style')};
     handle.parentElement.classList.add('report-resizing');
     document.addEventListener('pointermove',move,{passive:false});document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancelDrag);document.addEventListener('keydown',escape,true);
     try{handle.setPointerCapture(event.pointerId);}catch{} // Synthetic events in the native regression harness.

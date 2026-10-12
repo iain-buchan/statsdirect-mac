@@ -93,8 +93,12 @@ jobs:
         run: Scripts/test-analysis-workflow.sh
       - name: Report export
         run: Scripts/test-report-export.sh
+      - name: Unified document toolbars
+        run: Scripts/test-unified-toolbar.sh
       - name: R script integration
         run: Scripts/test-r-integration.sh
+      - name: Startup, recent documents and guided R setup
+        run: bash Scripts/test-startup-r-setup.sh
       - name: Script AI dock and sharing
         run: Scripts/test-script-ai.sh
       - name: WebKit integration driver

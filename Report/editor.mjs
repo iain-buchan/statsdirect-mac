@@ -1,4 +1,4 @@
-import {explicitPictureWidth,wrapPicture,applyPictureWidth,fitPicture,pictureWidth,ensureHandle,installPictureSizing} from './chart-size.mjs';
+import {explicitPictureWidth,wrapPicture,applyPictureWidth,fitPicture,pictureWidth,pictureAlignment,alignPicture,ensureHandle,installPictureSizing} from './chart-size.mjs';
 import {installTransfer,transferring,prepareClipboard,cutPrepared,preparePaste,pastePrepared,selectRange,clampSelection} from './transfer.mjs';
 import {installDeletion,selectAllResults,selectResult} from './deletion.mjs';
 import {region,entries,entryOf,entryById,entrySelector,inRegion,elementOf,field,emptyNotice,protectedSelector} from './region.mjs';
@@ -15,6 +15,7 @@ const snapshots=new Map();   // result id -> the markup last reported to or rece
 const fontSizes=[8,9,10,11,12,14,16,18,20,24,28,36,48,72];
 const fonts=['Arial','Calibri','Cambria','Courier New','Georgia','Helvetica','Menlo','Times New Roman','Trebuchet MS','Verdana'];
 const toggles=['bold','italic','underline','strikeThrough','subscript','superscript','insertUnorderedList','insertOrderedList','justifyLeft','justifyCenter','justifyRight','justifyFull'];
+const pictureAlignments={justifyLeft:'left',justifyCenter:'center',justifyRight:'right'};
 const allowed=new Set([...toggles,'fontName','fontSize','formatBlock','foreColor','hiliteColor','indent','outdent','lineSpacing','removeFormat','pictureWidth','pictureFit']);
 const blockSelector='p,h1,h2,h3,h4,h5,h6,li,div,blockquote,td,th,pre';
 const inlineStyled='font,b,strong,i,em,u,s,strike,del,sub,sup,span,mark,code,small,big';
@@ -94,25 +95,32 @@ function toolbar() {
 export function selectedPicture() {
   const active=document.activeElement?.closest?.('.report-media');if(active&&inRegion(active))return active.querySelector('svg,img');
   const selection=window.getSelection();
+  function fromRange(range) {
+    if(!range||range.collapsed)return null;
+    const inside=elementOf(range.startContainer)?.closest('.report-media');
+    if(inside&&inside.contains(range.endContainer)&&inRegion(inside))return inside.querySelector('svg,img');
+    if(range.startContainer!==range.endContainer||range.endOffset!==range.startOffset+1)return null;
+    const node=range.startContainer.childNodes[range.startOffset];
+    return node?.nodeType===1&&node.matches('.report-media')&&inRegion(node)?node.querySelector('svg,img'):null;
+  }
   if(document.activeElement?.closest?.('#report-toolbar')&&savedRange&&document.contains(savedRange.commonAncestorContainer)) {
-    const node=savedRange.collapsed?null:savedRange.startContainer.childNodes?.[savedRange.startOffset];
-    const wrapper=node?.nodeType===1&&node.matches('.report-media')?node:elementOf(savedRange.startContainer)?.closest?.('.report-media');
-    if(wrapper&&inRegion(wrapper))return wrapper.querySelector('svg,img');
+    return fromRange(savedRange);
   }
   if(!selection?.rangeCount)return null;
-  const range=selection.getRangeAt(0);
-  const node=range.startContainer,media=range.collapsed?null:elementOf(node)?.closest?.('.report-media')||(node.nodeType===1?node.childNodes[range.startOffset]:null);
-  const wrapper=media?.classList?.contains('report-media')?media:media?.closest?.('.report-media');
-  return wrapper&&inRegion(wrapper)?wrapper.querySelector('svg,img'):null;
+  return fromRange(selection.getRangeAt(0));
 }
 function updateControls() {
-  if(!editing||document.activeElement?.closest('#report-format-tools'))return;
+  if(!editing)return;
   // The picture tools follow the selected picture, or the one whose wrapper or corner marker has the focus,
   // whatever the text selection is doing. The field keeps its focus (and its value) while it is being typed in.
   const picture=selectedPicture(),width=document.querySelector('[data-format="pictureWidth"]'),fit=document.querySelector('[data-command="pictureFit"]'),tools=document.querySelector('.report-picture-tools');
   if(width&&tools&&document.activeElement!==width&&document.activeElement!==fit){tools.hidden=!picture;width.disabled=!picture;fit.disabled=!picture;width.value=picture?String(pictureWidth(picture)):'';}
+  document.querySelector('[data-command="justifyFull"]').disabled=!!picture;
+  if(picture)document.querySelector('[data-command="justifyFull"]').setAttribute('aria-pressed','false');
+  if(picture)for(const [name,alignment] of Object.entries(pictureAlignments))document.querySelector(`[data-command="${name}"]`)?.setAttribute('aria-pressed',String(pictureAlignment(picture)===alignment));
+  if(document.activeElement?.closest('#report-format-tools'))return;
   const selection=window.getSelection(),root=region();if(!root||!selection?.rangeCount||!inRegion(selection.anchorNode))return;
-  for(const name of toggles)document.querySelector(`[data-command="${name}"]`)?.setAttribute('aria-pressed',String(document.queryCommandState(name)));
+  for(const name of toggles)if(!picture||!name.startsWith('justify'))document.querySelector(`[data-command="${name}"]`)?.setAttribute('aria-pressed',String(document.queryCommandState(name)));
   const range=selection.getRangeAt(0),nodes=[];
   if(range.collapsed)nodes.push(elementOf(selection.anchorNode));
   else {const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node;while((node=walker.nextNode()))if(node.textContent.trim()&&range.intersectsNode(node)&&!(range.startContainer===node&&range.startOffset===node.length)&&!(range.endContainer===node&&range.endOffset===0)&&!node.parentElement.closest('[contenteditable="false"]'))nodes.push(node.parentElement);}
@@ -362,6 +370,9 @@ function describe(node) {
 // carry nothing else, removes transform="rotate(0)", and turns shape style declarations into presentation attributes.
 export function exportableSvg(el) {
   const svg=el.cloneNode(true);
+  // Margins position the chart on the report page, not inside a standalone SVG.
+  for(const name of ['margin','margin-left','margin-right','margin-top','margin-bottom'])svg.style.removeProperty(name);
+  if(!svg.style.length)svg.removeAttribute('style');
   svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
   for(const a of [...svg.attributes])if(a.name.startsWith('data-'))svg.removeAttribute(a.name);
   const box=(svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
@@ -417,6 +428,10 @@ export function command(name,value=null) {
   if(name==='fontSize'&&(!Number.isFinite(Number(value))||Number(value)<6||Number(value)>96))return;
   if(name==='lineSpacing'&&!['1','1.15','1.5','2'].includes(String(value)))return;
   if(name==='formatBlock'&&!['p','h1','h2','h3'].includes(value))return;
+  if(name.startsWith('justify')) {
+    const picture=selectedPicture();
+    if(picture){if(alignPicture(picture,pictureAlignments[name]))changed();updateControls();return;}
+  }
   if(name==='pictureWidth'||name==='pictureFit') {
     const picture=selectedPicture();if(!picture)return;
     const did=name==='pictureFit'?fitPicture(picture):applyPictureWidth(picture,Number(value));
@@ -456,6 +471,7 @@ export function command(name,value=null) {
 }
 export function menuCommand(name,value=null) {
   if(!editing)return false;
+  if(pictureAlignments[name]&&selectedPicture()){command(name,value);return true;}
   if(['undo','redo','selectAll'].includes(name)) {
     if(field(document.activeElement))return false;
     if(!document.activeElement?.closest('#report-results,#results,#report-toolbar'))return false;

@@ -293,9 +293,7 @@ extension Viewer {
     func finishOperationReport(_ doc: Document, _ output: [String: Any], frames: [[String: Any]], note: String?) {
         let resultID = UUID().uuidString
         let html = output["html"] as? String ?? ""
-        let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .medium)
         let body = """
-        <div class="eyebrow">Analysis / StatsDirect</div><h1>\(htmlEscape(doc.title))</h1><p class="muted">\(stamp)</p>
         <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)\(note.map { "<p class=\"note\">\(htmlEscape($0))</p>" } ?? "")</section>
         """
         let operation = doc.operationName ?? ""

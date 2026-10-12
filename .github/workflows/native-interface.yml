@@ -10,7 +10,7 @@ on:
         description: Native interface to check using the current source
         required: true
         type: choice
-        options: [calculator, help, grid, report, follow-ons, integration]
+        options: [calculator, help, grid, report, toolbars, startup, follow-ons, integration]
 
 permissions:
   contents: read
@@ -51,7 +51,7 @@ jobs:
           for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
           python3 -m pip install openpyxl
       - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
-        if: inputs.suite == 'report' || inputs.suite == 'integration'
+        if: inputs.suite == 'report' || inputs.suite == 'startup' || inputs.suite == 'integration'
         with:
           r-version: release
       - name: Get the packaged runtime
@@ -73,6 +73,8 @@ jobs:
             help) Scripts/test-help-pane.sh ;;
             grid) Scripts/test-grid-selection.sh ;;
             report) Scripts/test-report-export.sh ;;
+            toolbars) Scripts/test-unified-toolbar.sh ;;
+            startup) bash Scripts/test-startup-r-setup.sh ;;
             follow-ons) bash Scripts/test-follow-on-workflow.sh ;;
             integration)
               python3 Tests/run_beta_feedback.py

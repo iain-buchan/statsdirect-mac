@@ -2,15 +2,23 @@ import Cocoa
 import UniformTypeIdentifiers
 import PDFKit
 
+/// Remember the text pane even when keyboard focus moves to the More button.
+final class ScriptTextView: NSTextView {
+    var didFocus: (() -> Void)?
+    override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        if accepted { didFocus?() }
+        return accepted
+    }
+}
+
 final class RPaneView: NSView {
     weak var split: NSSplitView?
-    weak var toolbar: NSScrollView?
+    weak var toolbar: DocumentToolbar?
     private var positioned = false
     override func layout() {
         super.layout()
-        if let toolbar, let bar = toolbar.documentView {
-            bar.setFrameSize(NSSize(width: max(bar.fittingSize.width, toolbar.contentView.bounds.width), height: 32))
-        }
+        toolbar?.refresh()
         if !positioned, let split, split.bounds.height > 300 {
             positioned = true
             split.setPosition(split.bounds.height * 0.42, ofDividerAt: 0)
@@ -33,8 +41,8 @@ private final class RPlotAttachment: NSTextAttachment {
 @MainActor
 final class RPane: NSObject, NSTextViewDelegate {
     let view = RPaneView()
-    let editor = NSTextView()
-    let console = NSTextView()
+    let editor = ScriptTextView()
+    let console = ScriptTextView()
     let state = NSTextField(labelWithString: "Starting R…")
     private let runButton = NSButton(title: "Run", target: nil, action: nil)
     private let stopButton = NSButton(title: "Stop / Reset", target: nil, action: nil)
@@ -51,6 +59,7 @@ final class RPane: NSObject, NSTextViewDelegate {
     private let executable: () -> String?
     private var requestingInstallation = false
     private var runAfterInstallation = false
+    private var openExternallyAfterInstallation = false
     private var process: Process?
     private var input: Pipe?
     private var output: Pipe?
@@ -58,10 +67,12 @@ final class RPane: NSObject, NSTextViewDelegate {
     private var pending = Data()
     private var generation = UUID()
     private var marker = ""
+    private weak var editingFocus: NSTextView?
     private var busy = false
     private var savedScript = ""
     var scriptFileName = "analysis.R"
     var showAI: (() -> Void)?
+    var showHelp: (() -> Void)?
     private let resources: URL
     private struct PlotStamp: Equatable { let modified: Date; let size: Int }
     private var plotsBefore: [URL: PlotStamp] = [:]
@@ -77,7 +88,10 @@ final class RPane: NSObject, NSTextViewDelegate {
         editor.string = script
         savedScript = saved ? script : ""
         editor.delegate = self
+        editor.didFocus = { [weak self] in guard let self else { return }; self.editingFocus = self.editor; self.refreshToolbar() }
+        console.didFocus = { [weak self] in guard let self else { return }; self.editingFocus = self.console; self.refreshToolbar() }
         editor.allowsUndo = true
+        editor.usesFindBar = true
         editor.isRichText = false; editor.isAutomaticQuoteSubstitutionEnabled = false
         editor.isAutomaticDashSubstitutionEnabled = false; editor.isAutomaticTextReplacementEnabled = false
         editor.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
@@ -96,27 +110,56 @@ final class RPane: NSObject, NSTextViewDelegate {
         folderButton.target = self; folderButton.action = #selector(openOutputFolder); folderButton.isEnabled = false
         folderButton.toolTip = "Open the folder the script runs in, where the files it writes go"
         let save = NSButton(title: "Save script…", target: self, action: #selector(saveScript))
+        save.toolTip = "Save script (⌘S)"
         let openInR = NSButton(title: "Open in R", target: self, action: #selector(openInR))
         openInR.toolTip = "Open the script in RStudio, or run it in a new R application session with results and charts"
         let clear = NSButton(title: "Clear output", target: self, action: #selector(clearOutput))
-        let ai = NSButton(image: NSImage(systemSymbolName: "sparkles", accessibilityDescription: "AI assistance")!, target: self, action: #selector(openAI))
-        ai.setAccessibilityLabel("AI assistance"); ai.toolTip = "Ask your AI for help with this script. You choose whether to share data and code."
-        let editing = [("undo", "Undo", "arrow.uturn.backward", "⌘Z"), ("redo", "Redo", "arrow.uturn.forward", "⇧⌘Z"),
-                       ("cut", "Cut", "scissors", "⌘X"), ("copy", "Copy", "doc.on.doc", "⌘C"), ("paste", "Paste", "doc.on.clipboard", "⌘V")].map { command, title, symbol, shortcut in
-            let button = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: title)!, target: self, action: #selector(editScript(_:)))
-            button.identifier = NSUserInterfaceItemIdentifier(command)
-            button.setAccessibilityLabel(title); button.toolTip = "\(title) (\(shortcut))"
-            button.refusesFirstResponder = true
-            button.widthAnchor.constraint(equalToConstant: 28).isActive = true
+        let ai = NSButton(title: "AI assistance", target: self, action: #selector(openAI))
+        ai.toolTip = "Ask your AI for help with this script. You choose whether to share data and code."
+        let help = NSButton(title: "Method Help", target: self, action: #selector(openHelp))
+        help.toolTip = "Help for this script’s analysis, or the help library"
+        let find = NSButton(title: "Find", target: self, action: #selector(showFind))
+        find.toolTip = "Find in the script (⌘F)"
+        func style(_ button: NSButton, _ glyph: String, labelled: Bool = false) -> NSButton {
+            button.image = DocumentToolbarIcons.image(glyph, resources: resources)
+            button.imagePosition = labelled ? .imageLeading : .imageOnly
+            button.setAccessibilityLabel(button.title)
+            if button.toolTip == nil { button.toolTip = button.title }
             return button
         }
-        let bar = NSStackView(views: editing + [runButton, stopButton, ai, save, clear, folderButton, openInR, installButton]); bar.spacing = 4
-        // Help can dock beside a script. Keep every control reachable in a
-        // narrow pane without consuming a second row of report/output space.
-        let toolbar = NSScrollView(); toolbar.documentView = bar
-        toolbar.hasHorizontalScroller = true; toolbar.autohidesScrollers = true
-        toolbar.scrollerStyle = .overlay; toolbar.drawsBackground = false
+        let editing = [("undo", "Undo", "⌘Z"), ("redo", "Redo", "⇧⌘Z"),
+                       ("cut", "Cut", "⌘X"), ("copy", "Copy", "⌘C"), ("paste", "Paste", "⌘V")].map { command, title, shortcut in
+            let button = NSButton(title: title, target: self, action: #selector(editScript(_:)))
+            button.identifier = NSUserInterfaceItemIdentifier(command); button.toolTip = "\(title) (\(shortcut))"
+            return style(button, command)
+        }
+        let toolbar = DocumentToolbar(items: [
+            .init(button: style(save,"save"), priority: 0),
+            .init(button: editing[0], priority: 10, groupStart: true), .init(button: editing[1], priority: 10),
+            .init(button: editing[2], priority: 10, groupStart: true), .init(button: editing[3], priority: 10), .init(button: editing[4], priority: 10),
+            .init(button: style(find,"find"), priority: 20, groupStart: true),
+            .init(button: style(runButton,"run",labelled: true), priority: 0, groupStart: true),
+            .init(button: style(stopButton,"stop"), priority: 20),
+            .init(button: style(clear,"clear"), priority: 70), .init(button: style(folderButton,"folder"), priority: 60),
+            .init(button: style(help,"help"), priority: 25, groupStart: true),
+            .init(button: style(ai,"ai"), priority: 25),
+            .init(button: style(openInR,"rPlus"), priority: 25),
+            .init(button: style(installButton,"install",labelled: true), priority: 0)
+        ], resources: resources)
+        toolbar.validate = { [weak self] in
+            guard let self else { return }
+            let output = self.editingFocus === self.console
+            let selection = (output ? self.console : self.editor).selectedRange().length > 0
+            editing[0].isEnabled = !output && self.editor.undoManager?.canUndo == true
+            editing[1].isEnabled = !output && self.editor.undoManager?.canRedo == true
+            editing[2].isEnabled = !output && selection
+            editing[3].isEnabled = selection
+            editing[4].isEnabled = !output && NSPasteboard.general.availableType(from: [.string]) != nil
+        }
         view.toolbar = toolbar
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshToolbar), name: NSTextView.didChangeSelectionNotification, object: editor)
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshToolbar), name: NSTextView.didChangeSelectionNotification, object: console)
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshToolbar), name: NSApplication.didBecomeActiveNotification, object: nil)
         let label = NSTextField(labelWithString: "R script · Variables persist between runs. Stop / Reset clears the session.")
         label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingTail
@@ -134,7 +177,7 @@ final class RPane: NSObject, NSTextViewDelegate {
         }
         for child in [toolbar, label, split, state] { child.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(child) }
         NSLayoutConstraint.activate([
-            toolbar.heightAnchor.constraint(equalToConstant: 32), label.heightAnchor.constraint(equalToConstant: 18), state.heightAnchor.constraint(equalToConstant: 16),
+            toolbar.heightAnchor.constraint(equalToConstant: 40), label.heightAnchor.constraint(equalToConstant: 18), state.heightAnchor.constraint(equalToConstant: 16),
             toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16), toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16), toolbar.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
             label.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor), label.trailingAnchor.constraint(equalTo: toolbar.trailingAnchor), label.topAnchor.constraint(equalTo: toolbar.bottomAnchor, constant: 10),
             split.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 10), split.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16), split.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
@@ -145,15 +188,23 @@ final class RPane: NSObject, NSTextViewDelegate {
         startSession()
     }
 
+    @objc private func refreshToolbar() { view.toolbar?.refresh() }
+    func textDidChange(_ notification: Notification) { refreshToolbar() }
+    @objc func showFind() {
+        view.window?.makeFirstResponder(editor)
+        let item = NSMenuItem(); item.tag = NSTextFinder.Action.showFindInterface.rawValue
+        editor.performFindPanelAction(item)
+    }
+    @objc private func openHelp() { showHelp?() }
     @objc private func openAI() { showAI?() }
 
     @objc private func editScript(_ sender: NSButton) {
         guard let command = sender.identifier?.rawValue else { return }
         // A selection in read-only output must never cut or replace an old,
         // unrelated selection left behind in the script editor.
-        if view.window?.firstResponder === console && ["cut", "paste"].contains(command) { return }
+        if editingFocus === console && ["undo", "redo", "cut", "paste"].contains(command) { return }
         // Copy can also copy selected results; editing always targets the script.
-        let target = command == "copy" && view.window?.firstResponder === console ? console : editor
+        let target = command == "copy" && editingFocus === console ? console : editor
         view.window?.makeFirstResponder(target)
         switch command {
         case "undo": target.undoManager?.undo()
@@ -163,6 +214,7 @@ final class RPane: NSObject, NSTextViewDelegate {
         case "paste": target.paste(sender)
         default: break
         }
+        refreshToolbar()
     }
 
     private func startSession() {
@@ -213,8 +265,9 @@ final class RPane: NSObject, NSTextViewDelegate {
         if executable() == nil { requestInstallation(run: false) }
         else { startSession() }
     }
-    private func requestInstallation(run: Bool) {
+    private func requestInstallation(run: Bool, openExternally: Bool = false) {
         runAfterInstallation = runAfterInstallation || run
+        openExternallyAfterInstallation = openExternallyAfterInstallation || openExternally
         guard !requestingInstallation else { return }
         requestingInstallation = true; installButton.isEnabled = false
         let request = generation
@@ -222,8 +275,9 @@ final class RPane: NSObject, NSTextViewDelegate {
         installer.ensureInstalled { [weak self] installed in
             guard let self, self.generation == request else { return }
             let run = self.runAfterInstallation
-            self.requestingInstallation = false; self.runAfterInstallation = false; self.installButton.isEnabled = true
-            if installed { self.startSession(); if run { self.runScript() } }
+            let external = self.openExternallyAfterInstallation
+            self.requestingInstallation = false; self.runAfterInstallation = false; self.openExternallyAfterInstallation = false; self.installButton.isEnabled = true
+            if installed { self.startSession(); if run { self.runScript() }; if external { self.openInR() } }
             else { self.state.stringValue = "R setup was postponed. Choose Install R when you are ready." }
         }
     }
@@ -329,7 +383,7 @@ final class RPane: NSObject, NSTextViewDelegate {
     }
     func shutdown() {
         generation = UUID(); output?.fileHandleForReading.readabilityHandler = nil
-        requestingInstallation = false; runAfterInstallation = false; installButton.isEnabled = true
+        requestingInstallation = false; runAfterInstallation = false; openExternallyAfterInstallation = false; installButton.isEnabled = true
         // Keep this tab's files accessible through Output folder after Reset.
         let child = process; process = nil
         try? input?.fileHandleForWriting.close(); input = nil; output = nil; pending.removeAll()
@@ -362,6 +416,7 @@ final class RPane: NSObject, NSTextViewDelegate {
             try editor.string.write(to: url, atomically: true, encoding: .utf8); savedScript = editor.string
         } catch { state.stringValue = "Open in R failed: \(error.localizedDescription)"; return nil }
         guard Self.opensExternally else { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts"; return url }
+        guard executable() != nil else { requestInstallation(run: false, openExternally: true); return url }
         let workspace = NSWorkspace.shared
         let completed: @Sendable (NSRunningApplication?, Error?) -> Void = { [weak self] application, error in
             DispatchQueue.main.async {
@@ -392,7 +447,7 @@ final class RPane: NSObject, NSTextViewDelegate {
         guard let window = view.window else { return }
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
-            do { try self.editor.string.write(to: url, atomically: true, encoding: .utf8); self.savedScript = self.editor.string; self.scriptFileName = url.lastPathComponent; self.state.stringValue = "Saved \(url.lastPathComponent)" }
+            do { try self.editor.string.write(to: url, atomically: true, encoding: .utf8); self.savedScript = self.editor.string; self.scriptFileName = url.lastPathComponent; self.state.stringValue = "Saved \(url.lastPathComponent)"; (NSApp.delegate as? Viewer)?.noteRecentDocument(url) }
             catch { self.state.stringValue = "Save failed: \(error.localizedDescription)" }
         }
     }

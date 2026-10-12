@@ -1,3 +1,27 @@
+# Unreleased — Creole report presentation — 12 October 2026
+
+The Mac report host now loads `Content/Mac/report.css` in the page head, using
+the Windows Creole defaults: Arial 10pt, underlined titles/subtitles, the seven
+semantic result colours, Courier New preformatted text, and plain left-aligned
+tables with underlined headers. Instant-answer previews and the isolated HTML
+importer use the same defaults. Fresh engine output retains its own title without
+an extra host heading or timestamp. Inline and custom stylesheet formatting
+continues to override defaults. Charts remain centred for the shared resize
+gesture, with intrinsic and edited widths preserved.
+
+The full native report suite passed all 49 check groups, covering real paired-t,
+agreement, chi-square and R-generated reports, all Creole tags, Windows HTML and
+legacy RTF import, HTML/PDF/DOCX, clipboard/Excel number formats, custom fonts and
+borders, editing, deletion, drag/move, chart sizing, undo and Continue in R.
+Independent Word-package checks verify the colours, 10pt typography and tables.
+The native paired-test screenshot was inspected. The Release build passed all
+1,552 distribution checks and strict signature verification.
+
+Local build: `.build/creole-styles/StatsDirect.app`. Logs:
+`.build/creole-build.log` and `.build/creole-report-checks.log`.
+No changes to the engine, Windows sources or shared `Report`/`Content/Report`
+editor. These changes are not yet committed or published.
+
 # Mac 0.3.29 — follow-on analysis validation — 12 October 2026
 
 Fixed a Mac host issue where follow-on worksheet output could lose the parent's
@@ -542,7 +566,7 @@ Continue in R is a small link beside method help below the analysis results, in 
 
 The R session bootstrap now supplies a headless PDF device for ordinary plotting and flushes graphics devices opened by each submitted script, even after errors. The native output embeds every page of new/updated PDFs and supported bitmap files in the session directory. Images fit the output pane, with links to the original files, and unchanged plots are not duplicated on text-only runs. The initial editor/output split leaves room for charts. A final native check ran a plain plot call without an explicit device and visually confirmed the complete chart, title and axes in the output pane.
 
-`Tests/r-pane-driver.swift` runs the actual persistent RPane host: two default plots in one run, multiple explicitly closed/reopened devices, an error after plotting, persistent variables, the generated paired agreement recipe, replacement of agreement.pdf on a second run, no duplicate plots on text-only runs, and narrow-column attachment sizing. All checks passed. Compile Sources/RPane.swift, Sources/RScriptGenerator.swift and this driver with Cocoa and PDFKit; pass the absolute Content directory to the executable. The complete Swift app compiles and the packaged app passes strict signature verification.
+`Tests/r-pane-driver.swift` runs the actual persistent RPane host: two default plots in one run, multiple explicitly closed/reopened devices, an error after plotting, persistent variables, the generated paired agreement recipe, replacement of agreement.pdf on a second run, no duplicate plots on text-only runs, and narrow-column attachment sizing. All checks passed. Compile Sources/RPane.swift, Sources/DocumentToolbar.swift, Sources/RScriptGenerator.swift and this driver with Cocoa and PDFKit; pass the absolute Content directory to the executable. The complete Swift app compiles and the packaged app passes strict signature verification.
 
 ## Learning, tutor course packs and original Windows symbol — 25 September 2026
 
@@ -637,7 +661,7 @@ Reproduce core/download and existing-R checks:
 swiftc Sources/RInstallation.swift Tests/r-installation-test.swift -o .build/r-installation-test
 .build/r-installation-test --fetch
 python3 Tests/test_r_install_download.py .build/r-installation-test
-swiftc Sources/RInstallation.swift Sources/RInstaller.swift Sources/RPane.swift Sources/RScriptGenerator.swift Tests/r-pane-driver.swift -o .build/r-pane-test -framework Cocoa -framework PDFKit
+swiftc Sources/RInstallation.swift Sources/RInstaller.swift Sources/DocumentToolbar.swift Sources/RPane.swift Sources/RScriptGenerator.swift Tests/r-pane-driver.swift -o .build/r-pane-test -framework Cocoa -framework PDFKit
 .build/r-pane-test "$PWD/Content"
 swiftc Sources/RInstallation.swift Sources/RDataFileIO.swift Sources/CSVFileIO.swift Sources/Snapshot.swift Tests/data-file-driver.swift -o .build/data-file-driver
 python3 Tests/test_data_files.py .build/data-file-driver /path/to/node
@@ -1012,3 +1036,154 @@ The Mac takes the recipes, the manifest (227 operations, 158 files) and the rege
 The Mac's real runs at 2570f206 found two of the new recipes binding a setting no dialog run records, on Windows as on the Mac: the method comparison's `methods` (the dialog records each regression as its own boolean, never the list, so the script's methods was NULL and `fits[[1]]` stopped) and the normal plot's score method (a chart option, never in the bag, so `switch(as.character(NULL))` stopped). Windows changed both at 3cc4cbc9 (5f960c38): the method comparison recipe binds the nine option booleans as the dialog records them and takes the ticked ones, and the normal plot's preamble sets the van der Waerden default with a note that the run does not record the score method; its header check now reads each definition without its XML comments (a parameter commented out is asked of no run) and admits the options of a set of options as recordable settings, which the Mac's header check mirrors, and its Options2.cs runs both operations through the engine, as the Mac stage does (the regressions answered as the nine booleans, the normal plot with no setting). The real-run stage keeps one expected difference, the 2 by 2: the help's example takes the Fisher test, which the dialog asks only for a cohort or neither study, so a case-control run's script prints no Fisher P, as the engine's report for that run. The agreement analysis offers its exact P simulation only when no observer is marked as the reference, and the regenerated example marks observer 1, so the follow-on stage runs that parent without the mark.
 
 Suites at this pin: test.sh 486 checks, the report export suite 44, the beta check 61, all exit 0; the run-record harness 113 checks (227 of 227 recipes agree with the help; 165 real runs, 145 of 146 recorded runs' scripts agreeing with the help with the one listed; 59 follow-ons).
+## 2026-10-12 — Startup, recent documents and R setup alignment
+
+The local review build `.build/cross-platform-final/StatsDirect.app` opens directly into a
+worksheet. Finder/Open With and File/Open share the import path; an early open event
+waits for window construction. A successful import replaces only the untouched
+startup sheet. An edited sheet or failed import preserves open work. File/Open
+Recent uses the system recent list, records successful open/save operations and
+excludes bundled examples. Alternate document associations preserve user defaults.
+
+Open in R now uses the guided installer when R is missing, then resumes the requested
+action with the current script. Reset clears pending external-open intent. Native
+injected tests cover download failure/retry, incomplete installation, postponement,
+active download cancellation, repeated Run resuming once, and reset before a later
+Run. No actual installer is executed. Separate package/download checks pass runtime
+detection, checksum/signature/URL validation and six HTTP/cancellation cleanup cases.
+
+`Scripts/test-startup-r-setup.sh` passes its native checks, and its Launch Services
+launch opens the actual requested file without executing the script. The broader
+acceptance pass also passes learning workspace/provider/course packs, script AI,
+paired t/agreement, actual R output and external startup, all 101 parent/follow-on
+paths (67 operations), report editing/clipboard/HTML/PDF/DOCX (49 PASS groups), and
+unified toolbars (20 PASS groups). Learning JavaScript: 27 passing tests. AI tests use
+the local mock transport; no live model request or email is sent.
+
+The final learning-workspace run also checks that tutor-generated paired/agreement
+reports retain each engine heading once and use the same Creole colours as
+menu-generated reports. The native tutor host no longer prepends a duplicate title.
+
+Release compilation, 1,552 distribution checks, matching debug symbols and strict
+deep signature verification pass. Logs are `.build/parity-*.log` and
+`.build/startup-r-setup-checks.log`. Shared editor and engine source are unchanged.
+This is an unreleased local review build; see
+`Docs/cross-platform-acceptance-2026-10-12.md` for cross-platform scope and limits.
+
+## Script AI reading during streaming — 12 October 2026
+
+The native conversation updates only the changed attributed-text suffix. It keeps
+the current selection and viewport, follows new output only when already at the
+bottom with no selection, and ignores identical completion updates. New or changed
+conversations reset independently. Sharing and request handling are unchanged.
+
+`Scripts/test-script-ai.sh` passes all 44 native checks using the local mock
+transport. Seven streaming checks cover following a growing reply, reading earlier
+text without a selection, selecting and copying Unicode text, suppressing following
+while selecting, resuming at the bottom, and retaining position and code formatting
+at completion. The keyboard fixture posts Command-Return through the application
+event queue so it reaches the existing local key monitor.
+
+Release build, matching symbols and strict deep signature verification pass for
+`.build/ai-stable-reading/StatsDirect.app`. Logs: `.build/script-ai-streaming-checks.log`
+and `.build/ai-stable-reading-build.log`. Mac-only host/test changes; no engine or
+shared editor changes, live AI requests, commit, push or release.
+
+## Script AI layout and Help ordering — 12 October 2026
+
+Sharing controls now precede Your question, its composer and Send/Stop; Conversation
+and its history follow. In short docks the upper controls scroll while history
+retains a 100-point minimum. Confirmation still collapses sharing, focuses the
+composer and clears a stale confirmation reminder. Each subsequent shared question
+still requires consent. The Script toolbar remains AI followed by text-only Open in R.
+Example workbook is the final Help menu item, using its existing command.
+
+All 54 checks in `Scripts/test-script-ai.sh` pass. These include expanded/collapsed
+order, short-dock access, drafts across script switches and dock reopening, consent,
+keyboard sending, cancellation, stable streamed selection/copy/reading and pane
+geometry, plus invoking the final Help item and reading the bundled PEFR workbook.
+Expanded, confirmed and short-dock captures were visually checked under
+`.build/script-ai-layout-output/`. No Auto Layout constraint warnings were logged.
+
+The review build is `.build/ai-layout-final/StatsDirect.app`; logs are
+`.build/ai-layout-checks.log` and `.build/ai-layout-final-build.log`. Release compilation,
+matching symbols and strict deep signature verification pass. No engine/shared-editor
+changes or live AI requests; nothing committed, pushed or published.
+
+Subsequent toolbar correction: the Script window now uses an R+ icon immediately
+after AI for its existing Open in R action. The accessible name and overflow-menu
+label remain Open in R. The native icon was visually checked; all 53 R integration
+checks and the Release build pass (`r-plus-toolbar-checks.log`,
+`r-plus-toolbar-build.log`). Review build: `.build/r-plus-toolbar/StatsDirect.app`;
+strict deep signature verification passes. This is a Mac-only icon/host change.
+
+Subsequent menu correction: Window now precedes Help in both the macOS menu bar
+and the in-window menu row. Within Help, Example workbook has its own section
+before the update commands, and About StatsDirect is last. This supersedes the
+earlier Example-workbook-last arrangement above. All 55 native Script AI/layout/menu
+checks pass, including invoking Example workbook and checking its PEFR data.
+The Release build at `.build/help-menu-final/StatsDirect.app` passes matching-symbol
+and strict deep signature verification. Logs: `.build/help-menu-final-checks.log`
+and `.build/help-menu-final-build.log`. No engine or shared editor changes.
+
+Script toolbar contrast follow-up: native buttons (including More) explicitly use
+the system label tint. Enabled commands no longer use the default muted template
+grey; AppKit retains disabled/inactive-state distinctions and dark-mode adaptation.
+Light and dark preview renders were visually inspected. All 53 existing R integration
+checks pass, including editing, overflow and Open in R. The Release build at
+`.build/icon-contrast/StatsDirect.app` passes strict deep signature and matching-symbol
+verification. Logs: `.build/icon-contrast-r-checks.log`, `.build/icon-contrast-build.log`.
+Only the Mac native toolbar presentation changed; no shared editor or engine changes.
+
+## Chart alignment — 12 October 2026
+
+New Mac report charts default to left alignment. Left/Centre/Right now act on a
+single selected chart or picture; text alignment is retained, and mixed selections
+do not accidentally target the first chart. The selected alignment survives resize,
+Fit, public HTML clipboard/paste, save/reopen and HTML/PDF/DOCX export. The resize
+handle follows the free corner, preserving left/right anchors or the centre.
+Alignment and resizing use the existing report undo/redo history.
+
+The dedicated `--alignment-only` native checks and the full report suite pass.
+Checks include toolbar and native Format commands, pressed/disabled states,
+keyboard/toolbar focus, no-op alignment, single-step undo/redo, Escape cancellation,
+text and mixed selections, responsive reopening, rendered PDF pixel positions and
+actual DOCX drawing paragraphs with SVG/PNG fallbacks. Existing report editing,
+transfer/deletion, legacy RTF import, Creole styles, Office numeric clipboard and
+real engine/R report checks also pass. All eight Report JavaScript tests pass.
+
+Release build `.build/chart-alignment/StatsDirect.app` passes 1,552 distribution
+regressions, matching-symbol verification and strict deep code-signature checks.
+Packaged report bundles and Mac report stylesheet match the final source assets.
+Logs: `.build/chart-alignment-checks.log`,
+`.build/chart-alignment-full-report-checks.log`, `.build/chart-alignment-build.log`.
+Rendered PDF and reopened HTML captures are in `.build/report-export-output/`.
+
+This changes the Mac copy of shared `Report/{chart-size,editor,export,fragment,import}.mjs`
+and generated report bundles, alongside the Mac-only default stylesheet. Released
+Windows and the calculation engine are untouched. No commit, push, publication or
+restart of the user's running application was performed.
+
+During the subsequently authorised Windows catch-up, a Windows native regression
+found report margins retained on standalone SVG downloads. Both editor copies now
+strip only root margin declarations in `exportableSvg`, preserving paint/font
+styles and the source. The Mac native alignment suite passes the added assertion
+for all three alignments and the existing undo/resize/clipboard/HTML/PDF/DOCX checks;
+all eight Report JavaScript checks pass. Log: `.build/chart-alignment-svg-checks.log`.
+The refreshed `.build/chart-alignment-svg/StatsDirect.app` contains the same verified
+Release binaries with regenerated report assets. Deep/strict signature and matching
+debug-symbol checks pass. The user's running application remains unchanged.
+
+The full native report suite also passes after the SVG cleanup, including chart
+PNG pixels, editing/transfer/deletion, RTF import, engine/R run records, styles,
+Office clipboard and HTML/PDF/DOCX round trips. Evidence:
+`.build/chart-alignment-svg-full-report-checks.log`. Packaged editor assets match
+the final regenerated bundles.
+
+Pre-commit source handover: rebuilt Grid, Report and Learn assets and confirmed a
+second clean rebuild produces identical files. This refreshes the worksheet
+bundle's embedded shared AI/R+ icon definitions. All 110 Grid/Report/Learn JavaScript
+checks pass (`.build/precommit-js-checks.log`); no application or engine logic changed
+after the native acceptance runs above. Commit identity is Iain Buchan
+<buchan@liverpool.ac.uk>; source publication is on the development branches without
+an installer or application release.

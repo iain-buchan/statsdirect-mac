@@ -1,0 +1,56 @@
+/* Mac report host: the Creole presentation used by the Windows report host
+   (StatsDirectUI/Assets/ReportEditor/windows.css). Keep this outside the shared
+   editor. Imported and user-applied inline formatting overrides these defaults. */
+body.engine-report {
+  font-family: Arial, sans-serif;
+  font-size: 10pt;
+  line-height: 1.2;
+  color: #000;
+  padding: 12px 24px;
+  max-width: none;
+}
+.engine-report h1, .engine-report h2 {
+  font-size: 10pt;
+  font-weight: bold;
+  letter-spacing: normal;
+  text-decoration: underline;
+  margin: 1em 0;
+}
+.engine-report h2 { font-weight: normal; }
+.engine-report p { margin: 0; }
+.engine-report table {
+  width: auto;
+  font: inherit;
+  color: inherit;
+  margin: 1em 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+.engine-report td, .engine-report th {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  vertical-align: top;
+  padding: 0 9px;
+  border: 0;
+  background: transparent;
+}
+.engine-report th { text-decoration: underline; }
+.engine-report thead { background: transparent; }
+.engine-report thead th { font-weight: normal; }
+.engine-report .ci { color: #0000ff; }
+.engine-report .pval { color: #007f00; }
+.engine-report .score { color: #007f7f; }
+.engine-report .warn { color: #ff0000; }
+.engine-report .subtotal { color: #7f0000; }
+.engine-report .model, .engine-report .grandtotal { color: #00007f; }
+.engine-report pre { font-family: "Courier New", monospace; font-size: 10pt; margin: 0; }
+/* Respect intrinsic and edited chart widths, including imported RTF pictures.
+   Newly generated pictures start at the text margin; inline alignment overrides it.
+   Scope to report content so toolbar symbols keep their compact dimensions. */
+body.engine-report .report-body svg, body.engine-report .report-media > img {
+  width: auto;
+  max-width: 100%;
+  margin: 16px auto 16px 0;
+}
+@media print { body.engine-report { padding: 0; } }

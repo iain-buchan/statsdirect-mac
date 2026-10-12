@@ -1,24 +1,23 @@
-// Mac shell integration. Keep the shared Report sources identical to the
-// released Windows editor pin (4e9f9d1); Windows does not load this file.
+// Mac shell integration. Windows does not load this file. The Report sources
+// are based on its released editor pin (4e9f9d1), with local chart-alignment
+// changes documented in Docs/mac-unified-toolbars-2026-10-12.md.
 (() => {
   const root = document.getElementById('report-results');
   const row = document.querySelector('.report-format-row');
   let active = null;
   const buttons = new Map();
   const post = body => window.webkit.messageHandlers.statsDirectReport.postMessage(body);
-  // Use the native clipboard bridge for Office formats, vector charts and the
-  // editor's single undo history. The shared toolbar preserves the selection.
-  const clipboard = document.createDocumentFragment();
-  for (const [command, key, icon] of [
-    ['cut','X','<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="m8 8 12 12M8 16 20 4"/>'],
-    ['copy','C','<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/>'],
-    ['paste','V','<path d="M8 5H4v16h16V5h-4"/><rect x="8" y="2" width="8" height="6" rx="2"/><path d="M8 12h8M8 16h8"/>']
-  ]) {
-    const button = document.createElement('button'); button.type='button'; button.className='report-icon-button'; button.dataset.command=command;
-    button.title=`${command[0].toUpperCase()+command.slice(1)} (⌘${key})`; button.setAttribute('aria-label',button.title);
-    button.innerHTML=`<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`;
-    button.onclick=()=>post({action:'clipboard',command}); clipboard.append(button);
+  const {icon, overflow} = window.StatsDirectToolbar;
+  function control(command, title, glyph, action) {
+    const b=document.createElement('button');b.type='button';b.className='report-icon-button sd-icon';b.dataset.command=command;
+    b.title=title;b.setAttribute('aria-label',title);b.innerHTML=icon(glyph);b.onclick=action;return b;
   }
+  // The native bridge preserves Office formats, charts and the single undo history.
+  row.prepend(control('save','Save report (⌘S)','save',()=>post({action:'save'})));
+  const clipboard=document.createDocumentFragment();
+  for(const [command,key] of [['cut','X'],['copy','C'],['paste','V']])
+    clipboard.append(control(command,`${command[0].toUpperCase()+command.slice(1)} (⌘${key})`,command,()=>post({action:'clipboard',command})));
+  clipboard.append(control('find','Find (⌘F)','find',()=>post({action:'find'})));
   row.querySelector('[data-command=redo]').after(clipboard);
   function current() {
     return active?.isConnected ? active : root.querySelector('.report-entry:last-child');
@@ -35,11 +34,22 @@
     const entry = current();
     if (entry) post({action, resultID:entry.dataset.resultId});
   }
-  for (const [action, icon] of [['methodHelp','<circle cx="12" cy="12" r="9"/><path d="M9 8a3 3 0 1 1 4 3c-1 .6-1 1-1 3m0 3v.1"/>'],['continueInR','<path d="M6 20V4h6a5 5 0 0 1 0 10H6m6 0 6 6"/>']]) {
-    const button = document.createElement('button'); button.type='button'; button.className='report-icon-button'; button.dataset.command=action;
-    button.innerHTML=`<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${icon}</svg>`;
-    button.onclick=()=>invoke(action); buttons.set(action,button);row.append(button);
+  for (const [action,glyph] of [['methodHelp','help'],['continueInR','r']]) {
+    const b=control(action,'',glyph,()=>invoke(action));buttons.set(action,b);row.append(b);
   }
+  for(const b of row.querySelectorAll('button[data-command]')) {
+    const glyph=icon(b.dataset.command);
+    if(glyph){b.innerHTML=glyph;b.classList.add('sd-icon');}
+    b.dataset.priority=({save:0,undo:10,redo:10,cut:10,copy:10,paste:10,find:20,bold:30,italic:35,underline:40,methodHelp:25,continueInR:25})[b.dataset.command]??70;
+  }
+  for(const name of ['undo','cut','find','bold','methodHelp'])row.querySelector(`[data-command=${name}]`).dataset.groupStart='';
+  for(const label of row.querySelectorAll(':scope > label')) {
+    const format=label.querySelector('[data-format]')?.dataset.format;
+    label.dataset.priority=({fontName:45,fontSize:30,formatBlock:65})[format]??60;
+  }
+  const picture=row.querySelector('.report-picture-tools');picture.dataset.priority='35';
+  const toggle=document.getElementById('report-more-toggle');row.append(toggle);
+  overflow(row,toggle,document.getElementById('report-more-tools'),document.getElementById('report-toolbar'));
   function remember(node) {
     const element = node?.nodeType === 1 ? node : node?.parentElement;
     const entry = element?.closest('.report-entry');

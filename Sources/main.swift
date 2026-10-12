@@ -12,6 +12,7 @@ final class Document {
     var title: String
     var access: URL
     var initialURL: URL?
+    var openedFileURL: URL?
     var rPane: RPane?
     var gridDirty = false
     var gridVersion = 0
@@ -111,6 +112,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     let documentTabScroll = NSScrollView()
     var status: NSTextField!
     var documents: [Document] = []
+    var finishedLaunching = false
+    var pendingOpenURLs: [URL] = []
+    var startupWorksheetID: String?
+    var recentDocumentsMenu: NSMenu?
     lazy var chatGPTTutor: ChatGPTTutor = {
         let tutor = ChatGPTTutor.bundled()
         tutor.changed = { [weak self] in
@@ -160,7 +165,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 4
         let symbol = NSImageView(); symbol.image = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")); symbol.imageScaling = .scaleProportionallyUpOrDown
         symbol.setAccessibilityLabel("StatsDirect"); symbol.widthAnchor.constraint(equalToConstant:26).isActive = true; symbol.heightAnchor.constraint(equalToConstant:26).isActive = true; bar.addArrangedSubview(symbol)
-        for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "Help", "Window"] {
+        for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "Window", "Help"] {
             let button = NSButton(title: title + " ▾", target: self, action: #selector(showDropdown(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(title)
             button.isBordered = false; button.refusesFirstResponder = true
@@ -207,7 +212,11 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if let icon = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")) { NSApp.applicationIconImage = icon }
         setupMenu()
         newWorksheet()
+        startupWorksheetID = active?.id
         window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        finishedLaunching = true
+        let requested = pendingOpenURLs; pendingOpenURLs = []
+        openDocumentURLs(requested)
         startUpdateChecks()
     }
     @objc func showDropdown(_ sender: NSButton) {
@@ -242,6 +251,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(file, "New R Script", #selector(newRTab), "r")
         file.addItem(.separator())
         add(file, "Open…", #selector(openFile), "o")
+        addRecentDocumentsMenu(to: file)
         file.addItem(.separator())
         add(file, "Save…", #selector(saveDocument), "s")
         let export = NSMenu(title: "Export")
@@ -281,21 +291,23 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
                 add(operations, "Calculator", #selector(showCalculator))
             }
         }
+        windowsMenu = menu("Window")
         let help = menu("Help")
         add(help, "Learning", #selector(openLearning))
         add(help, "Learning Options…", #selector(openLearningOptions))
         help.addItem(.separator())
         add(help, "StatsDirect Help", #selector(helpLibrary), "?")
         add(help, "Help for Current Analysis", #selector(currentMethodHelp))
-        add(help, "Example workbook", #selector(openExampleWorkbook))
         help.addItem(.separator())
         add(help, "Back", #selector(back))
         add(help, "Forward", #selector(forward))
         help.addItem(.separator())
-        add(help, "About StatsDirect", #selector(showAbout))
+        add(help, "Example workbook", #selector(openExampleWorkbook))
+        help.addItem(.separator())
         add(help, "Check for Updates…", #selector(checkUpdates))
         add(help, "Automatically Check for Updates", #selector(toggleAutomaticUpdates))
-        windowsMenu = menu("Window")
+        help.addItem(.separator())
+        add(help, "About StatsDirect", #selector(showAbout))
         NSApp.mainMenu = main
         updateWindowMenu()
     }
@@ -307,6 +319,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             guard !calculatorPane.isFocused, !helpPane.isFocused, !scriptAI.isFocused, let doc=active,doc.kind=="report",!doc.web.isLoading,window.attachedSheet==nil else {return false}
             return doc.reportEditing
         }
+        if menuItem.action == #selector(showReportFind) { return findableDocument != nil }
         if isReportFindItem(menuItem) { return findableReport != nil }
         if menuItem.action == #selector(editCommand(_:)) { return calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused || active != nil }
         if menuItem.action == #selector(closeTab), calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused { return true }
@@ -455,6 +468,11 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let doc = newDocument(kind: "r", title: name)
         let pane = RPane(script: script, saved: saved); pane.scriptName = name
         doc.rPane = pane; doc.item.view = pane.view
+        pane.showHelp = { [weak self, weak doc] in
+            guard let self, let doc else { return }
+            if let path = self.methodHelpPath(doc) { self.openHelp(self.root.appendingPathComponent(path), title: doc.title) }
+            else { self.helpLibrary() }
+        }
         pane.showAI = { [weak self, weak doc] in if let self, let doc { self.scriptAI.open(doc) } }
         window.makeFirstResponder(pane.editor)
         return doc
@@ -464,6 +482,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             let script = try String(contentsOf: url, encoding: .utf8)
             let doc = makeRScript(script: script, title: url.lastPathComponent, saved: true)
             doc.rPane?.scriptFileName = url.lastPathComponent
+            didOpenDocument(doc, url: url)
             status.stringValue = "Opened " + url.lastPathComponent + ". Choose Run to run the script."
         } catch { showError(error.localizedDescription) }
     }
@@ -533,15 +552,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         panel.message = "Open Excel, CSV or R data, an R script, or an HTML or legacy RTF report."
         panel.beginSheetModal(for: window) { response in
             guard response == .OK else { return }
-            for url in panel.urls {
-                switch url.pathExtension.lowercased() {
-                case let ext where Self.excelExtensions.contains(ext): self.openExcelURL(url)
-                case "csv": self.openCSVURL(url)
-                case "rds", "rdata", "rda": self.openRDataURL(url)
-                case "r": self.openRScriptURL(url)
-                default: self.openReportURL(url)
-                }
-            }
+            self.openDocumentURLs(panel.urls)
         }
     }
     func endRun() { running = false }
@@ -550,9 +561,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if value != 0 && abs(value) < pow(10, -Double(places)) { return String(format: "%.4g", value) }
         return String(format: "%.*f", places, value).replacingOccurrences(of: "\\.?0+$", with: "", options: .regularExpression)
     }
-    func page(_ title: String, _ body: String) -> String {
+    func page(_ title: String, _ body: String, bodyClass: String = "", additionalCSS: String = "") -> String {
         let css = (try? String(contentsOf: root.appendingPathComponent("workspace.css"), encoding: .utf8)) ?? ""
-        return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>\(htmlEscape(title))</title><style>\(css)</style></head><body>\(body)</body></html>"
+        return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>\(htmlEscape(title))</title><style>\(css)\n\(additionalCSS)</style></head><body class='\(htmlEscape(bodyClass))'>\(body)</body></html>"
     }
     @objc func printPage() {
         if helpPane.isFocused { helpPane.printHelp(); return }
@@ -566,7 +577,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if let pane = active?.rPane { pane.saveScript(); return }
         guard let doc = active else { return }
         if doc.kind == "learn" { doc.web.evaluateJavaScript("window.statsDirectLearn?.exportRecord()"); return }
-        if doc.kind == "grid" { if let format = doc.rDataFormat { saveRData(doc, format: format) } else if doc.csvSaveName != nil { saveGrid(doc) } else { saveExcel(doc) }; return }
+        if doc.kind == "grid" { saveWorksheet(doc); return }
         if doc.kind == "analysis" { saveAnalysisTable(doc); return }
         if doc.kind == "report" { saveReport(doc); return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.pdf]; panel.nameFieldStringValue = "\(doc.title).pdf"

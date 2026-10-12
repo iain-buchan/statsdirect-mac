@@ -1,3 +1,42 @@
+# Mac follow-on analysis validation — 12 October 2026 (after 0.3.28)
+
+Fixed a Mac host issue where follow-on worksheet output could lose the parent's
+input range, worksheet snapshot or entered-data flag. Follow-ons now retain those
+properties from the completed parent fit, including after writing output. A
+worksheet or workbook selected subsequently cannot become the output destination
+by accident. Entered-data analyses continue to create separate output worksheets.
+The calculation engine, Windows sources and shared report editor are unchanged.
+
+Validation passed:
+
+- `Tests/test_form_follow_ons.py` against the released 0.3.28 engine: all 67
+  follow-on operations and 21 supporting parent calculations.
+- `Tests/test_follow_on.py`: suggestion inventory, inherited data, chained
+  post-hoc tests, regression plots, invalid parents and released sessions.
+- `bash Scripts/test-follow-on-workflow.sh Releases/0.3.28/StatsDirect.app`:
+  101 native parent/follow-on paths covering every one of the 67 operations.
+  Parents are calculated through the real engine using recorded fixtures;
+  follow-ons are launched by their WebKit buttons and submitted through their
+  rendered Mac controls. Includes one-/two-way and replicated ANOVA comparisons,
+  simple/multiple/polynomial/logistic/Poisson/Cox regression, nonparametric tests,
+  PCA, chained post-hoc tests and follow-ons after polynomial refitting. Checks
+  active-report reuse, inherited help and worksheet output. A separate case
+  switches both worksheet and workbook before Cox baseline export and verifies
+  the original worksheet/range receives the output with unrelated data preserved.
+- `Tests/test_follow_on_numerics.py`: Tukey critical value and pooled SD agree
+  with independent R; chained Bonferroni matches direct use. Quadratic and refitted
+  cubic predictions, confidence limits and prediction limits agree with R.
+  Retained original and unrelated fits remain independent.
+- `Tests/test_run_record.py`: 113 checks passed, including the 59 follow-ons with
+  inherited R recipes, 142 inherited frames, and the four worksheet-only routes
+  that correctly leave no report-step record. All 158 documented R scripts ran.
+- Release build passed, including 1,552 distribution checks and matching native
+  debug symbols. Local app: `.build/follow-on-app/StatsDirect.app`.
+
+The new native suite is included in build CI and is available as the `follow-ons`
+packaged-runtime workflow choice. Numerical/isolation checks are in `test.sh`.
+This local build has not replaced the published 0.3.28 download.
+
 # Mac 0.3.28 — report and Script toolbars, Open in R — 12 October 2026
 
 Mac reports now expose Cut, Copy and Paste alongside their existing Undo/Redo

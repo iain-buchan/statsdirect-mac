@@ -97,7 +97,18 @@ extension Viewer {
         var request: [String: Any] = ["action": "start", "id": id, "operation": operation, "interactiveForms": true]
         // A follow-on runs on the parent form's current result, which the parent may have replaced since.
         if let parentDocument = doc.parentDocumentID {
-            if let parentJob = documents.first(where: { $0.id == parentDocument })?.completedJobID { doc.parentJobID = parentJob; request["parent"] = parentJob }
+            if let parent = documents.first(where: { $0.id == parentDocument }), let parentJob = parent.completedJobID {
+                doc.parentJobID = parentJob; request["parent"] = parentJob
+                // Follow-on output belongs to the data used for this fit, not to
+                // whichever sheet or selection happens to be active now. Entered
+                // data must continue to produce a new worksheet by default.
+                doc.operationInputRange = parent.operationInputRange
+                doc.operationInputEntered = parent.operationInputEntered
+                doc.operationSourceSnapshot = parent.operationSourceSnapshot
+                doc.operationSnapshotSourceID = parent.operationSnapshotSourceID
+                doc.operationSourceID = parent.operationSourceID ?? parent.operationSnapshotSourceID
+                operationScript(doc, "setSource", parent.operationSourceSnapshot as Any? ?? NSNull())
+            }
             else if analysisCatalog[operation] != nil { doc.parentJobID = nil }
             else {
                 doc.analysisJobID = nil; doc.operationStarting = false
@@ -240,7 +251,13 @@ extension Viewer {
                     // analysed columns its pointers name those columns where they were. Windows does the same (frmSpreadsheetGear
                     // inserts the output's columns with range.Insert, and its template writes the record at the report step, before
                     // the output-frame step), so the pointers are left as recorded rather than shifted here: a change for both.
-                    self.refreshOperationSource(doc) { self.finishOperationReport(doc, output, frames: [], note: message) }
+                    if doc.parentDocumentID != nil {
+                        // Its next follow-on still uses this fit's original sheet,
+                        // even if the user is now viewing another worksheet.
+                        self.finishOperationReport(doc, output, frames: [], note: message)
+                    } else {
+                        self.refreshOperationSource(doc) { self.finishOperationReport(doc, output, frames: [], note: message) }
+                    }
                 case .failure(let error):
                     let reason = ((error as NSError).userInfo["WKJavaScriptExceptionMessage"] as? String) ?? error.localizedDescription
                     self.openOutputDocuments(doc, frames)

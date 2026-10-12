@@ -10,7 +10,7 @@ on:
         description: Native interface to check using the current source
         required: true
         type: choice
-        options: [calculator, help, report, integration]
+        options: [calculator, help, report, follow-ons, integration]
 
 permissions:
   contents: read
@@ -72,6 +72,7 @@ jobs:
             calculator) Scripts/test-calculator-pane.sh ;;
             help) Scripts/test-help-pane.sh ;;
             report) Scripts/test-report-export.sh ;;
+            follow-ons) bash Scripts/test-follow-on-workflow.sh ;;
             integration)
               python3 Tests/run_beta_feedback.py
               python3 Tests/verify-report-documents.py .build/beta-feedback-exports

@@ -68,6 +68,8 @@ jobs:
         run: Scripts/test-grid-selection.sh
       - name: Paired t-test workflow
         run: Scripts/test-paired-workflow.sh
+      - name: Analysis follow-on workflows
+        run: bash Scripts/test-follow-on-workflow.sh
       - name: Excel and data file tests
         run: |
           clang++ -std=c++17 -arch arm64 Tests/workbook-driver.cpp -o .build/workbook-driver

@@ -41,6 +41,41 @@ extension ReportExportTests {
         try await undo();try await check("document.getElementById('transfer-source').textContent.includes('formatted finding')","Undo cut failed")
         try await redo();try await redo();try await undo();try await undo()
 
+        // Click the Mac toolbar itself, through its native WebKit bridge. Keep
+        // the user's clipboard intact after testing the real Cut/Copy/Paste path.
+        let general=NSPasteboard.general
+        let savedClipboard=general.pasteboardItems?.map { item in
+            item.types.reduce(into:[NSPasteboard.PasteboardType:Data]()) { data,type in data[type]=item.data(forType:type) }
+        } ?? []
+        defer {
+            general.clearContents()
+            general.writeObjects(savedClipboard.map { data in
+                let item=NSPasteboardItem();for (type,value) in data {item.setData(value,forType:type)};return item
+            })
+        }
+        func toolbar(_ command:String, until condition:() async throws -> Bool) async throws {
+            _=try await js("(()=>{const b=document.querySelector('[data-command=\(command)]');b.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}));b.click();})()")
+            let deadline=Date().addingTimeInterval(10)
+            while Date()<deadline {
+                if try await condition() {return}
+                try await Task.sleep(nanoseconds:50_000_000)
+            }
+            throw NSError(domain:"ReportToolbar",code:1,userInfo:[NSLocalizedDescriptionKey:"Toolbar \(command) did not complete"])
+        }
+        try await choose("#result-\(sourceID)")
+        let copiedAt=general.changeCount
+        try await toolbar("copy") {general.changeCount != copiedAt}
+        precondition(general.string(forType:Viewer.reportFragmentType)?.contains("<svg")==true && general.string(forType:.html)?.contains("<table")==true,"toolbar Copy must preserve charts and tables")
+        try await choose("#transfer-source strong")
+        try await toolbar("cut") {report.reportUndo.count==1}
+        precondition(general.string(forType:Viewer.reportFragmentType)?.contains("Times New Roman")==true,"toolbar Cut must preserve styling")
+        try await choose("#transfer-target",caret:true)
+        try await toolbar("paste") {report.reportUndo.count==2}
+        try await check("document.getElementById('transfer-target').textContent==='Destination: formatted finding'","Toolbar paste lost selected text")
+        try await undo();try await undo()
+        try await check("document.getElementById('transfer-source').textContent.includes('formatted finding')&&document.getElementById('transfer-target').textContent==='Destination: '","Toolbar cut/paste did not share the report's undo history")
+        print("PASS: Mac report Cut/Copy/Paste toolbar preserves selected formatting, tables, charts and unified undo");fflush(stdout)
+
         // Whole mixed selection: table spans, lists, font, exact chart width and
         // SVG clip references must survive the private/native clipboard path.
         try await choose("#result-\(sourceID)");try await command("copy")

@@ -97,11 +97,20 @@ final class RPane: NSObject, NSTextViewDelegate {
         folderButton.toolTip = "Open the folder the script runs in, where the files it writes go"
         let save = NSButton(title: "Save script…", target: self, action: #selector(saveScript))
         let openInR = NSButton(title: "Open in R", target: self, action: #selector(openInR))
-        openInR.toolTip = "Save the script as an R file in the program's R Scripts folder and open it in RStudio, or in R's own application"
+        openInR.toolTip = "Open the script in RStudio, or run it in a new R application session with results and charts"
         let clear = NSButton(title: "Clear output", target: self, action: #selector(clearOutput))
         let ai = NSButton(image: NSImage(systemSymbolName: "sparkles", accessibilityDescription: "AI assistance")!, target: self, action: #selector(openAI))
         ai.setAccessibilityLabel("AI assistance"); ai.toolTip = "Ask your AI for help with this script. You choose whether to share data and code."
-        let bar = NSStackView(views: [runButton, stopButton, ai, save, clear, folderButton, openInR, installButton]); bar.spacing = 6
+        let editing = [("undo", "Undo", "arrow.uturn.backward", "⌘Z"), ("redo", "Redo", "arrow.uturn.forward", "⇧⌘Z"),
+                       ("cut", "Cut", "scissors", "⌘X"), ("copy", "Copy", "doc.on.doc", "⌘C"), ("paste", "Paste", "doc.on.clipboard", "⌘V")].map { command, title, symbol, shortcut in
+            let button = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: title)!, target: self, action: #selector(editScript(_:)))
+            button.identifier = NSUserInterfaceItemIdentifier(command)
+            button.setAccessibilityLabel(title); button.toolTip = "\(title) (\(shortcut))"
+            button.refusesFirstResponder = true
+            button.widthAnchor.constraint(equalToConstant: 28).isActive = true
+            return button
+        }
+        let bar = NSStackView(views: editing + [runButton, stopButton, ai, save, clear, folderButton, openInR, installButton]); bar.spacing = 4
         // Help can dock beside a script. Keep every control reachable in a
         // narrow pane without consuming a second row of report/output space.
         let toolbar = NSScrollView(); toolbar.documentView = bar
@@ -137,6 +146,24 @@ final class RPane: NSObject, NSTextViewDelegate {
     }
 
     @objc private func openAI() { showAI?() }
+
+    @objc private func editScript(_ sender: NSButton) {
+        guard let command = sender.identifier?.rawValue else { return }
+        // A selection in read-only output must never cut or replace an old,
+        // unrelated selection left behind in the script editor.
+        if view.window?.firstResponder === console && ["cut", "paste"].contains(command) { return }
+        // Copy can also copy selected results; editing always targets the script.
+        let target = command == "copy" && view.window?.firstResponder === console ? console : editor
+        view.window?.makeFirstResponder(target)
+        switch command {
+        case "undo": target.undoManager?.undo()
+        case "redo": target.undoManager?.redo()
+        case "cut": target.cut(sender)
+        case "copy": target.copy(sender)
+        case "paste": target.paste(sender)
+        default: break
+        }
+    }
 
     private func startSession() {
         guard process == nil else { return }
@@ -325,7 +352,7 @@ final class RPane: NSObject, NSTextViewDelegate {
         return url
     }
     /// Open in R, as the Windows script window offers it: the script saved as an R file named after the window in the program's R Scripts
-    /// folder, then opened in RStudio when it is installed, else in R's own application (R.app), else in whatever opens R files.
+    /// folder, then opened in RStudio when installed, otherwise run in a new R.app session.
     @discardableResult @objc func openInR() -> URL? {
         let folder = Self.scriptsFolder
         let name = scriptName.components(separatedBy: CharacterSet(charactersIn: "/:")).joined(separator: "_").trimmingCharacters(in: .whitespaces)
@@ -336,11 +363,26 @@ final class RPane: NSObject, NSTextViewDelegate {
         } catch { state.stringValue = "Open in R failed: \(error.localizedDescription)"; return nil }
         guard Self.opensExternally else { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts"; return url }
         let workspace = NSWorkspace.shared
+        let completed: @Sendable (NSRunningApplication?, Error?) -> Void = { [weak self] application, error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let error { self.state.stringValue = "Open in R failed: \(error.localizedDescription). Your script is saved in R Scripts." }
+                else { self.state.stringValue = "Opened \(url.lastPathComponent) in \(application?.localizedName ?? "R")" }
+            }
+        }
         if let rstudio = workspace.urlForApplication(withBundleIdentifier: "org.rstudio.RStudio") ?? workspace.urlForApplication(withBundleIdentifier: "com.rstudio.desktop") {
-            workspace.open([url], withApplicationAt: rstudio, configuration: NSWorkspace.OpenConfiguration()); state.stringValue = "Saved \(url.lastPathComponent) in R Scripts and opened it in RStudio"
+            state.stringValue = "Opening script in RStudio…"
+            workspace.open([url], withApplicationAt: rstudio, configuration: NSWorkspace.OpenConfiguration(), completionHandler: completed)
         } else if let r = workspace.urlForApplication(withBundleIdentifier: "org.R-project.R") {
-            workspace.open([url], withApplicationAt: r, configuration: NSWorkspace.OpenConfiguration()); state.stringValue = "Saved \(url.lastPathComponent) in R Scripts and opened it in R"
-        } else if workspace.open(url) { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts and opened it" }
+            do {
+                let directory = try workingDirectory().appendingPathComponent("External R-" + UUID().uuidString, isDirectory: true)
+                let session = try RExternalSession(script: url, directory: directory)
+                state.stringValue = "Starting R and running the script…"
+                // Supplying a fresh directory also prevents R.app restoring a
+                // workspace from its default working directory at GUI startup.
+                workspace.open([session.directory], withApplicationAt: r, configuration: session.configuration(), completionHandler: completed)
+            } catch { state.stringValue = "Open in R failed: \(error.localizedDescription)" }
+        }
         else { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts; install RStudio or R to open it" }
         return url
     }

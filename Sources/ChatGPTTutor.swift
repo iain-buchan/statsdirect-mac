@@ -43,6 +43,7 @@ final class ChatGPTTutor {
     let storage: URL
     let resources: URL
     let extraArguments: [String]
+    let runtime: TutorRuntimeInstaller?
     var diagnostic: DiagnosticHandler?
     private let writer = DispatchQueue(label:"com.statsdirect.tutor-writer")
     private var policyObserver: NSObjectProtocol?
@@ -63,11 +64,13 @@ final class ChatGPTTutor {
     private(set) var status = "Not connected"
     var changed: (() -> Void)?
 
-    init(executable: URL, storage: URL, resources: URL, extraArguments: [String] = []) {
+    init(executable: URL, storage: URL, resources: URL, extraArguments: [String] = [], runtime: TutorRuntimeInstaller? = nil) {
         self.executable = executable; self.storage = storage; self.resources = resources; self.extraArguments = extraArguments
+        self.runtime = runtime
         policyObserver = NotificationCenter.default.addObserver(forName:UserDefaults.didChangeNotification,object:nil,queue:.main) { [weak self] _ in
             Task { @MainActor in
                 guard let self, TutorPolicy.disabled else { return }
+                self.runtime?.shutdown()
                 self.shutdown(message:TutorPolicy.message)
             }
         }
@@ -77,7 +80,9 @@ final class ChatGPTTutor {
         let bundle = Bundle.main
         let folder = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
             .appendingPathComponent(bundle.bundleIdentifier ?? "com.statsdirect.viewer.prototype").appendingPathComponent("ChatGPT Tutor")
-        return ChatGPTTutor(executable:bundle.resourceURL!.appendingPathComponent("TutorRuntime/bin/codex-app-server"),storage:folder,resources:bundle.resourceURL!.appendingPathComponent("Content/Tutor"))
+        let resources=bundle.resourceURL!.appendingPathComponent("Content/Tutor")
+        let runtime=TutorRuntimeInstaller(resources:resources,root:folder.deletingLastPathComponent().appendingPathComponent("TutorRuntime"))
+        return ChatGPTTutor(executable:runtime.executable,storage:folder,resources:resources,runtime:runtime)
     }
     private func ensureStarted() async throws {
         try TutorPolicy.check()
@@ -88,7 +93,9 @@ final class ChatGPTTutor {
     }
     private func launch() async throws {
         try TutorPolicy.check()
-        guard FileManager.default.isExecutableFile(atPath:executable.path) else { throw Failure(message:"The ChatGPT connection component is missing. Install the latest StatsDirect build.") }
+        if let runtime { try await runtime.verifyInstalled() }
+        try TutorPolicy.check()
+        guard FileManager.default.isExecutableFile(atPath:executable.path) else { throw Failure(message:"Choose Use my ChatGPT to download and set up the AI connection.") }
         let workspace = storage.appendingPathComponent("Workspace")
         try FileManager.default.createDirectory(at:workspace,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
         try FileManager.default.setAttributes([.posixPermissions:0o700],ofItemAtPath:storage.path)
@@ -222,6 +229,9 @@ final class ChatGPTTutor {
         return Failure(message:"ChatGPT could not complete the reply. Check your connection and try again.")
     }
     func refreshAccount() async throws {
+        try TutorPolicy.check()
+        // Passive pane/status refresh must never download or prompt for installation.
+        if let runtime, !runtime.isInstalled { account=nil; status="Not connected"; changed?(); return }
         try await ensureStarted()
         let response = try await request("account/read",["refreshToken":false])
         if let value = response["account"] as? [String:Any], value["type"] as? String == "chatgpt" {

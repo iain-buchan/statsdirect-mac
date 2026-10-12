@@ -40,7 +40,9 @@ ditto FullEngine/publish "$APP/Contents/Resources/Engine"
 python3 Scripts/build-icon.py "$BUILD_WORK"
 cp "$BUILD_WORK/StatsDirect.icns" "$APP/Contents/Resources/StatsDirect.icns"
 cp Info.plist "$APP/Contents/Info.plist"
-python3 Scripts/bundle-chatgpt.py "$APP" "$BUILD_WORK/codex-runtime"
+# AI downloads its pinned, signed runtime on explicit first use. Remove any old
+# payload when rebuilding an existing output directory; credentials live elsewhere.
+rm -rf "$APP/Contents/Resources/TutorRuntime"
 cp STATSDIRECT-LICENSE.txt STATISTICALHELP-LICENSE.txt DOTNET-LICENSE.txt DOTNET-ThirdPartyNotices.txt "$APP/Contents/Resources/"
 # Replace the generated help as a unit so removed upstream assets cannot linger.
 rm -rf "$APP/Contents/Resources/Content/Help"

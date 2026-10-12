@@ -66,7 +66,7 @@ defaults write com.statsdirect.viewer.prototype DisableOnlineTutor -bool true
 To reverse that local setting, use `-bool false` and restart. An ordinary defaults setting
 is user-editable; it is not an enforced institutional policy.
 
-The native app and tutor transport check this policy before starting the connection,
+The native app, first-use installer and tutor transport check this policy before downloading or starting the connection,
 signing in, sending a question or returning host-tool data. A detected policy change stops
 an existing tutor connection. Connection and sharing controls become unavailable. Bundled
 lessons, question bank, help, local analysis, R examples and learning-record exports remain

@@ -19,7 +19,7 @@ Open your data with **File → Open**, or choose **Help → Example workbook**, 
 - Choose **Continue in R** from a report's toolbar or context menu to open and run its editable script, or **File → New R Script** to start your own. Run, output and R setup controls stay in the script tab.
 - The script toolbar's **AI** icon opens a conversation beside your code, using your ChatGPT connection. Choose whether to share the script/output and a workbook, and check for person identifiers before sending.
 - Open **Analysis → Calculator** for the StatsDirect expression calculator. It docks below your work or pops out, with wrapping input and saved calculations for the current session.
-- Use **Help → Learning** for biostatistics, epidemiology, practice questions and a tutor connected to your open work. **Use my ChatGPT** signs in through your browser; your account’s Codex access and usage allowance apply.
+- Use **Help → Learning** for biostatistics, epidemiology, practice questions and a tutor connected to your open work. **Use my ChatGPT** downloads its connection component once (about 94 MB, no administrator password), then signs in through your browser; your account’s Codex access and usage allowance apply.
 
 ## Build
 

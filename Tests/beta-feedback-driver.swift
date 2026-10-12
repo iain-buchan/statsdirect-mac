@@ -273,11 +273,13 @@ import PDFKit
   print("PASS: derived worksheet preserves source columns and aligns selected rows; mismatched output is kept separate")
  }
  @MainActor static func live(_ v:Viewer) async throws {
-  let base=URL(fileURLWithPath:FileManager.default.currentDirectoryPath)
   let storage=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("com.statsdirect.viewer.prototype/ChatGPT Tutor")
-  let tutor=ChatGPTTutor(executable:base.appendingPathComponent(".build/codex-runtime/bin/codex-app-server"),storage:storage,resources:v.root.appendingPathComponent("Tutor"))
+  let runtime=TutorRuntimeInstaller(resources:v.root.appendingPathComponent("Tutor"),root:storage.deletingLastPathComponent().appendingPathComponent("TutorRuntime"))
+  let tutor=ChatGPTTutor(executable:runtime.executable,storage:storage,resources:v.root.appendingPathComponent("Tutor"),runtime:runtime)
   defer {tutor.shutdown()}
-  try await tutor.refreshAccount();precondition(tutor.account != nil)
+  guard runtime.isInstalled else { throw ChatGPTTutor.Failure(message:"Choose Use my ChatGPT in StatsDirect to install the connection before running the live test.") }
+  try await tutor.refreshAccount()
+  guard tutor.account != nil else { throw ChatGPTTutor.Failure(message:"Sign in to ChatGPT in StatsDirect before running the live test.") }
   let grid=v.documents.first{$0.kind=="grid" && $0.workbookName=="test.xlsx"}!,learn=v.documents.first{$0.kind=="learn"}!
   learn.learningSourceID=grid.id;learn.learningRequestID="live-feedback"
   let workspace=LearningWorkspace(v,learn,"live-feedback")

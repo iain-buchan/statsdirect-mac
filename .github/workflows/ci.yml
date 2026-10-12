@@ -43,13 +43,12 @@ jobs:
       - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
         with:
           r-version: release
-      - name: Cache NuGet packages and the ChatGPT runtime archive
+      - name: Cache NuGet packages
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .build/nuget
-            .build/codex-runtime
-          key: ${{ runner.os }}-build-${{ hashFiles('FullEngine/*.csproj', 'FullEngine/Upstream/**/*.csproj', 'Scripts/bundle-chatgpt.py') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('FullEngine/*.csproj', 'FullEngine/Upstream/**/*.csproj') }}
       - name: Install JavaScript dependencies
         run: for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
       - name: Install openpyxl for the Excel tests
@@ -101,6 +100,11 @@ jobs:
         run: bash Scripts/test-startup-r-setup.sh
       - name: Script AI dock and sharing
         run: Scripts/test-script-ai.sh
+      - name: First-use AI installation and protocol
+        run: |
+          Scripts/test-tutor-runtime.sh
+          Scripts/test-tutor-protocol.sh
+          Scripts/test-tutor-setup.sh
       - name: WebKit integration driver
         run: |
           set -o pipefail

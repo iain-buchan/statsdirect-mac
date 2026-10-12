@@ -1187,3 +1187,59 @@ checks pass (`.build/precommit-js-checks.log`); no application or engine logic c
 after the native acceptance runs above. Commit identity is Iain Buchan
 <buchan@liverpool.ac.uk>; source publication is on the development branches without
 an installer or application release.
+
+## First-use ChatGPT installation — 12 October 2026
+
+The Mac now downloads the pinned OpenAI app-server only after an explicit
+**Use my ChatGPT** selection in Learning or the script AI dock. The setup panel
+shows progress, cancellation and retry, then continues the existing browser
+sign-in flow. Passive account checks and opening either pane never install it.
+Offline lessons remain available. The approximately 94 MB download is installed
+under the user's Application Support directory without administrator privileges;
+the existing `ChatGPT Tutor` account storage and Keychain identity are retained.
+
+`Content/Tutor/runtime.json` pins version 0.157.1, the official GitHub release,
+archive hash, all five payload files and the OpenAI publisher identity. Installation
+uses an exclusive cross-process lock, private staging and an atomic directory
+exchange when repairing an existing version. Cancellation cleans partial files;
+a subsequent attempt removes staging left by a force-quit. Archive/file hashes
+and publisher checks precede installation and cached-file startup. The official
+licence and notice were compared byte-for-byte with the pinned upstream tag.
+
+Validation performed on Apple Silicon:
+
+- `Scripts/test-tutor-runtime.sh --real-root "$PWD/.build/first-use-real-runtime"`:
+  download faults (404, forbidden redirect, corruption, excessive size and
+  truncation), cancel/cleanup/retry, lock contention, damaged-file repair, failed
+  repair preservation, symlink rejection, stale staging cleanup and offline reuse.
+  A fresh real GitHub/CDN download also passed all hashes and publisher checks.
+- `Scripts/test-tutor-setup.sh .build/ai-first-use/StatsDirect.app`, with the isolated
+  real runtime cache: passive Learning/script opening, explicit setup, duplicate
+  suppression, native progress/cancel/retry/close, retained drafts and credentials,
+  policy changes, cached setup reaching the normal signed-out connection dialog,
+  and absence of bundled AI executables. The panel was visually inspected.
+- `Scripts/test-tutor-protocol.sh`: mock sign-in/completion, streaming, host tools,
+  cancellation, retry, usage limits, sign-out, disconnect recovery and policy.
+- `Tests/probe-chatgpt-runtime.py`: the freshly installed real signed-out runtime
+  accepts strict configuration, isolated dynamic tools, thread/turn schemas,
+  interrupt and unsubscribe. No live account or model response was used.
+- `Scripts/test-script-ai.sh`: existing script AI consent, conversation, toolbar,
+  document-scope and cancellation checks pass. All 34 Learning/tutor-data
+  JavaScript tests pass.
+- `Scripts/test-learning-workspace.sh`: native consent, exact worksheet reads,
+  engine-generated results, stale-data rejection and offline policy behaviour pass.
+- `Tests/run_beta_feedback.py --privacy-only`: combined native privacy checks
+  pass. Its compile list now includes the existing chart-alignment helper, which
+  was missing from that harness.
+- The full Release build passes, including 1,552 engine distribution checks,
+  matching debug symbols and strict deep code-signature verification. Packaged
+  runtime metadata/notices match source; no AI runtime binary remains in the app.
+  The application is approximately 240 MiB smaller than the preceding local build.
+
+Evidence is in `.build/tutor-runtime-tests.log`, `.build/tutor-setup-tests.log`,
+`.build/tutor-protocol-tests.log`, `.build/tutor-runtime-probe.log`,
+`.build/first-use-script-ai-tests.log`, `.build/first-use-learning-js-tests.log`
+`.build/first-use-learning-workspace-tests.log`, `.build/first-use-privacy-tests.log`
+and `.build/ai-first-use-build.log`. The test download and sign-in storage are
+isolated from the user's installed application and credentials. The running
+application was not restarted. The engine pin and shared report editor are unchanged.

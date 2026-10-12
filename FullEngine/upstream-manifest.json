@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "575d7e58a50ee9f2484506d35a7b6a9b8a09ce2b",
+  "commit": "6c3a665f13a5d4d87bec4dce931e78e1f6cbdd94",
   "version": "5.1.1",
   "sha256": {
     "Layout/Axis.cs": "37b781cfd82f963f5ba9f24295b008af80fe12d9a4e3ddd0649140c14e8785ef",
@@ -727,8 +727,9 @@
     "StatsDirectUI/Numerics/Utilities.cs": "d09dd5054a67af7ed060f7c5bc803770414ebff662803dc331f9ff3fdd76d493",
     "StatsDirectUI/R/ColumnLocator.cs": "b319ce3aa470032c3f6814c2b52a627eb12ab130c1fd026dfc20386047e51428",
     "StatsDirectUI/R/FrameType.cs": "ba017754d6f796c31a6bfcc5a75ccb8ba464e24f190f5c15a63d7b59f2427903",
-    "StatsDirectUI/R/RController.cs": "689e731abdc917c8c5232cfd0a19e54a2b4110386bb4988ca842866b8c2e103c",
+    "StatsDirectUI/R/RController.cs": "c5310e798b0b1c2d27f49bff2c256ae74050c98f317432f1f409d721551e3e27",
     "StatsDirectUI/R/RConvert.cs": "78c950cc5beebc25dca4a967731fcd314a7630e32cc50797cf6a6499d5a4d0a3",
+    "StatsDirectUI/R/RInstallation.cs": "d8b719328cd455860c95f7afb93e47db536c7e8b5f4b3c124fad23171bc2506e",
     "StatsDirectUI/R/RRecipes.cs": "89b93e6e379880807a248b367e9a6466e7b542cd0d4d6b5c8eb32744570fd583",
     "StatsDirectUI/R/RResults.g4": "2f8eb1526de9e81d0f3363837421377b7900557bbe4897c640abbb083e0482eb",
     "StatsDirectUI/R/RResults.g4.lexer.cs": "ba305865bea84bebfa6b3c9cc179cefcea2ac5d0c8d918a2bbd622a0fcb99147",
@@ -736,7 +737,7 @@
     "StatsDirectUI/R/RResultsParserPartial.cs": "b8aca685310737fce8a3655d6534ce77b51d7a9d1cf5faa8bc9ba33c1557119b",
     "StatsDirectUI/R/RScriptWriter.cs": "cc0c82f0876886d1d756fea8eea4fa284caa97bcdd5d86a0ccceb6cab4b97d1e",
     "StatsDirectUI/R/RVersion.cs": "c8866ea2fc494ccfc1ebf62c3e475ec0e9d6170a432cbe0a2552b47bf263acc6",
-    "StatsDirectUI/StatsDirectUI.csproj": "02c1123e95415ac08e55ea5057baf6a28a443a695b892b70dc4b5dc8ccab555a",
+    "StatsDirectUI/StatsDirectUI.csproj": "1c89b0bf7e2523d0865dfbe0aed32108d5c6036d2126690e18b2e88fa74248d6",
     "StatsDirectUI/TemplateProcessing/CreoleHtmlReportRenderer.cs": "d3c751cb37fbaf9ea3329b93dc896156738ae9528689386e3916dac85069e3c9",
     "StatsDirectUI/TemplateProcessing/HtmlImageRenderer.cs": "1da762254bb70cb685d56f85e34c9df93af54a339bf44d399df0597deb6440a3",
     "StatsDirectUI/TemplateProcessing/HtmlRenderer.cs": "f1e1a243b0bf4f262954def82817b23c453d68add0b97fc700d0b8c712e38cb8",

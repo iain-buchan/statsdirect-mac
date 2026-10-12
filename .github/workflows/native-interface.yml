@@ -10,7 +10,7 @@ on:
         description: Native interface to check using the current source
         required: true
         type: choice
-        options: [calculator, help, report, follow-ons, integration]
+        options: [calculator, help, grid, report, follow-ons, integration]
 
 permissions:
   contents: read
@@ -71,6 +71,7 @@ jobs:
           case "$SUITE" in
             calculator) Scripts/test-calculator-pane.sh ;;
             help) Scripts/test-help-pane.sh ;;
+            grid) Scripts/test-grid-selection.sh ;;
             report) Scripts/test-report-export.sh ;;
             follow-ons) bash Scripts/test-follow-on-workflow.sh ;;
             integration)

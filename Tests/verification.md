@@ -1259,3 +1259,7 @@ Evidence is in `.build/tutor-runtime-tests.log`, `.build/tutor-setup-tests.log`,
 and `.build/ai-first-use-build.log`. The test download and sign-in storage are
 isolated from the user's installed application and credentials. The running
 application was not restarted. The engine pin and shared report editor are unchanged.
+
+## The report toolbar's R button disables for a note without a record — 12 October 2026
+
+Asked which is the better practice for the toolbar's R button when the cursor is in a note that has no record of a run, disable or notify, Iain chose disable: a toolbar button is scanned rather than read, so its state carries the information, as Bold, the alignment buttons and the Mac's Help button already do for a selection they cannot act on; a message is for a command invoked with intent, the menu or a shortcut. The Mac button now disables when the selected entry has no record and when the report has no recorded result, with the reason in its tooltip ("put the cursor in a result; this text has no record of a run", "run an analysis into this report first"), and still takes the latest result that has a record when the cursor is in no result; the native handler keeps the Windows status line text for a request with no result. The Windows branch already disables; the tooltip wording was sent to the Windows session for its button. The report driver's Mac controls check walks the same four cases with the new states.

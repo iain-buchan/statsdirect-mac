@@ -182,28 +182,26 @@ import PDFKit
         precondition(report.reportEntries!.isEmpty,"typing into a blank report can be undone")
         v.editReport(report,["action":"redoText"]);try await settled(report)
         precondition(try await report.web.evaluateJavaScript("document.getElementById('report-results').textContent.includes('A new interpretation')") as? Bool==true,"blank-report typing can be redone")
-        // The R button is enabled while a report shows, as the Windows toolbar's: with no recorded result it has nothing (data-how none) and says so when clicked
-        precondition(try await report.web.evaluateJavaScript("(()=>{const b=document.querySelector('[data-command=continueInR]');return !b.disabled&&b.dataset.how==='none'&&b.dataset.target===''&&document.querySelector('[data-command=methodHelp]').disabled;})()") as? Bool==true,"plain report text has no result for the R button and no Help")
-        _=try await report.web.evaluateJavaScript("document.querySelector('[data-command=continueInR]').click()")
-        try await settled(report)
-        precondition(v.status.stringValue=="No result to continue in R: run an analysis into this report first.","the R button with no recorded result says so in the status line: \(v.status.stringValue)")
+        // The R button is disabled while the report has no recorded result (data-how none), its tooltip saying why; the native handler
+        // still answers a request with no result in the status line, as the Windows one does for its menu and shortcut
+        precondition(try await report.web.evaluateJavaScript("(()=>{const b=document.querySelector('[data-command=continueInR]');return b.disabled&&b.dataset.how==='none'&&b.dataset.target===''&&b.title==='Continue in R: run an analysis into this report first'&&document.querySelector('[data-command=methodHelp]').disabled;})()") as? Bool==true,"plain report text disables the R button, with the reason in its tooltip, and Help")
+        v.performReportAction(report,action:"continueInR",resultID:nil)
+        precondition(v.status.stringValue=="No result to continue in R: run an analysis into this report first.","a request with no result says so in the status line: \(v.status.stringValue)")
         v.appendReport(ReportEntry(id:"mac-result",title:"Paired measurements",operation:"TPaired",body:"<p id='mac-analysis'>Paired result</p>",record:"{\"schema\":\"statsdirect.run-record\",\"version\":1,\"operation\":\"TPaired\",\"title\":\"Paired measurements\",\"parameters\":[]}",recipe:true,helpPath:"Help/parametric_methods/paired_t.htm"));try await settled(report)
         try await report.web.evaluateJavaScript("getSelection().selectAllChildren(document.getElementById('mac-analysis'))")
         try await settled(report)
         precondition(try await report.web.evaluateJavaScript("(()=>{const b=document.querySelector('[data-command=continueInR]');return !b.disabled&&b.dataset.how==='selection'&&b.dataset.target==='mac-result'&&b.title.startsWith('Continue in R: the result the cursor is in')&&!document.querySelector('[data-command=methodHelp]').disabled;})()") as? Bool==true,"toolbar Help and R follow the selected result")
         try await report.web.evaluateJavaScript("getSelection().selectAllChildren(document.querySelector('.report-entry p'))")
         try await settled(report)
-        // the cursor in a text entry: Help has nothing; the R button reports that entry (how selection, no record), as Windows's CurrentResult does
+        // the cursor in a text entry: Help has nothing; the R button is disabled for that entry (how selection, no record) rather than
+        // continuing another result, its tooltip saying to put the cursor in a result
         let textId=report.reportEntries!.first!.id
-        precondition(try await report.web.evaluateJavaScript("(()=>{const b=document.querySelector('[data-command=continueInR]');return !b.disabled&&b.dataset.how==='selection'&&b.dataset.target===\(v.jsString(textId))&&document.querySelector('[data-command=methodHelp]').disabled;})()") as? Bool==true,"the R button reports the text entry the cursor is in, without a record, and Help has nothing")
-        _=try await report.web.evaluateJavaScript("document.querySelector('[data-command=continueInR]').click()")
-        try await settled(report)
-        precondition(v.status.stringValue.hasSuffix("has no record of its run to continue in R"),"the R button on a text entry says it has no record: \(v.status.stringValue)")
+        precondition(try await report.web.evaluateJavaScript("(()=>{const b=document.querySelector('[data-command=continueInR]');return b.disabled&&b.dataset.how==='selection'&&b.dataset.target===\(v.jsString(textId))&&b.title==='Continue in R: put the cursor in a result; this text has no record of a run'&&document.querySelector('[data-command=methodHelp]').disabled;})()") as? Bool==true,"the R button is disabled for the text entry the cursor is in, with the reason in its tooltip, and Help has nothing")
         // the cursor in no entry: the latest result with a record, not the last entry (a text entry appended after it)
         v.appendReport(ReportEntry(id:"mac-note",title:"Note",operation:"",body:"<p id='mac-note-text'>A note</p>",record:nil));try await settled(report)
         _=try await report.web.evaluateJavaScript("getSelection().removeAllRanges();document.activeElement?.blur()")
         try await settled(report)
-        precondition(try await report.web.evaluateJavaScript("(()=>{const b=document.querySelector('[data-command=continueInR]');return b.dataset.how==='latest'&&b.dataset.target==='mac-result';})()") as? Bool==true,"with the cursor in no result the R button takes the latest result that has a record, not the last entry")
+        precondition(try await report.web.evaluateJavaScript("(()=>{const b=document.querySelector('[data-command=continueInR]');return !b.disabled&&b.dataset.how==='latest'&&b.dataset.target==='mac-result'&&b.title.startsWith('Continue in R: the result the cursor is in');})()") as? Bool==true,"with the cursor in no result the R button takes the latest result that has a record, not the last entry")
         print("PASS: Mac default editing, direct typing with undo/redo, no Edit/Add text/notes controls, contextual toolbar Help and R");fflush(stdout)
     }
 

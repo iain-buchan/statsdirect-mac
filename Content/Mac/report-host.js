@@ -23,8 +23,8 @@
     return active?.isConnected ? active : root.querySelector('.report-entry:last-child');
   }
   // The R button's result, as the Windows toolbar's R button picks it (host.js 'currentTarget'): the result the selection or focus is
-  // in now, whether or not it has a record of its run (one without is reported as such rather than another result's script opened);
-  // else the latest result that has a record; none in a report with neither.
+  // in now, whether or not it has a record of its run (one without disables the button rather than another result's script being
+  // opened); else the latest result that has a record; none in a report with neither.
   function entryAt(node) {
     const element = node?.nodeType === 1 ? node : node?.parentElement;
     const entry = element?.closest('.report-entry');
@@ -40,10 +40,15 @@
   function update() {
     for (const [action, button] of buttons) {
       if (action === 'continueInR') {
-        const {entry, how} = rTarget();
-        button.disabled = false; button.dataset.how = how; button.dataset.target = entry?.dataset.resultId ?? '';
+        // Disabled when the selection is a note without a record, or the report has no recorded result (Iain, 12 October 2026: a
+        // toolbar button is scanned, so its state carries the information), with the reason in the tooltip; the latest result with a
+        // record is still taken when the cursor is in no result.
+        const {entry, how} = rTarget(); const usable = !!entry?.dataset.r;
+        button.disabled = !usable; button.dataset.how = how; button.dataset.target = entry?.dataset.resultId ?? '';
         const label = entry?.dataset.r === 'data' ? 'Open Data and Settings in R' : 'Continue in R';
-        const title = label + ': the result the cursor is in, or the latest result, as an R script';
+        const title = usable ? label + ': the result the cursor is in, or the latest result, as an R script'
+          : how === 'selection' ? 'Continue in R: put the cursor in a result; this text has no record of a run'
+          : 'Continue in R: run an analysis into this report first';
         button.title = title; button.setAttribute('aria-label', title);
         continue;
       }

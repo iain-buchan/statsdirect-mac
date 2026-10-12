@@ -93,6 +93,17 @@ import Cocoa
         precondition(report.reportEntries?.count==1 && report.lastRecordEntry != nil && v.recipeAvailable(for:"TPaired") && v.active===learn)
         precondition(!report.reportEntries![0].body.contains("<details>"),"tutor report keeps the run record without displaying its code")
         print("PASS: real test.xlsx → exact nine PEFR pairs → engine → one active report with SVG and R link; repeated request reuses result")
+        try await wait {
+            guard !report.web.isLoading else { return false }
+            return (try? await report.web.evaluateJavaScript("!!document.querySelector('.report-body h1')")) as? Bool == true
+        }
+        let presentation = try await report.web.evaluateJavaScript("({titles:[...document.querySelectorAll('.report-body h1')].map(h=>h.textContent.trim()),ci:getComputedStyle(document.querySelector('.report-body .ci')).color,pval:getComputedStyle(document.querySelector('.report-body .pval')).color})") as! [String:Any]
+        let titles = presentation["titles"] as! [String]
+        guard titles.filter({ $0 == "Paired t test" }).count == 1, Set(titles).count == titles.count,
+              presentation["ci"] as? String == "rgb(0, 0, 255)", presentation["pval"] as? String == "rgb(0, 127, 0)" else {
+            throw ChatGPTTutor.Failure(message: "Tutor results must retain each engine heading once and the same Creole styles as menu-run analyses: \(presentation)")
+        }
+        print("PASS: tutor-generated results retain each engine heading once and the common report styles")
         grid.gridVersion += 1
         do {_=try await workspace.call("statsdirect_run_analysis",["operation":"TPaired","datasetId":data["datasetId"]!]);throw ChatGPTTutor.Failure(message:"Stale worksheet accepted")} catch {precondition(error.localizedDescription.contains("changed"))}
         let r=v.newDocument(kind:"r",title:"R context fixture");let pane=RPane(script:"mean(c(1, 2, 3))");r.rPane=pane;r.item.view=pane.view;pane.console.string="[1] 2\n"

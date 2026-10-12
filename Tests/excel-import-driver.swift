@@ -13,6 +13,7 @@ struct ExcelImportTests {
     }
     @MainActor static func run(_ v: Viewer) async throws {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Tests/Fixtures/Excel")
+        v.startupWorksheetID = nil   // the first successful open replaces an untouched startup worksheet; this section counts documents, so none is on offer
         let initial = v.documents.count
         // Open through the application host, read the served typed snapshots in WebKit,
         // and verify that every loaded value is included in a values-only export.
@@ -21,6 +22,11 @@ struct ExcelImportTests {
             v.openExcelURL(url)
             let doc = try await loaded(v, url)
             try check(doc.workbookDataCopy && doc.workbookID != nil, "Expected compatibility import for \(name)")
+            // Native import completion precedes React's notice render on hosted
+            // WebKit. Wait for the visible notice before inspecting its text.
+            try await ProviderLearningTests.wait {
+                (try? await v.learningJavaScript(doc, "({ok:document.querySelector('.formula-note')?.textContent.includes('last Excel save')===true})"))?["ok"] as? Bool == true
+            }
             let actual = try await v.learningJavaScript(doc, "({cells:statsDirectGrid.excelData().sheets[0].cells,note:document.querySelector('.formula-note')?.textContent})")
             let cells = actual["cells"] as! [[String:Any]]
             try check(cells.count == 71, "All 71 cells must be exported, not only edits: \(name)")

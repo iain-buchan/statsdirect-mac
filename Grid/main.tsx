@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import DataEditor, { CompactSelection, GridCellKind, type GridCell, type GridSelection, type Item, type DataEditorRef } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
 import './style.css';
+import {Toolbar} from './toolbar';
+import {findCell} from './find.mjs';
 import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
@@ -58,6 +60,18 @@ function App() {
   const grid = useRef<DataEditorRef>(null),
     selectionRef = useRef(selection);
   selectionRef.current = selection;
+  const pendingCut = useRef<any>(null);
+  const [findOpen,setFindOpen]=useState(false), [findText,setFindText]=useState('');
+  const findInput=useRef<HTMLInputElement>(null), lastFind=useRef('');
+  const showFind=()=>{setFindOpen(true);requestAnimationFrame(()=>{findInput.current?.focus();findInput.current?.select();});};
+  const findNext=(backwards=false)=>{
+    const found=findCell(store,findText,lastFind.current===findText?selectionRef.current.current?.cell:null,backwards);
+    lastFind.current=findText;
+    if(!found){setMessage(findText?'No matching cells in this worksheet':'Enter text to find');return;}
+    const [c,r]=found;
+    setSelection({...empty,current:{cell:[c,r],range:{x:c,y:r,width:1,height:1},rangeStack:[]}});
+    grid.current?.scrollTo(c,r);setMessage(`Found in ${columnName(c)}${r+1}`);
+  };
   const columnDrag = useColumnDragSelection(grid, store.columns.length, setSelection, store);
   const [containerSize, setSize] = useState({
     width: 800,
@@ -151,7 +165,7 @@ function App() {
             case 'undo': if (store.undo()) changed(); break;
             case 'redo': if (store.redo()) changed(); break;
             case 'copy': native('copy', {text: copy()}); break;
-            case 'cut': native('copy', {text: copy()}); clear(); break;
+            case 'cut': cut(); break;
             case 'paste': paste(clipboard); break;
             case 'selectAll':
               setSelection({...empty, current: {cell: [0, 0], range: {x: 0, y: 0, width: store.columns.length, height: Math.max(1, store.usedRows())}, rangeStack: []}});
@@ -159,6 +173,15 @@ function App() {
           }
         });
         return true;
+      },
+      showFind,
+      completeCut: (token:string, success:boolean) => {
+        const pending=pendingCut.current;
+        if(!pending||pending.token!==token)return;
+        pendingCut.current=null;
+        if(!success){setMessage('The clipboard could not be written; cells have been kept.');return;}
+        if(pending.store!==store||pending.version!==store.version||pending.revision!==workbook.revision){setMessage('Selection copied; the worksheet changed, so no cells were cleared.');return;}
+        attempt(()=>{if(store.apply(pending.edits))changed();setMessage('Selection cut to clipboard · Undo restores the cells');});
       },
       tutorInfo: () => tutorInfo(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
       tutorData: (options: any = {}) => tutorData(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range},options),
@@ -261,42 +284,39 @@ function App() {
   useEffect(() => {
     setValue(current ? store.get(current[0], current[1]) : '');
   }, [current?.[0], current?.[1], revision, store]);
-  const clear = () => {
-    const s = selectionRef.current,
-      a = range(),
-      cols = s.columns.length ? s.columns.toArray() : s.rows.length ? store.columns.map((_, i) => i) : Array.from({
-        length: a.width
-      }, (_, i) => a.x + i),
-      rows = s.rows.length ? s.rows.toArray() : Array.from({
-        length: a.height
-      }, (_, i) => a.y + i);
-    if (cols.length * rows.length > 100000) throw new Error('Clear at most 100,000 cells at a time.');
-    if (store.apply(rows.flatMap(r => cols.map(c => [c, r, ''])))) changed();
+  const clearEdits = () => {
+    const s=selectionRef.current,a=range(),
+      cols=s.columns.length?s.columns.toArray():s.rows.length?store.columns.map((_:string,i:number)=>i):Array.from({length:a.width},(_,i)=>a.x+i),
+      rows=s.rows.length?s.rows.toArray():Array.from({length:a.height},(_,i)=>a.y+i);
+    if(cols.length*rows.length>100000)throw new Error('Clear at most 100,000 cells at a time.');
+    return rows.flatMap(r=>cols.map(c=>[c,r,'']));
   };
+  const clear=()=>{if(store.apply(clearEdits()))changed();};
+  const cut=()=>{
+    const selection=selectionRef.current;
+    if(!selection.current&&!selection.columns.length&&!selection.rows.length)return;
+    const text=copy(),edits=clearEdits(),token=crypto.randomUUID();
+    pendingCut.current={token,edits,store,version:store.version,revision:workbook.revision};
+    native('cut',{text,token});
+  };
+  const selected=!!selection.current||selection.columns.length>0||selection.rows.length>0;
   return <main>
-  <div className="tools">
-   <button onClick={() => attempt(() => {
-        if (store.undo()) changed();
-      })} disabled={!store.canUndo}>Undo</button>
-   <button onClick={() => attempt(() => {
-        if (store.redo()) changed();
-      })} disabled={!store.canRedo}>Redo</button>
-   <button onClick={() => attempt(() => native('copy', {
-        text: copy()
-      }))}>Copy</button>
-   <button onClick={() => native('paste')}>Paste</button>
-   <button onClick={() => attempt(clear)}>Clear cells</button>
-   <span className="spacer" />
-   <button onClick={() => attempt(() => {
-        store.apply([], Math.min(MAX_ROWS, store.rows + 100));
-        changed();
-      })}>+ 100 rows</button>
-   <button onClick={() => attempt(() => {
-        if (store.columns.length >= MAX_COLS) throw new Error('Column limit reached.');
-        store.apply([], store.rows, store.columns.length + 1);
-        changed();
-      })}>+ Column</button>
-  </div>
+  <Toolbar actions={[
+    {id:'save',label:'Save worksheet (⌘S)',icon:'save',priority:0,run:()=>native('saveDocument')},
+    {id:'undo',label:'Undo (⌘Z)',icon:'undo',priority:10,group:true,disabled:!store.canUndo,run:()=>attempt(()=>{if(store.undo())changed();})},
+    {id:'redo',label:'Redo (⇧⌘Z)',icon:'redo',priority:10,disabled:!store.canRedo,run:()=>attempt(()=>{if(store.redo())changed();})},
+    {id:'cut',label:'Cut (⌘X)',icon:'cut',priority:10,group:true,disabled:!selected,run:()=>attempt(cut)},
+    {id:'copy',label:'Copy (⌘C)',icon:'copy',priority:10,disabled:!selected,run:()=>attempt(()=>native('copy',{text:copy()}))},
+    {id:'paste',label:'Paste (⌘V)',icon:'paste',priority:10,run:()=>native('paste')},
+    {id:'find',label:'Find (⌘F)',icon:'find',priority:20,group:true,run:showFind},
+    {id:'clear',label:'Clear selected cells',icon:'clear',priority:40,group:true,disabled:!selected,run:()=>attempt(clear)},
+    {id:'addRows',label:'Add 100 rows',icon:'addRows',priority:60,disabled:store.rows>=MAX_ROWS,run:()=>attempt(()=>{if(store.apply([],Math.min(MAX_ROWS,store.rows+100)))changed();})},
+    {id:'addColumn',label:'Add column',icon:'addColumn',priority:60,disabled:store.columns.length>=MAX_COLS,run:()=>attempt(()=>{if(store.apply([],store.rows,store.columns.length+1))changed();})}
+  ]}/>
+  {findOpen&&<div className="grid-find" role="search" aria-label="Find in worksheet">
+    <label htmlFor="grid-find-text">Find</label><input ref={findInput} id="grid-find-text" value={findText} onChange={e=>setFindText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();findNext(e.shiftKey);}if(e.key==='Escape'){setFindOpen(false);grid.current?.focus();}}}/>
+    <button onClick={()=>findNext(true)}>Previous</button><button onClick={()=>findNext()}>Next</button><button aria-label="Close Find" onClick={()=>{setFindOpen(false);grid.current?.focus();}}>Close</button>
+  </div>}
   {workbook.sheets.length > 1 && <div className="sheetbar" role="tablist" aria-label="Worksheets">{workbook.sheets.map((sheet: any, i: number) => <button key={sheet.name} role="tab" aria-selected={i === sheetIndex} onClick={() => {
         setSheetIndex(i);
         setSelection(empty);

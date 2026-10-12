@@ -40,3 +40,11 @@ body.report-editing{padding-top:14px}.report-editing .report-body{outline:1px da
 .report-editing .report-media-selected>svg,.report-editing .report-media-selected>img{outline:2px solid #278a7c;background:#f2faf7}.report-media-selected{cursor:grab}.report-drop-caret{position:absolute;width:2px;margin:0;background:#16776b;pointer-events:none;z-index:15}
 /* Mac shell: always-editable report, with all commands outside its content. */
 .report-editing #report-results { min-height: 55vh; outline: none; }
+
+/* Mac host only: shared report commands live on a single responsive row. */
+.report-toolbar.sd-toolbar{display:block;flex-wrap:nowrap;padding:5px}
+#report-format-tools{display:block;width:100%;min-width:0}
+.report-toolbar.sd-toolbar .report-format-row{display:flex}
+.report-toolbar.sd-toolbar .report-more-tools{top:calc(100% + 4px)}
+.report-toolbar.sd-toolbar .report-picture-tools{flex-shrink:0}
+.report-toolbar.sd-toolbar .report-picture-tools[hidden]{display:none}

@@ -134,7 +134,18 @@ extension Viewer {
     func isReportFindItem(_ item: NSMenuItem) -> Bool {
         [#selector(showReportFind), #selector(showReportReplace), #selector(findReportNext), #selector(findReportPrevious), #selector(useReportSelectionForFind)].contains(item.action)
     }
-    @objc func showReportFind() { if let doc = findableReport { showFindBar(doc, replace: false) } }
+    var findableDocument: Document? {
+        guard !calculatorPane.isFocused, !helpPane.isFocused, !scriptAI.isFocused,
+              let doc = active, ["report", "grid", "r"].contains(doc.kind), window.attachedSheet == nil,
+              doc.kind == "r" || !doc.web.isLoading else { return nil }
+        return doc
+    }
+    @objc func showReportFind() {
+        guard let doc = findableDocument else { return }
+        if let pane = doc.rPane { pane.showFind() }
+        else if doc.kind == "grid" { doc.web.evaluateJavaScript("window.statsDirectGrid.showFind()") }
+        else { showFindBar(doc, replace: false) }
+    }
     @objc func showReportReplace() { if let doc = findableReport { showFindBar(doc, replace: true) } }
     @objc func findReportNext() { findReportAgain(backwards: false) }
     @objc func findReportPrevious() { findReportAgain(backwards: true) }

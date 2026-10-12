@@ -1,0 +1,30 @@
+{
+  "version": "0.157.1",
+  "url": "https://github.com/openai/codex/releases/download/rust-v0.157.1/codex-app-server-package-aarch64-apple-darwin.tar.gz",
+  "sha256": "9a6033c9fe30260e71d784d003ad1e2de2a55c93e24a24856e8433029a3f811a",
+  "maximumBytes": 125829120,
+  "teamIdentifier": "2DC432GLL2",
+  "signingIdentifier": "codex-app-server",
+  "files": {
+    "bin/codex-app-server": {
+      "size": 182640720,
+      "sha256": "0e600652a21c97675a92b8410e350942e8bcd6f574788df5c8de2c0b909d549c"
+    },
+    "bin/codex-code-mode-host": {
+      "size": 65290880,
+      "sha256": "b7f031b3e2c2ca3d55852e3a460b4912f438d1e04e7469493a8de591ba40c11d"
+    },
+    "codex-package.json": {
+      "size": 222,
+      "sha256": "079f686d46b65d7eaedfda3cda682451bb69454f67ddfa93d0391ca1d0d7699a"
+    },
+    "codex-path/rg": {
+      "size": 4030432,
+      "sha256": "95af588695f6a8583e065072df7a6a3b491b3c53d1cef7a91bb936b76a421bc5"
+    },
+    "codex-resources/zsh/bin/zsh": {
+      "size": 754208,
+      "sha256": "9a6310493bd28c2b5a2d3dba4d4043700de7fbfe5c25f053bad26427f328141e"
+    }
+  }
+}

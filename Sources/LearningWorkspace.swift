@@ -138,9 +138,8 @@ import WebKit
             let record = output["record"] as? String
             let title = record.flatMap(RunRecordR.title(of:)) ?? viewer.analysisCatalog[operation]?["title"] as? String ?? operation
             let id = UUID().uuidString, html = output["html"] as? String ?? ""
-            let body = "<h1>\(viewer.htmlEscape(title))</h1>" + html
             let previous = viewer.learningLastDocumentID
-            let report = viewer.appendReport(ReportEntry(id:id,title:title,operation:operation,body:body,record:record,recipe:output["recipe"] as? Bool ?? false,helpPath:viewer.analysisCatalog[operation]?["help"] as? String))
+            let report = viewer.appendReport(ReportEntry(id:id,title:title,operation:operation,body:html,record:record,recipe:output["recipe"] as? Bool ?? false,helpPath:viewer.analysisCatalog[operation]?["help"] as? String))
             viewer.learningLastDocumentID = previous
             if let learner { viewer.tabs.selectTabViewItem(learner.item) }
             let result: [String:Any] = ["state":"complete","operation":operation,"engineVersion":viewer.engineVersion,"datasetId":datasetID,"report":report.title,"reportId":report.id,"resultId":id,"text":Self.plain(html),"inputHistory":output["history"] ?? [],"values":output["values"] ?? [:],"hasSVG":html.contains("<svg")]

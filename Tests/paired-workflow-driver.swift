@@ -57,7 +57,13 @@ import WebKit
         """,arguments:[:],in:nil,contentWorld:.page)
         // One heading drag: use actual grid event handlers, not an analysis fixture.
         func select(_ first:Int,_ last:Int,row:Int = -1) async throws {
+            v.tabs.selectTabViewItem(grid.item)
+            v.window.contentView?.layoutSubtreeIfNeeded()
             _=try await grid.web.callAsyncJavaScript("""
+            // loadWorkbook resolves before React commits the new sheet. Let its
+            // layout and pointer effects settle before sending the single drag.
+            await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+            await new Promise(r=>setTimeout(r,100));
             const b=document.querySelector('canvas').getBoundingClientRect();
             const y=b.y+(row<0?18:36+row*29+14),x=c=>b.x+48+c*178+89;
             const send=(type,c,buttons)=>document.elementFromPoint(x(c),y).dispatchEvent(new MouseEvent(type,{bubbles:true,clientX:x(c),clientY:y,button:0,buttons}));
@@ -66,6 +72,12 @@ import WebKit
             for(let i=1;i<=8;i++){send('mousemove',first+(last-first)*i/8,1);await new Promise(r=>setTimeout(r,30));}
             send('mouseup',last,0);return true;
             """,arguments:["first":first,"last":last,"row":row],in:nil,contentWorld:.page)
+            if row < 0 {
+                let expected=Array(min(first,last)...max(first,last))
+                try await wait {
+                    try await js(grid,"statsDirectGrid.analysisSource().selection") as? [Int] == expected
+                }
+            }
         }
         func open() async throws -> Document {
             v.analysisSourceID=grid.id

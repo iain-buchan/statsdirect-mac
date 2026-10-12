@@ -1,6 +1,7 @@
 import createDOMPurify from 'dompurify';
 
 import {borderProperties} from './presentation.mjs';
+import {pictureAlignment,setPictureAlignment} from './chart-size.mjs';
 
 const purifier=createDOMPurify(window);
 export const presentation=['font-family','font-size','font-style','font-weight','text-decoration','text-decoration-line','text-align','vertical-align','color','background-color','white-space','line-height','margin-left','margin-right','margin-top','margin-bottom','padding','padding-left','padding-right','padding-top','padding-bottom','border','border-top','border-bottom','border-left','border-right','border-collapse','border-spacing','list-style-type',...borderProperties];
@@ -74,9 +75,11 @@ export function cleanFragment(html,{freshIDs=true}={}) {
 
 export function inlinePresentation(original,copy) {
   if(original.localName==='svg'&&!original.parentElement?.closest('svg')) {
-    copy.style.width=original.style.width||`${original.getBoundingClientRect().width}px`;copy.style.height='auto';copy.style.maxWidth='100%';return;
+    copy.style.width=original.style.width||`${original.getBoundingClientRect().width}px`;copy.style.height='auto';copy.style.maxWidth='100%';
+    setPictureAlignment(copy,pictureAlignment(original));return;
   }
   if(original.closest('svg'))return;
   const computed=getComputedStyle(original);
   for(const name of presentation)copy.style.setProperty(name,computed.getPropertyValue(name));
+  if(original.localName==='img')setPictureAlignment(copy,pictureAlignment(original));
 }

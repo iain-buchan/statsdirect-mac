@@ -4,15 +4,15 @@ Open **Help → Learning** or **Help → Learning Options**. This is an integrat
 
 ## Use my ChatGPT
 
-Choose **Use my ChatGPT**, complete sign-in in your browser, then return to Learning and press **Send**. No API key, separate Codex installation or StatsDirect hosting account is needed. The connected account and sign-out are available through **Tutor connection**. Signing out leaves the local portfolio and other apps' accounts unchanged. A pending sign-in can be reopened or cancelled without losing the draft question.
+Choose **Use my ChatGPT**. On first use, StatsDirect downloads and installs its connection component (about 94 MB) with progress, cancellation and retry. Then complete sign-in in your browser, return to Learning and press **Send**. Opening Learning or the script AI dock alone never downloads anything; offline lessons remain available. No API key, separate Codex installation or StatsDirect hosting account is needed. The connected account and sign-out are available through **Tutor connection**. Signing out leaves the local portfolio and other apps' accounts unchanged. A pending sign-in can be reopened or cancelled without losing the draft question.
 
-The app bundles OpenAI's official **Codex App Server 0.157.1** for Apple silicon and uses its managed ChatGPT browser authentication. Access depends on the learner's ChatGPT plan, Codex entitlement, workspace policy and available usage allowance. This does not import existing ChatGPT chats, create a ChatGPT website conversation, or turn a ChatGPT subscription into an API key. See the official [app-server authentication protocol](https://learn.chatgpt.com/docs/app-server) and [authentication guidance](https://learn.chatgpt.com/docs/auth).
+StatsDirect downloads OpenAI's official **Codex App Server 0.157.1** for Apple silicon and uses its managed ChatGPT browser authentication. Access depends on the learner's ChatGPT plan, Codex entitlement, workspace policy and available usage allowance. This does not import existing ChatGPT chats, create a ChatGPT website conversation, or turn a ChatGPT subscription into an API key. See the official [app-server authentication protocol](https://learn.chatgpt.com/docs/app-server) and [authentication guidance](https://learn.chatgpt.com/docs/auth).
 
 Each Send shares bounded recent conversation (up to 40 messages / 60,000 characters), bundled lesson context, learning options and relevant course excerpts with OpenAI. Review identity fields are not automatically attached. Application context is controlled by the selector described below. The learner's ChatGPT/Codex account data controls apply; API `store:false` settings from the separate managed-service prototype do not apply to this connection. Replies are escaped text/code and generated code is never automatically executed.
 
-The native process owns login and token refresh. Credentials are kept by the runtime in macOS Keychain, under a separate StatsDirect runtime home; neither tokens nor login URLs enter the web view or portfolio. Runtime setup is private to `~/Library/Application Support/<bundle-id>/ChatGPT Tutor/`. It does not reuse `~/.codex`, personal API keys or project configuration. Each reply uses an ephemeral thread with **no selected computer environment**, no connected apps/plugins, shell, browser or image tools; approval requests are rejected. Only the seven registered StatsDirect host tools are available; these cannot access arbitrary files, execute R/shell commands or send email. Learning conversation history is managed by the existing local portfolio. The runtime's default available model is used, rather than hardcoding an entitlement-dependent model name.
+The native process owns login and token refresh. Credentials are kept by the runtime in macOS Keychain, under a separate StatsDirect runtime home; neither tokens nor login URLs enter the web view or portfolio. Account configuration stays in `~/Library/Application Support/<bundle-id>/ChatGPT Tutor/`. Installed executables use a separate `TutorRuntime/<version>-<hash>/` folder alongside it. No administrator password is needed, and updates or repairs leave existing credentials in place. It does not reuse `~/.codex`, personal API keys or project configuration. Each reply uses an ephemeral thread with **no selected computer environment**, no connected apps/plugins, shell, browser or image tools; approval requests are rejected. Only the seven registered StatsDirect host tools are available; these cannot access arbitrary files, execute R/shell commands or send email. Learning conversation history is managed by the existing local portfolio. The runtime's default available model is used, rather than hardcoding an entitlement-dependent model name.
 
-The runtime is pinned because its app-server interface contains experimental fields, including disabling environment access and dynamic host tools. `Scripts/bundle-chatgpt.py` verifies the official archive's SHA-256, includes its Apache licence and notice, and preserves/verifies the vendor signatures of the embedded executables. Re-signing the connection executable would change its Keychain identity. Contract tests exercise the exact pinned binary. A runtime upgrade must repeat those tests. This remains an unsigned-for-distribution Mac prototype; release signing/notarisation is still outstanding.
+The runtime is pinned because its app-server interface contains experimental fields, including disabling environment access and dynamic host tools. `Content/Tutor/runtime.json` pins the official release URL, archive SHA-256, every extracted file and OpenAI signing identity. The native installer verifies these before atomic installation and checks files and publisher again before starting the process. Its private staging folder and cross-process lock protect against interrupted or simultaneous installations. Apache licence and notice files ship with StatsDirect and are copied into the installation. Re-signing the connection executable would change its Keychain identity. Contract tests exercise the exact pinned binary. A runtime upgrade must repeat those tests. This remains an unsigned-for-distribution Mac prototype; release signing/notarisation is still outstanding.
 
 Native tests cover browser authentication setup/cancel with the real signed-out runtime, and completed login, answers, usage errors, cancellation/retry and logout with a local protocol fixture. A live model response requires the learner to finish browser sign-in. The optional [managed service prototype](../TutorService/README.md) remains in the repository for future institutional use; it is not the shipped tutor connection.
 
@@ -49,14 +49,17 @@ The generated `Content/Learn/app.js` is committed, like the existing grid assets
 node --test Learn/learning.test.mjs Learn/lesson-context.test.mjs Learn/provider-course.test.mjs Learn/library.test.mjs Grid/tutor-data.test.mjs
 swiftc Sources/LearningLibrary.swift Tests/learning-library-test.swift -o .build/learning-library-test
 .build/learning-library-test Content/Learn/lessons.json
-swiftc Sources/ChatGPTTutor.swift Tests/chatgpt-tutor-driver.swift -o .build/chatgpt-tutor-test
-.build/chatgpt-tutor-test Tests/mock-chatgpt-server.py .build/chatgpt-mock Content/Tutor mock
-.build/chatgpt-tutor-test .build/codex-runtime/bin/codex-app-server .build/chatgpt-probe Content/Tutor probe
-python3 Tests/probe-chatgpt-runtime.py .build/codex-runtime/bin/codex-app-server Content/Tutor
+Scripts/test-tutor-runtime.sh
+Scripts/test-tutor-protocol.sh
+Scripts/test-tutor-setup.sh
+# Optional real GitHub download and publisher check in an isolated test cache:
+Scripts/test-tutor-runtime.sh --real-root "$PWD/.build/first-use-real-runtime"
+# Pass the REAL_RUNTIME path printed above to the signed-out protocol probe:
+python3 Tests/probe-chatgpt-runtime.py .build/first-use-real-runtime/0.157.1-9a6033c9fe30/bin/codex-app-server Content/Tutor
 swiftc Sources/LearningCore.swift Sources/CoursePack.swift Tests/learning-client-test.swift -o .build/learning-client-test
 .build/learning-client-test
 python3 Tests/test_learning_examples.py
-swiftc Sources/ChatGPTTutor.swift Sources/TutorTools.swift Sources/RScriptGenerator.swift Tests/tutor-engine-driver.swift -o .build/tutor-engine-test
+swiftc Sources/TutorRuntime.swift Sources/TutorRuntimeInstaller.swift Sources/ChatGPTTutor.swift Sources/TutorTools.swift Sources/RScriptGenerator.swift Tests/tutor-engine-driver.swift -o .build/tutor-engine-test
 .build/tutor-engine-test "$PWD"
 Scripts/test-learning-workspace.sh
 ./build.sh

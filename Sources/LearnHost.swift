@@ -8,7 +8,7 @@ extension Viewer {
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.statsdirect.viewer.prototype").appendingPathComponent("Learning")
     }
     var learningDiagnostics: [String:Any] {
-        let runtime = (try? JSONSerialization.jsonObject(with:Data(contentsOf:root.deletingLastPathComponent().appendingPathComponent("TutorRuntime/STATSDIRECT-RUNTIME.json")))) as? [String:Any]
+        let runtime = (try? JSONSerialization.jsonObject(with:Data(contentsOf:root.appendingPathComponent("Tutor/runtime.json")))) as? [String:Any]
         return ["appVersion":Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development", "engineVersion":engineVersion,"engineRevision":engineRevision,"tutorRuntime":runtime?["version"] ?? "unknown","promptVersion":"statsdirect-chatgpt-tutor-v4","libraryVersion":learningLessons.first?["contentVersion"] ?? "unknown"]
     }
     var learningLessons: [[String: Any]] {
@@ -100,6 +100,10 @@ extension Viewer {
         openingTutorConnection = true
         Task { @MainActor in
             defer { self.openingTutorConnection = false }
+            if let runtime=self.chatGPTTutor.runtime {
+                guard await runtime.ensureAvailable() else { notice(TutorPolicy.disabled ? TutorPolicy.message : "AI setup cancelled. Choose Use my ChatGPT when you are ready; your draft is kept."); return }
+            }
+            guard self.documents.contains(where:{$0 === doc}), !TutorPolicy.disabled else { return }
             do { if !TutorPolicy.disabled { try await self.chatGPTTutor.refreshAccount() } }
             catch { notice(error.localizedDescription); return }
             guard self.documents.contains(where:{$0 === doc}), !TutorPolicy.disabled else { return }

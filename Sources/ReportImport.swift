@@ -10,11 +10,17 @@ import WebKit
     private var timeout: DispatchWorkItem?
     private var payload: [String: Any] = [:]
     private var script = ""
+    private var reportCSS = ""
     private var tail = ""
 
+    private init(resources: URL) throws {
+        script = try String(contentsOf: resources.appendingPathComponent("Report/import.js"), encoding: .utf8)
+        reportCSS = try String(contentsOf: resources.appendingPathComponent("Mac/report.css"), encoding: .utf8)
+        super.init()
+    }
+
     static func convert(html: String, pictures: [LegacyPicture] = [], legacy: Bool = false, tableRows: [[Int]] = [], resources: URL) async throws -> [String: Any] {
-        let importer = ReportImporter()
-        importer.script = try String(contentsOf: resources.appendingPathComponent("Report/import.js"), encoding: .utf8)
+        let importer = try ReportImporter(resources: resources)
         importer.payload = ["html": html, "pictures": pictures.map(\.payload), "legacy": legacy, "tableRows": tableRows]
         importer.tail = "\nreturn await StatsDirectReportImport.convert(payload);"
         let value = try await withCheckedThrowingContinuation { importer.start($0) }
@@ -25,8 +31,7 @@ import WebKit
     /// styles then resolve as they did on the page), or, when the page no longer holds the block (a report saved by Windows), the
     /// markup kept with the result in the page's metadata. Each converts as `convert(html:)` does.
     static func convert(page: String, entries: [[String: String]], resources: URL) async throws -> [[String: Any]] {
-        let importer = ReportImporter()
-        importer.script = try String(contentsOf: resources.appendingPathComponent("Report/import.js"), encoding: .utf8)
+        let importer = try ReportImporter(resources: resources)
         importer.payload = ["html": page, "entries": entries]
         importer.tail = """
 
@@ -50,7 +55,7 @@ import WebKit
         web.navigationDelegate = self
         let timer = DispatchWorkItem { [weak self] in self?.finish(.failure(LegacyReportError("Report conversion timed out. Try a smaller report."))) }
         timeout = timer; DispatchQueue.main.asyncAfter(deadline: .now() + 45, execute: timer)
-        web.loadHTMLString("<!doctype html><html><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src data:; style-src 'unsafe-inline'\"></head><body></body></html>", baseURL: nil)
+        web.loadHTMLString("<!doctype html><html><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src data:; style-src 'unsafe-inline'\"><style>\(reportCSS)</style></head><body class='engine-report'></body></html>", baseURL: nil)
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         webView.callAsyncJavaScript(script + tail, arguments: ["payload": payload], in: nil, in: .defaultClient) { [weak self] result in
@@ -74,7 +79,7 @@ extension Viewer {
     func openReportURL(_ url: URL) {
         status.stringValue = "Opening \(url.lastPathComponent)…"
         Task { @MainActor in
-            do { _ = try await importReport(url) }
+            do { let doc = try await importReport(url); didOpenDocument(doc, url: url) }
             catch { showError("The report could not be opened: " + error.localizedDescription) }
         }
     }

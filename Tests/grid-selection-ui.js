@@ -1,8 +1,12 @@
 // Run in actual WKWebView against the bundled grid; exercise real mouse handlers,
 // then inspect the selections passed to analyses and copied to the clipboard.
 const passed=[];
-const check=(ok,label)=>{if(!ok)throw Error(label+'; selection='+JSON.stringify(statsDirectGrid.analysisSource().selection));passed.push('PASS: '+label);};
-const settle=()=>new Promise(resolve=>setTimeout(resolve,65));
+const focusEvents=[];
+for(const type of ['focus','blur'])window.addEventListener(type,event=>focusEvents.push({type,time:performance.now(),trusted:event.isTrusted}));
+const check=(ok,label)=>{if(!ok)throw Error(label+'; selection='+JSON.stringify(statsDirectGrid.analysisSource().selection)+'; focused='+document.hasFocus()+'; focus events='+JSON.stringify(focusEvents));passed.push('PASS: '+label);};
+// React effects and Glide's resize/visible-region callbacks must run before
+// the next mouse event. A timer alone does not guarantee a rendered frame.
+const settle=async()=>{await new Promise(resolve=>setTimeout(resolve,65));await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));};
 const fixture=(columns=8)=>({name:'Column drag fixture',sheets:[{name:'Data',rows:100,columns,headerRow:false,cells:Array.from({length:8},(_,col)=>({col,row:0,text:String(col+1),kind:'number'}))}]});
 const bounds=()=>document.querySelector('canvas').getBoundingClientRect();
 const scroller=()=>document.querySelector('.dvn-scroller');

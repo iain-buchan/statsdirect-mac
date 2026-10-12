@@ -1,0 +1,18 @@
+/* Same 20 px Windows outline glyphs, 30 px targets and order in each document. */
+.sd-toolbar { position:relative; flex-shrink:0; color:#24353d; background:#fff; border:1px solid #cdd5d9; border-radius:6px; padding:5px; }
+.sd-toolbar-row { display:flex!important; align-items:center; flex-wrap:nowrap; gap:4px; width:100%; min-width:0; }
+.sd-toolbar button { display:inline-flex; align-items:center; justify-content:center; gap:5px; flex-shrink:0; height:30px; min-width:30px; padding:3px 7px; border:1px solid transparent; border-radius:4px; background:transparent; color:inherit; font:12px -apple-system,sans-serif; white-space:nowrap; cursor:default; }
+.sd-toolbar button.sd-icon { width:30px; padding:4px; }
+.sd-toolbar svg { width:20px; height:20px; flex-shrink:0; }
+.sd-toolbar button:hover:not(:disabled) { background:#edf4f1; border-color:#c9d5d2; }
+.sd-toolbar button:disabled { opacity:.4; }
+.sd-toolbar button:focus-visible { outline:2px solid #23695f; outline-offset:1px; }
+.sd-toolbar button[aria-pressed=true] { background:#d5eae6; border-color:#37897b; color:#145d51; }
+.sd-toolbar [data-group-start] { margin-left:6px; }
+.sd-toolbar-popup { position:absolute; top:calc(100% + 4px); right:0; z-index:50; width:360px; max-width:100%; padding:8px; background:#fff; border:1px solid #c7d4db; border-radius:6px; box-shadow:0 4px 16px #0002; max-height:calc(100vh - 110px); overflow-y:auto; }
+.sd-toolbar-popup[hidden] { display:none!important; }
+.sd-toolbar-overflow { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.sd-toolbar-overflow[hidden] { display:none; }
+.sd-toolbar-overflow:not([hidden]):not(:last-child) { padding-bottom:8px; margin-bottom:6px; border-bottom:1px solid #d8dfe2; }
+.sd-toolbar-popup [data-group-start] { margin-left:0; }
+@media print { .sd-toolbar { display:none!important; } }

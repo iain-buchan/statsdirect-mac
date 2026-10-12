@@ -29,6 +29,7 @@ extension Viewer {
                     doc.workbookName = url.lastPathComponent
                     self.stageSnapshots(in: &workbook, for: doc)
                     doc.pendingWorkbook = workbook
+                    doc.openedFileURL = url
                     doc.rDataFormat = url.pathExtension.lowercased() == "rds" ? "rds" : "RData"
                     self.status.stringValue = "Opened " + url.lastPathComponent
                 }
@@ -70,7 +71,9 @@ extension Viewer {
                         switch result {
                         case .failure(let error): self.showError(error.localizedDescription)
                         case .success:
+                            self.noteRecentDocument(url)
                             if snapshot["canSaveDocument"] as? Bool == true && doc.workbookID == nil {
+                                doc.openedFileURL = url
                                 doc.rDataFormat = format; doc.csvSaveName = nil
                                 if doc.gridVersion == version { doc.gridDirty = false }
                             }

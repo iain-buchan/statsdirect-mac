@@ -549,13 +549,22 @@ import PDFKit
         let pngData=Data(base64Encoded:String(pngURL.dropFirst("data:image/png;base64,".count))) ?? Data()
         let bitmap=NSBitmapImageRep(data:pngData)
         precondition(pngURL.hasPrefix("data:image/png;base64,") && bitmap != nil && abs(Double(bitmap!.pixelsWide)-displayed*2)<3,"chart png: \(pngURL.prefix(40)) \(bitmap?.pixelsWide ?? -1) vs \(displayed)")
+        var pngInk=0
+        for y in 0..<bitmap!.pixelsHigh { for x in 0..<bitmap!.pixelsWide {
+            if let color=bitmap!.colorAt(x:x,y:y)?.usingColorSpace(.deviceRGB),color.alphaComponent>0,
+               min(color.redComponent,color.greenComponent,color.blueComponent)<0.95 {pngInk+=1}
+        } }
+        precondition(pngInk>50,"saved chart PNG is blank: \(pngInk) inked pixels")
         // The saved markup is the chart as other programs read it: text styling as attributes, baseline shifts folded in, and it draws the same pixels.
+        // Wait for SVG decoding before sampling its canvas pixels. Keep both the nonblank
+        // and exact-pixel assertions, with the input markup in any failure diagnostic.
         let same=try await asyncJS("""
         return (()=>{const el=document.getElementById('sr-svg'),out=StatsDirectReportEditor.exportableSvg(el);
           if(out.querySelector('[style]')||!out.getAttribute('height'))return {styled:!!out.querySelector('[style]'),height:out.getAttribute('height')};
-          const draw=markup=>new Promise((ok,bad)=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=200;c.height=80;const x=c.getContext('2d');x.drawImage(img,0,0,200,80);ok(x.getImageData(0,0,200,80).data);};img.onerror=()=>bad(new Error('draw'));img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(markup);});
+          const draw=async markup=>{const img=new Image();img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(markup);await img.decode();if(!img.naturalWidth||!img.naturalHeight)throw new Error('SVG has no decoded dimensions: '+markup);const c=document.createElement('canvas');c.width=200;c.height=80;const x=c.getContext('2d');x.drawImage(img,0,0,200,80);return x.getImageData(0,0,200,80).data;};
           const copy=el.cloneNode(true);copy.setAttribute('xmlns','http://www.w3.org/2000/svg');
-          return Promise.all([draw(new XMLSerializer().serializeToString(copy)),draw(new XMLSerializer().serializeToString(out))]).then(([a,b])=>{let inked=0,differ=0;for(let i=3;i<a.length;i+=4){if(a[i]||b[i])inked++;if(a[i]!==b[i]||a[i-1]!==b[i-1]||a[i-2]!==b[i-2]||a[i-3]!==b[i-3])differ++;}return {inked,differ};});})()
+          const original=new XMLSerializer().serializeToString(copy),exported=new XMLSerializer().serializeToString(out);
+          return Promise.all([draw(original),draw(exported)]).then(([a,b])=>{let inked=0,differ=0;for(let i=3;i<a.length;i+=4){if(a[i]||b[i])inked++;if(a[i]!==b[i]||a[i-1]!==b[i-1]||a[i-2]!==b[i-2]||a[i-3]!==b[i-3])differ++;}return inked>50&&differ===0?{inked,differ}:{inked,differ,original,exported};});})()
         """) as? [String:Any] ?? [:]
         precondition((same["inked"] as? Int ?? 0)>50 && (same["differ"] as? Int ?? 1)==0,"exportable SVG pixels: \(same)")
         _ = try await js("document.getElementById('sr-a1').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");try await settled(report)

@@ -65,6 +65,10 @@ import WebKit
             }
             try check(state["state"] as? String == "complete", "Parent failed: \(operation): \(state)")
             let parent = v.newDocument(kind: "operation", title: operation, url: v.root.appendingPathComponent("Grid/operation.html"))
+            // These parents were calculated from entered fixtures. Do not read
+            // the startup worksheet: its asynchronous ready callback could run
+            // after we bind the completed job and accidentally restart the fit.
+            parent.operationSourceID = "entered-fixture"
             try await wait { parent.operationReady }
             parent.operationName = operation; parent.completedJobID = id
             parent.operationInputEntered = true
@@ -79,7 +83,12 @@ import WebKit
             let fixture = byName[name]!, previous = Set(v.documents.map(\.id))
             let count = report.reportEntries!.count
             v.tabs.selectTabViewItem(parent.item)
-            try await wait { try await parent.web.evaluateJavaScript("Array.from(document.querySelectorAll('.follow-on button')).some(b=>b.textContent===\(v.jsString(title)))") as? Bool == true }
+            do {
+                try await wait { try await parent.web.evaluateJavaScript("Array.from(document.querySelectorAll('.follow-on button')).some(b=>b.textContent===\(v.jsString(title)))") as? Bool == true }
+            } catch {
+                print("Parent diagnostic \(parent.operationName!) → \(name):", (try? await parent.web.evaluateJavaScript("document.body.innerText")) ?? "no page"); fflush(stdout)
+                throw error
+            }
             _ = try await parent.web.evaluateJavaScript("Array.from(document.querySelectorAll('.follow-on button')).find(b=>b.textContent===\(v.jsString(title))).click();true")
             try await wait { v.documents.contains { !previous.contains($0.id) && $0.operationName == name } }
             let child = v.documents.first { !previous.contains($0.id) && $0.operationName == name }!

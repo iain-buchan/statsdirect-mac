@@ -1,3 +1,31 @@
+# Mac 0.3.28 — report and Script toolbars, Open in R — 12 October 2026
+
+Mac reports now expose Cut, Copy and Paste alongside their existing Undo/Redo
+and formatting controls. The Script toolbar adds Undo, Redo, Cut, Copy and Paste;
+Copy also works on selected output. Cut/Paste in read-only output cannot alter
+an old selection in the script. These changes use the Mac host's existing native
+clipboard and undo paths; Windows and the shared editor are unchanged.
+
+Open in R now runs the saved script in a fresh R.app process through a private
+startup profile, retaining the results, variables, editor and Quartz charts.
+An existing R session and the user's startup profile are left intact. RStudio,
+when installed, still opens the script in its editor, matching Windows.
+
+The Release build, 1,552 distribution checks, native R integration, paired
+workflow, script AI dock and report transfer/export suites passed. New checks
+exercise the toolbar buttons, formatting/tables/SVG with undo, read-only output,
+real R startup, once-only execution, quoted Unicode paths and agreement-chart
+creation. The real desktop workflow using test.xlsx's nine PEFR pairs also
+passed: select A/B, paired t with agreement, Run, report context-menu Continue in
+R, then Open in R. R.app's console showed t = 4.925774 and the agreement limits
+-10.868665 to 123.090887, with the Quartz chart visible.
+
+This maintenance release retains 0.3.27's tested engine 5.1.0 pin at `3cc4cbc9`;
+newer engine/help changes on main are outside its scope. The package copies the
+tested app, changing its version, restoring the normal bundle identifier used
+before side-by-side testing, and renewing its outer ad-hoc signature. Apple
+Developer ID signing and notarisation remain outstanding.
+
 # Mac 0.3.27 release verification — 11 October 2026
 
 The tested AI-dock build at `2de31e4` is packaged as 0.3.27, retaining engine 5.1.0

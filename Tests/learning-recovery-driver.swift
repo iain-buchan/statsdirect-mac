@@ -13,7 +13,7 @@ import Darwin
         DispatchQueue.main.asyncAfter(deadline:.now()+0.5) {
             Task { @MainActor in
                 do { try await run(v); print("PASS: Learning streaming selection, isolated renderer recovery, restrictions and bridge lifecycle") }
-                catch { print("FAIL:",error.localizedDescription); fflush(stdout); exit(1) }
+                catch { print("FAIL:",error.localizedDescription,(error as NSError).userInfo); fflush(stdout); exit(1) }
                 fflush(stdout); v.closeApproved = true; app.terminate(nil)
             }
         }
@@ -60,8 +60,11 @@ import Darwin
         v.openLearning(); let d = v.documents.first{$0.kind == "learn"}!
         try await wait("initial Learning page") { guard d.learningState != nil else { return false }; return await yes(v,d,"document.getElementById('messages')") }
         let fixture = try String(contentsOfFile:"Tests/learning-selection.js",encoding:.utf8)
-        _ = try await d.web.evaluateJavaScript(fixture)
-        let selection = try await d.web.callAsyncJavaScript("return await runLearningSelectionChecks()",arguments:[:],in:nil,contentWorld:.page) as! [String:Any]
+        // Installing the fixture returns a function unless explicitly discarded;
+        // WebKit cannot bridge JavaScript functions back to Swift.
+        _ = try await d.web.evaluateJavaScript(fixture + "\n;void 0;")
+        let selection = try await d.web.callAsyncJavaScript("try { return await runLearningSelectionChecks() } catch (error) { return {error: String(error), stack: error.stack} }",arguments:[:],in:nil,contentWorld:.page) as! [String:Any]
+        try check(selection["error"] == nil,"Selection fixture: \(selection)")
         try check((selection["checks"] as? [String])?.count == 10,"Selection checks did not complete")
         print("PASS:",(selection["checks"] as! [String]).joined(separator:"; ")); fflush(stdout)
         try await wait("saved selection fixture") { (d.learningState?["conversation"] as? [[String:Any]])?.contains{$0["id"] as? String == "stopped-fixture"} == true }

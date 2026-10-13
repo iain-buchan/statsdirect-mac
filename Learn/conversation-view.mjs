@@ -6,7 +6,11 @@ function endpoint(container,node,offset){
   if(!body||!message||!container.contains(message))return null;
   const range=container.ownerDocument.createRange();
   range.selectNodeContents(body);range.setEnd(node,offset);
-  return {id:message.dataset.messageId,offset:range.toString().length};
+  // The end of a preceding node and start of the next have the same text
+  // offset, but WebKit can copy an extra paragraph break for the former.
+  // Retain which side of the boundary the learner actually selected.
+  const end=node.nodeType===3?node.length:node.childNodes.length;
+  return {id:message.dataset.messageId,offset:range.toString().length,backward:offset===end};
 }
 function resolve(container,point){
   if(!point)return null;
@@ -15,7 +19,7 @@ function resolve(container,point){
   const walker=container.ownerDocument.createTreeWalker(body,4); // SHOW_TEXT; offsets are DOM UTF-16 offsets.
   let remaining=point.offset,last=null,node;
   while((node=walker.nextNode())){
-    if(remaining<=node.length)return [node,remaining];
+    if(remaining<node.length||(remaining===node.length&&point.backward))return [node,remaining];
     remaining-=node.length;last=node;
   }
   return last?[last,last.length]:[body,0];

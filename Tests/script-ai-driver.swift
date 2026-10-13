@@ -205,6 +205,11 @@ import WebKit
         UserDefaults.standard.set(true,forKey:"DisableOnlineTutor");ai.updateConnection()
         try check(!ai.sendButton.isEnabled && !ai.connection.isEnabled,"institutional AI policy disables connection and Send")
         UserDefaults.standard.set(false,forKey:"DisableOnlineTutor")
+        // Enforcing the policy intentionally shuts down the provider and clears
+        // its account. Reconnect the fixture before testing subsequent replies.
+        _ = try await v.chatGPTTutor.signIn()
+        try await v.chatGPTTutor.refreshAccount()
+        ai.updateConnection()
         try await checkRReplay(v,first,workbook)
         ai.newConversation()
         try check(!ai.contextPanel.isHidden,"a new conversation shows its fresh sharing choices")

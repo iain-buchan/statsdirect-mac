@@ -20212,7 +20212,8 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     const range = container.ownerDocument.createRange();
     range.selectNodeContents(body);
     range.setEnd(node, offset);
-    return { id: message.dataset.messageId, offset: range.toString().length };
+    const end = node.nodeType === 3 ? node.length : node.childNodes.length;
+    return { id: message.dataset.messageId, offset: range.toString().length, backward: offset === end };
   }
   function resolve(container, point) {
     if (!point) return null;
@@ -20222,7 +20223,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     const walker = container.ownerDocument.createTreeWalker(body, 4);
     let remaining = point.offset, last = null, node;
     while (node = walker.nextNode()) {
-      if (remaining <= node.length) return [node, remaining];
+      if (remaining < node.length || remaining === node.length && point.backward) return [node, remaining];
       remaining -= node.length;
       last = node;
     }

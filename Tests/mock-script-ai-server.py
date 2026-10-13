@@ -39,8 +39,16 @@ for line in sys.stdin:
  elif method=='turn/start':
   assert params['sandboxPolicy']=={'type':'readOnly','networkAccess':False}
   thread=params['threadId'];payload=json.loads(params['input'][0]['text'].split('\n',1)[1]);context=json.loads(payload['referenceContext'])
+  assert all(set(m)=={'role','text'} for m in payload['conversation']), 'Local export metadata was sent to AI'
   question=payload['conversation'][-1]['text'];result={'turn':{'id':'turn'}}
   send({'id':request['id'],'result':result})
+  if question=='PEFR_CONTEXT':
+   assert 'before <- c(312' in context['currentScript']['script']
+   code=Path(__file__).with_name('ai-pefr.R').read_text()
+   finish(thread,'```r\nd <- before - after\n```\nThen analyse:\n```r\n'+code+'\n```');continue
+  if question=='PEFR_FOLLOWUP':
+   assert context['documents']==[] and 'currentScript' not in context
+   finish(thread,'```r\nstopifnot(length(d)==9)\nmean(d)\n```');continue
   if question=='CANCEL_TEST':continue
   if question=='STREAM_TEST':
    assert context['documents']==[] and 'currentScript' not in context

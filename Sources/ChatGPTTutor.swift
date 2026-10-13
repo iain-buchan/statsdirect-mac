@@ -45,6 +45,19 @@ final class ChatGPTTutor {
     let extraArguments: [String]
     let runtime: TutorRuntimeInstaller?
     var diagnostic: DiagnosticHandler?
+    // Names received from the runtime are untrusted too: never echo an unknown
+    // method into a learner's saved/exported diagnostics.
+    private static let diagnosticMethods: Set<String> = [
+        "initialize", "account/read", "account/login/start", "account/login/cancel", "account/logout",
+        "account/login/completed", "account/updated", "account/rateLimits/updated",
+        "thread/start", "thread/started", "thread/unsubscribe", "thread/status/changed",
+        "turn/start", "turn/started", "turn/interrupt", "turn/completed",
+        "item/started", "item/completed", "item/tool/call", "item/agentMessage/delta"
+    ]
+    private static let diagnosticTools: Set<String> = [
+        "statsdirect_workspace", "statsdirect_read_data", "statsdirect_read_document",
+        "statsdirect_method_help", "statsdirect_run_analysis", "statsdirect_open_analysis"
+    ]
     private let writer = DispatchQueue(label:"com.statsdirect.tutor-writer")
     private var policyObserver: NSObjectProtocol?
     private var process: Process?
@@ -146,7 +159,7 @@ final class ChatGPTTutor {
         }
     }
     private func request(_ method: String, _ params: [String:Any] = [:], timeout: UInt64 = 30) async throws -> [String:Any] {
-        diagnostic?("request: " + method)
+        diagnostic?("request: " + (Self.diagnosticMethods.contains(method) ? method : "other method"))
         sequence += 1; let id = sequence
         return try await withCheckedThrowingContinuation { continuation in
             let timer = Task { @MainActor [weak self] in
@@ -173,7 +186,7 @@ final class ChatGPTTutor {
                 shutdown(message:"The ChatGPT connection returned an unreadable message. Reconnect to try again."); return
             }
             if let method = message["method"] as? String {
-                if method != "item/agentMessage/delta" { diagnostic?("event: " + method) }
+                if method != "item/agentMessage/delta" { diagnostic?("event: " + (Self.diagnosticMethods.contains(method) ? method : "other notification")) }
                 if let id = message["id"] {
                     if method == "item/tool/call" { toolCall(id, message["params"] as? [String:Any] ?? [:]) }
                     else { try? write(["id":id,"error":["code":-32601,"message":"This capability is not available in StatsDirect Learning."]]) }
@@ -196,7 +209,7 @@ final class ChatGPTTutor {
               let arguments = params["arguments"] as? [String:Any] else { reject("This request is not available in the current learning question."); return }
         guard !reply.toolCalls.contains(call), reply.toolCalls.count < 16 else { reject("Repeated request or tool limit reached. Continue with the results already supplied."); return }
         // Requests may arrive before the turn/start response. Bind to that first turn now.
-        diagnostic?("tool: " + name)
+        diagnostic?("tool: " + (Self.diagnosticTools.contains(name) ? name : "other tool"))
         activeReply?.turn = turn; activeReply?.toolCalls.insert(call)
         activeReply?.toolTasks[call] = Task { @MainActor [weak self] in
             guard let self else { return }

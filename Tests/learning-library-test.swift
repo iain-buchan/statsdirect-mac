@@ -13,7 +13,7 @@ import Foundation
             precondition(json.count <= 6500)
             let fullBudget = 8000 + context.count + 6000 + 9560 + 400
             precondition(fullBudget < 32000)
-            precondition(LearningLibrary.source(for:lesson)["title"]!.contains("2026-10-01"))
+            precondition(LearningLibrary.source(for:lesson)["title"]!.contains(lesson["contentVersion"] as! String))
         }
         precondition(LearningLibrary.context(for:["title":"Old provider lesson"]) == nil)
         print("PASS: all 12 complete curated lessons reach bounded, parseable native tutor context; old packs remain compatible")

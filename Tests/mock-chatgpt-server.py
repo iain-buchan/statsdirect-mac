@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """A split-frame stdio protocol fixture. No OpenAI calls or credentials."""
 import json, os, sys, time, threading
+from pathlib import Path
 assert os.environ['CODEX_HOME'].endswith('chatgpt-mock')
 assert 'OPENAI_API_KEY' not in os.environ
 assert 'CODEX_APP_SERVER_URL' not in os.environ
@@ -59,6 +60,20 @@ for line in sys.stdin:
         assert params['sandboxPolicy'] == {'type':'readOnly','networkAccess':False}
         text = params['input'][0]['text']; thread = params['threadId']; turn = 'turn-' + thread
         latest = json.loads(text.split('\n',1)[1])['conversation'][-1]['text']
+        if 'PRIVATE_EVENT_TEST' in latest:
+            notify('PRIVATE_SENTINEL_event_name',{'private':'PRIVATE_SENTINEL_body'})
+            notify('thread/status/changed',{'private':'PRIVATE_SENTINEL_known_body'})
+        if 'PRIVATE_PARSE_TEST' in latest:
+            sys.stdout.write('{"PRIVATE_SENTINEL_malformed": not-json}\n'); sys.stdout.flush(); continue
+        if 'PRIVATE_ERROR_TEST' in latest:
+            send({'id':request['id'],'error':{'code':-32000,'message':'PRIVATE_SENTINEL_exception','data':'PRIVATE_SENTINEL_data'}}); continue
+        if 'RISK_METHOD_TEST' in latest:
+            context = json.loads(text.split('\n',1)[1])['referenceContext']
+            lessons = json.loads((Path(__file__).resolve().parents[1]/'Content/Learn/lessons.json').read_text())
+            lesson = next(l for l in lessons if l['id'] == 'risk')
+            assert lesson['r'] in context  # Includes the complete helper and its actual call.
+            assert lesson['workedExample']['interpretation'] in context
+            assert '2026-10-12' in context and 'METHOD CATALOGUE:' in context and len(context) < 32000
         if 'LIBRARY_TEST' in latest:
             context = json.loads(text.split('\n',1)[1])['referenceContext']
             marker = 'CURATED STATSDIRECT LESSON (original teaching material; references are editorial links, not pages fetched during this conversation):\n'

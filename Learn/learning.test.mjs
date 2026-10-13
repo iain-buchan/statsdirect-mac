@@ -41,6 +41,19 @@ test('bundled R examples run without packages, use exact fictional rows, and pro
  const dir=mkdtempSync(tmpdir()+'/statsdirect-learn-');
  try{for(const l of lessons){const script=dir+'/'+l.id+'.R';writeFileSync(script,`pdf(${JSON.stringify(dir+'/'+l.id+'.pdf')})\n${l.r}\n${lessonChecks[l.id]}\ndev.off()\n`);const output=execFileSync('/Library/Frameworks/R.framework/Resources/bin/Rscript',['--vanilla',script],{encoding:'utf8'});assert.ok(existsSync(dir+'/'+l.id+'.pdf'));if(l.id==='paired'){assert.match(output,/Paired t-test/);assert.match(output,/5.25/);}}}finally{rmSync(dir,{recursive:true});}
 });
+test('optional I-squared extension truncates below zero and responds to greater heterogeneity',()=>{
+ const dir=mkdtempSync(tmpdir()+'/statsdirect-meta-');
+ try{
+  const lesson=lessons.find(l=>l.id==='meta');assert.match(lesson.r,/if \(FALSE\)/);
+  for(const effect of [null,'c(-0.04,-0.18,-0.03)']){
+   let code=lesson.r.replace('if (FALSE)','if (TRUE)');
+   if(effect)code=code.replace(/effect <- c\([^)]*\)/,`effect <- ${effect}`);
+   const check=effect?'stopifnot(q>study_df,i_squared>0,i_squared<100,abs(i_squared-100*(q-2)/q)<1e-12)':'stopifnot(abs(q-1.25)<1e-12,study_df==2,i_squared==0)';
+   const script=dir+'/meta.R';writeFileSync(script,`pdf(${JSON.stringify(dir+'/meta.pdf')})\n${code}\n${check}\ndev.off()\n`);
+   execFileSync('/Library/Frameworks/R.framework/Resources/bin/Rscript',['--vanilla',script],{encoding:'utf8'});
+  }
+ }finally{rmSync(dir,{recursive:true});}
+});
 test('saved goals round trip; malformed nested records are rejected before replacement',()=>{
  const p=newPortfolio();p.learning.qualifications='MRCGP AKT';p.learning.needs='Causal inference and diagnostic test interpretation';p.quiz=createSession('foundation','learn');
  const restored=restorePortfolio(JSON.parse(JSON.stringify(p)));
@@ -68,4 +81,14 @@ test('sharing confirmations persist in the learning record and exports; old port
  p.sharingConsents=[c];const restored=restorePortfolio(JSON.parse(JSON.stringify(p))),record=reviewRecord(restored);
  assert.deepEqual(record.sharingConsents,[c]);assert.match(reviewText(record),/DOCUMENT SHARING CONFIRMATIONS/);assert.match(reviewText(record),/Synthetic data \(grid\) · revision 3/);
  for(const bad of [{...c,noPersonIdentifiers:false},{...c,documents:[{title:'incomplete'}]}])assert.throws(()=>restorePortfolio({...p,sharingConsents:[bad]}),/sharing confirmations/);
+});
+
+test('local R replay snapshots survive reopening but stay out of learner exports and provider conversation',async()=>{
+ const {conversationForTutor}=await import('./lesson-context.mjs');
+ const p=newPortfolio();transcriptEntry(p,'user','Explain pairing','Learner',{lessonId:p.lesson});
+ p.rContexts={request:{userMessageID:p.conversation[0].id,rSource:'PRIVATE_SOURCE_SNAPSHOT',rData:'PRIVATE_DATA_SNAPSHOT'}};
+ const restored=restorePortfolio(JSON.parse(JSON.stringify(p)));
+ assert.equal(restored.rContexts.request.rSource,'PRIVATE_SOURCE_SNAPSHOT');
+ assert.doesNotMatch(JSON.stringify(reviewRecord(restored)),/PRIVATE_(SOURCE|DATA)_SNAPSHOT/);
+ assert.doesNotMatch(JSON.stringify(conversationForTutor(restored)),/PRIVATE_(SOURCE|DATA)_SNAPSHOT/);
 });

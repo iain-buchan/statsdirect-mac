@@ -4,26 +4,38 @@ import UniformTypeIdentifiers
 
 extension Viewer {
     var learningFolder: URL {
-        FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
+        if let learningStorageOverride { return learningStorageOverride }
+        return FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
             .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.statsdirect.viewer.prototype").appendingPathComponent("Learning")
     }
     var learningDiagnostics: [String:Any] {
         let runtime = (try? JSONSerialization.jsonObject(with:Data(contentsOf:root.appendingPathComponent("Tutor/runtime.json")))) as? [String:Any]
-        return ["appVersion":Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development", "engineVersion":engineVersion,"engineRevision":engineRevision,"tutorRuntime":runtime?["version"] ?? "unknown","promptVersion":"statsdirect-chatgpt-tutor-v4","libraryVersion":learningLessons.first?["contentVersion"] ?? "unknown"]
+        return ["appVersion":Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "development", "engineVersion":engineVersion,"engineRevision":engineRevision,"tutorRuntime":runtime?["version"] ?? "unknown","promptVersion":"statsdirect-chatgpt-tutor-v4","libraryVersion":learningLessons.compactMap{$0["contentVersion"] as? String}.max() ?? "unknown"]
     }
     var learningLessons: [[String: Any]] {
         (try? JSONSerialization.jsonObject(with:Data(contentsOf:root.appendingPathComponent("Learn/lessons.json")))) as? [[String:Any]] ?? []
     }
     @objc func openLearning() {
-        if let existing = documents.first(where:{$0.kind == "learn"}) { tabs.selectTabViewItem(existing.item); return }
+        if let existing = documents.first(where:{$0.kind == "learn"}) { recoverLearningRenderer(existing); tabs.selectTabViewItem(existing.item); return }
         newDocument(kind:"learn",title:"Learning",url:root.appendingPathComponent("Learn/index.html"))
     }
     @objc func openLearningOptions() {
-        if let existing = documents.first(where:{$0.kind == "learn"}) { tabs.selectTabViewItem(existing.item); learningScript(existing,"showOptions",NSNull()); return }
+        if let existing = documents.first(where:{$0.kind == "learn"}) {
+            recoverLearningRenderer(existing); tabs.selectTabViewItem(existing.item)
+            if existing.learningRendererReady { learningScript(existing,"showOptions",NSNull()) }
+            else { existing.initialLearningView = "options" }; return
+        }
         let doc = newDocument(kind:"learn",title:"Learning",url:root.appendingPathComponent("Learn/index.html")); doc.initialLearningView = "options"
     }
     func learningScript(_ doc: Document, _ action: String, _ value: Any) {
-        guard documents.contains(where:{$0 === doc}), let data = try? JSONSerialization.data(withJSONObject:value,options:[.fragmentsAllowed]) else { return }
+        guard documents.contains(where:{$0 === doc}) else { return }
+        if ["partial","reply","tutorError"].contains(action), let payload = value as? [String:Any],
+           let id = payload["id"] as? String,
+           id == doc.learningRequestID || id == (doc.learningReplyEvent?["value"] as? [String:Any])?["id"] as? String {
+            doc.learningReplyEvent = ["action":action,"value":payload,"partial":action == "partial" ? payload["text"] as? String ?? "" : doc.learningReplyEvent?["partial"] as? String ?? ""]
+        }
+        guard doc.learningRendererReady, !doc.learningNeedsRecovery,
+              let data = try? JSONSerialization.data(withJSONObject:value,options:[.fragmentsAllowed]) else { return }
         doc.web.evaluateJavaScript("window.statsDirectLearn?.\(action)(\(String(decoding:data,as:UTF8.self)))")
     }
     func learningSettings(_ doc: Document) {
@@ -31,17 +43,23 @@ extension Viewer {
     }
     func handleLearning(_ message: WKScriptMessage) {
         guard message.name == "statsDirectLearn", message.frameInfo.isMainFrame,
-              let web = message.webView, let doc = document(for:web), doc.kind == "learn",
+              let web = message.webView, let doc = document(for:web), doc.kind == "learn", !doc.learningNeedsRecovery,
               web.url?.standardizedFileURL == root.appendingPathComponent("Learn/index.html").standardizedFileURL,
               let body = message.body as? [String:Any], let action = body["action"] as? String else { return }
         switch action {
         case "ready":
+            guard !doc.learningRendererReady else { return }
+            doc.learningRendererReady = true
+            doc.learningBridgeGeneration = UUID().uuidString
+            learningScript(doc,"bridgeGeneration",doc.learningBridgeGeneration)
             do {
                 let url = learningFolder.appendingPathComponent("portfolio.json")
-                if FileManager.default.fileExists(atPath:url.path) {
+                if let state = doc.learningState { learningScript(doc,"restore",state) }
+                else if FileManager.default.fileExists(atPath:url.path) {
                     let data = try Data(contentsOf:url)
                     guard data.count <= 10_000_000 else { throw LearningTutor.Failure(message:"The saved learning record is too large to open. Export a copy from the Learning folder.") }
                     let saved = try JSONSerialization.jsonObject(with:data)
+                    doc.learningRContexts = (saved as? [String:Any])?["rContexts"] as? [String:[String:String]] ?? [:]
                     learningScript(doc,"restore",saved)
                 } else { learningScript(doc,"restore",NSNull()) }
                 learningSettings(doc)
@@ -52,6 +70,7 @@ extension Viewer {
                     catch { self.learningScript(doc,"notice",error.localizedDescription) }
                 }
                 coursePackInfo(doc)
+                if let event = doc.learningReplyEvent { learningScript(doc,"resumeReply",event) }
                 if doc.initialLearningView == "options" { doc.initialLearningView = nil; learningScript(doc,"showOptions",NSNull()) }
             } catch { learningScript(doc,"loadError",error.localizedDescription) }
         case "save":
@@ -59,6 +78,11 @@ extension Viewer {
                   let data = try? JSONSerialization.data(withJSONObject:state,options:[.prettyPrinted,.sortedKeys]), data.count <= 10_000_000 else { learningScript(doc,"notice","The learning record could not be saved. Export it before closing."); return }
             do {
                 try persistLearningState(doc,state)
+                if let event = doc.learningReplyEvent, event["action"] as? String != "partial",
+                   let id = (event["value"] as? [String:Any])?["id"] as? String,
+                   (state["conversation"] as? [[String:Any]])?.contains(where:{$0["id"] as? String == id}) == true || (state["diagnostics"] as? [String:Any])?["requestID"] as? String == id {
+                    doc.learningReplyEvent = nil
+                }
                 learningScript(doc,"saved",body["revision"] ?? 0)
             } catch { learningScript(doc,"notice","Learning record was not saved: " + error.localizedDescription) }
         case "importCoursePack": importCoursePack(doc)
@@ -71,7 +95,11 @@ extension Viewer {
             refreshLearningWorkspace(doc)
         case "settings": configureLearningAI(doc)
         case "ask": askLearningTutor(doc,body)
-        case "cancel": doc.learningTask?.cancel(); doc.learningTask = nil; doc.learningRequestID = nil; chatGPTTutor.cancelReply(); learningScript(doc,"tutorError",["id":body["id"] ?? "","message":"Reply stopped. You can send another question."])
+        case "cancel":
+            guard body["id"] as? String == doc.learningRequestID else { return }
+            doc.learningTask?.cancel(); doc.learningTask = nil; doc.learningRequestID = nil
+            chatGPTTutor.diagnostic = nil; chatGPTTutor.cancelReply()
+            learningScript(doc,"tutorError",["id":body["id"] ?? "","message":"Reply stopped. You can send another question."])
         case "help":
             if let id = body["lesson"] as? String, let lesson = (learningLessons + providerLessons).first(where:{$0["id"] as? String == id}), let help = lesson["help"] as? String, !help.isEmpty {
                 openHelp(root.appendingPathComponent("Help/" + help),title:lesson["title"] as? String ?? "Learning")
@@ -81,14 +109,29 @@ extension Viewer {
         case "copyCode":
             if let code=body["code"] as? String, code.utf8.count<=100_000 { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(code,forType:.string) }
         case "openRCode":
-            if let code=body["code"] as? String, code.utf8.count<=100_000 {
-                makeRScript(script: code, title: "Tutor example", saved: true)
-                status.stringValue="Review the tutor's R code, then choose Run"
-            }
+            guard body["generation"] as? String == doc.learningBridgeGeneration,
+                  let messageID=body["messageID"] as? String, let blockIndex=body["blockIndex"] as? Int,
+                  let lessonID=body["lessonID"] as? String, lessonID == doc.learningState?["lesson"] as? String else { return }
+            do {
+                let code=try learningRScript(doc,messageID:messageID,lessonID:lessonID,blockIndex:blockIndex)
+                makeRScript(script:code,title:"Tutor example",saved:false)
+                status.stringValue="Review the source, earlier examples and suggested R code before choosing Run"
+            } catch { learningScript(doc,"notice",error.localizedDescription) }
         case "export": exportLearningRecord(doc,body:body,email:false)
         case "email": exportLearningRecord(doc,body:body,email:true)
         default: break
         }
+    }
+    func learningRScript(_ doc: Document,messageID: String,lessonID: String,blockIndex: Int) throws -> String {
+        let rows=(doc.learningState?["conversation"] as? [[String:Any]] ?? []).filter{$0["lessonId"] as? String == lessonID || ($0["lessonId"] == nil && lessonID == "epidemiology")}
+        let messages: [[String:String]]=rows.map { row in
+            var result=["id":row["id"] as? String ?? "","role":row["role"] as? String ?? "","text":row["text"] as? String ?? ""]
+            if let context=doc.learningRContexts.values.first(where:{$0["userMessageID"]==result["id"]}) { result["rSource"]=context["rSource"] }
+            if let context=doc.learningRContexts[result["id"] ?? ""] { result["rData"]=context["rData"] }
+            return result
+        }
+        guard let index=messages.firstIndex(where:{$0["id"]==messageID}) else { throw ConversationRScript.Failure(message:"That conversation has changed. Select its R code again.") }
+        return try ConversationRScript.build(messages,messageIndex:index,blockIndex:blockIndex)
     }
     func configureLearningAI(_ doc: Document) {
         func notice(_ text: String) {
@@ -156,7 +199,9 @@ extension Viewer {
         guard let lessonID = body["lesson"] as? String, let lesson = (learningLessons + providerLessons).first(where:{$0["id"] as? String == lessonID}),
               let messages = body["messages"] as? [[String:String]], let profile = body["profile"] as? String, let stage = body["stage"] as? String else { return }
         var context = "Learner pathway: \(profile.prefix(100)). R experience: \(stage.prefix(100)).\n"
-        for field in ["title","objective","summary","challenge","steps","r"] { context += "\(field): \((lesson[field] as? String ?? "").prefix(field == "title" ? 200 : 1500))\n" }
+        // Include the complete bundled R examples, including the score-interval helper.
+        // The overall lesson/profile budget below stays unchanged.
+        for field in ["title","objective","summary","challenge","steps","r"] { context += "\(field): \((lesson[field] as? String ?? "").prefix(field == "title" ? 200 : field == "r" ? 4000 : 1500))\n" }
         if let question = body["practiceContext"] as? String { context += "Practice discussion: \(question.prefix(6000))\n" }
         if let goals = body["learningGoals"] as? [String:Any] {
             for field in ["statisticalSkills","needs","qualifications","priorKnowledge","targetDate","style"] { if let text = goals[field] as? String { context += "Learner \(field): \(text.prefix(1000))\n" } }
@@ -205,14 +250,20 @@ extension Viewer {
             }
         }
         doc.learningRequestID = id
+        doc.learningReplyEvent = ["action":"partial","value":["id":id,"text":""],"partial":""]
         doc.learningTask = Task { @MainActor [weak self, weak doc] in
             guard let self, let doc else { return }
             var diagnostics: [String] = []
             self.chatGPTTutor.diagnostic = { event in if diagnostics.count < 120 { diagnostics.append(event) } }
-            defer { self.chatGPTTutor.diagnostic = nil; if doc.learningRequestID == id { doc.learningTask = nil; doc.learningRequestID = nil; self.refreshLearningWorkspace(doc) } }
+            defer { if doc.learningRequestID == id { self.chatGPTTutor.diagnostic = nil; doc.learningTask = nil; doc.learningRequestID = nil; self.refreshLearningWorkspace(doc) } }
             do {
                 let workspace = LearningWorkspace(self,doc,id)
                 try await workspace.authorize()
+                @MainActor func keepRContext() {
+                    doc.learningRContexts[id] = ["userMessageID":body["userMessageID"] as? String ?? "","rSource":workspace.rSource,"rData":workspace.rData]
+                    if let state=doc.learningState { try? self.persistLearningState(doc,state) }
+                }
+                keepRContext()
                 let overview = try await workspace.overview()
                 let metadata = String(decoding:try JSONSerialization.data(withJSONObject:overview,options:[.sortedKeys]),as:UTF8.self)
                 let methods = self.analysisCatalog.keys.sorted().map { $0 + ": " + (self.analysisCatalog[$0]?["title"] as? String ?? $0) }.joined(separator:"\n")
@@ -222,7 +273,8 @@ extension Viewer {
                     guard let self,let doc,doc.learningRequestID==id else { return }
                     self.learningScript(doc,"partial",["id":id,"text":text])
                 },toolHandler:{ name, arguments in
-                    try await workspace.call(name,arguments)
+                    let value = try await workspace.call(name,arguments)
+                    keepRContext(); return value
                 })
                 try Task.checkCancellation()
                 guard doc.learningRequestID == id else { return }

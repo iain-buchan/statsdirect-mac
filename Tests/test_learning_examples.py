@@ -1,10 +1,49 @@
 from r_runtime import rscript as find_rscript
 """Verify the new worksheet examples against the unchanged Windows core and base R."""
 from pathlib import Path
-import json, math, subprocess
+import csv, json, math, subprocess, tempfile
 from test_menu import Session, columns
 root=Path(__file__).resolve().parents[1]
 lessons={l['id']:l for l in json.loads((root/'Content/Learn/lessons.json').read_text())}
+
+def lesson_r_intervals():
+ # Run the actual shipped script and then reuse its helper with changed counts.
+ # Include boundaries, unequal sizes, rare events and several confidence levels.
+ cases=[(28,200,16,200),(0,20,0,20),(20,20,20,20),(0,20,20,20),
+        (20,20,0,20),(0,3,2,5),(3,3,2,5),(1,1,0,1),
+        (1,7,10,100),(1,1000,8,1500),(17,20,2,80),(1,2,1,2)]
+ with tempfile.TemporaryDirectory(prefix='statsdirect-learning-intervals-') as folder:
+  folder=Path(folder)
+  rows=[[*case,level] for level in (.90,.95,.99) for case in cases]
+  counts=','.join(str(value) for row in rows for value in row)
+  (folder/'check.R').write_text(f'pdf({json.dumps(str(folder/"plot.pdf"))})\n'+lessons['risk']['r']+f'''
+cases <- as.data.frame(matrix(c({counts}),ncol=5,byrow=TRUE))
+names(cases) <- c("x1","n1","x0","n0","level")
+limits <- t(apply(cases,1,function(v) {{
+  ci <- mn_interval(v[1],v[2],v[3],v[4],v[5])
+  reverse <- mn_interval(v[3],v[4],v[1],v[2],v[5])
+  complement <- mn_interval(v[2]-v[1],v[2],v[4]-v[3],v[4],v[5])
+  estimate <- v[1]/v[2]-v[3]/v[4]
+  stopifnot(all(is.finite(ci)),ci[1]>= -1,ci[2]<=1,
+            ci[1]<=estimate,ci[2]>=estimate,
+            max(abs(ci+rev(reverse)))<1e-11,
+            max(abs(ci+rev(complement)))<1e-11)
+  ci
+}}))
+for(i in seq_len({len(cases)})) {{
+  stopifnot(limits[i,1]>=limits[i+{len(cases)},1],limits[i,2]<=limits[i+{len(cases)},2],
+            limits[i+{len(cases)},1]>=limits[i+{2*len(cases)},1],limits[i+{len(cases)},2]<=limits[i+{2*len(cases)},2])
+}}
+for(bad in list(c(-1,20,2,20,.95),c(21,20,2,20,.95),c(1.5,20,2,20,.95),
+                c(0,0,2,20,.95),c(1,20,2,20,1),c(1,20,2,20,0))) {{
+  stopifnot(inherits(try(do.call(mn_interval,as.list(bad)),silent=TRUE),"try-error"))
+}}
+write.csv(cbind(cases,limits),{json.dumps(str(folder/"intervals.csv"))},row.names=FALSE)
+dev.off()
+''')
+  subprocess.run([find_rscript(),'--vanilla',str(folder/'check.R')],check=True,capture_output=True,text=True)
+  return list(csv.DictReader((folder/'intervals.csv').open()))
+
 s=Session()
 try:
  paired=lessons['paired']['columns']
@@ -24,12 +63,25 @@ try:
  diagnostic=s.run('MiscDiagnostic',{'scrap':columns([72,18],[81,729])})['values']
  for key,value in [('sensitive',.8),('specific',.9),('likely',8/17),('likely_negative',81/83)]:
   assert math.isclose(diagnostic[key],value,rel_tol=1e-12),(key,diagnostic[key])
- print('PASS learning diagnostic denominators and grid orientation')
+ for key,value in [('sensitive_from',.702457549867273),('sensitive_to',.8769444539890856)]:
+  assert math.isclose(diagnostic[key],value,rel_tol=1e-11),(key,diagnostic[key])
+ print('PASS learning diagnostic denominators, grid orientation and Clopper-Pearson interval')
  benefit=s.run('MiscNumberNeededToTreat',{'nt':200,'xt':16,'nc':200,'xc':28})['values']
  assert math.isclose(benefit['rd'],.06) and math.isclose(benefit['rre'],4/7)
  assert benefit['treat_round']=='17_benefit'
  assert benefit['rd_from']<0<benefit['rd_to']
- print('PASS learning NNT: direction, point estimate and uncertainty spanning no effect')
+ assert math.isclose(benefit['rd_from'],-.00144505772741457,abs_tol=1e-12)
+ assert math.isclose(benefit['rd_to'],.123548112373396,abs_tol=1e-12)
+ print('PASS learning NNT: direction, point estimate and Miettinen-Nurminen uncertainty spanning no effect')
+ interval_rows=lesson_r_intervals()
+ for row in interval_rows:
+  result=s.run('PropUnPaired',{'n1':int(row['n1']),'r1':int(row['x1']),
+                             'n2':int(row['n0']),'r2':int(row['x0'])},
+               {'default-ci':str(round(float(row['level'])*100))})['values']
+  assert result['ci']==round(float(row['level'])*100),result
+  for r_key,engine_key in [('lower','from'),('upper','to')]:
+   assert math.isclose(float(row[r_key]),result[engine_key],abs_tol=1e-11,rel_tol=1e-11),(row,result)
+ print(f'PASS learning R score interval: {len(interval_rows)} Windows-core comparisons at 90/95/99%, including zero/all events, unequal groups, symmetry, widening intervals and invalid input')
  cohort=s.run('MiscRelRisk',{'scrap':columns([30,270],[15,285])})['values']
  assert cohort['ratio']==2 and math.isclose(cohort['dif'],.05)
  print('PASS learning cohort: event/non-event counts, risks and reference group')

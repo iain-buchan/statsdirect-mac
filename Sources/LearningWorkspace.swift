@@ -14,6 +14,9 @@ import WebKit
     var datasets: [String:(document:String, version:Int, value:[String:Any])] = [:]
     var results: [String:[String:Any]] = [:]
     var sources: [String] = []
+    private var scriptSnapshots: [String:[String:Any]] = [:]
+    private(set) var rSource = ""
+    private(set) var rData = ""
     var calculationBusy = false
     init(_ viewer: Viewer, _ learner: Document, _ requestID: String) {
         self.viewer = viewer; self.learner = learner; self.requestID = requestID
@@ -40,6 +43,12 @@ import WebKit
             try await viewer.recordLearningSharing(learner,requestID,candidates)
             try check()
             allowed = Set(candidates.map(\.id))
+            for doc in candidates {
+                if let pane=doc.rPane {
+                    rSource += pane.editor.string + "\n\n"
+                    scriptSnapshots[doc.id] = ["title":doc.title,"kind":"r","script":String(pane.editor.string.prefix(12000)),"output":String(pane.console.string.suffix(16000)),"truncated":pane.editor.string.count > 12000 || pane.console.string.count > 16000,"running":pane.isRunning,"snapshot":true]
+                }
+            }
         }
     }
     func check() throws {
@@ -90,6 +99,8 @@ import WebKit
             guard doc.gridVersion == version else { throw ChatGPTTutor.Failure(message:"The worksheet changed while reading it. Read the range again.") }
             let id = UUID().uuidString
             data["datasetId"] = id; data["documentId"] = doc.id
+            let code = try ConversationRScript.dataset(data)
+            data["rCode"] = code; rData += code + "\n"
             datasets[id] = (doc.id,version,data)
             let source = "\(data["workbook"] ?? doc.title) · \(data["sheet"] ?? "") · \(data["range"] ?? "") · \(data["rowCount"] ?? 0) rows"
             remember(source)
@@ -99,9 +110,7 @@ import WebKit
             let doc = try document(arguments["documentId"] as? String ?? "")
             guard ["report","help","operation","analysis","r"].contains(doc.kind) else { throw ChatGPTTutor.Failure(message:"Use read_data for worksheet values.") }
             remember(doc.title)
-            if let pane = doc.rPane {
-                return ["title":doc.title,"kind":"r","script":String(pane.editor.string.prefix(12000)),"output":String(pane.console.string.suffix(16000)),"truncated":pane.editor.string.count > 12000 || pane.console.string.count > 16000,"running":pane.isRunning]
-            }
+            if let snapshot = scriptSnapshots[doc.id] { return snapshot }
             var value = try await viewer.learningJavaScript(doc,"({text:document.body.innerText.slice(0,18000),truncated:document.body.innerText.length>18000,fields:Array.from(document.querySelectorAll('input:not([type=hidden]),select,textarea')).slice(0,80).map(x=>({name:x.name||x.id,value:x.value,checked:x.checked}))})")
             if doc.kind == "operation" { value["inputs"] = try await viewer.learningJavaScript(doc,"window.statsDirectOperation.tutorSnapshot()") }
             if doc.kind == "analysis" { value["inputs"] = try await viewer.learningJavaScript(doc,"window.statsDirectChiSquare.tutorSnapshot()") }
@@ -166,9 +175,11 @@ import WebKit
 
 extension Viewer {
     func learningJavaScript(_ doc: Document, _ script: String) async throws -> [String:Any] {
-        try await withCheckedThrowingContinuation { continuation in
-            doc.web.evaluateJavaScript(script) { value,error in
-                if let error { continuation.resume(throwing:error) }
+        let web = doc.web
+        return try await withCheckedThrowingContinuation { continuation in
+            web.evaluateJavaScript(script) { value,error in
+                if doc.web !== web || !self.documents.contains(where:{$0 === doc}) { continuation.resume(throwing:ChatGPTTutor.Failure(message:"The document was reopened or closed. Please try again.")) }
+                else if let error { continuation.resume(throwing:error) }
                 else if let value = value as? [String:Any] { continuation.resume(returning:value) }
                 else { continuation.resume(throwing:ChatGPTTutor.Failure(message:"The document is still loading. Return to it and try again.")) }
             }

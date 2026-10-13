@@ -2,6 +2,8 @@
 
 Content revision: **1 October 2026**. Twelve original lessons, 35 fixed-key practice questions (five added in this revision), 24 discussion prompts and 12 runnable base-R examples. The original seven lessons retain their IDs, core examples and challenge history. Added lessons cover population rates and standardisation, trial appraisal, missing data, prediction validation and meta-analysis.
 
+**12 October refinement:** four lessons now explain matching StatsDirect/R interval methods, sensible narrative rounding, the borderline NNT example and optional I² learning. The risk lesson explicitly uses Miettinen–Nurminen in R. See the [refinement and verification record](CONTENT-REFINEMENTS-2026-10-12.md); the earlier verification below records the original library enrichment.
+
 ## Authoritative content
 
 Edit `Learn/lessons.json`, then publish with `python3 Learn/create-lessons.py` and bundle with `node Learn/build.mjs`. `Content/Learn/lessons.json` is the shipped copy. Both browser and practice bundles use that copy, avoiding duplicate catalogues in the generated JavaScript. No new database, online resource fetching or learner URL-management form is introduced.

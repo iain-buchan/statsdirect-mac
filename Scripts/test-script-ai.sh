@@ -25,4 +25,5 @@ rsync -a --delete Content/ "$TEST_APP/Contents/Resources/Content/"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Script AI Test' "$TEST_APP/Contents/Info.plist"
 codesign --force --sign - "$TEST_APP"
 printf 'Test app: %s\n' "$TEST_APP"
+if [[ "${STATSDIRECT_TEST_BUILD_ONLY:-0}" == "1" ]]; then echo "PASS: native test app compiled: $TEST_APP"; exit 0; fi
 "$TEST_APP/Contents/MacOS/$EXECUTABLE" --run-tests "${@:2}"

@@ -7,7 +7,7 @@ import Darwin
 final class Document {
     let id = UUID().uuidString
     let kind: String
-    let web: WKWebView
+    var web: WKWebView
     let item: NSTabViewItem
     var title: String
     var access: URL
@@ -44,6 +44,11 @@ final class Document {
     var learningSourceID = "__none__"
     var learningContextRevision = 0
     var learningState: [String: Any]?
+    var learningRendererReady = false
+    var learningNeedsRecovery = false
+    var learningReplyEvent: [String:Any]?
+    var learningRContexts: [String:[String:String]] = [:]
+    var learningBridgeGeneration = UUID().uuidString
     var initialLearningView: String?
     var initialOperationSource: [String: Any]?
     var operationSourceID: String?
@@ -75,15 +80,20 @@ final class Document {
     var findBar: ReportFindBar?
     init(kind: String, title: String, access: URL) {
         self.kind = kind; self.title = title; self.access = access
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = .nonPersistent()
-        config.setURLSchemeHandler(SnapshotStore.shared, forURLScheme: SnapshotStore.scheme)
-        let view = ReportWebView(frame: .zero, configuration: config)
+        let view = Self.makeWebView()
         web = view
         item = NSTabViewItem(identifier: id)
         view.document = self
         item.label = title
         item.view = kind == "report" ? reportFindHost() : web
+    }
+    static func makeWebView() -> ReportWebView {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        config.preferences.javaScriptCanOpenWindowsAutomatically = false
+        config.mediaTypesRequiringUserActionForPlayback = .all
+        config.setURLSchemeHandler(SnapshotStore.shared, forURLScheme: SnapshotStore.scheme)
+        return ReportWebView(frame: .zero, configuration: config)
     }
 }
 
@@ -126,6 +136,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         return tutor
     }()
     var learningLastDocumentID: String?
+    // Native test hosts inject an isolated writable portfolio directory.
+    var learningStorageOverride: URL?
     var openingTutorConnection = false
     var windowsMenu: NSMenu!
     var running = false
@@ -394,7 +406,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         if let doc = active {
             scriptAI.activeDocumentChanged(doc)
-            if doc.kind == "learn" { refreshLearningWorkspace(doc) }
+            if doc.kind == "learn" { recoverLearningRenderer(doc); refreshLearningWorkspace(doc) }
             else { learningLastDocumentID = doc.id }
         }
         if let doc = active, doc.kind == "grid" { analysisSourceID = doc.id }
@@ -527,6 +539,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         } else { remove(doc) }
     }
     func remove(_ doc: Document) {
+        if doc.kind == "learn" { retainLearningReplyOnClose(doc) }
         if let id = doc.workbookID { workbookRequest(["action": "close", "id": id]) { _ in } }
         if let id = doc.completedJobID { doc.completedJobID = nil; analysisRequest(["action": "release", "id": id], entry: "statsdirect_operation") { _ in } }
         for id in doc.snapshotIDs { SnapshotStore.shared.forget(id) }; doc.snapshotIDs = []
@@ -535,7 +548,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectAnalysis")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectOperation")
         doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectLearn")
-        doc.learningTask?.cancel(); doc.learningTask = nil
+        doc.learningRequestID = nil; doc.learningTask?.cancel(); doc.learningTask = nil
         doc.learningResourceTask?.cancel(); doc.learningResourceTask = nil
         doc.rPane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }
@@ -595,8 +608,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let alert = NSAlert(); alert.messageText = "StatsDirect"; alert.informativeText = message; alert.beginSheetModal(for: window)
     }
     func document(for web: WKWebView) -> Document? { documents.first { $0.web === web } }
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { if (error as NSError).code != NSURLErrorCancelled { showError(error.localizedDescription) } }
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if (error as NSError).code != NSURLErrorCancelled { showError(error.localizedDescription) } }
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { if let doc = document(for:webView), !doc.learningNeedsRecovery, (error as NSError).code != NSURLErrorCancelled { showError(error.localizedDescription) } }
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if let doc = document(for:webView), !doc.learningNeedsRecovery, (error as NSError).code != NSURLErrorCancelled { showError(error.localizedDescription) } }
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url, let doc = document(for: webView) else { decisionHandler(.cancel); return }
         if url.isFileURL {

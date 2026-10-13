@@ -10,6 +10,6 @@ export function lessonGuideHTML(lesson, catalogue, esc, safeURL) {
   if(lesson.misconceptions?.length)html+=section('Common mistakes',lesson.misconceptions.map(m=>`<p><strong>${esc(m.claim)}</strong><br>${esc(m.correction)}</p>`).join(''));
   if(lesson.teachingPrompts?.length)html+=section('Think it through',list(lesson.teachingPrompts.map(p=>p.prompt)));
   if(lesson.rProgression)html+=section('From menus to R',list([lesson.rProgression.menus,lesson.rProgression.bridge,lesson.rProgression.coding]));
-  if(lesson.sources?.length)html+=section('References and further reading',`<ul>${lesson.sources.map(s=>`<li>${safeURL(s.url)?`<a href="${esc(safeURL(s.url))}" target="_blank" rel="noopener">${esc(s.title)}</a>`:esc(s.title)} — ${esc(s.scope)}</li>`).join('')}</ul><p class="small">Original StatsDirect teaching material. Sources checked ${esc(lesson.review?.date)}; external subject-expert review pending.</p>`);
+  if(lesson.sources?.length)html+=section('References and further reading',`<ul>${lesson.sources.map(s=>`<li>${safeURL(s.url)?`<a href="${esc(safeURL(s.url))}" target="_blank" rel="noopener">${esc(s.title)}</a>`:esc(s.title)} — ${esc(s.scope)}${s.checkedAt?` <span class="small">Checked ${esc(s.checkedAt)}.</span>`:''}</li>`).join('')}</ul><p class="small">Original StatsDirect teaching material. AI-assisted editorial review ${esc(lesson.review?.date)}.</p>`);
   return html;
 }

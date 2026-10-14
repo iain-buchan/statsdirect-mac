@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "949419d3c66264c37ecb79f2f5d2e3300db7baeb",
+  "commit": "914d325b9ec2567ca6110ddeb1417098c593ce9d",
   "version": "5.2.0",
   "sha256": {
     "Layout/Axis.cs": "37b781cfd82f963f5ba9f24295b008af80fe12d9a4e3ddd0649140c14e8785ef",

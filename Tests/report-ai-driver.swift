@@ -88,6 +88,17 @@ import Darwin
         ai.input.string="NO_SHARING";ai.sendButton.performClick(nil)
         try await wait("question only") { (await text(ai)).contains("confidence interval describes") }
         try check(!requests().contains("PRIVATE_REPORT"),"a question without sharing excludes report title, results and other documents")
+        // Enter sends the question and Shift+Enter adds a line, as the Windows pane has it (914d325b) and the calculator's input already
+        // does: through the view's own key handling, so the window need not hold focus
+        ai.input.string="LINE_ONE";ai.setSelectedEnd()
+        ai.input.keyDown(with:NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:.shift,timestamp:0,windowNumber:v.window.windowNumber,context:nil,characters:"\r",charactersIgnoringModifiers:"\r",isARepeat:false,keyCode:36)!)
+        try check(ai.input.string=="LINE_ONE\n","Shift+Enter adds a line to the question")
+        ai.input.string="NO_SHARING";ai.setSelectedEnd()
+        let turnsBeforeEnter=requests().components(separatedBy:"\"method\": \"turn/start\"").count
+        ai.input.keyDown(with:NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:[],timestamp:0,windowNumber:v.window.windowNumber,context:nil,characters:"\r",charactersIgnoringModifiers:"\r",isARepeat:false,keyCode:36)!)
+        try await wait("Enter sends the question") { requests().components(separatedBy:"\"method\": \"turn/start\"").count==turnsBeforeEnter+1 }
+        try await wait("the reply to the question sent with Enter") { !ai.isBusy }
+        try check(ai.input.string.isEmpty && v.scriptAI.view.labels().contains("Your question (Enter sends; Shift+Enter adds a line)"),"Enter sends the question and clears the box; the label says so")
         ai.shareScript.performClick(nil);ai.input.string="REPORT_TEST"
         try check(!ai.sendButton.isEnabled,"sharing a report requires the no-identifiers confirmation")
         ai.send();try check(!ai.isBusy,"native Send refuses unconfirmed report sharing")
@@ -115,7 +126,7 @@ import Darwin
         try check(pid>1 && pid != getpid(),"isolated AI renderer identified for recovery test")
         _=kill(pid,SIGKILL)
         try await wait("AI renderer recovery") { guard ai.transcript.web !== beforeRecovery else { return false };return (await text(ai)).contains("mean paired difference") }
-        try check(requests().components(separatedBy:"\"method\": \"turn/start\"").count==turnsBeforeRecovery && ai.conversations[report.id]?.messages.count==4,"renderer recovery restores conversation without resending")
+        try check(requests().components(separatedBy:"\"method\": \"turn/start\"").count==turnsBeforeRecovery && ai.conversations[report.id]?.messages.count==6,"renderer recovery restores conversation without resending")
         let restrictions=try await ai.transcript.web.callAsyncJavaScript("let blocked=false;try{await fetch('https://example.invalid/blocked')}catch{blocked=true}return blocked",arguments:[:],in:nil,contentWorld:.page)
         try check(restrictions as? Bool==true,"AI conversation cannot fetch external resources")
         try check(ai.acknowledgement.state == .on && ai.sendButton.isEnabled && ai.contextPanel.isHidden,"sharing acceptance persists across follow-up questions and stays compact")
@@ -200,3 +211,6 @@ import Darwin
         try check(ai.shareScript.title=="Share this report" && ai.conversations[empty.id]?.messages.isEmpty==true,"empty reports can open an independent methods conversation")
     }
 }
+
+extension ScriptAIPane { @MainActor func setSelectedEnd() { input.setSelectedRange(NSRange(location:(input.string as NSString).length,length:0)) } }
+extension NSView { @MainActor func labels() -> [String] { subviews.flatMap { ($0 as? NSTextField).map { [$0.stringValue] } ?? [] } + subviews.flatMap { $0.labels() } } }

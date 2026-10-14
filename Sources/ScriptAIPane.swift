@@ -19,7 +19,7 @@ import WebKit
     unowned let viewer: Viewer
     let view=NSView()
     let transcript: AIConversationView
-    let input=NSTextView()
+    let input=AIComposerInput()
     let heading=NSTextField(labelWithString:"AI assistance · ChatGPT")
     let sourceLabel=NSTextField(labelWithString:"")
     let notice=NSTextField(wrappingLabelWithString:"")
@@ -60,7 +60,7 @@ import WebKit
         let header=NSStackView(views:[heading,fresh,close]);header.spacing=6
         sourceLabel.font = .systemFont(ofSize:11);sourceLabel.textColor = .secondaryLabelColor;sourceLabel.lineBreakMode = .byTruncatingMiddle
         connection.target=self;connection.action=#selector(connect)
-        input.isRichText=false;input.allowsUndo=true;input.font = .systemFont(ofSize:13)
+        input.isRichText=false;input.allowsUndo=true;input.font = .systemFont(ofSize:13);input.send={ [weak self] in self?.send() }
         input.isAutomaticQuoteSubstitutionEnabled=false;input.isAutomaticDashSubstitutionEnabled=false
         input.setAccessibilityLabel("Question for AI")
         func scroll(_ text:NSTextView) -> NSScrollView {
@@ -89,7 +89,7 @@ import WebKit
         stopButton.target=self;stopButton.action=#selector(stop);stopButton.isEnabled=false
         let actions=NSStackView(views:[sendButton,stopButton]);actions.spacing=8
         notice.font = .systemFont(ofSize:11);notice.textColor = .secondaryLabelColor
-        let questionLabel=NSTextField(labelWithString:"Your question"),conversationLabel=NSTextField(labelWithString:"Conversation")
+        let questionLabel=NSTextField(labelWithString:"Your question (Enter sends; Shift+Enter adds a line)"),conversationLabel=NSTextField(labelWithString:"Conversation")
         for label in [questionLabel,conversationLabel] { label.font = .systemFont(ofSize:11,weight:.semibold) }
         let controls=ScriptAIControlsStack(views:[connection,contextButton,contextPanel,questionLabel,composer,actions,reminder,notice])
         controls.orientation = .vertical;controls.alignment = .leading;controls.spacing=7;controls.detachesHiddenViews=true
@@ -340,5 +340,18 @@ import WebKit
             : "Ask for help understanding, improving or debugging your R script."
         transcript.render(["generation":conversation?.generation ?? "", "messages":rows,
             "introduction":intro+"\n\nChoose whether to share documents or ask a question without them. Nothing is sent until you press Send."])
+    }
+}
+
+/// The question box: Enter sends the question, as the ChatGPT prompt does and as the Windows pane has it (914d325b), and Shift+Enter
+/// adds a line, the convention the calculator's input already follows; Command-Return still sends through the window's key monitor.
+/// A send with the connection or sharing not ready does what pressing Send would: the pane's own notice.
+final class AIComposerInput: NSTextView {
+    var send: (() -> Void)?
+    override func keyDown(with event: NSEvent) {
+        if [36,76].contains(event.keyCode), event.modifierFlags.intersection([.command,.control,.option]).isEmpty {
+            if event.modifierFlags.contains(.shift) { insertNewlineIgnoringFieldEditor(nil) }
+            else { send?() }
+        } else { super.keyDown(with:event) }
     }
 }

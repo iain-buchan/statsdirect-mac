@@ -205,6 +205,12 @@ import WebKit
         UserDefaults.standard.set(true,forKey:"DisableOnlineTutor");ai.updateConnection()
         try check(!ai.sendButton.isEnabled && !ai.connection.isEnabled,"institutional AI policy disables connection and Send")
         UserDefaults.standard.set(false,forKey:"DisableOnlineTutor")
+        // Enforcing the policy intentionally shuts down the provider and clears
+        // its account. Reconnect the fixture before testing subsequent replies.
+        _ = try await v.chatGPTTutor.signIn()
+        try await v.chatGPTTutor.refreshAccount()
+        ai.updateConnection()
+        try await checkRReplay(v,first,workbook)
         ai.newConversation()
         try check(!ai.contextPanel.isHidden,"a new conversation shows its fresh sharing choices")
         try check(ai.conversations[first.id]?.messages.isEmpty==true && ai.shareScript.state == .off && ai.shareWorkbook.state == .off,"New conversation removes prior context from subsequent prompts")
@@ -227,4 +233,38 @@ import WebKit
         try check(true,"Help opens the bundled example workbook with its PEFR data")
         if CommandLine.arguments.contains("--stay-open") { v.window.setContentSize(NSSize(width:1200,height:850));ai.open(large) }
     }
+    @MainActor static func checkRReplay(_ v: Viewer,_ first: Document,_ workbook: Document) async throws {
+        let ai=v.scriptAI
+        ai.newConversation()
+        first.rPane!.editor.string="before <- c(312,242,340,388,296,254,391,402,290)\nafter <- c(300,201,232,312,220,256,328,330,231)"
+        ai.shareScript.state = .on;ai.sharingChanged();ai.acknowledgement.performClick(nil)
+        ai.input.string="PEFR_CONTEXT";ai.sendButton.performClick(nil)
+        try await wait { !ai.isBusy && ai.transcript.string.contains("wilcox.test") }
+        let chat=ai.conversations[first.id]!,reply=chat.messages.last!,generation=chat.generation
+        first.rPane!.editor.string="before <- 999\nafter <- 1"
+        ai.openCodeButton.performClick(nil)
+        let full=v.active!.rPane!.editor.string
+        try check(full.contains("before <- c(312") && !full.contains("before <- 999") && full.contains("d <- before - after") && full.contains("wilcox.test"),"bottom Open R code uses approved source and all earlier R blocks, not later editor changes")
+        try check(v.active!.rPane!.isRunning == false,"opening the complete AI suggestion does not run it")
+        ai.open(first)
+        let link="statsdirect-r://open/"+generation+"/"+reply["id"]!+"/1"
+        _=ai.textView(ai.transcript,clickedOnLink:link,at:0)
+        try check(v.active!.rPane!.editor.string==full && !v.active!.rPane!.isRunning,"per-block Open in R includes the earlier definition block and source")
+        ai.open(first);ai.shareScript.state = .off;ai.shareWorkbook.state = .off;ai.sharingChanged()
+        ai.input.string="PEFR_FOLLOWUP";ai.sendButton.performClick(nil)
+        try await wait { !ai.isBusy && ai.transcript.string.contains("length(d)==9") }
+        ai.openCodeButton.performClick(nil)
+        try check(v.active!.rPane!.editor.string.contains("before <- c(312") && v.active!.rPane!.editor.string.contains("d <- before - after"),"question-only follow-up retains earlier approved R dependencies locally")
+        ai.open(first)
+        _=ai.textView(ai.transcript,clickedOnLink:link,at:0)
+        try check(!v.active!.rPane!.editor.string.contains("length(d)==9"),"older reply excludes later follow-up code")
+        ai.open(first);ai.newConversation()
+        let count=v.documents.count
+        _=ai.textView(ai.transcript,clickedOnLink:link,at:0)
+        try check(v.documents.count==count && !ai.openCodeButton.isEnabled,"queued code click from an old conversation is rejected")
+        let context=ScriptAIContext(viewer:v,script:nil,workbook:workbook,active:{true})
+        let read=try await context.call("statsdirect_read_data",["documentId":workbook.id,"columns":[0,1],"firstRow":2,"lastRow":4])
+        try check((read["rCode"] as? String)?.contains("column_1")==true && context.rData.contains("10, 20, 30"),"read_data supplies explicit R bindings from the exact bounded worksheet read")
+    }
+
 }

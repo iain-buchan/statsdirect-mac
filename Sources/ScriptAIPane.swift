@@ -4,9 +4,10 @@ import Cocoa
     override var isFlipped: Bool { true }
 }
 
-@MainActor final class ScriptAIPane: NSObject {
+@MainActor final class ScriptAIPane: NSObject, NSTextViewDelegate {
     private static let confirmationNotice="Check the selected content for person identifiers, then confirm before sending."
     final class Conversation {
+        let generation = UUID().uuidString
         var messages: [[String:String]]=[]
         var draft=""
         var shareScript=false
@@ -29,12 +30,15 @@ import Cocoa
     let stopButton=NSButton(title:"Stop",target:nil,action:nil)
     let contextButton=NSButton(title:"Sharing for this question ▾",target:nil,action:nil)
     let contextPanel=NSStackView()
+    let openCodeButton=NSButton(title:"Open R code",target:nil,action:nil)
+    private var activeContext: ScriptAIContext?
     private(set) var visible=false
     private(set) var scriptID: String?
     private(set) var conversations: [String:Conversation]=[:]
     private(set) var requestID: UUID?
     private var task: Task<Void,Never>?
     private var partial=""
+    private var replyID = UUID().uuidString
     private weak var renderedConversation: Conversation?
     private var dockWidth: CGFloat=460
     private var conversation: Conversation? { scriptID.flatMap{conversations[$0]} }
@@ -52,6 +56,7 @@ import Cocoa
         let header=NSStackView(views:[heading,fresh,close]);header.spacing=6
         sourceLabel.font = .systemFont(ofSize:11);sourceLabel.textColor = .secondaryLabelColor;sourceLabel.lineBreakMode = .byTruncatingMiddle
         connection.target=self;connection.action=#selector(connect)
+        transcript.delegate=self
         transcript.isEditable=false;transcript.isSelectable=true;transcript.isRichText=true
         transcript.setAccessibilityLabel("AI conversation")
         input.isRichText=false;input.allowsUndo=true;input.font = .systemFont(ofSize:13)
@@ -94,7 +99,9 @@ import Cocoa
         controlsHeight.priority = .defaultHigh
         // Short docks scroll the question/sharing controls instead of clipping them
         // or taking away the conversation's minimum reading area.
-        let stack=NSStackView(views:[header,sourceLabel,controlsScroll,conversationLabel,history])
+        openCodeButton.target=self;openCodeButton.action=#selector(openLastCode);openCodeButton.controlSize = .small
+        openCodeButton.toolTip="Open the latest reply with its original data and preceding R code; review before running"
+        let stack=NSStackView(views:[header,sourceLabel,controlsScroll,conversationLabel,history,openCodeButton])
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=7;stack.detachesHiddenViews=true
         stack.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(stack)
         for child in [header,sourceLabel,controlsScroll,conversationLabel,history] {
@@ -216,14 +223,15 @@ import Cocoa
         guard !sharing || acknowledgement.state == .on else { showNotice(Self.confirmationNotice);return }
         let workbook=shareWorkbook.state == .on ? viewer.documents.first(where:{$0.kind=="grid" && $0.id==workbookPicker.selectedItem?.representedObject as? String}) : nil
         guard shareWorkbook.state != .on || workbook != nil else { showNotice("Choose an open workbook to share.");return }
-        let token=UUID();requestID=token;saveChoices()
+        let token=UUID();requestID=token;replyID=UUID().uuidString;saveChoices()
         let context=ScriptAIContext(viewer:viewer,script:shareScript.state == .on ? source:nil,workbook:workbook,active:{[weak self] in self?.requestID==token})
         let sharedNames=[shareScript.state == .on ? source.title:nil,workbook?.title].compactMap{$0}
-        let messages=chat.messages+[["role":"user","text":question,"context":sharedNames.isEmpty ? "Question and conversation only" : "Shared for this question: " + sharedNames.joined(separator:"; ")]]
+        activeContext=context
+        let messages=chat.messages+[["id":UUID().uuidString,"rSource":context.rSource,"role":"user","text":question,"context":sharedNames.isEmpty ? "Question and conversation only" : "Shared for this question: " + sharedNames.joined(separator:"; ")]]
         partial="";showNotice(sharing ? "Sending the approved context to ChatGPT…" : "Sending your question and conversation only…")
         task=Task { @MainActor [weak self] in
             guard let self else { return }
-            defer { if requestID==token { task=nil;requestID=nil;acknowledgement.state = .off;updateConnection() } }
+            defer { if requestID==token { task=nil;requestID=nil;activeContext=nil;acknowledgement.state = .off;updateConnection() } }
             do {
                 let reference=try await context.context();try context.check()
                 // This conversation's history is bounded by the existing provider client.
@@ -231,11 +239,11 @@ import Cocoa
                 let reply=try await viewer.chatGPTTutor.converse(context:reference,messages:messages,tools:context.tools,purpose:.script,progress:{[weak self] text in
                     guard let self,self.requestID==token else { return };self.partial=text;self.render()
                 },toolHandler:{ name,args in try await context.call(name,args) })
-                try context.check();chat.messages.append(["role":"assistant","text":reply.text]);partial="";render()
+                try context.check();chat.messages.append(["id":replyID,"rData":context.rData,"role":"assistant","text":reply.text]);partial="";render()
                 showNotice("Reply received. Review suggested code before running it in R.")
             } catch {
                 guard requestID==token else { return }
-                if !partial.isEmpty { chat.messages.append(["role":"assistant","text":partial+"\n[Reply stopped before completion.]"]);partial="" }
+                if !partial.isEmpty { chat.messages.append(["id":replyID,"rData":activeContext?.rData ?? "","role":"assistant","text":partial+"\n[Reply stopped before completion.]"]);partial="" }
                 render();showNotice(error is CancellationError ? "Reply stopped." : error.localizedDescription)
                 if input.string.isEmpty { input.string=question;chat.draft=question }
             }
@@ -244,8 +252,8 @@ import Cocoa
         acknowledgement.state = .off;updateControls()
     }
     @objc func stop() {
-        if let chat=conversation, !partial.isEmpty { chat.messages.append(["role":"assistant","text":partial+"\n[Reply stopped before completion.]"]) }
-        task?.cancel();task=nil;requestID=nil;partial="";acknowledgement.state = .off;render();updateConnection()
+        if let chat=conversation, !partial.isEmpty { chat.messages.append(["id":replyID,"rData":activeContext?.rData ?? "","role":"assistant","text":partial+"\n[Reply stopped before completion.]"]) }
+        task?.cancel();task=nil;requestID=nil;activeContext=nil;partial="";acknowledgement.state = .off;render();updateConnection()
     }
     @objc func hide() {
         guard visible else { return };saveChoices();stop();dockWidth=view.frame.width;visible=false
@@ -261,24 +269,49 @@ import Cocoa
         conversations.removeValue(forKey:doc.id)
         if visible { refreshWorkbooks() }
     }
-    func shutdown() { task?.cancel();task=nil;requestID=nil }
+    func shutdown() { task?.cancel();task=nil;requestID=nil;activeContext=nil }
+    @objc func openLastCode() {
+        guard let chat=conversation, let index=chat.messages.lastIndex(where:{$0["role"]=="assistant"}), let id=chat.messages[index]["id"] else { return }
+        openCode(generation:chat.generation,messageID:id)
+    }
+    func openCode(generation: String,messageID: String,blockIndex: Int = -1) {
+        guard let chat=conversation, chat.generation==generation else { return }
+        guard let index=chat.messages.firstIndex(where:{$0["id"]==messageID}) else { showNotice("Wait for the reply to finish before opening its R code.");return }
+        do {
+            let code=try ConversationRScript.build(chat.messages,messageIndex:index,blockIndex:blockIndex)
+            viewer.makeRScript(script:code,title:"AI suggestion",saved:false)
+            viewer.status.stringValue="Review the source, earlier examples and suggested R code before choosing Run"
+        } catch { showNotice(error.localizedDescription) }
+    }
+    func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+        guard let url=(link as? URL) ?? (link as? String).flatMap(URL.init(string:)), url.scheme=="statsdirect-r", url.host=="open" else { return true }
+        let parts=url.pathComponents.filter{$0 != "/"}
+        guard parts.count==3, let index=Int(parts[2]) else { return true }
+        openCode(generation:parts[0],messageID:parts[1],blockIndex:index);return true
+    }
     private func render() {
         let text=NSMutableAttributedString()
         func add(_ value:String,_ attributes:[NSAttributedString.Key:Any]) { text.append(NSAttributedString(string:value,attributes:attributes)) }
         let normal: [NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:13),.foregroundColor:NSColor.textColor]
         let messages=conversation?.messages ?? []
         if messages.isEmpty { add("Ask for help understanding, improving or debugging your R script.\n\nChoose above whether to share workbook data and scripts, or send a question without documents. Nothing is sent until you press Send.",normal) }
-        for row in messages + (partial.isEmpty ? [] : [["role":"assistant","text":partial]]) {
+        for row in messages + (partial.isEmpty ? [] : [["id":replyID,"role":"assistant","text":partial]]) {
             add((row["role"]=="user" ? "You" : "ChatGPT")+"\n",[.font:NSFont.systemFont(ofSize:12,weight:.semibold),.foregroundColor:NSColor.secondaryLabelColor])
             if let context=row["context"] { add(context+"\n",[.font:NSFont.systemFont(ofSize:10),.foregroundColor:NSColor.secondaryLabelColor]) }
+            let blocks=ConversationRScript.blocks(row["text"] ?? "")
             var code=false
-            for line in (row["text"] ?? "").components(separatedBy:"\n") {
-                if line.hasPrefix("```") { code.toggle();continue }
+            for (lineIndex,line) in (row["text"] ?? "").replacingOccurrences(of:"\r\n",with:"\n").components(separatedBy:"\n").enumerated() {
+                if let blockIndex=blocks.firstIndex(where:{$0.endLine==lineIndex}), let id=row["id"], let generation=conversation?.generation {
+                    let link="statsdirect-r://open/" + generation + "/" + id + "/" + String(blockIndex)
+                    add("Open in R\n",[.link:link,.font:NSFont.systemFont(ofSize:11),.foregroundColor:NSColor.linkColor])
+                }
+                if line.trimmingCharacters(in:.whitespaces).hasPrefix("```") || line.trimmingCharacters(in:.whitespaces).hasPrefix("~~~") { code.toggle();continue }
                 add(line+"\n",code ? [.font:NSFont.monospacedSystemFont(ofSize:12,weight:.regular),.foregroundColor:NSColor.textColor] : normal)
             }
             add("\n",normal)
         }
         guard let storage=transcript.textStorage else { return }
+        openCodeButton.isEnabled = conversation?.messages.last(where:{$0["role"]=="assistant"}).map{!ConversationRScript.blocks($0["text"] ?? "").isEmpty} ?? false
         let sameConversation=renderedConversation === conversation
         var prefix=0
         if sameConversation {

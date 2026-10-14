@@ -6,6 +6,7 @@ ROOT="$PWD"
 source Scripts/native-build-flags.sh
 BASE="${1:-$ROOT/StatsDirect.app}"
 mkdir -p .build
+Grid/node_modules/esbuild/bin/esbuild Tests/feedback-renderer.mjs --bundle --format=iife --outfile=.build/feedback-renderer.js
 TEST_WORK="$(mktemp -d "$ROOT/.build/learning-context.XXXXXX")"
 TEST_APP="$TEST_WORK/StatsDirect Context Test.app"
 python3 - "$TEST_WORK" <<'PY'
@@ -26,4 +27,5 @@ rsync -a Content/ "$TEST_APP/Contents/Resources/Content/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.statsdirect.viewer.contexttest.${TEST_WORK##*.}" "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Context Test' "$TEST_APP/Contents/Info.plist"
 codesign --force --sign - "$TEST_APP"
+if [[ "${STATSDIRECT_TEST_BUILD_ONLY:-0}" == "1" ]]; then echo "PASS: native test app compiled: $TEST_APP"; exit 0; fi
 "$TEST_APP/Contents/MacOS/$EXECUTABLE" "${@:2}"

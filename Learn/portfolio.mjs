@@ -37,7 +37,7 @@ export function reviewRecord(state) {
   }));
   return {schemaVersion:2,exportedAt:new Date().toISOString(),portfolioID:state.id,startedAt:state.startedAt,
     learner:structuredClone(state.identity),learningOptions:structuredClone(state.learning),pathway:tracks[state.profile].title,rExperience:stages[state.stage],
-    diagnostics:structuredClone(state.diagnostics??{}),bankVersion,questionSource:'StatsDirect items are original teaching drafts with subject-expert review pending. Provider items retain the course and version recorded with each attempt. These are not official examination questions.',
+    diagnostics:structuredClone(state.diagnostics??{}),bankVersion,questionSource:'StatsDirect items are original teaching material. Provider items retain the course and version recorded with each attempt. These are not official examination questions.',
     marking:'Provisional fixed-key MCQ scoring: 1 correct, 0 otherwise. First answers retained. Confidence and free-text reasoning are not graded. Independent practice is unsupervised and cannot certify exam readiness.',
     reviewStatus:'No accreditation or CPD points awarded by StatsDirect. Imported provider responses are recorded separately and are not authenticated. Email preparation does not confirm delivery or acceptance.',
     training:structuredClone(state.training),courseKey:state.courseKey,courseWork:structuredClone(state.courseWork),providerReviews:structuredClone(state.providerReviews),evidence:structuredClone(state.evidence),

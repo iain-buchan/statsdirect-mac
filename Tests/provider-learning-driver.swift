@@ -19,6 +19,7 @@ import Cocoa
         throw LearningTutor.Failure(message:"Timed out waiting for the native interface at \(file):\(line)")
     }
     @MainActor static func run(_ v: Viewer) async throws {
+        precondition(v.learningDiagnostics["libraryVersion"] as? String == "2026-10-12")
         v.openLearningOptions(); let d = v.documents.first{$0.kind == "learn"}!
         try await wait { guard d.learningState != nil else { return false }; return (try? await v.learningJavaScript(d,"({ok:!!document.getElementById('statisticalSkills')})"))?["ok"] as? Bool == true }
         var rows = try await v.learningJavaScript(d,"({count:document.querySelectorAll('main>.card').length,resources:!!document.getElementById('resourceURLs'),pack:!!document.querySelector('#trainingProvider #importCourse'),recipient:document.getElementById('reviewEmail').value,details:document.querySelector('.option-details').open,assessment:document.getElementById('assessmentType').value})")
@@ -65,8 +66,23 @@ import Cocoa
             let guide = try await v.learningJavaScript(d,"({title:document.querySelector('h1').textContent,text:document.querySelector('.lesson-guide').textContent,links:document.querySelectorAll('.lesson-guide a').length,open:document.querySelector('.lesson-guide').open})")
             precondition(guide["title"] as? String == lesson["title"] as? String)
             precondition((guide["text"] as! String).contains("Key ideas") && (guide["text"] as! String).contains("Common mistakes"))
+            let worked = lesson["workedExample"] as! [String:Any]
+            precondition((guide["text"] as! String).contains(worked["interpretation"] as! String))
+            let review = lesson["review"] as! [String:Any]
+            precondition((guide["text"] as! String).contains("AI-assisted editorial review \(review["date"]!)"))
             precondition(guide["links"] as? Int == (lesson["sources"] as! [Any]).count && guide["open"] as? Bool == false)
         }
+        _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-lesson=\"risk\"]').click()===undefined})")
+        _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-action=r]').click()===undefined})")
+        let riskLesson = v.learningLessons.first{$0["id"] as? String == "risk"}!
+        try await wait { v.documents.contains{$0.rPane?.editor.string == riskLesson["r"] as? String} }
+        let riskScript = v.documents.last{$0.rPane?.editor.string == riskLesson["r"] as? String}!
+        try await wait { riskScript.rPane?.isRunning == false && riskScript.rPane?.console.string.contains("0.123548112373") == true }
+        precondition(riskScript.rPane?.console.string.contains("Error") == false)
+        print("PASS: revised interval explanations and review dates display in all guides; the complete Miettinen-Nurminen script runs in R with the expected interval")
+        _ = try await v.learningJavaScript(d,"({ok:(document.getElementById('question').value='RISK_METHOD_TEST Explain the score interval in the supplied R example.',document.getElementById('send').click(),true)})")
+        try await wait { (d.learningState?["conversation"] as? [[String:Any]])?.last?["model"] as? String == "fixture-model" }
+        print("PASS: complete revised R script and interval interpretation reach the tutor, within the existing overall context budget")
         _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-lesson=\"missing\"]').click()===undefined})")
         _ = try await v.learningJavaScript(d,"({ok:(document.getElementById('question').value='LIBRARY_TEST Explain the missing-outcome bounds.',document.getElementById('send').click(),true)})")
         try await wait { (d.learningState?["conversation"] as? [[String:Any]])?.last?["model"] as? String == "fixture-model" }

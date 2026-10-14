@@ -46,13 +46,17 @@ extension Viewer {
 
     func persistLearningState(_ doc: Document, _ state: [String:Any]) throws {
         guard state["schemaVersion"] as? Int == 2 else { throw ChatGPTTutor.Failure(message:"The learning record is not ready. Reopen Learning and try again.") }
+        var state = state
+        state["rContexts"] = doc.learningRContexts
         let data = try JSONSerialization.data(withJSONObject:state,options:[.prettyPrinted,.sortedKeys])
         guard data.count <= 10_000_000 else { throw ChatGPTTutor.Failure(message:"The learning record is too large to save. Export a copy before continuing.") }
+        // Keep the latest validated snapshot even if a disk write fails; renderer
+        // recovery must not replace it with an older file.
+        doc.learningState = state
         try FileManager.default.createDirectory(at:learningFolder,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
         let url = learningFolder.appendingPathComponent("portfolio.json")
         try data.write(to:url,options:.atomic)
         try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:url.path)
-        doc.learningState = state
     }
 
     func recordLearningSharing(_ doc: Document, _ requestID: String, _ documents: [Document]) async throws {

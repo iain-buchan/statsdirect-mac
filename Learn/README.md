@@ -73,6 +73,8 @@ The build creates `StatsDirect.app` with its original calculation engine unchang
 
 The [26 September 2026 content audit](../Docs/Learn/CONTENT-AUDIT-2026-09-26.md) records the scope, corrections, independent numerical checks and sources. It is an AI-assisted audit, not external expert approval.
 
+The [12 October refinements](../Docs/Learn/CONTENT-REFINEMENTS-2026-10-12.md) explicitly select Miettinen–Nurminen risk-difference limits in R, name the matching diagnostic and mean-interval methods, clarify the borderline NNT example, improve narrative rounding and add optional I² learning. All twelve scripts and 35 current questions are covered by the updated checks.
+
 The [curated-library guide](../Docs/Learn/CURATED-LIBRARY.md) describes the 1 October enrichment: objectives, prerequisites, concepts, misconceptions, worked interpretation, levelled discussion prompts, R progression and editorial references. Five new fixed-key questions live in the lesson JSON and join the existing practice engine. The native host supplies the complete selected enrichment to the tutor, records the lesson version with its reply, and reserves room for open-document context. The learner reading-list controls remain retired.
 
 ## Mac beta feedback fixes (0.3.17)

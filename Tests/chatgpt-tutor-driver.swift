@@ -6,6 +6,8 @@ import Foundation
         let executable = URL(fileURLWithPath:args[1]), folder = URL(fileURLWithPath:args[2]), resources = URL(fileURLWithPath:args[3])
         let mode = args.count > 4 ? args[4] : "mock"
         let tutor = ChatGPTTutor(executable:executable,storage:folder,resources:resources)
+        var diagnostics: [String] = []
+        tutor.diagnostic = { diagnostics.append($0) }
         defer { tutor.shutdown() }
         for invalid in ["http://auth.openai.com/login","https://auth.openai.com.evil.invalid","https://user:pass@chatgpt.com/auth","file:///tmp/auth","https://example.com/"] {
             precondition(ChatGPTTutor.authenticationURL(invalid) == nil)
@@ -16,6 +18,8 @@ import Foundation
         let payload = try JSONSerialization.jsonObject(with:Data(prompt.split(separator:"\n",maxSplits:1)[1].utf8)) as! [String:Any]
         precondition((payload["referenceContext"] as! String).count == 32000)
         precondition((payload["conversation"] as! [[String:String]]).reduce(0,{$0+$1["text"]!.count}) == 60000)
+        let privatePrompt = try ChatGPTTutor.prompt(context:"",messages:[["role":"user","text":"Explain pairing","rSource":"PRIVATE_LOCAL_R_SOURCE","rData":"PRIVATE_LOCAL_WORKSHEET","id":"PRIVATE_LOCAL_ID"]])
+        precondition(!privatePrompt.contains("PRIVATE_LOCAL"))
         try await tutor.refreshAccount()
         precondition(tutor.account == nil)
         let url = try await tutor.signIn()
@@ -32,6 +36,10 @@ import Foundation
         let reply = try await tutor.converse(context:"Fictional paired example; [Course: paired] Paired differences",messages:[["role":"user","text":"Explain pairing"]],progress:{partials.append($0)})
         precondition(partials.contains("Analyse within-person ") && partials.last == "Analyse within-person differences.")
         precondition(reply.text == "Analyse within-person differences." && reply.model == "fixture-model")
+        _ = try await tutor.converse(context:"PRIVATE_SENTINEL_context",messages:[["role":"user","text":"PRIVATE_EVENT_TEST PRIVATE_SENTINEL_question"]])
+        precondition(diagnostics.contains("event: other notification") && diagnostics.contains("event: thread/status/changed"))
+        do { _ = try await tutor.converse(context:"",messages:[["role":"user","text":"PRIVATE_ERROR_TEST"]]); fatalError("Private error ignored") }
+        catch { precondition(!error.localizedDescription.contains("PRIVATE_SENTINEL")) }
         let tools = [["type":"function","name":"statsdirect_read_data","description":"Read selected cells","inputSchema":["type":"object","properties":["documentId":["type":"string"]],"required":["documentId"],"additionalProperties":false]]] as [[String:Any]]
         var calls = 0
         let toolReply = try await tutor.converse(context:"",messages:[["role":"user","text":"TOOL_TEST"]],tools:tools,toolHandler: { name,args in
@@ -66,6 +74,15 @@ import Foundation
         do { _ = try await tutor.converse(context:"",messages:[["role":"user","text":"DISCONNECT_TEST"]]); fatalError("Disconnect ignored") }
         catch { precondition(error.localizedDescription.contains("disconnect")) }
         try await tutor.refreshAccount(); precondition(tutor.account == nil)
+        _ = try await tutor.signIn()
+        for _ in 0..<30 where tutor.account == nil { try await Task.sleep(nanoseconds:100_000_000) }
+        do { _ = try await tutor.converse(context:"",messages:[["role":"user","text":"PRIVATE_PARSE_TEST"]]); fatalError("Malformed response ignored") }
+        catch { precondition(!error.localizedDescription.contains("PRIVATE_SENTINEL")) }
+        let diagnosticFile = folder.appendingPathComponent("test-diagnostics.json")
+        try JSONSerialization.data(withJSONObject:diagnostics).write(to:diagnosticFile)
+        let saved = try String(contentsOf:diagnosticFile,encoding:.utf8)
+        precondition(!saved.contains("PRIVATE_SENTINEL") && !saved.contains("learner@example.invalid") && !saved.contains("SECRET"))
+        print("PASS: persisted diagnostics exclude unknown method text, private parameters, questions, account values, raw errors and malformed responses")
         print("OAuth completion, response framing, thread correlation, context bounds, limit errors, cancellation, retry, sign-out and process-disconnect recovery passed")
     }
 }

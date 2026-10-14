@@ -18,7 +18,7 @@ SOURCES=()
 for source in Sources/*.swift; do
   if [[ "$source" != 'Sources/main.swift' ]]; then SOURCES+=("$source"); fi
 done
-swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirectTest -emit-module-path "$TEST_WORK/StatsDirectTest.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/provider-learning-driver.swift -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
+swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirectTest -emit-module-path "$TEST_WORK/StatsDirectTest.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" "${STATSDIRECT_LEARNING_TEST_DRIVER:-Tests/provider-learning-driver.swift}" -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
 cp -cR "$BASE" "$TEST_APP"
 EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$TEST_APP/Contents/Info.plist")"
 cp "$TEST_WORK/driver" "$TEST_APP/Contents/MacOS/$EXECUTABLE"
@@ -26,4 +26,5 @@ rsync -a Content/ "$TEST_APP/Contents/Resources/Content/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.statsdirect.viewer.providertest.${TEST_WORK##*.}" "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Context Test' "$TEST_APP/Contents/Info.plist"
 codesign --force --sign - "$TEST_APP"
+if [[ "${STATSDIRECT_TEST_BUILD_ONLY:-0}" == "1" ]]; then echo "PASS: native test app compiled: $TEST_APP"; exit 0; fi
 "$TEST_APP/Contents/MacOS/$EXECUTABLE" "${@:2}"

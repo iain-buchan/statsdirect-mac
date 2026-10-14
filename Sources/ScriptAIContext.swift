@@ -8,8 +8,11 @@ import Cocoa
     let workbook: Document?
     private let version: Int?
     private let scriptSnapshot: [String:Any]?
+    let rSource: String
+    private(set) var rData = ""
     private let active: () -> Bool
     init(viewer: Viewer, script: Document?, workbook: Document?, active: @escaping () -> Bool) {
+        self.rSource=script?.rPane?.editor.string ?? ""
         self.viewer=viewer; self.script=script; self.workbook=workbook; self.version=workbook?.gridVersion; self.active=active
         if let script, let pane=script.rPane {
             scriptSnapshot=["documentId":script.id,"title":script.title,"kind":"r","script":String(pane.editor.string.prefix(12000)),"output":String(pane.console.string.suffix(8000)),"truncated":pane.editor.string.count>12000 || pane.console.string.count>8000,"running":pane.isRunning,"snapshot":true]
@@ -80,8 +83,12 @@ import Cocoa
             guard let workbook, arguments["documentId"] as? String==workbook.id else { throw ChatGPTTutor.Failure(message:"That workbook was not approved for this question.") }
             var options=arguments; options.removeValue(forKey:"documentId")
             let json=String(decoding:try JSONSerialization.data(withJSONObject:options),as:UTF8.self)
-            let result=try await viewer.learningJavaScript(workbook,"window.statsDirectGrid.tutorData(\(json))")
-            try check(); return result
+            var result=try await viewer.learningJavaScript(workbook,"window.statsDirectGrid.tutorData(\(json))")
+            try check()
+            result["datasetId"]=UUID().uuidString
+            let code=try ConversationRScript.dataset(result)
+            result["rCode"]=code; rData += code + "\n"
+            return result
         case "statsdirect_method_help":
             guard let operation=arguments["operation"] as? String, let path=viewer.analysisCatalog[operation]?["help"] as? String else { throw ChatGPTTutor.Failure(message:"Choose a documented StatsDirect method.") }
             let file=viewer.root.appendingPathComponent(path).standardizedFileURL

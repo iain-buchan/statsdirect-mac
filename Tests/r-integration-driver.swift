@@ -134,7 +134,9 @@ import WebKit
         try check(true,"Script Find opens the native Find bar")
         if let bitmap=other.view.bitmapImageRepForCachingDisplay(in:other.view.bounds) {
             other.view.cacheDisplay(in:other.view.bounds,to:bitmap)
-            try bitmap.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:FileManager.default.currentDirectoryPath).appendingPathComponent(".build/unified-toolbar-output/script-narrow.png"))
+            let pictures=URL(fileURLWithPath:FileManager.default.currentDirectoryPath).appendingPathComponent(".build/unified-toolbar-output")
+            try FileManager.default.createDirectory(at:pictures,withIntermediateDirectories:true)   // the toolbar suite makes this folder when it runs first; this suite must not depend on that
+            try bitmap.representation(using:.png,properties:[:])?.write(to:pictures.appendingPathComponent("script-narrow.png"))
         }
         v.helpPane.hide()
         v.window.setContentSize(NSSize(width:1180,height:850))

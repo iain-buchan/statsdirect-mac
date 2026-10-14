@@ -198,7 +198,12 @@ import WebKit
         try await wait { ai.isFocused }
         let sendEvent=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:.command,timestamp:0,windowNumber:v.window.windowNumber,context:nil,characters:"\r",charactersIgnoringModifiers:"\r",isARepeat:false,keyCode:36)!
         NSApp.postEvent(sendEvent,atStart:false)
-        try await wait { turns()==turnsBeforeCancel+1 }
+        do { try await wait { turns()==turnsBeforeCancel+1 } }
+        catch {
+            // what stood in the way of the send: the pane's notice and state, for a timeout's diagnosis
+            print("DIAGNOSTIC Command-Return: turns \(turns()) (before \(turnsBeforeCancel)), focused \(ai.isFocused), busy \(ai.isBusy), account \(v.chatGPTTutor.account != nil), keyWindow is viewer \(NSApp.keyWindow === v.window), notice: \(ai.notice.stringValue)");fflush(stdout)
+            throw error
+        }
         try check(!first.rPane!.isRunning && first.rPane!.editor.string=="CHANGED_AFTER_CONSENT <- 99","Command-Return in the AI composer sends the question without running R")
         ai.stopButton.performClick(nil)
         try check(!ai.isBusy,"Stop cancels the assistant without stopping R")

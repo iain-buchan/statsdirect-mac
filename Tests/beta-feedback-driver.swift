@@ -192,14 +192,20 @@ import PDFKit
   let after=try await v.learningJavaScript(learn,"({height:document.getElementById('messages').clientHeight,composer:document.querySelector('.composer').getBoundingClientRect().bottom,viewport:innerHeight})")
   precondition((after["height"] as! Int) > (before["height"] as! Int) && (after["composer"] as! Double) <= (after["viewport"] as! Double))
   _=try await v.learningJavaScript(learn,"({ok:document.querySelector('[data-code=r]').click()===undefined})")
-  try await ProviderLearningTests.wait {v.active?.rPane?.editor.string == "x <- c(2, 4, 6)\nmean(x)"}
+  // A lesson's R block opens as a reviewable replay (ConversationRScript, as the Windows script window's Open R code): a header saying nothing
+  // has been run, then the block under its label
+  try await ProviderLearningTests.wait {(v.active?.rPane?.editor.string ?? "").contains("x <- c(2, 4, 6)\nmean(x)")}
+  let replay=v.active?.rPane?.editor.string ?? ""
+  if !(replay.hasPrefix("# AI suggestion — review before running. Nothing has been run automatically.") && replay.contains("# Selected message — R block 1\nx <- c(2, 4, 6)\nmean(x)")) {
+    throw LearningTutor.Failure(message:"a lesson's R block should open as the replay with its header and label; the pane holds: \(replay.prefix(400))")
+  }
   precondition(v.active!.rPane?.isRunning == false)
   // Open in R, as the Windows script window offers it: the script saved as an R file named after the window in the program's R Scripts
   // folder (the opening of RStudio or R is left to the desktop; the check saves alone)
   RPane.opensExternally=false
   let rDoc=v.active!, saved=rDoc.rPane!.openInR()
   let expectedName=rDoc.title.replacingOccurrences(of:"/",with:"_").replacingOccurrences(of:":",with:"_")+".R"
-  precondition(saved != nil && saved!.lastPathComponent==expectedName && saved!.deletingLastPathComponent().lastPathComponent=="R Scripts" && (try? String(contentsOf:saved!,encoding:.utf8))=="x <- c(2, 4, 6)\nmean(x)" && rDoc.rPane!.state.stringValue.hasPrefix("Saved "),"Open in R: \(saved?.path ?? "nil") · \(rDoc.rPane!.state.stringValue)")
+  precondition(saved != nil && saved!.lastPathComponent==expectedName && saved!.deletingLastPathComponent().lastPathComponent=="R Scripts" && (try? String(contentsOf:saved!,encoding:.utf8))==replay && rDoc.rPane!.state.stringValue.hasPrefix("Saved "),"Open in R: \(saved?.path ?? "nil") · \(rDoc.rPane!.state.stringValue)")
   print("PASS: Open in R saves the script as an R file named after the window in the program's R Scripts folder");fflush(stdout)
   v.tabs.selectTabViewItem(learn.item)
   _=try await v.learningJavaScript(learn,"({ok:document.querySelector('[data-lesson=diagnostic]').click()===undefined})")

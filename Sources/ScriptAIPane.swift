@@ -137,7 +137,7 @@ import WebKit
         shareScript.state=viewer.aiSharing.shareDocument ? .on:.off
         shareWorkbook.state=viewer.aiSharing.shareWorkbook ? .on:.off
         sourceLabel.stringValue=doc.title
-        refreshWorkbooks();setContextExpanded(!viewer.aiSharing.accepted);render();updateConnection()
+        refreshWorkbooks();offerResultWorkbook(doc,resultID:reportResultID);setContextExpanded(!viewer.aiSharing.accepted);render();updateConnection()
         if !visible {
             if viewer.helpPane.visible && viewer.helpPane.view.superview === viewer.workspaceSplit { viewer.helpPane.hide() }
             visible=true;view.autoresizingMask=[.width,.height];view.translatesAutoresizingMaskIntoConstraints=true
@@ -150,6 +150,27 @@ import WebKit
             do { if !TutorPolicy.disabled { try await viewer.chatGPTTutor.refreshAccount() };updateConnection() }
             catch { showNotice(error.localizedDescription) }
         }
+    }
+    /// The workbook offered for sharing when the pane opens for a report: the one the result's record names, as the Windows pane
+    /// offers it (ScriptAIPane.OfferResultWorkbookAsync, after Iain found the last activated workbook offered whatever the result
+    /// came from) and as Continue in R finds it: the record's input paths and file names, or an unsaved workbook's name, against the
+    /// open worksheets. The result is the one the page named; from the menu, the latest with a record. The selection goes through
+    /// the viewer's data-document path, as a choice by hand does, so the session's sharing is confirmed again, and the status line
+    /// names the workbook; a result without a record, or whose workbook is not open, leaves the box as it was.
+    func offerResultWorkbook(_ doc: Document, resultID: String?) {
+        guard doc.kind == "report" else { return }
+        let entry = resultID != nil ? doc.reportEntries?.first(where:{$0.id==resultID}) : doc.lastRecordEntry
+        guard let record=entry?.record, let object=(try? JSONSerialization.jsonObject(with:Data(record.utf8))) as? [String:Any] else { return }
+        var names: [String] = []
+        for input in object["inputs"] as? [[String:Any]] ?? [] { for key in ["path","file"] { if let name=input[key] as? String, !name.isEmpty { names.append(name) } } }
+        if let source=object["source"] as? [String:Any] { for key in ["path","file"] { if let name=source[key] as? String, !name.isEmpty { names.append(name) } } }
+        let grids=viewer.documents.filter{$0.kind=="grid"}
+        guard let workbook=names.lazy.compactMap({ name in grids.first(where:{ $0.workbookSourceURL?.path==name || $0.workbookName==name }) }).first,
+              workbookPicker.selectedItem?.representedObject as? String != workbook.id else { return }
+        viewer.selectAIDataDocument(workbook.id)
+        if let index=workbookPicker.itemArray.firstIndex(where:{$0.representedObject as? String==workbook.id}) { workbookPicker.selectItem(at:index) }
+        saveChoices();updateControls()
+        viewer.status.stringValue="The workbook offered for sharing is the result's: "+workbook.title
     }
     func activeDocumentChanged(_ doc: Document) {
         guard visible else { return }

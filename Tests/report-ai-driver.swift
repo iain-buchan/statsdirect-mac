@@ -66,6 +66,24 @@ import Darwin
         try await wait("introductory HTML") { (await text(ai)).contains("what your results mean") }
         try check((await text(ai)).contains("what your results mean") && v.workspaceSplit.arrangedSubviews.count==2 && ai.shareScript.title=="Share this report","AI opens beside the report with interpretation guidance and report sharing")
         try check(ai.shareScript.state == .off && ai.shareWorkbook.state == .off && !requests().contains("thread/start"),"opening the dock sends no report, worksheet or question and sharing starts off")
+        // The workbook offered for sharing follows the result's record, as the Windows pane offers it (Iain's finding on the installed
+        // build): opened on a result whose record names another open workbook than the session's data document, the pane selects that
+        // workbook through the data-document path and the status line says so; a result without a usable record leaves the box as it was.
+        let recordWorkbook=v.newDocument(kind:"grid",title:"RECORD_WORKBOOK",url:v.root.appendingPathComponent("Grid/index.html"));recordWorkbook.workbookName="RECORD_WORKBOOK.xlsx"
+        try await wait("record worksheet") { (try? await recordWorkbook.web.evaluateJavaScript("!!window.statsDirectGrid")) as? Bool == true }
+        v.selectAIDataDocument(workbook.id)
+        let second=v.makeReport();try await ready(second)
+        let recordJSON="{\"version\":1,\"operation\":\"TPaired\",\"title\":\"Recorded result\",\"run\":\"2026-10-14T06:00:00+01:00\",\"source\":{\"file\":\"RECORD_WORKBOOK.xlsx\",\"unsaved\":true},\"inputs\":[{\"name\":\"data\",\"prompt\":\"Select data\",\"kind\":\"frame\",\"file\":\"RECORD_WORKBOOK.xlsx\",\"path\":\"RECORD_WORKBOOK.xlsx\",\"sheet\":\"Sheet1\",\"columns\":[]}],\"parameters\":{},\"values\":{}}"
+        let recorded=v.appendReport(ReportEntry(id:"record-fixture",title:"Recorded result",operation:"TPaired",body:"<p id='record-fixture-text'>From the record workbook</p>",record:recordJSON,recipe:true));try await ready(recorded)
+        try check(recorded===second,"the recorded result lands in the second report")
+        ai.open(recorded,reportResultID:"record-fixture")
+        try check(ai.workbookPicker.selectedItem?.representedObject as? String==recordWorkbook.id && v.aiSharing.dataDocumentID==recordWorkbook.id && v.status.stringValue=="The workbook offered for sharing is the result's: RECORD_WORKBOOK","opening the AI pane on a result offers the workbook its record names, through the session's data-document path, and says so")
+        v.selectAIDataDocument(workbook.id);v.appendReport(ReportEntry(id:"note-fixture",title:"Note",operation:"",body:"<p>A note</p>",record:nil));try await ready(recorded)
+        ai.open(recorded,reportResultID:"note-fixture")
+        try check(ai.workbookPicker.selectedItem?.representedObject as? String==workbook.id,"a result without a record leaves the offered workbook as it was")
+        v.remove(recorded);v.remove(recordWorkbook);v.tabs.selectTabViewItem(report.item)
+        ai.open(report,reportResultID:"paired-fixture")
+        try await wait("report AI dock again") { ai.visible && ai.scriptID==report.id }
         _=try await v.chatGPTTutor.signIn();try await v.chatGPTTutor.refreshAccount()
         ai.input.string="NO_SHARING";ai.sendButton.performClick(nil)
         try await wait("question only") { (await text(ai)).contains("confidence interval describes") }

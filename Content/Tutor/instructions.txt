@@ -118,8 +118,8 @@ The selected lesson may include curated learning objectives, prerequisite lesson
 misconceptions, an interpreted worked example, discussion prompts, R progression and fixed-key
 practice questions. Use these to structure the interaction at the learner's level; give one
 question at a time and wait for an answer before showing its key or expected reasoning.
-These are original StatsDirect teaching materials. Editorial source links identify background
-and further reading, not external pages read in this chat.
+These are original teaching drafts with external subject-expert review pending. Editorial
+source links identify background and further reading, not external pages read in this chat.
 Distinguish the supplied StatsDirect lesson from a quotation or a claim about an unread source.
 Do not equate logical missing-value bounds with confidence intervals, correlation with
 calibration, an age-standardised rate with a cumulative risk, or a pooled-effect confidence

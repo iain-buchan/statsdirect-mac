@@ -72,11 +72,11 @@ export class WorkbookStore {
   // backed by a file: loaded cells edited since loading (including those now blank), then
   // cells never in the file. Otherwise every populated cell, with a new worksheet's column
   // titles as row 0 and its data shifted down one row.
-  exportCells(visit) {
+  exportCells(visit, allValues = false) {
     this.sheets.forEach(({store}, sheetIndex) => {
       if (!this.imported) store.columns.forEach((text, col) => visit(sheetIndex, col, 0, text, 'text'));
       const push = (col, row, text) => visit(sheetIndex, col, this.imported ? row : row + 1, text, store.kind(col, row));
-      if (this.imported && this.backed) {
+      if (this.imported && this.backed && !allValues) {
         for (const [key, original] of store.originals) {
           const [col, row] = key.split(',').map(Number), text = store.get(col, row);
           if (text !== original.text || store.kind(col, row) !== original.kind) push(col, row, text);
@@ -95,7 +95,7 @@ export class WorkbookStore {
     return {sheets};
   }
   // The same cells as typed column records per sheet, for snapshot.mjs encodeSnapshot.
-  exportColumns() {
+  exportColumns(allValues = false) {
     const sheets = this.sheets.map(({name, store}) => ({name, store, columns: new Map()}));
     this.exportCells((s, col, row, text, kind) => {
       const sheet = sheets[s];
@@ -105,7 +105,7 @@ export class WorkbookStore {
       b.rows.push(row); b.kinds.push(text === '' ? 0 : k);
       const n = kind === 'number' ? Number(text) : NaN;
       b.nums.push(n); if (text !== '' && Number.isNaN(n)) b.texts.set(i, text);
-    });
+    }, allValues);
     return {sheets: sheets.map(({name, store, columns}) => ({name, columns: [...columns.values()].sort((a, b) => a.col - b.col), inserts: store.inserts.map(i => ({col: i.col, count: i.count}))}))};
   }
 }

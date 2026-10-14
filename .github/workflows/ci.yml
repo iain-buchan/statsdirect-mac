@@ -52,19 +52,21 @@ jobs:
       - name: Install JavaScript dependencies
         run: for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
       - name: Install openpyxl for the Excel tests
-        run: python3 -m pip install openpyxl
+        run: python3 -m pip install openpyxl xlrd
       - name: Build the application
         run: DOTNET="$(command -v dotnet)" ./build.sh
       - name: Committed bundles match their sources
         run: |
           node Grid/build.mjs && node Report/build.mjs && node Learn/build.mjs
-          git diff --exit-code --stat -- Content/Grid Content/Report Content/Learn
+          git diff --exit-code --stat -- Content/Grid Content/Report Content/Learn Content/AI
       - name: Engine and R comparison tests
         run: ./test.sh
       - name: JavaScript tests
         run: node --test Grid/*.test.mjs Report/*.test.mjs Learn/*.test.mjs
       - name: Worksheet column selection gestures
         run: Scripts/test-grid-selection.sh
+      - name: Mac parity workflows
+        run: bash Scripts/test-mac-parity.sh
       - name: Paired t-test workflow
         run: Scripts/test-paired-workflow.sh
       - name: Analysis follow-on workflows
@@ -73,6 +75,7 @@ jobs:
         run: |
           clang++ -std=c++17 -arch arm64 Tests/workbook-driver.cpp -o .build/workbook-driver
           swiftc Sources/RInstallation.swift Sources/RDataFileIO.swift Sources/CSVFileIO.swift Sources/Snapshot.swift Tests/data-file-driver.swift -o .build/data-file-driver
+          python3 Tests/test_xls_export.py .build/workbook-driver
           python3 Tests/test_excel.py .build/workbook-driver "$(command -v node)"
           python3 Tests/test_excel_edges.py .build/workbook-driver "$(command -v node)"
           python3 Tests/test_excel_inserts.py .build/workbook-driver
@@ -98,8 +101,11 @@ jobs:
         run: Scripts/test-r-integration.sh
       - name: Startup, recent documents and guided R setup
         run: bash Scripts/test-startup-r-setup.sh
-      - name: Script AI dock and sharing
-        run: Scripts/test-script-ai.sh
+      - name: Script and report AI docks and sharing
+        run: |
+          Scripts/test-ai-sharing.sh
+          Scripts/test-script-ai.sh
+          Scripts/test-report-ai.sh
       - name: Conversation R replay and Learning recovery
         run: |
           RSCRIPT="$(command -v Rscript)" bash Scripts/test-conversation-r.sh

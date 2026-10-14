@@ -1,5 +1,178 @@
 # Mac and Windows workflow alignment
 
+## Mac implementation update — 14 October 2026
+
+Iain authorised the remaining Mac fixes, coordinated Windows work, tests, and a
+commit/push, explicitly excluding installer rebuilds. This source update includes:
+
+- Report AI, rich offline WebView conversations and app-session sharing acceptance
+  across Report, Script and Learning. Selecting a different data document or
+  restarting the app asks again. Each question retains a bounded, fixed context.
+- Current offline Help retained from incoming Mac commit `497760a` / Windows `406d2557` (identical to the initially tested `76911c12` bundle), including Learning,
+  Report window and Script AI; matching seven Help commands and agreed order.
+- Repeat analysis: a checkbox during worksheet acquisition automatically opens
+  the next acquisition after a successful result/write-back. It clears the old
+  selection, preserves the active report and stops on cancellation or failure.
+  Instant-answer forms retain their existing edit/recalculate workflow.
+- Worksheet and entry-table printing from actual data, with the native preview,
+  page ranges and PDF options. Selected cells/columns/rows are honoured; otherwise
+  the used rectangle prints. Wide worksheets use eight-column page bands. Print
+  snapshots above 250,000 cells ask for a smaller selection, never silently omit
+  cells. Scripts print their current source text.
+- RDS/RData preserve Date/POSIXct NaN distinctly from missing values, including
+  fractional dates and precise timestamps. The shared exchange-script fix was
+  coordinated and independently round-trip-tested on Windows and Mac.
+- File/Open accepts literal TXT reports, TSV data, C# and VB scripts. Script files
+  never execute on opening, and opening does not start a background R process. The Script toolbar chooses R, C# or Visual Basic;
+  C#/VB use the unchanged Windows `IScriptEngine.Run(..., ScriptType.Method, host,
+  null, null, null)` contract with the Mac interactive host. Prompts, reports,
+  worksheet output and console errors use normal Mac documents. Console capture
+  stays separate when scripts are suspended at different prompts. C#/VB Stop is
+  cooperative at engine checkpoints; arbitrary user loops cannot be force-stopped
+  inside the application process. Windows-specific APIs are not emulated.
+- Explicit Excel 97–2003 **data-copy export** writes all worksheet values and types
+  as genuine BIFF8, independently checked with xlrd. It checks 65,536 rows, 256
+  columns and 32,767-character cell limits before atomic replacement. A data copy
+  does not clear the original document's unsaved flag or change its source path.
+  Rich workbook preservation remains the existing XLSX save path.
+
+Legacy qualifications remain explicit: **SDW conversion needs Windows with the
+StatsDirect 2 converter**; Mac gives migration instructions and never modifies the
+SDW. XLS data export does not preserve Excel formatting, formulas, charts or macros.
+These are narrower legacy-format capabilities than Windows, not an assertion of
+complete legacy-format equivalence. Final packaged clean-machine, account sign-in,
+update and side-by-side release acceptance remain release gates. No installer,
+version number, shared calculation source or shared report-editor module changed.
+
+Mac commits `497760a` and `5a20b86` were incorporated, preserving the engine pin
+`406d2557`, Help, test-harness improvements and marked licence notice. The 873
+engine source hashes are unchanged from the initial test baseline.
+
+The XLS writer uses only the Apache-2.0 NPOI 2.7.4 core assembly and explicit MIT
+writer dependencies. Its OOXML, image and XML-signature stacks are not included.
+Notices ship in `Content/Licenses`. Sources: [pinned NPOI package](https://www.nuget.org/packages/NPOI/2.7.4),
+[HSSF writer](https://github.com/nissl-lab/npoi/blob/master/main/HSSF/UserModel/HSSFWorkbook.cs).
+Newer NPOI packages have different licence/dependency considerations; upgrading
+this pin requires reviewing those rather than silently importing the whole stack.
+
+### Coordinated Windows source update
+
+The Windows chat committed and pushed `52146ce5f34b2d3ce54fc84a18819fd150ad0d22`
+on 14 October. It reports 822 passing checks: Learning/AI/file interchange 290,
+WebReports 260, shell 32, Help 42, Continue in R 163, shared Learning/R 27 and
+report JavaScript 8. Twelve physical clipboard checks were explicitly skipped to
+preserve the user's enhanced-metafile clipboard; browser-selection and Office
+payload/export checks ran. These are remote-session results, not native Windows
+execution on this Mac. It confirms Report AI, session consent, HTML/maths chat,
+refined lessons, Help order, CSV/R/script routing, XLSB, RTF-to-HTML/SVG import and
+R-data exchange. The copied R exchange code includes the agreed Date/POSIXct NaN
+fix on both platforms. Windows has a conservative R metadata safeguard after
+ambiguous structural/row-name edits; Mac retains per-cell raw metadata.
+
+No calculation algorithms, shared report-editor source or installers changed in
+these coordinated updates. Installer and cross-platform release gates below still
+apply before claiming Windows 5.2 / Mac 1.0 release equivalence.
+
+## Release parity audit — 14 October 2026
+
+Release target requested by Iain: **Windows 5.2 and Mac 1.0 should offer equivalent
+functions and a similar look and feel, with different worksheet-grid implementations.**
+This audit supersedes the historical readiness statements below. **Full functional
+parity is not yet established.** Matching the analysis menus is not sufficient.
+The audit itself changed no code, version, installer or release. The implementation update above records the subsequently authorised Mac fixes; the gap table below is the original audit, retained for traceability, not the current outstanding-work list.
+
+Baselines: Windows clean `main` at `76911c12`; Mac `main` at `cbccc10` plus the
+tested, uncommitted Report AI, HTML conversation, session-sharing and Help-menu
+changes. The Mac engine pin remains `1bf97548` (5.2.0). No calculation, operation,
+template or R-recipe changes separate that engine pin from current Windows main.
+The shared `Report/*.mjs` editor modules match the Windows vendored modules after
+normalising line endings; the platform hosts and export adapters remain separate.
+
+| Area | Confirmed alignment | Gap to close before claiming parity |
+| --- | --- | --- |
+| Analyses and follow-ons | Both expose the same 208 distinct menu operations among 277 XML definitions. Mac completes 208 menu and 67 follow-on operations; file-host routes are separate. LOESS and method-comparison regression now run through R on Mac. | Keep final package operation coverage, numerical comparisons and selected-data workflows in both release gates. The older 9 October statement that these two R operations are deferred is obsolete. |
+| Repeating analyses | Both can run analyses again and retain appropriate input. | Windows has a live batch/repeat loop. Mac has no equivalent automatic batch workflow. |
+| Reports | Shared editable HTML editor, one chronological undo history, formatting, tables, charts, left/default and selected-chart alignment, HTML/PDF/DOCX export and contextual R/help. | Mac imports old RTF with WMF/EMF-to-SVG conversion. Windows currently refuses RTF and asks users to convert it in Word. Windows accepts TXT reports; Mac File/Open does not. Neither platform's DOCX export should be described as DOCX editing/import. |
+| Script languages | Both support R execution, a console, plots, external R and generated scripts/data. | Windows also exposes functioning C# and VB script execution. Mac's script UI is R only. |
+| AI conversations | Script AI uses rendered HTML; code review/opening, streaming selection and renderer recovery are implemented on both. | Windows has no Report AI dock, has no maths renderer in its Script conversation (Learning already has KaTeX), and still asks for sharing approval per question. Port Mac's Report AI, formatted maths and memory-only consent across Report/Script/Learning, resetting at restart or a different data document. |
+| Learning | Same 12 lesson IDs, provider course example and curated resource library; options, course packs, questions, evidence and export exist on both. | Windows needs the four refined lessons (precision, diagnostic, risk/NNT, meta-analysis), method-specific R code, revised tutor instructions and removal of the pending-review notice. Fixed question keys must remain compatible with saved attempts. |
+| Help | Same seven menu commands and offline HTML help; contextual help remains available. | Mac lacks Windows' newer Learning, Script AI and Report window pages and refreshed navigation/topics. Standardise Example workbook above updates, with About last. |
+| Toolbars and appearance | Common monochrome Windows-style icons, one toolbar per document, shared report editor; Script AI then R+ with accessible Open in R text. | Review final builds at common wide/narrow sizes, including overflow, enabled/disabled contrast, consent collapse, report AI, charts and light/dark appearance. |
+| CSV and R files | Mac opens/saves CSV and RDS/RData; both have R scripts. Windows has functioning Import Data/Export Data CSV/TSV routes. | Windows File/Open advertises CSV and R scripts but omits them from dispatch; repair this defect. Windows has no RDS/RData file import/export; copying data to R is not equivalent. |
+| Excel compatibility | XLSX is the common writable exchange format; both read XLS/XLSX. | Mac also opens XLSB/XLSM/templates, whereas Windows File/Open only dispatches XLS/XLSX. Windows writes legacy XLS as well as XLSX; Mac writes XLSX only. Treat these as explicit format differences, not merely a different grid control. |
+| Legacy data | Windows has a reachable SDW conversion workflow. | It requires a compatible installed StatsDirect 2 executable; it is not native parsing. Mac has no equivalent. A migration policy is needed rather than silently promising legacy-file parity. |
+| Printing | Both print reports and Help. | Windows prints/previews worksheets and scripts; Mac explicitly disables these commands for worksheets, R/script windows and entry tables. |
+| Setup and updates | Guided R and AI-runtime setup, direct workspace startup and recent-file handling exist. | Final clean-machine install/cancellation/resume and update tests remain. Platform installation/security steps may differ, while the requested action should resume consistently. |
+
+The deliberate difference is the worksheet **implementation**; it should not hide
+missing analyses, file handling or printing. Keep Command/Control shortcuts,
+native file dialogs, window controls and operating-system installation conventions.
+Do not remove a useful capability from one platform merely to make the lists match.
+
+### Evidence from this audit
+
+- Fresh Mac `test.sh` completed successfully with engine 5.2.0:
+  `.build/release-parity-core.log`, `.build/form-coverage.json` (no missing operations).
+  It covers independent R comparisons, forms/branches, all 67 follow-ons, worksheet
+  output, the LOESS and MCR examples, 227 recipe/manifest comparisons, actual R
+  execution and 112 JavaScript tests without skips. The known Chi2by2 help-versus-
+  dialog Fisher-option difference is explicitly checked; it is not an unexplained
+  cross-platform numerical mismatch.
+- Current Mac native evidence: `.build/help-menu-{native,script}.log`,
+  `.build/ai-webview-{report,script,learning}.log`, `.build/merge-main-report.log`.
+  These cover menu actions and workbook selection, WebView recovery/selection,
+  session-sharing boundaries, report editing/interchange and engine-generated
+  PEFR/agreement results. Native GUI tests do not individually click every possible
+  branch of every operation.
+- Windows chat confirmed live source routes, rather than inferring features from
+  library capability. Its fresh audit resolved all 208 menu operations, checked
+  all 277 definitions/60 guarded conditions, grouped-data/ANCOVA selection and
+  42 native HTML5 Help checks. Its fresh full Continue in R run passed 163 checks
+  using R 4.6.1, covering 227 recipe/help comparisons, actual calculations,
+  regression follow-ons and the script window. Logs in the Windows workspace:
+  `outputs/parity-audit-htmlhelp.txt` and `outputs/parity-audit-rscript.txt`.
+  It also reports today's 32 shell checks passing, and existing evidence for
+  258 WebReports, 23 installed Word/Excel, 217 Learning and 27 shared checks;
+  seven physical clipboard checks were skipped to preserve the user's clipboard.
+  These are Windows-session reports, distinct from tests executed on this Mac.
+  No Windows production source was changed by the audit.
+- Mac lesson comparison found exactly four substantive lesson revisions plus the
+  review-status wording on all twelve. `resources.json` and
+  `provider-course-example.json` match semantically. See
+  `Docs/Learn/CONTENT-REFINEMENTS-2026-10-12.md` for the numerical/method evidence.
+
+### Release gates
+
+1. Close the concrete feature gaps above, or explicitly agree a common supported
+   scope for legacy formats/languages. Fix the Windows File/Open routing defect.
+2. Freeze matching engine, R recipes, lessons, Help and shared-editor revisions;
+   record platform adaptations instead of silently diverging copied content.
+3. Run the same colleague workflow on both packaged candidates: open test.xlsx;
+   drag PEFR Before/After; Paired t + agreement + Run; append to the active report;
+   edit/copy/resize/undo and export; Continue in R; Open in R with results/plot;
+   ask Report and Script AI, reusing consent until a new workbook; use Learning
+   with the same example and export the learner's record.
+4. Exchange representative edited XLSX/CSV, HTML reports with tables/charts and
+   run records, generated R scripts and provider course packs in both directions.
+   Check actual Office paste, final screenshots and relevant accessibility/keyboard
+   paths on both operating systems.
+5. Test signed release packages, clean-machine setup/upgrade/uninstall, true
+   missing-R and AI-runtime installation, a real account sign-in/reply, and update
+   discovery from the published previous version. Mock protocol/installer tests
+   are valuable but do not establish this final package acceptance.
+
+The public Mac release remains `v0.3.29` (12 October); current local metadata also
+says 0.3.29, not 1.0. The Windows chat reports its signed 5.2 installer predates the
+latest Help and Learning commits. Neither existing installer therefore represents
+the final proposed parity candidates. Version bumps and publication are separate
+from this audit.
+
+Both chats agree: close these gaps and execute the common packaged workflow before
+describing Windows 5.2 and Mac 1.0 as functionally equivalent. This audit is not an
+instruction to publish, to change version numbers, or to remove legacy functionality.
+
+## Historical implementation and acceptance notes
+
 Approved scope: direct workspace startup, learning under Help, contextual script AI,
 guided R installation, and the same document/analysis workflows on both platforms.
 These are local review builds, not a release or a claim of complete feature parity.

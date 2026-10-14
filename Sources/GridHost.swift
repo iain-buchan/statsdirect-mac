@@ -64,7 +64,7 @@ extension Viewer: WKScriptMessageHandler {
         doc.web.evaluateJavaScript("window.statsDirectGrid?.setStatus(\(jsString(text)))")
     }
     @objc func openCSV() {
-        let panel = NSOpenPanel(); panel.allowedContentTypes = [.commaSeparatedText]
+        let panel = NSOpenPanel(); panel.allowedContentTypes = [.commaSeparatedText, UTType(filenameExtension: "tsv") ?? .tabSeparatedText]
         panel.allowsMultipleSelection = false; panel.canChooseDirectories = false
         panel.beginSheetModal(for: window) { response in
             if response == .OK, let url = panel.url { self.openCSVURL(url) }
@@ -80,7 +80,7 @@ extension Viewer: WKScriptMessageHandler {
                 case .success(let text):
                     let doc = self.newDocument(kind: "grid", title: url.lastPathComponent, url: self.root.appendingPathComponent("Grid/index.html"))
                     doc.workbookName = url.lastPathComponent
-                    doc.csvSaveName = url.deletingPathExtension().lastPathComponent + "-edited.csv"
+                    doc.csvSaveName = url.deletingPathExtension().lastPathComponent + "-edited." + url.pathExtension.lowercased()
                     doc.pendingCSV = text
                     doc.openedFileURL = url
                 }
@@ -100,13 +100,13 @@ extension Viewer: WKScriptMessageHandler {
     }
     func saveGrid(_ doc: Document) {
         guard !doc.fileBusy else { return }
-        let panel = NSSavePanel(); panel.allowedContentTypes = [.commaSeparatedText]
+        let panel = NSSavePanel(); panel.allowedContentTypes = [.commaSeparatedText, UTType(filenameExtension: "tsv") ?? .tabSeparatedText]
         panel.nameFieldStringValue = doc.csvSaveName ?? (doc.workbookName as NSString).deletingPathExtension + ".csv"
         panel.beginSheetModal(for: window) { response in
             guard response == .OK, let url = panel.url else { return }
             let version = doc.gridVersion; doc.fileBusy = true
             // Read after the dialog closes so the snapshot includes the latest edits.
-            doc.web.evaluateJavaScript("window.statsDirectGrid.csvSnapshot()") { value, error in
+            doc.web.evaluateJavaScript("window.statsDirectGrid.csvSnapshot(\(self.jsString(url.pathExtension.lowercased() == "tsv" ? "\t" : ",")))") { value, error in
                 guard error == nil, let snapshot = value as? [String: Any], let csv = snapshot["text"] as? String else {
                     doc.fileBusy = false; self.showError("The grid could not be saved as CSV. " + (error?.localizedDescription ?? "The worksheet is still loading.")); return
                 }

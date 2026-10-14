@@ -13,11 +13,15 @@
 <key>CFBundleDocumentTypes</key><array>
   <dict><key>CFBundleTypeName</key><string>StatsDirect data, script or HTML report</string>
     <key>CFBundleTypeRole</key><string>Editor</string><key>LSHandlerRank</key><string>Alternate</string>
-    <key>CFBundleTypeExtensions</key><array><string>xlsx</string><string>xls</string><string>xlsb</string><string>xlsm</string><string>xlt</string><string>xltx</string><string>xltm</string><string>csv</string><string>rds</string><string>rdata</string><string>rda</string><string>r</string><string>R</string><string>html</string><string>htm</string></array>
+    <key>CFBundleTypeExtensions</key><array><string>xlsx</string><string>xls</string><string>xlsb</string><string>xlsm</string><string>xlt</string><string>xltx</string><string>xltm</string><string>csv</string><string>tsv</string><string>rds</string><string>rdata</string><string>rda</string><string>r</string><string>R</string><string>cs</string><string>vb</string><string>html</string><string>htm</string></array>
   </dict>
   <dict><key>CFBundleTypeName</key><string>Legacy StatsDirect report</string>
     <key>CFBundleTypeRole</key><string>Viewer</string><key>LSHandlerRank</key><string>Alternate</string>
-    <key>CFBundleTypeExtensions</key><array><string>rtf</string></array>
+    <key>CFBundleTypeExtensions</key><array><string>rtf</string><string>txt</string></array>
+  </dict>
+  <dict><key>CFBundleTypeName</key><string>Legacy StatsDirect workbook</string>
+    <key>CFBundleTypeRole</key><string>Viewer</string><key>LSHandlerRank</key><string>Alternate</string>
+    <key>CFBundleTypeExtensions</key><array><string>sdw</string></array>
   </dict>
 </array>
 </dict></plist>

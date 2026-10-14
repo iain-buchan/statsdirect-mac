@@ -9,6 +9,7 @@ import WebKit
     private(set) var allowed: Set<String> = []
     private let candidates: [Document]
     private let versions: [String:Int]
+    private let consentRevision: Int
     private var choice: String
     let sourceID: String?
     var datasets: [String:(document:String, version:Int, value:[String:Any])] = [:]
@@ -20,6 +21,7 @@ import WebKit
     var calculationBusy = false
     init(_ viewer: Viewer, _ learner: Document, _ requestID: String) {
         self.viewer = viewer; self.learner = learner; self.requestID = requestID
+        consentRevision=viewer.aiSharing.revision
         let selected = learner.learningSourceID
         choice = selected
         candidates = TutorPolicy.disabled || selected == "__none__" ? [] : viewer.documents.filter{$0.kind != "learn" && (selected.isEmpty || $0.id == selected)}
@@ -29,7 +31,9 @@ import WebKit
     func authorize(confirm: (([Document]) async -> LearningSharingDecision)? = nil) async throws {
         try check()
         guard !candidates.isEmpty, allowed.isEmpty else { return }
-        let decision = if let confirm { await confirm(candidates) } else { await viewer.confirmLearningSharing(candidates) }
+        let dataIDs=Set(candidates.filter{$0.kind=="grid"}.map(\.id))
+        let reused=viewer.aiSharing.accepts(dataIDs)
+        let decision = if let confirm { await confirm(candidates) } else if reused { LearningSharingDecision.share } else { await viewer.confirmLearningSharing(candidates) }
         try check()
         switch decision {
         case .cancel: throw ChatGPTTutor.Failure(message:"Document sharing cancelled. No question or document context was sent.")
@@ -40,13 +44,15 @@ import WebKit
                 guard viewer.documents.contains(where:{$0 === doc}), doc.gridVersion == versions[doc.id] else { throw ChatGPTTutor.Failure(message:"A document changed while you reviewed sharing. Send again to review the current documents.") }
             }
             guard let learner else { throw CancellationError() }
-            try await viewer.recordLearningSharing(learner,requestID,candidates)
+            try await viewer.recordLearningSharing(learner,requestID,candidates,reused:reused)
             try check()
+            viewer.aiSharing.approve(dataIDs)
+            if !reused { viewer.aiSharing.shareDocument=true;viewer.aiSharing.shareWorkbook = !dataIDs.isEmpty }
             allowed = Set(candidates.map(\.id))
             for doc in candidates {
                 if let pane=doc.rPane {
-                    rSource += pane.editor.string + "\n\n"
-                    scriptSnapshots[doc.id] = ["title":doc.title,"kind":"r","script":String(pane.editor.string.prefix(12000)),"output":String(pane.console.string.suffix(16000)),"truncated":pane.editor.string.count > 12000 || pane.console.string.count > 16000,"running":pane.isRunning,"snapshot":true]
+                    if pane.language == "R" { rSource += pane.editor.string + "\n\n" }
+                    scriptSnapshots[doc.id] = ["title":doc.title,"kind":"script","language":pane.language,"script":String(pane.editor.string.prefix(12000)),"output":String(pane.console.string.suffix(16000)),"truncated":pane.editor.string.count > 12000 || pane.console.string.count > 16000,"running":pane.isRunning,"snapshot":true]
                 }
             }
         }
@@ -54,6 +60,7 @@ import WebKit
     func check() throws {
         try TutorPolicy.check()
         try Task.checkCancellation()
+        guard candidates.isEmpty || viewer.aiSharing.revision==consentRevision else { throw ChatGPTTutor.Failure(message:"The selected data document changed. Confirm sharing for the new document before sending again.") }
         guard let learner, viewer.documents.contains(where:{$0 === learner}), learner.learningRequestID == requestID, learner.learningSourceID == choice else { throw CancellationError() }
     }
     func document(_ id: String) throws -> Document {
@@ -69,6 +76,7 @@ import WebKit
         for doc in viewer.documents where allowed.contains(doc.id) {
             _ = try document(doc.id)
             var row: [String:Any] = ["documentId":doc.id,"title":doc.title,"kind":doc.kind,"focused":doc.id == sourceID]
+            if let snapshot = scriptSnapshots[doc.id] { row["kind"]="script";row["language"]=snapshot["language"] }
             if let operation = doc.operationName { row["operation"] = operation }
             if doc.kind == "grid" {
                 do { row["worksheet"] = try await viewer.learningJavaScript(doc,"window.statsDirectGrid.tutorInfo()") }
@@ -192,7 +200,8 @@ extension Viewer {
         let source = documents.first(where:{$0.id == sourceID})
         let choices = documents.filter{$0.kind != "learn"}.map{["id":$0.id,"title":$0.title,"kind":$0.kind]}
         Task { @MainActor in
-            var label = TutorPolicy.disabled ? "Online tutor disabled · local learning is available" : doc.learningSourceID == "__none__" ? "Lessons only · open documents are not shared" : doc.learningSourceID.isEmpty ? "All open documents · confirmation required when you send" : source.map{"For confirmation when you send: " + $0.title} ?? "Selected document is closed · choose another context"
+            var label = TutorPolicy.disabled ? "Online tutor disabled · local learning is available" : doc.learningSourceID == "__none__" ? "Lessons only · open documents are not shared" : doc.learningSourceID.isEmpty ? "All open documents · session sharing applies" : source.map{"Selected context: " + $0.title} ?? "Selected document is closed · choose another context"
+            if doc.learningSourceID != "__none__" { label += aiSharing.accepted ? " · sharing accepted for this app session" : " · confirmation required" }
             if let source, source.kind == "grid", doc.learningSourceID != "__none__", !TutorPolicy.disabled {
                 do {
                     // A local preview needs only metadata, not an unconfirmed cell read.

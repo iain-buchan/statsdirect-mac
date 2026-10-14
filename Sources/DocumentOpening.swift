@@ -14,11 +14,12 @@ extension Viewer: NSMenuDelegate {
             guard url.isFileURL else { showError("Open a file saved on this computer."); continue }
             switch url.pathExtension.lowercased() {
             case let ext where Self.excelExtensions.contains(ext): openExcelURL(url)
-            case "csv": openCSVURL(url)
+            case "csv", "tsv": openCSVURL(url)
             case "rds", "rdata", "rda": openRDataURL(url)
-            case "r": openRScriptURL(url)
-            case "html", "htm", "rtf": openReportURL(url)
-            default: showError("Choose an Excel, CSV or R data file, an R script, or an HTML or RTF report.")
+            case "r", "cs", "vb": openRScriptURL(url)
+            case "html", "htm", "rtf", "txt": openReportURL(url)
+            case "sdw": showError("This legacy StatsDirect workbook needs the StatsDirect 2 converter on Windows. Open it there and save it as an Excel workbook (.xlsx or .xls), then open that file here. The original SDW file has not been changed.")
+            default: showError("Choose an Excel, CSV, TSV or R data file, an R, C# or Visual Basic script, or an HTML, RTF or text report.")
             }
         }
     }

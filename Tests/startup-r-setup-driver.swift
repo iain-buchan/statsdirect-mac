@@ -47,7 +47,7 @@ import WebKit
                     } else if CommandLine.arguments.contains("--startup-file") {
                         try check(viewer.finishedLaunching && viewer.pendingOpenURLs.isEmpty, "early Finder open event is drained after window construction")
                         try check(viewer.documents.count == 1 && viewer.active?.rPane?.editor.string == source, "file launch opens the requested document without an extra blank worksheet")
-                        try check(viewer.active?.rPane?.isRunning == false && viewer.active?.rPane?.console.string.isEmpty == true, "a script opened at startup is not executed")
+                        try check(viewer.active?.rPane?.isRunning == false && viewer.active?.rPane?.console.string.isEmpty == true && viewer.active?.rPane?.outputFolder == nil, "opening a script at startup neither runs it nor starts an R process")
                     } else { try await run(viewer, folder: folder) }
                     viewer.clearRecentDocuments(nil)
                     print("PASS: startup and R setup checks completed"); fflush(stdout)

@@ -1,10 +1,11 @@
 import Cocoa
+import WebKit
 
 @MainActor private final class ScriptAIControlsStack: NSStackView {
     override var isFlipped: Bool { true }
 }
 
-@MainActor final class ScriptAIPane: NSObject, NSTextViewDelegate {
+@MainActor final class ScriptAIPane: NSObject {
     private static let confirmationNotice="Check the selected content for person identifiers, then confirm before sending."
     final class Conversation {
         let generation = UUID().uuidString
@@ -13,10 +14,11 @@ import Cocoa
         var shareScript=false
         var shareWorkbook=false
         var workbookID: String?
+        var reportResultID: String?
     }
     unowned let viewer: Viewer
     let view=NSView()
-    let transcript=NSTextView()
+    let transcript: AIConversationView
     let input=NSTextView()
     let heading=NSTextField(labelWithString:"AI assistance · ChatGPT")
     let sourceLabel=NSTextField(labelWithString:"")
@@ -28,7 +30,7 @@ import Cocoa
     let acknowledgement=NSButton(checkboxWithTitle:"I have checked the selected content contains no person identifiers.",target:nil,action:nil)
     let sendButton=NSButton(title:"Send question only",target:nil,action:nil)
     let stopButton=NSButton(title:"Stop",target:nil,action:nil)
-    let contextButton=NSButton(title:"Sharing for this question ▾",target:nil,action:nil)
+    let contextButton=NSButton(title:"Sharing for this session ▾",target:nil,action:nil)
     let contextPanel=NSStackView()
     let openCodeButton=NSButton(title:"Open R code",target:nil,action:nil)
     private var activeContext: ScriptAIContext?
@@ -39,26 +41,25 @@ import Cocoa
     private var task: Task<Void,Never>?
     private var partial=""
     private var replyID = UUID().uuidString
-    private weak var renderedConversation: Conversation?
     private var dockWidth: CGFloat=460
     private var conversation: Conversation? { scriptID.flatMap{conversations[$0]} }
+    private var isReport: Bool { viewer.documents.first(where:{$0.id==scriptID})?.kind == "report" }
     var isBusy: Bool { task != nil }
     var isFocused: Bool { visible && NSApp.keyWindow === viewer.window && (viewer.window.firstResponder as? NSView)?.isDescendant(of:view) == true }
 
     init(viewer: Viewer) {
-        self.viewer=viewer;super.init()
+        self.viewer=viewer;transcript=AIConversationView(root:viewer.root);super.init()
+        transcript.openR = { [weak self] generation,id,index in self?.openCode(generation:generation,messageID:id,blockIndex:index) }
+        transcript.copyCode = { [weak self] generation,id,code in self?.copyCode(generation:generation,messageID:id,code:code) }
         heading.font = .systemFont(ofSize:13,weight:.semibold)
         heading.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
         let close=NSButton(title:"×",target:self,action:#selector(hide));close.setAccessibilityLabel("Close AI assistance")
         let fresh=NSButton(image:NSImage(systemSymbolName:"square.and.pencil",accessibilityDescription:"New AI conversation")!,target:self,action:#selector(newConversation))
-        fresh.toolTip="Start a new conversation for this script";fresh.setAccessibilityLabel("New AI conversation")
+        fresh.toolTip="Start a new conversation for this document";fresh.setAccessibilityLabel("New AI conversation")
         for button in [close,fresh,connection,contextButton] { button.controlSize = .small;button.refusesFirstResponder=true }
         let header=NSStackView(views:[heading,fresh,close]);header.spacing=6
         sourceLabel.font = .systemFont(ofSize:11);sourceLabel.textColor = .secondaryLabelColor;sourceLabel.lineBreakMode = .byTruncatingMiddle
         connection.target=self;connection.action=#selector(connect)
-        transcript.delegate=self
-        transcript.isEditable=false;transcript.isSelectable=true;transcript.isRichText=true
-        transcript.setAccessibilityLabel("AI conversation")
         input.isRichText=false;input.allowsUndo=true;input.font = .systemFont(ofSize:13)
         input.isAutomaticQuoteSubstitutionEnabled=false;input.isAutomaticDashSubstitutionEnabled=false
         input.setAccessibilityLabel("Question for AI")
@@ -68,16 +69,16 @@ import Cocoa
             text.textContainer?.widthTracksTextView=true;text.textContainerInset=NSSize(width:8,height:8);scroll.documentView=text
             return scroll
         }
-        let history=scroll(transcript),composer=scroll(input)
+        let history=transcript.view,composer=scroll(input)
         contextButton.target=self;contextButton.action=#selector(toggleContext)
         contextButton.isBordered=false;contextButton.alignment = .left
         contextPanel.orientation = .vertical;contextPanel.alignment = .leading;contextPanel.spacing=5
-        let warning=NSTextField(wrappingLabelWithString:"Share workbook data or scripts with ChatGPT? Do not share person-identifiable data: remove names, dates of birth, patient IDs and identifying free text.")
+        let warning=NSTextField(wrappingLabelWithString:"Share reports, workbook data or scripts with ChatGPT for this app session? Confirm again after restarting or selecting a different data document. Do not share person-identifiable data: remove names, dates of birth, patient IDs and identifying free text.")
         warning.font = .systemFont(ofSize:11);warning.textColor = .secondaryLabelColor
         acknowledgement.cell?.wraps=true;acknowledgement.font = .systemFont(ofSize:11)
         for control in [shareScript,shareWorkbook,acknowledgement] { control.target=self;control.action=#selector(sharingChanged);control.controlSize = .small }
         acknowledgement.action=#selector(acknowledge)
-        workbookPicker.target=self;workbookPicker.action=#selector(sharingChanged)
+        workbookPicker.target=self;workbookPicker.action=#selector(workbookChanged)
         workbookPicker.setAccessibilityLabel("Workbook to share with AI")
         let dataRow=NSStackView(views:[shareWorkbook,workbookPicker]);dataRow.spacing=6
         shareWorkbook.setContentHuggingPriority(.required,for:.horizontal)
@@ -123,16 +124,20 @@ import Cocoa
         ])
         history.setContentHuggingPriority(.defaultLow,for:.vertical)
     }
-    func open(_ doc: Document) {
-        guard doc.kind=="r" else { return }
+    func open(_ doc: Document, reportResultID: String? = nil) {
+        guard ["r","report"].contains(doc.kind) else { return }
         if scriptID != doc.id {
             saveChoices();stop();scriptID=doc.id
-            if conversations[doc.id]==nil { let chat=Conversation();chat.workbookID=viewer.documents.first(where:{$0.kind=="grid" && $0.id==viewer.analysisSourceID})?.id ?? viewer.documents.last(where:{$0.kind=="grid"})?.id;conversations[doc.id]=chat }
-            input.string=conversation!.draft;shareScript.state=conversation!.shareScript ? .on:.off;shareWorkbook.state=conversation!.shareWorkbook ? .on:.off
+            if conversations[doc.id]==nil { conversations[doc.id]=Conversation() }
+            input.string=conversation!.draft
         }
-        acknowledgement.state = .off;setContextExpanded(true)
+        if let reportResultID { conversation?.reportResultID=reportResultID }
+        shareScript.title=doc.kind=="report" ? "Share this report" : "Share this script and its R output"
+        heading.stringValue=doc.kind=="report" ? "AI report help · ChatGPT" : "AI assistance · ChatGPT"
+        shareScript.state=viewer.aiSharing.shareDocument ? .on:.off
+        shareWorkbook.state=viewer.aiSharing.shareWorkbook ? .on:.off
         sourceLabel.stringValue=doc.title
-        refreshWorkbooks();render();updateConnection()
+        refreshWorkbooks();setContextExpanded(!viewer.aiSharing.accepted);render();updateConnection()
         if !visible {
             if viewer.helpPane.visible && viewer.helpPane.view.superview === viewer.workspaceSplit { viewer.helpPane.hide() }
             visible=true;view.autoresizingMask=[.width,.height];view.translatesAutoresizingMaskIntoConstraints=true
@@ -148,17 +153,17 @@ import Cocoa
     }
     func activeDocumentChanged(_ doc: Document) {
         guard visible else { return }
-        if doc.kind=="r" && doc.id != scriptID { open(doc) } else { refreshWorkbooks() }
+        if ["r","report"].contains(doc.kind) && doc.id != scriptID { open(doc) } else { refreshWorkbooks() }
     }
     func refreshWorkbooks() {
-        let id=conversation?.workbookID
+        let id=viewer.aiSharing.dataDocumentID
         workbookPicker.removeAllItems()
         for doc in viewer.documents where doc.kind=="grid" { workbookPicker.addItem(withTitle:doc.title);workbookPicker.lastItem?.representedObject=doc.id }
         if let index=workbookPicker.itemArray.firstIndex(where:{$0.representedObject as? String==id}) { workbookPicker.selectItem(at:index) }
         // Losing a chosen workbook never silently authorises its replacement.
-        else if id != nil { shareWorkbook.state = .off }
+        else if id != nil { shareWorkbook.state = .off;workbookPicker.selectItem(at:-1) }
         if workbookPicker.numberOfItems==0 { shareWorkbook.state = .off }
-        sharingChanged()
+        saveChoices();updateControls()
     }
     func updateConnection() {
         let tutor=viewer.chatGPTTutor
@@ -171,7 +176,18 @@ import Cocoa
         viewer.configureLearningAI(doc)
     }
     @objc func sharingChanged() {
-        acknowledgement.state = .off;setContextExpanded(true);saveChoices();updateControls()
+        if shareWorkbook.state == .on { viewer.selectAIDataDocument(workbookPicker.selectedItem?.representedObject as? String) }
+        viewer.aiSharing.shareDocument=shareScript.state == .on
+        viewer.aiSharing.shareWorkbook=shareWorkbook.state == .on
+        saveChoices();updateControls()
+    }
+    @objc private func workbookChanged() {
+        viewer.selectAIDataDocument(workbookPicker.selectedItem?.representedObject as? String)
+        saveChoices();updateControls()
+    }
+    func sessionSharingChanged() {
+        if isBusy { stop() }
+        refreshWorkbooks();setContextExpanded(!viewer.aiSharing.accepted);updateControls()
     }
     private func saveChoices() {
         guard let chat=conversation else { return }
@@ -180,21 +196,22 @@ import Cocoa
     }
     private func updateControls() {
         let sharing=shareScript.state == .on || shareWorkbook.state == .on
+        acknowledgement.state = viewer.aiSharing.accepted ? .on:.off
         acknowledgement.isHidden = !sharing;acknowledgement.isEnabled = !isBusy
         sendButton.title=sharing ? "Send with selected context" : "Send question only"
-        sendButton.isEnabled = !isBusy && !TutorPolicy.disabled && viewer.chatGPTTutor.account != nil && (!sharing || acknowledgement.state == .on)
+        sendButton.isEnabled = !isBusy && !TutorPolicy.disabled && viewer.chatGPTTutor.account != nil && (!sharing || viewer.aiSharing.accepted)
         stopButton.isEnabled=isBusy;shareScript.isEnabled = !isBusy
         shareWorkbook.isEnabled = !isBusy && workbookPicker.numberOfItems>0
         workbookPicker.isEnabled = !isBusy && shareWorkbook.state == .on
         updateContextTitle()
     }
     @objc private func acknowledge() {
-        updateControls()
-        if acknowledgement.state == .on && (shareScript.state == .on || shareWorkbook.state == .on) {
+        if acknowledgement.state == .on {
+            viewer.aiSharing.approve()
             if notice.stringValue==Self.confirmationNotice { showNotice("") }
-            setContextExpanded(false)
-            viewer.window.makeFirstResponder(input)
-        }
+            setContextExpanded(false);viewer.window.makeFirstResponder(input)
+        } else { viewer.aiSharing.revoke();setContextExpanded(true) }
+        updateControls()
     }
     private func setContextExpanded(_ expanded: Bool) {
         contextPanel.isHidden = !expanded
@@ -202,10 +219,10 @@ import Cocoa
     }
     private func updateContextTitle() {
         let sharing=shareScript.state == .on || shareWorkbook.state == .on
-        if !contextPanel.isHidden { contextButton.title="Sharing for this question ▾" }
-        else if sharing && !isBusy && acknowledgement.state != .on { contextButton.title="Review sharing for the next question ▸" }
+        if !contextPanel.isHidden { contextButton.title="Sharing for this session ▾" }
+        else if sharing && !isBusy && acknowledgement.state != .on { contextButton.title="Confirm sharing for this data document ▸" }
         else if sharing {
-            let scope=[shareScript.state == .on ? "script and R output":nil,shareWorkbook.state == .on ? "workbook":nil].compactMap{$0}.joined(separator:" + ")
+            let scope=[shareScript.state == .on ? (isReport ? "report":"script and R output"):nil,shareWorkbook.state == .on ? "workbook":nil].compactMap{$0}.joined(separator:" + ")
             contextButton.title="Sharing: "+scope+" ▸"
         } else { contextButton.title="Question only · Sharing options ▸" }
         contextButton.toolTip=contextPanel.isHidden ? "Review or change what is shared with ChatGPT" : "Hide sharing options"
@@ -220,27 +237,30 @@ import Cocoa
         guard question.count<=8000 else { showNotice("Please shorten this question to 8,000 characters.");return }
         guard viewer.chatGPTTutor.account != nil else { showNotice("Choose Use my ChatGPT to connect your account first.");return }
         let sharing=shareScript.state == .on || shareWorkbook.state == .on
-        guard !sharing || acknowledgement.state == .on else { showNotice(Self.confirmationNotice);return }
+        guard !sharing || viewer.aiSharing.accepted else { showNotice(Self.confirmationNotice);return }
         let workbook=shareWorkbook.state == .on ? viewer.documents.first(where:{$0.kind=="grid" && $0.id==workbookPicker.selectedItem?.representedObject as? String}) : nil
         guard shareWorkbook.state != .on || workbook != nil else { showNotice("Choose an open workbook to share.");return }
+        if sharing { setContextExpanded(false) }
         let token=UUID();requestID=token;replyID=UUID().uuidString;saveChoices()
-        let context=ScriptAIContext(viewer:viewer,script:shareScript.state == .on ? source:nil,workbook:workbook,active:{[weak self] in self?.requestID==token})
+        let reportMode=source.kind=="report"
+        let context=ScriptAIContext(viewer:viewer,script:shareScript.state == .on && !reportMode ? source:nil,workbook:workbook,
+            report:shareScript.state == .on && reportMode ? source:nil,reportResultID:chat.reportResultID,active:{[weak self] in self?.requestID==token})
         let sharedNames=[shareScript.state == .on ? source.title:nil,workbook?.title].compactMap{$0}
         activeContext=context
         let messages=chat.messages+[["id":UUID().uuidString,"rSource":context.rSource,"role":"user","text":question,"context":sharedNames.isEmpty ? "Question and conversation only" : "Shared for this question: " + sharedNames.joined(separator:"; ")]]
         partial="";showNotice(sharing ? "Sending the approved context to ChatGPT…" : "Sending your question and conversation only…")
         task=Task { @MainActor [weak self] in
             guard let self else { return }
-            defer { if requestID==token { task=nil;requestID=nil;activeContext=nil;acknowledgement.state = .off;updateConnection() } }
+            defer { if requestID==token { task=nil;requestID=nil;activeContext=nil;updateConnection() } }
             do {
                 let reference=try await context.context();try context.check()
                 // This conversation's history is bounded by the existing provider client.
                 chat.messages=messages;input.string="";chat.draft="";render()
-                let reply=try await viewer.chatGPTTutor.converse(context:reference,messages:messages,tools:context.tools,purpose:.script,progress:{[weak self] text in
+                let reply=try await viewer.chatGPTTutor.converse(context:reference,messages:messages,tools:context.tools,purpose:reportMode ? .report:.script,progress:{[weak self] text in
                     guard let self,self.requestID==token else { return };self.partial=text;self.render()
                 },toolHandler:{ name,args in try await context.call(name,args) })
                 try context.check();chat.messages.append(["id":replyID,"rData":context.rData,"role":"assistant","text":reply.text]);partial="";render()
-                showNotice("Reply received. Review suggested code before running it in R.")
+                showNotice(reportMode ? "Reply received. Ask a follow-up about the interpretation or method." : "Reply received. Review suggested code before running it in R.")
             } catch {
                 guard requestID==token else { return }
                 if !partial.isEmpty { chat.messages.append(["id":replyID,"rData":activeContext?.rData ?? "","role":"assistant","text":partial+"\n[Reply stopped before completion.]"]);partial="" }
@@ -248,28 +268,28 @@ import Cocoa
                 if input.string.isEmpty { input.string=question;chat.draft=question }
             }
         }
-        // Confirmation is for this request only; changing scope clears it as well.
-        acknowledgement.state = .off;updateControls()
+        updateControls()
     }
     @objc func stop() {
         if let chat=conversation, !partial.isEmpty { chat.messages.append(["id":replyID,"rData":activeContext?.rData ?? "","role":"assistant","text":partial+"\n[Reply stopped before completion.]"]) }
-        task?.cancel();task=nil;requestID=nil;activeContext=nil;partial="";acknowledgement.state = .off;render();updateConnection()
+        task?.cancel();task=nil;requestID=nil;activeContext=nil;partial="";render();updateConnection()
     }
     @objc func hide() {
         guard visible else { return };saveChoices();stop();dockWidth=view.frame.width;visible=false
         view.removeFromSuperview();viewer.workspaceSplit.adjustSubviews()
         if let doc=viewer.active, let pane=doc.rPane { viewer.window.makeFirstResponder(pane.editor) }
+        else if let doc=viewer.active, doc.kind=="report" { viewer.window.makeFirstResponder(doc.web) }
     }
     @objc func newConversation() {
-        guard let id=scriptID else { return };stop();conversations[id]=Conversation();input.string="";shareScript.state = .off;shareWorkbook.state = .off
-        acknowledgement.state = .off;refreshWorkbooks();render();showNotice("New conversation: no earlier questions, replies or shared content will be included.")
+        guard let id=scriptID else { return };stop();conversations[id]=Conversation();input.string=""
+        refreshWorkbooks();setContextExpanded(!viewer.aiSharing.accepted);render();showNotice("New conversation: earlier questions and replies are cleared. Your session sharing choice is unchanged.")
     }
     func documentClosed(_ doc: Document) {
         if doc.id==scriptID { hide();scriptID=nil }
         conversations.removeValue(forKey:doc.id)
         if visible { refreshWorkbooks() }
     }
-    func shutdown() { task?.cancel();task=nil;requestID=nil;activeContext=nil }
+    func shutdown() { task?.cancel();task=nil;requestID=nil;activeContext=nil;transcript.shutdown() }
     @objc func openLastCode() {
         guard let chat=conversation, let index=chat.messages.lastIndex(where:{$0["role"]=="assistant"}), let id=chat.messages[index]["id"] else { return }
         openCode(generation:chat.generation,messageID:id)
@@ -283,72 +303,21 @@ import Cocoa
             viewer.status.stringValue="Review the source, earlier examples and suggested R code before choosing Run"
         } catch { showNotice(error.localizedDescription) }
     }
-    func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-        guard let url=(link as? URL) ?? (link as? String).flatMap(URL.init(string:)), url.scheme=="statsdirect-r", url.host=="open" else { return true }
-        let parts=url.pathComponents.filter{$0 != "/"}
-        guard parts.count==3, let index=Int(parts[2]) else { return true }
-        openCode(generation:parts[0],messageID:parts[1],blockIndex:index);return true
+    private func copyCode(generation: String,messageID: String,code: String) {
+        guard let chat=conversation,chat.generation==generation,code.utf8.count<=200000,
+              let row=chat.messages.first(where:{$0["id"]==messageID}),row["text"]?.contains(code)==true else { return }
+        NSPasteboard.general.clearContents();NSPasteboard.general.setString(code,forType:.string)
     }
     private func render() {
-        let text=NSMutableAttributedString()
-        func add(_ value:String,_ attributes:[NSAttributedString.Key:Any]) { text.append(NSAttributedString(string:value,attributes:attributes)) }
-        let normal: [NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:13),.foregroundColor:NSColor.textColor]
         let messages=conversation?.messages ?? []
-        if messages.isEmpty { add("Ask for help understanding, improving or debugging your R script.\n\nChoose above whether to share workbook data and scripts, or send a question without documents. Nothing is sent until you press Send.",normal) }
-        for row in messages + (partial.isEmpty ? [] : [["id":replyID,"role":"assistant","text":partial]]) {
-            add((row["role"]=="user" ? "You" : "ChatGPT")+"\n",[.font:NSFont.systemFont(ofSize:12,weight:.semibold),.foregroundColor:NSColor.secondaryLabelColor])
-            if let context=row["context"] { add(context+"\n",[.font:NSFont.systemFont(ofSize:10),.foregroundColor:NSColor.secondaryLabelColor]) }
-            let blocks=ConversationRScript.blocks(row["text"] ?? "")
-            var code=false
-            for (lineIndex,line) in (row["text"] ?? "").replacingOccurrences(of:"\r\n",with:"\n").components(separatedBy:"\n").enumerated() {
-                if let blockIndex=blocks.firstIndex(where:{$0.endLine==lineIndex}), let id=row["id"], let generation=conversation?.generation {
-                    let link="statsdirect-r://open/" + generation + "/" + id + "/" + String(blockIndex)
-                    add("Open in R\n",[.link:link,.font:NSFont.systemFont(ofSize:11),.foregroundColor:NSColor.linkColor])
-                }
-                if line.trimmingCharacters(in:.whitespaces).hasPrefix("```") || line.trimmingCharacters(in:.whitespaces).hasPrefix("~~~") { code.toggle();continue }
-                add(line+"\n",code ? [.font:NSFont.monospacedSystemFont(ofSize:12,weight:.regular),.foregroundColor:NSColor.textColor] : normal)
-            }
-            add("\n",normal)
+        openCodeButton.isEnabled = messages.last(where:{$0["role"]=="assistant"}).map{!ConversationRScript.blocks($0["text"] ?? "").isEmpty} ?? false
+        var rows: [[String:Any]]=messages.map { row in
+            ["id":row["id"] ?? "", "role":row["role"] ?? "assistant", "text":row["text"] ?? "", "context":row["context"] ?? ""]
         }
-        guard let storage=transcript.textStorage else { return }
-        openCodeButton.isEnabled = conversation?.messages.last(where:{$0["role"]=="assistant"}).map{!ConversationRScript.blocks($0["text"] ?? "").isEmpty} ?? false
-        let sameConversation=renderedConversation === conversation
-        var prefix=0
-        if sameConversation {
-            for (old,new) in zip(storage.string.utf16,text.string.utf16) {
-                if old != new { break };prefix+=1
-            }
-            // A completed code fence can change formatting without changing text.
-            var offset=0
-            while offset<prefix {
-                var oldRun=NSRange(),newRun=NSRange()
-                let old=storage.attributes(at:offset,effectiveRange:&oldRun)
-                let new=text.attributes(at:offset,effectiveRange:&newRun)
-                if !NSDictionary(dictionary:old).isEqual(to:new) { prefix=offset;break }
-                offset=min(prefix,NSMaxRange(oldRun),NSMaxRange(newRun))
-            }
-            if prefix==storage.length && prefix==text.length { return }
-        }
-        // Never split a surrogate pair or a composed character at the edit boundary.
-        if prefix<storage.length { prefix=min(prefix,(storage.string as NSString).rangeOfComposedCharacterSequence(at:prefix).location) }
-        if prefix<text.length { prefix=min(prefix,(text.string as NSString).rangeOfComposedCharacterSequence(at:prefix).location) }
-        let scroll=transcript.enclosingScrollView,clip=scroll?.contentView
-        if let container=transcript.textContainer { transcript.layoutManager?.ensureLayout(for:container) }
-        let origin=clip?.bounds.origin ?? .zero
-        let selections=transcript.selectedRanges.map(\.rangeValue)
-        let followEnd = !sameConversation || (selections.allSatisfy{$0.length==0} && (clip?.documentVisibleRect.maxY ?? 0)>=transcript.bounds.maxY-3)
-        storage.beginEditing()
-        storage.replaceCharacters(in:NSRange(location:prefix,length:storage.length-prefix),with:text.attributedSubstring(from:NSRange(location:prefix,length:text.length-prefix)))
-        storage.endEditing()
-        renderedConversation=conversation
-        if sameConversation {
-            transcript.selectedRanges=selections.map { range in
-                let start=min(range.location,text.length)
-                return NSValue(range:NSRange(location:start,length:min(range.length,text.length-start)))
-            }
-        } else { transcript.setSelectedRange(NSRange(location:0,length:0)) }
-        if let container=transcript.textContainer { transcript.layoutManager?.ensureLayout(for:container) }
-        if followEnd { transcript.scrollToEndOfDocument(nil) }
-        else if let clip { clip.scroll(to:origin);scroll?.reflectScrolledClipView(clip) }
+        if !partial.isEmpty { rows.append(["id":replyID,"role":"assistant","text":partial,"pending":true]) }
+        let intro=isReport ? "Ask what your results mean, how the method works, or which assumptions to check."
+            : "Ask for help understanding, improving or debugging your R script."
+        transcript.render(["generation":conversation?.generation ?? "", "messages":rows,
+            "introduction":intro+"\n\nChoose whether to share documents or ask a question without them. Nothing is sent until you press Send."])
     }
 }

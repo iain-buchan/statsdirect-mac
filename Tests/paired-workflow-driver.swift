@@ -44,7 +44,13 @@ import WebKit
     }
     @MainActor static func run(_ v: Viewer) async throws {
         v.window.setContentSize(NSSize(width:1180,height:850))
+        // Settle AppKit's split/tab layout before synthetic canvas gestures.
+        v.window.contentView?.layoutSubtreeIfNeeded()
+        v.workspaceSplit.adjustSubviews(); v.documentSplit.adjustSubviews()
         let grid=v.newDocument(kind:"grid",title:"PEFR selection fixture",url:v.root.appendingPathComponent("Grid/index.html"))
+        v.window.contentView?.layoutSubtreeIfNeeded()
+        try check(grid.web.bounds.width > 0 && grid.web.bounds.height > 0, "worksheet has a visible native frame before canvas gestures")
+        try await wait { !grid.web.isLoading && grid.web.url != nil }
         try await wait { try await isTrue(grid,"!!window.statsDirectGrid && !!document.querySelector('canvas')") }
         _=try await grid.web.callAsyncJavaScript("""
         const before=[312,242,340,388,296,254,391,402,290],after=[300,201,232,312,220,256,328,330,231];
@@ -57,14 +63,17 @@ import WebKit
         """,arguments:[:],in:nil,contentWorld:.page)
         // One heading drag: use actual grid event handlers, not an analysis fixture.
         func select(_ first:Int,_ last:Int,row:Int = -1) async throws {
+            v.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true)
             v.tabs.selectTabViewItem(grid.item)
             v.window.contentView?.layoutSubtreeIfNeeded()
             _=try await grid.web.callAsyncJavaScript("""
-            // loadWorkbook resolves before React commits the new sheet. Let its
-            // layout and pointer effects settle before sending the single drag.
-            await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+            // Allow React's layout and pointer effects to commit. WKWebView may
+            // suspend animation-frame callbacks in an automated app even with a
+            // visible native frame; these synthetic gestures need DOM layout,
+            // not an indefinitely awaited display-refresh callback.
             await new Promise(r=>setTimeout(r,100));
             const b=document.querySelector('canvas').getBoundingClientRect();
+            if(b.width<=0 || b.height<=0)throw new Error('Canvas has no laid-out area');
             const y=b.y+(row<0?18:36+row*29+14),x=c=>b.x+48+c*178+89;
             const send=(type,c,buttons)=>document.elementFromPoint(x(c),y).dispatchEvent(new MouseEvent(type,{bubbles:true,clientX:x(c),clientY:y,button:0,buttons}));
             send('mousemove',first,0);send('mousedown',first,1);

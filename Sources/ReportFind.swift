@@ -128,7 +128,7 @@ extension Document {
 extension Viewer {
     // The report the Edit menu's find items serve: the active document when it is a report that has loaded and is not under a sheet.
     var findableReport: Document? {
-        guard !calculatorPane.isFocused, !helpPane.isFocused, let doc = active, doc.kind == "report", !doc.web.isLoading, window.attachedSheet == nil else { return nil }
+        guard !calculatorPane.isFocused, !helpPane.isFocused, !scriptAI.isFocused, let doc = active, doc.kind == "report", !doc.web.isLoading, window.attachedSheet == nil else { return nil }
         return doc
     }
     func isReportFindItem(_ item: NSMenuItem) -> Bool {

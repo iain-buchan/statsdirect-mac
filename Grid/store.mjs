@@ -498,14 +498,15 @@ export class GridStore {
   columnTitle(c) {
     return this.excelRows ? this.headerRow ? this.get(c, 0) || `Column ${columnName(c)}` : `Column ${columnName(c)}` : this.columns[c];
   }
-  csv() {
-    const quote = s => /[",\r\n]/.test(s) ? '"' + s.replaceAll('"', '""') + '"' : s;
-    const rows = this.excelRows ? [] : [this.columns.map(quote).join(',')];
+  csv(delimiter = ',') {
+    if (![',', '\t'].includes(delimiter)) throw new Error('Unsupported field separator.');
+    const quote = s => s.includes(delimiter) || /["\r\n]/.test(s) ? '"' + s.replaceAll('"', '""') + '"' : s;
+    const rows = this.excelRows ? [] : [this.columns.map(quote).join(delimiter)];
     const end = Math.max(this.csvRows, this.usedRows()), width = this.columns.length;
     for (let r = 0; r < end; r++) {
       const fields = new Array(width);
       for (let c = 0; c < width; c++) fields[c] = quote(this.get(c, r));
-      rows.push(fields.join(','));
+      rows.push(fields.join(delimiter));
     }
     return rows.length ? rows.join('\r\n') + '\r\n' : '';
   }

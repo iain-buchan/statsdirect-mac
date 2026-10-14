@@ -1,3 +1,4 @@
+import {entryTablePrintHTML} from './printing.mjs';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import DataEditor, { CompactSelection, GridCellKind, type GridCell, type GridSelection, type Item, type DataEditorRef } from '@glideapps/glide-data-grid';
@@ -44,6 +45,7 @@ function App() {
         changed();setMessage('Selected worksheet cells copied. Review the counts and category labels.');
       }),
       tutorSnapshot: () => table.state.counts.length*table.state.columnLabels.length<=4000?{table:table.state}:{error:"Table exceeds 4,000 cells; select a smaller range."},
+      printHTML: () => entryTablePrintHTML(table.state),
       csvData: () => table.csv()
     };
     native('ready');

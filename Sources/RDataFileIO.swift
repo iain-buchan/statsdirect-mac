@@ -189,7 +189,7 @@ enum RDataFileIO {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true); return url
     }
     private static func run(_ script: URL, arguments: [String], folder: URL) throws {
-        guard let executable = RRuntime.executable() else { throw error("R is not available. Choose File → New R Script, then Install R to open and save R data files.") }
+        guard let executable = RRuntime.executable() else { throw error("R is not available. Choose File → New Script, then Install R to open and save R data files.") }
         let log = folder.appendingPathComponent("R-output.txt")
         _ = FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log); defer { try? handle.close() }

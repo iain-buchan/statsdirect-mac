@@ -65,7 +65,7 @@ import Cocoa
         try await wait {v.window.attachedSheet != nil}
         func buttons(_ view:NSView)->[NSButton] { (view as? NSButton).map{[$0]} ?? view.subviews.flatMap(buttons) }
         let sheetWindow=v.window.attachedSheet!,controls=buttons(sheetWindow.contentView!)
-        let share=controls.first{$0.title=="Share for This Question"}!,confirm=controls.first{$0.title.hasPrefix("I have checked")}!
+        let share=controls.first{$0.title=="Share for This Session"}!,confirm=controls.first{$0.title.hasPrefix("I have checked")}!
         precondition(!share.isEnabled && confirm.state == .off)
         // Synthetic fixture only: no live AI connection is used by this test.
         confirm.performClick(nil);precondition(share.isEnabled);share.performClick(nil)
@@ -78,7 +78,7 @@ import Cocoa
         try await learn.web.evaluateJavaScript(String(contentsOfFile:".build/feedback-renderer.js",encoding:.utf8))
         let savedJSON=String(decoding:try JSONSerialization.data(withJSONObject:saved),as:UTF8.self)
         let recordHTML=try await learn.web.evaluateJavaScript("window.feedbackRecord(\(savedJSON))") as! String
-        precondition(recordHTML.contains("Document sharing confirmations") && recordHTML.contains("document-sharing-v1") && recordHTML.contains("no person identifiers"))
+        precondition(recordHTML.contains("Document sharing confirmations") && recordHTML.contains("document-sharing-v2") && recordHTML.contains("no person identifiers"))
         print("PASS: lessons-only default; no metadata or cells before native consent; unchecked confirmation blocks Share; consent persisted before access")
         let overview=try await workspace.call("statsdirect_workspace",[:]);precondition(!(overview["documents"] as! [Any]).isEmpty)
         let data=try await workspace.call("statsdirect_read_data",["documentId":grid.id,"sheetIndex":sheet["index"]!,"columns":columns])
@@ -124,7 +124,7 @@ import Cocoa
         learn.learningRequestID=nil
         do {_=try await current.call("statsdirect_workspace",[:]);throw ChatGPTTutor.Failure(message:"Cancelled question retained access")}catch is CancellationError{}
         print("PASS: stale data, closed scope, lesson-only sharing and cancelled questions rejected; help/report/R context readable")
-        // Permission is not carried to another question, and an unsaved consent never grants access.
+        // Each question still records its selected context, and an unsaved consent never grants access.
         learn.learningSourceID=grid.id;learn.learningRequestID="save-failure"
         let unsaved=LearningWorkspace(v,learn,"save-failure")
         _=try await v.learningJavaScript(learn,"(()=>{window.savedConsent=statsDirectLearn.recordSharingConsent;statsDirectLearn.recordSharingConsent=()=>{throw Error('Synthetic save failure');};return {ok:true};})()")
@@ -149,7 +149,7 @@ import Cocoa
         let offline=try await v.learningJavaScript(learn,"({example:!document.querySelector('[data-action=example]').disabled,r:!document.querySelector('[data-action=r]').disabled,help:!document.querySelector('[data-action=help]').disabled})")
         precondition(offline.values.allSatisfy{$0 as? Bool == true})
         UserDefaults.standard.set(oldPolicy,forKey:"DisableOnlineTutor")
-        print("PASS: cancelled or unrecorded consent grants no access; edited data needs a new confirmation; institution policy blocks account, sign-in, questions and tools while offline learning remains usable")
+        print("PASS: cancelled or unrecorded consent grants no access; edited data needs a fresh question; institution policy blocks account, sign-in, questions and tools while offline learning remains usable")
         // Context/account updates must preserve a draft being typed.
         _=try await v.learningJavaScript(learn,"({value:(document.getElementById('question').value='Draft survives a context refresh')})")
         v.learningSettings(learn)

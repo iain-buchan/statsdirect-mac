@@ -38,12 +38,36 @@ import WebKit
         let h=v.helpPane, web=h.web
         let worksheet=v.active!
         let startingDocuments=v.documents.count
+        let help=NSApp.mainMenu!.items.first { $0.submenu?.title == "Help" }!.submenu!
+        let helpCommands:[(String,Selector)]=[
+            ("Learning",#selector(Viewer.openLearning)),
+            ("Learning Options…",#selector(Viewer.openLearningOptions)),
+            ("Contents and Index…",#selector(Viewer.helpLibrary)),
+            ("Method Selection…",#selector(Viewer.methodSelectionHelp)),
+            ("Example workbook",#selector(Viewer.openExampleWorkbook)),
+            ("Check for Updates…",#selector(Viewer.checkUpdates)),
+            ("About StatsDirect…",#selector(Viewer.showAbout))
+        ]
+        try check(help.items.filter { !$0.isSeparatorItem }.map(\.title)==helpCommands.map(\.0),"Help has the Windows commands, with Example workbook before updates and About last")
+        try check(zip(help.items.filter { !$0.isSeparatorItem },helpCommands).allSatisfy { $0.0.action==$0.1.1 && ($0.0.target as? Viewer) === v },"each Help command targets its implemented native action")
+        let appMenu=NSApp.mainMenu!.items.first!.submenu!
+        let automatic=appMenu.items.first { $0.action == #selector(Viewer.toggleAutomaticUpdates) }!
+        try check(v.validateMenuItem(automatic) && automatic.state == .off,"automatic update preference remains accessible in the StatsDirect menu")
         try await until(worksheet.web,"!!window.statsDirectGrid")
         _ = try await js(worksheet.web,"statsDirectGrid.loadCSV('Before,After\\n1,2\\n3,4','Help selection.csv')")
         try await settle()
         _ = try await js(worksheet.web,"statsDirectGrid.editCommand('selectAll','')")
         try await settle()
         let selectionBefore = try await js(worksheet.web,"JSON.stringify(statsDirectGrid.analysisSource())") as? String
+
+        try check(h.url(for:"1213")?.path == "/methods/method_selection.htm","Windows Method Selection context ID resolves to the bundled guide")
+        help.performActionForItem(at:help.indexOfItem(withTitle:"Method Selection…"))
+        try await until(web,"location.pathname.endsWith('/methods/method_selection.htm') && document.querySelector('h1') !== null")
+        try check(v.active === worksheet && v.documents.count==startingDocuments,"Method Selection opens the help dock without replacing the selected worksheet")
+        try check((try await js(worksheet.web,"JSON.stringify(statsDirectGrid.analysisSource())")) as? String == selectionBefore,"Method Selection preserves selected worksheet data")
+        help.performActionForItem(at:help.indexOfItem(withTitle:"Contents and Index…"))
+        try await until(web,"location.pathname.endsWith('/contents.htm') && document.readyState==='complete'")
+        try check(true,"Contents and Index opens the offline Help contents through the actual menu action")
 
         web.configuration.userContentController.addUserScript(WKUserScript(source:"window.helpErrors=[];window.cspBlocked=[];addEventListener('error',e=>helpErrors.push(e.message||e.target.src),true);addEventListener('securitypolicyviolation',e=>cspBlocked.push(e.blockedURI));",injectionTime:.atDocumentStart,forMainFrameOnly:true))
         try check(h.url(for:"1239")?.path == "/parametric_methods/paired_t.htm","historical paired t context ID resolves")

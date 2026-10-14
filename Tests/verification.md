@@ -1,3 +1,112 @@
+# Unreleased — Help menu command parity — 14 October 2026
+
+Compared the actual Windows menu construction in `frmMain.Designer.cs` and
+`LearningCommands.cs` at Windows main `76911c12`. Mac Help now has the same seven
+commands: Learning, Learning Options, Contents and Index, Method Selection,
+Example workbook, Check for Updates, and About StatsDirect. Labels match after
+normalising Windows accelerator marks and ellipses. Mac retains the user's
+requested Example workbook section **before** updates and About last; Windows
+currently puts updates before the example section. Windows source was not edited.
+
+Method Selection opens offline context 1213, the same topic as Windows. F1 and
+document-toolbar context help remain available. Back/Forward stay in the Help
+viewer; the existing automatic-update toggle moves to the StatsDirect app menu,
+retaining its saved preference. Both native and in-window menus use this definition.
+
+Native Help checks passed (48 PASS groups), including actual Contents/Method Selection menu actions,
+worksheet-selection preservation, offline search, navigation, docking, context help
+and PDF output. All 982 help files match the source manifest; all 800 aliases and
+167 engine help context IDs resolve. The native Script suite also passed (65 PASS
+groups), including opening the example workbook and inspecting its PEFR data.
+Logs: `.build/help-menu-native.log` and `.build/help-menu-script.log`.
+The Release native build passes matching-symbol and strict signature verification
+(`.build/help-menu-package.log`) and is available at
+`.build/help-menu/StatsDirect.app`, reusing the previously verified engine/content.
+Existing AI WebView/session-sharing work is preserved. No commit, push or release.
+
+# Unreleased — AI WebView output and session sharing — 14 October 2026
+
+Report and Script AI now use an isolated WKWebView for their conversation output,
+reusing the existing Learning renderer without changing it. Headings, tables, lists,
+maths and R code render as HTML. Selection, copying, scroll position and following
+new replies are preserved during streaming. Renderer termination recreates the view
+from native messages and the latest partial reply, without resending a question.
+The page blocks external resources, frames, media and popups; code actions use the
+native conversation/message checks and Open in R still opens unexecuted code.
+The HTML Copy and Open in R buttons were exercised through their real native bridge;
+the rendered table, equation and R code were inspected visually.
+
+Sharing acceptance is kept in memory across Report, Script and Learning for the
+whole app session. Switching between those windows or starting a new conversation
+does not reset it. Restarting the app, selecting another workbook tab, or choosing
+a different workbook in the AI context picker requires fresh confirmation. Context
+choices remain visible and editable, and every question is scoped to its selected
+documents. Edits invalidate a question's read snapshot, not session acceptance.
+Learning continues to save a context record before granting access, now recording
+whether app-session acceptance was reused. No acceptance is loaded from disk.
+
+Passed locally: native Report AI, native Script AI (64 checks plus completion),
+native Learning context/consent with the real example workbook and engine, session
+consent boundary/approved-set checks, and
+45 report/Learning/worksheet JavaScript tests. The Report suite includes an actual
+isolated WebKit renderer termination, rich HTML/math assertions, blocked external
+fetches, Report-to-Script and Report-to-Learning consent reuse, selected-data resets,
+and new-app consent reset. The native Script suite verifies streamed Unicode
+selection/copying, reading position, keyboard routing and original-data R replay.
+AI protocol traffic is synthetic and local; no live user data or AI account is used.
+
+The Release app build passed 1,552 distribution checks, matching debug symbols and
+strict ad-hoc signature verification. Build: `.build/ai-webview/StatsDirect.app`.
+Logs: `.build/ai-webview-{report,script,learning,js,build}.log`.
+The user's running `.build/report-ai/StatsDirect.app` was not replaced.
+Windows, engine and shared report-editor sources are unchanged. These changes have
+not been committed, pushed or published.
+
+# Unreleased — Report AI dock — 14 October 2026
+
+The later WebView/session-sharing entry supersedes the per-question confirmation
+and native NSTextView behavior described in this first implementation.
+
+The Mac Report toolbar and right-click menu now open AI assistance in the same
+right dock as Script. Each report has its own conversation and draft. The existing
+ChatGPT account and first-use setup are reused, with report-specific instructions
+for interpreting estimates, uncertainty, assumptions and statistical methods.
+
+Sharing starts off. Each question with report context requires confirmation; the
+assistant receives a fixed, bounded snapshot of displayed report text, method IDs
+and chart labels. It never receives hidden run records or chart pixels. Workbook
+sharing is separate. Read-only tools provide approved context and bundled method
+help; suggested R code opens for review without running. See
+`Docs/Learn/TutorPrivacy.md` for exact limits and lifecycle.
+
+Verified locally:
+
+- Native report AI: 32 checks plus completion, including real nine-pair PEFR
+  paired t/agreement output, report-specific provider instructions, method-help
+  round trip, question-only privacy, consent, unshared-document exclusion, fixed
+  snapshots, large/empty reports, separate conversations, Help docking, cancellation,
+  keyboard/close behaviour and institutional policy.
+- Existing native Script AI suite, including streaming selection/copying,
+  Command-Return, full R replay and source boundaries, passed. The test now waits
+  for activation before restoring composer focus, avoiding a macOS focus race.
+- 19 unified report/grid toolbar checks plus completion, including narrow layouts,
+  More commands, formatting selection, Find, clipboard, undo and save/export.
+- 45 report/Learning/worksheet-privacy JavaScript checks and the tutor protocol,
+  privacy and policy suites passed.
+- Release build with engine 5.2.0 passed all 1,552 distribution regression checks;
+  the final native rebuild verifies signatures and matching debug symbols.
+- Native report/dock layout inspected with paired results and the agreement chart.
+
+AI integration tests use a local synthetic protocol fixture, with no live AI
+account, external question or private user report. App build:
+`.build/report-ai/StatsDirect.app`. Logs: `.build/report-ai-native.log`,
+`.build/report-ai-script-regression.log`, `.build/report-ai-toolbars.log`,
+`.build/report-ai-protocol.log`, `.build/report-ai-js.log` and
+`.build/report-ai-build.log`.
+
+No changes to the engine pin, Windows sources or shared `Report`/`Content/Report`
+editor. No commit, push or release has been made for this feature.
+
 # Unreleased — Creole report presentation — 12 October 2026
 
 The Mac report host now loads `Content/Mac/report.css` in the page head, using
@@ -1287,3 +1396,121 @@ Suites at this pin: test.sh 556 checks, the report export suite 57, the beta che
 Codex merged its two commits (69e5f78, 0a112bae: the Mac counterparts of the Windows 5.2 Script AI and Learning fixes, with the eight lines the tutor's script instructions gained on Windows, Sources/ConversationRScript.swift, the recovery of a failed conversation view and a selection kept while a reply streams) into main itself (cbccc10, on 622c6d3). Three things follow here. A lesson's R block now opens in R as a reviewable replay (a header saying nothing has been run, the block under its label, the shared source and earlier blocks before it when there are any), as the Windows script window's Open R code does, so the beta check expects the replay in the pane and in the file Open in R saves, rather than the bare block. The R integration suite writes its picture of the narrow script window into the folder the unified toolbar suite makes, and failed when run on its own; it makes the folder itself now. And the Learn bundle contains marked 4.3.0, imported by Learn/rich-text.mjs from the Grid package's modules, which the notice generator in Learn/build.mjs did not list (the Windows session noticed in its vendored copy); the generator reads marked's notice from there and Content/Learn/THIRD-PARTY-LICENSES.txt carries it. The script AI suite's Command-Return check timed out twice on Codex's tip and once on the merge and then passed twice unchanged, a focus-timing flake to watch; the driver now prints the pane's state when that wait times out.
 
 Suites on main cbccc10 with the help pin and these changes: test.sh 556, report export 57, beta 74, unified toolbar 20, R integration 53, startup and R setup 29, script AI 62, learning recovery 5, conversation R 16, all exit 0.
+
+## 14 October 2026 — Mac parity closure (source update; no installer)
+
+After incorporating Mac commits `497760a` and `5a20b86`, the engine pin and Help
+manifest identify `406d2557` (5.2.0). All 873 engine and 987 Help file hashes match
+the initially tested `1bf97548` / `76911c12` sources. Shared calculation and
+report-editor sources are unchanged; the incoming harness fixes and marked licence
+notice are retained.
+The build remains version 0.3.29; no installer or GitHub release is created here.
+
+- `.build/parity-final-core.log`: full engine/R/form suite passed; 208 menu methods,
+  all 67 follow-ons, 227 R recipe comparisons and 115 JavaScript tests (zero skips).
+  Build also passes all 1,552 distribution checks.
+- `.build/parity-mac-parity-retest.log`: native TXT import with literal HTML-looking
+  text/UTF-16; TSV File/Open and export; worksheet PDF from actual selected cells;
+  repeat mode clearing old selection, pausing for new data, a second paired/agreement
+  result on edited data and cancellation; native C#/VB Run, language/save-extension
+  changes, no execution on File/Open, script printing and XLS data export.
+- `.build/parity-managed-final.log`: real shared Roslyn/engine execution for C# and
+  VB; interactive host prompt/report; compile/runtime errors, cooperative cancellation
+  and independent console capture for two scripts suspended at different prompts.
+- `.build/parity-xls-final.log`: xlrd independently reads genuine BIFF8 values, types,
+  dates, multiple worksheets, literal formula-like text and final valid row/column;
+  invalid dimensions/text lengths leave the existing destination byte-for-byte intact.
+- `.build/parity-excel{,_edges,_compatibility,_inserts,_structures}.log`: all existing
+  workbook suites passed, including preservation and streaming insertion of 1,000,010
+  cells; failures keep destination/source packages unchanged.
+- `.build/parity-data-files-final.log`: native Swift file I/O → real JS grid model →
+  native export → base R `identical()` round trips. Added Date/POSIXct NaN, NA,
+  fractional Date and sub-microsecond timestamps/timezone. The new fixture failed
+  before the coordinated R protocol patch and passes afterward; existing corruption,
+  factors, row names, literal text and atomic-failure checks pass too.
+- `.build/parity-report-ai.log` (47 PASS groups), `.build/parity-script-ai.log`
+  (65) and `.build/parity-help-pane.log` (48) pass with real WKWebViews and controlled
+  provider fixtures. `.build/parity-sharing.log` checks consent session/reset rules.
+  Help asset validation checks all 987 file hashes, 808 aliases and 167 context IDs.
+
+The R exchange fix is coordinated with Windows: explicitly represent Date/POSIXct
+NaN as text because the raw numeric channel uses NaN for absence; only the explicit
+NaN representation bypasses missing-value validation. No file protocol change.
+Windows separately reports its native Learning/AI/file, report, shell and Help
+checks passing. This is remote evidence, not execution on this Mac.
+
+Explicit limits: XLS export is a values/types data copy, not rich XLS editing; SDW
+conversion requires StatsDirect 2 on Windows. Printing asks for a smaller selection
+above 250,000 cells. C#/VB cancellation is cooperative at engine checkpoints. Live
+account sign-in and final signed/clean-machine installer acceptance remain release
+checks; neither mocks nor this source update claim to replace those checks.
+
+Additional fresh native evidence:
+
+- `.build/parity-fresh-grid-selection.log`: 18 whole-column/cell drag checks,
+  including modifiers, resize edges, blur cancellation, horizontal scrolling and
+  Excel-sized dimensions.
+- `.build/parity-fresh-paired-workflow.log`: one heading drag, automatic selected
+  inputs, one Run, nine-pair agreement SVG and Windows-equivalent figures, active
+  report reuse, wider/one-column selections, cancellation and confidence settings.
+  The harness no longer waits indefinitely on requestAnimationFrame: WebKit can
+  suspend it in an automated app even when the native frame is visible. It settles
+  React/DOM layout before dispatching the same synthetic mouse gestures. No product
+  grid behaviour was changed for this harness correction.
+- `.build/parity-fresh-follow-on-workflow.log`: all 67 follow-on operations through
+  101 native parent/child paths; one active report, inherited Help, original
+  worksheet/range output after changing the active sheet and workbook.
+- `.build/parity-fresh-conversation-r.log`: 15 checks, including six fresh real-R
+  executions; original data, earlier code, selection and excluded non-R fences.
+
+Integrated source checks after the two incoming Mac commits:
+
+- `.build/parity-integrated-build.log`: clean Release development build; 1,552
+  distribution checks and matching native symbol UUIDs. Strict deep signature
+  verification passes; all 1,270 packaged Content files match current source.
+  This is an isolated `.app`, not an installer or published release.
+- `.build/parity-integrated-core.log`: full engine, R, form, recipe and browser
+  model suite exits 0; 115 JavaScript tests pass without skips.
+- `.build/parity-integrated-r-integration.log`: 53 native R checks pass. The new
+  language selector sits beside Run, after the seven common editing commands.
+- `.build/parity-integrated-unified-toolbar.log`: 20 native toolbar checks pass.
+  Worksheet Find now focuses after React mounts its input instead of depending
+  on a display-refresh callback after returning from a native sheet. Cut, undo,
+  delayed clipboard acknowledgement, overflow and format-aware Save pass too.
+
+The Report context-menu regression expectation includes the new AI Assistance
+command; its action and document scope are exercised by the Report AI suite.
+The copied R exchange file is identical to Windows `52146ce5` after normalising
+line endings, including its explanatory NaN comment.
+
+- `.build/parity-integrated-report-export.log`: all 57 native/export checks pass,
+  including legacy RTF/WMF/EMF, editable HTML reopen, actual DOCX package styles,
+  PDF pagination, charts, source records, cut/paste/drag, Delete and chronological
+  undo, Excel numeric clipboard formats and selected-chart alignment.
+
+- `.build/parity-integrated-startup-r-setup.log`: 29 startup/Finder/recent-file and
+  guided R setup checks pass. Opening a script now creates no R process, working
+  folder or console output. Run/explicit setup starts R on demand; cancellation,
+  retry and resuming the requested action exactly once retain the edited code.
+- `.build/parity-integrated-final-build.log`: final clean Release rebuild after
+  passive Script opening; matching symbols, strict deep signature verification
+  and all 1,270 Content files rechecked against source. No installer was built.
+
+- `.build/parity-integrated-learning-workspace.log`: six native context/consent
+  groups pass, including exact PEFR data, engine reports, stale-scope rejection
+  and offline institutional policy.
+- `.build/parity-integrated-mac-parity.log`: 19 native groups pass, including
+  repeat analysis, TXT/TSV, printing, C#/VB execution and correctly named AI
+  context that excludes non-R code from R replay, plus XLS data-copy export.
+- `.build/parity-integrated-script-ai.log`: 65 native AI/menu groups pass after
+  integration, with sharing, HTML conversation selection/streaming, recovery,
+  R replay, cancellation, narrow layouts and the matching Help commands.
+- The R integration suite also passed again after passive startup. It verifies
+  that Reset retains the current R output folder, a later process uses a new
+  folder, and copies made before the first Run remain intact.
+
+Windows coordination: main `52146ce5f34b2d3ce54fc84a18819fd150ad0d22` was reported
+clean and pushed by the Windows chat, with 822 passing checks and 12 physical
+clipboard checks explicitly skipped to preserve existing clipboard contents.
+The Mac engine pin retains incoming `406d2557`; calculation sources and the shared
+report editor have not changed. No installer, release tag or version bump.

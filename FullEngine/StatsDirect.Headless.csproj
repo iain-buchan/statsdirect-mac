@@ -25,6 +25,14 @@
     <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="ClosedXML.Parser" Version="2.0.0" />
+    <!-- BIFF8 data writer only. Do not ship the OOXML/image/XML-signature import stack.
+         Download the Apache-2.0 core assembly, then declare its writer dependencies explicitly. -->
+    <PackageDownload Include="NPOI" Version="[2.7.4]" />
+    <Reference Include="NPOI.Core"><HintPath>$(NuGetPackageRoot)/npoi/2.7.4/lib/net8.0/NPOI.Core.dll</HintPath></Reference>
+    <PackageReference Include="Enums.NET" Version="5.0.0" />
+    <PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="3.0.1" />
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="ExcelDataReader" Version="3.9.0" />
     <Antlr4 Include="$(SourceRoot)/Creole/*.g4" CustomToolNamespace="StatsDirect.Creole" Generator="MSBuild:Compile" Listener="true" Visitor="true" /><Antlr4 Include="$(SourceRoot)/Expressions/*.g4" CustomToolNamespace="StatsDirect.Expressions" Generator="MSBuild:Compile" Listener="true" Visitor="true" />
     <Antlr4 Include="$(SourceRoot)/CsvParser/*.g4" CustomToolNamespace="StatsDirect.CsvParser" Generator="MSBuild:Compile" Listener="true" Visitor="true" /><Antlr4 Include="$(SourceRoot)/R/*.g4" CustomToolNamespace="StatsDirect.R" Generator="MSBuild:Compile" Listener="true" Visitor="true" /><Content Include="$(SourceRoot)/Assets/Operations/**"><Link>Operations/%(RecursiveDir)%(Filename)%(Extension)</Link><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>

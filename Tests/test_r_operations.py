@@ -120,7 +120,7 @@ os.environ['STATSDIRECT_RSCRIPT'] = os.path.join(work, 'no-such-Rscript')
 s = Session()
 try:
     st, _ = answer(s, 'LOESS', {'outcome': frame(Hgb=y), 'predictors': frame(eGFR=x)})
-    assert st['state'] == 'failed' and st['error'].startswith('R is not installed. Choose File ▸ New R Script, then Install R…'), st
+    assert st['state'] == 'failed' and st['error'].startswith('R is not installed. Choose File ▸ New Script, then Install R…'), st
     print('PASS: without R the form says how to install it')
 finally:
     s.finish()

@@ -13,3 +13,5 @@ for(const [name,folder] of [['dompurify','./node_modules/dompurify/'],['katex','
  for(const file of await readdir(root))if(/^licen[cs]e/i.test(file))licenses.push(`${name} ${pkg.version}\n`+await readFile(new URL(file,root),'utf8'));
 }
 await writeFile(new URL('../Content/Learn/THIRD-PARTY-LICENSES.txt',import.meta.url),licenses.join('\n\n'));
+
+await build({entryPoints:[fileURLToPath(new URL("./ai-conversation.mjs",import.meta.url))],bundle:true,format:"iife",target:"safari17",outfile:fileURLToPath(new URL("../Content/AI/conversation.js",import.meta.url))});

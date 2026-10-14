@@ -54,6 +54,7 @@ public static partial class WorkbookIO {
             object result = request.Action switch {
                 "open" => Open(request.Path, request.Snapshot, request.Password),
                 "save" => Save(request),
+                "exportXls" => ExportXls(request),
                 "validateInserts" => ValidateInsertions(request),
                 "close" => Close(request.Id),
                 _ => throw new Exception("Unknown workbook action.")

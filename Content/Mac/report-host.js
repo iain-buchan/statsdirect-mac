@@ -39,6 +39,9 @@
   }
   function update() {
     for (const [action, button] of buttons) {
+      if (action === 'ai') {
+        button.disabled=false;button.title='AI assistance: interpret results and learn about methods';button.setAttribute('aria-label','AI assistance');continue;
+      }
       if (action === 'continueInR') {
         // Disabled when the selection is a note without a record, or the report has no recorded result (Iain, 12 October 2026: a
         // toolbar button is scanned, so its state carries the information), with the reason in the tooltip; the latest result with a
@@ -58,17 +61,18 @@
     }
   }
   function invoke(action) {
+    if (action === 'ai') { post({action,resultID:current()?.dataset.resultId ?? null});return; }
     if (action === 'continueInR') { const {entry, how} = rTarget(); post({action, resultID: entry?.dataset.resultId ?? null, how}); return; }
     const entry = current();
     if (entry) post({action, resultID:entry.dataset.resultId});
   }
-  for (const [action,glyph] of [['methodHelp','help'],['continueInR','r']]) {
+  for (const [action,glyph] of [['methodHelp','help'],['ai','ai'],['continueInR','r']]) {
     const b=control(action,'',glyph,()=>invoke(action));buttons.set(action,b);row.append(b);
   }
   for(const b of row.querySelectorAll('button[data-command]')) {
     const glyph=icon(b.dataset.command);
     if(glyph){b.innerHTML=glyph;b.classList.add('sd-icon');}
-    b.dataset.priority=({save:0,undo:10,redo:10,cut:10,copy:10,paste:10,find:20,bold:30,italic:35,underline:40,methodHelp:25,continueInR:25})[b.dataset.command]??70;
+    b.dataset.priority=({save:0,undo:10,redo:10,cut:10,copy:10,paste:10,find:20,bold:30,italic:35,underline:40,methodHelp:25,ai:25,continueInR:25})[b.dataset.command]??70;
   }
   for(const name of ['undo','cut','find','bold','methodHelp'])row.querySelector(`[data-command=${name}]`).dataset.groupStart='';
   for(const label of row.querySelectorAll(':scope > label')) {

@@ -43,9 +43,11 @@ extension Viewer {
         case "ready":
             var config = doc.operationName.flatMap { analysisCatalog[$0] } ?? doc.followOnDefinition ?? [:]; config["title"] = doc.title
             config["derivedOutput"] = supportsDerivedWorksheet(doc.operationName ?? "")
+            if doc.managedScript != nil { config = ["title": doc.title, "id": "UserScript"] }
             doc.operationReady = true
             operationScript(doc, "configure", config)
             refreshOperationSource(doc) { self.startOperation(doc) }
+        case "repeat": doc.repeatAnalysis = body["enabled"] as? Bool == true
         case "outputMode":
             if let include = body["includeSource"] as? Bool { doc.includeSourceColumns = include }
             if let placement = body["placement"] as? String { doc.outputPlacement = placement }
@@ -95,6 +97,7 @@ extension Viewer {
         let id = UUID().uuidString; doc.analysisJobID = id; doc.analysisCancelled = false; doc.operationStarting = true
         operationScript(doc, "update", ["state": "running", "progress": "Opening input form…"])
         var request: [String: Any] = ["action": "start", "id": id, "operation": operation, "interactiveForms": true]
+        if let code = doc.managedScript, let language = doc.managedLanguage { request["script"] = code; request["language"] = language }
         // A follow-on runs on the parent form's current result, which the parent may have replaced since.
         if let parentDocument = doc.parentDocumentID {
             if let parent = documents.first(where: { $0.id == parentDocument }), let parentJob = parent.completedJobID {
@@ -194,6 +197,7 @@ extension Viewer {
                 self.operationError(doc, error.localizedDescription)
                 if starting {
                     doc.analysisJobID = nil
+                    doc.scriptOwner?.rPane?.finishManagedScript("", error: error.localizedDescription)
                     // The form was told the run had started; give it a terminal state so it offers Run again.
                     self.operationScript(doc, "update", ["state": "failed", "error": error.localizedDescription, "history": []])
                     if doc.operationClosing { self.remove(doc) }
@@ -208,6 +212,15 @@ extension Viewer {
                     // released when the form reruns or closes.
                     if output["state"] as? String == "complete" { doc.completedJobID = id }
                     else { self.analysisRequest(["action": "release", "id": id], entry: "statsdirect_operation") { _ in } }
+                    if let owner = doc.scriptOwner {
+                        owner.rPane?.finishManagedScript(output["console"] as? String ?? "", error: output["error"] as? String, cancelled: doc.analysisCancelled)
+                        if output["state"] as? String == "complete", !doc.analysisCancelled {
+                            self.openOutputDocuments(doc, output["frames"] as? [[String: Any]] ?? [])
+                            if let html = output["html"] as? String, !html.isEmpty { self.finishOperationReport(doc, output, frames: [], note: nil) }
+                            else { self.tabs.selectTabViewItem(owner.item) }
+                        }
+                        self.remove(doc); return
+                    }
                     if doc.operationClosing { self.remove(doc); return }
                     if output["state"] as? String == "complete", !doc.analysisCancelled {
                         if ["AnalysisOptions","MetaCalculationOptions","MetaPlotOptions"].contains(doc.operationName ?? ""), let defaults = output["analysisOptions"] as? [String: Any] {
@@ -305,6 +318,24 @@ extension Viewer {
         let entry = ReportEntry(id: resultID, title: record.flatMap(RunRecordR.title(of:)) ?? recordTitle(doc), operation: operation, body: body,
                                 record: record, recipe: output["recipe"] as? Bool ?? false, helpPath: methodHelpPath(doc))
         if instant { previewResult(entry, in: doc) } else { appendReport(entry) }
+        if doc.repeatAnalysis, !instant, doc.parentDocumentID == nil, !doc.analysisCancelled {
+            // Start a fresh acquisition after the report/write-back has finished.
+            // Clearing selection prevents automatic input from replaying forever.
+            func repeatNow() {
+                guard self.documents.contains(where: { $0 === doc }), doc.repeatAnalysis else { return }
+                self.refreshOperationSource(doc) {
+                    self.operationScript(doc, "prepareRepeat", NSNull())
+                    self.tabs.selectTabViewItem(doc.item)
+                    self.startOperation(doc)
+                }
+            }
+            if let source = documents.first(where: { $0.id == doc.operationSourceID }), source.kind == "grid" {
+                source.web.evaluateJavaScript("window.statsDirectGrid.clearSelection()") { _, error in
+                    if let error { self.operationError(doc, "Repeat stopped: " + error.localizedDescription); doc.repeatAnalysis = false }
+                    else { repeatNow() }
+                }
+            } else { repeatNow() }
+        }
     }
     // The operation's friendly name: the catalogue's title, else a follow-on's, else the operation name.
     func recordTitle(_ doc: Document) -> String {

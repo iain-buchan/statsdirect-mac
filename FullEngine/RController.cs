@@ -25,7 +25,7 @@ namespace StatsDirect.R
         const string RSCRIPT_NAME = "script.r";
         const string RESULTS_FILE_NAME = "results.txt";
         const string ERROR_FILE_NAME = "error.txt";
-        public const string NotInstalledMessage = "R is not installed. Choose File ▸ New R Script, then Install R…, or install R from cran.r-project.org, then run this analysis again.";
+        public const string NotInstalledMessage = "R is not installed. Choose File ▸ New Script, then Install R…, or install R from cran.r-project.org, then run this analysis again.";
         static readonly string[] Candidates = { "/Library/Frameworks/R.framework/Resources/bin/Rscript", "/opt/homebrew/bin/Rscript", "/usr/local/bin/Rscript" };
 
         /// <summary>Where runs and the package library live. STATSDIRECT_R_FOLDER overrides it (tests use a temporary folder).</summary>

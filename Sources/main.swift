@@ -26,6 +26,10 @@ final class Document {
     var csvSaveName: String?
     var rDataFormat: String?
     var fileBusy = false
+    weak var scriptOwner: Document?
+    var managedScript: String?
+    var managedLanguage: String?
+    var repeatAnalysis = false
     var analysisJobID: String?
     var analysisCancelled = false
     var operationName: String?
@@ -40,7 +44,7 @@ final class Document {
     var learningTask: Task<Void, Never>?
     var learningResourceTask: Task<Void, Never>?
     var learningRequestID: String?
-    // Sharing is deliberately not restored across learning windows or app launches.
+    // Document scope is local to each Learning window; session consent lives on Viewer.
     var learningSourceID = "__none__"
     var learningContextRevision = 0
     var learningState: [String: Any]?
@@ -116,6 +120,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     let documentSplit = NSSplitView()
     lazy var helpPane = HelpPane(root: root.appendingPathComponent("Help"))
     let calculatorPane = CalculatorPane()
+    let aiSharing=AISharingConsent()
     lazy var scriptAI = ScriptAIPane(viewer: self)
     var helpKeyMonitor: Any?
     let documentTabs = NSStackView()
@@ -251,6 +256,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let app = menu("StatsDirect")
         add(app, "About StatsDirect", #selector(showAbout))
         app.addItem(.separator())
+        add(app, "Automatically Check for Updates", #selector(toggleAutomaticUpdates))
+        app.addItem(.separator())
         add(app, "Hide StatsDirect", #selector(NSApplication.hide(_:)), "h", target: NSApp)
         add(app, "Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", target: NSApp)
         app.items.last?.keyEquivalentModifierMask = [.command, .option]
@@ -260,7 +267,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let file = menu("File")
         add(file, "New Worksheet", #selector(newWorksheet), "n")
         add(file, "New Report", #selector(newReport))
-        add(file, "New R Script", #selector(newRTab), "r")
+        add(file, "New Script", #selector(newRTab), "r")
         file.addItem(.separator())
         add(file, "Open…", #selector(openFile), "o")
         addRecentDocumentsMenu(to: file)
@@ -270,7 +277,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let exportItem = NSMenuItem(title: "Export", action: nil, keyEquivalent: "")
         exportItem.submenu = export; file.addItem(exportItem)
         add(export, "Excel Workbook (.xlsx)…", #selector(saveActiveExcel))
-        add(export, "Current Worksheet as CSV…", #selector(exportActiveCSV))
+        add(export, "Excel 97–2003 Data Copy (.xls)…", #selector(exportActiveLegacyExcel))
+        add(export, "Current Worksheet as CSV or TSV…", #selector(exportActiveCSV))
         add(export, "Current Worksheet as RDS…", #selector(saveActiveRDS))
         add(export, "All Worksheets as RData…", #selector(saveActiveRData))
         export.addItem(.separator())
@@ -308,18 +316,14 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(help, "Learning", #selector(openLearning))
         add(help, "Learning Options…", #selector(openLearningOptions))
         help.addItem(.separator())
-        add(help, "StatsDirect Help", #selector(helpLibrary), "?")
-        add(help, "Help for Current Analysis", #selector(currentMethodHelp))
-        help.addItem(.separator())
-        add(help, "Back", #selector(back))
-        add(help, "Forward", #selector(forward))
+        add(help, "Contents and Index…", #selector(helpLibrary), "?")
+        add(help, "Method Selection…", #selector(methodSelectionHelp))
         help.addItem(.separator())
         add(help, "Example workbook", #selector(openExampleWorkbook))
         help.addItem(.separator())
         add(help, "Check for Updates…", #selector(checkUpdates))
-        add(help, "Automatically Check for Updates", #selector(toggleAutomaticUpdates))
         help.addItem(.separator())
-        add(help, "About StatsDirect", #selector(showAbout))
+        add(help, "About StatsDirect…", #selector(showAbout))
         NSApp.mainMenu = main
         updateWindowMenu()
     }
@@ -339,9 +343,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(forward) { return helpPane.web.canGoForward }
         if [#selector(exportReportHTML), #selector(exportReportPDF), #selector(exportReportDOCX)].contains(menuItem.action) { return active?.kind == "report" && active?.fileBusy == false && active?.web.isLoading == false }
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
-        if [#selector(saveActiveExcel), #selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
-        if menuItem.action == #selector(printPage) { if helpPane.isFocused { return true }; return active != nil && active?.kind != "operation" && active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" }
-        if menuItem.action == #selector(saveDocument) { menuItem.title = active?.kind == "learn" ? "Export Learning Record…" : active?.kind == "r" ? "Save R Script…" : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV…") : active?.kind == "analysis" ? "Save Table…" : active?.kind == "report" ? "Save Report…" : "Save PDF…"; return active != nil && active?.kind != "operation" && active?.fileBusy == false }
+        if [#selector(saveActiveExcel), #selector(exportActiveLegacyExcel), #selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
+        if menuItem.action == #selector(printPage) { if helpPane.isFocused { return true }; return active != nil && active?.kind != "operation" }
+        if menuItem.action == #selector(saveDocument) { menuItem.title = active?.kind == "learn" ? "Export Learning Record…" : active?.kind == "r" ? (active?.rPane?.language == "R" ? "Save R Script…" : "Save Script…") : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV or TSV…") : active?.kind == "analysis" ? "Save Table…" : active?.kind == "report" ? "Save Report…" : "Save PDF…"; return active != nil && active?.kind != "operation" && active?.fileBusy == false }
         if [#selector(closeTab), #selector(printPage), #selector(saveDocument)].contains(menuItem.action) { return active != nil }
         return true
     }
@@ -405,7 +409,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         if let doc = active {
+            if doc.kind == "grid" { analysisSourceID=doc.id;selectAIDataDocument(doc.id) }
             scriptAI.activeDocumentChanged(doc)
+            if doc.kind == "operation", doc.operationReady, doc.repeatAnalysis { refreshOperationSource(doc) }
             if doc.kind == "learn" { recoverLearningRenderer(doc); refreshLearningWorkspace(doc) }
             else { learningLastDocumentID = doc.id }
         }
@@ -436,6 +442,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         helpPane.open(url)
     }
     @objc func helpLibrary() { helpPane.contents() }
+    @objc func methodSelectionHelp() { helpPane.open(helpPane.url(for: "1213")) }
     @objc func currentMethodHelp() {
         if calculatorPane.isFocused { calculatorHelp(); return }
         if let doc = active, let path = methodHelpPath(doc) {
@@ -470,8 +477,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
     }
     @objc func newRTab() {
-        let doc = makeRScript()
-        doc.rPane?.prepareSession()
+        makeRScript()
     }
     @discardableResult func makeRScript(script: String = "", title: String? = nil, saved: Bool = false) -> Document {
         var number = 1
@@ -485,6 +491,20 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             if let path = self.methodHelpPath(doc) { self.openHelp(self.root.appendingPathComponent(path), title: doc.title) }
             else { self.helpLibrary() }
         }
+        pane.languageChanged = { [weak self, weak doc, weak pane] language in
+            guard let self, let doc else { return }
+            let label = language == "CSharp" ? "C#" : language
+            doc.title = doc.title.replacingOccurrences(of: "^(R|C#|VB) Script", with: label + " Script", options: .regularExpression)
+            doc.item.label = doc.title; pane?.scriptName = doc.title; self.updateWindowMenu()
+            if self.active === doc { self.window.title = "\(doc.title) · StatsDirect" }
+        }
+        pane.runManagedScript = { [weak self, weak doc] code, language in
+            guard let self, let doc else { return }; self.runManagedScript(doc, code: code, language: language)
+        }
+        pane.cancelManagedScript = { [weak self, weak doc] in
+            guard let self, let doc, let run = self.documents.first(where: { $0.scriptOwner === doc }), let id = run.analysisJobID else { return }
+            run.analysisCancelled = true; self.operationRequest(["action": "cancel", "id": id], doc: run, id: id)
+        }
         pane.showAI = { [weak self, weak doc] in if let self, let doc { self.scriptAI.open(doc) } }
         window.makeFirstResponder(pane.editor)
         return doc
@@ -493,6 +513,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         do {
             let script = try String(contentsOf: url, encoding: .utf8)
             let doc = makeRScript(script: script, title: url.lastPathComponent, saved: true)
+            doc.rPane?.setLanguage(url.pathExtension.lowercased() == "cs" ? "CSharp" : url.pathExtension.lowercased() == "vb" ? "VB" : "R")
             doc.rPane?.scriptFileName = url.lastPathComponent
             didOpenDocument(doc, url: url)
             status.stringValue = "Opened " + url.lastPathComponent + ". Choose Run to run the script."
@@ -528,12 +549,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             alert.addButton(withTitle: "Close Table"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else if let pane = doc.rPane, pane.hasUnsavedChanges || pane.isRunning {
-            let alert = NSAlert(); alert.messageText = "Close this R session?"
-            alert.informativeText = "Unsaved script edits and R variables will be discarded. Any running script will stop."
-            alert.addButton(withTitle: "Close R Session"); alert.addButton(withTitle: "Cancel")
+            let alert = NSAlert(); alert.messageText = pane.language == "R" ? "Close this R session?" : "Close this script?"
+            alert.informativeText = pane.language == "R" ? "Unsaved script edits and R variables will be discarded. Any running script will stop." : "Unsaved script edits will be discarded. A running script will be asked to cancel at its next engine checkpoint."
+            alert.addButton(withTitle: pane.language == "R" ? "Close R Session" : "Close Script"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else if doc.gridDirty {
-            let alert = NSAlert(); alert.messageText = "Close the data grid?"; alert.informativeText = doc.rDataFormat != nil ? "Unsaved R table edits will be discarded. Save RDS for one table or RData for all tables." : doc.csvSaveName != nil ? "Unsaved CSV edits will be discarded. Use Save CSV to keep them." : "Unsaved worksheet edits will be discarded. Use Save Excel to keep all worksheets, or Save CSV for a single data table."
+            let alert = NSAlert(); alert.messageText = "Close the data grid?"; alert.informativeText = doc.rDataFormat != nil ? "Unsaved R table edits will be discarded. Save RDS for one table or RData for all tables." : doc.csvSaveName != nil ? "Unsaved CSV/TSV edits will be discarded. Use Save CSV or TSV to keep them." : "Unsaved worksheet edits will be discarded. Use Save Excel to keep all worksheets, or Save CSV for a single data table."
             alert.addButton(withTitle: "Close Grid"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else { remove(doc) }
@@ -560,7 +581,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func forward() { helpPane.forward() }
     @objc func openFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = (Self.excelExtensions + ["csv", "rds", "rdata", "rda", "r", "html", "htm", "rtf"]).compactMap { UTType(filenameExtension: $0) }
+        panel.allowedContentTypes = (Self.excelExtensions + ["csv", "tsv", "rds", "rdata", "rda", "r", "cs", "vb", "html", "htm", "rtf", "txt", "sdw"]).compactMap { UTType(filenameExtension: $0) }
         panel.allowsMultipleSelection = true; panel.canChooseDirectories = false
         panel.message = "Open Excel, CSV or R data, an R script, or an HTML or legacy RTF report."
         panel.beginSheetModal(for: window) { response in
@@ -580,8 +601,18 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     @objc func printPage() {
         if helpPane.isFocused { helpPane.printHelp(); return }
-        guard active?.kind != "r" && active?.kind != "grid" && active?.kind != "analysis" else { return }
-        guard let web = active?.web else { return }
+        guard let doc = active else { return }
+        if doc.rPane != nil || doc.kind == "grid" || doc.kind == "analysis" {
+            Task { @MainActor in
+                do {
+                    let html = try await self.documentPrintHTML(doc)
+                    let printable = try await DocumentPrintView.load(html: html, title: doc.title)
+                    printable.print(in: self.window)
+                } catch { self.showError("The document could not be printed: " + self.javaScriptMessage(error)) }
+            }
+            return
+        }
+        let web = doc.web
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
         info.topMargin = 36; info.bottomMargin = 36; info.leftMargin = 36; info.rightMargin = 36
         web.printOperation(with: info).runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)

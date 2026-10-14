@@ -102,6 +102,7 @@ extension Viewer {
         if action == "clipboard", let command = body["command"] as? String, ["copy", "cut", "paste"].contains(command) { reportClipboardCommand(doc, command: command); return }
         if action == "save" { saveReport(doc); return }
         if action == "find" { showFindBar(doc, replace: false); return }
+        if action == "ai" { scriptAI.open(doc,reportResultID:body["resultID"] as? String); return }
         if action == "editing" { doc.reportEditing = body["value"] as? Bool ?? false; return }
         // What the pointer was on at a right-click, for the context menu the shell shows.
         if action == "context" { doc.reportContext = body; return }
@@ -306,6 +307,7 @@ extension Viewer {
         }
         let id = context["resultId"] as? String
         if let help = context["help"] as? String, !help.isEmpty { add("Method Help", "help", help) }
+        add("AI Assistance…", "ai", id ?? "")
         if let r = context["r"] as? String, let id { add(r == "recipe" ? "Continue in R" : "Open Data and Settings in R", "r", id) }
         if let id { add("Select Result", "selectResult", id) }
         add("Select All Results", "selectAll")
@@ -352,6 +354,7 @@ extension Viewer {
         let value = info["value"] ?? ""
         switch kind {
         case "help": openHelp(root.appendingPathComponent(value), title: doc.title)
+        case "ai": scriptAI.open(doc,reportResultID:value.isEmpty ? nil:value)
         case "r": continueResultInR(doc, id: value)
         case "selectResult": doc.web.evaluateJavaScript("StatsDirectReportEditor.selectResult(\(jsString(value)))")
         case "selectAll": doc.web.evaluateJavaScript("StatsDirectReportEditor.selectAll()")

@@ -35,8 +35,8 @@ import WebKit
         try check(!NSApp.mainMenu!.items.contains { $0.submenu?.title=="R" },"no separate R menu in the native menu bar")
         try check(!buttons(v.window.contentView!).contains { $0.identifier?.rawValue=="R" },"no separate R menu inside the window")
         let file=NSApp.mainMenu!.items.first { $0.submenu?.title=="File" }!.submenu!
-        let new=file.items.first { $0.title=="New R Script" }!
-        try check(NSApp.sendAction(new.action!,to:new.target,from:new),"File → New R Script opens a script tab")
+        let new=file.items.first { $0.title=="New Script" }!
+        try check(NSApp.sendAction(new.action!,to:new.target,from:new),"File → New Script opens a script tab")
         let first=v.active!, pane=first.rPane!
         try check(first.title=="R Script 1" && pane.editor.string.isEmpty && !pane.hasUnsavedChanges,"blank script opens without unsaved changes")
         for title in ["Run","Stop / Reset","Save script…","Clear output","Output folder","Open in R"] {
@@ -97,7 +97,7 @@ import WebKit
         v.openRScriptURL(url)
         let second=v.active!, other=second.rPane!
         try check(second.title=="R Script 2: Example.R" && other.editor.string==source && !other.hasUnsavedChanges,"R file opens in a separate tab with its exact text")
-        try check(!other.isRunning && !FileManager.default.fileExists(atPath:marker.path),"opening a script does not execute it")
+        try check(!other.isRunning && !FileManager.default.fileExists(atPath:marker.path) && other.outputFolder == nil && other.console.string.isEmpty,"opening a script does not execute it or start R")
         let save=file.items.first { $0.action == #selector(Viewer.saveDocument) }!
         try check(v.validateMenuItem(save) && save.title=="Save R Script…","File Save targets the active R script")
         let copy=try other.writeExternalScript(), firstCopy=try pane.writeExternalScript()
@@ -111,9 +111,12 @@ import WebKit
         other.runScript()
         try await wait { !other.isRunning && other.console.string.contains("SECOND_SCRIPT") }
         try check(FileManager.default.fileExists(atPath:marker.path) && !other.console.string.contains("Error:"),"explicit Run works in an independent R session")
+        // Passive opening can make an external copy before the first R process.
+        // Reset must retain the running session's folder, then a restart isolates it.
+        let runningCopy=try other.writeExternalScript()
         other.stopSession()
         let resetCopy=try other.writeExternalScript()
-        try check(resetCopy==copy,"Reset preserves access to this tab's output folder")
+        try check(resetCopy==runningCopy && FileManager.default.fileExists(atPath:copy.path),"Reset preserves the current output folder and the earlier external copy")
         other.editor.string="stopifnot(!exists('x')); cat('RESET_READY\\n')"; other.runScript()
         try await wait { !other.isRunning && other.console.string.contains("RESET_READY") }
         let restartedCopy=try other.writeExternalScript()

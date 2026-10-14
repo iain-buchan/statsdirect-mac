@@ -22,7 +22,7 @@ public static class OperationSessions {
     internal static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
     static readonly ConcurrentDictionary<string, OperationJob> jobs = new();
     static readonly object gate = new();
-    public sealed record Request(string Action, string Id, string Operation, int Token, JsonElement Value, JsonElement Preferences, string Parent, bool InteractiveForms = false);
+    public sealed record Request(string Action, string Id, string Operation, int Token, JsonElement Value, JsonElement Preferences, string Parent, bool InteractiveForms = false, string Script = null, string Language = null);
     public static string Execute(string input) {
         try {
             var r = JsonSerializer.Deserialize<Request>(input, Json) ?? throw new Exception("Missing operation request.");
@@ -35,6 +35,13 @@ public static class OperationSessions {
                     _ = SdApplication.SoleInstance;
                     // A follow-on starts from the inputs of a completed analysis, as the Windows
                     // application does when the user picks a suggested operation after a result.
+                    if (r.Script != null) {
+                        if (r.Language is not ("CSharp" or "VB")) throw new Exception("Choose C# or Visual Basic.");
+                        var scriptJob = new OperationJob(r.Id, new Operation { Name = "UserScript", FriendlyName = "Script" }, r.Preferences, script: r.Script, language: r.Language);
+                        jobs[r.Id] = scriptJob;
+                        Task.Factory.StartNew(scriptJob.Run, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                        return JsonSerializer.Serialize(scriptJob.Snapshot(), Json);
+                    }
                     OperationJob parent = null; ParameterBag context = null;
                     if (!string.IsNullOrEmpty(r.Parent)) {
                         if (!jobs.TryGetValue(r.Parent, out parent) || parent.FollowOnContext == null) throw new Exception("The analysis this follows on from is no longer open. Run it again, then choose the follow-on from its result.");
@@ -103,6 +110,8 @@ internal sealed class OperationJob {
     // Whether the shared R recipes (RRecipes, the manifest published beside the engine) hold one for this operation: the report
     // offers Continue in R when they do and Open data and settings in R otherwise.
     readonly bool recipe;
+    readonly string script, language;
+    string consoleOutput;
     internal sealed record InputRecord(string Title, object Value, string Name = null, string Kind = null, string Mode = null);
     readonly List<InputRecord> history = new();
     // A follow-on's report and R script list the parent's inputs before its own.
@@ -128,13 +137,14 @@ internal sealed class OperationJob {
         }
         return null;
     }
-    public OperationJob(string id, Operation operation, JsonElement preferences, ParameterBag context = null, string parent = null, List<InputRecord> inherited = null, bool interactiveForms = false) {
+    public OperationJob(string id, Operation operation, JsonElement preferences, ParameterBag context = null, string parent = null, List<InputRecord> inherited = null, bool interactiveForms = false, string script = null, string language = null) {
+        this.script = script; this.language = language;
         InteractiveForms = interactiveForms; Id = id; Operation = operation; SavedPreferences = preferences; startContext = context; parentId = parent;
         if (inherited != null) history.AddRange(inherited);
         recipe = StatsDirect.R.RRecipes.Has(operation.Name);
         var output = FirstOutputFrame(operation.Steps); writesWorksheet = output != null; placement = output?.DefaultPlacement.ToString();
     }
-    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, frames, analysisOptions, values = outputs, suggestions, parent = parentId, writesWorksheet, placement, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray(), record, recipe }; }
+    public object Snapshot() { lock (sync) return new { id = Id, state, token, prompt, progress, fraction, error, html, console = consoleOutput, frames, analysisOptions, values = outputs, suggestions, parent = parentId, writesWorksheet, placement, history = state == "complete" ? (object)history.ToArray() : history.Select(h => new { title = h.Title }).ToArray(), record, recipe }; }
     static void NoteOperation(ParameterBag bag, string name) {
         if (!bag.ContainsKey(MemoryName)) bag.AddInput(MemoryName, new List<string>());
         var list = bag[MemoryName].AsStringList;
@@ -190,6 +200,16 @@ internal sealed class OperationJob {
             Check();
             var host = new OperationHost(this);
             StatsDirect.UI.OperationHacks.Information = text => host.Warning(text,"Search results");
+            if (script != null) {
+                using var capture = new StringWriter(CultureInfo.InvariantCulture);
+                try {
+                    using var scope = ScriptConsole.Capture(capture);
+                    ((IScriptEngine)new ScriptEngine()).Run(language, script, ScriptType.Method, host, null, null, null);
+                    Check();
+                    lock (sync) { consoleOutput = capture.ToString(); html = host.Html.ToString(); frames = host.Frames.ToArray(); state = "complete"; Finished = true; progress = "Script complete"; fraction = 1; }
+                } finally { lock (sync) consoleOutput = capture.ToString(); }
+                return;
+            }
             // The Windows basic-search command only sends Ctrl+H to its shell. Use
             // the existing search operation and unit-conversion engine in this host.
             var engineOperation = Operation.Name switch {

@@ -106,7 +106,11 @@ extension Viewer {
         let legacy = url.pathExtension.lowercased() == "rtf"
         let source: LegacyReport
         if legacy { source = try LegacyReport.read(data) }
-        else {
+        else if url.pathExtension.lowercased() == "txt" {
+            var text = try CSVFileIO.read(url)
+            if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
+            source = LegacyReport(html: "<pre style='white-space:pre-wrap'>\(htmlEscape(text))</pre>", pictures: [])
+        } else {
             guard let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .utf16) else { throw LegacyReportError("The HTML report's text encoding could not be read.") }
             source = LegacyReport(html: html, pictures: [])
         }

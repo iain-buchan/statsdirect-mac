@@ -4,7 +4,8 @@ import { MAX_ROWS, MAX_COLS, numeric } from './store.mjs';
 export const MAX_CSV_FIELDS = MAX_ROWS * MAX_COLS;
 // CSV is data: preserve field text exactly, including whitespace, newlines,
 // identifiers and strings beginning with '='. Never evaluate imported text.
-export function parseCSV(input, maxFields = MAX_CSV_FIELDS) {
+export function parseCSV(input, maxFields = MAX_CSV_FIELDS, delimiter = ',') {
+  if (![',', '\t'].includes(delimiter)) throw new Error('Unsupported field separator.');
   const text = input.replace(/^\uFEFF/, '');
   if (text.includes('\0')) throw new Error('This file contains NUL bytes and is not a supported text CSV.');
   if (!text.length) return [];
@@ -27,7 +28,7 @@ export function parseCSV(input, maxFields = MAX_CSV_FIELDS) {
         if (text[i + 1] === '"') { field += '"'; i++; }
         else { quoted = false; closed = true; }
       } else field += ch;
-    } else if (ch === ',') finishField();
+    } else if (ch === delimiter) finishField();
     else if (ch === '\r' || ch === '\n') {
       finishRow();
       if (ch === '\r' && text[i + 1] === '\n') i++;
@@ -51,7 +52,7 @@ function csvKind(text) {
   return 'text';
 }
 export function csvWorkbook(text, name) {
-  const rows = parseCSV(text);
+  const rows = parseCSV(text, MAX_CSV_FIELDS, /\.tsv$/i.test(name) ? '\t' : ',');
   const columns = rows.reduce((n, row) => Math.max(n, row.length), 1);
   // Per-column batches: numbers are parsed once here and stored as doubles by the grid.
   const batches = new Map();
@@ -63,6 +64,6 @@ export function csvWorkbook(text, name) {
     b.nums.push(NaN);
     b.texts.set(b.rows.length - 1, text);
   }));
-  const sheetName = name.replace(/\.csv$/i, '').replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31) || 'Data';
+  const sheetName = name.replace(/\.(csv|tsv)$/i, '').replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31) || 'Data';
   return {name, formulaCount: 0, sheets: [{name: sheetName, hidden: false, rows: rows.length, csvRows: rows.length, columns, cells: [], batches: [...batches.values()], kindOf: csvKind}]};
 }

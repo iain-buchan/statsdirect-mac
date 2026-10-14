@@ -1,3 +1,4 @@
+import {worksheetPrintHTML} from './printing.mjs';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import DataEditor, { CompactSelection, GridCellKind, type GridCell, type GridSelection, type Item, type DataEditorRef } from '@glideapps/glide-data-grid';
@@ -63,7 +64,10 @@ function App() {
   const pendingCut = useRef<any>(null);
   const [findOpen,setFindOpen]=useState(false), [findText,setFindText]=useState('');
   const findInput=useRef<HTMLInputElement>(null), lastFind=useRef('');
-  const showFind=()=>{setFindOpen(true);requestAnimationFrame(()=>{findInput.current?.focus();findInput.current?.select();});};
+  // Focus after React mounts the field; WebKit can suspend animation frames
+  // while switching documents or returning from a native save sheet.
+  useEffect(()=>{if(findOpen){findInput.current?.focus();findInput.current?.select();}},[findOpen]);
+  const showFind=()=>{setFindOpen(true);findInput.current?.focus();findInput.current?.select();};
   const findNext=(backwards=false)=>{
     const found=findCell(store,findText,lastFind.current===findText?selectionRef.current.current?.cell:null,backwards);
     lastFind.current=findText;
@@ -189,8 +193,8 @@ function App() {
       columnValues: (request: any) => columnValues(workbook, sheetIndex, request),
       snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),
       // The snapshot carries the cells; columns inserted before existing ones since the file was loaded travel beside it.
-      excelSnapshot: async () => {
-        const sheets = workbook.exportColumns().sheets;
+      excelSnapshot: async (allValues = false) => {
+        const sheets = workbook.exportColumns(allValues).sheets;
         const stored = await postSnapshot(sheets);
         return {...stored, inserts: sheets.filter((sh: any) => sh.inserts?.length).map((sh: any) => ({name: sh.name, inserts: sh.inserts}))};
       },
@@ -215,8 +219,10 @@ function App() {
         setMessage(plan.message + where + (applied ? (shown ? ' · Undo restores the previous cells' : ' · show that worksheet to undo') : ''));
         return {message: plan.message + where, written: plan.written};
       },
+      clearSelection: () => { selectionRef.current = empty; setSelection(empty); },
+      printHTML: () => worksheetPrintHTML(store, {columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}, workbook.name + " · " + workbook.sheets[sheetIndex].name),
       csvData: () => store.csv(),
-      csvSnapshot: () => ({text: store.csv(), canSaveDocument: !workbook.backed && workbook.sheets.length === 1 && !workbook.formulaCount && !workbook.sheets.some((s:any) => s.rColumns)}),
+      csvSnapshot: (delimiter = ',') => ({text: store.csv(delimiter), canSaveDocument: !workbook.backed && workbook.sheets.length === 1 && !workbook.formulaCount && !workbook.sheets.some((s:any) => s.rColumns)}),
       // R tables: the manifest travels as JSON, the cells as a typed snapshot stored with the application.
       rDataSnapshot: async (currentOnly: boolean) => {
         const {tables, sheets} = rDataTables(workbook, currentOnly ? sheetIndex : undefined);

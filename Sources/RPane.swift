@@ -43,7 +43,7 @@ final class RPane: NSObject, NSTextViewDelegate {
     let view = RPaneView()
     let editor = ScriptTextView()
     let console = ScriptTextView()
-    let state = NSTextField(labelWithString: "Starting R…")
+    let state = NSTextField(labelWithString: "Ready · Choose Run to execute the script")
     private let runButton = NSButton(title: "Run", target: nil, action: nil)
     private let stopButton = NSButton(title: "Stop / Reset", target: nil, action: nil)
     private let installButton = NSButton(title: "Install R…", target: nil, action: nil)
@@ -71,6 +71,12 @@ final class RPane: NSObject, NSTextViewDelegate {
     private var busy = false
     private var savedScript = ""
     var scriptFileName = "analysis.R"
+    private(set) var language = "R"
+    private let languageButton = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let languageLabel = NSTextField(labelWithString: "R script · Variables persist between runs. Stop / Reset clears the session.")
+    var runManagedScript: ((String, String) -> Void)?
+    var cancelManagedScript: (() -> Void)?
+    var languageChanged: ((String) -> Void)?
     var showAI: (() -> Void)?
     var showHelp: (() -> Void)?
     private let resources: URL
@@ -133,12 +139,16 @@ final class RPane: NSObject, NSTextViewDelegate {
             button.identifier = NSUserInterfaceItemIdentifier(command); button.toolTip = "\(title) (\(shortcut))"
             return style(button, command)
         }
+        languageButton.addItems(withTitles: ["R", "C#", "Visual Basic"])
+        languageButton.target = self; languageButton.action = #selector(changeLanguage)
+        languageButton.setAccessibilityLabel("Script language")
         let toolbar = DocumentToolbar(items: [
             .init(button: style(save,"save"), priority: 0),
             .init(button: editing[0], priority: 10, groupStart: true), .init(button: editing[1], priority: 10),
             .init(button: editing[2], priority: 10, groupStart: true), .init(button: editing[3], priority: 10), .init(button: editing[4], priority: 10),
             .init(button: style(find,"find"), priority: 20, groupStart: true),
-            .init(button: style(runButton,"run",labelled: true), priority: 0, groupStart: true),
+            .init(button: languageButton, priority: 0, groupStart: true),
+            .init(button: style(runButton,"run",labelled: true), priority: 0),
             .init(button: style(stopButton,"stop"), priority: 20),
             .init(button: style(clear,"clear"), priority: 70), .init(button: style(folderButton,"folder"), priority: 60),
             .init(button: style(help,"help"), priority: 25, groupStart: true),
@@ -148,6 +158,8 @@ final class RPane: NSObject, NSTextViewDelegate {
         ], resources: resources)
         toolbar.validate = { [weak self] in
             guard let self else { return }
+            openInR.isEnabled = self.language == "R"
+            self.languageButton.isEnabled = !self.busy
             let output = self.editingFocus === self.console
             let selection = (output ? self.console : self.editor).selectedRange().length > 0
             editing[0].isEnabled = !output && self.editor.undoManager?.canUndo == true
@@ -160,7 +172,7 @@ final class RPane: NSObject, NSTextViewDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(refreshToolbar), name: NSTextView.didChangeSelectionNotification, object: editor)
         NotificationCenter.default.addObserver(self, selector: #selector(refreshToolbar), name: NSTextView.didChangeSelectionNotification, object: console)
         NotificationCenter.default.addObserver(self, selector: #selector(refreshToolbar), name: NSApplication.didBecomeActiveNotification, object: nil)
-        let label = NSTextField(labelWithString: "R script · Variables persist between runs. Stop / Reset clears the session.")
+        let label = languageLabel
         label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingTail
         let split = NSSplitView(); split.isVertical = false; split.dividerStyle = .thin
@@ -185,7 +197,15 @@ final class RPane: NSObject, NSTextViewDelegate {
             split.arrangedSubviews[0].heightAnchor.constraint(greaterThanOrEqualToConstant: 150), split.arrangedSubviews[1].heightAnchor.constraint(greaterThanOrEqualToConstant: 120)
         ])
         state.font = .systemFont(ofSize: 11); state.lineBreakMode = .byTruncatingMiddle
-        startSession()
+        showReadyState()
+    }
+
+    private func showReadyState() {
+        // Opening a script is passive, including C#/VB documents. Start R only
+        // for an explicit Run, setup request or external handoff.
+        installButton.isHidden = language != "R" || executable() != nil
+        state.stringValue = installButton.isHidden ? "Ready · Choose Run to execute the script" : "R is not installed. Choose Install R to download and set it up."
+        refreshToolbar()
     }
 
     @objc private func refreshToolbar() { view.toolbar?.refresh() }
@@ -262,6 +282,7 @@ final class RPane: NSObject, NSTextViewDelegate {
         }
     }
     @objc func prepareSession() {
+        guard language == "R" else { return }
         if executable() == nil { requestInstallation(run: false) }
         else { startSession() }
     }
@@ -363,6 +384,11 @@ final class RPane: NSObject, NSTextViewDelegate {
         console.scrollToEndOfDocument(nil)
     }
     @objc func runScript() {
+        if language != "R" {
+            guard !busy else { return }
+            busy = true; stopButton.isEnabled = true; state.stringValue = "Running script…"; refreshToolbar()
+            runManagedScript?(editor.string, language); return
+        }
         // Run while a run is going stops that run and runs the edited script, as the Windows script window does
         // (a dropped click looked like the unedited answers); the session starts afresh.
         if busy { shutdown(); append("\nRun stopped; the edited script runs in a fresh R session.\n") }
@@ -378,10 +404,12 @@ final class RPane: NSObject, NSTextViewDelegate {
         } catch { busy = false; runButton.isEnabled = true; state.stringValue = error.localizedDescription }
     }
     @objc func stopSession() {
+        if language != "R" { cancelManagedScript?(); state.stringValue = "Cancelling at the next engine checkpoint…"; return }
         shutdown(); append("\nSession stopped. Variables cleared; Run script starts a new session.\n")
         state.stringValue = "Stopped · Run script starts a fresh R session"
     }
     func shutdown() {
+        if language != "R", busy { cancelManagedScript?() }
         generation = UUID(); output?.fileHandleForReading.readabilityHandler = nil
         requestingInstallation = false; runAfterInstallation = false; openExternallyAfterInstallation = false; installButton.isEnabled = true
         // Keep this tab's files accessible through Output folder after Reset.
@@ -408,6 +436,7 @@ final class RPane: NSObject, NSTextViewDelegate {
     /// Open in R, as the Windows script window offers it: the script saved as an R file named after the window in the program's R Scripts
     /// folder, then opened in RStudio when installed, otherwise run in a new R.app session.
     @discardableResult @objc func openInR() -> URL? {
+        guard language == "R" else { return nil }
         let folder = Self.scriptsFolder
         let name = scriptName.components(separatedBy: CharacterSet(charactersIn: "/:")).joined(separator: "_").trimmingCharacters(in: .whitespaces)
         let url = folder.appendingPathComponent((name.isEmpty ? "Script" : name) + ".R")
@@ -441,9 +470,28 @@ final class RPane: NSObject, NSTextViewDelegate {
         else { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts; install RStudio or R to open it" }
         return url
     }
+    @objc private func changeLanguage() {
+        setLanguage(["R", "CSharp", "VB"][languageButton.indexOfSelectedItem])
+    }
+    func setLanguage(_ value: String) {
+        guard !busy, ["R", "CSharp", "VB"].contains(value) else { return }
+        if value != language { shutdown() }
+        language = value; languageChanged?(value); languageButton.selectItem(at: ["R", "CSharp", "VB"].firstIndex(of: value)!)
+        scriptFileName = (scriptFileName as NSString).deletingPathExtension + (value == "R" ? ".R" : value == "VB" ? ".vb" : ".cs")
+        languageLabel.stringValue = value == "R" ? "R script · Variables persist between runs. Stop / Reset clears the session." : "\(languageButton.titleOfSelectedItem ?? value) · StatsDirect engine host available as host. Stop cancels at the next engine checkpoint."
+        editor.setAccessibilityLabel("\(value) script editor")
+        console.setAccessibilityLabel(value == "R" ? "R output: text and plots" : "\(value) script output")
+        showReadyState()
+    }
+    func finishManagedScript(_ text: String, error: String? = nil, cancelled: Bool = false) {
+        append("\n── Run script ──\n" + text + (error.map { "\n" + $0 + "\n" } ?? ""))
+        busy = false; stopButton.isEnabled = false
+        state.stringValue = cancelled ? "Script cancelled" : error == nil ? "Script complete" : "Script failed"
+        refreshToolbar()
+    }
     @objc func saveScript() {
         let panel = NSSavePanel(); panel.nameFieldStringValue = scriptFileName
-        panel.allowedContentTypes = [UTType(filenameExtension: "R") ?? .plainText]
+        panel.allowedContentTypes = [UTType(filenameExtension: language == "CSharp" ? "cs" : language == "VB" ? "vb" : "R") ?? .plainText]
         guard let window = view.window else { return }
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }

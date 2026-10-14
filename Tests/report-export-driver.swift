@@ -559,7 +559,7 @@ import PDFKit
         precondition(report.reportContext["help"] as? String=="Help/parametric_methods/paired_t.htm" && report.reportContext["r"] as? String=="recipe")
         let menu=NSMenu();v.extendReportMenu(menu,for:report)
         let titles=menu.items.map(\.title)
-        precondition(titles.starts(with:["Method Help","Continue in R","Select Result","Select All Results"]),"context menu items: \(titles)")
+        precondition(titles.starts(with:["Method Help","AI Assistance…","Continue in R","Select Result","Select All Results"]),"context menu items: \(titles)")
         // A chart under the pointer can be saved as a file, as on Windows: the menu offers SVG and PNG for a vector chart, and the
         // editor gives the chart's own markup (xmlns ensured) and a PNG drawn at twice its size on the page.
         _ = try await js("document.getElementById('sr-svg').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");try await settled(report)

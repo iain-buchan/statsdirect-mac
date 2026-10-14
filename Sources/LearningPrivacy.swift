@@ -1,6 +1,6 @@
 import Cocoa
 
-// The confirmation covers exactly one question, before even document metadata is sent.
+// Approval is shared for the app session and reset on selection of different data.
 // It is deliberately separate from account sign-in and is never inferred from a saved preference.
 enum LearningSharingDecision { case share, lessonsOnly, cancel }
 
@@ -16,13 +16,13 @@ enum LearningSharingDecision { case share, lessonsOnly, cancel }
 }
 
 extension Viewer {
-    static let learningSharingStatement = "Share the listed document names, worksheet names and column headings with OpenAI for this question. The tutor may read their worksheet values, reports, analysis inputs, R scripts and output, and request StatsDirect calculations. I have checked these documents and confirm they contain no person identifiers: names, dates of birth, postcodes, NHS or hospital numbers, contact details or identifying free-text notes. Heading checks are only a backstop, not anonymisation."
+    static let learningSharingStatement = "Share selected document names, worksheet names, column headings and content with OpenAI during this app session. Approval is reused across Report, Script and Learning until restarting StatsDirect or selecting another data document. The tutor may read their worksheet values, reports, analysis inputs, R scripts and output, and request StatsDirect calculations. I have checked these documents and confirm they contain no person identifiers: names, dates of birth, postcodes, NHS or hospital numbers, contact details or identifying free-text notes. Heading checks are only a backstop, not anonymisation."
 
     func confirmLearningSharing(_ documents: [Document]) async -> LearningSharingDecision {
         let alert = NSAlert()
         alert.messageText = "Share document context with the tutor?"
-        alert.informativeText = "For this question, OpenAI will receive names and headings and may receive values and content from the documents below. Check every worksheet, report and R output for person identifiers first.\n\nRemove names, dates of birth, postcodes, NHS or hospital numbers, contact details and identifying free-text notes. Heading checks cannot guarantee anonymity. Previously shared content can remain in the learning conversation."
-        alert.addButton(withTitle:"Share for This Question")
+        alert.informativeText = "Allow sharing across Report, Script and Learning for this app session. Confirmation is requested again after restarting StatsDirect or selecting a different data document. Only your selected context is sent with each question. Check worksheet, report and R content for person identifiers.\n\nRemove names, dates of birth, postcodes, NHS or hospital numbers, contact details and identifying free-text notes. Heading checks cannot guarantee anonymity. Previously shared content can remain in the learning conversation."
+        alert.addButton(withTitle:"Share for This Session")
         alert.addButton(withTitle:"Use Lessons Only")
         alert.addButton(withTitle:"Cancel")
         let confirmation = SharingConfirmation(button:alert.buttons[0])
@@ -59,8 +59,8 @@ extension Viewer {
         try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:url.path)
     }
 
-    func recordLearningSharing(_ doc: Document, _ requestID: String, _ documents: [Document]) async throws {
-        let record: [String:Any] = ["id":UUID().uuidString,"at":ISO8601DateFormatter().string(from:Date()),"requestID":requestID,"policyVersion":"document-sharing-v1","noPersonIdentifiers":true,"statement":Self.learningSharingStatement,"documents":documents.map{["id":$0.id,"title":$0.title,"kind":$0.kind,"version":$0.gridVersion] as [String:Any]}]
+    func recordLearningSharing(_ doc: Document, _ requestID: String, _ documents: [Document], reused: Bool = false) async throws {
+        let record: [String:Any] = ["id":UUID().uuidString,"at":ISO8601DateFormatter().string(from:Date()),"requestID":requestID,"policyVersion":"document-sharing-v2","scope":"app-session","reusedAcceptance":reused,"noPersonIdentifiers":true,"statement":Self.learningSharingStatement,"documents":documents.map{["id":$0.id,"title":$0.title,"kind":$0.kind,"version":$0.gridVersion] as [String:Any]}]
         let json = String(decoding:try JSONSerialization.data(withJSONObject:record),as:UTF8.self)
         let response = try await learningJavaScript(doc,"window.statsDirectLearn.recordSharingConsent(\(json))")
         guard let state = response["state"] as? [String:Any] else { throw ChatGPTTutor.Failure(message:"Sharing confirmation could not be recorded. No document context was sent.") }

@@ -93,11 +93,13 @@ read_files <- function(path, folder) {
         kinds <- ifelse(missing, 0L, 5L); text <- ifelse(missing, '', ifelse(column, 'TRUE', 'FALSE'))
       } else if (type == 'Date') {
         kinds <- ifelse(missing, 0L, 3L); text <- ifelse(missing, '', format(column, '%Y-%m-%d'))
+        text[nan] <- 'NaN' # NaN is a value, distinct from NA; .raw uses NaN for "no override".
         num <- as.numeric(column); back <- suppressWarnings(as.numeric(as.Date(text, format='%Y-%m-%d')))
         raw <- ifelse(!missing & (!is.finite(num) | is.na(back) | back != num), num, NaN)
         if (any(!is.nan(raw))) write_doubles(raw, paste0(base, '.raw'))
       } else if (type == 'POSIXct') {
         kinds <- ifelse(missing, 0L, 3L); text <- ifelse(missing, '', format(column, '%Y-%m-%dT%H:%M:%OS6Z', tz='UTC'))
+        text[nan] <- 'NaN'
         num <- as.numeric(column); back <- suppressWarnings(as.numeric(as.POSIXct(sub('Z$', '', text), format='%Y-%m-%dT%H:%M:%OS', tz='UTC')))
         raw <- ifelse(!missing & (!is.finite(num) | is.na(back) | back != num), num, NaN)
         if (any(!is.nan(raw))) write_doubles(raw, paste0(base, '.raw'))
@@ -145,7 +147,7 @@ write_files <- function(folder, destination, format) {
         if (identical(m$naLevel, 'true')) value <- addNA(value)
       } else if (type %in% c('Date','POSIXct')) {
         missing <- missing | text == ''; rawText <- read_lines(paste0(base, '.raw'), n)
-        infinite <- !nzchar(rawText) & text %in% c('Inf', '-Inf'); rawText[infinite] <- text[infinite]
+        nonfinite <- !nzchar(rawText) & text %in% c('Inf', '-Inf', 'NaN'); rawText[nonfinite] <- text[nonfinite]
         has_raw <- nzchar(rawText)
         raw <- suppressWarnings(as.numeric(rawText))
         if (type == 'Date') {
@@ -162,7 +164,7 @@ write_files <- function(folder, destination, format) {
           value[idx] <- suppressWarnings(as.POSIXct(normalized[idx],format='%Y-%m-%dT%H:%M:%OS',tz='UTC'))
           attr(value,'tzone') <- m$tzone
         }
-        invalid(is.na(value))
+        invalid(is.na(value) & !(has_raw & rawText == 'NaN'))
       } else value <- text
       value[missing] <- NA
       columns[[i]] <- value

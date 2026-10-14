@@ -1530,3 +1530,19 @@ Codex had rewritten the Windows copies of the tutor's three instruction files (A
 Iain found on the installed Windows build that the report's AI pane offered for sharing the workbook last activated, whatever the result came from. Windows (949419d3, ScriptAIPane.cs OfferResultWorkbookAsync and RecordWorkbook; tests/Learning/ReportWorkbook.cs) now has the pane, opened for a report, read the record of the result it was opened on (else the result the cursor is in, else the latest with a record) and select the open workbook the record names, found as Continue in R finds it (the record's input paths and file names, or an unsaved workbook's name, against the open windows); the selection goes through the same path as a choice by hand, so the session's data document follows and the sharing is confirmed again, the status line names the workbook, and a result without a record, or whose workbook is not open, leaves the box as it was. The Mac's pane follows the same rule (Sources/ScriptAIPane.swift offerResultWorkbook): opened for a report from the toolbar's AI button it has the result the page names, from the menu it takes the latest result with a record; the record's inputs and source are matched to the open worksheets by file path and by name, as the R reader does; the match is selected through the viewer's data-document path and the picker, the status line saying "The workbook offered for sharing is the result's: …"; the report AI driver checks a result whose record names an unsaved workbook other than the active one, and a result without a record. The engine, recipes, help bundle and tutor texts are unchanged; the manifest is regenerated (874 files).
 
 Suites at this pin: test.sh 557 checks, the report export suite 57, the beta check 74, all exit 0; the report AI suite passes its first 44 checks here, the three new ones among them, and then waits for its composer to hold key focus, which this session's conditions do not give it (the same wait fails on earlier mains rebuilt in these conditions and passes on Codex's interactive run), so its remaining checks are Codex's and the CI's to confirm.
+
+### R package guidance sync, 14 October 2026
+
+Mirrored the three instruction-file additions from Windows commit
+`472be7f287e02407b97e37aedcbe1d48b7be5898` into `Content/Tutor`. The guidance
+requires actionable package checks, commented one-time installation with an
+explicit HTTPS CRAN repository, Stan/compiler prerequisites, explicit Bayesian
+assumptions and printed results/diagnostics. Existing Mac-specific wording is
+preserved. Each addition was compared against the source commit; all three are
+identical, with 14 added lines per file and no removed lines.
+
+`Scripts/test-tutor-protocol.sh` passes: native protocol framing, controlled tool
+calls, cancellation/retry, sign-in/sign-out, private diagnostics and institutional
+policy. `git diff --check` passes. These are deterministic checks, not a live-model
+compliance test. No packages were installed; no app or installer was rebuilt for
+this guidance-only change. The engine/submodule pin is unchanged.

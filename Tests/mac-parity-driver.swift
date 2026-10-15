@@ -7,10 +7,10 @@ import PDFKit
         guard value else { throw NSError(domain:"MacParity",code:1,userInfo:[NSLocalizedDescriptionKey:text]) }
         print("PASS: " + text); fflush(stdout)
     }
-    @MainActor static func wait(_ condition: () async throws -> Bool) async throws {
+    @MainActor static func wait(_ name: String = "native condition", _ condition: () async throws -> Bool) async throws {
         let end = Date().addingTimeInterval(45)
         while Date() < end { if try await condition() { return }; try await Task.sleep(nanoseconds:80_000_000) }
-        throw NSError(domain:"MacParity",code:2,userInfo:[NSLocalizedDescriptionKey:"Timed out"])
+        throw NSError(domain:"MacParity",code:2,userInfo:[NSLocalizedDescriptionKey:"Timed out: " + name])
     }
     @MainActor static func js(_ doc: Document, _ code: String) async throws -> Any? { try await doc.web.evaluateJavaScript(code) }
     @MainActor static func yes(_ doc: Document, _ code: String) async throws -> Bool { try await js(doc,code) as? Bool == true }
@@ -65,14 +65,31 @@ import PDFKit
         try check(try await yes(grid,"statsDirectGrid.analysisSource().selection.length===0"),"repeat mode clears the previous worksheet selection")
         try await Task.sleep(nanoseconds:700_000_000)
         try check(report.reportEntries!.count==2,"repeat waits for new input without creating duplicate results")
+        try await wait("repeat form ready for a new selection") { try await yes(paired,"!!document.querySelector('.paired-inputs button[type=submit]:not(:disabled)')") }
         v.tabs.selectTabViewItem(grid.item)
-        _=try await js(grid,"statsDirectGrid.setCellText({col:0,row:1,text:'322'});statsDirectGrid.editCommand('selectAll','')")
-        try await wait { try await yes(grid,"statsDirectGrid.analysisSource().selection.length===2") }
+        v.window.contentView?.layoutSubtreeIfNeeded()
+        _=try await js(grid,"statsDirectGrid.setCellText({col:0,row:1,text:'322'})")
+        // A real heading drag selects worksheet columns even if a cell editor
+        // held focus. Select All intentionally targets that editor's text.
+        _=try await grid.web.callAsyncJavaScript("""
+        await new Promise(r=>setTimeout(r,100));
+        const b=document.querySelector('canvas').getBoundingClientRect();
+        if(b.width<=0||b.height<=0)throw new Error('Worksheet canvas has no laid-out area');
+        const y=b.y+18,x=c=>b.x+48+c*178+89;
+        const send=(type,c,buttons)=>document.elementFromPoint(x(c),y).dispatchEvent(new MouseEvent(type,{bubbles:true,clientX:x(c),clientY:y,button:0,buttons}));
+        send('mousedown',0,1);send('mousemove',1,1);send('mouseup',1,0);return true;
+        """,arguments:[:],in:nil,contentWorld:.page)
+        try await wait("new worksheet column selection") { try await yes(grid,"statsDirectGrid.analysisSource().selection.length===2") }
         v.tabs.selectTabViewItem(paired.item)
-        try await wait { try await yes(paired,"!!document.querySelector('.paired-inputs .selection')") }
+        // The empty chooser already contains a .selection element. Wait for
+        // the asynchronous worksheet refresh to render the new column names
+        // before clicking Run; existence alone can submit the old empty input.
+        try await wait("repeat form reflects the new selection") {
+            try await yes(paired,"document.querySelector('.paired-inputs .selection')?.textContent.includes('before → after') && !!document.querySelector('.paired-inputs button[type=submit]:not(:disabled)')")
+        }
         _=try await js(paired,"document.querySelector('.paired-inputs button[type=submit]').click()")
-        try await wait { report.reportEntries!.count==3 && paired.analysisJobID != nil && paired.completedJobID == nil }
-        try check(report.reportEntries!.last!.body != report.reportEntries![1].body,"second batch run reads the newly selected edited data")
+        try await wait("second repeat result") { report.reportEntries!.count==3 && paired.analysisJobID != nil && paired.completedJobID == nil }
+        try check(report.reportEntries![1].body.contains("56.111111") && report.reportEntries!.last!.body.contains("57.222222"),"second batch run reads the newly selected edited data")
         _=try await js(paired,"document.querySelector('.cancel button').click()")
         try await wait { paired.analysisJobID == nil }
         try check(paired.analysisCancelled && report.reportEntries!.count==3,"cancelling the repeat ends the loop and retains the first report")

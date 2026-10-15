@@ -214,7 +214,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             }
         }
         helpKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 36, event.modifierFlags.contains(.command), self?.scriptAI.isFocused == true { self?.scriptAI.send(); return nil }
+            if [36,76].contains(event.keyCode), event.modifierFlags.contains(.command),
+               let self, event.window === self.window, self.scriptAI.isFocused { self.scriptAI.send(); return nil }
             if event.keyCode == 122 { self?.currentMethodHelp(); return nil }; return event
         }
         for view in [bar, documentTabScroll, workspaceSplit, status!] { view.translatesAutoresizingMaskIntoConstraints = false; container.addSubview(view) }

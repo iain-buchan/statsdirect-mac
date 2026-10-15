@@ -197,9 +197,21 @@ import Darwin
         UserDefaults.standard.set(true,forKey:"DisableOnlineTutor");ai.updateConnection()
         try check(!ai.sendButton.isEnabled && !ai.connection.isEnabled,"institutional AI policy applies to report assistance")
         UserDefaults.standard.set(false,forKey:"DisableOnlineTutor")
-        v.window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true);v.window.makeFirstResponder(ai.input)
-        try await wait("focused report AI composer") { ai.isFocused }
+        try check(ai.focusComposer() && v.window.firstResponder === ai.input,"the visible report composer accepts keyboard focus")
+        // App activation is not guaranteed on an unattended runner. Explicitly
+        // cover the same temporary loss of key status when returning from a
+        // system dialog: window-targeted commands must still honor its responder.
+        v.window.orderOut(nil)
+        try await wait("window relinquishes key status") { NSApp.keyWindow !== v.window }
+        try check(!v.window.isKeyWindow && NSApp.keyWindow !== v.window && ai.isFocused,"AI responder ownership survives loss of key-window status")
         try check(v.findableReport==nil,"report Replace commands do not target a report while composing in its AI dock")
+        v.window.makeKeyAndOrderFront(nil)
+        let sheet=NSWindow(contentRect:NSRect(x:0,y:0,width:250,height:100),styleMask:[.titled],backing:.buffered,defer:false)
+        v.window.beginSheet(sheet,completionHandler:{ _ in })
+        try check(!ai.isFocused && !ai.focusComposer(),"a sheet keeps focus and commands out of the AI dock behind it")
+        v.window.endSheet(sheet);sheet.orderOut(nil)
+        try await wait("sheet dismissed") { v.window.attachedSheet == nil }
+        try check(ai.focusComposer() && ai.isFocused,"the composer accepts focus again after the sheet closes")
         v.closeTab()
         try check(!ai.visible && v.documents.contains(where:{$0===report}),"Command-W in the report dock closes the dock, preserving the report")
         ai.open(report);v.remove(report)

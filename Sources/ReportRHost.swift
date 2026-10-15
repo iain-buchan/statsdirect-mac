@@ -118,8 +118,9 @@ extension Viewer {
                 guard let texts = try? await read(band) else { continue }
                 for (column, read) in zip(columns, texts) {
                     let values = read["values"] as? [String] ?? [], kinds = read["kinds"] as? [String] ?? []
+                    let title: String = values.first ?? ""
                     bands[index, default: [:]][column] = hasTitle
-                        ? ["column": column, "title": values.first ?? "", "values": Array(values.dropFirst()), "kinds": Array(kinds.dropFirst())]
+                        ? ["column": column, "title": title, "values": Array(values.dropFirst()), "kinds": Array(kinds.dropFirst())]
                         : ["column": column, "title": "", "values": values, "kinds": kinds]
                 }
             }

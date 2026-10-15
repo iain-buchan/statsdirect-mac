@@ -11,12 +11,13 @@ window.runLearningSelectionChecks=async function(){
   const tail=Array.from({length:45},(_,i)=>'Paragraph '+i+' with enough text to keep a substantial conversation.').join('\n\n');
   let text='A growing paragraph with **bold words** and plain text.';
   api.resumeReply({action:'partial',value:{id},partial:text+'\n\n'+tail});await delay();
+  check(messages().clientHeight>=130,'short windows retain a readable conversation viewport');
   let strong=body().querySelector('strong').firstChild,plain=body().querySelector('strong').nextSibling;
   selection().setBaseAndExtent(strong,0,plain,15);
   const selected=selection().toString(),originalTop=top();
   text+=' One more sentence in the same paragraph.';
   api.partial({id,text:text+'\n\n'+tail});await delay();
-  check(selection().toString()===selected,'selection across bold/plain text survives growing paragraph');
+  check(selected==='bold words and plain text'&&selection().toString()===selected,'selection across bold/plain text survives growing paragraph');
   check(Math.abs(top()-originalTop)<1,'selected text holds reading position while rendering continues');
   check(body().textContent.includes('One more sentence'),'streaming continues while selected');
   strong=body().querySelector('strong').firstChild;plain=body().querySelector('strong').nextSibling;

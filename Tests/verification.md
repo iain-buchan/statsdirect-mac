@@ -1555,3 +1555,59 @@ Suites at this pin: test.sh 557 checks, the report export suite 57, the beta che
 ## Windows 5.2.0 released from 914d325b, the Mac's pin — 14 October 2026
 
 StatsDirect 5.2.0 for Windows is released on Iain's word: tag v5.2.0 = 914d325b, the commit the seventh signed build came from and the one the Mac is pinned to (0bb639f), so nothing moves here; `Content/engine-info.json` already names 5.2.0 at 914d325b. The GitHub release carries the changelog's seventeen entries with a short section for the Report AI, the offline maths and session consent, and the file formats, and the hashes of its three files (StatsDirectSetup.exe 299,044,640 bytes, SHA-256 81190261…; StatsDirect-x64.msi 24,633,344 bytes, 6C937D40…; StatsDirect-5.2.0-WebHelp.zip 7,611,775 bytes, 7A134D99…); the website's Specifications page and the web help with the Script AI, Learning and Report window topics are live. The Mac's own 1.0 follows this week's work and Iain's Developer ID for signing and notarization.
+
+
+## Mac CI and Report AI focus — 15 October 2026
+
+Preserved incoming Mac commits `0bb639f` and `89a3d20`; the Windows engine remains
+pinned to `914d325b`. No calculation sources, shared report-editor files, Windows
+files, installer, release tag or version number changed.
+
+The hosted Learning failure was reproduced locally with a 30-pixel conversation
+viewport: padding occupied the whole area, and WebKit returned empty selected
+text even though the DOM endpoints existed. The chat now reserves 130 pixels for
+messages, includes the controls in its minimum height, and uses size containment
+so long replies scroll within that viewport. The surrounding page can scroll in
+a short window. The native fixture runs at 850 × 520 and checks the actual initial
+selected words, streaming, backward endpoints, scrolling and completion. It no
+longer lets two empty selections count as a successful preservation check.
+
+AI command ownership now follows the document window's first responder rather
+than requiring global key-window status. Composer focus is set after layout and
+its selected text is scrolled into view. An attached sheet blocks dock commands;
+the Command-Return monitor accepts only events addressed to the document window.
+The Report AI regression explicitly removes key-window status, verifies that
+Replace cannot target the report, opens/closes a sheet, restores composer focus,
+and closes the dock without closing the report. Enter and Shift+Enter remain
+covered. The CI-only optional-to-Any warning in report R source relocation is
+removed by giving the column title an explicit String type.
+
+The repeat-analysis test had waited only for a `.selection` element that was
+already present in the empty chooser. It now waits for the actual selected
+column names after the asynchronous worksheet refresh, uses a real heading drag,
+and verifies the second run's mean changes from 56.111111 to 57.222222 after
+editing the data. Named waits identify the failed stage rather than timing out
+without context.
+
+Local validation:
+
+- `.build/ci-fix-build.log`: clean Release development app, no warnings; 1,552
+  distribution checks, matching debug symbols and strict deep signature check.
+  All 1,270 packaged Content files match source.
+- `.build/ci-fix-full-tests.log`: full engine, form, follow-on, R recipe and
+  JavaScript suite exits 0; 115 JavaScript tests pass without skips.
+- `.build/ci-fix-report-ai-final.log`: complete native Report AI suite, including
+  source-workbook matching, rich HTML, consent, focus loss, sheets and shortcuts.
+- `.build/ci-fix-script-ai.log`: complete native Script AI and consent suite,
+  including actual Command-Return dispatch, streaming selection and R replay.
+- `.build/ci-fix-mac-parity-final.log`: all 19 native parity checks pass, including
+  repeat analysis with the changed numerical result, cancellation, printing,
+  C#/VB scripting and XLS export.
+- `.build/ci-fix-learning-recovery.log`: all eleven selection checks in the short
+  window and actual isolated WebKit crash/recovery, persisted drafts, later
+  streaming and one Open in R bridge.
+- `.build/ci-fix-tutor-runtime.log` and `.build/ci-fix-tutor-protocol.log`: pinned
+  runtime installation, integrity/failure cases, native protocol, cancellation,
+  private diagnostics and institutional policy pass.
+
+The development build is `.build/ci-fix/StatsDirect.app`; no installer was built.

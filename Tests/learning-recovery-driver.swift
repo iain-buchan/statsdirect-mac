@@ -57,6 +57,10 @@ import Darwin
         v.learningScript(d,"resumeReply",d.learningReplyEvent!)
     }
     @MainActor static func run(_ v: Viewer) async throws {
+        // Reproduce the short hosted-runner viewport. Previously the chat shrank
+        // to its padding and WebKit returned empty text for a real DOM selection.
+        v.window.setContentSize(NSSize(width:850,height:520))
+        v.window.contentView?.layoutSubtreeIfNeeded()
         v.openLearning(); let d = v.documents.first{$0.kind == "learn"}!
         try await wait("initial Learning page") { guard d.learningState != nil else { return false }; return await yes(v,d,"document.getElementById('messages')") }
         let fixture = try String(contentsOfFile:"Tests/learning-selection.js",encoding:.utf8)
@@ -65,7 +69,7 @@ import Darwin
         _ = try await d.web.evaluateJavaScript(fixture + "\n;void 0;")
         let selection = try await d.web.callAsyncJavaScript("try { return await runLearningSelectionChecks() } catch (error) { return {error: String(error), stack: error.stack} }",arguments:[:],in:nil,contentWorld:.page) as! [String:Any]
         try check(selection["error"] == nil,"Selection fixture: \(selection)")
-        try check((selection["checks"] as? [String])?.count == 10,"Selection checks did not complete")
+        try check((selection["checks"] as? [String])?.count == 11,"Selection checks did not complete")
         print("PASS:",(selection["checks"] as! [String]).joined(separator:"; ")); fflush(stdout)
         try await wait("saved selection fixture") { (d.learningState?["conversation"] as? [[String:Any]])?.contains{$0["id"] as? String == "stopped-fixture"} == true }
         // Preserve the most recent host-held draft and settings, not an older file.

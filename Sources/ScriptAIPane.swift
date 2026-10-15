@@ -45,7 +45,13 @@ import WebKit
     private var conversation: Conversation? { scriptID.flatMap{conversations[$0]} }
     private var isReport: Bool { viewer.documents.first(where:{$0.id==scriptID})?.kind == "report" }
     var isBusy: Bool { task != nil }
-    var isFocused: Bool { visible && NSApp.keyWindow === viewer.window && (viewer.window.firstResponder as? NSView)?.isDescendant(of:view) == true }
+    // Commands target this window's responder, even while macOS temporarily has
+    // no key window (activation, menus or a returning system dialog). A sheet
+    // owns its own commands and must not act on the conversation behind it.
+    var isFocused: Bool {
+        visible && viewer.window.attachedSheet == nil &&
+        (viewer.window.firstResponder as? NSView)?.isDescendant(of:view) == true
+    }
 
     init(viewer: Viewer) {
         self.viewer=viewer;transcript=AIConversationView(root:viewer.root);super.init()
@@ -144,12 +150,19 @@ import WebKit
             viewer.workspaceSplit.addArrangedSubview(view);viewer.workspaceSplit.adjustSubviews()
             viewer.workspaceSplit.setPosition(max(320,viewer.workspaceSplit.bounds.width-min(dockWidth,viewer.workspaceSplit.bounds.width-320)-viewer.workspaceSplit.dividerThickness),ofDividerAt:0)
         }
-        viewer.window.makeFirstResponder(input)
+        focusComposer()
         Task { @MainActor [weak self] in
             guard let self else { return }
             do { if !TutorPolicy.disabled { try await viewer.chatGPTTutor.refreshAccount() };updateConnection() }
             catch { showNotice(error.localizedDescription) }
         }
+    }
+    @discardableResult func focusComposer() -> Bool {
+        guard visible, viewer.window.attachedSheet == nil, input.window === viewer.window else { return false }
+        viewer.window.contentView?.layoutSubtreeIfNeeded()
+        let focused = viewer.window.makeFirstResponder(input)
+        if focused { input.scrollRangeToVisible(input.selectedRange()) }
+        return focused
     }
     /// The workbook offered for sharing when the pane opens for a report: the one the result's record names, as the Windows pane
     /// offers it (ScriptAIPane.OfferResultWorkbookAsync, after Iain found the last activated workbook offered whatever the result
@@ -230,7 +243,7 @@ import WebKit
         if acknowledgement.state == .on {
             viewer.aiSharing.approve()
             if notice.stringValue==Self.confirmationNotice { showNotice("") }
-            setContextExpanded(false);viewer.window.makeFirstResponder(input)
+            setContextExpanded(false);focusComposer()
         } else { viewer.aiSharing.revoke();setContextExpanded(true) }
         updateControls()
     }

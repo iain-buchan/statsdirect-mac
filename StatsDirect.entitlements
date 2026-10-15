@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The engine runs on the .NET runtime inside the bundle (CoreCLR through hostfxr), which compiles code at run time:
+	     the hardened runtime must allow just-in-time compilation, and nothing more (the app tour runs in full with this
+	     entitlement alone; unsigned executable memory is not needed). Library validation stays on: every Mach-O in the
+	     bundle is signed with the same Developer ID by Scripts/sign-app.sh, the runtime's own libraries included. R and
+	     the AI component run as separate processes under their own signatures, which the hardened runtime does not
+	     restrict. -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+</dict>
+</plist>

@@ -83,6 +83,8 @@ import WebKit
         try check(v.window.performKeyEquivalent(with:key),"⌘Return reaches Run without an R menu")
         try await wait { !pane.isRunning && pane.console.string.contains("FIRST_SCRIPT 41") }
         try check(pane.console.textStorage!.containsAttachments,"R chart appears inline with output")
+        let ordinaryPlots = try FileManager.default.contentsOfDirectory(atPath: pane.outputFolder!.path).filter { $0.hasPrefix("plots-") }
+        try check(ordinaryPlots == ["plots-0001-001.pdf"],"ordinary R output defaults to PDF inside the application")
         buttons(pane.view).first { $0.title=="Clear output" }!.performClick(nil)
         try check(pane.console.string.isEmpty,"Clear output removes text and charts")
         pane.editor.string="stopifnot(x==41); cat('VARIABLE_RETAINED\\n')"; pane.runScript()
@@ -172,6 +174,8 @@ import WebKit
         let continued=v.active!, r=continued.rPane!
         try await wait { !r.isRunning && r.console.string.contains("Paired t-test") }
         try check(r.editor.string==expectedScript && r.console.textStorage!.containsAttachments,"Continue in R opens and runs the exact report script, including its agreement chart")
+        let continuedPlots = try FileManager.default.contentsOfDirectory(atPath: r.outputFolder!.path).filter { $0.hasPrefix("plots-") }
+        try check(continuedPlots == ["plots-0001-001.pdf"],"Continue in R displays PDF while the original report retains SVG")
         // Exercise the real R startup lifecycle, not just the exported file.
         // Quotes, spaces and Unicode paths must survive the startup profile.
         let launchFolder=folder.appendingPathComponent("External R ' café")

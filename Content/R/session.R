@@ -1,6 +1,6 @@
-# Persistent local R session. A plot drawn without a device of its own goes to an SVG file, one per page, which the
-# pane draws after the completion marker (as the Windows script window does; R's own default for a run is a PDF),
-# or to a PDF when the svglite package is not in the program's library.
+# Persistent local R session. Ordinary plots go to a multipage PDF per device;
+# the pane displays every page after the completion marker. Report charts use
+# their separate SVG path, and a script can still open an explicit graphics device.
 options(warn = 1)
 # The program keeps a library for the packages its R operations install (svglite for charts, mcr for method comparison
 # regression) beside its runs; a script continued here finds them too. STATSDIRECT_R_FOLDER moves the folder, as for those runs.
@@ -23,25 +23,22 @@ local({
     if (!length(path)) break
     run_number <- run_number + 1L
     plot_number <- 0L
-    options(device = function(...) {
-      args <- list(...)
+    automatic_device <- function(...) {
+      # Forward only arguments supplied by the caller; pdf() applies its own
+      # defaults, including pdf.options(), and accepts an explicit file=NULL.
+      args <- mget(as.character(names(as.list(match.call())[-1L])), envir = environment(), inherits = FALSE)
       plot_number <<- plot_number + 1L
-      name <- file.path(session_directory, sprintf("plots-%04d-%03d", run_number, plot_number))
-      if (requireNamespace("svglite", quietly = TRUE)) {
-        # svglite, which the program's library carries for its charts, since R's own svg() needs X11's Cairo on a Mac;
-        # one device per plot number and one file per page, so a second device in a run cannot overwrite the first's pages
-        args$filename <- paste0(name, "-%03d.svg")
-        if (is.null(args$width)) args$width <- 7
-        if (is.null(args$height)) args$height <- 7
-        do.call(svglite::svglite, args)
-      } else {
-        args$file <- paste0(name, ".pdf")
-        if (is.null(args$width)) args$width <- 8
-        if (is.null(args$height)) args$height <- 5
-        args$onefile <- TRUE
-        do.call(grDevices::pdf, args)
+      # Each run/device owns its file, so later plots cannot replace earlier output.
+      if (!"file" %in% names(args)) {
+        name <- file.path(session_directory, sprintf("plots-%04d-%03d", run_number, plot_number))
+        onefile <- if ("onefile" %in% names(args)) args$onefile else grDevices::pdf.options()$onefile
+        args$file <- paste0(name, if (isTRUE(onefile)) ".pdf" else "-%03d.pdf")
       }
-    })
+      do.call(grDevices::pdf, args)
+    }
+    # dev.new() discards arguments absent from the device's formal signature.
+    formals(automatic_device) <- formals(grDevices::pdf)
+    options(device = automatic_device)
     devices_before <- grDevices::dev.list()
     tryCatch(source(path, local = .GlobalEnv, echo = TRUE, print.eval = TRUE),
       error = function(e) cat("Error: ", conditionMessage(e), "\n", sep = ""),

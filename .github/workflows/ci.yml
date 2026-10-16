@@ -98,7 +98,9 @@ jobs:
       - name: Unified document toolbars
         run: Scripts/test-unified-toolbar.sh
       - name: R script integration
-        run: Scripts/test-r-integration.sh
+        run: |
+          Scripts/test-r-integration.sh
+          Scripts/test-r-pane.sh
       - name: Startup, recent documents and guided R setup
         run: bash Scripts/test-startup-r-setup.sh
       - name: Script and report AI docks and sharing

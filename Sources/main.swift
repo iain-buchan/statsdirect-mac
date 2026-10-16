@@ -562,7 +562,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if doc.kind == "report" && doc.reportDirty {
             let alert = NSAlert(); alert.messageText = "Save changes to \(doc.title)?"
             if let file = doc.reportFileURL { alert.informativeText = "Save the report to \(file.lastPathComponent) before closing."; alert.addButton(withTitle: "Save") }
-            else { alert.informativeText = "Save this report as HTML, PDF or Word before closing."; alert.addButton(withTitle: "Save…") }
+            else { alert.informativeText = "Save this report as HTML to keep its editable contents. PDF and Word exports are separate copies."; alert.addButton(withTitle: "Save…") }
             alert.addButton(withTitle: "Discard Changes"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in
                 if response == .alertFirstButtonReturn { self.saveReport(doc) { if !doc.reportDirty { self.remove(doc) } } }

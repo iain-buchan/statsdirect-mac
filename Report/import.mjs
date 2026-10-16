@@ -5,13 +5,14 @@ import {convertMetafileToSvg} from 'emf-converter';
 import {chartFontMap,restoreChartFontFallbacks,fitChartText} from './fonts.mjs';
 import {normalizeLegacyLayout} from './legacy-layout.mjs';
 import {pictureAlignment,setPictureAlignment} from './chart-size.mjs';
+import {isolateSvgStyles,namespaceSvgIDs} from './svg-isolation.mjs';
 
 const properties = new Set(['font-family','font-size','font-style','font-weight','text-decoration','text-decoration-line','text-align','vertical-align','color','background-color','white-space','line-height','margin-left','margin-right','margin-top','margin-bottom','padding','padding-left','padding-right','padding-top','padding-bottom','border','border-top','border-bottom','border-left','border-right','border-collapse','border-spacing','width','height','max-width','list-style-type','fill','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-dasharray','stroke-dashoffset','stroke-miterlimit','opacity','fill-opacity','stroke-opacity','fill-rule','clip-rule','clip-path','mask','filter','marker-start','marker-mid','marker-end','text-anchor','dominant-baseline','stop-color','stop-opacity',...borderProperties]);
 function safeStyle(style) {
   const result = document.createElement('span').style;
   for (const name of style) {
     const value = style.getPropertyValue(name);
-    const check=value.replace(/url\(\s*["']?#[\w:.-]+["']?\s*\)/gi,'');
+    const check=value.replace(/url\(\s*["']?#[^\s"'()<>]+["']?\s*\)/gi,'');
     if (properties.has(name) && !/url\s*\(|expression|javascript|@|[<>]/i.test(check)) result.setProperty(name,value);
   }
   return result.cssText;
@@ -21,7 +22,7 @@ DOMPurify.addHook('afterSanitizeAttributes', node => {
   if (!node.attributes) return;
   for (const attr of [...node.attributes]) {
     if (/^(href|xlink:href)$/i.test(attr.name)) {
-      const allowed = node.localName === 'a' ? /^(https?:|mailto:|#)/i.test(attr.value) : attr.value.startsWith('#') || rasterURL(attr.value);
+      const allowed = node.localName === 'use' ? attr.value.startsWith('#') : node.localName === 'a' ? /^(https?:|mailto:|#)/i.test(attr.value) : attr.value.startsWith('#') || rasterURL(attr.value);
       if (!allowed) node.removeAttribute(attr.name);
     }
     if (attr.name === 'src' && !rasterURL(attr.value)) node.removeAttribute(attr.name);
@@ -30,7 +31,7 @@ DOMPurify.addHook('afterSanitizeAttributes', node => {
   if (node.style) { const css=safeStyle(node.style); if(css)node.setAttribute('style',css);else node.removeAttribute('style'); }
 });
 function purify(html) {
-  return DOMPurify.sanitize(html,{WHOLE_DOCUMENT:true,FORBID_TAGS:['script','iframe','object','embed','form','input','button','textarea','select','link','base','meta','foreignObject','animate','animateMotion','animateTransform','set'],FORBID_ATTR:['contenteditable','tabindex','autofocus'],ALLOW_DATA_ATTR:false,RETURN_DOM:true});
+  return DOMPurify.sanitize(html,{WHOLE_DOCUMENT:true,ADD_TAGS:['use'],FORBID_TAGS:['script','iframe','object','embed','form','input','button','textarea','select','link','base','meta','foreignObject','animate','animateMotion','animateTransform','set'],FORBID_ATTR:['contenteditable','tabindex','autofocus'],ALLOW_DATA_ATTR:false,RETURN_DOM:true});
 }
 export async function convert({html,pictures=[],legacy=false,tableRows=[]}) {
   if(html.length>30_000_000)throw new Error('This report is too large to open (30 MB limit).');
@@ -39,6 +40,7 @@ export async function convert({html,pictures=[],legacy=false,tableRows=[]}) {
   legacy ||= /<meta\b[^>]*\bcontent=["']Cocoa HTML Writer["'][^>]*>/i.test(html);
   const safe=purify(html), warnings=[];
   safe.querySelectorAll('.report-controls,.report-r-link,.code-actions').forEach(n=>n.remove());
+  isolateSvgStyles(safe,safeStyle);
   // Parse styles without fetching @imports. Apply only presentation properties in an
   // isolated, network-blocked document, then inline them so they cannot style the app.
   const styles=[];
@@ -109,6 +111,7 @@ export async function convert({html,pictures=[],legacy=false,tableRows=[]}) {
   restoreChartFontFallbacks(container);
   await document.fonts.ready;
   for(const svg of container.querySelectorAll('svg'))if(!svg.parentElement.closest('svg'))fitChartText(svg);
+  namespaceSvgIDs(container);
   let result=purify(container.innerHTML).querySelector('body').innerHTML;
   if(legacy)result=`<section class="legacy-report">${result}</section>`;
   container.remove();style.remove();

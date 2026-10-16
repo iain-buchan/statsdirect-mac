@@ -21,7 +21,9 @@ import PDFKit
                 do {
                     if let index=CommandLine.arguments.firstIndex(where:{$0=="--legacy-file" || $0=="--report-file"}),index+1<CommandLine.arguments.count {
                         try await archived(viewer, url:URL(fileURLWithPath:CommandLine.arguments[index+1]), output:URL(fileURLWithPath:CommandLine.arguments[1]))
-                    } else if CommandLine.arguments.contains("--deletion-only") {try await deletions(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    } else if CommandLine.arguments.contains("--saving-only") {try await reportSaving(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--svg-isolation-only") {try await importedRCharts(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--deletion-only") {try await deletions(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--presentation-only") {try await presentation(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--creole-only") {try await creolePresentation(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--alignment-only") {try await chartAlignment(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
@@ -169,6 +171,8 @@ import PDFKit
         try await runRecords(v, output: output)
         try await creolePresentation(v, output: output)
         try await chartAlignment(v, output: output)
+        try await reportSaving(v, output: output)
+        try await importedRCharts(v, output: output)
     }
 
     @MainActor static func macReportControls(_ v: Viewer) async throws {

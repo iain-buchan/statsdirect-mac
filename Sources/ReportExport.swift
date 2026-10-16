@@ -74,11 +74,11 @@ extension Viewer {
         panel.title="Save Report"; panel.prompt="Save"
         panel.nameFieldStringValue=doc.reportFileURL?.deletingPathExtension().lastPathComponent ?? doc.title.replacingOccurrences(of:"/",with:"-")
         if let folder=doc.reportFileURL?.deletingLastPathComponent() { panel.directoryURL=folder }
-        let picker=ReportFormatPicker(panel:panel,format:format ?? ReportFormat(rawValue:UserDefaults.standard.string(forKey:"reportSaveFormat") ?? "") ?? .html)
+        let picker=ReportFormatPicker(panel:panel,format:format ?? .html)
         panel.beginSheetModal(for:window) { [picker] response in
             guard response == .OK, let url=panel.url else { return }
             guard url.pathExtension.lowercased() != "rtf" else { self.showError("Legacy RTF reports can only be read. Choose HTML, PDF or Word for the saved copy."); return }
-            self.writeReport(doc,to:url,format:picker.format) { UserDefaults.standard.set(picker.format.rawValue,forKey:"reportSaveFormat"); completion?() }
+            self.writeReport(doc,to:url,format:picker.format,completion:completion)
         }
     }
     func writeReport(_ doc: Document, to url: URL, format: ReportFormat, completion: (() -> Void)? = nil) {
@@ -89,8 +89,10 @@ extension Viewer {
             do {
                 let data=try await self.reportExportData(doc,format:format)
                 try data.write(to:url,options:.atomic)
-                if format == .html { self.noteRecentDocument(url); self.noteDocumentSaved(doc,at:url) }
-                doc.reportSavedRevision=revision
+                if format == .html {
+                    self.noteRecentDocument(url); self.noteDocumentSaved(doc,at:url)
+                    doc.reportSavedRevision=revision
+                }
                 self.status.stringValue="Saved " + url.lastPathComponent
                 completion?()
             } catch { self.showError("The report could not be saved: " + error.localizedDescription) }

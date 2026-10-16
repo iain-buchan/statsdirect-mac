@@ -76,7 +76,7 @@ extension Viewer {
                 do {
                     let data=try await self.reportExportData(doc,format:format)
                     try data.write(to:url,options:.atomic)
-                    if format == .html { self.noteRecentDocument(url) }
+                    if format == .html { self.noteRecentDocument(url); self.noteDocumentSaved(doc,at:url) }
                     UserDefaults.standard.set(format.rawValue,forKey:"reportSaveFormat")
                     doc.reportSavedRevision=revision
                     self.status.stringValue="Saved " + url.lastPathComponent

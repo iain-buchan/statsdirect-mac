@@ -120,7 +120,7 @@ extension Viewer: WKScriptMessageHandler {
                         case .success:
                             self.noteRecentDocument(url)
                             if completeDocument {
-                                doc.openedFileURL = url
+                                self.noteDocumentSaved(doc, at: url)
                                 doc.csvSaveName = url.lastPathComponent; doc.rDataFormat = nil
                                 if doc.gridVersion == version { doc.gridDirty = false }
                             }

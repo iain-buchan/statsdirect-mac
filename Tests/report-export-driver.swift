@@ -953,6 +953,16 @@ extension ReportExportTests {
         let renamedPath=renamed.resolvingSymlinksInPath().path
         let gridName=try await js(big,"({name:statsDirectGrid.tutorInfo().workbook})")["name"] as? String
         try check(big.workbookSourceURL?.path==renamedPath && !big.workbookDataCopy && big.title=="renamed.xlsx" && gridName=="renamed.xlsx" && FileManager.default.fileExists(atPath:renamedPath),"after Save As: \(big.workbookName), \(big.workbookSourceURL?.path ?? "nil"), grid \(gridName ?? "nil")")
+        // Windows c01cb8f: a tab's caption follows the document's name after a save and its tooltip gives the file's path.
+        func tab(_ doc: Document) -> NSButton? { v.documentTabs.arrangedSubviews.compactMap{($0 as? NSStackView)?.arrangedSubviews.first as? NSButton}.first{$0.identifier?.rawValue==doc.id} }
+        try check(tab(big)?.title=="renamed.xlsx" && tab(big)?.toolTip==renamed.path && v.windowsMenu.items.contains{$0.title=="renamed.xlsx"},"the workbook's tab after Save As: \(tab(big)?.title ?? "none") · \(tab(big)?.toolTip ?? "none")")
+        let captioned=v.makeReport(); let captionedName=captioned.title
+        try check(tab(captioned)?.title==captionedName && tab(captioned)?.toolTip==captionedName,"a new report's tab: \(tab(captioned)?.title ?? "none") · \(tab(captioned)?.toolTip ?? "none")")
+        let savedReport=output.appendingPathComponent("Saved report.html")
+        v.noteDocumentSaved(captioned,at:savedReport)
+        try check(captioned.title=="Saved report" && tab(captioned)?.title=="Saved report" && tab(captioned)?.toolTip==savedReport.path && v.windowsMenu.items.contains{$0.title=="Saved report"} && !v.windowsMenu.items.contains{$0.title==captionedName},"the report's tab after a save: \(tab(captioned)?.title ?? "none") · \(tab(captioned)?.toolTip ?? "none")")
+        v.remove(captioned); v.activeReportID=report.id
+        print("PASS: tab captions follow the document's file after a save, workbook by name and report by stem, with the file's path as the tooltip, and the Window menu follows");fflush(stdout)
         let savedForm=try await runForm(big,operation:"TPaired",columns:[0,1],rows:(2,2601)); defer { v.remove(savedForm) }
         try await wait("the third result") { (report.reportEntries?.count ?? 0)>=3 }
         let saved=report.reportEntries!.last!, r3=try record(saved), source3=r3["source"] as! [String:Any], input3=(r3["inputs"] as! [[String:Any]])[0]

@@ -73,7 +73,7 @@ extension Viewer {
                         case .success:
                             self.noteRecentDocument(url)
                             if snapshot["canSaveDocument"] as? Bool == true && doc.workbookID == nil {
-                                doc.openedFileURL = url
+                                self.noteDocumentSaved(doc, at: url)
                                 doc.rDataFormat = format; doc.csvSaveName = nil
                                 if doc.gridVersion == version { doc.gridDirty = false }
                             }

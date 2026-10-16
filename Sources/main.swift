@@ -13,6 +13,8 @@ final class Document {
     var access: URL
     var initialURL: URL?
     var openedFileURL: URL?
+    /// The file the document was opened from or last saved to, shown as its tab's tooltip (as the Windows tabs do).
+    var savedPath: String? { (openedFileURL ?? reportSourceURL)?.path }
     var rPane: RPane?
     var gridDirty = false
     var gridVersion = 0
@@ -375,7 +377,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             let select = NSButton(title: doc.title, target: self, action: #selector(selectDocumentTab(_:)))
             select.identifier = NSUserInterfaceItemIdentifier(doc.id); select.isBordered = false
             select.font = .systemFont(ofSize: 12, weight: active === doc ? .semibold : .regular)
-            select.cell?.lineBreakMode = .byTruncatingTail; select.toolTip = doc.title
+            select.cell?.lineBreakMode = .byTruncatingTail; select.toolTip = doc.savedPath ?? doc.title
             select.setAccessibilityLabel(doc.title + (active === doc ? ", selected document" : ", document"))
             let titleWidth = min(240, max(90, (doc.title as NSString).size(withAttributes: [.font: select.font!]).width + 20))
             group.widthAnchor.constraint(equalToConstant: titleWidth + 26).isActive = true
@@ -392,6 +394,18 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         documentTabs.frame = NSRect(x: 0, y: 0, width: max(1, width), height: 32)
         documentTabs.layoutSubtreeIfNeeded()
         if let selected { selected.scrollToVisible(selected.bounds) }
+    }
+    /// A tab's caption follows its document's name and its tooltip the file's path, as the Windows tabs do (c01cb8f).
+    func retitleDocument(_ doc: Document, _ title: String) {
+        doc.title = title; doc.item.label = title
+        if doc.kind == "r" { doc.rPane?.scriptName = title }
+        updateWindowMenu()
+        if active === doc { window.title = "\(title) · Mac prototype" }
+    }
+    /// After a save the document is captioned by its file: a workbook by the file's name, a report or script by its stem.
+    func noteDocumentSaved(_ doc: Document, at url: URL) {
+        doc.openedFileURL = url
+        retitleDocument(doc, doc.kind == "grid" ? url.lastPathComponent : url.deletingPathExtension().lastPathComponent)
     }
     @objc func selectDocumentTab(_ sender: NSButton) {
         if let doc = documents.first(where: { $0.id == sender.identifier?.rawValue }) { tabs.selectTabViewItem(doc.item) }
@@ -495,9 +509,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         pane.languageChanged = { [weak self, weak doc, weak pane] language in
             guard let self, let doc else { return }
             let label = language == "CSharp" ? "C#" : language
-            doc.title = doc.title.replacingOccurrences(of: "^(R|C#|VB) Script", with: label + " Script", options: .regularExpression)
-            doc.item.label = doc.title; pane?.scriptName = doc.title; self.updateWindowMenu()
-            if self.active === doc { self.window.title = "\(doc.title) · StatsDirect" }
+            self.retitleDocument(doc, doc.title.replacingOccurrences(of: "^(R|C#|VB) Script", with: label + " Script", options: .regularExpression))
+        }
+        pane.scriptSaved = { [weak self, weak doc] url in
+            guard let self, let doc else { return }; self.noteDocumentSaved(doc, at: url)
         }
         pane.runManagedScript = { [weak self, weak doc] code, language in
             guard let self, let doc else { return }; self.runManagedScript(doc, code: code, language: language)

@@ -51,6 +51,8 @@ final class RPane: NSObject, NSTextViewDelegate {
     private let folderButton = NSButton(title: "Output folder", target: nil, action: nil)
     /// The name the script is saved under by Open in R (the window's title, as on Windows: "Script 1_ Paired t test.R").
     var scriptName = "Script"
+    /// Told where Save put the script, so the document takes the file's name.
+    var scriptSaved: ((URL) -> Void)?
     /// Whether Open in R starts RStudio or R after saving the script (the native checks save alone).
     nonisolated(unsafe) static var opensExternally = true
     /// Where Open in R keeps its files: the program's own folder, as the Windows script window's StatsDirect/R folder.
@@ -495,7 +497,7 @@ final class RPane: NSObject, NSTextViewDelegate {
         guard let window = view.window else { return }
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
-            do { try self.editor.string.write(to: url, atomically: true, encoding: .utf8); self.savedScript = self.editor.string; self.scriptFileName = url.lastPathComponent; self.state.stringValue = "Saved \(url.lastPathComponent)"; (NSApp.delegate as? Viewer)?.noteRecentDocument(url) }
+            do { try self.editor.string.write(to: url, atomically: true, encoding: .utf8); self.savedScript = self.editor.string; self.scriptFileName = url.lastPathComponent; self.state.stringValue = "Saved \(url.lastPathComponent)"; (NSApp.delegate as? Viewer)?.noteRecentDocument(url); self.scriptSaved?(url) }
             catch { self.state.stringValue = "Save failed: \(error.localizedDescription)" }
         }
     }

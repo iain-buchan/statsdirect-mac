@@ -205,9 +205,7 @@ extension Viewer {
                     if version == doc.gridVersion { doc.gridDirty = false }
                     guard self.documents.contains(where: { $0 === doc }) else { return }
                     doc.workbookName = url.lastPathComponent; doc.workbookSourceURL = url.resolvingSymlinksInPath(); doc.workbookDataCopy = false
-                    doc.openedFileURL = url; self.noteRecentDocument(url)
-                    doc.title = url.lastPathComponent; doc.item.label = doc.title; self.updateWindowMenu()
-                    if self.active === doc { self.window.title = "\(doc.title) · Mac prototype" }
+                    self.noteRecentDocument(url); self.noteDocumentSaved(doc, at: url)
                     doc.web.evaluateJavaScript("window.statsDirectGrid?.renameWorkbook?.(\(self.jsString(doc.workbookName)))")
                     let missing = saved["uncachedFormulas"] as? Int ?? 0
                     self.gridStatus(doc, "Saved all worksheets to " + url.lastPathComponent + (missing > 0 ? ". \(missing) formula results require recalculation in Excel." : ""))

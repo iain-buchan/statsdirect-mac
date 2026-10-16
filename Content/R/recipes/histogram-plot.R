@@ -1,74 +1,108 @@
-# StatsDirect recipe: Histogram, as the help shows it in R.
-# From the help's R code (graphics/histogram.htm); the data and settings above come from the run.
-# data: igm = data
+# StatsDirect recipe: selected histograms on one page, using their recorded bins.
+# data: series... = data
+# settings: chart = chartSettings
+# hand-edited: no unrequested log transformation or help-example labels.
 
-# Histogram: the StatsDirect help illustration (serum IgM in g/l of 298 children aged
-# 6 months to 6 years, Altman 1991; the test workbook's Other worksheet columns IgM
-# and Log(base 10): IgM) in R
-# The data are the IgM column of the test workbook.
-
-# StatsDirect's default number of bins is Doane's rule: 1 + log2(n) + log2(1 + |g1| /
-# sigma), rounded, where g1 is the skewness (the third central moment divided by the
-# second to the power 1.5) and sigma = sqrt(6 (n - 2) / ((n + 1) (n + 3))) its standard
-# error under normality. The bins are equal intervals from the smallest value to the
-# largest; a value on a bin's upper edge belongs to that bin and the smallest value to
-# the first bin, as hist() counts with right = TRUE and include.lowest = TRUE.
-doane <- function(x) {
-  # StatsDirect takes the skewness as 0 when it cannot compute it (n <= 3 or all
-  # values equal); without this R gives a different count for n = 3 and NaN below
-  if (length(x) <= 3 || var(x) == 0) return(round(1 + log2(length(x))))
-  m2 <- mean((x - mean(x))^2)
-  m3 <- mean((x - mean(x))^3)
-  g1 <- m3 / m2^1.5
-  sigma <- sqrt(6 * (length(x) - 2) / ((length(x) + 1) * (length(x) + 3)))
-  round(1 + log2(length(x)) + log2(1 + abs(g1) / sigma))
+sd_histogram_doane <- function(x) {
+  n <- length(x)
+  skew <- if (n <= 3L || all(x == x[1L])) 0 else
+    abs(mean((x - mean(x))^3) / mean((x - mean(x))^2)^1.5) /
+      sqrt(6 * (n - 2) / ((n + 1) * (n + 3)))
+  k <- max(1L, round(1 + log2(n) + log2(1 + skew)))
+  if (min(x) == max(x)) c(min(x) - 1, max(x) + 1) else seq(min(x), max(x), length.out = k + 1L)
 }
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
-
-# The chart labels the x axis at the bin mid-points: exactly when they are short (up
-# to 4 decimals), otherwise with the fewest decimals (up to 6) that put every label
-# within a fortieth of a bin of its mid-point (-1 here means neither, when the chart
-# falls back to three significant figures).
-decimals_within <- function(mids, error, most) {
-  for (d in 0:most) if (max(abs(round(mids, d) - mids)) <= error) return(d)
-  -1
+# StatsDirect assigns an observation on an upper edge to the lower bin, with
+# a tolerance for computed edges, and saturates observations outside the limits.
+sd_histogram_counts <- function(x, edges) {
+  tolerance <- max(abs(diff(range(edges))) * 1e-9, max(abs(edges)) * 1e-15)
+  interiors <- edges[-c(1L, length(edges))] + tolerance
+  bins <- findInterval(x, interiors, left.open = TRUE) + 1L
+  tabulate(bins, nbins = length(edges) - 1L)
 }
-label_decimals <- function(mids, width) {
-  d <- decimals_within(mids, width * 1e-9, 4)
-  if (d < 0) d <- decimals_within(mids, width / 40, 6)
-  d
-}
-mid_labels <- function(mids, width) {
-  d <- label_decimals(mids, width)
-  if (d < 0) return(formatC(mids, digits = 3, format = "g"))
-  formatC(mids, digits = d, format = "f")
-}
-
-# One histogram in StatsDirect's layout: bars, the mid-point labels and, when asked
-# for, the normal curve of the data's mean and standard deviation scaled to the counts
-# (n times the bin width times the normal density), as the chart option draws it.
-sd_histogram <- function(x, name, normal_curve = FALSE) {
-  k <- doane(x)
-  breaks <- seq(min(x), max(x), length.out = k + 1)
-  h <- hist(x, breaks = breaks, right = TRUE, include.lowest = TRUE, plot = FALSE)
-  width <- breaks[2] - breaks[1]
-  labels <- mid_labels(h$mids, width)
-  cat("Distribution of", name, "\n")
-  cat("Bins =", k, "(Doane's rule), width =", six(width), "\n")
-  cat("Mid-points:", labels, "\n")
-  cat("Counts:", h$counts, "\n\n")
-  plot(h, main = paste("Distribution of", name), xlab = paste("Mid-points for", name),
-       ylab = "Counts", xaxt = "n", col = NA, border = "steelblue4")
-  axis(1, at = h$mids, labels = labels)
-  if (normal_curve) {
-    scale <- length(x) * width
-    m <- mean(x)
-    s <- sd(x)
-    curve(scale * dnorm(x, m, s), add = TRUE, col = "steelblue4")
+sd_histogram_midpoint_labels <- function(mids, width) {
+  choose <- function(error, most) {
+    for (digits in 0:most)
+      if (max(abs(round(mids, digits) - mids)) <= error) return(digits)
+    -1L
   }
-  invisible(h)
+  digits <- choose(abs(width) * 1e-9, 4L)
+  if (digits < 0L) digits <- choose(abs(width) / 40, 6L)
+  if (digits < 0L) return(formatC(mids, digits = 3L, format = "g"))
+  mids <- round(mids, digits)
+  mids[abs(mids) < abs(width) * 1e-9] <- 0
+  formatC(mids, digits = digits, format = "f")
 }
-
-# The IgM concentrations, then their logarithms to base 10 with the normal curve
-sd_histogram(igm, "IgM")
-sd_histogram(log10(igm), "Log(base 10): IgM", normal_curve = TRUE)
+if (!length(series)) stop("Select at least one series for the histogram.")
+series <- lapply(series, function(x) {
+  x <- x[!is.na(x)]
+  if (!length(x) || any(!is.finite(x))) stop("Histogram series need finite numeric observations.")
+  x
+})
+histogram_options <- sd_chart_get("histograms", list())
+histogram_relative <- isTRUE(sd_chart_get("relativeFrequencies", FALSE))
+histogram_overlay <- isTRUE(sd_chart_get("overlayNormalCurve", FALSE))
+histograms <- vector("list", length(series))
+names(histograms) <- names(series)
+for (i in seq_along(series)) {
+  h <- if (length(histogram_options) >= i) histogram_options[[i]] else list()
+  edges <- suppressWarnings(as.numeric(unlist(h$edges)))
+  if (length(edges) < 2L || any(!is.finite(edges)) || any(diff(edges) < 0))
+    edges <- sd_histogram_doane(series[[i]])
+  # Equal-valued observations need one visible bin, even if an older record
+  # retained repeated zero-width edges.
+  if (diff(range(edges)) == 0) edges <- c(edges[1L] - 1, edges[1L] + 1)
+  counts <- sd_histogram_counts(series[[i]], edges)
+  heights <- if (histogram_relative) counts / length(series[[i]]) else counts
+  histograms[[i]] <- list(breaks = edges, counts = counts, mids = (head(edges, -1L) + tail(edges, -1L)) / 2,
+                          heights = heights, n = length(series[[i]]))
+}
+histogram_original_chart <- chart
+# Native multi-variable histograms extend the image height, retaining a full
+# panel for every selected column. Size a fresh automatic R device the same
+# way; an explicitly opened device remains under the user's control.
+if (length(series) > 1L && dev.cur() == 1L) {
+  device <- getOption("device")
+  # dev.new() drops width/height when a wrapper declares only "...". Call
+  # such wrappers directly so StatsDirect's output-file factory keeps both
+  # the chosen filename and the requested panel dimensions.
+  if (is.function(device) && "..." %in% names(formals(device)))
+    device(width = 7, height = 7 * length(series))
+  else dev.new(width = 7, height = 7 * length(series))
+}
+op <- par(no.readonly = TRUE)
+if (length(series) > 1L) par(mfrow = c(length(series), 1L))
+for (i in seq_along(series)) {
+  h <- histograms[[i]]
+  opts <- if (length(histogram_options) >= i) histogram_options[[i]] else list()
+  name <- names(series)[i]
+  if (is.na(name) || !nzchar(name)) name <- paste("Series", i)
+  # Histogram titles belong to each panel rather than the generic chart title.
+  chart <- histogram_original_chart
+  if (is.list(chart)) {
+    chart$title <- if (!is.null(opts$title)) opts$title else paste("Distribution of", name)
+    chart$xTitle <- if (!is.null(opts$xTitle)) opts$xTitle else paste("Mid-points for", name)
+    chart$yTitle <- if (!is.null(opts$yTitle)) opts$yTitle else if (histogram_relative) "Relative frequencies" else "Counts"
+  }
+  width <- diff(h$breaks)[1L]
+  normal_curve <- histogram_overlay && length(series[[i]]) > 1L && sd(series[[i]]) > 0
+  curve_multiplier <- if (histogram_relative) width else length(series[[i]]) * width
+  ymax <- max(h$heights)
+  if (normal_curve) ymax <- max(ymax, curve_multiplier * dnorm(mean(series[[i]]), mean(series[[i]]), sd(series[[i]])))
+  xlimits <- if (isTRUE(sd_chart_get("poolVariablesForBins", FALSE)))
+    range(unlist(lapply(histograms, `[[`, "breaks"))) else range(h$breaks)
+  midpoint_axis <- identical(as.numeric(range(h$breaks)), as.numeric(xlimits))
+  sd_chart_frame(xlimits, c(0, max(ymax, .Machine$double.eps)), paste("Distribution of", name),
+                 paste("Mid-points for", name), if (histogram_relative) "Relative frequencies" else "Counts",
+                 x_axis = !midpoint_axis)
+  if (midpoint_axis) sd_chart_axis(1L, at = h$mids, labels = sd_histogram_midpoint_labels(h$mids, width))
+  marker <- sd_chart_marker(i)
+  rect(head(h$breaks, -1L), 0, tail(h$breaks, -1L), h$heights,
+       col = NA, border = marker$col, lwd = marker$lwd)
+  if (normal_curve) {
+    xs <- seq(min(h$breaks), max(h$breaks), length.out = 401L)
+    lines(xs, curve_multiplier * dnorm(xs, mean(series[[i]]), sd(series[[i]])), col = marker$col, lwd = marker$lwd)
+  }
+}
+chart <- histogram_original_chart
+sd_chart_finish()
+par(op)

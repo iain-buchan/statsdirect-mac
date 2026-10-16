@@ -1,9 +1,18 @@
 # StatsDirect recipe: Polynomial regression, as the help shows it in R.
 # From the help's R code (regression_and_correlation/polynomial.htm); the data and settings above come from the run.
-# data: kwh, size
+# data: kwh = y, size = x
 # settings: degree = degree
+# hand-edited: preserve native complete-pair and predictor-order preprocessing explicitly.
 
 degree <- as.numeric(degree)
+# The native fit removes incomplete pairs, then orders observations by the predictor.
+# Keep this explicit: the recorded vectors retain their original worksheet order and missing cells.
+complete <- complete.cases(kwh, size)
+kwh <- kwh[complete]
+size <- size[complete]
+ordered <- order(size)
+kwh <- kwh[ordered]
+size <- size[ordered]
 # Polynomial regression: the StatsDirect help example (McClave and Dietrich 1991,
 # electricity consumption and home size, degree 2) in R
 

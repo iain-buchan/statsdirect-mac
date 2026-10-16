@@ -9,6 +9,42 @@ using StatsDirect.Templates;
 // Mac controls for the shared chart options. The engine owns calculations,
 // automatic axis descriptions and the final run record used by Continue in R.
 internal static class HostChartForms {
+    internal static void Histogram(OperationJob job, ChartDefinition chart, HistogramOptions histogram) {
+        var fields = new List<object>();
+        string Key(string name, int index) => histogram.HistoSeriesOptions.Count == 1 ? name : name + index;
+        for (int i = 0; i < histogram.HistoSeriesOptions.Count; i++) {
+            var series = histogram.HistoSeriesOptions[i];
+            string group = histogram.HistoSeriesOptions.Count == 1 ? null : chart.YSeries[i].Title;
+            void Add(string name, string label, string value) => fields.Add(new {
+                name = Key(name, i), label, defaultValue = value ?? "", kind = "text", group });
+            Add("title", "Title", series.ChartTitle);
+            Add("x", "Horizontal axis", series.XAxisTitle);
+            Add("y", "Vertical axis", series.YAxisTitle);
+        }
+        fields.Add(HostAmendments.Field("bins", "Number of bins (0 = automatic; otherwise 2–1000)", 0, "integer", 0, 1000));
+        JsonElement? initial = null; string error = null;
+        while (true) {
+            var answer = job.Ask(new() { ["kind"] = "fields", ["title"] = "Histogram", ["prompt"] = "Histogram",
+                ["fields"] = fields, ["initial"] = initial, ["error"] = error, ["submitLabel"] = "Run" });
+            initial = answer.Clone();
+            try {
+                var bins = HostParameters.Number(answer.GetProperty("bins"));
+                if (bins < 0 || bins == 1 || bins > 1000 || bins != Math.Truncate(bins))
+                    throw new ArgumentException("Use 0 for automatic bins or a whole number from 2 to 1000.");
+                string Text(string name, int i) => answer.TryGetProperty(Key(name, i), out var v) && v.ValueKind == JsonValueKind.String
+                    ? v.GetString() : throw new ArgumentException("Complete the histogram labels.");
+                var labels = Enumerable.Range(0, histogram.HistoSeriesOptions.Count).Select(i =>
+                    (title: Text("title", i), x: Text("x", i), y: Text("y", i))).ToArray();
+                for (int i = 0; i < labels.Length; i++) {
+                    var series = histogram.HistoSeriesOptions[i];
+                    series.ChartTitle = labels[i].title; series.XAxisTitle = labels[i].x; series.YAxisTitle = labels[i].y;
+                    if (bins > 1) histogram.Reset(false, (int)bins, i, (DoubleSeries)chart.YSeries[i]);
+                }
+                job.Record("Histogram", answer); return;
+            } catch (ArgumentException ex) { error = ex.Message; }
+        }
+    }
+
     internal static void BoxWhisker(OperationJob job, OperationHost host, ChartDefinition chart, BoxWhiskerOptions box) {
         box.Cco = host.Preferences.DefaultConfidenceInterval;
         var fields = new List<Dictionary<string, object>>();

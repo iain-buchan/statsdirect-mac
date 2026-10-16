@@ -86,7 +86,7 @@ differing = [f.name for f in sorted((upstream / 'recipes').glob('*.R')) if not (
 check(not differing and all(manifest.get(op) == entry for op, entry in pinned.items()) and (ROOT / 'Content/R/session.R').is_file() and (ROOT / 'Content/R/data-files.R').is_file(),
       'Content/R holds the pinned engine\'s %d recipes and %d manifest entries unchanged (the Mac manifest has %d) beside session.R and data-files.R' % (len(list((upstream / 'recipes').glob('*.R'))), len(pinned), len(manifest)))
 missing = [op for op in manifest if not (ROOT / 'FullEngine/publish/Operations' / (op + '.xml')).is_file()]
-headed = [f.name for f in (ROOT / 'Content/R/recipes').glob('*.R') if not f.read_text().startswith('# StatsDirect recipe:')]
+headed = [f.name for f in (ROOT / 'Content/R/recipes').glob('*.R') if f.name != 'chart-common.R' and not f.read_text().startswith('# StatsDirect recipe:')]
 check(len(manifest) >= 28 and not missing and not headed and all((ROOT / 'Content/R/recipes' / e['file']).is_file() for e in manifest.values()),
       'every manifest operation is a published operation with a headed recipe file')
 # the recipes against the definitions of the operations they are mapped to, as tests/RScript/Script.cs CheckRecipes: every setting a recipe
@@ -106,6 +106,7 @@ for op, entry in manifest.items():
     parameters |= {m.strip() for m in re.findall(r'<(?:top-left|top-right|bottom-left|bottom-right)-name>([^<]+)</', xml)}
     if re.search(r'<builtin function-name="dist[A-Za-z]+"', xml): parameters |= {'value', 'df', 'df2', 'lower', 'upper', 'two_sided', 'asked'}
     if '<chart-type>BoxWhisker</chart-type>' in xml: parameters.add('boxWhisker')   # final chart dialog choices recorded by the shared processor
+    if '<chart' in xml: parameters.add('chartSettings')   # portable final settings for the chart actually drawn
     if '<grouped-covariance>' in xml: parameters.add('ci')   # its confidence level is asked through the grid and recorded as the setting ci
     settings = re.search(r'^# settings:\s*(.*)$', text, re.M)
     if settings:
@@ -521,6 +522,8 @@ def expected_script(record, recipe, detail):
         for key, value in parameters.items():
             if is_scalar(value) and not key.lower().startswith('statsdirect'): out.append(safe_name(key, names) + ' <- ' + literal(value) + '   # ' + plain(key) + '\n')
     out.append('\n')
+    if binding and any(parameter == 'chartSettings' for _, parameter in binding['settings']):
+        out.append((ROOT / 'Content/R/recipes/chart-common.R').read_text().rstrip('\n') + '\n')
     out.append(binding['body'].rstrip('\n') + '\n' if binding else '# Add your analysis here.\n')
     return ''.join(out)
 def first_difference(a, b):
@@ -642,6 +645,10 @@ def run_example(session, example, parent=None, keep=False, extra=None, preferenc
                           automaticAxisTitle=False, x=box['axisTitle'])
             for i, title in enumerate(box['seriesTitles']): answer['series'+str(i)] = title
             return answer
+        if kind == 'fields' and 'chartSettings' in settings:
+            answer = {f['name']:f['defaultValue'] for f in p['fields']}
+            if 'title' in answer: answer['title'] = settings['chartSettings'].get('title', answer['title'])
+            return answer   # other Windows chart controls are not yet exposed by the Mac form
         if kind == 'fields' and any(f['name'] in ('x', 'df', 'df2') for f in p['fields']):
             boxes = {'x': 'value', 'df': 'df', 'df2': 'df2'}   # the Distributions calculator's boxes under the record's names
             return {f['name']: settings.get(boxes.get(f['name'], ''), f['defaultValue']) if settings.get(boxes.get(f['name'], '')) is not None else f['defaultValue'] for f in p['fields']}
@@ -708,9 +715,25 @@ for op in operations:
         mismatched.append(op); print('      %s: %s' % (op, script.get('error') or ('line %d differs: engine %r, expected %r' % where if where else 'recipe flag or detail')), flush=True)
 check(not mismatched, 'the engine writes every recipe\'s script for the help\'s example exactly as the Windows writer\'s rules give it, line by line (%d operations)' % len(operations)
       + ('; differing: ' + ', '.join(mismatched) if mismatched else ''))
+CHART_PROBES = {
+    'BarPlot': 'emit(c(dim(bar_values), as.vector(bar_values)))\nfor (s in bar_segments) emit(unlist(s, use.names=FALSE))',
+    'BarPlotFrequency': 'emit(c(dim(counts), as.vector(counts), as.vector(frequency_values), dim(bar_values), as.vector(bar_values)))\nfor (s in bar_segments) emit(unlist(s, use.names=FALSE))',
+    'HistogramPlot': 'emit(length(histograms))\nfor (h in histograms) emit(c(h$n, h$breaks, h$counts, h$mids, h$heights))',
+    'NormalPlot': 'emit(c(length(observed), normal_ranks, normal_scores, observed))',
+    'SpreadPlot': 'stopifnot(spread_tolerance>0,spread_tolerance<1)\nemit(length(groups))\nfor (i in seq_along(groups)) { emit(c(length(groups[[i]]), groups[[i]])); emit(unlist(spread_stacks[[i]],use.names=FALSE)) }',
+    'LinePlot': 'emit(length(xy_series))\nfor (s in xy_series) emit(c(length(s$x), s$x, s$y))',
+    'ScatterPlot': 'emit(length(xy_series))\nfor (s in xy_series) emit(c(length(s$x), s$x, s$y))',
+    'LadderPlot': 'emit(c(length(ladder_before), ladder_before, ladder_after, ladder_difference))',
+    'ErrorPlot': 'emit(length(error_series))\nfor (s in error_series) emit(c(length(s$x), s$x, s$y, s$lower, s$upper, s$plot_x))',
+    'PyramidPlot': 'emit(c(length(pyramid_rows), pyramid_rows, pyramid_males, pyramid_females, pyramid_scale))',
+    'ControlPlot': 'emit(c(length(control_y), control_x, control_y, control_mean, control_sd, control_bands))',
+}
+
 def comparison_script(operation, text):
     # Graphical Continue in R draws one chart without printing teaching variants.
     # Read the actual plotted summaries for the independent worked-example check.
+    if operation in CHART_PROBES:
+        return 'options(device=function(...) grDevices::pdf(file="selected-chart.pdf",...))\ninvisible(capture.output({\n' + text + '\n}))\nemit <- function(x) cat(formatC(as.double(x), digits=8, format="f"), "\\n")\n' + CHART_PROBES[operation]
     if operation != 'BoxWhiskerPlot': return text
     return text + r"""
 stopifnot(box_method == 1L, box_inner_fence, box_outer_fence,
@@ -774,24 +797,23 @@ check(all(isinstance(real[op].get('record'), str) for op in recorded) and withou
       % (len(runnable), len(recorded), len(NO_REPORT_STEP) - 1, len(FOLLOW_ONS)) + ('; without a record: ' + ', '.join(without) if without != sorted(NO_REPORT_STEP) else ''))
 # Where the dialog differs from the help's example: settings the dialog does not record under the example's name (asked on a branch the
 # default answers do not take; worked out from the inputs the dialog takes instead; written back by the operation as a result under the same
-# name), and the plots, which sort their columns before the report step. The rank correlation calculators record the score (df2) they work
+# name). The rank correlation calculators record the score (df2) they work
 # out of the correlation, as the Windows calculator shows and records it.
 # The regenerated examples (2570f206) also state settings the dialog asks only on another branch: the Fisher test of a cohort or neither
 # study, the control responders when there are controls.
 DIALOG_SETTINGS = {'SizeIndCase': {'p1'}, 'SizeIndProp': {'p1'}, 'SizeMatchProp': {'p1'}, 'SizeSurvival': {'hr'}, 'Chi2by2': {'doFisher'}, 'Logit': {'nrc'}, 'Probit': {'nrc'}}
-SORTED_COLUMNS = {'BoxWhiskerPlotText', 'SpreadPlot'}
 RENAMED_INPUTS = {}   # an example naming an input otherwise than the parameter the dialog records it under (none now)
 REAL_RUN_SUBSET = {'MiscRelRisk'}   # the dialog's labels (Present, Absent) differ from the help's, which carry digits: every figure printed is among the help's
 def equivalent(got, values, op):
     """Whether a recorded column holds the example's values: as numbers or their texts (a categorical column), a date typed as text recorded as
-    the worksheet's serial day, a shorter column of an entered frame padded with missing values to the frame's height, or sorted for the plots."""
+    the worksheet's serial day, or a shorter column of an entered frame padded with missing values to the frame's height."""
     def norm(v): return csharp(v) if is_number(v) else v
     def serial(v): return (datetime.strptime(v, '%Y-%m-%d') - datetime(1899, 12, 30)).days if isinstance(v, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}', v) else v
     g = list(got); v = list(values)
     while len(g) > len(v) and g[-1] is None: g.pop()
     if len(g) != len(v): return False
     if all(a == b or (a is not None and b is not None and norm(a) == norm(b)) or a == serial(b) for a, b in zip(g, v)): return True
-    return op in SORTED_COLUMNS and sorted(map(norm, g)) == sorted(map(norm, v))
+    return False   # a calculation's private sorting must not change the acquisition record
 problems = []
 for op in recorded:
     example = examples[op]; r = json.loads(real[op]['record']); settings = example.get('settings') or {}
@@ -834,6 +856,11 @@ for op in recorded:
             if key == 'boxWhisker':
                 assert isinstance(got, dict) and all(got.get(k) == v for k, v in value.items()), ('recorded chart options', got, value)
                 continue  # the real chart also records its font and scale defaults
+            if key == 'chartSettings':
+                assert isinstance(got, dict) and got.get('type') and got.get('markers'), ('portable native chart settings', got)
+                title = got['histograms'][0]['title'] if op == 'HistogramPlot' else got['title']
+                assert title == value['title'], ('selected Mac title', title, value['title'])
+                continue  # check actual Mac defaults/replay separately; do not require controls that only Windows exposes
             assert got == value or (isinstance(got, str) and got == str(value)) or (is_number(got) and is_number(value) and close(got, value, 1e-9)), 'the setting %s: recorded %r, example %r' % (key, got, value)
         for key in ('a', 'b', 'c', 'd', 'pt1', 'pt2'):
             if key in settings: assert r['parameters'].get(key) == settings[key], 'the count %s' % key
@@ -853,7 +880,16 @@ check(not mismatched, 'the engine writes each real run\'s script exactly as the 
       + ('; differing: ' + ', '.join(mismatched) if mismatched else ''))
 # the real runs' scripts against the help: the same figures where the run's settings are the help's; where the dialog differs from the help's
 # example (a stated default the help's script does not take, a seed the form chose, the dialog's own labels), the difference is listed
-agreed, failures = compare_with_help(zip(recorded, r_outputs([comparison_script(op, real_scripts[op]['text']) for op in recorded])), 'real run')
+# The shared graphical references deliberately select Windows-only options such
+# as scaled Blom scores and relative histograms. Compare their mathematics using
+# the actual acquired Mac data with those explicit fixture options. The unmodified
+# Mac records/scripts are checked above and through test_chart_replay.py/native UI.
+def real_reference_script(op):
+    if op not in CHART_PROBES: return real_scripts[op]['text']
+    record = json.loads(real[op]['record'])
+    record['parameters']['chartSettings'] = examples[op]['settings']['chartSettings']
+    return rs.write(record, None, [])['text']
+agreed, failures = compare_with_help(zip(recorded, r_outputs([comparison_script(op, real_reference_script(op)) for op in recorded])), 'real run')
 # Expected, and the same for a Windows run of the dialog (raised with Windows rather than diverged from): none at present. The six the
 # Mac's real runs found on 11 October 2026 (Crosstabs's text classifiers, KappaScreen's binding, LogisticRegression's rest list, the
 # survival plot's and Wei-Lachin's frames asked once per group kept as the last ask alone) were changed in the shared code at e99fe24a,
@@ -1024,7 +1060,8 @@ check('wt_method <- "2"' in script and 'Generalised Wilcoxon (Gehan-Breslow)' in
 bar_script, _ = built({'operation': 'BarPlot', 'inputs': [{'name': 'labels', 'columns': columns_of(('Blood group', ['O', 'A', 'B', 'AB']))},
                                                            {'name': 'values', 'columns': columns_of(('First', [44, 45, 8, 3]), ('Second', [79, 16, 4, 1]), ('Third', [61, 39, 0, 0]), ('Fourth', [50, 30, 15, 5]))}]})
 box_script, r = built({'operation': 'BoxWhiskerPlotText', 'list': columns_of(('One', [12, 15, 11, 19, 22, 14, 30]), ('Two', [20, 25, 21, 29, 32, 24, 27]), ('Three', [5, 8, 11, 9, 6, 40, 7]))})
-check('rep_len(shade, nrow(values))' in bar_script and len(re.findall(r'^\S+ \(n = 7\)', r, re.M)) == 3, 'the bar chart of four series and the box plot of three groups draw the run\'s series and groups')
+run_r(bar_script + '\nstopifnot(nrow(bar_values)==4L, ncol(bar_values)==4L)\n')
+check(len(re.findall(r'^\S+ \(n = 7\)', r, re.M)) == 3, 'the bar chart of four series and the box plot of three groups draw the run\'s series and groups')
 
 # kappa with quadratic weights, then with a table of weights given (not symmetric, so that the table's orientation tells)
 rater1 = [1, 1, 2, 2, 3, 3, 1, 2, 3, 1, 2, 3, 2, 1, 3, 3]; rater2 = [1, 2, 2, 3, 3, 3, 1, 1, 2, 1, 2, 3, 3, 1, 2, 3]
@@ -1225,10 +1262,10 @@ print('      method comparison through the engine: engine slope %.7g, R %.7g' % 
 check('do.deming.analytical <- TRUE' in script and 'do.paba <- FALSE' in script and near(r_slope, engine_slope, 1e-4), 'a real method comparison run\'s script runs the regression the run ticked and gives the engine\'s slope')
 script, r = built({'operation': 'LinearizedEstimates', 'data': columns_of(('kwh', [2, 4, 9, 16, 26, 38]), ('size', [1, 2, 3, 4, 5, 6])), 'settings': {'model': '1'}})
 check('The model fitted in StatsDirect: Geometric / power' in r, 'the linearized estimates script names the model the run chose')
-# a real normal plot run records no score method (it is asked in the chart options): the script draws the default and keeps the help's
-# remark on its own example to that example
+# A real Mac normal plot records its default method; R draws those scores alone.
 state, record, script, r, report = option_run('NormalPlot', [('X', [('pimax', [40, 55, 62, 70, 76, 81, 88, 95, 103, 120])])], {})
-check('method <- "1"' in script and '"2" = blom' in script and 'van der Waerden scores from' in r and 'The four values of 75' not in r, 'a real normal plot run, which records no score method, has a script that draws the default scores and keeps the help\'s remark on its example to that example')
+run_r(script + '\nstopifnot(isTRUE(all.equal(normal_scores, qnorm(rank(observed)/(length(observed)+1)))))\n')
+check(record['parameters']['chartSettings']['method']==1 and not record['parameters']['chartSettings']['scaleZ'] and 'The four values of 75' not in script, 'a real normal plot records its van der Waerden method and R draws exactly those scores without teaching illustrations')
 script, r = built({'operation': 'UnivariateSummary', 'data': columns_of(('speed', [12, 15, 11, 19, 22, 14, 30, 25, 17, 21, 16, 18])), 'settings': {'gamma': 0.95, 'report-udca': 0.1, 'report-udcb': 0.9}})
 check('Centile 90 ' in r and 'Centile 10 ' in r and 'Centile 95' not in r, 'the summary\'s script gives the two centiles the run chose')
 

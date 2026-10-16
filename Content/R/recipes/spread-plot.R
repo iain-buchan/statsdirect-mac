@@ -1,75 +1,64 @@
-# StatsDirect recipe: Spread plot, as the help shows it in R.
-# From the help's R code (graphics/spread.htm); the data and settings above come from the run.
-# data: groups...
+# StatsDirect recipe: one spread chart using the selected data, orientation and labels.
+# data: groups... = data
+# settings: chart = chartSettings
+# hand-edited: stack nearby observations on the current drawing device, without teaching plots.
 
-# Spread plot: the StatsDirect help illustration (Aziz et al. 1996, sperm deformity
-# index of men whose partners conceived and of men whose partners did not; the test
-# workbook's Graphics worksheet columns SDI conceived and SDI not conceived) in R
-
-# A spread plot is a one dimensional scatter of each group's values, with values
-# that fall together stacked side by side so that a concentration of data shows as
-# a broad band. R's stripchart draws one; method = "stack" stacks equal values.
-# The groups are reversed so that the first is at the top, as StatsDirect draws it.
-op <- par(mar = c(4, 9, 3, 1))
-stripchart(rev(groups), method = "stack", pch = 1, las = 1, main = "Spread plot")
-
-# The summary of each group that the illustration states
-for (g in names(groups)) {
-  x <- groups[[g]]
-  cat(g, ": n = ", length(x), ", range ", min(x), " to ", max(x), ", median ",
-      median(x), "\n", sep = "")
+spread_original_chart <- chart
+if (!length(groups)) stop("Select at least one series for the spread plot.")
+groups <- lapply(groups, function(x) {
+  x <- sort(x[!is.na(x)])
+  if (!length(x) || any(!is.finite(x))) stop("Spread series need finite numeric observations.")
+  x
+})
+spread_horizontal <- isTRUE(sd_chart_get("horizontal", TRUE))
+spread_labels <- sd_chart_strings(sd_chart_get("seriesTitles", names(groups)))
+if (length(spread_labels) != length(groups)) spread_labels <- names(groups)
+if (is.null(spread_labels)) spread_labels <- paste("Series", seq_along(groups))
+spread_range <- range(unlist(groups))
+if (diff(spread_range) == 0) spread_range <- spread_range + c(-1, 1)
+if (!spread_horizontal && is.list(chart)) {
+  old_axis <- chart[["x"]]; chart$x <- chart[["y"]]; chart$y <- old_axis
+  chart$yTitle <- chart$xTitle; chart$xTitle <- ""
 }
-
-# StatsDirect stacks values that are close, not only equal ones: it sorts each group,
-# starts a column at the smallest value not yet drawn and adds to that column every
-# following value within the width of one plot point of the column's first value.
-# Its default marker is 12 pixels across and the scale axis of this plot is 814
-# pixels long, so the width is 12/814 of the axis range, and the axis runs between
-# the round numbers that enclose the data (100 to 240 here): a column holds values
-# within about two units of its first.
-xlim <- range(pretty(unlist(groups)))
-width <- diff(xlim) * 12 / 814
-columns <- function(x) {
-  x <- sort(x)
-  at <- numeric(0)
-  count <- integer(0)
-  i <- 1
+k <- length(groups)
+sd_chart_frame(if (spread_horizontal) spread_range else c(0, k),
+               if (spread_horizontal) c(0, k) else spread_range, "Spread plot",
+               x_axis = spread_horizontal, y_axis = !spread_horizontal,
+               category_labels = spread_labels)
+centres <- if (spread_horizontal) k - seq_len(k) + 0.5 else seq_len(k) - 0.5
+sd_chart_axis(if (spread_horizontal) 2L else 1L, at = centres, labels = spread_labels,
+              tick = FALSE)
+marker <- sd_chart_marker(1L)
+# Native stacks use a two-marker-size tolerance on the value axis. Derive it
+# from this device's actual plot width/height, so resizing retains that rule.
+pin <- par("pin"); usr <- par("usr")
+axis_inches <- pin[if (spread_horizontal) 1L else 2L]
+axis_span <- diff(usr[if (spread_horizontal) 1:2 else 3:4])
+diameter_inches <- marker$size / 144  # native canvas units: two units per typographic point
+spread_tolerance <- axis_span * (2 * diameter_inches) / axis_inches
+spread_stack <- function(x) {
+  at <- numeric(); count <- integer(); i <- 1L
   while (i <= length(x)) {
     j <- i
-    while (j < length(x) && x[j + 1] - x[i] <= width) j <- j + 1
-    at <- c(at, x[i])
-    count <- c(count, j - i + 1)
-    i <- j + 1
+    while (j < length(x) && x[j + 1L] - x[i] <= spread_tolerance) j <- j + 1L
+    at <- c(at, x[i]); count <- c(count, j - i + 1L); i <- j + 1L
   }
   data.frame(at = at, count = count)
 }
-stacks <- lapply(groups, columns)
-for (g in names(groups)) {
-  s <- stacks[[g]]
-  b <- which.max(s$count)
-  cat(g, ": broadest band ", s$count[b], " values at ", s$at[b], "\n", sep = "")
-}
-
-# The plot as StatsDirect draws it: the scale axis across, the first group at the
-# top, each column of markers centred on its group's line with the markers a fixed
-# distance apart, squeezed only when the tallest column would overflow its band,
-# and with the title given to the illustration
-k <- length(groups)
-marker <- 0.04
-plot(NA, xlim = xlim, ylim = c(0, k), xaxs = "i", yaxs = "i", yaxt = "n", bty = "l",
-     xlab = "", ylab = "", main = "Sperm Deformity Index and Conception")
-axis(2, at = k - seq_len(k) + 0.5, labels = names(groups), las = 1, tick = FALSE)
-for (g in seq_len(k)) {
-  s <- stacks[[g]]
-  step <- min(marker, (1 - marker) / max(s$count))
-  centre <- k - g + 0.5
-  for (i in seq_len(nrow(s))) {
-    y <- centre + step * (seq_len(s$count[i]) - (s$count[i] + 1) / 2)
-    points(rep(s$at[i], s$count[i]), y, pch = 1)
+spread_stacks <- lapply(groups, spread_stack)
+for (g in seq_along(groups)) {
+  stack <- spread_stacks[[g]]
+  category_inches <- pin[if (spread_horizontal) 2L else 1L] / k
+  increment <- 2 * diameter_inches / category_inches
+  # Native compression uses the widest moving window, including windows that
+  # start inside a drawn stack, rather than just the drawn columns' counts.
+  max_count <- max(findInterval(groups[[g]] + spread_tolerance, groups[[g]]) - seq_along(groups[[g]]) + 1L)
+  increment <- min(increment, max(0, 1 - 2 * diameter_inches / category_inches) / max_count)
+  for (i in seq_len(nrow(stack))) {
+    offset <- centres[g] + increment * (seq_len(stack$count[i]) - (stack$count[i] + 1) / 2)
+    if (spread_horizontal) sd_chart_points(rep(stack$at[i], stack$count[i]), offset, marker)
+    else sd_chart_points(offset, rep(stack$at[i], stack$count[i]), marker)
   }
 }
-par(op)
-
-# The men whose partners did not conceive form a dense band between about 125 and
-# 160; the values of the men whose partners conceived are spread more widely and
-# lie mostly higher. The plot shows the two distributions without summarising them.
+sd_chart_finish()
+chart <- spread_original_chart

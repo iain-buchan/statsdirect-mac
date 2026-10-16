@@ -269,8 +269,9 @@ sd_box_draw <- function() {
   if (is.null(value_ticks)) value_ticks <- axTicks(value_side)
   if (logarithmic) value_ticks <- value_ticks[value_ticks > 0]
   if (box_value_grid) {
-    if (box_horizontal) abline(v = value_ticks, col = "grey80", lty = box_value_grid_style + 1L) else
-      abline(h = value_ticks, col = "grey80", lty = box_value_grid_style + 1L)
+    grid_lty <- if (box_value_grid_style == 4L) "311111" else box_value_grid_style + 1L
+    if (box_horizontal) abline(v = value_ticks, col = "grey80", lty = grid_lty) else
+      abline(h = value_ticks, col = "grey80", lty = grid_lty)
   }
   axis(value_side, at = value_ticks, labels = format(value_ticks, trim = TRUE),
        las = 1,

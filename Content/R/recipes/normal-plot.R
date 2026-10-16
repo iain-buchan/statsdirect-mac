@@ -1,66 +1,59 @@
-# StatsDirect recipe: Normal plot with the scores of the method chosen, as the help shows it in R.
-# From the help's R code (graphics/normal.htm); the data and settings above come from the run.
-# data: pimax
+# StatsDirect recipe: one normal-scores chart using the selected method and scaling.
+# data: observed = X
+# settings: chart = chartSettings
+# hand-edited: use final chart choices, without additional teaching plots or tests.
 
-method <- "1"   # the score method: 1 van der Waerden (the chart options' default, which the run does not record), 2 Blom, 3 expected normal order
-# Normal plot: an illustration for the StatsDirect help (maximal static inspiratory
-# pressure, PImax, of 25 patients with cystic fibrosis, Altman 1991; the test
-# workbook's Graphics worksheet column "PImax (cm H2O)") in R
-n <- length(pimax)
-
-# R's standard normal probability plot puts the theoretical quantiles at the
-# plotting positions (i - 1/2) / n for the ith ordered value (Blom's
-# (i - 3/8) / (n + 1/4) when n is 10 or less) and gives tied values separate
-# positions.
-qqnorm(pimax)
-qqline(pimax)
-
-# StatsDirect's default plot: each value against its van der Waerden normal score,
-# the standard normal quantile at rank / (n + 1). Tied values share their mid-rank,
-# as rank() gives it, and so plot at the same point.
-r <- rank(pimax)
-vdw <- qnorm(r / (n + 1))
-plot(vdw, pimax, xlab = "Normal scores (van der Waerden)",
-     ylab = "Observed (PImax (cm H2O))", main = "Normal plot")
-
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
-pv <- function(p) {
-  if (p < 0.0001) "P < 0.0001" else
-    paste("P =", formatC(p, digits = 4, format = "f", drop0trailing = TRUE))
+normal_original_chart <- chart
+observed <- observed[!is.na(observed)]
+if (!length(observed) || any(!is.finite(observed)))
+  stop("A normal plot needs finite numeric observations.")
+normal_method <- as.integer(sd_chart_get("method", 1L))
+if (length(normal_method) != 1L || is.na(normal_method) || !normal_method %in% 1:3)
+  stop("Unknown normal-score method.")
+normal_scaled <- isTRUE(sd_chart_get("scaleZ", FALSE))
+n <- length(observed)
+if (normal_method == 3L && n > 4000L) {
+  normal_method <- 1L
+  message("Expected normal order scores use van der Waerden scores above 4000 observations, as in StatsDirect.")
 }
-cat("Sample size =", n, "\n")
-cat("van der Waerden scores from", six(min(vdw)), paste0("(PImax ", min(pimax), ")"),
-    "to", six(max(vdw)), paste0("(PImax ", max(pimax), ")"), "\n")
-if (any(pimax == 75)) cat("The four values of 75 have rank", r[pimax == 75][1], "and score",
-    six(vdw[pimax == 75][1]), "\n")
-
-# The other score methods offered in the chart options: Blom's scores, the
-# quantiles at (rank - 3/8) / (n + 1/4), and expected normal order scores, the
-# expected value of the rth smallest of n standard normal variates, found here by
-# numerical integration (StatsDirect rounds a mid-rank to a whole rank for these).
-blom <- qnorm((r - 0.375) / (n + 0.25))
-enos <- function(r, n) {
-  f <- function(z) z * dnorm(z) * pnorm(z)^(r - 1) * pnorm(-z)^(n - r)
-  integrate(f, -Inf, Inf)$value / beta(r, n - r + 1)
+normal_ranks <- rank(observed, ties.method = "average")
+# E[Z_(r)] = E[qnorm(Beta(r,n+1-r))]. Integrating over uniform probability
+# avoids underflow of the beta density for large n and shares exact mid-rank ties.
+normal_expected_order <- function(r, n) {
+  if (2 * r == n + 1L) return(0)
+  sign <- if (r > (n + 1L) / 2) 1 else -1
+  k <- min(r, n + 1L - r)
+  sign * -integrate(function(u) qnorm(qbeta(u, k, n + 1L - k)), 0, 1,
+                    rel.tol = 1e-9, subdivisions = 300L)$value
 }
-eno <- sapply(round(r), enos, n = n)
-cat("Blom scores from", six(min(blom)), "to", six(max(blom)), "\n")
-cat("Expected normal order scores from", six(min(eno)), "to", six(max(eno)), "\n")
-# The plot of the scores the run chose (1 van der Waerden, 2 Blom, 3 expected normal order)
-chosen <- switch(as.character(method), "2" = blom, "3" = eno, vdw)
-plot(chosen, pimax, xlab = paste0("Normal scores (", c("1" = "van der Waerden", "2" = "Blom", "3" = "expected normal order")[as.character(method)], ")"), ylab = "Observed", main = "Normal plot")
-
-# With scaled normal scores selected in the chart options the scores are put on
-# the scale of the data (mean + score * SD, with SD taken over n) and the line of
-# equality is drawn, as in the normal plot of the Shapiro-Wilk test: here with
-# Blom's scores.
-scaled <- mean(pimax) + blom * sqrt(mean((pimax - mean(pimax))^2))
-lim <- range(scaled, pimax)
-plot(scaled, pimax, xlim = lim, ylim = lim, xlab = "Normal (PImax (cm H2O))",
-     ylab = "Observed (PImax (cm H2O))", main = "Normal plot")
-abline(0, 1)
-
-# A straight plot is what a normal sample gives; the Shapiro-Wilk test on the same
-# data (Parametric_Normality in StatsDirect) puts a P value on the impression.
-sw <- shapiro.test(pimax)
-cat("Shapiro-Wilk W =", six(sw$statistic), " ", pv(sw$p.value), "\n")
+if (normal_method == 1L) normal_scores <- qnorm(normal_ranks / (n + 1))
+if (normal_method == 2L) normal_scores <- qnorm((normal_ranks - 0.375) / (n + 0.25))
+if (normal_method == 3L) {
+  needed <- sort(unique(c(floor(normal_ranks), ceiling(normal_ranks))))
+  orders <- setNames(vapply(needed, normal_expected_order, 0.0, n = n), needed)
+  normal_scores <- (orders[as.character(floor(normal_ranks))] + orders[as.character(ceiling(normal_ranks))]) / 2
+  normal_scores <- unname(normal_scores)
+}
+data_title <- sd_chart_strings(sd_chart_get("dataTitles", "Selected data"))[1L]
+if (is.na(data_title) || !nzchar(data_title)) data_title <- "Selected data"
+normal_x_title <- c("Normal scores (van der Waerden)", "Normal scores (Blom)",
+                     "Expected normal order scores")[normal_method]
+if (normal_scaled) {
+  normal_scores <- mean(observed) + normal_scores * sqrt(mean((observed - mean(observed))^2))
+  normal_x_title <- paste0("Normal (", data_title, ")")
+}
+if (is.list(chart)) {
+  # Native normal plots derive these labels from the selected column and method;
+  # their chart dialog does not expose generic axis-title boxes.
+  chart$xTitle <- normal_x_title
+  chart$yTitle <- paste0("Observed (", data_title, ")")
+}
+limits_x <- range(normal_scores); limits_y <- range(observed)
+if (normal_scaled) limits_x <- limits_y <- range(limits_x, limits_y)
+sd_chart_frame(limits_x, limits_y, "Normal plot", normal_x_title,
+               paste0("Observed (", data_title, ")"))
+marker <- sd_chart_marker(1L)
+sd_chart_points(normal_scores, observed, marker)
+if (normal_scaled) abline(0, 1, lwd = sd_chart_get("lineWidth", 1))
+sd_chart_finish()
+chart <- normal_original_chart

@@ -147,5 +147,29 @@ import PDFKit
         try check(plots.count == 1 && plots[0].pathExtension == "pdf" && PDFDocument(url:plots[0])?.pageCount == 1, "Continue in R displays exactly one PDF page for the chosen box plot")
         try check(r.editor.string.contains("box_settings <- list(") && r.editor.string.contains("Selected measurements") && r.editor.string.contains("First measurement"), "box plot script retains the recorded choices and edited labels")
         v.remove(script)
+
+        try await select(1)
+        let histogram = try open("HistogramPlot")
+        try await wait { try await yes(histogram, "!!document.querySelector('[name=title0]')&&!!document.querySelector('[name=title1]')") }
+        try check(try await yes(histogram, "document.querySelector('[name=title0]').value!==document.querySelector('[name=title1]').value&&!document.querySelector('.column-chooser')"), "histogram uses the two selected columns and presents their independent chart labels")
+        _ = try await js(histogram, """
+        document.querySelectorAll('form details').forEach(e=>e.open=true);
+        window.setHistogram=(name,value)=>{const e=document.querySelector(`[name=${name}]`);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,value);e.dispatchEvent(new Event('input',{bubbles:true}));};
+        setHistogram('title0','First selected histogram');setHistogram('title1','Second selected histogram');setHistogram('x0','First measurement');setHistogram('x1','Second measurement');setHistogram('bins','1');document.querySelector('form button[type=submit]').click();true
+        """)
+        try await wait { try await yes(histogram, "document.querySelector('[role=alert]')?.textContent.includes('automatic bins')===true") }
+        try check(try await yes(histogram, "document.querySelector('[name=title0]').value==='First selected histogram'&&document.querySelector('[name=title1]').value==='Second selected histogram'"), "histogram validation retains the labels for both series")
+        _ = try await js(histogram, "setHistogram('bins','4');document.querySelector('form button[type=submit]').click();true")
+        try await wait { histogram.completedJobID != nil }
+        let histogramReport = report.reportEntries!.last!
+        try check(["First selected histogram", "Second selected histogram", "First measurement", "Second measurement"].allSatisfy { histogramReport.body.contains($0) }, "the report draws both histograms with their edited chart and axis labels")
+        v.continueResultInR(report, id:histogramReport.id)
+        try await wait { v.active?.rPane != nil }
+        let histogramScript = v.active!, hr = histogramScript.rPane!
+        try await wait { !hr.isRunning && hr.console.textStorage!.containsAttachments }
+        let histogramPDFs = try FileManager.default.contentsOfDirectory(at: hr.outputFolder!, includingPropertiesForKeys:nil).filter { $0.lastPathComponent.hasPrefix("plots-") && $0.pathExtension == "pdf" }
+        try check(histogramPDFs.count == 1 && PDFDocument(url:histogramPDFs[0])?.pageCount == 1, "Continue in R shows the two requested histogram panels on one PDF page")
+        try check(hr.editor.string.contains("First selected histogram") && hr.editor.string.contains("Second selected histogram"), "histogram replay retains both selected titles")
+        v.remove(histogramScript)
     }
 }

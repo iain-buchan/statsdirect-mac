@@ -40,7 +40,22 @@ try:
  id,state=s.start('HistogramPlot');s.request(action='answer',id=id,token=state['token'],value=columns([1,2,2,3,4,5,6,7,8,9,10]));state=s.wait(id)
  assert state['prompt']['kind']=='fields'
  values={f['name']:f['defaultValue'] for f in state['prompt']['fields']};assert 'bins' in values
+ values.update(title='Selected histogram', x='Selected value', y='Selected count', bins=1)
+ s.request(action='answer',id=id,token=state['token'],value=values);state=s.wait(id)
+ assert state['state']=='input' and state['prompt']['error'] and state['prompt']['initial']==values
  values['bins']=4;s.request(action='answer',id=id,token=state['token'],value=values);state=s.wait(id)
- assert state['state']=='complete' and '<svg' in state['html'];s.close(id)
- print('PASS: histogram exposes and applies explicit bin count')
+ assert state['state']=='complete' and '<svg' in state['html']
+ assert all(label in state['html'] for label in ['Selected histogram','Selected value','Selected count']);s.close(id)
+ print('PASS: histogram applies explicit bins and edited chart/axis labels, retaining entries after validation')
+ for op in ['HistogramPlot','HistogramPlotText']:
+  id,state=s.start(op);s.request(action='answer',id=id,token=state['token'],value=columns([1,2,4,6,8],[-9,-4,0,2,7]));state=s.wait(id)
+  values={f['name']:f['defaultValue'] for f in state['prompt']['fields']}
+  assert set(values)=={'title0','x0','y0','title1','x1','y1','bins'}
+  assert values['title0']!=values['title1'],values
+  values.update(title0='First chosen histogram',title1='Second chosen histogram',x0='First value axis',x1='Second value axis',bins=3)
+  s.request(action='answer',id=id,token=state['token'],value=values);state=s.wait(id)
+  assert state['state']=='complete' and all(label in state['html'] for label in ['First chosen histogram','Second chosen histogram']),state
+  if op=='HistogramPlot':assert all(label in state['html'] for label in ['First value axis','Second value axis'])
+  s.close(id)
+ print('PASS: multiple graphical and text histograms keep independent series labels')
 finally:s.finish()

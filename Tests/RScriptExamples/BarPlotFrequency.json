@@ -1,1 +1,1 @@
-{"operation":"BarPlotFrequency","file":"bar-plot-frequency.R","inputs":[{"name":"rawValues","columns":[{"title":"Group A","values":[1,2,2,3,3,3]},{"title":"Group B","values":[1,1,2,3]}]}],"nocompare":true}
+{"operation":"BarPlotFrequency","file":"bar-plot-frequency.R","inputs":[{"name":"rawValues","columns":[{"title":"Group A","values":[1,2,2,3,3,3]},{"title":"Group B","values":[1,1,2,3]}]}],"settings":{"chartSettings":{"title":"Selected category frequencies","frequencyCategories":["1","2","3"],"stacked":false,"horizontal":false,"maxBarWidth":0.3}}}

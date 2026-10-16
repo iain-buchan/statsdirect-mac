@@ -1,30 +1,47 @@
-# StatsDirect recipe: Scatter, as the help shows it in R.
-# From the help's R code (graphics/scatter.htm); the data and settings above come from the run.
-# data: pimax, age
+# StatsDirect recipe: one selected XY chart with the saved chart options.
+# hand-edited: replay the selected chart data and final options instead of the help illustration.
+# data: ys... = Ynew, xs... = Xnew
+# settings: chart = chartSettings
 
-# Scatter plot: the StatsDirect help illustration (PImax, the maximal static
-# inspiratory pressure, against age in 25 patients with cystic fibrosis, Altman 1991;
-# the test workbook's Graphics worksheet columns "PImax (cm H2O)" and "Subject's Age
-# (years)") in R
-
-# StatsDirect draws one open circle for each row of the two columns, scales both axes
-# to the data, titles the axes with the column titles and the chart "Scatter plot".
-# A row with a missing value in either column is left out, as plot() leaves out a
-# pair that holds an NA. R's default marker (pch = 1) is the same open circle.
-plot(age, pimax, xlab = "Subject's Age (years)", ylab = "PImax (cm H2O)",
-     main = "Scatter plot")
-
-# What the plot shows, in words
-cat("Scatter plot of PImax (cm H2O) against Subject's Age (years):", length(age),
-    "points\n")
-cat("Age from", min(age), "to", max(age), "years; PImax from", min(pimax), "to",
-    max(pimax), "cm H2O\n")
-
-# StatsDirect's option to join the markers with lines (the Line plot) first sorts the
-# points by X, so the segments run left to right whatever the row order; in R sort
-# the rows the same way before asking for lines with type = "b":
-# o <- order(age, -pimax)
-# plot(age[o], pimax[o], type = "b", xlab = "Subject's Age (years)",
-#      ylab = "PImax (cm H2O)", main = "Line plot")
-# A further series goes on the same axes with points(), given a different marker
-# (pch) and a legend, as StatsDirect does when more than one series is plotted.
+if (!is.list(xs) || !is.list(ys) || !length(xs) || length(xs) != length(ys))
+  stop("Select one X column and one Y column for each plotted series.")
+xy_labels <- as.character(unlist(sd_chart_get("seriesTitles", names(xs)), use.names = FALSE))
+if (length(xy_labels) != length(xs)) xy_labels <- names(xs)
+if (is.null(xy_labels)) xy_labels <- paste("Series", seq_along(xs))
+xy_series <- lapply(seq_along(xs), function(i) {
+  if (length(xs[[i]]) != length(ys[[i]]))
+    stop("The X and Y columns in each series must have the same number of rows.")
+  ok <- is.finite(xs[[i]]) & is.finite(ys[[i]])
+  x <- xs[[i]][ok]
+  y <- ys[[i]][ok]
+  # Native connecting lines sort by X, then descending Y for equal X.
+  o <- order(x, -y)
+  list(x = x[o], y = y[o], label = xy_labels[i])
+})
+if (!any(vapply(xy_series, function(s) length(s$x) > 0L, logical(1))))
+  stop("The selected XY series contain no complete numeric pairs.")
+xy_join <- isTRUE(sd_chart_get("joinMarkersWithLines", FALSE))
+xy_markers <- isTRUE(sd_chart_get("plotMarkers", TRUE))
+xy_legend <- isTRUE(sd_chart_get("showLegend", FALSE)) && length(xy_series) > 1L
+sd_chart_frame(range(unlist(lapply(xy_series, function(s) s$x)), finite = TRUE),
+               range(unlist(lapply(xy_series, function(s) s$y)), finite = TRUE),
+               default_title = "Scatter plot", xlab = names(xs)[1L], ylab = names(ys)[1L],
+               legend_labels = if (xy_legend) xy_labels else NULL)
+for (i in seq_along(xy_series)) {
+  s <- xy_series[[i]]
+  m <- sd_chart_marker(i)
+  if (xy_join && length(s$x) > 1L)
+    lines(s$x, s$y, col = m$lineColor, lwd = m$lwd, lty = m$lty)
+  if (xy_markers && length(s$x)) {
+    # Native scatter markers are drawn once at each distinct position.
+    keep <- !duplicated(data.frame(x = s$x, y = s$y))
+    sd_chart_points(s$x[keep], s$y[keep], m)
+  }
+  if (length(s$x))
+    cat(s$label, ":", length(s$x), "complete pairs; X", min(s$x), "to", max(s$x),
+        "; Y", min(s$y), "to", max(s$y), "\n")
+  else cat(s$label, ": no complete pairs\n")
+}
+if (xy_legend)
+  sd_chart_legend(xy_labels)
+sd_chart_finish()

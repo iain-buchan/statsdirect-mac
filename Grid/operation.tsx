@@ -102,8 +102,21 @@ function DataInput({p,source,onChange,initial,onChooseColumns}:{p:any,source:any
   </div>;
 }
 const tutorInputs=new Map<symbol,()=>any>();
+function OptionFields({fields,value,setValue}:{fields:any[],value:any,setValue:(v:any)=>void}) {
+  const render=(f:any)=>{
+    const disabled=!!f.disabled||(f.enabledWhen&&!f.enabledWhen.values.map(String).includes(String(value[f.enabledWhen.name])));
+    const change=(v:any)=>setValue({...value,[f.name]:v});
+    return <label className={`field${f.kind==='boolean'?' checkbox-field':''}`} key={f.name}>
+      {f.kind==='boolean'?<><input name={f.name} type="checkbox" disabled={disabled} checked={!!value[f.name]} onChange={e=>change(e.target.checked)}/>{f.label}</>:
+      <>{f.label}{f.kind==='select'?<select name={f.name} disabled={disabled} value={value[f.name]} onChange={e=>change(e.target.value)}>{f.options.map((o:any)=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:
+      <input name={f.name} disabled={disabled} type={f.kind==='text'?'text':'number'} step={f.kind==='integer'?1:'any'} value={value[f.name]??''} min={f.min??undefined} max={f.max??undefined} required={!f.optional&&f.kind!=='text'} onChange={e=>change(e.target.value)}/>}</>}
+    </label>;
+  };
+  const groups=[...new Set(fields.map(f=>f.group).filter(Boolean))];
+  return <><div className="fields">{fields.filter(f=>!f.group).map(render)}</div>{groups.map(group=><details key={group}><summary>{group}</summary><div className="fields">{fields.filter(f=>f.group===group).map(render)}</div></details>)}</>;
+}
 function Prompt({p,source,onSubmit,onCancel,initial,busy,embedded=false,register}:{p:any,source:any,onSubmit:(v:any)=>void,onCancel:()=>void,initial:any,busy:boolean,embedded?:boolean,register?:(reader:()=>any)=>void}) {
-  const initialValue=()=>initial??(p.kind==='options'?Object.fromEntries(p.options.map((o:any)=>[o.value,o.selected])):['fields','settings'].includes(p.kind)?Object.fromEntries(p.fields.map((o:any)=>[o.name,o.defaultValue??''])):p.kind==='selectList'?(p.defaultValue??[]):p.defaultValue??(p.kind==='option'?p.options[0]?.value:'')??'');
+  const initialValue=()=>initial??(p.kind==='options'?Object.fromEntries(p.options.map((o:any)=>[o.value,o.selected])):['fields','settings'].includes(p.kind)?p.initial??Object.fromEntries(p.fields.map((o:any)=>[o.name,o.defaultValue??''])):p.kind==='selectList'?(p.defaultValue??[]):p.defaultValue??(p.kind==='option'?p.options[0]?.value:'')??'');
   const [value,setValue]=useState<any>(initialValue),[error,setError]=useState(''); const gridValue=useRef<()=>any>(()=>{throw new Error('Enter or select data.');}); const resolving=useRef(false);
   useEffect(()=>{register?.(()=>p.kind==='grid'?gridValue.current():value);},[value,p.kind,register]);
   const tutorKey=useRef(Symbol());
@@ -117,9 +130,9 @@ function Prompt({p,source,onSubmit,onCancel,initial,busy,embedded=false,register
     p.kind==='option'?<div className="choices">{p.options.map((o:any)=><label key={o.value}><input type="radio" name={`choice-${p.name}`} checked={value===o.value} onChange={()=>setValue(o.value)}/>{o.label}</label>)}</div>:
     p.kind==='selectList'?<div className="choices">{p.allowNone&&!p.multiple&&<label><input type="radio" name={`list-${p.name}`} checked={value.length===0} onChange={()=>setValue([])}/>None</label>}{p.options.map((o:any)=><label key={o.value}><input type={p.multiple?'checkbox':'radio'} name={`list-${p.name}`} checked={value.includes(Number(o.value))} onChange={e=>setValue(p.multiple?(e.target.checked?[...value,Number(o.value)]:value.filter((x:number)=>x!==Number(o.value))):[Number(o.value)])}/>{o.label}</label>)}</div>:
     p.kind==='grid'?<DataInput onChooseColumns={()=>onSubmit({layout:"columns"})} p={p} source={source} initial={initial??p.initial} onChange={f=>gridValue.current=f}/>:
-    p.kind==='fields'?<div className="fields">{p.fields.map((f:any)=><label className="field" key={f.name}>{f.label}<input type={f.kind==='text'?'text':'number'} step={f.kind==='integer'?1:'any'} value={value[f.name]??''} min={f.min??undefined} max={f.max??undefined} required={f.kind!=='text'} onChange={e=>setValue({...value,[f.name]:e.target.value})}/></label>)}</div>:
+    p.kind==='fields'?<OptionFields fields={p.fields} value={value} setValue={setValue}/>:
     <label className="field">{p.kind==='confidence'?(p.prompt==='Enter a value'?'Confidence level (%)':'Percentage (%)'):'Value'}<input autoFocus={!embedded} aria-label={p.kind==='confidence'?(p.prompt==='Enter a value'?'Confidence level (%)':'Percentage (%)'):'Value'} required={p.kind!=='text'} type={p.kind==='text'?'text':'number'} maxLength={p.kind==='text'&&p.maxLength>0?p.maxLength:undefined} step={p.kind==='integer'?1:'any'} min={p.min??undefined} max={p.max??undefined} value={value} onChange={e=>setValue(e.target.value)}/></label>}
-    {error&&<p className="error" role="alert">{error}</p>}</div>{!embedded&&<div className="actions"><button className="primary" type="submit">{p.kind==='settings'?'Save defaults':'Continue →'}</button>{p.kind==='settings'&&<button type="button" onClick={onCancel}>Cancel</button>}{p.skip&&<button type="button" onClick={()=>onSubmit({skip:true})}>{p.skip}</button>}{p.kind==='settings'&&busy&&<span role="status">Saving defaults…</span>}</div>}</fieldset></Container>;
+    {error&&<p className="error" role="alert">{error}</p>}</div>{!embedded&&<div className="actions"><button className="primary" type="submit">{p.submitLabel??(p.kind==='settings'?'Save defaults':'Continue →')}</button>{p.kind==='settings'&&<button type="button" onClick={onCancel}>Cancel</button>}{p.skip&&<button type="button" onClick={()=>onSubmit({skip:true})}>{p.skip}</button>}{p.kind==='settings'&&busy&&<span role="status">Saving defaults…</span>}</div>}</fieldset></Container>;
 }
 // The paired-test data and agreement choice share one Run, as on Windows.
 // The engine still validates both answers through its normal input boundary.

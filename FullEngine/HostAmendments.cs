@@ -55,6 +55,10 @@ internal static class HostAmendments {
                 // need it for mixed numeric/category series such as bar-chart labels.
                 if (chart.ChartOptions.MarkerTypes == null || chart.ChartOptions.MarkerTypes.Count == 0)
                     chart.ChartOptions.MarkerTypes = ChartPreferences.MarkerTypes.Select(m=>m.Clone()).ToList();
+                if (!chart.IsAscii && chart.ChartOptions is BoxWhiskerOptions box) {
+                    HostChartForms.BoxWhisker(job, host, chart, box);
+                    return context;
+                }
                 var fields = new List<object> { Field("title", "Title", chart.ChartOptions.Title ?? "", "text"), Field("x", "Horizontal axis", chart.ChartOptions.XAxisTitle ?? "", "text"), Field("y", "Vertical axis", chart.ChartOptions.YAxisTitle ?? "", "text") };
                 if (chart.ChartOptions is HistogramOptions) fields.Add(Field("bins","Number of bins (0 = automatic; otherwise 2–1000)",0,"integer",0,1000));
                 var a = Form(job, "Chart labels", fields.ToArray(), value => {

@@ -105,6 +105,7 @@ for op, entry in manifest.items():
         if '<frame>' in parent: xml += '<frame>'
     parameters |= {m.strip() for m in re.findall(r'<(?:top-left|top-right|bottom-left|bottom-right)-name>([^<]+)</', xml)}
     if re.search(r'<builtin function-name="dist[A-Za-z]+"', xml): parameters |= {'value', 'df', 'df2', 'lower', 'upper', 'two_sided', 'asked'}
+    if '<chart-type>BoxWhisker</chart-type>' in xml: parameters.add('boxWhisker')   # final chart dialog choices recorded by the shared processor
     if '<grouped-covariance>' in xml: parameters.add('ci')   # its confidence level is asked through the grid and recorded as the setting ci
     settings = re.search(r'^# settings:\s*(.*)$', text, re.M)
     if settings:
@@ -514,7 +515,7 @@ def expected_script(record, recipe, detail):
         # a bound setting the record holds is written as its literal (a list of marks as list(...), null as NULL); one the run skipped or was
         # not asked for is NULL with a note, so that the script does not stop on the missing name
         for variable, parameter in binding['settings']:
-            if parameters is not None and parameter in parameters and (is_scalar(parameters[parameter]) or parameters[parameter] is None or isinstance(parameters[parameter], list)): out.append(variable + ' <- ' + literal(parameters[parameter]) + '\n')
+            if parameters is not None and parameter in parameters and (is_scalar(parameters[parameter]) or parameters[parameter] is None or isinstance(parameters[parameter], (list, dict))): out.append(variable + ' <- ' + literal(parameters[parameter]) + '\n')
             else: out.append(variable + ' <- NULL   # the run had no ' + plain(parameter) + '\n')
     elif parameters is not None:
         for key, value in parameters.items():
@@ -632,6 +633,15 @@ def run_example(session, example, parent=None, keep=False, extra=None, preferenc
                 k = min(p.get('maxColumns') or len(pool), len(pool)); take = pool[:k]; del pool[:k]
                 return {'columns': take, 'source': 'Help example'}
             return {'skip': True} if p.get('skip') else None
+        if kind == 'fields' and any(f['name'] == 'method' for f in p['fields']) and 'boxWhisker' in settings:
+            box = settings['boxWhisker']; answer = {f['name']:f['defaultValue'] for f in p['fields']}
+            for key in ('innerFence', 'outerFence', 'markMeanAndMedian', 'title', 'boxAxes'):
+                if key in box: answer[key] = box[key]
+            answer.update(method=str(box['method']), confidence=box['confidence']*100,
+                          orientation='Horizontal' if box['horizontal'] else 'Vertical',
+                          automaticAxisTitle=False, x=box['axisTitle'])
+            for i, title in enumerate(box['seriesTitles']): answer['series'+str(i)] = title
+            return answer
         if kind == 'fields' and any(f['name'] in ('x', 'df', 'df2') for f in p['fields']):
             boxes = {'x': 'value', 'df': 'df', 'df2': 'df2'}   # the Distributions calculator's boxes under the record's names
             return {f['name']: settings.get(boxes.get(f['name'], ''), f['defaultValue']) if settings.get(boxes.get(f['name'], '')) is not None else f['defaultValue'] for f in p['fields']}
@@ -698,6 +708,29 @@ for op in operations:
         mismatched.append(op); print('      %s: %s' % (op, script.get('error') or ('line %d differs: engine %r, expected %r' % where if where else 'recipe flag or detail')), flush=True)
 check(not mismatched, 'the engine writes every recipe\'s script for the help\'s example exactly as the Windows writer\'s rules give it, line by line (%d operations)' % len(operations)
       + ('; differing: ' + ', '.join(mismatched) if mismatched else ''))
+def comparison_script(operation, text):
+    # Graphical Continue in R draws one chart without printing teaching variants.
+    # Read the actual plotted summaries for the independent worked-example check.
+    if operation != 'BoxWhiskerPlot': return text
+    return text + r"""
+stopifnot(box_method == 1L, box_inner_fence, box_outer_fence,
+          box_horizontal, !box_mark_mean_median,
+          identical(box_title, "Selected Cuzick cell lines"),
+          identical(box_axis_title, "Selected box-and-whisker settings"),
+          identical(box_series_titles, names(mets)))
+six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
+for (name in names(box_summaries)) {
+  s <- box_summaries[[name]]
+  cat(paste0(name, ":"), "n =", s$n, " min =", six(s$x[1]), " LQ =", six(s$box[1]),
+      " median =", six(s$centre), " UQ =", six(s$box[2]), " max =", six(s$x[s$n]), "\n")
+  beyond <- s$x[s$x < s$inner[1] | s$x > s$inner[2]]
+  if (length(beyond))
+    cat("   inner fences", six(s$inner[1]), "to", six(s$inner[2]),
+        " outer fences", six(s$outer[1]), "to", six(s$outer[2]),
+        " beyond the inner fence:", six(beyond), "\n")
+}
+"""
+
 def compare_with_help(outputs, what):
     agreed, failures = 0, []
     for op, output in outputs:
@@ -716,7 +749,7 @@ def compare_with_help(outputs, what):
             while i < len(a) and i < len(b) and a[i] == b[i]: i += 1
             print('      %s: the figures differ from the %dth: %s %s, help %s (%d and %d figures)' % (op, i + 1, what, a[i] if i < len(a) else '(end)', b[i] if i < len(b) else '(end)', len(a), len(b)), flush=True)
     return agreed, failures
-agreed, failures = compare_with_help(zip(operations, r_outputs([harness[op][1]['text'] for op in operations])), 'recipe')
+agreed, failures = compare_with_help(zip(operations, r_outputs([comparison_script(op, harness[op][1]['text']) for op in operations])), 'recipe')
 check(not failures, 'every recipe prints the figures the help\'s script prints on the help\'s example: %d of %d agree' % (agreed, len(operations)) + ('; differing: ' + ', '.join(failures) if failures else ''))
 
 # the real runs: the help's example inputs through the engine as entered frames
@@ -798,6 +831,9 @@ for op in recorded:
         for key, value in settings.items():
             if value is None or key in ('a', 'b', 'c', 'd', 'pt1', 'pt2') or key in DIALOG_SETTINGS.get(op, ()): continue
             got = r['parameters'].get(key)
+            if key == 'boxWhisker':
+                assert isinstance(got, dict) and all(got.get(k) == v for k, v in value.items()), ('recorded chart options', got, value)
+                continue  # the real chart also records its font and scale defaults
             assert got == value or (isinstance(got, str) and got == str(value)) or (is_number(got) and is_number(value) and close(got, value, 1e-9)), 'the setting %s: recorded %r, example %r' % (key, got, value)
         for key in ('a', 'b', 'c', 'd', 'pt1', 'pt2'):
             if key in settings: assert r['parameters'].get(key) == settings[key], 'the count %s' % key
@@ -817,7 +853,7 @@ check(not mismatched, 'the engine writes each real run\'s script exactly as the 
       + ('; differing: ' + ', '.join(mismatched) if mismatched else ''))
 # the real runs' scripts against the help: the same figures where the run's settings are the help's; where the dialog differs from the help's
 # example (a stated default the help's script does not take, a seed the form chose, the dialog's own labels), the difference is listed
-agreed, failures = compare_with_help(zip(recorded, r_outputs([real_scripts[op]['text'] for op in recorded])), 'real run')
+agreed, failures = compare_with_help(zip(recorded, r_outputs([comparison_script(op, real_scripts[op]['text']) for op in recorded])), 'real run')
 # Expected, and the same for a Windows run of the dialog (raised with Windows rather than diverged from): none at present. The six the
 # Mac's real runs found on 11 October 2026 (Crosstabs's text classifiers, KappaScreen's binding, LogisticRegression's rest list, the
 # survival plot's and Wei-Lachin's frames asked once per group kept as the last ask alone) were changed in the shared code at e99fe24a,

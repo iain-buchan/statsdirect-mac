@@ -1,18 +1,13 @@
-# Box and whisker plot: the StatsDirect help illustration (Cuzick 1985, lung
+# Box and whisker plot: the StatsDirect help data (Cuzick 1985, lung
 # metastases in mice by cell line; the test workbook's Nonparametric worksheet
-# columns CMT 64 to CMT 181) in R
+# columns CMT 64 to CMT 181) with one selected chart, as Continue in R produces.
+# This independent reference preserves the numerical worked-example checks;
+# its fence limits are clamped to the observed range, as in the native renderer.
 mets <- list("CMT 64"  = c(0, 0, 1, 1, 2, 2, 4, 9),
              "CMT 167" = c(0, 0, 5, 7, 8, 11, 13, 23, 25, 97),
              "CMT 170" = c(2, 3, 6, 9, 10, 11, 11, 12, 21),
              "CMT 175" = c(0, 3, 5, 6, 10, 19, 56, 100, 132),
              "CMT 181" = c(2, 4, 6, 6, 6, 7, 18, 39, 60))
-
-# R's standard plot: boxplot() draws the box between Tukey's hinges (the medians
-# of the lower and upper halves of the data), the whiskers to the last values
-# within 1.5 times the box length of the box, and the values beyond as circles.
-op <- par(mar = c(5, 6, 4, 2))              # room for the column names on the left
-boxplot(mets, horizontal = TRUE, las = 1, main = "boxplot() of the same columns")
-par(op)
 
 # StatsDirect's box runs from the lower to the upper quartile, the (n+1)/4th and
 # 3(n+1)/4th ordered values with interpolation between neighbours, which is type
@@ -24,9 +19,10 @@ summarise <- function(x) {
   x <- sort(x[!is.na(x)])                 # blank cells are skipped, as in StatsDirect
   q <- quantile(x, c(0.25, 0.5, 0.75), type = 6, names = FALSE)
   iqr <- q[3] - q[1]
+  clamp <- function(limits) pmax(min(x), pmin(max(x), limits))
   list(x = x, n = length(x), lq = q[1], median = q[2], uq = q[3],
-       inner = c(q[1] - 1.5 * iqr, q[3] + 1.5 * iqr),
-       outer = c(q[1] - 3 * iqr, q[3] + 3 * iqr))
+       inner = clamp(c(q[1] - 1.5 * iqr, q[3] + 1.5 * iqr)),
+       outer = clamp(c(q[1] - 3 * iqr, q[3] + 3 * iqr)))
 }
 for (name in names(mets)) {
   s <- summarise(mets[[name]])
@@ -75,5 +71,4 @@ sd_boxplot <- function(data, fences = TRUE, title = "Box & whisker plot") {
     points(beyond, rep(y, length(beyond)), pch = ifelse(filled, 16, 1))
   }
 }
-sd_boxplot(mets, title = "Box & whisker plot from test")
-sd_boxplot(mets, fences = FALSE, title = "Number of metastases in different cell lines")
+sd_boxplot(mets, title = "Selected Cuzick cell lines")

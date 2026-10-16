@@ -1,5 +1,6 @@
 import Cocoa
 import WebKit
+import PDFKit
 
 @main struct AnalysisWorkflowTests {
     @MainActor static func check(_ ok: Bool, _ text: String) throws {
@@ -113,5 +114,38 @@ import WebKit
         try await wait { try await yes(wide, "!!document.querySelector('.column-chooser')") }
         try check(try await yes(wide, "document.querySelectorAll('.column-chooser input:checked').length===0"), "a wider selection is not silently cropped for other analyses")
         v.remove(wide)
+
+        try await select(1)
+        let box = try open("BoxWhiskerPlot")
+        try await wait { try await yes(box, "!!document.querySelector('select[name=method]')") }
+        try check(try await yes(box, "document.querySelector('select[name=method]').options.length===6&&document.querySelector('input[name=confidence]').value==='95'&&document.querySelector('input[name=confidence]').disabled&&!document.querySelector('.column-chooser')"), "box plot uses the selection automatically and offers six methods with the saved 95% default")
+        if let path = ProcessInfo.processInfo.environment["STATSDIRECT_TEST_SCREENSHOT"] {
+            let image = try await box.web.takeSnapshot(configuration:nil)
+            if let tiff=image.tiffRepresentation, let bitmap=NSBitmapImageRep(data:tiff), let png=bitmap.representation(using:.png,properties:[:]) { try png.write(to:URL(fileURLWithPath:path)) }
+        }
+        _ = try await js(box, """
+        window.chooseBox=(name,value)=>{const e=document.querySelector(`[name=${name}]`);Object.getOwnPropertyDescriptor(e.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype,'value').set.call(e,value);e.dispatchEvent(new Event(e.tagName==='SELECT'?'change':'input',{bubbles:true}));};
+        chooseBox('method','4');true
+        """)
+        try await wait { try await yes(box, "document.querySelector('[name=innerFence]').disabled&&document.querySelector('[name=outerFence]').disabled") }
+        _ = try await js(box, "chooseBox('method','3');true")
+        try await wait { try await yes(box, "!document.querySelector('[name=confidence]').disabled&&!document.querySelector('[name=innerFence]').disabled") }
+        _ = try await js(box, "chooseBox('confidence','99');chooseBox('title','Selected measurements');document.querySelector('[name=automaticAxisTitle]').click();true")
+        try await wait { try await yes(box, "!document.querySelector('[name=x]').disabled") }
+        _ = try await js(box, "chooseBox('x','Value (units)');chooseBox('orientation','Vertical');document.querySelector('[name=markMeanAndMedian]').click();document.querySelectorAll('form details').forEach(e=>e.open=true);chooseBox('series0','First measurement');chooseBox('minimum','20');chooseBox('maximum','0');document.querySelector('form button[type=submit]').click();true")
+        try await wait { try await yes(box, "document.querySelector('[role=alert]')?.textContent.includes('minimum smaller')===true") }
+        try check(try await yes(box, "document.querySelector('[name=title]').value==='Selected measurements'&&document.querySelector('[name=method]').value==='3'&&document.querySelector('[name=confidence]').value==='99'&&document.querySelector('[name=markMeanAndMedian]').checked"), "invalid box plot axis limits retain the chosen method, confidence and labels")
+        _ = try await js(box, "document.querySelectorAll('form details').forEach(e=>e.open=true);chooseBox('minimum','0');chooseBox('maximum','20');document.querySelector('form button[type=submit]').click();true")
+        try await wait { box.completedJobID != nil }
+        let boxReport = report.reportEntries!.last!
+        try check(boxReport.body.contains("<svg") && boxReport.body.contains("Selected measurements") && boxReport.body.contains("Value (units)") && boxReport.body.contains("First measurement"), "box plot options draw one SVG in the active report with the chosen chart, axis and series labels")
+        v.continueResultInR(report, id:boxReport.id)
+        try await wait { v.active?.rPane != nil }
+        let script = v.active!, r = script.rPane!
+        try await wait { !r.isRunning && r.console.textStorage!.containsAttachments }
+        let plots = try FileManager.default.contentsOfDirectory(at: r.outputFolder!, includingPropertiesForKeys:nil).filter { $0.lastPathComponent.hasPrefix("plots-") }
+        try check(plots.count == 1 && plots[0].pathExtension == "pdf" && PDFDocument(url:plots[0])?.pageCount == 1, "Continue in R displays exactly one PDF page for the chosen box plot")
+        try check(r.editor.string.contains("box_settings <- list(") && r.editor.string.contains("Selected measurements") && r.editor.string.contains("First measurement"), "box plot script retains the recorded choices and edited labels")
+        v.remove(script)
     }
 }

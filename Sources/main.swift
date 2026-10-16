@@ -78,6 +78,11 @@ final class Document {
     var reportSavedRevision = 0
     var reportDirty: Bool { reportRevision != reportSavedRevision }
     var reportSourceURL: URL?
+    /// The HTML file a report is saved to again by Save: the one it was saved as, else the one it was opened from.
+    var reportFileURL: URL? {
+        guard kind == "report" else { return nil }
+        return [openedFileURL, reportSourceURL].compactMap { $0 }.first { ["html", "htm"].contains($0.pathExtension.lowercased()) }
+    }
     var reportImportNotice: String?
     var pendingResult: ReportEntry?
     var scrollToResultID: String?
@@ -276,6 +281,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         addRecentDocumentsMenu(to: file)
         file.addItem(.separator())
         add(file, "Save…", #selector(saveDocument), "s")
+        let saveAs = NSMenuItem(title: "Save As…", action: #selector(saveDocumentAs), keyEquivalent: "S"); saveAs.target = self
+        saveAs.keyEquivalentModifierMask = [.command, .shift]; file.addItem(saveAs)
         let export = NSMenu(title: "Export")
         let exportItem = NSMenuItem(title: "Export", action: nil, keyEquivalent: "")
         exportItem.submenu = export; file.addItem(exportItem)
@@ -348,7 +355,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
         if [#selector(saveActiveExcel), #selector(exportActiveLegacyExcel), #selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
         if menuItem.action == #selector(printPage) { if helpPane.isFocused { return true }; return active != nil && active?.kind != "operation" }
-        if menuItem.action == #selector(saveDocument) { menuItem.title = active?.kind == "learn" ? "Export Learning Record…" : active?.kind == "r" ? (active?.rPane?.language == "R" ? "Save R Script…" : "Save Script…") : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV or TSV…") : active?.kind == "analysis" ? "Save Table…" : active?.kind == "report" ? "Save Report…" : "Save PDF…"; return active != nil && active?.kind != "operation" && active?.fileBusy == false }
+        if menuItem.action == #selector(saveDocument) { menuItem.title = active?.kind == "learn" ? "Export Learning Record…" : active?.kind == "r" ? (active?.rPane?.language == "R" ? "Save R Script…" : "Save Script…") : active?.kind == "grid" ? (active?.rDataFormat != nil ? "Save R Data…" : active?.csvSaveName == nil ? "Save Excel…" : "Save CSV or TSV…") : active?.kind == "analysis" ? "Save Table…" : active?.kind == "report" ? (active?.reportFileURL != nil ? "Save Report" : "Save Report…") : "Save PDF…"; return active != nil && active?.kind != "operation" && active?.fileBusy == false }
+        if menuItem.action == #selector(saveDocumentAs) { menuItem.title = active?.kind == "report" ? "Save Report As…" : "Save As…"; return active != nil && active?.kind != "operation" && active?.fileBusy == false }
         if [#selector(closeTab), #selector(printPage), #selector(saveDocument)].contains(menuItem.action) { return active != nil }
         return true
     }
@@ -553,8 +561,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         if doc.kind == "report" && doc.reportDirty {
             let alert = NSAlert(); alert.messageText = "Save changes to \(doc.title)?"
-            alert.informativeText = "Save this report as HTML, PDF or Word before closing."
-            alert.addButton(withTitle: "Save…"); alert.addButton(withTitle: "Discard Changes"); alert.addButton(withTitle: "Cancel")
+            if let file = doc.reportFileURL { alert.informativeText = "Save the report to \(file.lastPathComponent) before closing."; alert.addButton(withTitle: "Save") }
+            else { alert.informativeText = "Save this report as HTML, PDF or Word before closing."; alert.addButton(withTitle: "Save…") }
+            alert.addButton(withTitle: "Discard Changes"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in
                 if response == .alertFirstButtonReturn { self.saveReport(doc) { if !doc.reportDirty { self.remove(doc) } } }
                 else if response == .alertSecondButtonReturn { self.remove(doc) }
@@ -632,6 +641,11 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
         info.topMargin = 36; info.bottomMargin = 36; info.leftMargin = 36; info.rightMargin = 36
         web.printOperation(with: info).runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+    }
+    /// Save As always asks where: for a report with the format choice (HTML, or a Word or PDF copy), for anything else as Save does.
+    @objc func saveDocumentAs() {
+        if let doc = active, doc.kind == "report" { saveReportAs(doc); return }
+        saveDocument()
     }
     @objc func saveDocument() {
         if let pane = active?.rPane { pane.saveScript(); return }

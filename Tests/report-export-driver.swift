@@ -958,10 +958,18 @@ extension ReportExportTests {
         try check(tab(big)?.title=="renamed.xlsx" && tab(big)?.toolTip==renamed.path && v.windowsMenu.items.contains{$0.title=="renamed.xlsx"},"the workbook's tab after Save As: \(tab(big)?.title ?? "none") · \(tab(big)?.toolTip ?? "none")")
         let captioned=v.makeReport(); let captionedName=captioned.title
         try check(tab(captioned)?.title==captionedName && tab(captioned)?.toolTip==captionedName,"a new report's tab: \(tab(captioned)?.title ?? "none") · \(tab(captioned)?.toolTip ?? "none")")
-        let savedReport=output.appendingPathComponent("Saved report.html")
+        let savedReport=output.appendingPathComponent("Saved report.html"); try? FileManager.default.removeItem(at:savedReport)
         v.noteDocumentSaved(captioned,at:savedReport)
         try check(captioned.title=="Saved report" && tab(captioned)?.title=="Saved report" && tab(captioned)?.toolTip==savedReport.path && v.windowsMenu.items.contains{$0.title=="Saved report"} && !v.windowsMenu.items.contains{$0.title==captionedName},"the report's tab after a save: \(tab(captioned)?.title ?? "none") · \(tab(captioned)?.toolTip ?? "none")")
+        // Windows 238dcf64: Save writes the report's own HTML file again without asking once it has one; Save As is the panel.
+        try await settled(captioned)
+        try check(captioned.reportFileURL==savedReport && !FileManager.default.fileExists(atPath:savedReport.path),"the report's own file before Save")
+        v.saveReport(captioned)
+        try await wait("Save to the report's own file") { !captioned.fileBusy && FileManager.default.fileExists(atPath:savedReport.path) }
+        let savedHTML=try String(contentsOf:savedReport,encoding:.utf8)
+        try check(savedHTML.contains("<html") && !captioned.reportDirty && v.status.stringValue=="Saved Saved report.html","Save wrote \(savedHTML.count) bytes · \(v.status.stringValue)")
         v.remove(captioned); v.activeReportID=report.id
+        print("PASS: Save writes a report's own HTML file again without asking; Save As is the panel with the format choice");fflush(stdout)
         print("PASS: tab captions follow the document's file after a save, workbook by name and report by stem, with the file's path as the tooltip, and the Window menu follows");fflush(stdout)
         let savedForm=try await runForm(big,operation:"TPaired",columns:[0,1],rows:(2,2601)); defer { v.remove(savedForm) }
         try await wait("the third result") { (report.reportEntries?.count ?? 0)>=3 }

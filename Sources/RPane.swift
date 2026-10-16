@@ -339,13 +339,15 @@ final class RPane: NSObject, NSTextViewDelegate {
         return result
     }
     private func plotFiles() -> [URL: PlotStamp] {
-        sessionFiles().filter { ["pdf", "png", "jpg", "jpeg", "tif", "tiff"].contains($0.key.pathExtension.lowercased()) }
+        sessionFiles().filter { ["svg", "pdf", "png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff"].contains($0.key.pathExtension.lowercased()) }
     }
-    // The files a run wrote (charts among them) as links the user can open, as the Windows script window lists them.
+    /// The charts the last run drew in the pane: a chart's caption is its link, so the list of files written names the others only.
+    private var chartsShown: Set<URL> = []
+    // The other files a run wrote as links the user can open, as the Windows script window lists them; nothing when there are none.
     private func listWrittenFiles() {
         let files = sessionFiles()
-        let written = files.keys.filter { files[$0] != filesBefore[$0] }.sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
-        filesBefore = files
+        let written = files.keys.filter { files[$0] != filesBefore[$0] && !chartsShown.contains($0) }.sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
+        filesBefore = files; chartsShown = []
         guard !written.isEmpty, let storage = console.textStorage else { return }
         append("\nFiles written, to open with a click:\n")
         for url in written { storage.append(NSAttributedString(string: url.lastPathComponent + "\n", attributes: [.link: url, .font: NSFont.systemFont(ofSize: 12)])) }
@@ -361,6 +363,7 @@ final class RPane: NSObject, NSTextViewDelegate {
             let left = files[$0]!.modified, right = files[$1]!.modified
             return left == right ? $0.path < $1.path : left < right
         }
+        chartsShown = []
         for url in changed {
             if url.pathExtension.lowercased() == "pdf", let pdf = PDFDocument(url: url) {
                 for index in 0..<pdf.pageCount {
@@ -371,18 +374,21 @@ final class RPane: NSObject, NSTextViewDelegate {
                     let size = NSSize(width: bounds.width * scale, height: bounds.height * scale)
                     appendPlot(page.thumbnail(of: size, for: .mediaBox), url: url, label: pdf.pageCount > 1 ? "\(url.lastPathComponent) · page \(index + 1)" : url.lastPathComponent)
                 }
-            } else if let image = NSImage(contentsOf: url), image.size.width > 0 {
+            } else if let image = NSImage(contentsOf: url), image.size.width > 0 {   // an SVG as it is, a raster file as an image
                 appendPlot(image, url: url, label: url.lastPathComponent)
             }
         }
         plotsBefore = files
     }
+    /// A chart in the pane under its caption, which names the file and is its one link (as the Windows script window shows a chart).
     private func appendPlot(_ image: NSImage, url: URL, label: String) {
         guard let storage = console.textStorage else { return }
-        append("\nPlot · \(label)\n")
+        append("\n")
+        storage.append(NSAttributedString(string: "Chart: \(label)\n", attributes: [.link: url, .font: NSFont.systemFont(ofSize: 12)]))
         let attachment = RPlotAttachment(); attachment.image = image
         storage.append(NSAttributedString(attachment: attachment))
-        storage.append(NSAttributedString(string: "\nOpen plot file\n", attributes: [.link: url, .font: NSFont.systemFont(ofSize: 12)]))
+        append("\n")
+        chartsShown.insert(url)
         console.scrollToEndOfDocument(nil)
     }
     @objc func runScript() {

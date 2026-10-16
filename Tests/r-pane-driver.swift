@@ -34,6 +34,20 @@ struct RPaneChecks {
         precondition(pane.console.string.contains("Error: Deliberate test error"))
         run("plot(x); dev.off(); plot(x, -x)", plots: 2)
         print("PASS default plots, multiple pages/devices, errors and variables across runs")
+        // As the Windows script window (3b31a250): a plot without a device goes to an SVG file, one per page; a chart's caption names
+        // its file and is its one link; the files-written list names the other files only, so a run of charts alone lists nothing.
+        let sessionFolder = pane.outputFolder!
+        let charts = (try FileManager.default.contentsOfDirectory(atPath: sessionFolder.path)).filter { $0.hasPrefix("plots-") }.sorted()
+        let svglite = charts.contains { $0.hasSuffix(".svg") }   // the program's library carries svglite on this machine; else the PDF device as before
+        if svglite { precondition(charts.count == 5 && charts.allSatisfy { $0.hasSuffix(".svg") } && charts.contains("plots-0001-001-001.svg") && charts.contains("plots-0001-001-002.svg") && charts.contains("plots-0004-002-001.svg"), charts.description) }
+        else { precondition(charts == ["plots-0001-001.pdf", "plots-0003-001.pdf", "plots-0004-001.pdf", "plots-0004-002.pdf"], charts.description) }
+        var captions = [String]()
+        pane.console.textStorage!.enumerateAttribute(.link, in: NSRange(location: 0, length: pane.console.textStorage!.length)) { value, range, _ in
+            if let url = value as? URL, url.lastPathComponent.hasPrefix("plots-") { captions.append((pane.console.string as NSString).substring(with: range)) }
+        }
+        precondition(captions.count == 5 && captions.allSatisfy { $0.hasPrefix("Chart: plots-") && $0.hasSuffix("\n") && $0.contains(svglite ? ".svg" : ".pdf") }, captions.description)
+        precondition(!pane.console.string.contains("Open plot file") && !pane.console.string.contains("Files written") && !pane.console.string.contains("Plot · "), pane.console.string)
+        print("PASS a plot without a device is a chart file per page (SVG with svglite: \(svglite)), captioned by its file as its one link, and charts alone list no files")
 
         // A paired t test's script as the engine writes it from a record: the data as named vectors, the setting, then the body of
         // the recipe in the program's R folder (its comment header, the lines the writer reads, left off).
@@ -45,7 +59,7 @@ struct RPaneChecks {
         precondition(pane.console.string.contains("Paired t-test"))
         run(script, plots: 1)
         run("cat('No new plot\\n')", plots: 0)
-        print("PASS generated agreement PDF appears inline, redraw is shown and unchanged plots are not repeated")
+        print("PASS generated agreement chart appears inline as SVG, redraw is shown and unchanged plots are not repeated")
 
         let image = images()[0]
         let bounds = image.attachmentBounds(for: pane.console.textContainer, proposedLineFragment: NSRect(x: 0, y: 0, width: 300, height: 1000), glyphPosition: .zero, characterIndex: 0)
@@ -66,6 +80,10 @@ struct RPaneChecks {
             if let url = value as? URL, url.lastPathComponent == "table.csv" { listed.append((storage.string as NSString).substring(with: range)) }
         }
         precondition(listed == ["table.csv\n"] && pane.console.string.contains("Files written, to open with a click:"), pane.console.string)
+        // a run writing a chart and a file lists the file alone: the chart's caption is its link
+        run("write.csv(data.frame(b = 1:2), 'table2.csv', row.names = FALSE); plot(1:3)", plots: 1)
+        let lastListing = pane.console.string.components(separatedBy: "Files written, to open with a click:\n").last ?? ""
+        precondition(lastListing.hasPrefix("table2.csv\n") && !lastListing.contains("plots-"), lastListing)
         let listings = pane.console.string.components(separatedBy: "Files written").count
         run("cat('nothing written\\n')", plots: 0)
         precondition(pane.console.string.components(separatedBy: "Files written").count == listings, "an unchanged folder lists no files again")

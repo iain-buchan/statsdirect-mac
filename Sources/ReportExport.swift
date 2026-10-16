@@ -58,31 +58,42 @@ extension Viewer {
     @objc func exportReportPDF() { if let doc=active, doc.kind=="report" { saveReport(doc,format:.pdf) } }
     @objc func exportReportDOCX() { if let doc=active, doc.kind=="report" { saveReport(doc,format:.docx) } }
 
+    /// Save: the report's own HTML file written again without asking once it has one, as the Windows report window saves; a report
+    /// without a file, or a save with a format chosen (the Export items), goes through Save As.
     func saveReport(_ doc: Document, format: ReportFormat? = nil, completion: (() -> Void)? = nil) {
+        guard !doc.fileBusy else { return }
+        guard !doc.web.isLoading else { showError("Wait for the report to finish loading, then save it."); return }
+        if format == nil, let url=doc.reportFileURL { writeReport(doc,to:url,format:.html,completion:completion) }
+        else { saveReportAs(doc,format:format,completion:completion) }
+    }
+    /// Save As: the panel offers HTML, and Word and PDF copies; HTML becomes the report's own file, the others leave it where it was.
+    func saveReportAs(_ doc: Document, format: ReportFormat? = nil, completion: (() -> Void)? = nil) {
         guard !doc.fileBusy else { return }
         guard !doc.web.isLoading else { showError("Wait for the report to finish loading, then save it."); return }
         let panel=NSSavePanel()
         panel.title="Save Report"; panel.prompt="Save"
-        panel.nameFieldStringValue=doc.title.replacingOccurrences(of:"/",with:"-")
+        panel.nameFieldStringValue=doc.reportFileURL?.deletingPathExtension().lastPathComponent ?? doc.title.replacingOccurrences(of:"/",with:"-")
+        if let folder=doc.reportFileURL?.deletingLastPathComponent() { panel.directoryURL=folder }
         let picker=ReportFormatPicker(panel:panel,format:format ?? ReportFormat(rawValue:UserDefaults.standard.string(forKey:"reportSaveFormat") ?? "") ?? .html)
         panel.beginSheetModal(for:window) { [picker] response in
             guard response == .OK, let url=panel.url else { return }
             guard url.pathExtension.lowercased() != "rtf" else { self.showError("Legacy RTF reports can only be read. Choose HTML, PDF or Word for the saved copy."); return }
-            let revision=doc.reportRevision
-            let format=picker.format
-            doc.fileBusy=true; self.status.stringValue="Saving \(format.rawValue.uppercased()) report…"
-            Task { @MainActor in
-                defer { doc.fileBusy=false }
-                do {
-                    let data=try await self.reportExportData(doc,format:format)
-                    try data.write(to:url,options:.atomic)
-                    if format == .html { self.noteRecentDocument(url); self.noteDocumentSaved(doc,at:url) }
-                    UserDefaults.standard.set(format.rawValue,forKey:"reportSaveFormat")
-                    doc.reportSavedRevision=revision
-                    self.status.stringValue="Saved " + url.lastPathComponent
-                    completion?()
-                } catch { self.showError("The report could not be saved: " + error.localizedDescription) }
-            }
+            self.writeReport(doc,to:url,format:picker.format) { UserDefaults.standard.set(picker.format.rawValue,forKey:"reportSaveFormat"); completion?() }
+        }
+    }
+    func writeReport(_ doc: Document, to url: URL, format: ReportFormat, completion: (() -> Void)? = nil) {
+        let revision=doc.reportRevision
+        doc.fileBusy=true; self.status.stringValue="Saving \(format.rawValue.uppercased()) report…"
+        Task { @MainActor in
+            defer { doc.fileBusy=false }
+            do {
+                let data=try await self.reportExportData(doc,format:format)
+                try data.write(to:url,options:.atomic)
+                if format == .html { self.noteRecentDocument(url); self.noteDocumentSaved(doc,at:url) }
+                doc.reportSavedRevision=revision
+                self.status.stringValue="Saved " + url.lastPathComponent
+                completion?()
+            } catch { self.showError("The report could not be saved: " + error.localizedDescription) }
         }
     }
     func reportExportData(_ doc: Document, format: ReportFormat) async throws -> Data {

@@ -86,7 +86,7 @@ differing = [f.name for f in sorted((upstream / 'recipes').glob('*.R')) if not (
 check(not differing and all(manifest.get(op) == entry for op, entry in pinned.items()) and (ROOT / 'Content/R/session.R').is_file() and (ROOT / 'Content/R/data-files.R').is_file(),
       'Content/R holds the pinned engine\'s %d recipes and %d manifest entries unchanged (the Mac manifest has %d) beside session.R and data-files.R' % (len(list((upstream / 'recipes').glob('*.R'))), len(pinned), len(manifest)))
 missing = [op for op in manifest if not (ROOT / 'FullEngine/publish/Operations' / (op + '.xml')).is_file()]
-headed = [f.name for f in (ROOT / 'Content/R/recipes').glob('*.R') if f.name != 'chart-common.R' and not f.read_text().startswith('# StatsDirect recipe:')]
+headed = [f.name for f in (ROOT / 'Content/R/recipes').glob('*.R') if f.name not in ('chart-common.R', 'dose-response-common.R') and not f.read_text().startswith('# StatsDirect recipe:')]
 check(len(manifest) >= 28 and not missing and not headed and all((ROOT / 'Content/R/recipes' / e['file']).is_file() for e in manifest.values()),
       'every manifest operation is a published operation with a headed recipe file')
 # the recipes against the definitions of the operations they are mapped to, as tests/RScript/Script.cs CheckRecipes: every setting a recipe
@@ -528,6 +528,8 @@ def expected_script(record, recipe, detail):
     out.append('\n')
     if binding and any(parameter == 'chartSettings' for _, parameter in binding['settings']):
         out.append((ROOT / 'Content/R/recipes/chart-common.R').read_text().rstrip('\n') + '\n')
+    if binding and any(parameter == 'doseResponseModel' for _, parameter in binding['settings']):
+        out.append((ROOT / 'Content/R/recipes/dose-response-common.R').read_text().rstrip('\n') + '\n')
     out.append(binding['body'].rstrip('\n') + '\n' if binding else '# Add your analysis here.\n')
     return ''.join(out)
 def first_difference(a, b):

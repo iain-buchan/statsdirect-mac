@@ -25,6 +25,11 @@ pv <- function(p) {
 a <- coef(fit)[1]
 b <- coef(fit)[2]
 v <- vcov(fit)
+# Evaluate the expected information at the final fitted probabilities, rather
+# than retain the penultimate IRLS weights cached by glm's summary method.
+X <- cbind(1, age)
+probability <- unname(fitted(fit))
+v <- solve(crossprod(X, X * (girls * probability * (1 - probability))))
 # StatsDirect follows Finney in taking the logit as half the log odds, so that its
 # scale is close to the probit's: its constant and slope are half of R's
 cat("constant =", six(a / 2), "\n")
@@ -62,6 +67,14 @@ cat("t for slope =", six(t_slope), paste0("(", fit$df.residual, " df)"),
 
 # The additional-statistics report lists each binomial fitted count and residual.
 # Obtain these directly from R's independent glm fit.
+working_weights <- 4 * girls * probability * (1 - probability)
+working_response <- (a + b * age) / 2 + (menses / girls - probability) / (2 * probability * (1 - probability))
+x_bar <- weighted.mean(age, working_weights)
+y_bar <- weighted.mean(working_response, working_weights)
+cat("Weighted Sxx =", six(sum(working_weights * (age-x_bar)^2)), "; Sxy =",
+    six(sum(working_weights * (age-x_bar) * (working_response-y_bar))), "; Syy =",
+    six(sum(working_weights * (working_response-y_bar)^2)), "\n")
+cat("Variance of slope =", six(v[2,2]/4), "; standard error =", six(sqrt(v[2,2])/2), "\n")
 dose_response_table <- data.frame(index = seq_along(girls), subjects = girls, responses = menses,
   expected = unname(fitted(fit)) * girls, deviation = menses - unname(fitted(fit)) * girls)
 print(dose_response_table, row.names = FALSE)

@@ -93,10 +93,28 @@ analyses, such as regression ANOVA or probit/logit continuations. Legacy ambiguo
 rerun explanation instead of silently selecting logit. A recipe can bind `statsdirectOperation` or `statsdirectRootOperation` in its
 settings header to obtain this provenance without adding private context objects to JSON.
 
-Probit/logit replay uses the selected link, native coefficient scale, confidence, logged doses and interpolation requests. More prints
-the selected observations and fitted counts; Plot draws the selected fitted curve. Positive-response control adjustments and the native
-heterogeneity-adjusted interval convention are explicitly unsupported: these cases stop with an explanation rather than substituting
-ordinary binomial intervals. This limitation concerns the R replay, not the native analysis.
+Probit/logit replay uses the selected link, native coefficient scale, confidence, logged doses and interpolation requests. The writer
+embeds `recipes/dose-response-common.R`, so exported scripts need only base R. Positive-response controls fit the joint binomial model
+`c + (1-c) F(a+b*x)` together with the independent control group. The inverse full Fisher information includes uncertainty in the
+estimated background rate. Controls supplied separately or as the first complete zero-dose row are used once; zero-response controls
+retain the existing fixed-zero background convention. Fitting uses original selected counts rather than stored report estimates.
+
+Pearson goodness of fit includes the treated groups and the fitted control group, on `k-2` degrees of freedom. If its P value is below
+0.05, dose intervals use the covariance multiplied by Pearson/df and a Student's t critical value; otherwise they use the unscaled
+covariance and a normal critical value. Every Fieller term uses the same selected covariance and critical value. This follows the
+[inverse confidence-limit method documented by SAS](https://www.sfu.ca/sasdoc/sashtml/stat/chap54/sect19.htm) and the
+[Fieller method described by Genstat](https://genstat.kb.vsni.co.uk/knowledge-base/fieller/).
+The ordinary fit uses R's [`glm`](https://svn.r-project.org/R/trunk/src/library/stats/R/glm.R); the controlled fit independently optimizes
+the likelihood and polishes it by Fisher scoring. Failed convergence or singular information gives an explanation. An unbounded or
+disjoint Fieller confidence set is reported as such, rather than converted into misleading finite endpoints. The native report still
+requires bounded selected limits; an unbounded unused interval convention does not prevent a valid selected analysis.
+
+More retains every complete treated row in its original selection order, excluding controls, and prints observed/fitted counts and
+the selected slope/background standard errors. Plot draws the natural-response-adjusted points and curve with covariance-based
+confidence bands on one SVG or PDF page. Forward interpolation provides both excess and total proportional response; inverse dose
+quantiles retain the native excess-response interpretation. Both links and logged doses use the same conventions. Older saved reports
+can differ when recalculated because the native control-counting, goodness-of-fit and heterogeneity-interval defects were corrected;
+rerun the native analysis to refresh the report.
 
 Survival charts use the selected survival and interval columns. Small curves may travel with chart settings, within the 5,000-value
 limit; larger selections use worksheet bindings and per-group shape metadata. Optional bounds stay with their own group. Forest charts

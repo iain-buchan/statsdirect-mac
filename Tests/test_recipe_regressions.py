@@ -44,7 +44,7 @@ work = Path(tempfile.mkdtemp(prefix='recipe-regressions-', dir=ROOT/'.build'))
 count = 0
 
 
-def replay(label, result, assertions='', expected_error=None):
+def replay(label, result, assertions=''):
     global count
     record = json.loads(result['record'])
     # A JSON round trip represents closing/reopening the report before Continue in R.
@@ -53,9 +53,6 @@ def replay(label, result, assertions='', expected_error=None):
     reply = json.loads(writer.stdout.readline())
     assert reply.get('hasRecipe') and not reply.get('dataUnavailable'), (label, reply)
     script = reply['text']
-    if expected_error:
-        script = 'guard_message <- tryCatch({\n'+script+'\nNULL}, error=conditionMessage)\n' + \
-                 'stopifnot(is.character(guard_message),grepl('+json.dumps(expected_error)+',guard_message,fixed=TRUE))\n'
     path = work/(label+'.R')
     path.write_text('.test_pages <- 0L\ninvisible(trace("plot.new",tracer=quote(.test_pages <<- .test_pages+1L),print=FALSE,where=asNamespace("graphics")))\n' +
                     'options(device=function(...) grDevices::pdf("'+label+'.pdf", ...))\n' +
@@ -123,7 +120,7 @@ test_ci <- sort(Re(polyroot(c((test_b[1]-test_q)^2-test_z^2*test_v[1,1],
                             check += 'stopifnot(.test_pages == 1L)\n'
                         child_output = replay(label+'-'+child, follow, check)
                         if child in ('ProbitInterpolateX', 'ProbitInterpolateY'):
-                            term, value = ('proportional response', 'resp') if child == 'ProbitInterpolateX' else ('dose', 'x')
+                            term, value = ('proportional response(?: above natural response)?', 'resp') if child == 'ProbitInterpolateX' else ('dose', 'x')
                             printed = re.search(r'Predicted '+term+r'\s*=\s*([-+.\d]+)', child_output)
                             assert printed, child_output
                             near([float(printed[1])], [follow['values'][value]], label+' '+child+' printed prediction')
@@ -131,23 +128,6 @@ test_ci <- sort(Re(polyroot(c((test_b[1]-test_q)^2-test_z^2*test_v[1,1],
                             assert (work/(label+'-'+child+'.pdf')).stat().st_size > 1000, 'The plot follow-on must actually draw a chart'
                 session.close(result['id'])
         print('PASS:', operation, '80/99% intervals, raw/logged doses and all four follow-ons use the native model', flush=True)
-
-    for operation in ('Probit', 'Logit'):
-        for in_data in (False, True):
-            doses = list(range(1, 9)); subjects = [100]*8; responses = [12,18,30,50,70,85,94,98]
-            if in_data:
-                doses.insert(0,0); subjects.insert(0,200); responses.insert(0,20)
-            result = run(operation, {'dose':columns(('Dose',doses)), 'subjects':columns(('Subjects',subjects)),
-                'responders':columns(('Responders',responses)), 'nc':0 if in_data else 200,
-                'nrc':20, 'calc-log10-doses':False, 'conf':95, 'qld':90})
-            replay(operation+'-controls-'+str(in_data), result,
-                   expected_error='does not yet support a fitted natural response rate')
-        result = run(operation, {'dose':columns(('Dose',list(range(1,9)))), 'subjects':columns(('Subjects',[100]*8)),
-            'responders':columns(('Responders',[10,30,15,70,45,85,70,98])), 'nc':0,
-            'calc-log10-doses':False, 'conf':95, 'qld':90})
-        replay(operation+'-heterogeneity', result,
-               expected_error='cannot yet faithfully reproduce the native heterogeneity-adjusted dose intervals')
-    print('PASS: unsupported control and heterogeneity adjustments stop explicitly instead of reporting a different model', flush=True)
 
     regression_parents = []
     for index, (x, y) in enumerate([

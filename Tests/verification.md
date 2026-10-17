@@ -1663,3 +1663,47 @@ The Mac pins verified shared production commit `85234f62`, now on Windows main. 
 Two Mac integration corrections accompany the pin. The recipe-manifest reader accepts nested `parentFiles`, preserving Continue in R after HTML reopening. The native report test waits for the actual rendered prompt token, avoiding a race with automatically answered paired-test prompts. The shared editor is unchanged.
 
 Validation logs are under `.build/recipe-audit`. Release build and 1,552 distribution checks pass. The main suite's engine, forms and numerical stages pass, including 50 box-plot record/PDF cases, 44 additional analysis/follow-on/guard cases and 13 survival/forest/ROC cases. After adapting the old synthetic linearized-model fixture to named X/Y inputs, the record suite passes all 113 checks, 227 worked references, 165 root acquisitions and 59 inherited follow-ons. All 115 JavaScript tests pass. Native analysis selection, R integration, complete report editing/export/save/reopen, multiple imported R charts and the Word/Excel-format verifiers pass. Ordinary R output remains PDF and report charts remain SVG. No installers were rebuilt.
+
+## Fitted-control and heterogeneity dose-response replay — 17 October 2026
+
+The Mac pins shared production commit `255620cf`, contained in Windows main
+`79d69ce3`. This resolves the two R limitations noted above. Probit/logit scripts
+now fit the original treatment and control counts jointly, retain uncertainty in
+the fitted natural response, and use the selected normal or heterogeneity-adjusted
+Student's t Fieller calculation. The self-contained helper needs only base R.
+The same shared corrections are used by Windows: controls are counted once,
+Pearson goodness of fit includes controls, information is evaluated at the final
+fit, and every interval term uses the selected covariance and critical value.
+Lower-asymptote treatment groups still contribute background information and
+residual degrees of freedom. More preserves complete treatment rows in worksheet
+order, labels the background standard error correctly, and reports a slope
+variance consistent with its selected standard error. Chart confidence bands use
+the full covariance. Forward prediction distinguishes excess and total response;
+inverse prediction retains the native excess-response interpretation. R describes
+unbounded/disjoint confidence sets explicitly, while native analysis explains
+when the selected dose interval cannot be bounded.
+
+Validation passes: 246 actual Mac analysis/saved-record/R replays, covering both
+links, 80/95/99% confidence, raw/log doses, separate/embedded/zero-response controls,
+heterogeneity, shuffled and missing rows, every follow-on, observed and fitted
+chart points, both plotted confidence bands, widely spaced doses and unbounded
+sets. The independent oracle uses a separate binomial likelihood fit and full
+Fisher matrix, then solves a centered Fieller polynomial. The centered polynomial
+avoids spurious imaginary roundoff when two roots are close but far from zero.
+The old six unsupported-case guard tests are replaced by these numerical checks;
+the other 38 analysis replay regressions also pass.
+
+The Release build and 1,552 distribution checks pass. The full suite's engine,
+forms, chart and other numerical stages pass. After updating the independent
+More reference for its additional statistics, all 113 saved-record checks and
+227 worked-example comparisons pass, including 165 native root acquisitions and
+inherited follow-ons. All 115 JavaScript tests and 55 native R-window checks pass.
+The final development app's two bundled copies of every R recipe/helper match
+source bytes; engine provenance, debug symbols and strict ad-hoc signing verify.
+Ordinary R output remains PDF and report charts remain SVG.
+
+Logs: `.build/dose-response-completion/` (`final-dose-tests.log`,
+`final-record-tests.log`, `final-r-integration.log`, `js-tests.log`,
+`full-tests.log`, `final-build.log`, `edge-build.log`). Development app:
+`.build/dose-response-completion/final/StatsDirect.app`. The running user app and
+its work were preserved. No installers or releases were rebuilt.

@@ -29,7 +29,16 @@ import PDFKit
         DispatchQueue.main.asyncAfter(deadline: .now()+0.5) {
             Task { @MainActor in
                 do { try await run(viewer); print("PASS: selection and combined analysis workflows"); fflush(stdout) }
-                catch { if let doc=viewer.active { print("STATE:", (try? await doc.web.evaluateJavaScript("JSON.stringify({state:window.formState,html:document.body.innerText})")) as Any) }; print("FAIL: \(error)"); fflush(stdout); exit(1) }
+                catch {
+                    for grid in viewer.documents where grid.kind == "grid" {
+                        print("GRID:", (try? await js(grid,"JSON.stringify({source:window.statsDirectGrid?.analysisSource(),gesture:window.analysisGesture,focus:document.hasFocus(),visibility:document.visibilityState})")) as Any)
+                    }
+                    if let doc=viewer.active {
+                        print("SOURCE SNAPSHOT:",doc.operationSourceSnapshot as Any)
+                        print("STATE:", (try? await js(doc,"JSON.stringify({state:window.formState,html:document.body.innerText})")) as Any)
+                    }
+                    print("FAIL: \(error)"); fflush(stdout); exit(1)
+                }
                 viewer.closeApproved = true; app.terminate(nil)
             }
         }
@@ -38,6 +47,8 @@ import PDFKit
     }
     @MainActor static func run(_ v: Viewer) async throws {
         v.window.setContentSize(NSSize(width: 1180, height: 850))
+        v.window.contentView?.layoutSubtreeIfNeeded()
+        v.workspaceSplit.adjustSubviews(); v.documentSplit.adjustSubviews()
         let grid = v.newDocument(kind: "grid", title: "Selection fixture", url: v.root.appendingPathComponent("Grid/index.html"))
         try await wait { try await yes(grid, "!!window.statsDirectGrid && !!document.querySelector('canvas')") }
         _ = try await grid.web.callAsyncJavaScript("""
@@ -47,25 +58,69 @@ import PDFKit
           ...[8,17,9,11,13].map((n,i)=>({col:1,row:i+1,text:String(n),kind:'number'})),
           {col:5,row:99,text:'999',kind:'number'}]}]});return true;
         """, arguments: [:], in: nil, contentWorld: .page)
+        // loadWorkbook schedules React updates; wait for the fixture's metadata,
+        // then exercise one actual gesture, never a direct selection API or retry.
+        try await wait { try await yes(grid,"statsDirectGrid.analysisSource().name==='Selected measurements / Data'&&statsDirectGrid.analysisSource().columns.length===6") }
+        var expectedColumns=[Int](),expectedRange:[String:Int]?
+        func matches(_ source:[String:Any]) -> Bool {
+            source["selection"] as? [Int] == expectedColumns && source["range"] as? [String:Int] == expectedRange
+        }
         func select(_ last: Int, rectangle: Bool = false) async throws {
+            expectedColumns=Array(0...last); expectedRange=rectangle ? ["first":2,"last":3] : nil
+            v.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true)
             v.tabs.selectTabViewItem(grid.item)
             v.window.contentView!.layoutSubtreeIfNeeded()
-            try await Task.sleep(nanoseconds:150_000_000)
+            v.window.makeFirstResponder(grid.web)
+            try await wait {
+                guard v.window.isKeyWindow && NSApp.isActive else { return false }
+                return try await yes(grid,"document.hasFocus()&&document.querySelector('canvas').getBoundingClientRect().width>0")
+            }
             _ = try await grid.web.callAsyncJavaScript("""
+            if(!window.analysisGestureInstalled){
+              for(const type of ['focus','blur'])window.addEventListener(type,e=>window.analysisGesture?.events.push({type,time:performance.now(),trusted:e.isTrusted}));
+              window.analysisGestureInstalled=true;
+            }
+            window.analysisGesture={expected:Array.from({length:last+1},(_,i)=>i),rectangle,events:[]};
+            // Match the grid gesture suite: timers alone do not establish a
+            // rendered frame. Bound the frame wait so a suspended view fails.
+            const settle=async()=>{
+              await new Promise(r=>setTimeout(r,65));let timer;
+              try{await Promise.race([new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Worksheet did not render before the gesture')),3000);})]);}
+              finally{clearTimeout(timer);}
+            };
+            await settle();
             const b=document.querySelector('canvas').getBoundingClientRect(),x=c=>b.x+48+c*178+89;
             const y=r=>b.y+(r<0?18:36+r*29+14),startRow=rectangle?1:-1,endRow=rectangle?2:-1;
-            const send=(type,c,r,buttons,shiftKey=false)=>document.elementFromPoint(x(c),y(r)).dispatchEvent(new MouseEvent(type,{bubbles:true,clientX:x(c),clientY:y(r),button:0,buttons,shiftKey}));
-            send('mousemove',0,startRow,0);send('mousedown',0,startRow,1);await new Promise(r=>setTimeout(r,60));
-            if(rectangle){send('mouseup',0,startRow,0);send('mousedown',last,endRow,1,true);send('mouseup',last,endRow,0,true);}else{send('mousemove',last,endRow,1);await new Promise(r=>setTimeout(r,80));send('mouseup',last,endRow,0);}await new Promise(r=>setTimeout(r,80));return true;
+            window.analysisGesture.bounds=b.toJSON();
+            const send=(type,c,r,buttons,shiftKey=false)=>{
+              const target=document.elementFromPoint(x(c),y(r));if(!target)throw new Error('Worksheet gesture has no hit target');
+              window.analysisGesture.events.push({type,column:c,row:r,buttons,target:target.tagName,selection:statsDirectGrid.analysisSource().selection});
+              target.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,clientX:x(c),clientY:y(r),button:0,buttons,shiftKey}));
+            };
+            send('mousemove',0,startRow,0);send('mousedown',0,startRow,1);await new Promise(r=>setTimeout(r,65));
+            if(rectangle){send('mouseup',0,startRow,0);send('mousedown',last,endRow,1,true);await new Promise(r=>setTimeout(r,65));send('mouseup',last,endRow,0,true);}
+            else{for(let i=1;i<=8;i++){send('mousemove',last*i/8,endRow,1);await new Promise(r=>setTimeout(r,30));}send('mouseup',last,endRow,0);}
+            // Frame readiness is required before the gesture. Afterwards the
+            // native caller waits for actual selection state; WebKit can pause
+            // frame callbacks when the user returns to another app after mouse-up.
+            window.analysisGesture.after=statsDirectGrid.analysisSource();return true;
             """, arguments: ["last":last, "rectangle":rectangle], in:nil, contentWorld:.page)
+            try await wait { matches(try await js(grid,"statsDirectGrid.analysisSource()") as? [String:Any] ?? [:]) }
+            try check(matches(try await js(grid,"statsDirectGrid.analysisSource()") as? [String:Any] ?? [:]),"one worksheet gesture selects \(expectedColumns), range \(expectedRange as Any), before analysis")
         }
-        func open(_ name: String) throws -> Document {
+        func open(_ name: String) async throws -> Document {
+            let source=try await js(grid,"statsDirectGrid.analysisSource()") as? [String:Any] ?? [:]
+            print("SELECTION before \(name):",source["selection"] as Any,"range:",source["range"] as Any);fflush(stdout)
+            try check(matches(source),"\(name) dispatch retains the exact worksheet selection")
             v.analysisSourceID = grid.id; let menu = item(NSApp.mainMenu!, name)!
             try check(NSApp.sendAction(menu.action!, to:menu.target, from:menu), "\(name) starts from its analysis menu")
-            return v.active!
+            let doc=v.active!
+            try await wait { doc.operationSourceSnapshot != nil }
+            try check(matches(doc.operationSourceSnapshot!),"\(name) receives the exact selected worksheet snapshot")
+            return doc
         }
         try await select(1)
-        let unpaired = try open("TUnpaired")
+        let unpaired = try await open("TUnpaired")
         try await wait { unpaired.completedJobID != nil }
         let report = v.documents.last { $0.kind == "report" }!
         try check(report.reportEntries?.count == 1, "unpaired t uses two highlighted columns without a confirmation step")
@@ -81,7 +136,7 @@ import PDFKit
         try await select(1, rectangle:true)
         let selection = try await js(grid,"statsDirectGrid.analysisSource()") as! [String:Any]
         try check((selection["selection"] as? [Int]) == [0,1] && (selection["range"] as? [String:Int]) == ["first":2,"last":3], "fixture selects exactly four worksheet cells")
-        let table = try open("Chi2by2")
+        let table = try await open("Chi2by2")
         try await wait { try await yes(table, "!!document.querySelector('.analysis-form .grid')") }
         try await wait { try await yes(table, "!document.querySelector('.analysis-form fieldset[aria-busy=true]')") }
         try check(try await yes(table, "document.querySelector('.analysis-form').innerText.includes('2 rows × 2 columns')&&!document.body.innerText.includes('Continue →')&&!document.body.innerText.includes('has not been copied')"), "chi-square table and study options share one Run form")
@@ -105,18 +160,18 @@ import PDFKit
         try check(report.reportEntries?.count == 2, "results append to the same active report")
 
         try await select(0)
-        let weighted = try open("WeightedUnivariateSummary")
+        let weighted = try await open("WeightedUnivariateSummary")
         try await wait { try await yes(weighted, "!!document.querySelector('.column-chooser')&&document.body.innerText.includes('Select weights')") }
         try check(try await yes(weighted, "document.querySelectorAll('.column-chooser input:checked').length===0"), "the weights prompt asks for its own column instead of reusing the measurement selection")
         v.remove(weighted)
         try await select(2)
-        let wide = try open("TUnpaired")
+        let wide = try await open("TUnpaired")
         try await wait { try await yes(wide, "!!document.querySelector('.column-chooser')") }
         try check(try await yes(wide, "document.querySelectorAll('.column-chooser input:checked').length===0"), "a wider selection is not silently cropped for other analyses")
         v.remove(wide)
 
         try await select(1)
-        let box = try open("BoxWhiskerPlot")
+        let box = try await open("BoxWhiskerPlot")
         try await wait { try await yes(box, "!!document.querySelector('select[name=method]')") }
         try check(try await yes(box, "document.querySelector('select[name=method]').options.length===6&&document.querySelector('input[name=confidence]').value==='95'&&document.querySelector('input[name=confidence]').disabled&&!document.querySelector('.column-chooser')"), "box plot uses the selection automatically and offers six methods with the saved 95% default")
         if let path = ProcessInfo.processInfo.environment["STATSDIRECT_TEST_SCREENSHOT"] {
@@ -149,7 +204,7 @@ import PDFKit
         v.remove(script)
 
         try await select(1)
-        let histogram = try open("HistogramPlot")
+        let histogram = try await open("HistogramPlot")
         try await wait { try await yes(histogram, "!!document.querySelector('[name=title0]')&&!!document.querySelector('[name=title1]')") }
         try check(try await yes(histogram, "document.querySelector('[name=title0]').value!==document.querySelector('[name=title1]').value&&!document.querySelector('.column-chooser')"), "histogram uses the two selected columns and presents their independent chart labels")
         _ = try await js(histogram, """

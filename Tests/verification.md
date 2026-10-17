@@ -1824,3 +1824,34 @@ hosted CI sequence remains the final check; a focused pass is not substituted
 for it. Logs: `.build/report-image-parity/bundled-ci.log`,
 `combined-bundled.log`, `raster-probes.log`. The running user app/work and engine
 pin remain unchanged, and no Mac installers were rebuilt.
+
+## Analysis workflow gesture synchronization — 17 October 2026
+
+Full run `39030231040` passed build, bundles, numerical/R comparisons, JavaScript,
+selection gestures, parity, paired and follow-on workflows, data files, help and
+calculator. It stopped in the analysis workflow fixture before reaching report
+export or the final combined WebKit suite. The first unpaired form correctly
+requested two columns because its captured selection contained only column A.
+The test had sent one synthetic endpoint move without checking the completed
+worksheet selection before dispatch. The unchanged suite passed locally, so a
+production defect is not claimed as reproduced.
+
+The fixture now waits for workbook metadata, native layout/focus and a bounded
+rendered-frame barrier before its one gesture. It uses the intermediate mouse
+moves already used by the paired workflow suite, then waits for the exact
+selection and row range. The selection is checked again immediately before menu
+dispatch and against the form's native source snapshot. No gesture is resent,
+no selection is set directly, and the form's data rules and numerical assertions
+are unchanged. Failure logs include gesture targets, focus events, worksheet
+metadata and the captured source. A display-frame wait after mouse-up proved
+inappropriate when WebKit became hidden after a correct selection; completion
+therefore uses actual selection state rather than another display refresh.
+
+The complete corrected native analysis suite passes locally, including automatic
+unpaired selection, four-cell chi-square/Fisher, weighted and wider-selection
+guards, box plot/histogram options and both PDF R replays. Logs:
+`.build/report-image-parity/analysis-unmodified.log` and
+`analysis-synchronized-final.log`. Only the test fixture and this record change;
+application code, shared editor, engine pin and installers remain unchanged.
+The full hosted run must still be completed; this focused pass does not clear
+the earlier combined PNG failure.

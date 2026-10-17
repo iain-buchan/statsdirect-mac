@@ -14,6 +14,8 @@ struct RPaneChecks {
         pane.view.frame = NSRect(x: 0, y: 0, width: 900, height: 650)
         pane.view.layoutSubtreeIfNeeded()
         defer { pane.shutdown() }
+        precondition(pane.console.textLayoutManager == nil && pane.console.layoutManager != nil,
+                     "Plot output uses the attachment-compatible text layout system before its first run")
         func images(_ target: RPane) -> [NSTextAttachment] {
             var found = [NSTextAttachment]()
             let storage = target.console.textStorage!
@@ -41,6 +43,17 @@ struct RPaneChecks {
         precondition(pane.console.string.contains("Error: Deliberate test error"))
         run("plot(x); dev.off(); plot(x, -x)", plots: 2)
         print("PASS default plots, multiple pages/devices, errors and variables across runs")
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 650), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        window.contentView = pane.view
+        window.orderFront(nil)
+        pane.view.layoutSubtreeIfNeeded()
+        window.setContentSize(NSSize(width: 420, height: 420))
+        pane.view.layoutSubtreeIfNeeded()
+        pane.console.scrollToEndOfDocument(nil)
+        window.orderOut(nil)
+        window.contentView = NSView()
+        pane.console.scrollToEndOfDocument(nil)
+        print("PASS chart output scrolls after attaching, resizing and detaching an inactive tab")
         // Ordinary output is PDF even when svglite is installed. Every page is
         // displayed, with its original file as the caption's single link.
         let sessionFolder = pane.outputFolder!

@@ -42,7 +42,17 @@ private final class RPlotAttachment: NSTextAttachment {
 final class RPane: NSObject, NSTextViewDelegate {
     let view = RPaneView()
     let editor = ScriptTextView()
-    let console = ScriptTextView()
+    // Plot attachments use TextKit 1's attachmentBounds/layout invalidation API.
+    // Build that text system explicitly: TextKit 2 can throw an NSTextRange
+    // exception when scrolling newly appended attachments in an inactive tab.
+    let console: ScriptTextView = {
+        let storage = NSTextStorage()
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(containerSize: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        storage.addLayoutManager(layout)
+        layout.addTextContainer(container)
+        return ScriptTextView(frame: .zero, textContainer: container)
+    }()
     let state = NSTextField(labelWithString: "Ready · Choose Run to execute the script")
     private let runButton = NSButton(title: "Run", target: nil, action: nil)
     private let stopButton = NSButton(title: "Stop / Reset", target: nil, action: nil)

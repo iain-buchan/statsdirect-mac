@@ -1707,3 +1707,56 @@ Logs: `.build/dose-response-completion/` (`final-dose-tests.log`,
 `full-tests.log`, `final-build.log`, `edge-build.log`). Development app:
 `.build/dose-response-completion/final/StatsDirect.app`. The running user app and
 its work were preserved. No installers or releases were rebuilt.
+
+## Report pictures, native clipboard and Enter parity — 17 October 2026
+
+The Mac copies `editor.mjs`, `transfer.mjs` and `export.mjs` from verified
+Windows commit `8d6e7a6d98f26eff1535acf226a867a185aaceb2`, while keeping the
+calculation-engine pin at `255620cf`. Enter after a selected or adjacent picture
+creates an editable paragraph in the same result. A plain picture click retains
+its selection through pointer capture; text selection and actual drag moves keep
+their existing paths. Optional native image output is derived from the captured
+clipboard fragment, reusing the Office PNG conversion rather than reading the
+selection again after asynchronous work.
+
+The Mac clipboard publishes public SVG and PNG alongside private report HTML,
+Office HTML and text for a single selected picture. Mixed selections stay rich
+content. Cut removes its captured selection only after clipboard publication.
+Native SVG-only, PNG and TIFF pictures can be pasted into existing or blank
+reports. XML decoding handles UTF-8/UTF-16 and legacy SVG document types without
+loading external entities; the existing report sanitizer isolates each chart's
+IDs and strips active/external content. Saved HTML retains the picture bytes.
+
+R output offers Copy image and native Copy of a selected attachment. Original
+SVG bytes are captured when displayed, so overwriting the R file later cannot
+change a previously displayed chart's copied vector. Its PNG fallback is rendered
+to 8-bit sRGB because macOS SVG previews may use a backing format that ImageIO
+cannot encode directly. Ordinary R output still uses PDF; copying one PDF preview
+offers PNG. The script editor's native Cut/Copy/Paste menu remains unchanged.
+
+The new `report-image-checks.swift` runs in both the report and combined WebKit
+suites. It covers native Enter/typing/undo, protected/final pictures and table
+cells, result metadata, clipboard priority and size/error cases, SVG/PNG/TIFF
+paste and HTML reopen, mixed versus picture copying, independent rendered SVG
+glyphs/gradients/clips, R chart copying and original-byte snapshots, and the
+native script context-menu actions. Mouse tests use real NSEvents delivered to
+the hit-tested WebKit view and assert trusted pointer events, including in a
+158-pixel viewport; this avoids an inactive test window consuming the first click
+without delivering any DOM event. Image consumer checks use AppKit's pasteboard
+image reader and PNG decoder, not a claim of manually pasting into every Office
+or chat application.
+
+Validation: Release build, 1,552 distribution checks, matching symbols and strict
+ad-hoc signing pass. All 115 JavaScript tests pass. The full native report suite
+and Word/Excel verifiers, R integration and R output suites pass. After the final
+shared gesture/export alignment, the final Release image, transfer/drag and
+deletion/undo suites pass. The mouse-event control also passes with the older Mac
+transfer bundle: the initial failure delivered no DOM events because the test
+window was inactive, so the Windows-specific retargeting defect is not claimed
+as a reproduced Mac defect. The synchronized guard passes Mac regression checks.
+
+Logs: `.build/report-image-parity/` (`final-build.log`, `javascript-final.log`,
+`report-full.log`, `r-integration.log`, `r-pane.log`, `final-images.log`,
+`final-transfer.log`, `final-deletion.log`). Development app:
+`.build/report-image-parity/final/StatsDirect.app`. The user's running app and
+work were preserved. No installers or releases were rebuilt.

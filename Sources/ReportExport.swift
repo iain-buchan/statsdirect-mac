@@ -38,10 +38,11 @@ enum ReportFormat: String, CaseIterable {
 }
 
 extension Viewer {
-    func reportScript(_ doc: Document, method: String, format: String = "html", fragment: String? = nil) async throws -> String? {
+    func reportScript(_ doc: Document, method: String, format: String = "html", fragment: String? = nil, nativeImage: Bool = false) async throws -> String? {
         let script=try String(contentsOf:root.appendingPathComponent("Report/export.js"),encoding:.utf8)
-        var options=["title":doc.title,"helpRoot":root.appendingPathComponent("Help",isDirectory:true).absoluteString,"format":format]
+        var options: [String: Any] = ["title":doc.title,"helpRoot":root.appendingPathComponent("Help",isDirectory:true).absoluteString,"format":format]
         if let fragment { options["fragment"] = fragment }
+        if nativeImage { options["nativeImage"] = true }
         return try await withCheckedThrowingContinuation { continuation in
             doc.web.callAsyncJavaScript(script+"\nreturn await StatsDirectReportExport."+method+"(options);",arguments:["options":options],in:nil,in:.defaultClient) { result in
                 switch result {

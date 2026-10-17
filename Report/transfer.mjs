@@ -246,7 +246,7 @@ function pointerTransfers() {
     const record=capture(segments(range));if(!record)return;
     event.preventDefault();selectRange(range);
     const root=region();
-    pending={record,body:root,pointer:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,moving:false};
+    pending={record,media,body:root,pointer:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,moving:false};
     try{root.setPointerCapture(event.pointerId);}catch{} // Synthetic native regression events.
   });
   document.addEventListener('pointermove',event=>{
@@ -259,7 +259,12 @@ function pointerTransfers() {
     if(event.pointerId!==pending?.pointer)return;
     event.preventDefault();const previous=clear();
     if(previous.moving){skipClick=true;moveSelection(previous.record,dropRange(event),event.altKey);}
-    else {const target=dropRange(event);if(target)selectRange(target.range);}
+    else if(previous.media?.isConnected&&entryOf(previous.media)) {
+      // Pointer capture retargets the ensuing click to the editable region.
+      // Its default action can clear the protected picture selection, so finish
+      // a plain picture click here and leave text-caret clicks to their path.
+      selectRange(fullRange(previous.media));skipClick=true;
+    } else {const target=dropRange(event);if(target)selectRange(target.range);}
   });
   document.addEventListener('pointercancel',clear);
   document.addEventListener('lostpointercapture',event=>{if(event.pointerId===pending?.pointer)clear();});

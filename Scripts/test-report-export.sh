@@ -16,7 +16,7 @@ SOURCES=()
 for source in Sources/*.swift; do
   if [[ "$source" != 'Sources/main.swift' ]]; then SOURCES+=("$source"); fi
 done
-swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirectTest -emit-module-path "$TEST_WORK/StatsDirectTest.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/report-export-driver.swift Tests/report-transfer-checks.swift Tests/report-deletion-checks.swift Tests/report-creole-checks.swift Tests/report-alignment-checks.swift Tests/report-saving-checks.swift Tests/report-svg-checks.swift -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
+swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirectTest -emit-module-path "$TEST_WORK/StatsDirectTest.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/report-export-driver.swift Tests/report-*-checks.swift -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
 cp -cR "$BASE" "$TEST_APP"
 EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$TEST_APP/Contents/Info.plist")"
 cp "$TEST_WORK/driver" "$TEST_APP/Contents/MacOS/$EXECUTABLE"
@@ -27,7 +27,7 @@ codesign --force --sign - "$TEST_APP"
 printf 'Test app: %s\n' "$TEST_APP"
 "$TEST_APP/Contents/MacOS/$EXECUTABLE" "$ROOT/.build/report-export-output" "${@:2}"
 
-if [[ " $* " == *" --saving-only "* ]]; then :
+if [[ " $* " == *" --saving-only "* || " $* " == *" --images-only "* ]]; then :
 elif [[ " $* " == *" --svg-isolation-only "* ]]; then python3 Tests/verify-report-svg.py "$ROOT/.build/report-export-output"
 elif [[ " $* " == *" --alignment-only "* ]]; then python3 Tests/verify-report-alignment.py "$ROOT/.build/report-export-output"
 elif [[ " $* " == *" --creole-only "* ]]; then python3 Tests/verify-report-creole.py "$ROOT/.build/report-export-output"

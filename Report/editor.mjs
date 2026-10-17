@@ -109,6 +109,49 @@ export function selectedPicture() {
   if(!selection?.rangeCount)return null;
   return fromRange(selection.getRangeAt(0));
 }
+// Protected pictures cannot be split by the browser's paragraph editing. Enter
+// beside one supplies a normal text paragraph in the same result, including
+// when the picture is its final block. Text carets keep the browser's behavior.
+function paragraphAfterPicture() {
+  const selection=window.getSelection(),root=region();
+  if(!root||!selection?.rangeCount)return false;
+  const range=selection.getRangeAt(0);
+  if(!inRegion(range.startContainer)||!inRegion(range.endContainer))return false;
+  function sourceSpace(node) {
+    if(node?.nodeType!==Node.TEXT_NODE||node.textContent.trim())return false;
+    const text=document.createRange();text.selectNodeContents(node);
+    return ![...text.getClientRects()].some(r=>r.width>0&&r.height>0);
+  }
+  function lastPicture(node) {
+    while(sourceSpace(node))node=node.previousSibling;
+    if(node?.nodeType!==Node.ELEMENT_NODE)return null;
+    if(node.matches('.report-media'))return node.hidden?null:node;
+    if(node.matches('.report-links,details,.report-import-warning'))return null;
+    return lastPicture(node.lastChild);
+  }
+  let media=selectedPicture()?.closest('.report-media');
+  if(!media&&range.collapsed) {
+    media=elementOf(range.startContainer)?.closest('.report-media');
+    if(!media) {
+      const node=range.startContainer;
+      if(node.nodeType===Node.TEXT_NODE) {
+        if(range.startOffset!==node.length||!sourceSpace(node))return false;
+        media=lastPicture(node.previousSibling);
+      } else media=lastPicture(node.childNodes[range.startOffset-1]);
+    }
+  }
+  const entry=entryOf(media);if(!entry)return false;
+  let after=media;
+  // Exit a protected chart container, and picture-only paragraph wrappers.
+  const protectedParent=media.parentElement.closest('[contenteditable="false"]');
+  if(protectedParent&&entry.contains(protectedParent))after=protectedParent;
+  while(after.parentElement!==entry&&!after.parentElement.matches('td,th,li')&&
+        [...after.parentNode.childNodes].every(n=>n===after||sourceSpace(n)))after=after.parentElement;
+  if(after.parentElement.matches('p,h1,h2,h3,h4,h5,h6,pre'))return false;
+  const paragraph=document.createElement('p');paragraph.append(document.createElement('br'));after.after(paragraph);
+  const caret=document.createRange();caret.selectNodeContents(paragraph);caret.collapse(true);selectRange(caret);
+  pendingSize=null;remember();changed('insertParagraph');updateControls();return true;
+}
 function updateControls() {
   if(!editing)return;
   // The picture tools follow the selected picture, or the one whose wrapper or corner marker has the focus,
@@ -494,8 +537,15 @@ export function start({editing:initial=false,undo=false,redo=false,post:bridge=n
   document.addEventListener('pointerdown',event=>{if(inRegion(event.target))pendingSize=null;});
   document.addEventListener('input',event=>{if(editing&&inRegion(event.target)&&!performing&&!transferring()&&!field(event.target)){changed(event.inputType);updateControls();}});
   document.addEventListener('contextmenu',event=>{context=describe(event.target);post({action:'context',...context});});
+  document.addEventListener('beforeinput',event=>{
+    if(!event.defaultPrevented&&!event.isComposing&&editing&&!field(event.target)&&inRegion(event.target)&&
+       event.inputType==='insertParagraph'&&paragraphAfterPicture())event.preventDefault();
+  });
   document.addEventListener('keydown',event=>{
     if(event.defaultPrevented||event.isComposing||!editing||field(event.target)||!event.target.closest('#report-results,#results,#report-toolbar'))return;
+    if(event.key==='Enter'&&!event.shiftKey&&!event.metaKey&&!event.ctrlKey&&!event.altKey&&inRegion(event.target)&&paragraphAfterPicture()){
+      event.preventDefault();return;
+    }
     if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))pendingSize=null;
     if(!event.metaKey&&!event.ctrlKey)return;
     if(event.key.toLowerCase()==='z'){event.preventDefault();command(event.shiftKey?'redo':'undo');}

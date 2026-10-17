@@ -279,6 +279,19 @@ export async function clipboard(options) {
   if(root.innerHTML.length>MAX_HTML)throw new Error('The selection is too large to copy. Select a smaller part of the report.');
   clean(root,options.helpRoot);
   root.querySelectorAll('details:not([open])').forEach(e=>e.remove());
+  // An image consumer (for example a chat composer) needs native picture data.
+  // Classify the captured fragment, never a later live selection. Mixed content
+  // remains rich HTML rather than being mistaken for a picture of the report.
+  const pictures=[...root.querySelectorAll('svg,img')].filter(el=>!el.parentElement.closest('svg'));
+  const remainder=root.cloneNode(true);remainder.querySelectorAll('svg,img').forEach(el=>el.remove());
+  const picture=options.nativeImage&&pictures.length===1&&!remainder.textContent.trim()&&
+    !remainder.querySelector('table,ul,ol,li,hr,br')?pictures[0]:null;
+  let nativeImage;
+  if(picture?.localName==='img') {
+    await timeout(picture.decode());
+    nativeImage={png:picture.src.startsWith('data:image/png;base64,')?picture.src:
+      await raster(picture.src,picture.naturalWidth,picture.naturalHeight)};
+  }
   const widths=new Map([...root.querySelectorAll('svg,img')].map(e=>[e,explicitPictureWidth(e,0)]));
   // Keep text formatting for Word and other rich editors. Table formatting
   // below still supplies the numeric/cell hints Excel needs.
@@ -297,7 +310,9 @@ export async function clipboard(options) {
     svg.setAttribute('width',String(width));svg.setAttribute('height',String(height));
     for(const property of ['width','height','max-width','max-height'])svg.style.removeProperty(property);
     const img=document.createElement('img');img.alt=svg.getAttribute('aria-label')||'StatsDirect chart';
-    img.src=await raster('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg)),width,height);
+    const vector=new XMLSerializer().serializeToString(svg);
+    img.src=await raster('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(vector),width,height);
+    if(svg===picture)nativeImage={svg:vector,png:img.src};
     const displayWidth=Math.min(640,widths.get(svg)||width),displayHeight=Math.round(height*displayWidth/width);
     // Excel treats image HTML attributes as points but lays out CSS dimensions as pixels.
     img.width=Math.round(displayWidth*.75);img.height=Math.round(displayHeight*.75);
@@ -312,5 +327,5 @@ export async function clipboard(options) {
   formatOfficePresentation(root);
   formatClipboardTables(root);
   const html='<!doctype html><html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body><!--StartFragment-->'+root.innerHTML+'<!--EndFragment--></body></html>';
-  return JSON.stringify({html,text:clipboardText(root)});
+  return JSON.stringify({html,text:clipboardText(root),...(nativeImage?{image:nativeImage}:{})});
 }

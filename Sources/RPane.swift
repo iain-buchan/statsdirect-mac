@@ -5,10 +5,35 @@ import PDFKit
 /// Remember the text pane even when keyboard focus moves to the More button.
 final class ScriptTextView: NSTextView {
     var didFocus: (() -> Void)?
+    var copyPicture: ((Int, NSPasteboard) -> Bool)?
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
         if accepted { didFocus?() }
         return accepted
+    }
+    override func copy(_ sender: Any?) {
+        let range = selectedRange()
+        if range.length == 1, copyPicture?(range.location, .general) == true { return }
+        super.copy(sender)
+    }
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event)
+        guard copyPicture != nil, let layout = layoutManager, let container = textContainer, layout.numberOfGlyphs > 0 else { return menu }
+        let point = convert(event.locationInWindow, from: nil)
+        let local = NSPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
+        let glyph = layout.glyphIndex(for: local, in: container)
+        guard glyph < layout.numberOfGlyphs else { return menu }
+        let index = layout.characterIndexForGlyph(at: glyph)
+        guard index < (textStorage?.length ?? 0), textStorage?.attribute(.attachment, at: index, effectiveRange: nil) != nil,
+              layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).contains(local) else { return menu }
+        let result = menu ?? NSMenu()
+        let item = NSMenuItem(title: "Copy image", action: #selector(copyPictureItem(_:)), keyEquivalent: "")
+        item.target = self; item.representedObject = index
+        result.insertItem(item, at: 0)
+        return result
+    }
+    @objc private func copyPictureItem(_ sender: NSMenuItem) {
+        if let index = sender.representedObject as? Int { _ = copyPicture?(index, .general) }
     }
 }
 
@@ -28,6 +53,7 @@ final class RPaneView: NSView {
 
 /// Keep plot previews inside the text column as the output pane is resized.
 private final class RPlotAttachment: NSTextAttachment {
+    var svgData: Data?
     override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: NSRect, glyphPosition position: NSPoint, characterIndex charIndex: Int) -> NSRect {
         guard let image, image.size.width > 0, image.size.height > 0 else { return .zero }
         let availableHeight = max(1, (textContainer?.textView?.enclosingScrollView?.contentView.bounds.height ?? 600) - 72)
@@ -119,6 +145,11 @@ final class RPane: NSObject, NSTextViewDelegate {
         console.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         console.textContainerInset = NSSize(width: 14, height: 12)
         console.setAccessibilityLabel("R output: text and plots")
+        console.copyPicture = { [weak self] index, pasteboard in
+            guard let self else { return false }
+            do { return try self.copyPlot(at: index, to: pasteboard) }
+            catch { self.state.stringValue = error.localizedDescription; return true }
+        }
         runButton.target = self; runButton.action = #selector(runScript)
         runButton.keyEquivalent = "\r"; runButton.keyEquivalentModifierMask = [.command]
         runButton.toolTip = "Run this script (⌘Return). Results and charts appear below."
@@ -396,10 +427,19 @@ final class RPane: NSObject, NSTextViewDelegate {
         append("\n")
         storage.append(NSAttributedString(string: "Chart: \(label)\n", attributes: [.link: url, .font: NSFont.systemFont(ofSize: 12)]))
         let attachment = RPlotAttachment(); attachment.image = image
+        // Snapshot the vector bytes now: a later R run may overwrite this file.
+        if url.pathExtension.lowercased() == "svg" { attachment.svgData = try? Data(contentsOf: url) }
         storage.append(NSAttributedString(attachment: attachment))
         append("\n")
         chartsShown.insert(url)
         console.scrollToEndOfDocument(nil)
+    }
+    @discardableResult func copyPlot(at index: Int, to pasteboard: NSPasteboard) throws -> Bool {
+        guard let storage = console.textStorage, index >= 0, index < storage.length,
+              let attachment = storage.attribute(.attachment, at: index, effectiveRange: nil) as? RPlotAttachment,
+              let image = attachment.image else { return false }
+        try ReportImageClipboard.write(image: image, svg: attachment.svgData, to: pasteboard)
+        return true
     }
     @objc func runScript() {
         if language != "R" {

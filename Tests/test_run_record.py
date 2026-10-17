@@ -98,6 +98,7 @@ mismatches = []
 for op, entry in manifest.items():
     text = (ROOT / 'Content/R/recipes' / entry['file']).read_text(); xml = definition(op)
     parameters = {m.strip() for m in re.findall(r'<name>([^<]+)</name>', xml)[1:]} | set(re.findall(r'<option name="([^"]+)"', xml))   # the options of a set of options, which the dialog records one by one under their names
+    parameters |= {'statsdirectOperation', 'statsdirectRootOperation'}  # the writer exposes saved-record provenance to routed recipes
     # a follow-on operation continues an earlier run and may take that operation's parameters and frames
     if 'inherits' in entry:
         parent = definition(entry['inherits'])
@@ -107,6 +108,8 @@ for op, entry in manifest.items():
     if re.search(r'<builtin function-name="dist[A-Za-z]+"', xml): parameters |= {'value', 'df', 'df2', 'lower', 'upper', 'two_sided', 'asked'}
     if '<chart-type>BoxWhisker</chart-type>' in xml: parameters.add('boxWhisker')   # final chart dialog choices recorded by the shared processor
     if '<chart' in xml: parameters.add('chartSettings')   # portable final settings for the chart actually drawn
+    if op == 'ROCPlot': parameters.add('rocCutoffs')
+    if op in ('Probit', 'Logit') or op.startswith('Probit'): parameters.add('doseResponseModel')
     if '<grouped-covariance>' in xml: parameters.add('ci')   # its confidence level is asked through the grid and recorded as the setting ci
     settings = re.search(r'^# settings:\s*(.*)$', text, re.M)
     if settings:
@@ -516,7 +519,8 @@ def expected_script(record, recipe, detail):
         # a bound setting the record holds is written as its literal (a list of marks as list(...), null as NULL); one the run skipped or was
         # not asked for is NULL with a note, so that the script does not stop on the missing name
         for variable, parameter in binding['settings']:
-            if parameters is not None and parameter in parameters and (is_scalar(parameters[parameter]) or parameters[parameter] is None or isinstance(parameters[parameter], (list, dict))): out.append(variable + ' <- ' + literal(parameters[parameter]) + '\n')
+            source = {key: record[field] for key, field in [('statsdirectOperation', 'operation'), ('statsdirectRootOperation', 'rootOperation')] if field in record} if parameter in ('statsdirectOperation', 'statsdirectRootOperation') else parameters
+            if source is not None and parameter in source and (is_scalar(source[parameter]) or source[parameter] is None or isinstance(source[parameter], (list, dict))): out.append(variable + ' <- ' + literal(source[parameter]) + '\n')
             else: out.append(variable + ' <- NULL   # the run had no ' + plain(parameter) + '\n')
     elif parameters is not None:
         for key, value in parameters.items():
@@ -540,8 +544,11 @@ def friendly_name(operation):
     for element in tree.iter():
         if element.tag.endswith('friendly-name'): return element.text
     return operation
-def recipe_of(operation):
-    entry = manifest[operation]; return (ROOT / 'Content/R/recipes' / entry['file']).read_text(), entry['detail']
+def recipe_of(operation, record=None):
+    entry = manifest[operation]
+    root = (record or {}).get('rootOperation', entry.get('inherits', operation))
+    file = entry.get('parentFiles', {}).get(root, entry['file'])
+    return (ROOT / 'Content/R/recipes' / file).read_text(), entry['detail']
 
 # --- the record a run on the help's example would leave, as Recipes.cs's RecordOf builds it
 def record_of(example):
@@ -562,23 +569,13 @@ def record_of(example):
     if isinstance(example.get('matrix'), dict):
         m = example['matrix']; counts = m['counts']; labels = m.get('columnLabels', [])
         inputs.append({'name': 'data', 'prompt': 'Select the table', 'kind': 'entered', 'columns': [{'title': labels[c] if c < len(labels) else 'V%d' % (c + 1), 'values': [r[c] for r in counts]} for c in range(len(counts[0]))]})
-    return {'version': 1, 'operation': example['operation'], 'title': 'Example', 'run': '2026-10-11T03:00:00+01:00', 'inputs': inputs, 'parameters': example.get('settings', {}), 'values': {}}
+    root = example.get('rootOperation', manifest[example['operation']].get('inherits', example['operation']))
+    return {'version': 1, 'operation': example['operation'], 'rootOperation': root, 'title': 'Example', 'run': '2026-10-11T03:00:00+01:00', 'inputs': inputs, 'parameters': example.get('settings', {}), 'values': {}}
 
 # --- the help's example inputs through the engine as entered frames: the record of a real run
-def survival_proportions(times, events):
-    """Kaplan-Meier S at each subject's time, the rows in time order as the Kaplan-Meier function saves them."""
-    s, out, i, n = 1.0, [], 0, len(times)
-    while i < n:
-        j = i
-        while j < n and times[j] == times[i]: j += 1
-        s *= 1 - sum(1 for k in range(i, j) if events[k]) / (n - i); out.extend([s] * (j - i)); i = j
-    return out
-def _survival_plot_s():
-    e = json.loads((EXAMPLES / 'SurvivalPlot.json').read_text()); frames = {i['name']: i['columns'] for i in e['inputs']}
-    return [{'title': t['title'], 'values': survival_proportions(t['values'], c['values'])} for t, c in zip(frames['xdatNew'], frames['cdatNew'])]
-# columns a form wants beyond the example's: the 2 by k trend test's scores, and the survival plot's survival proportion of each group, which
-# the help's script works out from the times and events with survfit (the dialog takes the column the Kaplan-Meier function saved)
-REAL_RUN_COLUMNS = {'Chi2byNWithTrend': {'data': [{'title': 'score', 'values': [1, 2, 3]}]}, 'SurvivalPlot': {'ydatNew': _survival_plot_s()}}
+# The 2 by k trend form also asks for category scores. Survival fixtures now
+# contain the actual S and confidence-limit columns supplied to the plot form.
+REAL_RUN_COLUMNS = {'Chi2byNWithTrend': {'data': [{'title': 'score', 'values': [1, 2, 3]}]}}
 # settings a form asks for that the example leaves to the help's layout: the number of groups or repeats whose frames it then asks for one by one
 REAL_RUN_SETTINGS = {'SurvivalPlot': {'group-count': 2}, 'WeiLachin': {'nr': 4}, 'PoissonRegression': {'has-exposure': 'true'}}
 def run_example(session, example, parent=None, keep=False, extra=None, preferences=None):
@@ -598,7 +595,7 @@ def run_example(session, example, parent=None, keep=False, extra=None, preferenc
             name = rest[0]
         if not named[name]: return None
         k = min(p.get('maxColumns') or len(named[name]), len(named[name])); take = named[name][:k]; del named[name][:k]
-        return {'columns': take, 'source': 'Help example'}
+        return {'columns': take, 'source': 'Help example', 'preserveRows': True}
     nested_frames = example['nested'][0]['frames'] if isinstance(example.get('nested'), list) and example['nested'] else None
     def answer(p):
         name = p.get('name'); kind = p['kind']; prompt = p.get('prompt') or ''
@@ -634,7 +631,7 @@ def run_example(session, example, parent=None, keep=False, extra=None, preferenc
                     return {'columns': [{'title': labels[c] if c < len(labels) else ('V%d' % (c + 1) if key == 'matrix' else ''), 'values': [r[c] for r in counts]} for c in range(len(counts[0]))], 'source': 'Help example'}
             if pool:
                 k = min(p.get('maxColumns') or len(pool), len(pool)); take = pool[:k]; del pool[:k]
-                return {'columns': take, 'source': 'Help example'}
+                return {'columns': take, 'source': 'Help example', 'preserveRows': True}
             return {'skip': True} if p.get('skip') else None
         if kind == 'fields' and any(f['name'] == 'method' for f in p['fields']) and 'boxWhisker' in settings:
             box = settings['boxWhisker']; answer = {f['name']:f['defaultValue'] for f in p['fields']}
@@ -691,15 +688,15 @@ operations = sorted(manifest)
 check(len(operations) >= 28 and all((EXAMPLES / (op + '.json')).is_file() and (EXAMPLES / (op + '.R')).is_file() for op in operations),
       'every operation of the manifest (%d) has the help\'s script and its example to check against' % len(operations))
 examples = {op: json.loads((EXAMPLES / (op + '.json')).read_text()) for op in operations}
-help_scripts = {}   # the help's own script by recipe file, once each
-for op in operations:
-    file = manifest[op]['file']
-    if file not in help_scripts: help_scripts[file] = (EXAMPLES / (op + '.R')).read_text().replace('\r', '')
-help_files = sorted(help_scripts)
+help_scripts = {op: (EXAMPLES / (op + '.R')).read_text().replace('\r', '') for op in operations}
+# A shared recipe can now print different follow-on results or fit different
+# parent models. Deduplicate only identical reference text, not recipe filenames.
+unique_references = list(dict.fromkeys(help_scripts.values()))
 ensure_r_packages('mcr')   # the help's method comparison regression, through the mcr package as the operation runs it
-help_figures = dict(zip(help_files, [figures(o) if not isinstance(o, AssertionError) else o for o in r_outputs([help_scripts[f] for f in help_files])]))
+reference_outputs = dict(zip(unique_references, [figures(o) if not isinstance(o, AssertionError) else o for o in r_outputs(unique_references)]))
+help_figures = {op: reference_outputs[text] for op, text in help_scripts.items()}
 broken = [f for f, o in help_figures.items() if isinstance(o, AssertionError)]
-check(not broken, 'the help\'s %d scripts run in R (%s)' % (len(help_files), RSCRIPT) + ('; failed: ' + ', '.join(broken) if broken else ''))
+check(not broken, 'the help\'s %d independent reference scripts run in R (%s)' % (len(unique_references), RSCRIPT) + ('; failed: ' + ', '.join(broken) if broken else ''))
 
 # the harness records: the writer's text line by line, then R against the help
 harness = {}
@@ -708,7 +705,7 @@ for op in operations:
     harness[op] = (record, script)
 mismatched = []
 for op in operations:
-    record, script = harness[op]; recipe, detail = recipe_of(op)
+    record, script = harness[op]; recipe, detail = recipe_of(op, record)
     expected = expected_script(record, recipe, detail)
     if 'error' in script or not script['hasRecipe'] or script['detail'] != detail or script['text'] != expected:
         where = first_difference(script['text'], expected) if 'text' in script else None
@@ -727,13 +724,23 @@ CHART_PROBES = {
     'ErrorPlot': 'emit(length(error_series))\nfor (s in error_series) emit(c(length(s$x), s$x, s$y, s$lower, s$upper, s$plot_x))',
     'PyramidPlot': 'emit(c(length(pyramid_rows), pyramid_rows, pyramid_males, pyramid_females, pyramid_scale))',
     'ControlPlot': 'emit(c(length(control_y), control_x, control_y, control_mean, control_sd, control_bands))',
+    'SurvivalPlot': 'emit(length(survival_curves))\nfor(s in survival_curves) emit(c(length(s$x),s$x,s$y,s$lower,s$upper,s$event))',
+    'CochranePlot': 'emit(c(nrow(forest_rows),forest_rows$effect,forest_rows$lower,forest_rows$upper,forest_rows$weight,forest_rows$pooling,forest_rows$y))',
+    'ROCPlot': 'emit(length(roc_series))\nfor(s in roc_series) emit(c(length(s$cuts),s$cuts,s$sensitivity,s$specificity,s$auc,s$theta,s$se,s$confidence,s$comparison,s$weight,s$cutoff,s$optimum,s$a,s$b,s$c,s$d,as.vector(s$proportions)))',
+}
+
+ANALYSIS_PROBES = {
+    **dict.fromkeys(('Friedman', 'CochranQ', 'FriedmanSimulateExactP'), 'emit(friedman_result)\nemit(R/b)'),
+    'FriedmanMulti': 'emit(c(critical_t,critical_difference))\nemit(c(friedman_comparisons$difference,friedman_comparisons$p,as.integer(friedman_comparisons$significant)))',
+    'Ranv': 'emit(regression_anova)',
+    **dict.fromkeys(('LinearizedEstimates', 'LinearizedEstimatesWithModel', 'LinearizedEstimatePlot', 'LinearizedEstimateInterpolation'), 'emit(linearized_result)'),
 }
 
 def comparison_script(operation, text):
     # Graphical Continue in R draws one chart without printing teaching variants.
     # Read the actual plotted summaries for the independent worked-example check.
-    if operation in CHART_PROBES:
-        return 'options(device=function(...) grDevices::pdf(file="selected-chart.pdf",...))\ninvisible(capture.output({\n' + text + '\n}))\nemit <- function(x) cat(formatC(as.double(x), digits=8, format="f"), "\\n")\n' + CHART_PROBES[operation]
+    if operation in CHART_PROBES or operation in ANALYSIS_PROBES:
+        return 'options(device=function(...) grDevices::pdf(file="selected-chart.pdf",...))\ninvisible(capture.output({\n' + text + '\n}))\nemit <- function(x) cat(formatC(as.double(x), digits=8, format="f"), "\\n")\n' + (CHART_PROBES.get(operation) or ANALYSIS_PROBES[operation])
     if operation != 'BoxWhiskerPlot': return text
     return text + r"""
 stopifnot(box_method == 1L, box_inner_fence, box_outer_fence,
@@ -764,7 +771,7 @@ def compare_with_help(outputs, what):
             if ours: agreed += 1
             else: failures.append(op + ' (printed no figure)')
             continue
-        expected = help_figures[manifest[op]['file']]; allowed = set(expected.split())
+        expected = help_figures[op]; allowed = set(expected.split())
         subset = example.get('subset') is True or (what == 'real run' and op in REAL_RUN_SUBSET)
         if ours == expected or (example.get('cut') is True and ours and expected.startswith(ours + ' ')) or (subset and ours and all(f in allowed for f in ours.split())): agreed += 1
         else:
@@ -872,7 +879,7 @@ check(not problems, 'the record of each real run holds the example\'s columns as
 real_scripts = {op: rs.write(real[op]['record'], None, []) for op in recorded}
 mismatched = []
 for op in recorded:
-    script = real_scripts[op]; recipe, detail = recipe_of(op); expected = expected_script(json.loads(real[op]['record']), recipe, detail)
+    script = real_scripts[op]; record = json.loads(real[op]['record']); recipe, detail = recipe_of(op, record); expected = expected_script(record, recipe, detail)
     if 'error' in script or not script['hasRecipe'] or script['text'] != expected:
         where = first_difference(script['text'], expected) if 'text' in script else None
         mismatched.append(op); print('      %s: %s' % (op, script.get('error') or ('line %d differs: engine %r, expected %r' % where if where else 'no recipe')), flush=True)
@@ -940,13 +947,22 @@ for op, parent_op in sorted(INHERITING.items()):
         inherited_frames += len(inherited)
         parent_script = rs.write(parent_state['record'], None, []); child_script = rs.write(child['record'], None, [])
         a, b = parent_script['text'].split('\n')[1:], child_script['text'].split('\n')[1:]
-        if not own: assert b == a, 'the scripts differ at line %d: parent %r, follow-on %r' % first_difference(parent_script['text'], child_script['text'])
-        else:
-            rest = iter(b); assert all(line in rest for line in a), 'the parent\'s script lines are not all in the follow-on\'s (which asked for %s itself)' % [i['name'] for i in own]
-        expected = expected_script(cr, *recipe_of(op))
+        child_recipe, child_detail = recipe_of(op, cr)
+        settings_used = [parameter for _, parameter in parse_recipe(child_recipe)['settings']]
+        contextual = (child_recipe != recipe_of(parent_op, pr)[0]
+                      or any(parameter in ('statsdirectOperation', 'statsdirectRootOperation') for parameter in settings_used)
+                      or any(pr.get('parameters', {}).get(parameter) != cr.get('parameters', {}).get(parameter) for parameter in settings_used))
+        if not contextual:
+            if not own: assert b == a, 'the scripts differ at line %d: parent %r, follow-on %r' % first_difference(parent_script['text'], child_script['text'])
+            else:
+                rest = iter(b); assert all(line in rest for line in a), 'the parent\'s script lines are not all in the follow-on\'s (which asked for %s itself)' % [i['name'] for i in own]
+        # Routed/interpolation/ANOVA recipes intentionally differ from the parent.
+        # Their inherited data are checked above and their exact own script below;
+        # varied native numerical results are checked in test_recipe_regressions.
+        expected = expected_script(cr, child_recipe, child_detail)
         assert child_script['text'] == expected, 'line %d differs from the writer\'s rules: engine %r, expected %r' % first_difference(child_script['text'], expected)
     except AssertionError as e: follow_on_problems.append(op); print('      %s: %s' % (op, str(e).replace('\n', ' | ')[:600]), flush=True)
-check(not follow_on_problems, 'the %d follow-on operations run from a parent run record the frames they inherit (%d), marked inherited, and their scripts are the parent run\'s, the recipe on the inherited data (the %d writing to the worksheet alone leave no record)' % (len(INHERITING), inherited_frames, without_record)
+check(not follow_on_problems, 'the %d follow-on operations run from a parent run record the frames they inherit (%d), marked inherited, and their scripts use the correct recipe, inherited data and selected follow-on settings (the %d writing to the worksheet alone leave no record)' % (len(INHERITING), inherited_frames, without_record)
       + ('; failing: ' + ', '.join(follow_on_problems) if follow_on_problems else ''))
 
 # --- runs with the options and sizes the help's examples do not have, as tests/RScript/Options.cs and Options2.cs check them on Windows
@@ -1260,8 +1276,8 @@ state, record, script, r, report = option_run('MethodComparisonRegression', [('t
 r_slope = numbers(r, r'^Slope: (-?[0-9.]+) ')[0]; engine_slope = state['values']['slope'] if is_number(state['values'].get('slope')) else numbers(report, r'^Slope:? +(-?[0-9.]+)')[0]
 print('      method comparison through the engine: engine slope %.7g, R %.7g' % (engine_slope, r_slope), flush=True)
 check('do.deming.analytical <- TRUE' in script and 'do.paba <- FALSE' in script and near(r_slope, engine_slope, 1e-4), 'a real method comparison run\'s script runs the regression the run ticked and gives the engine\'s slope')
-script, r = built({'operation': 'LinearizedEstimates', 'data': columns_of(('kwh', [2, 4, 9, 16, 26, 38]), ('size', [1, 2, 3, 4, 5, 6])), 'settings': {'model': '1'}})
-check('The model fitted in StatsDirect: Geometric / power' in r, 'the linearized estimates script names the model the run chose')
+script, r = built({'operation': 'LinearizedEstimates', 'inputs': [{'name':'y','columns':columns_of(('kwh',[2,4,9,16,26,38]))}, {'name':'x','columns':columns_of(('size',[1,2,3,4,5,6]))}], 'settings': {'model': '1'}})
+check('Selected model: Geometric / power' in r, 'the linearized estimates script names the model the run chose')
 # A real Mac normal plot records its default method; R draws those scores alone.
 state, record, script, r, report = option_run('NormalPlot', [('X', [('pimax', [40, 55, 62, 70, 76, 81, 88, 95, 103, 120])])], {})
 run_r(script + '\nstopifnot(isTRUE(all.equal(normal_scores, qnorm(rank(observed)/(length(observed)+1)))))\n')
@@ -1282,7 +1298,7 @@ inverse_scripts = [rs.write({'version': 1, 'operation': op, 'title': 'Example', 
 failures = []
 for (op, settings), script, output in zip(INVERSE, inverse_scripts, r_outputs([x['text'] for x in inverse_scripts])):
     if isinstance(output, AssertionError): failures.append('%s %s: %s' % (op, settings, output)); continue
-    printed = figures(output).split(); allowed = set(help_figures[manifest[op]['file']].split()); missing = [f for f in printed if f not in allowed]
+    printed = figures(output).split(); allowed = set(help_figures[op].split()); missing = [f for f in printed if f not in allowed]
     print('      %s %s: %s' % (op, json.dumps(settings), output.strip().replace('\n', ' | ')), flush=True)
     if not printed or missing: failures.append('%s %s: %s' % (op, settings, 'printed no figure' if not printed else 'not in the help\'s output: ' + ', '.join(missing)))
 for f in failures: print('      ' + f, flush=True)

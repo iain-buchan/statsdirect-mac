@@ -39,6 +39,8 @@ import PDFKit
     }
     @MainActor static func run(_ v: Viewer) async throws {
         let output=URL(fileURLWithPath:CommandLine.arguments[1]);try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
+        let recipes=RunRecordR.manifest(resources:v.root)
+        precondition(recipes["TPaired"] != nil && recipes["Ranv"] != nil && recipes["ProbitMore"] != nil,"nested parentFiles routing must preserve ordinary and routed R recipe availability")
         func dataset(_ columns:[[Int]]) -> [String:Any] {
             ["complete":true,"rowCount":columns[0].count,"columns":columns.enumerated().map{["title":$0.offset==0 ? "Before":"After","values":$0.element,"index":$0.offset]}]
         }
@@ -855,6 +857,11 @@ extension ReportExportTests {
                 try check((state["failure"] as? String ?? "").isEmpty && state["state"] as? String != "failed","\(operation) failed: \(state["failure"] ?? "")")
                 if state["state"] as? String=="input", let token=state["token"] as? Int, token>=0, !answered.contains(token) {
                     try check((state["error"] as? String ?? "").isEmpty,"\(operation) rejected an answer: \(state["error"] ?? "")")
+                    // The update callback sees engine prompts before React renders
+                    // them. Some prompts (paired agreement) are answered entirely
+                    // by the form and never have a visible control to click.
+                    let ready=try await js(d,"({ok:!!document.querySelector('main[data-operation-token=\"\(token)\"][data-operation-state=\"input\"] form')})")
+                    guard ready["ok"] as? Bool == true else { try await Task.sleep(nanoseconds:50_000_000);continue }
                     let kind=state["kind"] as? String ?? ""
                     if kind=="grid" {
                         try await wait("the column chooser") { (try? await js(d,"({ok:document.querySelectorAll('.column-chooser input').length>0})"))?["ok"] as? Bool == true }

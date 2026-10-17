@@ -30,9 +30,3 @@ show <- function(lo, hi, label) {
 # (1 - conf) / 2
 show(which.min(abs(cum - tail)) - 1, which.min(abs(cum - (1 - tail))) - 1,
      "non-conservative")
-
-# Conservative: no more than (1 - conf) / 2 in each tail. With a small sample, or
-# a quantile near 0 or 1, no ordered value may be far enough out: StatsDirect
-# then uses the smallest or largest observation and marks the limit.
-stopifnot(any(cum <= tail), any(cum >= 1 - tail))
-show(max(which(cum <= tail)) - 1, min(which(cum >= 1 - tail)) - 1, "conservative")

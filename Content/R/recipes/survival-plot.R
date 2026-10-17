@@ -1,73 +1,67 @@
-# StatsDirect recipe: Survival plot of Kaplan-Meier estimates, as the help shows it in R.
-# From the help's R code (graphics/survival.htm); the data and settings above come from the run.
-# data: times... = xdatNew, events... = cdatNew
+# StatsDirect recipe: the selected survival proportions and confidence limits.
+# hand-edited: replay the supplied curves, rather than fitting a different survival model.
+# data: times... = xdatNew, events... = cdatNew, proportions... = ydatNew, lowers... = ydatlNew, uppers... = ydatuNew
+# settings: chart = chartSettings
 
-# one pair of columns (times, events) per group, in the order the groups were given
-time <- unlist(times)
-event <- unlist(events)
-group <- rep(if (is.null(names(times))) seq_along(times) else names(times), lengths(times))
-# Survival plot: the StatsDirect help illustration (Kaplan-Meier estimates of survival
-# in two groups of rats given different pre-treatments, the Kaplan-Meier example; the
-# test workbook's Survival worksheet columns Group Surv, Time Surv and Censor Surv) in R
-if (!requireNamespace("survival", quietly = TRUE)) install.packages("survival", repos = "https://cloud.r-project.org")
-library(survival)
-
-# The Kaplan-Meier function of the Analysis menu, asked to save its estimates, writes
-# ten columns for each group to the worksheet: Time, Death/Event, Survival Proportion
-# (S), Approx. SE(S), 95% LCI S, 95% UCI S and the same four for the hazard, with one
-# row for each subject in time order. The groups are numbered in the order in which
-# they first occur in the group column, so group 1 of the saved columns is Group Surv
-# 2 here. survfit gives the same S (the product limit estimate), and with
-# conf.type = "log-log" the same limits: the interval is set on log(-log S), as
-# recommended by Kalbfleisch and Prentice, so that it stays between 0 and 1. A row
-# where S has reached 0 has no limits.
-g <- factor(group, levels = unique(group))
-fit <- survfit(Surv(time, event) ~ g, conf.type = "log-log")
-print(fit)
-
-# The values the plot takes, one row for each distinct time (the saved columns repeat
-# a row for each subject at the same time)
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
-s <- summary(fit, censored = TRUE)
-for (k in levels(s$strata)) {
-  i <- s$strata == k
-  cat("\nGroup Surv =", sub("^g=", "", k), "\n")
-  print(data.frame(Time = s$time[i], Dead = s$n.event[i], Censored = s$n.censor[i],
-                   "Survival Proportion (S)" = six(s$surv[i]),
-                   "95% LCI S" = ifelse(s$surv[i] > 0, six(s$lower[i]), "*"),
-                   "95% UCI S" = ifelse(s$surv[i] > 0, six(s$upper[i]), "*"),
-                   check.names = FALSE), row.names = FALSE)
+survival_curves <- sd_chart_get("curves", NULL)
+survival_numbers <- function(x) {
+  if (!is.list(x)) return(as.numeric(x))
+  vapply(x, function(value) if (length(value)) as.numeric(value) else NA_real_, 0.0)
 }
-
-# StatsDirect draws each group's S as a step function that starts at 1 on the left of
-# the axis, with a hollow marker at each death time (a circle for group 1, a square
-# for group 2), a small vertical tick at each censored time and, when the limits are
-# given for every group, a dashed black line from the lower to the upper limit at each
-# death time. The X axis is titled Times and the Y axis Survival proportion, from 0 to
-# 1; the chart is titled Survival plot and a legend below it numbers the groups. Base
-# R's plot of a survfit object starts the steps at time 0; StatsDirect starts them at
-# the left end of its X axis, which its autoscale puts at 100 for these times, so xlim
-# is set to 100 to 350 to match.
-colours <- c("#40699C", "#9E413E")
-plot(fit, conf.int = FALSE, mark.time = TRUE, pch = "|", col = colours,
-     xlim = c(100, 350), xlab = "Times", ylab = "Survival proportion",
-     main = "Survival plot")
-for (k in seq_along(levels(s$strata))) {
-  i <- s$strata == levels(s$strata)[k] & s$n.event > 0
-  segments(s$time[i], s$lower[i], s$time[i], s$upper[i], lty = 2)
-  points(s$time[i], s$surv[i], pch = c(1, 0)[k], col = colours[k])
+if (is.null(survival_curves)) {
+  if (!length(times) || length(times) != length(proportions) || length(times) != length(events))
+    stop("Select times, events and survival proportions for each group.")
+  shapes <- sd_chart_get("curveShapes", list())
+  lower_index <- upper_index <- 0L
+  survival_curves <- lapply(seq_along(times), function(i) {
+    shape <- if (length(shapes) >= i) shapes[[i]] else list(hasLower = length(lowers) == length(times), hasUpper = length(uppers) == length(times))
+    lower <- upper <- NULL
+    if (isTRUE(shape$hasLower)) { lower_index <<- lower_index + 1L; lower <- lowers[[if (length(lowers) == length(times)) i else lower_index]] }
+    if (isTRUE(shape$hasUpper)) { upper_index <<- upper_index + 1L; upper <- uppers[[if (length(uppers) == length(times)) i else upper_index]] }
+    list(x = times[[i]], y = proportions[[i]], event = events[[i]], lower = lower, upper = upper)
+  })
 }
-legend("topright", legend = seq_along(levels(s$strata)), pch = c(1, 0), col = colours,
-       lty = 1, bty = "n")
-cat("\nSurvival plot: X axis Times, Y axis Survival proportion (0 to 1)\n")
-
-# What the plot shows at the median survival time of each group, the first time at
-# which S is 0.5 or below
-for (k in levels(s$strata)) {
-  i <- which(s$strata == k)
-  m <- i[which(s$surv[i] <= 0.5)[1]]
-  cat(sprintf("Group Surv = %s: %d deaths, %d censored; at time %s ",
-              sub("^g=", "", k), sum(s$n.event[i]), sum(s$n.censor[i]), s$time[m]),
-      sprintf("S = %s (95%% CI %s to %s)\n", six(s$surv[m]), six(s$lower[m]),
-              six(s$upper[m])), sep = "")
+survival_curves <- lapply(survival_curves, function(s) {
+  s <- lapply(s[c("x", "y", "lower", "upper", "event")], survival_numbers)
+  if (length(s$x) != length(s$y) || length(s$x) != length(s$event))
+    stop("Each survival group must have equally long time, event and proportion columns.")
+  s
+})
+survival_labels <- sd_chart_strings(sd_chart_get("seriesTitles", seq_along(survival_curves)))
+if (length(survival_labels) != length(survival_curves)) survival_labels <- as.character(seq_along(survival_curves))
+survival_ci_groups <- vapply(survival_curves, function(s) length(s$lower) == length(s$x) && length(s$upper) == length(s$x), logical(1))
+survival_ci <- any(survival_ci_groups)
+survival_event_markers <- isTRUE(sd_chart_get("showEventMarkers", TRUE))
+survival_censor_tics <- isTRUE(sd_chart_get("showCensorshipTics", FALSE))
+survival_coloured_ci <- isTRUE(sd_chart_get("useSeriesColourForConfidenceIntervals", FALSE))
+survival_range <- range(unlist(lapply(survival_curves, function(s) s$x[is.finite(s$x) & is.finite(s$y) & is.finite(s$event) & s$event != -1])), finite = TRUE)
+if (!all(is.finite(survival_range))) stop("The selected survival curves contain no complete observations.")
+survival_limits <- sd_chart_frame(survival_range, c(0, 1), "Survival plot", "Times", "Survival proportion",
+                                  legend_labels = survival_labels)
+survival_ci_marker <- sd_chart_marker(length(survival_curves) + 1L)
+for (i in seq_along(survival_curves)) {
+  s <- survival_curves[[i]]; marker <- sd_chart_marker(i)
+  valid <- is.finite(s$x) & is.finite(s$y) & is.finite(s$event) & s$event != -1
+  x <- s$x[valid]; y <- s$y[valid]; event <- s$event[valid]
+  # The native chart starts at S=1 at the left axis edge and preserves the supplied row order.
+  if (length(x)) {
+    previous_x <- c(survival_limits$xlim[1L], head(x, -1L)); previous_y <- c(1, head(y, -1L))
+    segments(previous_x, previous_y, x, previous_y, col = marker$lineColor, lwd = marker$lwd, lty = marker$lty)
+    segments(x, previous_y, x, y, col = marker$lineColor, lwd = marker$lwd, lty = marker$lty)
+    if (survival_event_markers) sd_chart_points(x[event > 0], y[event > 0], marker)
+    if (survival_censor_tics && any(event == 0)) {
+      # A physical seven-point tick remains the same size on every axis scale.
+      tick_y <- grconvertY(grconvertY(y[event == 0], "user", "inches") + 7 / 72, "inches", "user")
+      segments(x[event == 0], y[event == 0], x[event == 0], tick_y, col = marker$lineColor, lwd = marker$lwd)
+    }
+    if (survival_ci_groups[i]) {
+      keep <- valid & s$event > 0 & is.finite(s$lower) & is.finite(s$upper)
+      segments(s$x[keep], s$lower[keep], s$x[keep], s$upper[keep],
+               col = if (survival_coloured_ci) marker$lineColor else survival_ci_marker$lineColor,
+               lwd = survival_ci_marker$lwd, lty = survival_ci_marker$lty)
+    }
+  }
+  cat(survival_labels[i], ":", length(x), "selected survival proportions\n")
 }
+sd_chart_legend(survival_labels)
+sd_chart_finish()

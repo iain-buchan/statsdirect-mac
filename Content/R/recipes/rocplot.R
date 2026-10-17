@@ -1,84 +1,75 @@
-# StatsDirect recipe: ROC Curve Analysis, as the help shows it in R.
-# From the help's R code (nonparametric_methods/roc.htm); the data and settings above come from the run.
-# data: present, absent
+# StatsDirect recipe: one selected ROC chart and its chosen cutoff analysis.
+# hand-edited: all selected series, comparison operators, confidence and weighting.
+# data: positives... = P1, negatives... = A1
+# settings: chart = chartSettings, cutoffs = rocCutoffs
 
-# ROC curve: the StatsDirect help example (Aziz et al. 1996, the sperm deformity
-# index of men whose partners did and did not conceive; the test workbook's Graphics
-# worksheet columns SDI conceived and SDI not conceived) in R
-m <- length(present)                  # condition present (conceived): 42
-n <- length(absent)                   # condition absent (not conceived): 116
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
-
-# Base R has no ROC function, but the area under the ROC curve is the probability
-# that a randomly chosen positive scores higher than a randomly chosen negative
-# (a tie counting a half), which is the rank sum statistic W that wilcox.test reports
-# (the Mann-Whitney U) divided by m * n. The P value R prints with it tests the null of
-# no difference between the groups, under which the area is 0.5.
-w <- wilcox.test(present, absent)
-print(w)
-theta <- as.numeric(w$statistic) / (m * n)
-
-# The curve: sensitivity against 1 - specificity with each observed value in turn
-# as the cut-off, a test being positive at or above it. StatsDirect reads high
-# values as positive because the mean is higher in the condition present group (with
-# the groups the other way round it counts values at or below each cut-off as positive,
-# which this script does not do).
-cuts <- sort(unique(c(present, absent)))
-sens <- sapply(cuts, function(k) mean(present >= k))
-spec <- sapply(cuts, function(k) mean(absent < k))
-
-# The area by the trapezoidal rule, from (1, 1) down the steps to (0, 0). With a
-# step at every observed value this is the same number as the Wilcoxon estimate.
-x <- c(0, rev(1 - spec), 1)
-y <- c(0, rev(sens), 1)
-auc <- sum(diff(x) * (y[-1] + y[-length(y)]) / 2)
-cat("Area under ROC curve by extended trapezoidal rule =", six(auc), "\n")
-cat("Wilcoxon estimate of area under ROC curve =", six(theta), "\n")
-
-# DeLong's standard error: for each positive, the proportion of negatives it beats
-# (a tie a half), and for each negative, the proportion of positives that beat it.
-# The variances of these two sets of placements give the variance of the area.
-beats <- outer(present, absent, function(p, a) (p > a) + (p == a) / 2)
-se <- sqrt(var(rowMeans(beats)) / m + var(colMeans(beats)) / n)
-ci <- pmin(1, pmax(0, theta + c(-1, 1) * qnorm(0.975) * se))   # kept within 0 to 1
-cat(paste0("DeLong standard error = ", six(se), ": 95% CI = ", six(ci[1]), " to ",
-           six(ci[2]), "\n"))
-
-# The optimum cut-off: the observed value that maximises weight * sensitivity +
-# specificity (the smallest such value if several tie); weight 1 treats the two
-# as equally important. The cut-off calculator lets you move away from it.
-weight <- 1
-best <- which.max(weight * sens + spec)
-cut <- cuts[best]
-a <- sum(present >= cut)              # true positives
-b <- sum(absent >= cut)               # false positives
-cc <- m - a                           # false negatives (the report's c)
-d <- n - b                            # true negatives
-cat("Optimum cut-off point selected =", cut, "\n")
-cat("Table at cut-off:   a =", a, "  b =", b, "\n")
-cat("                    c =", cc, "  d =", d, "\n")
-
-# Sensitivity, specificity and the predictive values at the cut-off, with the exact
-# (Clopper-Pearson) 95% confidence limits that binom.test gives. When a proportion
-# is 0 or 1 StatsDirect marks its limits as a 97.5% one-sided interval.
-report <- function(label, r, N) {
-  limits <- binom.test(r, N)$conf.int
-  cat(paste0(label, " = ", six(r / N), " (", six(limits[1]), " to ", six(limits[2]),
-             ")\n"))
+if (!length(positives) || length(positives) != length(negatives))
+  stop("Select one present and one absent column for every ROC series.")
+roc_comparison <- as.integer(sd_chart_get("comparison", if (mean(positives[[length(positives)]], na.rm = TRUE) > mean(negatives[[length(negatives)]], na.rm = TRUE)) 1L else 3L))
+if (length(roc_comparison) != 1L || !roc_comparison %in% 1:4) stop("Choose a valid ROC comparison operator.")
+roc_confidence <- sd_chart_get("confidence", .95)
+if (length(roc_confidence) != 1L || !is.finite(roc_confidence) || roc_confidence <= 0 || roc_confidence >= 1)
+  stop("The ROC confidence level must lie between zero and one.")
+roc_weight <- sd_chart_get("weight", 1)
+if (length(roc_weight) != 1L || !is.finite(roc_weight) || roc_weight <= 0) roc_weight <- 1
+roc_show_cutoff <- isTRUE(sd_chart_get("showOptimumCutOff", TRUE))
+roc_labels <- sd_chart_strings(sd_chart_get("seriesTitles", names(positives)))
+if (length(roc_labels) != length(positives)) roc_labels <- paste("Series", seq_along(positives))
+roc_saved_cutoffs <- if (is.null(cutoffs)) list() else cutoffs
+roc_compare <- function(value, cutoff, comparison) switch(as.character(comparison),
+  `1` = value >= cutoff, `2` = value > cutoff, `3` = value <= cutoff, `4` = value < cutoff)
+roc_interval <- function(success, total) {
+  if (!total) return(c(estimate = NA_real_, lower = NA_real_, upper = NA_real_))
+  ci <- binom.test(success, total, conf.level = roc_confidence)$conf.int
+  c(estimate = success / total, lower = ci[1L], upper = ci[2L])
 }
-report("sensitivity (95% CI)", a, m)
-report("specificity (95% CI)", d, n)
-report("Predictive value of +ve test", a, a + b)
-report("Predictive value of -ve test", d, cc + d)
-
-# With sensitivity weighted twice as important as specificity (weight 2)
-best2 <- which.max(2 * sens + spec)
-cat("Cut-off with weight 2 =", cuts[best2], "  sensitivity =", six(sens[best2]),
-    "  specificity =", six(spec[best2]), "\n")
-
-# The ROC plot: a marker at each cut-off, joined in order, the diagonal of no
-# discrimination, and a larger marker at the optimum cut-off
-plot(1 - spec, sens, type = "b", pch = 1, xlim = c(0, 1), ylim = c(0, 1), asp = 1,
-     xlab = "1-Specificity", ylab = "Sensitivity", main = "ROC plot")
+roc_series <- lapply(seq_along(positives), function(i) {
+  present <- positives[[i]][is.finite(positives[[i]])]
+  absent <- negatives[[i]][is.finite(negatives[[i]])]
+  m <- length(present); n <- length(absent)
+  if (!m || !n) stop("Each ROC series needs finite observations in both groups.")
+  saved <- if (length(roc_saved_cutoffs) >= i) roc_saved_cutoffs[[i]] else list()
+  comparison <- if (length(saved$comparison)) as.integer(saved$comparison) else roc_comparison
+  weight <- if (length(saved$weight)) as.double(saved$weight) else roc_weight
+  if (!is.finite(weight) || weight <= 0) weight <- 1
+  cuts <- sort(c(present, absent))
+  sens <- vapply(cuts, function(cut) mean(roc_compare(present, cut, comparison)), 0.0)
+  spec <- vapply(cuts, function(cut) mean(!roc_compare(absent, cut, comparison)), 0.0)
+  best <- which.max(weight * sens + spec)
+  cut <- if (length(saved$cutoff) && is.finite(saved$cutoff)) saved$cutoff else cuts[best]
+  a <- sum(roc_compare(present, cut, comparison)); b <- sum(roc_compare(absent, cut, comparison))
+  cc <- m - a; d <- n - b
+  beats <- outer(present, absent, function(p, q) (p > q) + (p == q) / 2)
+  if (comparison %in% c(3L, 4L)) beats <- 1 - beats
+  theta <- mean(beats)
+  se <- if (m > 1L && n > 1L) sqrt(var(rowMeans(beats)) / m + var(colMeans(beats)) / n) else NA_real_
+  ci <- pmin(1, pmax(0, theta + c(-1, 1) * qnorm((1 + roc_confidence) / 2) * se))
+  order <- if (comparison %in% c(1L, 2L)) rev(seq_along(cuts)) else seq_along(cuts)
+  xx <- c(0, (1 - spec)[order], 1); yy <- c(0, sens[order], 1)
+  auc <- sum(diff(xx) * (head(yy, -1L) + tail(yy, -1L)) / 2)
+  list(present = present, absent = absent, cuts = cuts, sensitivity = sens, specificity = spec,
+       auc = auc, theta = theta, se = se, confidence = ci, comparison = comparison, weight = weight,
+       cutoff = cut, optimum = cuts[best], a = a, b = b, c = cc, d = d,
+       proportions = rbind(sensitivity = roc_interval(a, m), specificity = roc_interval(d, n),
+         positive_predictive_value = roc_interval(a, a + b), negative_predictive_value = roc_interval(d, cc + d)))
+})
+roc_before_pty <- par("pty")
+par(pty = "s") # The native ROC plotting area is square.
+sd_chart_frame(c(0, 1), c(0, 1), "ROC plot", "1-Specificity", "Sensitivity", legend_labels = roc_labels)
 abline(0, 1)
-points(1 - spec[best], sens[best], pch = 16, cex = 2)
+for (i in seq_along(roc_series)) {
+  s <- roc_series[[i]]; marker <- sd_chart_marker(i)
+  lines(1 - s$specificity, s$sensitivity, col = marker$lineColor, lwd = marker$lwd, lty = marker$lty)
+  sd_chart_points(1 - s$specificity, s$sensitivity, marker)
+  cat(roc_labels[i], ": AUC =", s$auc, "; rank estimate =", s$theta, "; DeLong SE =", s$se,
+      ";", 100 * roc_confidence, "% CI =", s$confidence[1L], "to", s$confidence[2L], "\n")
+  if (roc_show_cutoff) {
+    cutoff_marker <- sd_chart_marker(length(roc_series) + i)
+    sd_chart_points(s$b / length(s$absent), s$a / length(s$present), cutoff_marker)
+    cat("Selected cutoff =", s$cutoff, "; weight =", s$weight, "; a =", s$a, "; b =", s$b, "; c =", s$c, "; d =", s$d, "\n")
+    print(s$proportions)
+  }
+}
+sd_chart_legend(roc_labels)
+sd_chart_finish()
+par(pty = roc_before_pty)

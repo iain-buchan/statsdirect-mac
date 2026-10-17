@@ -59,3 +59,8 @@ cat("Chi2 (heterogeneity of deviations from model) =", six(chi),
 t_slope <- b / sqrt(v[2, 2])
 cat("t for slope =", six(t_slope), paste0("(", fit$df.residual, " df)"),
     pv(2 * pt(-abs(t_slope), fit$df.residual)), "\n")
+
+# Draw the selected model using R's independent prediction method.
+curve_doses <- seq(min(age), max(age), length.out = 401L)
+plot(age, menses / girls, pch = 16L, ylim = c(0, 1), xlab = "Dose", ylab = "Proportional response")
+lines(curve_doses, predict(fit, newdata = data.frame(age = curve_doses), type = "response"))

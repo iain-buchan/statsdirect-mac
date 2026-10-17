@@ -180,8 +180,10 @@ try:
     assert all(near(r[2], v * unit, 1) for r, v in zip(lefts, male)) and all(near(r[2], v * unit, 1) for r, v in zip(rights, female)), (lefts, rights)
     print('PASS: the population pyramid draws each age group proportionally either side of the centre')
 
-    # ROC: the curve within the unit square, the diagonal drawn, the area the report states.
-    c = chart(s, 'ROCPlot', {'series-count': 1, 'P1': columns([1, 2, 3, 4, 5]), 'A1': columns([3, 4, 5, 6, 7])})
+    # ROC: lower values indicate the condition. Check the direction independently,
+    # not just that the curve and report agree (both previously used the wrong one).
+    present, absent = [1, 2, 3, 4, 5], [3, 4, 5, 6, 7]
+    c = chart(s, 'ROCPlot', {'series-count': 1, 'P1': columns(present), 'A1': columns(absent)})
     fx, fy = c.axis('x'), c.axis('y')
     curve = sorted({(round((px - fx(0)) / (fx(1) - fx(0)), 4), round((py - fy(0)) / (fy(1) - fy(0)), 4)) for px, py in c.points() if px >= fx(0) - 1})
     assert curve and all(-0.001 <= u <= 1.001 and -0.001 <= v <= 1.001 for u, v in curve), curve
@@ -189,7 +191,13 @@ try:
     area = sum((u2 - u1) * (v1 + v2) / 2 for (u1, v1), (u2, v2) in zip(curve, curve[1:]))
     stated = float(re.search(r'extended trapezoidal rule = ([\d.]+)', c.text).group(1))
     assert near(area, stated, 0.011), (area, stated, curve)
-    print('PASS: the ROC plot stays in the unit square, draws the diagonal, and its area is the one the report states')
+    expected_area = sum((p < a) + .5 * (p == a) for p in present for a in absent) / (len(present) * len(absent))
+    assert near(stated, expected_area, 1e-6), (stated, expected_area)
+    for cutoff in sorted(set(present + absent)):
+        fpr = sum(a <= cutoff for a in absent) / len(absent)
+        sensitivity = sum(p <= cutoff for p in present) / len(present)
+        assert any(near(u, fpr, .001) and near(v, sensitivity, .001) for u, v in curve), (cutoff, fpr, sensitivity, curve)
+    print('PASS: native ROC points follow lower-positive cutoffs; SVG area and report match independent pair counts')
 
     # Survival plot: steps from each time at the stated proportion.
     times, surv = [1, 2, 3, 4], [0.75, 0.5, 0.5, 0.25]

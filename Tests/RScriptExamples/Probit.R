@@ -1,4 +1,4 @@
-# Probit analysis, logit model: the StatsDirect help example (Finney 1971, age at
+# Probit analysis, normal-link model: the StatsDirect help example (Finney 1971, age at
 # menarche of 3918 Warsaw girls) in R
 age <- c(9.21, 10.21, 10.58, 10.83, 11.08, 11.33, 11.58, 11.83, 12.08, 12.33, 12.58,
          12.83, 13.08, 13.33, 13.58, 13.83, 14.08, 14.33, 14.58, 14.83, 15.08, 15.33,
@@ -9,11 +9,11 @@ menses <- c(0, 0, 0, 2, 2, 5, 10, 17, 16, 29, 39, 51, 47, 67, 81, 88, 79, 90, 11
             117, 107, 92, 112, 1049)
 
 # R's standard model for a proportion responding at each dose level: a binomial
-# regression with the logit link (the doses are ages here, not logged)
-fit <- glm(cbind(menses, girls - menses) ~ age, family = binomial)
+# regression with the probit link (the doses are ages here, not logged)
+fit <- glm(cbind(menses, girls - menses) ~ age, family = binomial(link = "probit"))
 # One more iteration from the converged coefficients leaves them unchanged and
 # gives the standard errors from the final weights, as the report computes them
-fit <- glm(cbind(menses, girls - menses) ~ age, family = binomial, start = coef(fit))
+fit <- glm(cbind(menses, girls - menses) ~ age, family = binomial(link = "probit"), start = coef(fit))
 print(summary(fit))
 
 # The report's lines to 6 places
@@ -25,14 +25,14 @@ pv <- function(p) {
 a <- coef(fit)[1]
 b <- coef(fit)[2]
 v <- vcov(fit)
-# StatsDirect follows Finney in taking the logit as half the log odds, so that its
-# scale is close to the probit's: its constant and slope are half of R's
-cat("constant =", six(a / 2), "\n")
-cat("slope =", six(b / 2), "\n")
+# Probit uses the normal quantile directly, so the native coefficients match R.
+# The half-log-odds scaling applies only to the separate logit model.
+cat("constant =", six(a), "\n")
+cat("slope =", six(b), "\n")
 
-# The dose for a given proportion p is (logit(p) - a) / b; its confidence interval
+# The dose for a given proportion p is (qnorm(p) - a) / b; its confidence interval
 # without heterogeneity is Fieller's, from the variances and covariance of a and b
-dose_for <- function(p) (qlogis(p) - a) / b
+dose_for <- function(p) (qnorm(p) - a) / b
 fieller <- function(p, conf = 0.95) {
   m <- dose_for(p)
   z <- qnorm((1 + conf) / 2)

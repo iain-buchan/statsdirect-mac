@@ -59,3 +59,9 @@ cat("Chi2 (heterogeneity of deviations from model) =", six(chi),
 t_slope <- b / sqrt(v[2, 2])
 cat("t for slope =", six(t_slope), paste0("(", fit$df.residual, " df)"),
     pv(2 * pt(-abs(t_slope), fit$df.residual)), "\n")
+
+# The additional-statistics report lists each binomial fitted count and residual.
+# Obtain these directly from R's independent glm fit.
+dose_response_table <- data.frame(index = seq_along(girls), subjects = girls, responses = menses,
+  expected = unname(fitted(fit)) * girls, deviation = menses - unname(fitted(fit)) * girls)
+print(dose_response_table, row.names = FALSE)

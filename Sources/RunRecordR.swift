@@ -27,9 +27,11 @@ enum RunRecordR {
     /// The manifest of recipes in the program's R folder, operation name to recipe.
     static func manifest(resources: URL) -> [String: RRecipe] {
         guard let data = try? Data(contentsOf: resources.appendingPathComponent("R/analysis-recipes.json")),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: [String: String]] else { return [:] }
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: [String: Any]] else { return [:] }
         var result: [String: RRecipe] = [:]
-        for (operation, entry) in object { if let file = entry["file"] { result[operation] = RRecipe(file: file, detail: entry["detail"] ?? "") } }
+        // Shared entries may also carry nested parentFiles routing. The engine
+        // resolves that routing from the saved record when writing the script.
+        for (operation, entry) in object { if let file = entry["file"] as? String { result[operation] = RRecipe(file: file, detail: entry["detail"] as? String ?? "") } }
         return result
     }
     /// A whole number, as the record's version, columns and rows are (a JSON boolean is not one).

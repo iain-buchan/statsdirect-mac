@@ -1,35 +1,23 @@
-# StatsDirect recipe: Linearized regression estimates, as the help shows them in R.
-# From the help's R code (regression_and_correlation/linear_estimates.htm); the data and settings above come from the run.
-# data: kwh, size
+# StatsDirect recipe: the selected linearized regression model.
+# data: kwh = y, size = x
 # settings: model = model
+# hand-edited: fit only the selected model from its original complete pairs.
 
-cat("The model fitted in StatsDirect:", c("Exponential", "Geometric / power", "Hyperbolic")[as.integer(model) + 1], "\n")   # the help fits all three
-# Linearized regression estimates: an illustration with the electricity
-# consumption and home size data of the polynomial regression topic (McClave and
-# Dietrich 1991, the test workbook's Home Size and KW Hrs/Mnth) in R
-
-# Each model is a straight line after a transformation, fitted by ordinary least
-# squares on the transformed scale; R's standard regression gives the line, its
-# correlation coefficient and the standard error of the estimate (the residual
-# standard error on the transformed scale)
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
-report <- function(model, fit, a, b) {
-  cat(model, "\n")
-  cat("A =", six(a), "  B =", six(b), "\n")
-  r <- sqrt(summary(fit)$r.squared)
-  cat("Correlation coefficient (r) =", six(r), "  (r2 =", six(r^2), ")\n")
-  cat("Standard error of estimate =", six(summary(fit)$sigma), "\n")
-}
-
-# Exponential, Y = a exp(b x): log Y against x, so A is exp of the intercept
-fit <- lm(log(kwh) ~ size)
-report("(Exponential)  Y = a * exp(b * x)", fit, exp(coef(fit)[1]), coef(fit)[2])
-
-# Geometric (power), Y = a x^b: log Y against log x
-fit <- lm(log(kwh) ~ log(size))
-report("(Geometric / Power)  Y = a * x^b", fit, exp(coef(fit)[1]), coef(fit)[2])
-
-# Hyperbolic, Y = x / (a + b x): 1/Y against 1/x, so a is the slope and b the
-# intercept
-fit <- lm(I(1 / kwh) ~ I(1 / size))
-report("(Hyperbolic)  Y = x / (a + b * x)", fit, coef(fit)[2], coef(fit)[1])
+model <- as.integer(model)
+if (length(model) != 1L || is.na(model) || !model %in% 0:2) stop("The saved linearized regression has no valid model choice.")
+keep <- is.finite(kwh) & is.finite(size)
+kwh <- kwh[keep]; size <- size[keep]
+if (length(kwh) < 3L) stop("At least three complete pairs are needed.")
+if (model %in% 0:1 && any(kwh <= 0)) stop("The selected model requires positive Y values.")
+if (model == 1L && any(size <= 0)) stop("The power model requires positive X values.")
+if (model == 2L && (any(size == 0) || any(kwh == 0))) stop("The hyperbolic model requires nonzero X and Y values.")
+transformed_y <- if (model == 2L) 1 / kwh else log(kwh)
+transformed_x <- if (model == 0L) size else if (model == 1L) log(size) else 1 / size
+fit <- lm(transformed_y ~ transformed_x)
+model_name <- c("Exponential", "Geometric / power", "Hyperbolic")[model + 1L]
+a <- if (model == 2L) unname(coef(fit)[2L]) else exp(unname(coef(fit)[1L]))
+b <- if (model == 2L) unname(coef(fit)[1L]) else unname(coef(fit)[2L])
+linearized_result <- c(a = a, b = b, r = cor(transformed_x, transformed_y), se = summary(fit)$sigma)
+cat("Selected model:", model_name, "\n")
+print(summary(fit))
+print(linearized_result)

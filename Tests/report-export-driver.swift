@@ -22,6 +22,7 @@ import PDFKit
                     if let index=CommandLine.arguments.firstIndex(where:{$0=="--legacy-file" || $0=="--report-file"}),index+1<CommandLine.arguments.count {
                         try await archived(viewer, url:URL(fileURLWithPath:CommandLine.arguments[index+1]), output:URL(fileURLWithPath:CommandLine.arguments[1]))
                     } else if CommandLine.arguments.contains("--saving-only") {try await reportSaving(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--single-region-only") {try await singleRegion(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--images-only") {try await imageEditing(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--svg-isolation-only") {try await importedRCharts(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--deletion-only") {try await deletions(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
@@ -576,17 +577,39 @@ import PDFKit
         func asyncJS(_ script:String) async throws -> Any { try await withCheckedThrowingContinuation { (c:CheckedContinuation<Any,Error>) in report.web.callAsyncJavaScript(script,arguments:[:],in:nil,in:.page) { c.resume(with:$0) } } }
         let markup=try await asyncJS("return await StatsDirectReportEditor.chartImage('svg')") as? String ?? ""
         precondition(markup.hasPrefix("<svg") && markup.contains("xmlns=\"http://www.w3.org/2000/svg\"") && markup.contains(">Chart<"),"chart markup: \(markup.prefix(160))")
-        let pngURL=try await asyncJS("return await StatsDirectReportEditor.chartImage('png',2)") as? String ?? ""
-        let displayed=try await js("document.getElementById('sr-svg').getBoundingClientRect().width") as! Double
+        // Inspect the actual canvas before PNG encoding so a failed hosted run distinguishes
+        // missing layout, incomplete image decoding and native colour conversion.
+        let raster=try await asyncJS("""
+        const draw=CanvasRenderingContext2D.prototype.drawImage,diagnostic={};
+        CanvasRenderingContext2D.prototype.drawImage=function(image,...args){
+          Object.assign(diagnostic,{complete:image.complete,naturalWidth:image.naturalWidth,naturalHeight:image.naturalHeight,canvasWidth:this.canvas.width,canvasHeight:this.canvas.height});
+          const result=draw.call(this,image,...args),pixels=this.getImageData(0,0,this.canvas.width,this.canvas.height).data;
+          let ink=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i+3]>0&&Math.min(pixels[i],pixels[i+1],pixels[i+2])<242)ink++;
+          diagnostic.canvasInk=ink;return result;
+        };
+        try {diagnostic.url=await StatsDirectReportEditor.chartImage('png',2);}
+        finally {CanvasRenderingContext2D.prototype.drawImage=draw;}
+        const rect=document.getElementById('sr-svg').getBoundingClientRect();
+        return {...diagnostic,width:rect.width,height:rect.height};
+        """) as! [String:Any]
+        let pngURL=raster["url"] as? String ?? ""
+        let displayed=raster["width"] as! Double,displayedHeight=raster["height"] as! Double
         let pngData=Data(base64Encoded:String(pngURL.dropFirst("data:image/png;base64,".count))) ?? Data()
+        try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
+        try pngData.write(to:output.appendingPathComponent("single-region-chart.png"))
+        try markup.write(to:output.appendingPathComponent("single-region-chart.svg"),atomically:true,encoding:.utf8)
+        var diagnostic=raster;diagnostic.removeValue(forKey:"url")
+        diagnostic["webFrame"]=NSStringFromRect(report.web.frame);diagnostic["webHidden"]=report.web.isHiddenOrHasHiddenAncestor
+        let details=String(data:try JSONSerialization.data(withJSONObject:diagnostic,options:[.sortedKeys]),encoding:.utf8)!
         let bitmap=NSBitmapImageRep(data:pngData)
-        precondition(pngURL.hasPrefix("data:image/png;base64,") && bitmap != nil && abs(Double(bitmap!.pixelsWide)-displayed*2)<3,"chart png: \(pngURL.prefix(40)) \(bitmap?.pixelsWide ?? -1) vs \(displayed)")
-        var pngInk=0
+        precondition(displayed>10 && displayedHeight>10 && pngURL.hasPrefix("data:image/png;base64,") && bitmap != nil && abs(Double(bitmap!.pixelsWide)-displayed*2)<3 && abs(Double(bitmap!.pixelsHigh)-displayedHeight*2)<3,"chart PNG geometry: \(details)")
+        var pngInk=0,conversionFailures=0
         for y in 0..<bitmap!.pixelsHigh { for x in 0..<bitmap!.pixelsWide {
-            if let color=bitmap!.colorAt(x:x,y:y)?.usingColorSpace(.deviceRGB),color.alphaComponent>0,
-               min(color.redComponent,color.greenComponent,color.blueComponent)<0.95 {pngInk+=1}
+            if let color=bitmap!.colorAt(x:x,y:y)?.usingColorSpace(.deviceRGB) {
+                if color.alphaComponent>0 && min(color.redComponent,color.greenComponent,color.blueComponent)<0.95 {pngInk+=1}
+            } else {conversionFailures+=1}
         } }
-        precondition(pngInk>50,"saved chart PNG is blank: \(pngInk) inked pixels")
+        precondition(pngInk>50 && conversionFailures==0,"saved chart PNG is blank: \(pngInk) inked pixels, \(conversionFailures) colour conversion failures; \(details); SVG: \(markup)")
         // The saved markup is the chart as other programs read it: text styling as attributes, baseline shifts folded in, and it draws the same pixels.
         // Wait for SVG decoding before sampling its canvas pixels. Keep both the nonblank
         // and exact-pixel assertions, with the input markup in any failure diagnostic.
@@ -599,6 +622,20 @@ import PDFKit
           return Promise.all([draw(original),draw(exported)]).then(([a,b])=>{let inked=0,differ=0;for(let i=3;i<a.length;i+=4){if(a[i]||b[i])inked++;if(a[i]!==b[i]||a[i-1]!==b[i-1]||a[i-2]!==b[i-2]||a[i-3]!==b[i-3])differ++;}return inked>50&&differ===0?{inked,differ}:{inked,differ,original,exported};});})()
         """) as? [String:Any] ?? [:]
         precondition((same["inked"] as? Int ?? 0)>50 && (same["differ"] as? Int ?? 1)==0,"exportable SVG pixels: \(same)")
+        // Distinct SVG bytes exercise cold decoding, rather than repeatedly reading a cached image.
+        let cold=try await asyncJS("""
+        const rect=document.querySelector('#sr-svg rect'),fill=rect.getAttribute('style'),counts=[];
+        try {for(let i=0;i<12;i++){
+          rect.style.fill=`rgb(${30+i},80,120)`;
+          const image=new Image();image.src=await StatsDirectReportEditor.chartImage('png',2);await image.decode();
+          const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+          const context=canvas.getContext('2d');context.drawImage(image,0,0);const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;
+          let ink=0;for(let p=0;p<pixels.length;p+=4)if(pixels[p+3]>0&&Math.min(pixels[p],pixels[p+1],pixels[p+2])<242)ink++;
+          counts.push(ink);
+        }} finally {rect.setAttribute('style',fill);}
+        return counts;
+        """) as! [Int]
+        precondition(cold.count==12 && cold.allSatisfy{$0>50},"cold SVG-to-PNG exports are blank: \(cold)")
         _ = try await js("document.getElementById('sr-a1').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");try await settled(report)
         let textMenu=NSMenu();v.extendReportMenu(textMenu,for:report)
         precondition(!textMenu.items.map(\.title).contains("Save Chart as PNG…"),"chart items offered without a chart")

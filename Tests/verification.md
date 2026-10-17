@@ -1760,3 +1760,32 @@ Logs: `.build/report-image-parity/` (`final-build.log`, `javascript-final.log`,
 `final-transfer.log`, `final-deletion.log`). Development app:
 `.build/report-image-parity/final/StatsDirect.app`. The user's running app and
 work were preserved. No installers or releases were rebuilt.
+
+## Decoded pixels for PNG exports — 17 October 2026
+
+Hosted run `39023008527` passed the individual suites but failed the combined
+WebKit driver's existing Save Chart as PNG ink assertion. The unmodified combined
+suite subsequently passed locally, so the precise hosted failure is not claimed
+as locally reproduced. Both shared SVG raster paths now await `Image.decode()`
+before drawing, instead of relying on the load event: the editor's Save Chart PNG
+path and the exporter's Word/Office/native-clipboard PNG fallback. The exporter's
+existing timeout and error handling remain. The Windows session reviewed and
+tested the equivalent change; these two shared source files therefore extend
+the `8d6e7a6d` import described above. The engine pin is unchanged.
+
+The native check retains its nonblank and exact SVG pixel assertions, adds
+positive width and height checks, and tests twelve distinct uncached SVG-to-PNG
+exports. Failure diagnostics distinguish canvas ink, native colour conversion,
+decoded image dimensions and WebView layout; the actual PNG and SVG are saved.
+`--single-region-only` allows this regression to run without unrelated suites.
+No blanket retry, arbitrary delay or relaxed pixel assertion was added.
+
+Validation: the Release build, 1,552 distribution checks, strict ad-hoc signing,
+matching symbols, all 115 JavaScript tests, focused native chart checks and the
+complete combined native integration suite pass. All five report document,
+alignment, SVG, Creole and presentation verifiers pass, including multiple R
+charts and Office numeric formatting. Logs: `.build/report-image-parity/`
+(`decoded-build.log`, `decoded-js.log`, `png-decoded.log`,
+`combined-decoded.log`; unchanged-source control in `combined-before.log`).
+Development app: `.build/report-image-parity/decoded/StatsDirect.app`.
+The user's running app/work were preserved. No Mac installers were rebuilt.

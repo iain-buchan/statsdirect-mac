@@ -51,8 +51,9 @@ function timeout(promise) {
   let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('An image could not be prepared for export. Wait for the report to finish loading, then try again.')),15000);})]).finally(()=>clearTimeout(timer));
 }
 async function raster(data,width,height) {
-  const image=new Image();
-  await timeout(new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error('A report chart could not be exported.'));image.src=data;}));
+  const image=new Image();image.src=data;
+  // Wait for decoded pixels, including SVG rasterization, before using the canvas.
+  await timeout(image.decode().catch(()=>{throw new Error('A report chart could not be exported.');}));
   const canvas=document.createElement('canvas'),scale=Math.min(2,4096/Math.max(width,height));
   canvas.width=Math.max(1,Math.ceil(width*scale));canvas.height=Math.max(1,Math.ceil(height*scale));
   const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);

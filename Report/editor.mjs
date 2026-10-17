@@ -457,7 +457,9 @@ export async function chartImage(format,scale=1) {
   const box=el.getBoundingClientRect(),w=Math.max(1,Math.round(box.width)),h=Math.max(1,Math.round(box.height));
   svg.setAttribute('width',w);svg.setAttribute('height',h);
   const img=new Image();
-  await new Promise((ok,bad)=>{img.onload=ok;img.onerror=()=>bad(new Error('The chart could not be drawn.'));img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg));});
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg));
+  // A load event alone does not establish decoded pixels for drawImage.
+  await img.decode().catch(()=>{throw new Error('The chart could not be drawn.');});
   const k=Math.max(1,Number(scale)||1),canvas=document.createElement('canvas');canvas.width=w*k;canvas.height=h*k;
   const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.scale(k,k);ctx.drawImage(img,0,0,w,h);
   return canvas.toDataURL('image/png');

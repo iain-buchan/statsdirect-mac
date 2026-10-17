@@ -16,6 +16,9 @@ case "$STATSDIRECT_CONFIGURATION" in
     exit 1
     ;;
 esac
+# Match the Swift host and Info.plist on newer build Macs as well as CI. Without
+# an explicit target, clang marks the bridges as requiring the build Mac's OS.
+STATSDIRECT_NATIVE_FLAGS+=(-mmacosx-version-min=14.0)
 
 statsdirect_store_symbols() {
   local source="$1" destination="$2" previous

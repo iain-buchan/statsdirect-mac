@@ -1855,3 +1855,30 @@ guards, box plot/histogram options and both PDF R replays. Logs:
 application code, shared editor, engine pin and installers remain unchanged.
 The full hosted run must still be completed; this focused pass does not clear
 the earlier combined PNG failure.
+
+## Native deployment target checked during release preparation — 17 October 2026
+
+The installer rebuild from CI-passed `670175d` exposed a deployment metadata
+problem on this Mac's SDK 27: the Swift executable advertised macOS 14, but clang
+had marked both custom bridge libraries as requiring macOS 27. The affected
+copies were `Frameworks/StatsDirectEngine.dylib`, its duplicate under
+`Resources/Engine`, and `Resources/Engine/libStatsDirectText.dylib`. The other
+15 vendor/runtime binaries target macOS 12. This is a build configuration issue,
+not a calculation-source change.
+
+Shared native flags now explicitly use `-mmacosx-version-min=14.0` in Release
+and Debug, including the prebuilt-engine path. The existing final build verifier
+also inspects every packaged Mach-O deployment target against
+`LSMinimumSystemVersion` before checking matching UUIDs and usable debug symbols.
+It fails closed if native minimum-version metadata cannot be read. SDK 27 is
+permitted; a minimum OS newer than the application's advertised minimum is not.
+
+The previous signed bundle fails this guard as a negative control. A fresh
+normal Release build passes all 1,552 distribution checks, all 19 packaged native
+minimum-version checks and the three debug-symbol checks. Both custom libraries
+now encode a macOS 14 minimum. Independent read-only review and shell/Python
+syntax checks pass. Logs are under `.build/release-2026-10-17-macos14/`; the
+rejected first package is retained separately under the previous build's
+`rejected-host27` directory. Actual macOS 14 execution is not claimed from this
+Mac; the package's encoded compatibility is now consistent. Engine pin
+`255620cf`, calculation sources, report editor and R PDF/SVG policy are unchanged.

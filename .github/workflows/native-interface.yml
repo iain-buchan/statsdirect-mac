@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Release or draft providing the packaged engine and runtime
-        required: true
+        description: Optional release or draft providing the runtime; leave blank to build current source
+        required: false
       suite:
         description: Native interface to check using the current source
         required: true
@@ -33,28 +33,29 @@ jobs:
         with:
           submodules: recursive
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        if: inputs.suite == 'integration'
+        if: inputs.suite == 'integration' || inputs.release_tag == ''
         with:
           dotnet-version: 10.0.x
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        if: inputs.suite == 'integration'
+        if: inputs.suite == 'integration' || inputs.release_tag == ''
         with:
           node-version: 24
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        if: inputs.suite == 'integration'
+        if: inputs.suite == 'integration' || inputs.release_tag == ''
         with:
           python-version: '3.12'
-      - name: Install integration test dependencies
-        if: inputs.suite == 'integration'
+      - name: Install build and integration test dependencies
+        if: inputs.suite == 'integration' || inputs.release_tag == ''
         run: |
           corepack enable
           for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
           python3 -m pip install openpyxl
       - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
-        if: inputs.suite == 'report' || inputs.suite == 'startup' || inputs.suite == 'integration'
+        if: inputs.suite == 'report' || inputs.suite == 'startup' || inputs.suite == 'integration' || inputs.release_tag == ''
         with:
           r-version: release
       - name: Get the packaged runtime
+        if: inputs.release_tag != ''
         shell: bash
         run: |
           set -euo pipefail
@@ -63,6 +64,18 @@ jobs:
           gh release download "$RELEASE_TAG" --pattern "$package" --pattern SHA256SUMS.txt
           shasum -a 256 -c <(grep -F "  $package" SHA256SUMS.txt)
           ditto -x -k "$package" .
+      - name: Build the current application
+        if: inputs.release_tag == ''
+        run: DOTNET="$(command -v dotnet)" ./build.sh
+      # Diagnostic branch only: compare the previous host on the same runner.
+      # Remove this control before merging; the real suite below must pass.
+      - name: Previous unbundled integration host (diagnostic control)
+        if: inputs.suite == 'integration' && inputs.release_tag == ''
+        continue-on-error: true
+        run: |
+          git fetch --no-tags origin 69e6a547272c0efd18d456b263424c813d6c29ee
+          git show 69e6a547272c0efd18d456b263424c813d6c29ee:Tests/run_beta_feedback.py > .build/unbundled-feedback.py
+          python3 .build/unbundled-feedback.py
       - name: Check the native interface
         shell: bash
         run: |

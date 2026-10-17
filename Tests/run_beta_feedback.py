@@ -1,6 +1,6 @@
 """Native macOS integration checks. Add --live to test the signed-in ChatGPT account with bundled example data."""
 from pathlib import Path
-import argparse,subprocess,plistlib,uuid
+import argparse,subprocess,plistlib,uuid,shutil
 root=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--app',type=Path,default=root/'StatsDirect.app',help='Use resources and engine from this app, including an extracted release ZIP')
@@ -36,14 +36,24 @@ for name in ['learning-workspace','provider-learning','report-export','group-ide
 # ReportExportTests is split across these extensions. Include all of them so
 # adding a report check cannot leave the combined integration driver incomplete.
 helpers.extend(str(p) for p in sorted((root/'Tests').glob('report-*-checks.swift')))
-app=out/'StatsDirect Feedback Check.app';(app/'Contents/MacOS').mkdir(parents=True,exist_ok=True)
-info=plistlib.loads((root/'Info.plist').read_bytes());info['CFBundleIdentifier']='com.statsdirect.feedback.'+uuid.uuid4().hex;info['CFBundleExecutable']='FeedbackCheck';(app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
-for f in ['Resources','Frameworks']:
- p=app/'Contents'/f
- if p.is_symlink():p.unlink()
- p.symlink_to((source_app/'Contents'/f).resolve())
+bundle=out/('bundle-'+uuid.uuid4().hex);bundle.mkdir()
+app=bundle/'StatsDirect Feedback Check.app'
+executable=out/'FeedbackCheck'
 flags=subprocess.check_output(['bash',str(root/'Scripts/native-build-flags.sh'),'--swift'],text=True).splitlines()
-cmd=['swiftc',*flags,'-emit-executable','-module-name','StatsDirectFeedback','-emit-module-path',str(out/'StatsDirectFeedback.swiftmodule'),'-parse-as-library','-target','arm64-apple-macosx14.0','-module-cache-path',str(root/'.build/swift-cache')]+[str(x) for x in (root/'Sources').glob('*.swift') if x.name!='main.swift']+[str(out/'Viewer.swift'),str(root/'Tests/beta-feedback-driver.swift')]+helpers+['-o',str(app/'Contents/MacOS/FeedbackCheck'),'-framework','Cocoa','-framework','WebKit','-framework','PDFKit','-framework','Security']
+cmd=['swiftc',*flags,'-emit-executable','-module-name','StatsDirectFeedback','-emit-module-path',str(out/'StatsDirectFeedback.swiftmodule'),'-parse-as-library','-target','arm64-apple-macosx14.0','-module-cache-path',str(root/'.build/swift-cache')]+[str(x) for x in (root/'Sources').glob('*.swift') if x.name!='main.swift']+[str(out/'Viewer.swift'),str(root/'Tests/beta-feedback-driver.swift')]+helpers+['-o',str(executable),'-framework','Cocoa','-framework','WebKit','-framework','PDFKit','-framework','Security']
 subprocess.run(cmd,cwd=root,check=True)
+# Match the real app and the individual native test hosts: a self-contained,
+# signed bundle, not a linker-signed executable with unbound Info.plist and
+# Resources/Frameworks symlinked into another application. Never alter --app.
+subprocess.run(['/bin/cp','-cR',str(source_app),str(app)],check=True)
+info=dict(source_info);info['CFBundleIdentifier']='com.statsdirect.feedback.'+uuid.uuid4().hex
+info['CFBundleName']=info['CFBundleDisplayName']='StatsDirect Feedback Check'
+(app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
+driver=app/'Contents/MacOS'/info['CFBundleExecutable']
+shutil.copy2(executable,driver)
+assert not (app/'Contents/Resources').is_symlink() and not (app/'Contents/Frameworks').is_symlink()
+subprocess.run(['codesign','--force','--sign','-',str(app)],check=True)
+subprocess.run(['codesign','--verify','--deep','--strict',str(app)],check=True)
+subprocess.run(['codesign','--display','--verbose=2',str(app)],check=True)
 print('Testing app resources and engine:',source_app,flush=True)
-subprocess.run([str(app/'Contents/MacOS/FeedbackCheck'),str(root/'.build/beta-feedback-exports')]+(['--live'] if args.live else [])+(['--groups-only'] if args.groups_only else [])+(['--privacy-only'] if args.privacy_only else [])+(['--excel-only'] if args.excel_only else [])+(['--forms-only'] if args.forms_only else [])+(['--stay-open'] if args.stay_open else []),cwd=root,check=True)
+subprocess.run([str(driver),str(root/'.build/beta-feedback-exports')]+(['--live'] if args.live else [])+(['--groups-only'] if args.groups_only else [])+(['--privacy-only'] if args.privacy_only else [])+(['--excel-only'] if args.excel_only else [])+(['--forms-only'] if args.forms_only else [])+(['--stay-open'] if args.stay_open else []),cwd=root,check=True)

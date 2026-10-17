@@ -10,7 +10,7 @@ on:
         description: Native interface to check using the current source
         required: true
         type: choice
-        options: [calculator, help, grid, report, toolbars, startup, follow-ons, integration]
+        options: [calculator, help, grid, parity, report, toolbars, startup, follow-ons, integration]
 
 permissions:
   contents: read
@@ -76,6 +76,7 @@ jobs:
             calculator) Scripts/test-calculator-pane.sh ;;
             help) Scripts/test-help-pane.sh ;;
             grid) Scripts/test-grid-selection.sh ;;
+            parity) bash Scripts/test-mac-parity.sh ;;
             report) Scripts/test-report-export.sh ;;
             toolbars) Scripts/test-unified-toolbar.sh ;;
             startup) bash Scripts/test-startup-r-setup.sh ;;
@@ -86,3 +87,14 @@ jobs:
               ;;
             *) exit 2 ;;
           esac
+      - name: Preserve parity failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mac-parity-diagnostics
+          path: |
+            .build/mac-parity.*/native.log
+            .build/mac-parity.*/sample*.txt
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7

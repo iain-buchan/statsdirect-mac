@@ -134,3 +134,14 @@ jobs:
             fi
             echo '::warning::WebKit wait timed out; retrying once with a fresh test app.'
           done
+      - name: Preserve parity failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mac-parity-diagnostics
+          path: |
+            .build/mac-parity.*/native.log
+            .build/mac-parity.*/sample*.txt
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7

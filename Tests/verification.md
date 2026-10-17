@@ -1882,3 +1882,27 @@ rejected first package is retained separately under the previous build's
 `rejected-host27` directory. Actual macOS 14 execution is not claimed from this
 Mac; the package's encoded compatibility is now consistent. Engine pin
 `255620cf`, calculation sources, report editor and R PDF/SVG policy are unchanged.
+
+## Hosted Mac parity timeout diagnostics — 17 October 2026
+
+Full hosted run `39032973109` passed the complete sequence at `670175d`, including
+analysis selection, report export and the combined WebKit ink checks without a
+retry. The next run, `39036657756` at `ebf0ab8`, passed build, numerical/R,
+JavaScript and grid checks, then stalled immediately after the C# parity result.
+Its fatal 240-second watchdog fired more than 252 seconds after the C# PASS
+timestamp (the watchdog itself was delayed); the ordinary 45-second VB wait did
+not report a timeout. No production cause is inferred from these logs. The
+unchanged parity suite subsequently passed locally, as did the instrumented
+suite, with C# and VB completing and their temporary operation documents removed.
+
+The parity fixture now flushes timestamps and native script/operation state
+before and after language selection, source replacement and Run. Completion
+waits are named and the language transition has an explicit assertion. If the
+suite remains alive at 210 seconds, a background process sample captures native
+thread stacks; the independent fatal 240-second watchdog remains. Test output
+and the sample are preserved on hosted failure. A focused `parity` manual
+workflow supports diagnosis without replacing the complete CI requirement.
+Existing assertions, deadlines and application/engine/shared-editor code are
+unchanged; no retry or state-forcing workaround has been added. Local log:
+`.build/release-2026-10-17-macos14/parity-diagnostics.log`. Installer rebuilds are
+deferred at the user's latest instruction.

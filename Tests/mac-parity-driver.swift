@@ -3,6 +3,16 @@ import WebKit
 import PDFKit
 
 @main struct MacParityTests {
+    static func trace(_ text: String) {
+        print("TRACE [\(ISO8601DateFormatter().string(from: Date()))]: \(text)"); fflush(stdout)
+    }
+    @MainActor static func scriptState(_ v: Viewer, _ doc: Document, _ phase: String) {
+        let pane = doc.rPane!
+        let operations = v.documents.filter { $0.scriptOwner === doc }.map {
+            ["id": $0.id, "ready": String($0.operationReady), "job": $0.analysisJobID ?? "nil", "completed": $0.completedJobID ?? "nil"]
+        }
+        trace("\(phase): language=\(pane.language), running=\(pane.isRunning), state=\(pane.state.stringValue), file=\(pane.scriptFileName), active=\(v.active?.kind ?? "nil"), modal=\(NSApp.modalWindow?.title ?? "nil"), sheet=\(v.window.attachedSheet?.title ?? "nil"), operations=\(operations), source=\(pane.editor.string.debugDescription), console=\(pane.console.string.debugDescription)")
+    }
     @MainActor static func check(_ value: Bool, _ text: String) throws {
         guard value else { throw NSError(domain:"MacParity",code:1,userInfo:[NSLocalizedDescriptionKey:text]) }
         print("PASS: " + text); fflush(stdout)
@@ -19,9 +29,28 @@ import PDFKit
         UserDefaults.standard.set(false,forKey:"automaticUpdateChecks")
         UserDefaults.standard.set(["use-default-ci":true,"default-ci":"95"],forKey:"analysisDefaults")
         let viewer=Viewer();app.delegate=viewer
+        // Sample off the main thread so a blocked AppKit/WebKit call is visible.
+        // The independent fatal watchdog below must still fire if sample stalls.
+        let diagnostic = DispatchWorkItem {
+            let folder = ProcessInfo.processInfo.environment["STATSDIRECT_PARITY_DIAGNOSTICS"] ?? FileManager.default.temporaryDirectory.path
+            let path = URL(fileURLWithPath: folder).appendingPathComponent("sample-timeout.txt")
+            trace("parity still running after 210 seconds; sampling PID \(ProcessInfo.processInfo.processIdentifier)")
+            let sample = Process()
+            sample.executableURL = URL(fileURLWithPath: "/usr/bin/sample")
+            sample.arguments = [String(ProcessInfo.processInfo.processIdentifier), "2", "-file", path.path]
+            do { try sample.run(); sample.waitUntilExit() }
+            catch { trace("process sample failed: \(error)") }
+            if let output = try? String(contentsOf: path, encoding: .utf8) { print(output); fflush(stdout) }
+        }
+        DispatchQueue.global().asyncAfter(deadline:.now()+210, execute:diagnostic)
         DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { Task { @MainActor in
             do { try await run(viewer); print("PASS: Mac parity native suite"); fflush(stdout) }
-            catch { print("FAIL: \(error)"); fflush(stdout); exit(1) }
+            catch {
+                print("FAIL: \(error)"); fflush(stdout)
+                for doc in viewer.documents where doc.rPane != nil { scriptState(viewer, doc, "failure snapshot") }
+                exit(1)
+            }
+            diagnostic.cancel()
             viewer.closeApproved=true;app.terminate(nil)
         } }
         DispatchQueue.global().asyncAfter(deadline:.now()+240) { print("FAIL: Mac parity timeout"); fflush(stdout); exit(1) }
@@ -95,11 +124,22 @@ import PDFKit
         try check(paired.analysisCancelled && report.reportEntries!.count==3,"cancelling the repeat ends the loop and retains the first report")
 
         let script=v.makeRScript(script:"Console.WriteLine(Math.Sqrt(81));",title:"C# check")
+        scriptState(v,script,"C#: created")
         script.rPane!.setLanguage("CSharp");script.rPane!.runScript()
-        try await wait { !script.rPane!.isRunning }
+        scriptState(v,script,"C#: Run returned")
+        try await wait("C# completion") { !script.rPane!.isRunning }
+        scriptState(v,script,"C#: completed")
         try check(script.rPane!.console.string.contains("9") && script.rPane!.state.stringValue=="Script complete","native C# script Run produces visible console output")
-        script.rPane!.setLanguage("VB");script.rPane!.editor.string="Console.WriteLine(6 * 7)";script.rPane!.runScript()
-        try await wait { !script.rPane!.isRunning }
+        scriptState(v,script,"VB: before setLanguage")
+        script.rPane!.setLanguage("VB")
+        scriptState(v,script,"VB: after setLanguage")
+        try check(script.rPane!.language=="VB","idle script changes to VB before execution")
+        script.rPane!.editor.string="Console.WriteLine(6 * 7)"
+        scriptState(v,script,"VB: after replacing source, before Run")
+        script.rPane!.runScript()
+        scriptState(v,script,"VB: Run returned")
+        try await wait("VB completion") { !script.rPane!.isRunning }
+        scriptState(v,script,"VB: completed")
         try check(script.rPane!.console.string.contains("42") && script.rPane!.scriptFileName.hasSuffix(".vb"),"native language switch executes VB and changes the save extension")
         try check(script.rPane!.openInR()==nil,"Open in R cannot accidentally execute a C# or VB script")
         let scriptHTML=try await v.documentPrintHTML(script)

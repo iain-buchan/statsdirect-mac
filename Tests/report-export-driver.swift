@@ -609,6 +609,7 @@ import PDFKit
                 if color.alphaComponent>0 && min(color.redComponent,color.greenComponent,color.blueComponent)<0.95 {pngInk+=1}
             } else {conversionFailures+=1}
         } }
+        if pngInk<=50 || CommandLine.arguments.contains("--raster-diagnostics") {await rasterDiagnostics(report,markup:markup)}
         precondition(pngInk>50 && conversionFailures==0,"saved chart PNG is blank: \(pngInk) inked pixels, \(conversionFailures) colour conversion failures; \(details); SVG: \(markup)")
         // The saved markup is the chart as other programs read it: text styling as attributes, baseline shifts folded in, and it draws the same pixels.
         // Wait for SVG decoding before sampling its canvas pixels. Keep both the nonblank

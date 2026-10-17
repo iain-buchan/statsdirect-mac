@@ -67,15 +67,6 @@ jobs:
       - name: Build the current application
         if: inputs.release_tag == ''
         run: DOTNET="$(command -v dotnet)" ./build.sh
-      # Diagnostic branch only: compare the previous host on the same runner.
-      # Remove this control before merging; the real suite below must pass.
-      - name: Previous unbundled integration host (diagnostic control)
-        if: inputs.suite == 'integration' && inputs.release_tag == ''
-        continue-on-error: true
-        run: |
-          git fetch --no-tags origin 69e6a547272c0efd18d456b263424c813d6c29ee
-          git show 69e6a547272c0efd18d456b263424c813d6c29ee:Tests/run_beta_feedback.py > .build/unbundled-feedback.py
-          python3 .build/unbundled-feedback.py
       - name: Check the native interface
         shell: bash
         run: |

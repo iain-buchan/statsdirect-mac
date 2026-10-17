@@ -1789,3 +1789,38 @@ charts and Office numeric formatting. Logs: `.build/report-image-parity/`
 `combined-decoded.log`; unchanged-source control in `combined-before.log`).
 Development app: `.build/report-image-parity/decoded/StatsDirect.app`.
 The user's running app/work were preserved. No Mac installers were rebuilt.
+
+## Hosted WebKit test host and raster diagnostics — 17 October 2026
+
+Full hosted run `39026292288` still failed the combined driver's nonblank PNG
+assertion after the decode change. Its image was decoded, its dimensions and
+WebView frame were valid, and native colour conversion had no failures; the
+canvas itself contained no ink. The individual report suite passed on that same
+runner. Therefore the decode change is not claimed to fix the hosted failure.
+
+The combined integration runner now copies the complete selected application
+into a fresh test bundle, replaces its executable, gives it a unique identity,
+then signs and strictly verifies the complete bundle. This matches the individual
+test hosts and preserves the resources and engine chosen by `--app`. The previous
+host used resource/framework symlinks and had no sealed resources or bound
+Info.plist. No production rendering or engine changes accompany this correction.
+
+Focused hosted run `39029006216` passed both the previous-host control and the
+corrected host on a fresh runner, including the complete native report and
+integration suites; the corrected run also passed the Word/Excel export verifier.
+Both reached the one-region PNG checks and new native picture tests. This
+validates the corrected host but does not establish packaging as the cause of
+the full-sequence failure. The temporary nonfatal control step has been removed.
+The manual workflow can now build current source when no release tag is given;
+its existing checksum-verified release path and fatal test failures remain.
+
+Failure-only probes distinguish canvas fills, PNG, simple SVG and the failing
+SVG, data/blob URLs, detached/attached images, normal/frequent-read contexts,
+alpha/colour samples, window visibility and WebKit process/memory state. They
+cannot turn the original failure into a pass. All eleven probes pass their
+explicit local `--single-region-only --raster-diagnostics` self-check. The local
+corrected combined suite and all five report verifiers also pass. The complete
+hosted CI sequence remains the final check; a focused pass is not substituted
+for it. Logs: `.build/report-image-parity/bundled-ci.log`,
+`combined-bundled.log`, `raster-probes.log`. The running user app/work and engine
+pin remain unchanged, and no Mac installers were rebuilt.

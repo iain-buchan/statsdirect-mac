@@ -1976,3 +1976,29 @@ Logs are under `.build/release-0.3.30-2026-10-18/` (`raster-fixed.log`,
 `raster-negative/*.log`, `report-full-fixed.log`). Final hosted CI and the fresh
 signed archive remain publication gates recorded with the release, rather than
 being inferred from this local pass.
+
+## Focus readiness for the standalone grid gesture fixture — 18 October 2026
+
+Full hosted run `39103525006` at `8ed33c3` passed the engine/R and JavaScript
+stages, then failed the first standalone heading drag with selection `[0]`.
+Its native/browser diagnostics were `keyWindow=false`, `appActive=false`,
+`document.hasFocus()=false` and Finder in front. The test deliberately used an
+accessory application and an inactive window; a nonzero canvas width alone did
+not establish the normal worksheet interaction preconditions. This log does not
+establish a production grid defect or implicate the report raster change.
+
+The fixture now uses the focused-window readiness contract already exercised by
+the analysis suite: regular application, key window, WebKit first responder,
+and a bounded native/browser-focus and rendered-canvas wait before sending the
+first gesture. It also checks that fixture metadata has committed. Render-frame
+waits are bounded and failed gestures report their actual hit targets and focus
+history. All 18 selection/copy/resize/scroll/Excel-size assertions are unchanged;
+events are sent once through the existing synthetic MouseEvent handler path,
+not a direct selection API or retry. These are not claimed to be trusted native
+pointer events. The existing 60-second fatal watchdog is retained.
+
+The corrected standalone suite passes all 18 checks locally. Application/grid
+code, report source, engine pin and Windows remain unchanged by this fixture
+correction. Separate hosted report and combined integration runs at `8ed33c3`
+exercise the new canvas behavior independently of this earlier CI stage; a full
+run of the final commit remains the release gate.

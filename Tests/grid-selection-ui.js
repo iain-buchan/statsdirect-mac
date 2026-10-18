@@ -2,17 +2,19 @@
 // then inspect the selections passed to analyses and copied to the clipboard.
 const passed=[];
 const focusEvents=[];
+const gestureEvents=[];
 for(const type of ['focus','blur'])window.addEventListener(type,event=>focusEvents.push({type,time:performance.now(),trusted:event.isTrusted}));
-const check=(ok,label)=>{if(!ok)throw Error(label+'; selection='+JSON.stringify(statsDirectGrid.analysisSource().selection)+'; focused='+document.hasFocus()+'; focus events='+JSON.stringify(focusEvents));passed.push('PASS: '+label);};
+const check=(ok,label)=>{if(!ok)throw Error(label+'; selection='+JSON.stringify(statsDirectGrid.analysisSource().selection)+'; focused='+document.hasFocus()+'; focus events='+JSON.stringify(focusEvents)+'; completed='+passed.length+'; gesture events='+JSON.stringify(gestureEvents.slice(-20)));passed.push('PASS: '+label);};
 // React effects and Glide's resize/visible-region callbacks must run before
 // the next mouse event. A timer alone does not guarantee a rendered frame.
-const settle=async()=>{await new Promise(resolve=>setTimeout(resolve,65));await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));};
+const settle=async()=>{await new Promise(resolve=>setTimeout(resolve,65));let timer;try{await Promise.race([new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Worksheet did not render between grid gestures')),3000);})]);}finally{clearTimeout(timer);}};
 const fixture=(columns=8)=>({name:'Column drag fixture',sheets:[{name:'Data',rows:100,columns,headerRow:false,cells:Array.from({length:8},(_,col)=>({col,row:0,text:String(col+1),kind:'number'}))}]});
 const bounds=()=>document.querySelector('canvas').getBoundingClientRect();
 const scroller=()=>document.querySelector('.dvn-scroller');
 const point=(col,row=-1)=>{const b=bounds();return [b.left+48+col*178+89-scroller().scrollLeft,b.top+(row<0?18:36+row*29+14)];};
 function mouse(type,p,buttons=0,mods={}){
  const target=document.elementFromPoint(...p)??window;
+ gestureEvents.push({type,x:p[0],y:p[1],buttons,target:target.tagName||'window',focused:document.hasFocus()});
  target.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,clientX:p[0],clientY:p[1],button:0,buttons,...mods}));
 }
 const selected=()=>statsDirectGrid.analysisSource().selection;
@@ -20,6 +22,7 @@ const exact=(values,label)=>check(JSON.stringify(selected())===JSON.stringify(va
 async function click(col,mods={}){const p=point(col);mouse('mousemove',p);mouse('mousedown',p,1,mods);await settle();mouse('mouseup',p,0,mods);await settle();}
 async function drag(from,to,row=-1){const a=point(from,row),b=point(to,row);mouse('mousemove',a);mouse('mousedown',a,1);await settle();for(let i=1;i<=8;i++){mouse('mousemove',[a[0]+(b[0]-a[0])*i/8,a[1]],1);await settle();}mouse('mouseup',b);await settle();}
 statsDirectGrid.applyWorkbook(fixture());await settle();
+if(!document.hasFocus()||statsDirectGrid.analysisSource().name!=='Column drag fixture / Data'||statsDirectGrid.analysisSource().columns.length!==8)throw Error('Worksheet focus or fixture metadata was not ready before its first gesture');
 await drag(0,3);exact([0,1,2,3],'drag right selects adjacent whole columns');
 check(statsDirectGrid.analysisSource().range===undefined,'header dragging is a whole-column selection, not a rectangle');
 check(statsDirectGrid.copyText()==='1\t2\t3\t4','Copy uses every selected column in worksheet order');

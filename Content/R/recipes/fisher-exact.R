@@ -11,7 +11,8 @@ print(addmargins(teeth))
 # added up. R also estimates the odds ratio conditional on the margins, with a
 # confidence interval, which the report does not show. For a one sided P use
 # alternative = "greater" (upper tail for the top left count) or "less" (lower tail).
-print(fisher.test(teeth))
+exact <- fisher.test(teeth)
+print(exact)
 
 # The report's other lines come from the hypergeometric distribution of the top left
 # count A given the margins: dhyper(x, m, n, k) is the probability that A = x when m
@@ -32,25 +33,22 @@ n <- counts[2] + counts[4]
 k <- counts[1] + counts[2]
 expected <- k * m / (m + n)
 cat("Expectation of A =", six(expected), "\n")
-x <- max(0, k - n):min(k, m)         # the values A can take with these margins
-pr <- dhyper(x, m, n, k)
-observed <- pr[x == a]
+observed <- dhyper(a, m, n, k)
 
 # One sided P: the tail in which A lies, upper when A exceeds its expectation. Turning
 # the table never changes which side of its expectation A lies (A - E(A) = (ad - bc)/n).
 if (a > expected) {
   tail <- "(upper tail)"
-  one_sided <- sum(pr[x >= a])
+  one_sided <- phyper(a - 1, m, n, k, lower.tail = FALSE)
 } else {
   tail <- "(lower tail)"
-  one_sided <- sum(pr[x <= a])
+  one_sided <- phyper(a, m, n, k)
 }
 cat("One sided", tail, pv(one_sided), "  (doubled one sided",
     paste0(pv(min(1, 2 * one_sided)), ")"), "\n")
 
-# Two sided P by summation (Bailey 1977), as fisher.test gives it: the tables no more
-# probable than the observed one, allowing a little rounding in the comparison
-two_sided <- sum(pr[pr <= observed * (1 + 1e-7)])
+# Reuse R's two sided probability rather than enumerating the same tables again.
+two_sided <- exact$p.value
 cat("Two sided (by summation)", pv(min(1, two_sided)), "\n")
 
 # Mid-P: only half the probability of the observed table is counted in its tail

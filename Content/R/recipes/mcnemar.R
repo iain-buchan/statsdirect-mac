@@ -21,7 +21,7 @@ print(mcnemar.test(counts))
 # Liddell's exact test: under the null hypothesis b is binomial from b + c with
 # probability 1/2, so binom.test gives the two sided P and the exact
 # (Clopper-Pearson) 95% confidence interval for the proportion b/(b + c)
-exact <- binom.test(b, b + cc)
+exact <- binom.test(b, b + cc, conf.level = confidence)
 print(exact)
 
 # The figures as the report prints them, to 6 places (P values to 4)

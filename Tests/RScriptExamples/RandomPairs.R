@@ -22,11 +22,3 @@ cat("Pairs allocated Control - Intervention =", sum(balanced == orders[2]), "\n"
 # Every arrangement of 25 of each order is equally likely: there are choose(50, 25)
 cat("Equally likely balanced arrangements =",
     formatC(choose(pairs, pairs / 2), format = "f", digits = 0), "\n")
-
-# Without balancing, each pair's order is decided independently, like a coin
-# toss, so the two orders need not be equally frequent (with this seed they happen
-# to be): sample() with replacement
-set.seed(seed)
-tossed <- sample(orders, pairs, replace = TRUE)
-cat("Unbalanced: Intervention - Control =", sum(tossed == orders[1]),
-    "  Control - Intervention =", sum(tossed == orders[2]), "\n")

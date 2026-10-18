@@ -26,14 +26,6 @@ tables <- array(rbind(a, b, c, d), dim = c(2, 2, k),
 # interval, and the Mantel-Haenszel chi-square with the continuity correction
 # (correct = TRUE is the default)
 r <- mantelhaen.test(tables)
-print(r)
-
-# The exact conditional test gives the conditional maximum likelihood estimate and
-# the exact (Fisher) interval; R finds them numerically and they agree with the
-# report to four significant figures. The code below finds them to a tighter
-# tolerance, together with the mid-P interval and P values that R does not print
-e <- mantelhaen.test(tables, exact = TRUE)
-print(e)
 
 # The report's lines to 6 places
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)

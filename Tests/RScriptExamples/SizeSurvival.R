@@ -37,7 +37,3 @@ size_survival <- function(ct, et, at, fut, m, power, alpha) {
       ceiling(n * m), "controls\n\n")
 }
 size_survival(ct, et, at, fut, m, power, alpha)
-
-# The same trial recruiting for three years and closing as soon as recruitment ends:
-# fewer of the deaths are seen by then, so more subjects are needed for the same power
-size_survival(ct, et, at = 36, fut = 0, m, power, alpha)

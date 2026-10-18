@@ -9,7 +9,7 @@
 # the report's z (7.9789 = 2.824689^2) and its P is the approximate two sided P. Its
 # confidence interval is the simple normal one, not the interval the report gives.
 pct <- paste0(100 * confidence, "%")
-print(prop.test(c(r1, r2), c(n1, n2), correct = FALSE))
+print(prop.test(c(r1, r2), c(n1, n2), correct = FALSE, conf.level = confidence))
 
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
 pv <- function(p) {
@@ -64,11 +64,10 @@ cat("Approximate (Miettinen)", pct, "confidence interval =", six(lower), "to", s
 # tail, the central convention, as the Fisher's exact test report also prints it. The
 # other common convention, all the less probable tables plus half the observed one,
 # gives 0.0051 here
-x <- 0:min(n1, r1 + r2)
-prob <- dhyper(x, r1 + r2, N - r1 - r2, n1)
-obs <- which(x == r1)
-lower_tail <- sum(prob[1:obs]) - prob[obs] / 2
-upper_tail <- sum(prob[obs:length(x)]) - prob[obs] / 2
+observed <- dhyper(r1, r1 + r2, N - r1 - r2, n1)
+lower_tail <- phyper(r1, r1 + r2, N - r1 - r2, n1) - observed / 2
+upper_tail <- phyper(r1 - 1, r1 + r2, N - r1 - r2, n1,
+                     lower.tail = FALSE) - observed / 2
 cat("Exact two sided (mid)", pv(min(1, 2 * min(lower_tail, upper_tail))), "\n")
 
 # The normal approximation, with the pooled proportion in the standard error

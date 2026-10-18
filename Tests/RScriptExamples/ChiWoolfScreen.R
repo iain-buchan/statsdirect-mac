@@ -50,8 +50,3 @@ woolf(log(a * d / (b * c)), 1 / a + 1 / b + 1 / c + 1 / d)
 cat("For combined tables with Haldane correction:\n")
 woolf(log((a + 0.5) * (d + 0.5) / ((b + 0.5) * (c + 0.5))),
       1 / (a + 1) + 1 / (b + 1) + 1 / (c + 1) + 1 / (d + 1))
-
-# The Mantel-Haenszel pooled odds ratio that the text compares with, from R's standard
-# test, without its continuity correction
-tables <- array(rbind(a, c, b, d), c(2, 2, k))   # each table filled column by column
-print(mantelhaen.test(tables, correct = FALSE))

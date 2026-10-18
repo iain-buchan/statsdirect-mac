@@ -55,12 +55,12 @@ internal static class HostChartForms {
         }
         object Choice(string value, string label) => new { value, label };
         Add("method", "Box and whisker method", ((int)box.Method).ToString(CultureInfo.InvariantCulture), "select", choices: new[] {
-            Choice("1", "Median, quartiles and range"), Choice("2", "Mean, standard deviation and range"),
+            Choice("1", "Median, quartiles and range"), Choice("7", "Tukey hinges (median of each half)"), Choice("2", "Mean, standard deviation and range"),
             Choice("6", "Mean, standard error and range"), Choice("3", "Mean, confidence interval and range"),
             Choice("4", "Seven-number summary"), Choice("5", "Bowley summary") });
         Add("confidence", "Confidence level (%)", box.Cco * 100, "number", dependency: "method", enabledValues: new object[] { "3" });
-        Add("innerFence", "Use inner fence", box.UseInnerFence, "boolean", dependency: "method", enabledValues: new object[] { "1", "2", "3", "6" });
-        Add("outerFence", "Use outer fence", box.UseOuterFence, "boolean", dependency: "method", enabledValues: new object[] { "1", "2", "3", "6" });
+        Add("innerFence", "Use inner fence", box.UseInnerFence, "boolean", dependency: "method", enabledValues: new object[] { "1", "7", "2", "3", "6" });
+        Add("outerFence", "Use outer fence", box.UseOuterFence, "boolean", dependency: "method", enabledValues: new object[] { "1", "7", "2", "3", "6" });
         Add("markMeanAndMedian", "Mark both mean and median", box.MarkMeanAndMedian, "boolean");
         if (!chart.IsAscii) Add("orientation", "Orientation", box.Orientation.ToString(), "select", choices: new[] { Choice("Horizontal", "Horizontal"), Choice("Vertical", "Vertical") });
         Add("title", "Chart title", box.Title ?? "");

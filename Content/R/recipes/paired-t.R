@@ -38,8 +38,11 @@ cat(pct, "Limits of agreement =", six(loa[1]), "to", six(loa[2]), "\n")
 
 # The agreement plot that follows in the report: each difference against the mean
 # of its pair, with the mean difference (black) and the limits of agreement (red)
-plot((before + after) / 2, d, xlab = "Mean ((PEFR Before + PEFR After) / 2)",
-     ylab = "Difference (PEFR Before - PEFR After)", ylim = range(d, loa))
+if (!exists("before_title")) before_title <- "before"
+if (!exists("after_title")) after_title <- "after"
+plot((before + after) / 2, d, xlab = paste0("Mean ((", before_title, " + ", after_title, ") / 2)"),
+     ylab = paste0("Difference (", before_title, " - ", after_title, ")"), ylim = range(d, loa))
 abline(h = mean(d))
 abline(h = loa, col = "red")
-legend("topright", paste0("mean difference +/- ", pct, " limits of agreement"), bty = "n")
+mtext(paste0("Mean difference and ", pct, " limits of agreement"),
+      side = 3, line = 0.5, cex = 0.8)

@@ -11,7 +11,7 @@
 # whole number: the report gives the next whole number, the smallest n whose power
 # reaches the target. strict = TRUE counts a rejection in either tail as power, as
 # the report does; here the lower tail adds almost nothing.
-print(power.t.test(delta = delta, sd = sd, sig.level = alpha, power = power,
+if (m == 1) print(power.t.test(delta = delta, sd = sd, sig.level = alpha, power = power,
                    type = "two.sample", alternative = "two.sided", strict = TRUE))
 
 # For m controls per experimental subject the power of the unpaired t test with n
@@ -42,7 +42,3 @@ size_unpaired <- function(delta, sd, m, power, alpha) {
   cat("Power at this sample size =", six(power_of(n)), "\n\n")
 }
 size_unpaired(delta, sd, m, power, alpha)
-
-# The same trial with two controls for each experimental subject: fewer experimental
-# subjects are needed, but more subjects in all
-size_unpaired(delta, sd, m = 2, power, alpha)

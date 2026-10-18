@@ -8,6 +8,11 @@ if (!exists("seed") || is.null(seed)) seed <- sample.int(1e6, 1)   # StatsDirect
 if (n %% t != 0) {
   stop("the number of subjects must be a multiple of the number of treatments")
 }
+random_size <- is.null(b) || b <= 0
+if (!random_size) {
+  b <- max(2, b)
+  if (b %% t != 0) stop("block size must be a multiple of the number of treatments")
+}
 
 # Each block holds the treatments in equal numbers, in an order drawn at random by
 # sample(). StatsDirect and R each have their own Mersenne Twister generator and
@@ -22,22 +27,17 @@ while (length(allocation) < n) {
   left <- n - length(allocation)
   # a block of 2, 3 or 4 times the number of treatments, chosen at random; the
   # last block takes whatever is left once fewer than 4 times t subjects remain
-  size <- if (left < 4 * t) left else t * sample(2:4, 1)
+  size <- if (!random_size) min(b, left) else
+    if (left < 4 * t) left else t * sample(2:4, 1)
   sizes <- c(sizes, size)
   allocation <- c(allocation, sample(rep(treatments, size / t)))
 }
 cat("Random allocation in blocks\n")
 cat("Randomized with seed:", seed, "\n")
 cat("Subjects:", n, "\n")
-cat("Block size: random between", 2 * t, "and", 4 * t, "\n")
+if (random_size) cat("Block size: random between", 2 * t, "and", 4 * t, "\n") else
+  cat("Block size:", b, "\n")
 cat("Treatments:", t, "\n")
 print(data.frame(Subject = 1:n, Treatment = allocation), row.names = FALSE)
 cat("Block sizes drawn:", sizes, "\n")
 print(table(allocation))
-
-# Blocks of one fixed size instead (4 here): n must be a multiple of the block
-# size, and the block size a multiple of the number of treatments.
-set.seed(seed)
-fixed <- unlist(lapply(seq_len(n / b), function(i) sample(rep(treatments, b / t))))
-cat("\nBlock size:", b, "\n")
-print(data.frame(Subject = 1:n, Treatment = fixed), row.names = FALSE)

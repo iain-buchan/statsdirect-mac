@@ -43,7 +43,3 @@ size_unpaired <- function(delta, sd, m, power, alpha) {
   cat("Power at this sample size =", six(power_of(n)), "\n\n")
 }
 size_unpaired(delta, sd, m, power, alpha)
-
-# The same trial with two controls for each experimental subject: fewer experimental
-# subjects are needed, but more subjects in all
-size_unpaired(delta, sd, m = 2, power, alpha)

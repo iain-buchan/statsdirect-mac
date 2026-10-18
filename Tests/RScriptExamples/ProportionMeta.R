@@ -138,29 +138,3 @@ forest(c(p, inv(xf)), c(ci[, 1], inv(xf - z * se_f)), c(ci[, 2], inv(xf + z * se
        "Proportion meta-analysis plot [fixed effects]")
 forest(c(p, inv(xr)), c(ci[, 1], inv(xr - z * se_r)), c(ci[, 2], inv(xr + z * se_r)),
        wr, "Proportion meta-analysis plot [random effects]")
-
-# The Miller inverse, the other choice of back-transform in StatsDirect: the exact
-# inverse of the double arcsine at n = the harmonic mean of the study sizes
-hm <- k / sum(1 / total)
-ft <- function(r, n) asin(sqrt(r / (n + 1))) + asin(sqrt((r + 1) / (n + 1)))
-miller <- function(t) {
-  # beyond the range of the transform at n = hm the exact inverse folds back, so
-  # StatsDirect returns 0 or 1 there
-  if (t > ft(hm, hm)) return(1)
-  if (t < ft(0, hm)) return(0)
-  0.5 * (1 - sign(cos(t)) * sqrt(1 - (sin(t) + (sin(t) - 1 / sin(t)) / hm)^2))
-}
-cat("Method: Miller (exact inverse Freeman-Tukey double arcsine)\n")
-cat("Fixed effects pooled proportion = ", six(miller(xf)), " (95% CI = ",
-    six(miller(xf - z * se_f)), " to ", six(miller(xf + z * se_f)), ")\n", sep = "")
-cat("Random effects pooled proportion = ", six(miller(xr)), " (95% CI = ",
-    six(miller(xr - z * se_r)), " to ", six(miller(xr + z * se_r)), ")\n", sep = "")
-# Harbord's score is taken from the Miller pooled proportion here, so the test moves
-pf <- miller(xf)
-score <- adherent - total * pf
-vs <- total * pf * (1 - pf)
-harbord <- lm(I(score / sqrt(vs)) ~ sqrt(vs))
-cat("Harbord: bias = ", six(coef(harbord)[1]), " (90% CI = ",
-    six(confint(harbord, level = 0.9)[1, 1]), " to ",
-    six(confint(harbord, level = 0.9)[1, 2]), ")  ",
-    pv(summary(harbord)$coefficients[1, 4]), "\n", sep = "")

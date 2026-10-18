@@ -8,7 +8,13 @@
 # repeats its own series: set.seed() then the r* function.
 if (!exists("seed") || is.null(seed)) seed <- sample.int(1e6, 1)   # StatsDirect took its seed from the clock
 set.seed(seed)
-x <- matrix(if (kind == "interval") runif(rows * cols, min = a, max = b) else sample(a:b, rows * cols, replace = TRUE), rows, cols)
+if (kind == "interval") {
+  x <- runif(rows * cols, min = a, max = b)
+} else {
+  values <- seq.int(a, b)
+  x <- values[sample.int(length(values), rows * cols, replace = TRUE)]
+}
+x <- matrix(x, rows, cols)
 print(round(x, 6))
 cat("Mean =", round(mean(x), 6), " sd =", round(sd(x), 6), "  (seed", seed, ")
 ")

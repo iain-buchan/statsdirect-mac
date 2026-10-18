@@ -18,14 +18,14 @@ six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
 # R's standard test compares the two crude rates: its estimate is the ratio of the
 # rates and its confidence interval is the exact one of the report, from the binomial
 # distribution of the exposed deaths among all deaths, conditional on their total
-crude <- poisson.test(c(sum(a), sum(b)), c(sum(pt1), sum(pt2)))
+crude <- poisson.test(c(sum(a), sum(b)), c(sum(pt1), sum(pt2)), conf.level = confidence)
 print(crude)
 
 # The same test on each stratum gives the stratum rate ratios with their exact
 # intervals; the weight of a stratum is its share of the reference population
 rr <- (a / pt1) / (b / pt2)
 exact <- sapply(1:k, function(i) {
-  poisson.test(c(a[i], b[i]), c(pt1[i], pt2[i]))$conf.int
+  poisson.test(c(a[i], b[i]), c(pt1[i], pt2[i]), conf.level = confidence)$conf.int
 })
 w <- ref / sum(ref)
 cat("Stratum rate ratios with exact Poisson", pct, "CI and weights\n")
@@ -37,7 +37,7 @@ print(data.frame(stratum = c(1:k, "All"), RR = six(c(rr, crude$estimate)),
 # The crude rates with exact Poisson intervals: poisson.test on one count gives the same
 # limits as the chi-square (gamma) quantiles of the report's formula
 crude_ci <- function(events, time) {
-  r <- poisson.test(events, time)
+  r <- poisson.test(events, time, conf.level = confidence)
   per * c(r$estimate, r$conf.int)
 }
 e <- crude_ci(sum(a), sum(pt1))
@@ -78,7 +78,7 @@ upper <- c(exact[2, ], crude$conf.int[2], exp(log(srr) + z * se_log))
 y <- (k + 2):1
 par(mar = c(5, 7, 4, 2))
 plot(NA, xlim = range(lower, upper), ylim = c(0.5, k + 2.5), log = "x", yaxt = "n",
-     ylab = "", xlab = "rate ratio (95% confidence interval)",
+     ylab = "", xlab = paste0("rate ratio (", pct, " confidence interval)"),
      main = "Stratified rate ratio plot (direct standardization)")
 axis(2, at = y, labels = c(strata, "All (crude)", "Standardized"), las = 1,
      tick = FALSE)

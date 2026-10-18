@@ -19,19 +19,7 @@ sd_histogram_counts <- function(x, edges) {
   bins <- findInterval(x, interiors, left.open = TRUE) + 1L
   tabulate(bins, nbins = length(edges) - 1L)
 }
-sd_histogram_midpoint_labels <- function(mids, width) {
-  choose <- function(error, most) {
-    for (digits in 0:most)
-      if (max(abs(round(mids, digits) - mids)) <= error) return(digits)
-    -1L
-  }
-  digits <- choose(abs(width) * 1e-9, 4L)
-  if (digits < 0L) digits <- choose(abs(width) / 40, 6L)
-  if (digits < 0L) return(formatC(mids, digits = 3L, format = "g"))
-  mids <- round(mids, digits)
-  mids[abs(mids) < abs(width) * 1e-9] <- 0
-  formatC(mids, digits = digits, format = "f")
-}
+sd_histogram_midpoint_labels <- function(mids, width) format(mids, trim = TRUE, drop0trailing = TRUE)
 if (!length(series)) stop("Select at least one series for the histogram.")
 series <- lapply(series, function(x) {
   x <- x[!is.na(x)]

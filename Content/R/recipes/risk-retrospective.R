@@ -18,7 +18,7 @@ d <- counts[2, 2]   # controls without it
 # interval: each limit leaves 2.5% in one tail of the conditional distribution. Its
 # P value is the two sided Fisher P. All three are found to about four significant
 # figures, so the last digits differ from the report, which is exact to 6 places.
-print(fisher.test(counts))
+print(fisher.test(counts, conf.level = confidence))
 
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
 pv <- function(p) {
@@ -112,20 +112,22 @@ cat("Exact mid-P one sided ", pv(mid), ", two sided ", pv(min(2 * mid, 1)), "\n"
 # and the attributable fraction Px (OR - 1) / (1 + Px (OR - 1)) is then the same as
 # 1 - (b / (a + b)) / (d / (c + d)), whose large sample variance is Walter's (1978).
 # All three are printed as percentages.
-px <- c / (c + d)
-par <- px * (odds - 1) / (1 + px * (odds - 1))
-var_par <- (b * (c + d) / (d * (a + b)))^2 * (a / (b * (a + b)) + c / (d * (c + d)))
-cat("Population exposure % =", six(100 * px), "(exposure among the controls)\n")
-cat("Population attributable risk % =", six(100 * par), "\n")
-cat("Approximate", pct, "confidence interval =", six(100 * (par - z * sqrt(var_par))),
-    "to", six(100 * (par + z * sqrt(var_par))), "\n")
-
-# If the population exposure is entered instead (say 50%), it carries no sampling
-# error, so the limits are the Woolf limits of the odds ratio put through the same
-# formula
-px <- 0.5
-attributable <- function(or) 100 * px * (or - 1) / (1 + px * (or - 1))
-cat("Population exposure % =", six(100 * px), "(as entered)\n")
-cat("Population attributable risk % =", six(attributable(odds)), "\n")
-cat("Approximate", pct, "confidence interval =", six(attributable(exp(log(odds) - z * se))),
-    "to", six(attributable(exp(log(odds) + z * se))), "\n")
+if (odds > 1 && is.finite(odds)) {
+  if (is.null(px) || !is.finite(px) || px < 0 || px > 1) {
+    px <- c / (c + d)
+    par <- px * (odds - 1) / (1 + px * (odds - 1))
+    var_par <- (b * (c + d) / (d * (a + b)))^2 * (a / (b * (a + b)) + c / (d * (c + d)))
+    par_ci <- par + c(-1, 1) * z * sqrt(var_par)
+    exposure_note <- "(exposure among the controls)"
+  } else {
+    # An entered exposure is fixed: carry the Woolf odds-ratio limits through the PAR formula.
+    attributable <- function(or) px * (or - 1) / (1 + px * (or - 1))
+    par <- attributable(odds)
+    par_ci <- attributable(exp(log(odds) + c(-1, 1) * z * se))
+    exposure_note <- "(as entered)"
+  }
+  cat("Population exposure % =", six(100 * px), exposure_note, "\n")
+  cat("Population attributable risk % =", six(100 * par), "\n")
+  cat("Approximate", pct, "confidence interval =", six(100 * par_ci[1]), "to",
+      six(100 * par_ci[2]), "\n")
+}

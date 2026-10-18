@@ -16,16 +16,6 @@ treatment <- factor(rep(colnames(blocks), times = nrow(blocks)), levels = colnam
 fit <- aov(clotting ~ subject + treatment)
 print(summary(fit))
 
-# The report's lines to 6 places
-a <- anova(fit)
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
-pv <- function(p) {
-  if (p < 0.0001) "P < 0.0001" else paste("P =", formatC(p, digits = 4, format = "f"))
-}
-cat("Between blocks (rows)", six(a$"Sum Sq"[1]), a$Df[1], six(a$"Mean Sq"[1]), "\n")
-cat("Between treatments (columns)", six(a$"Sum Sq"[2]), a$Df[2], six(a$"Mean Sq"[2]),
-    "\n")
-cat("Residual (error)", six(a$"Sum Sq"[3]), a$Df[3], six(a$"Mean Sq"[3]), "\n")
-cat("Corrected total", six(sum(a$"Sum Sq")), sum(a$Df), "\n")
-cat("F (VR between blocks) =", six(a$"F value"[1]), " ", pv(a$"Pr(>F)"[1]), "\n")
-cat("F (VR between treatments) =", six(a$"F value"[2]), " ", pv(a$"Pr(>F)"[2]), "\n")
+# The corrected total is not a separate row in R's ANOVA table.
+cat("Corrected total sum of squares =", sum(anova(fit)$"Sum Sq"),
+    "  DF =", sum(anova(fit)$Df), "\n")

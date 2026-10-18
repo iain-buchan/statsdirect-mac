@@ -31,7 +31,8 @@ def snapshot():
         files.extend(p for p in (source / 'StatsDirectUI/Assets' / folder).rglob('*') if p.is_file())
     for name in ['OperationTestHost', 'OperationsTester', 'Pane', 'PaneAndPosition', 'ChartOptionsParameter', 'FillableParameter', 'Settings']:
         files.append(source / 'StatsDirectUI/UI' / f'{name}.cs')
-    files.extend(p for p in (source / 'Layout').rglob('*.cs') if 'obj' not in p.parts and 'bin' not in p.parts)
+    # the axis layout the Windows application compiles (its csproj's default glob); the repository's top-level Layout/ is an older copy
+    files.extend(p for p in (source / 'StatsDirectUI/Layout').rglob('*.cs') if 'obj' not in p.parts and 'bin' not in p.parts)
     files.extend(source / path for path in ['StatsDirectUI/StatsDirectUI.csproj', 'StatsDirectUI/Assets/menu.xml', 'StatsDirectUI/Assets/Data/test.xlsx'])
     hashes = {str(p.relative_to(source)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files)}
     version = ET.parse(source / 'StatsDirectUI/StatsDirectUI.csproj').findtext('.//Version')

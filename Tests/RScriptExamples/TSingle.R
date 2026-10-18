@@ -17,8 +17,7 @@ cat("Sample mean =", six(mean(bp)), "  Sample size n =", n,
     "  Sample sd =", six(sd(bp)), "\n")
 cat("95% confidence interval for mean difference =", six(r$conf.int[1] - mu), "to",
     six(r$conf.int[2] - mu), "\n")
-cat("df =", r$parameter, "  t =", six(r$statistic), "\n")
-cat(sprintf("One sided P = %.4f   Two sided P = %.4f\n", r$p.value / 2, r$p.value))
+cat(sprintf("One sided P = %.4f\n", r$p.value / 2))
 
 # Power of a two sided test at the 5% level to detect the difference and sd seen,
 # from the noncentral t distribution; strict = TRUE counts rejections in both

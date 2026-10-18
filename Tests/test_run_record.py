@@ -460,6 +460,8 @@ def expected_script(record, recipe, detail):
     own_frames = any(not c['inherited'] for c in columns)
     def assign(variable, column):
         names.add(variable); out.append(variable + ' <- ' + vector(column['values']) + '   # ' + plain(column['title']) + '\n')
+        # the column's title for a recipe's labels (Windows 0f634625): the help example's names must not label the user's data
+        names.add(variable + '_title'); out.append(variable + '_title <- ' + quote(column['title']) + '\n')
     def list_of(variable, indices):
         out.append(variable + ' <- list(' + ',\n  '.join(quote(columns[i]['title']) + ' = ' + vector(columns[i]['values']) for i in indices) + ')\n'); names.add(variable)
     def missing(variable, why): names.add(variable); out.append(variable + ' <- NULL   # ' + why + '\n')
@@ -579,7 +581,9 @@ def record_of(example):
 # contain the actual S and confidence-limit columns supplied to the plot form.
 REAL_RUN_COLUMNS = {'Chi2byNWithTrend': {'data': [{'title': 'score', 'values': [1, 2, 3]}]}}
 # settings a form asks for that the example leaves to the help's layout: the number of groups or repeats whose frames it then asks for one by one
-REAL_RUN_SETTINGS = {'SurvivalPlot': {'group-count': 2}, 'WeiLachin': {'nr': 4}, 'PoissonRegression': {'has-exposure': 'true'}}
+REAL_RUN_SETTINGS = {'SurvivalPlot': {'group-count': 2}, 'WeiLachin': {'nr': 4}, 'PoissonRegression': {'has-exposure': 'true'}, 'RandomPairs': {'balance': True}}
+# RandomPairs: the help allocates its 50 pairs balanced and the recipe honours the recorded choice since Windows 8c4b1c45, but the example's
+# settings carry only pairs and seed, so the yes/no question would otherwise be answered no, as any unrecorded one is
 def run_example(session, example, parent=None, keep=False, extra=None, preferences=None):
     """Answers the operation's prompts from the example: frames by the name the operation asks them by, else the example's columns in order (one
     at a time to a single-column prompt, the rest to a wider one), a screen-typed 2 by 2 from its cell settings, the Distributions calculator's
@@ -715,9 +719,11 @@ for op in operations:
 check(not mismatched, 'the engine writes every recipe\'s script for the help\'s example exactly as the Windows writer\'s rules give it, line by line (%d operations)' % len(operations)
       + ('; differing: ' + ', '.join(mismatched) if mismatched else ''))
 CHART_PROBES = {
-    'BarPlot': 'emit(c(dim(bar_values), as.vector(bar_values)))\nfor (s in bar_segments) emit(unlist(s, use.names=FALSE))',
-    'BarPlotFrequency': 'emit(c(dim(counts), as.vector(counts), as.vector(frequency_values), dim(bar_values), as.vector(bar_values)))\nfor (s in bar_segments) emit(unlist(s, use.names=FALSE))',
-    'HistogramPlot': 'emit(length(histograms))\nfor (h in histograms) emit(c(h$n, h$breaks, h$counts, h$mids, h$heights))',
+    # the bar recipes draw with barplot() since Windows 8c4b1c45, so the bars' geometry is R's and only the values are checked
+    'BarPlot': 'emit(c(dim(bar_values), as.vector(bar_values)))',
+    'BarPlotFrequency': 'emit(c(dim(counts), as.vector(counts), as.vector(frequency_values), dim(bar_values), as.vector(bar_values)))',
+    # the reference also derives the Doane edges a series without recorded bins would get
+    'HistogramPlot': 'emit(length(histograms))\nfor (h in histograms) emit(c(h$n, h$breaks, h$counts, h$mids, h$heights))\nfor (x in series) emit(sd_histogram_doane(x))',
     'NormalPlot': 'emit(c(length(observed), normal_ranks, normal_scores, observed))',
     'SpreadPlot': 'stopifnot(spread_tolerance>0,spread_tolerance<1)\nemit(length(groups))\nfor (i in seq_along(groups)) { emit(c(length(groups[[i]]), groups[[i]])); emit(unlist(spread_stacks[[i]],use.names=FALSE)) }',
     'LinePlot': 'emit(length(xy_series))\nfor (s in xy_series) emit(c(length(s$x), s$x, s$y))',
@@ -779,7 +785,9 @@ def compare_with_help(outputs, what):
         else:
             failures.append(op); a, b = ours.split(' '), expected.split(' '); i = 0
             while i < len(a) and i < len(b) and a[i] == b[i]: i += 1
-            print('      %s: the figures differ from the %dth: %s %s, help %s (%d and %d figures)' % (op, i + 1, what, a[i] if i < len(a) else '(end)', b[i] if i < len(b) else '(end)', len(a), len(b)), flush=True)
+            extra = [f for f in a if f not in allowed]
+            print('      %s: the figures differ from the %dth: %s %s, help %s (%d and %d figures; %s)' % (op, i + 1, what, a[i] if i < len(a) else '(end)', b[i] if i < len(b) else '(end)', len(a), len(b),
+                  'every figure printed is among the help\'s' if not extra else 'not in the help\'s: ' + ' '.join(extra[:8])), flush=True)
     return agreed, failures
 agreed, failures = compare_with_help(zip(operations, r_outputs([comparison_script(op, harness[op][1]['text']) for op in operations])), 'recipe')
 check(not failures, 'every recipe prints the figures the help\'s script prints on the help\'s example: %d of %d agree' % (agreed, len(operations)) + ('; differing: ' + ', '.join(failures) if failures else ''))
@@ -1270,12 +1278,12 @@ check('model <- "y~x1+age..years."' in script and 'Equivalent Number of Paramete
 script, r = built({'operation': 'MethodComparisonRegression', 'inputs': [{'name': 'testData', 'columns': columns_of(('test', [1.1, 2.3, 2.9, 4.2, 5.1, 5.8, 7.2, 8.1, 8.8, 10.3, 11.1, 12.4]))},
                                                                           {'name': 'referenceData', 'columns': columns_of(('reference', list(range(1, 13))))}],
                    'settings': {'error-ratio': 1, 'ci': 0.95, 'seed': 3, 'do.deming.jackknife': False, 'do.deming.analytical': True}})
-check('do.deming.analytical <- TRUE' in script and re.search(r'^Slope: ', r, re.M) and 'jackknife' not in r, 'the method comparison script runs the regression the run chose, the Deming line with Wald limits, and not the help\'s jackknife')
+check('do.deming.analytical <- TRUE' in script and re.search(r'^Slope\s+-?[0-9.]+', r, re.M) and 'analytical method' in r and 'jackknife' not in r, 'the method comparison script runs the regression the run chose, the Deming line with analytical limits (mcr\'s summary since Windows 8c4b1c45), and not the help\'s jackknife')
 # the same through the engine, which records the regressions as one boolean under each option's name, as the dialog fills them
 MCR_OPTIONS = ('do.deming.jackknife', 'do.deming.bootstrap', 'do.deming.analytical', 'do.wdeming.jackknife', 'do.wdeming.nestedbootstrap', 'do.paba', 'do.paba.nestedbootstrap', 'do.pabalarge', 'do.pabalarge.nestedbootstrap')
 state, record, script, r, report = option_run('MethodComparisonRegression', [('testData', [('test', [1.1, 2.3, 2.9, 4.2, 5.1, 5.8, 7.2, 8.1, 8.8, 10.3, 11.1, 12.4])]), ('referenceData', [('reference', list(range(1, 13)))])],
                                               {'error-ratio': 1.0, 'ci': 0.95, 'seed': 3, 'saveRScript': False, **{name: name == 'do.deming.analytical' for name in MCR_OPTIONS}})
-r_slope = numbers(r, r'^Slope: (-?[0-9.]+) ')[0]; engine_slope = state['values']['slope'] if is_number(state['values'].get('slope')) else numbers(report, r'^Slope:? +(-?[0-9.]+)')[0]
+r_slope = numbers(r, r'^Slope\s+(-?[0-9.]+)')[0]; engine_slope = state['values']['slope'] if is_number(state['values'].get('slope')) else numbers(report, r'^Slope:? +(-?[0-9.]+)')[0]
 print('      method comparison through the engine: engine slope %.7g, R %.7g' % (engine_slope, r_slope), flush=True)
 check('do.deming.analytical <- TRUE' in script and 'do.paba <- FALSE' in script and near(r_slope, engine_slope, 1e-4), 'a real method comparison run\'s script runs the regression the run ticked and gives the engine\'s slope')
 script, r = built({'operation': 'LinearizedEstimates', 'inputs': [{'name':'y','columns':columns_of(('kwh',[2,4,9,16,26,38]))}, {'name':'x','columns':columns_of(('size',[1,2,3,4,5,6]))}], 'settings': {'model': '1'}})

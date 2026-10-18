@@ -27,15 +27,10 @@ tables <- array(rbind(a, b, c, d), dim = c(2, 2, k),
 # confidence interval that equals the report's Robins, Breslow and Greenland
 # interval, and the Mantel-Haenszel chi-square with the continuity correction
 # (correct = TRUE is the default)
-r <- mantelhaen.test(tables)
-print(r)
+r <- mantelhaen.test(tables, conf.level = confidence)
 
-# The exact conditional test gives the conditional maximum likelihood estimate and
-# the exact (Fisher) interval; R finds them numerically and they agree with the
-# report to four significant figures. The code below finds them to a tighter
-# tolerance, together with the mid-P interval and P values that R does not print
-e <- mantelhaen.test(tables, exact = TRUE)
-print(e)
+# The exact block below uses tighter root tolerances than R's standard exact test,
+# and adds mid-P limits and P values, so it is calculated separately.
 
 # The report's lines to 6 places
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
@@ -111,7 +106,7 @@ or <- a * d / (b * c)
 lci <- numeric(k)
 uci <- numeric(k)
 for (i in 1:k) {
-  lim <- exact_limits(conditional(a[i], b[i], c[i], d[i]), a[i])
+  lim <- exact_limits(conditional(a[i], b[i], c[i], d[i]), a[i], level = confidence)
   lci[i] <- lim[1]
   uci[i] <- lim[2]
 }
@@ -120,16 +115,11 @@ for (i in 1:k) {
   cat(i, six(or[i]), six(lci[i]), six(uci[i]), "\n")
 }
 
-# Mantel-Haenszel: the pooled odds ratio is sum(a d / n) / sum(b c / n), the
-# fixed effects weights are b c / n, and the Robins-Breslow-Greenland variance of
-# its log gives the interval, as mantelhaen.test printed
-R <- a * d / n
+# The approximate estimate and Robins-Breslow-Greenland limits are supplied by
+# mantelhaen.test; the fixed effects weights are proportional to b c / n.
 S <- b * c / n
-P <- (a + d) / n
-Q <- (b + c) / n
-or_mh <- sum(R) / sum(S)
-v_rbg <- sum(P * R) / (2 * sum(R)^2) + sum(Q * R + P * S) / (2 * sum(R) * sum(S)) +
-  sum(Q * S) / (2 * sum(S)^2)
+or_mh <- unname(r$estimate)
+mh_ci <- unname(r$conf.int)
 wt_fixed <- 100 * S / sum(S)
 
 # Heterogeneity: Breslow-Day compares each a cell with its expectation under the
@@ -168,7 +158,6 @@ for (i in 1:k) {
   cat(i, six(yi[i]), six(vi[i]), six(wt_fixed[i]), six(wt_random[i]), "\n")
 }
 
-mh_ci <- exp(log(or_mh) + c(-1, 1) * z * sqrt(v_rbg))
 cat("Fixed effects (Mantel-Haenszel, Robins-Breslow-Greenland)\n")
 cat("Pooled odds ratio = ", six(or_mh), " (", pct, "CI = ", six(mh_ci[1]), " to ",
     six(mh_ci[2]), ")\n", sep = "")
@@ -181,8 +170,8 @@ cat("Chi2 (test odds ratio differs from 1) =", six(x2), " ", pv(r$p.value), "\n"
 all <- conditional(a, b, c, d)
 s <- sum(a)
 cml <- cond_solve(all, 0, s)
-fisher <- exact_limits(all, s)
-midp <- exact_limits(all, s, half = TRUE)
+fisher <- exact_limits(all, s, level = confidence)
+midp <- exact_limits(all, s, level = confidence, half = TRUE)
 p_upper <- cond_p(all, 1, all$support >= s)
 p_lower <- cond_p(all, 1, all$support <= s)
 p_at_s <- cond_p(all, 1, all$support == s)
@@ -292,7 +281,7 @@ forest <- function(pooled, lower, upper, weights, main, label) {
   two <- function(x) formatC(x, digits = 2, format = "f")
   par(mar = c(5, 8, 4, 9))
   plot(NA, xlim = range(1, lci, uci, lower, upper), ylim = c(0.5, k + 1.5),
-       log = "x", yaxt = "n", xlab = "odds ratio (95% confidence interval)",
+       log = "x", yaxt = "n", xlab = paste0("odds ratio (", pct, " confidence interval)"),
        ylab = "", main = main)
   abline(v = 1)
   segments(pooled, 1, pooled, k + 1, lty = 2)

@@ -26,7 +26,8 @@ p <- adherent / total
 # binom.test() gives it; when every subject responds, as in the Zu trial, the interval
 # is one sided and its lower limit is the 97.5% limit
 ci <- t(sapply(seq_len(k), function(i) binom.test(adherent[i], total[i], conf.level = confidence)$conf.int))
-one_sided <- ifelse(adherent == 0 | adherent == total, "[97.5% one-sided CI]", "")
+one_sided <- ifelse(adherent == 0 | adherent == total,
+                   paste0("[", 100 * (1 + confidence) / 2, "% one-sided CI]"), "")
 cat("Method:", if (method == "doubleArcsine") "Miller (exact inverse Freeman-Tukey double arcsine)" else "Stuart-Ord (inverse double arcsine square root)", "\n")
 print(data.frame(Study = seq_len(k), Proportion = six(p), Lower = six(ci[, 1]),
                  Upper = six(ci[, 2]), Trial = paste(trial, one_sided)),
@@ -47,8 +48,14 @@ print(data.frame(Study = seq_len(k), Transform = six(x), Variance = six(v),
                  Fixed = six(100 * w / sum(w)), Random = six(100 * wr / sum(wr)),
                  Trial = paste(trial, one_sided)), row.names = FALSE, right = FALSE)
 
-hmn <- length(total) / sum(1 / total)   # the harmonic mean of the numbers of subjects, for the Miller inverse
-inv <- function(t) if (method == "doubleArcsine") 0.5 * (1 - sign(cos(t)) * sqrt(1 - (sin(t) + (sin(t) - 1 / sin(t)) / hmn)^2)) else sin(t / 2)^2
+hmn <- length(total) / sum(1 / total)   # the harmonic mean of study sizes for the Miller inverse
+inv <- function(t) {
+  if (method != "doubleArcsine") return(sin(t / 2)^2)
+  # The exact inverse folds back beyond its attainable range; return the boundary instead.
+  if (t <= asin(sqrt(1 / (hmn + 1)))) return(0)
+  if (t >= asin(sqrt(hmn / (hmn + 1))) + pi / 2) return(1)
+  0.5 * (1 - sign(cos(t)) * sqrt(max(0, 1 - (sin(t) + (sin(t) - 1 / sin(t)) / hmn)^2)))
+}
 cat("Fixed effects (inverse variance)\n")
 cat("Pooled proportion = ", six(inv(xf)), " (", pct, "CI = ", six(inv(xf - z * se_f)),
     " to ", six(inv(xf + z * se_f)), ")\n", sep = "")
@@ -74,7 +81,8 @@ lambda_at <- function(prob) {
 }
 one <- function(x) formatC(x, digits = 1, format = "f")
 cat("I2 (inconsistency) = ", one(i2(max(0, q - df))), "% (", pct, "CI = ",
-    one(i2(lambda_at(0.975))), "% to ", one(i2(lambda_at(0.025))), "%)\n", sep = "")
+    one(i2(lambda_at((1 + confidence) / 2))), "% to ",
+    one(i2(lambda_at((1 - confidence) / 2))), "%)\n", sep = "")
 
 cat("Random effects (DerSimonian-Laird)\n")
 cat("Pooled proportion = ", six(inv(xr)), " (", pct, "CI = ", six(inv(xr - z * se_r)),
@@ -124,7 +132,7 @@ forest <- function(est, lower, upper, weight, title) {
   y <- rev(seq_along(rows))
   old <- par(mar = c(5, 7, 4, 10))
   plot(est, y, type = "n", xlim = c(0, 1), yaxt = "n", ylab = "",
-       xlab = "proportion (95% confidence interval)", main = title)
+       xlab = paste0("proportion (", pct, " confidence interval)"), main = title)
   segments(lower, y, upper, y)
   points(est[1:k], y[1:k], pch = 15, col = "grey", cex = 3 * sqrt(weight / max(weight)))
   points(est[1:k], y[1:k], pch = 20)
@@ -139,29 +147,3 @@ forest(c(p, inv(xf)), c(ci[, 1], inv(xf - z * se_f)), c(ci[, 2], inv(xf + z * se
        "Proportion meta-analysis plot [fixed effects]")
 forest(c(p, inv(xr)), c(ci[, 1], inv(xr - z * se_r)), c(ci[, 2], inv(xr + z * se_r)),
        wr, "Proportion meta-analysis plot [random effects]")
-
-# The Miller inverse, the other choice of back-transform in StatsDirect: the exact
-# inverse of the double arcsine at n = the harmonic mean of the study sizes
-hm <- k / sum(1 / total)
-ft <- function(r, n) asin(sqrt(r / (n + 1))) + asin(sqrt((r + 1) / (n + 1)))
-miller <- function(t) {
-  # beyond the range of the transform at n = hm the exact inverse folds back, so
-  # StatsDirect returns 0 or 1 there
-  if (t > ft(hm, hm)) return(1)
-  if (t < ft(0, hm)) return(0)
-  0.5 * (1 - sign(cos(t)) * sqrt(1 - (sin(t) + (sin(t) - 1 / sin(t)) / hm)^2))
-}
-cat("Method: Miller (exact inverse Freeman-Tukey double arcsine)\n")
-cat("Fixed effects pooled proportion = ", six(miller(xf)), " (", pct, "CI = ",
-    six(miller(xf - z * se_f)), " to ", six(miller(xf + z * se_f)), ")\n", sep = "")
-cat("Random effects pooled proportion = ", six(miller(xr)), " (", pct, "CI = ",
-    six(miller(xr - z * se_r)), " to ", six(miller(xr + z * se_r)), ")\n", sep = "")
-# Harbord's score is taken from the Miller pooled proportion here, so the test moves
-pf <- miller(xf)
-score <- adherent - total * pf
-vs <- total * pf * (1 - pf)
-harbord <- lm(I(score / sqrt(vs)) ~ sqrt(vs))
-cat("Harbord: bias = ", six(coef(harbord)[1]), " (90% CI = ",
-    six(confint(harbord, level = 0.9)[1, 1]), " to ",
-    six(confint(harbord, level = 0.9)[1, 2]), ")  ",
-    pv(summary(harbord)$coefficients[1, 4]), "\n", sep = "")

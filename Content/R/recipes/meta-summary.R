@@ -111,11 +111,10 @@ cat("Begg-Mazumdar: Kendall's tau =", six(kt$estimate), " ", pv(kt$p.value),
 # intercept, judged by a t test on k - 2 degrees of freedom; the interval is at
 # twice the analysis's alpha, 90% for this 95% analysis
 fit <- lm(I(y / se) ~ I(1 / se))
-bias <- coef(fit)[1]
-se_bias <- sqrt(vcov(fit)[1, 1])
-cat("Egger: bias = ", six(bias), " (90% CI = ", six(bias - qt(0.95, k - 2) * se_bias),
-    " to ", six(bias + qt(0.95, k - 2) * se_bias), ")  ",
-    pv(2 * pt(-abs(bias / se_bias), k - 2)), "\n", sep = "")
+bias <- coef(summary(fit))[1, ]
+ci <- confint(fit, level = 0.9)[1, ]
+cat("Egger: bias = ", six(bias["Estimate"]), " (90% CI = ", six(ci[1]),
+    " to ", six(ci[2]), ")  ", pv(bias["Pr(>|t|)"]), "\n", sep = "")
 
 # The report's bias assessment (funnel) plot: each log odds ratio against its
 # standard error, the axis reversed so that the 95% cone about the pooled log odds

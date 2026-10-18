@@ -29,7 +29,7 @@ for (i in seq_along(age)) {
 # is what poisson.test() gives (its conf.int)
 # (poisson.test() takes whole-number counts; qgamma(0.025, y) and qgamma(0.975, y + 1)
 # over the person-time give the same limits for fractional counts)
-cat("Index rate  Exact 95% confidence interval\n")
+cat("Index rate  Exact", paste0(100 * conf, "%"), "confidence interval\n")
 for (i in seq_along(age)) {
   ci <- poisson.test(deaths[i], person_time[i], conf.level = conf)$conf.int * per
   cat(six(rate[i] * per), six(ci[1]), "to", six(ci[2]), age[i], "\n")
@@ -52,16 +52,16 @@ v_binomial <- sum(weight^2 * rate * (1 - rate) / person_time)
 v_poisson <- sum(weight^2 * rate / person_time)
 cat("Any rates (binomial model)\n")
 cat("Approximate standard error of R =", six(sqrt(v_binomial) * per), "\n")
-cat("Approximate 95% confidence interval =", six((dsr - z * sqrt(v_binomial)) * per),
+cat("Approximate", paste0(100 * conf, "%"), "confidence interval =", six((dsr - z * sqrt(v_binomial)) * per),
     "to", six((dsr + z * sqrt(v_binomial)) * per), "\n")
 cat("Small rates (Poisson model)\n")
 cat("Approximate standard error of R =", six(sqrt(v_poisson) * per), "\n")
-cat("Approximate 95% confidence interval =", six((dsr - z * sqrt(v_poisson)) * per),
+cat("Approximate", paste0(100 * conf, "%"), "confidence interval =", six((dsr - z * sqrt(v_poisson)) * per),
     "to", six((dsr + z * sqrt(v_poisson)) * per), "\n")
 
 # Dobson et al. (1991): the exact limits for the total count of events, shifted and
 # scaled to the standardized rate
 total_ci <- poisson.test(total, conf.level = conf)$conf.int
 dobson <- dsr + (total_ci - total) * sqrt(v_poisson / total)
-cat("Improved approximate (Dobson) 95% confidence interval =",
+cat("Improved approximate (Dobson)", paste0(100 * conf, "%"), "confidence interval =",
     six(dobson[1] * per), "to", six(dobson[2] * per), "\n")

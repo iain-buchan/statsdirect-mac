@@ -95,7 +95,7 @@ se_taub_ind <- 2 * sqrt(v_ind / (dr * dcl))
 z <- qnorm((1 + confidence) / 2)
 show <- function(label, est, se) {
   cat(label, " SE =", six(se), " ", pv(2 * pnorm(-abs(est / se))),
-      " 95% CI =", six(est - z * se), "to", six(est + z * se), "\n")
+      paste0(" ", 100 * confidence, "% CI ="), six(est - z * se), "to", six(est + z * se), "\n")
 }
 cat("Goodman-Kruskal gamma =", six(gamma), "\n")
 show("Approximate test of gamma = 0:", gamma, se_gamma)

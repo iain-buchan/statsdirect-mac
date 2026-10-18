@@ -80,7 +80,7 @@ hazard_ratio <- function(O, E, i, j, level = 0.95) {
       six(hr * exp(half)), ")\n", sep = "")
 }
 cat("Hazard Ratio (approximate", pct, "confidence interval)\n")
-hazard_ratio(lr$O, lr$E, 1, 2)
+hazard_ratio(lr$O, lr$E, 1, 2, level = confidence)
 
 # Conditional maximum likelihood estimate: a 2 by 2 table at each death time (deaths
 # and survivors by group among those at risk) and the exact test of a common odds
@@ -184,7 +184,7 @@ if (!is.null(stratum)) {
   cat("Log-rank (Peto), stratified:\n")
   total <- combined(wilcoxon = FALSE)
   cat("Hazard Ratio (approximate", pct, "confidence interval)\n")
-  hazard_ratio(total$O, total$E, 1, 2)
+  hazard_ratio(total$O, total$E, 1, 2, level = confidence)
   cat("Generalised Wilcoxon (", wilcoxon_name, "), stratified:\n", sep = "")
   total <- combined(wilcoxon = TRUE)
 }

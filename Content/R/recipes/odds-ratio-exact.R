@@ -16,7 +16,7 @@ print(twins)
 # the limits come from root finding to a modest tolerance, so their last digits differ
 # from the report (the upper limit in its third significant figure); the report is
 # exact to 6 places.
-print(fisher.test(twins))
+print(fisher.test(twins, conf.level = confidence))
 
 # The same quantities to full precision. Given the margins, the top left cell a can
 # take the values lo to hi, with probabilities proportional to the central

@@ -17,29 +17,28 @@ unequal <- t.test(high, low, conf.level = confidence)
 print(unequal)
 
 # The F test that StatsDirect uses to compare the variances
-f <- var.test(high, low)
+f <- var.test(high, low, conf.level = confidence)
 print(f)
 
 # The report's other lines, to 6 decimal places
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
-cat(sprintf("Mean of High Protein = %s  (n = %d)\n", six(mean(high)), length(high)))
-cat(sprintf("Mean of Low Protein = %s  (n = %d)\n", six(mean(low)), length(low)))
+if (!exists("high_title")) high_title <- "high"
+if (!exists("low_title")) low_title <- "low"
+cat(sprintf("Mean of %s = %s  (n = %d)\n", high_title, six(mean(high)), length(high)))
+cat(sprintf("Mean of %s = %s  (n = %d)\n", low_title, six(mean(low)), length(low)))
 delta <- mean(high) - mean(low)
-report <- function(r, label, t) {
+report <- function(r, label) {
   cat(label, "\n")
-  cat("Combined standard error =", six(delta / r$statistic), "  df =",
-      six(r$parameter), " ", t, "=", six(r$statistic), "\n")
-  cat(sprintf("One sided P = %.4f   Two sided P = %.4f\n", r$p.value / 2, r$p.value))
-  cat(pct, "confidence interval for difference between means =", six(r$conf.int[1]),
-      "to", six(r$conf.int[2]), "\n")
+  cat("Combined standard error =", six(r$stderr), "\n")
+  cat(sprintf("One sided P = %.4f\n", r$p.value / 2))
   # Power of a two sided test at the 5% level to detect the difference seen, from
   # the noncentral t distribution: the noncentrality parameter is the t observed
-  tc <- qt((1 + confidence) / 2, r$parameter)
+  tc <- qt(0.975, r$parameter)
   pw <- pt(-tc, r$parameter, ncp = r$statistic) +
         pt(tc, r$parameter, ncp = r$statistic, lower.tail = FALSE)
   cat(sprintf("Power (for 5%% significance) = %.2f%%\n", 100 * pw))
 }
-report(equal, "Assuming equal variances", "t")
-report(unequal, "Assuming unequal variances", "t(d)")
+report(equal, "Assuming equal variances")
+report(unequal, "Assuming unequal variances")
 cat("Two sided F test is", if (f$p.value < 0.05) "significant" else "not significant",
     "\n")

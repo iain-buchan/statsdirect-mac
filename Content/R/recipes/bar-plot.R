@@ -24,57 +24,35 @@ if (bar_percent) {
   bar_values[, totals <= 0] <- NA_real_
 }
 bar_horizontal <- isTRUE(sd_chart_get("horizontal", FALSE))
-bar_width <- sd_chart_get("maxBarWidth", if (bar_stacked) 0.6 else 0.6 / nrow(bar_values))
-bar_width <- min(if (bar_stacked) 1 else 1 / nrow(bar_values), max(0.01, bar_width))
 bar_height <- if (bar_stacked) colSums(bar_values, na.rm = TRUE) else bar_values
 value_limits <- range(c(0, bar_height), finite = TRUE)
 if (diff(value_limits) == 0) value_limits <- c(0, 1)
 if (bar_percent) value_limits <- c(0, 100)
-category_limits <- c(0, ncol(bar_values))
+# Keep missing entries in the result matrix, but draw them as empty segments.
+bar_drawing <- bar_values
+bar_drawing[is.na(bar_drawing)] <- 0
+if (bar_horizontal) bar_drawing <- bar_drawing[, rev(seq_len(ncol(bar_drawing))), drop = FALSE]
+bar_positions <- barplot(bar_drawing, beside = !bar_stacked, plot = FALSE)
+category_limits <- range(bar_positions) + c(-0.6, 0.6)
 if (bar_horizontal && is.list(chart)) {
   old_axis <- chart[["x"]]; chart$x <- chart[["y"]]; chart$y <- old_axis
   old_title <- chart$xTitle; chart$xTitle <- chart$yTitle; chart$yTitle <- old_title
 }
-bar_legend_labels <- if (bar_stacked ||
-  (isTRUE(sd_chart_get("showLegend", nrow(bar_values) > 1L)) && nrow(bar_values) > 1L)) rownames(bar_values) else NULL
+bar_legend_labels <- rownames(bar_values)
 if (bar_stacked && is.list(chart)) chart$showLegend <- TRUE
 sd_chart_frame(if (bar_horizontal) value_limits else category_limits,
                if (bar_horizontal) category_limits else value_limits,
                default_title = "Bar chart", x_axis = bar_horizontal, y_axis = !bar_horizontal,
                category_labels = colnames(bar_values), legend_labels = bar_legend_labels)
-centres <- seq_len(ncol(bar_values)) - 0.5
-if (bar_horizontal) centres <- rev(centres)
-sd_chart_axis(if (bar_horizontal) 2L else 1L, at = centres,
-              labels = colnames(bar_values), tick = FALSE)
-bar_segments <- vector("list", nrow(bar_values))
-for (i in seq_len(nrow(bar_values))) {
-  marker <- sd_chart_marker(i)
-  bottom <- if (bar_stacked && i > 1L)
-    colSums(bar_values[seq_len(i - 1L), , drop = FALSE], na.rm = TRUE) else rep(0, ncol(bar_values))
-  position <- if (bar_horizontal) nrow(bar_values) - i else i - 1L
-  low <- centres - if (bar_stacked) bar_width / 2 else bar_width * nrow(bar_values) / 2 - position * bar_width
-  high <- low + bar_width
-  top <- bottom + bar_values[i, ]
-  bar_segments[[i]] <- list(lower = bottom, upper = top, categoryLower = low, categoryUpper = high)
-  # Bar fills are independent of whether point markers are hollow: colour
-  # charts use solid fills; monochrome charts use the selected fill pattern.
-  raw_markers <- sd_chart_get("markers", list())
-  raw_marker <- if (length(raw_markers)) raw_markers[[1L + (i - 1L) %% length(raw_markers)]] else list()
-  fill_style <- if (isTRUE(sd_chart_get("useColour", TRUE))) 1L else raw_marker$fillStyle
-  if (length(fill_style) != 1L || !fill_style %in% 0:4) fill_style <- 0L
-  fill <- if (fill_style == 0L) NA else marker$col
-  density <- if (fill_style %in% 2:4) 16 else NULL
-  angle <- if (fill_style == 3L) 135 else 45
-  if (bar_horizontal)
-    rect(bottom, low, top, high, col = fill, border = marker$lineColor, lwd = marker$lwd, lty = marker$lty,
-         density = density, angle = angle)
-  else rect(low, bottom, high, top, col = fill, border = marker$lineColor, lwd = marker$lwd, lty = marker$lty,
-            density = density, angle = angle)
-  if (fill_style == 4L) {
-    if (bar_horizontal) rect(bottom, low, top, high, col = fill, border = NA, density = 16, angle = 135)
-    else rect(low, bottom, high, top, col = fill, border = NA, density = 16, angle = 135)
-  }
-}
-sd_chart_legend(bar_legend_labels, fill = TRUE)
+bar_markers <- lapply(seq_len(nrow(bar_values)), sd_chart_marker)
+bar_colours <- if (isTRUE(sd_chart_get("useColour", TRUE)))
+  vapply(bar_markers, function(m) m$col, character(1)) else gray.colors(nrow(bar_values), start = .25, end = .85)
+for (i in seq_along(bar_markers)) bar_markers[[i]]$col <- bar_colours[i]
+barplot(bar_drawing, beside = !bar_stacked, horiz = bar_horizontal, add = TRUE,
+        axes = FALSE, axisnames = FALSE, col = bar_colours, border = bar_colours)
+sd_chart_axis(if (bar_horizontal) 2L else 1L,
+              at = if (bar_stacked) as.numeric(bar_positions) else colMeans(bar_positions),
+              labels = colnames(bar_drawing), tick = FALSE)
+sd_chart_legend(bar_legend_labels, markers = bar_markers, fill = TRUE)
 sd_chart_finish()
 chart <- bar_original_chart

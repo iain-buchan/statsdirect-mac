@@ -14,7 +14,8 @@
 # ratio, which is the report's exact (Fisher) interval. Its P value is the report's
 # two sided exact Fisher P (the binomial test of a in a + b, two sided).
 pct <- paste0(100 * confidence, "%")
-print(poisson.test(c(a, b), c(pt1, pt2)))
+exact <- poisson.test(c(a, b), c(pt1, pt2), conf.level = confidence)
+print(exact)
 
 # The rates and their difference. Each rate has the variance of a Poisson count
 # divided by the square of its person-time, so the standard error of the difference
@@ -41,12 +42,10 @@ cat("approximate", pct, "confidence interval =", six(ird - z * se), "to",
 chisq <- (a - m * pt1 / pt)^2 / (m * pt1 * pt2 / pt^2)
 cat("chi-square =", six(chisq), " ", pv(pchisq(chisq, 1, lower.tail = FALSE)), "\n")
 
-# The rate ratio and its exact interval from quantiles of the F distribution, as the
-# formula above gives it. The lower limit is 0 when a is 0 and the upper limit is
-# infinite when b is 0. The limits agree with those of poisson.test to 6 places.
+# Reuse the exact interval from R's conditional comparison above.
 irr <- ir1 / ir2
-lower <- if (a == 0) 0 else pt2 / pt1 * (a / (b + 1)) / qf((1 + confidence) / 2, 2 * (b + 1), 2 * a)
-upper <- if (b == 0) Inf else pt2 / pt1 * ((a + 1) / b) * qf((1 + confidence) / 2, 2 * (a + 1), 2 * b)
+lower <- exact$conf.int[1]
+upper <- exact$conf.int[2]
 cat("Rate ratio =", six(irr), "\n")
 cat("exact", pct, "confidence interval =", six(lower), "to", six(upper), "\n")
 
@@ -58,10 +57,10 @@ cat("exact", pct, "confidence interval =", six(lower), "to", six(upper), "\n")
 ratio <- function(p) p * pt2 / ((1 - p) * pt1)
 cat("Conditional maximum likelihood estimate of rate ratio =", six(irr), "\n")
 cat("Exact Fisher", pct, "confidence interval =", six(lower), "to", six(upper), "\n")
-prob <- dbinom(0:m, m, pt1 / pt)
-up <- sum(prob[(a + 1):(m + 1)])
-down <- sum(prob[1:(a + 1)])
-two <- sum(prob[prob <= prob[a + 1] * (1 + 1e-7)])
+observed <- dbinom(a, m, pt1 / pt)
+up <- pbinom(a - 1, m, pt1 / pt, lower.tail = FALSE)
+down <- pbinom(a, m, pt1 / pt)
+two <- exact$p.value
 cat("Exact Fisher one sided ", pv(min(up, down)), ", two sided ", pv(two), "\n",
     sep = "")
 
@@ -80,6 +79,6 @@ upper_mid <- if (b == 0) Inf else
                 tol = 1e-12)$root)
 cat("Exact mid-P", pct, "confidence interval =", six(lower_mid), "to", six(upper_mid),
     "\n")
-mid <- min(up, down) - 0.5 * prob[a + 1]
+mid <- min(up, down) - 0.5 * observed
 cat("Exact mid-P one sided ", pv(mid), ", two sided ", pv(min(2 * mid, 1)), "\n",
     sep = "")

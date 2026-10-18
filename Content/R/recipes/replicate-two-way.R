@@ -16,21 +16,6 @@ treatment <- factor(unlist(lapply(data2d, function(block) rep(seq_along(block), 
 fit <- aov(y ~ subject * treatment)
 print(summary(fit))
 
-# The report's lines to 6 places
-a <- anova(fit)
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
-pv <- function(p) {
-  if (p < 0.0001) "P < 0.0001" else
-    paste("P =", formatC(p, digits = 4, format = "f", drop0trailing = TRUE))
-}
-row <- function(label, i) {
-  cat(label, six(a$"Sum Sq"[i]), a$Df[i], six(a$"Mean Sq"[i]), "\n")
-}
-row("Blocks (rows)", 1)
-row("Treatments (columns)", 2)
-row("Interaction", 3)
-row("Residual (error)", 4)
-cat("Corrected total", six(sum(a$"Sum Sq")), sum(a$Df), "\n")
-cat("F (VR blocks) =", six(a$"F value"[1]), " ", pv(a$"Pr(>F)"[1]), "\n")
-cat("F (VR treatments) =", six(a$"F value"[2]), " ", pv(a$"Pr(>F)"[2]), "\n")
-cat("F (VR interaction) =", six(a$"F value"[3]), " ", pv(a$"Pr(>F)"[3]), "\n")
+# The corrected total is not a separate row in R's ANOVA table.
+cat("Corrected total sum of squares =", sum(anova(fit)$"Sum Sq"),
+    "  DF =", sum(anova(fit)$Df), "\n")

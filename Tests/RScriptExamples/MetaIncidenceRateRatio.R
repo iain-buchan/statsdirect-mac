@@ -68,31 +68,6 @@ forest <- function(est, lower, upper, pooled, p_lower, p_upper, pct, main, xlab,
   polygon(c(p_lower, pooled, p_upper, pooled), c(1, 1.2, 1, 0.8), col = "grey")
 }
 
-# Each stratum's incidence rate difference, with its approximate interval: the
-# difference plus and minus z standard errors, from the Poisson variance of the
-# difference, a/pt1^2 + b/pt2^2, which the fixed effects weights invert
-ird <- a / pt1 - b / pt2
-v_ird <- a / pt1^2 + b / pt2^2
-se_ird <- sqrt(v_ird)
-res <- pool(ird, v_ird)
-cat("Incidence rate difference (IRD) meta-analysis\n")
-print(data.frame(stratum = 1:k, IRD = six(ird), lower = six(ird - z * se_ird),
-                 upper = six(ird + z * se_ird), strata), row.names = FALSE)
-# The report's next table: the standardised effect is the difference itself, with its
-# variance beside the weights
-print(data.frame(stratum = 1:k, effect = six(ird), variance = six(v_ird),
-                 fixed = six(res$fixed_pct), random = six(res$random_pct), strata),
-      row.names = FALSE)
-summarise(res, "IRD", 0)
-forest(ird, ird - z * se_ird, ird + z * se_ird, res$fixed, res$fixed - z * res$se,
-       res$fixed + z * res$se, res$fixed_pct,
-       "Incidence rate difference meta-analysis plot [fixed effects]",
-       "incidence rate difference (95% confidence interval)", 0)
-forest(ird, ird - z * se_ird, ird + z * se_ird, res$random, res$random - z * res$se_r,
-       res$random + z * res$se_r, res$random_pct,
-       "Incidence rate difference meta-analysis plot [random effects]",
-       "incidence rate difference (95% confidence interval)", 0)
-
 # The same data as incidence rate ratios, StatsDirect's other option for this menu
 # item. poisson.test compares two rates and gives their ratio with the exact interval
 # of the report, from the binomial distribution of the exposed cases among all cases.

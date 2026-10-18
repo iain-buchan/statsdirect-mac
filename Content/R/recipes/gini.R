@@ -36,7 +36,7 @@ set.seed(seed)
 b <- eval(bquote(boot(imr, gini, R = .(boots))))
 cat("Re-samples =", b$R, "\n")
 print(b)
-ci <- boot.ci(b, type = c("perc", "bca"), L = empinf(b, type = "jack"))
+ci <- boot.ci(b, conf = confidence, type = c("perc", "bca"), L = empinf(b, type = "jack"))
 print(ci)
 
 # StatsDirect multiplies the limits, like the coefficient, by n / (n - 1) for the

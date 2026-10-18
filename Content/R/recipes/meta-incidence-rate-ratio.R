@@ -35,7 +35,7 @@ pool <- function(y, v) {
 # The pooled part of the report; f back-transforms a log ratio to a ratio
 summarise <- function(p, name, null, f = identity) {
   ci <- function(est, se) {
-    paste0("(95% CI = ", six(f(est - z * se)), " to ", six(f(est + z * se)), ")")
+    paste0("(", pct, " CI = ", six(f(est - z * se)), " to ", six(f(est + z * se)), ")")
   }
   cat("Fixed effects (inverse variance)\n")
   cat("Pooled", name, "=", six(f(p$fixed)), ci(p$fixed, p$se), "\n")
@@ -70,39 +70,13 @@ forest <- function(est, lower, upper, pooled, p_lower, p_upper, pct, main, xlab,
   polygon(c(p_lower, pooled, p_upper, pooled), c(1, 1.2, 1, 0.8), col = "grey")
 }
 
-# Each stratum's incidence rate difference, with its approximate interval: the
-# difference plus and minus z standard errors, from the Poisson variance of the
-# difference, a/pt1^2 + b/pt2^2, which the fixed effects weights invert
-ird <- a / pt1 - b / pt2
-v_ird <- a / pt1^2 + b / pt2^2
-se_ird <- sqrt(v_ird)
-res <- pool(ird, v_ird)
-cat("Incidence rate difference (IRD) meta-analysis\n")
-print(data.frame(stratum = 1:k, IRD = six(ird), lower = six(ird - z * se_ird),
-                 upper = six(ird + z * se_ird), strata), row.names = FALSE)
-# The report's next table: the standardised effect is the difference itself, with its
-# variance beside the weights
-print(data.frame(stratum = 1:k, effect = six(ird), variance = six(v_ird),
-                 fixed = six(res$fixed_pct), random = six(res$random_pct), strata),
-      row.names = FALSE)
-summarise(res, "IRD", 0)
-forest(ird, ird - z * se_ird, ird + z * se_ird, res$fixed, res$fixed - z * res$se,
-       res$fixed + z * res$se, res$fixed_pct,
-       "Incidence rate difference meta-analysis plot [fixed effects]",
-       "incidence rate difference (95% confidence interval)", 0)
-forest(ird, ird - z * se_ird, ird + z * se_ird, res$random, res$random - z * res$se_r,
-       res$random + z * res$se_r, res$random_pct,
-       "Incidence rate difference meta-analysis plot [random effects]",
-       "incidence rate difference (95% confidence interval)", 0)
-
-# The same data as incidence rate ratios, StatsDirect's other option for this menu
-# item. poisson.test compares two rates and gives their ratio with the exact interval
+# Each stratum's incidence rate ratio: poisson.test gives its exact interval
 # of the report, from the binomial distribution of the exposed cases among all cases.
 # The standardised effect is the log ratio and the fixed effects weights invert its
 # variance, 1/a + 1/b
 irr <- (a / pt1) / (b / pt2)
 exact <- sapply(1:k, function(i) {
-  poisson.test(c(a[i], b[i]), c(pt1[i], pt2[i]))$conf.int
+  poisson.test(c(a[i], b[i]), c(pt1[i], pt2[i]), conf.level = confidence)$conf.int
 })
 res_r <- pool(log(irr), 1 / a + 1 / b)
 cat("Incidence rate ratio (IRR) meta-analysis\n")
@@ -145,7 +119,10 @@ tail_p <- function(psi, upper, half = 1) {
   p <- cond(psi)
   sum(p[if (upper) x > s else x < s]) + half * p[x == s]
 }
-root <- function(f) uniroot(f, c(0.01, 100), tol = 1e-10)$root  # brackets this example
+# A positive ratio can be far outside the help example's range. Search on its log
+# scale, letting standard R extend the interval until it brackets the selected data.
+root <- function(f) exp(uniroot(function(l) f(exp(l)), c(-2, 2),
+                               extendInt = "yes", tol = 1e-10)$root)
 cmle <- root(function(psi) sum(x * cond(psi)) - s)
 fisher <- c(root(function(psi) tail_p(psi, TRUE) - (1 - confidence) / 2),
             root(function(psi) tail_p(psi, FALSE) - (1 - confidence) / 2))
@@ -166,8 +143,8 @@ cat("Exact mid-P one sided ", pv(one_m), ", two sided ", pv(min(1, 2 * one_m)), 
 forest(irr, exact[1, ], exact[2, ], exp(res_r$fixed), exp(res_r$fixed - z * res_r$se),
        exp(res_r$fixed + z * res_r$se), res_r$fixed_pct,
        "Incidence rate ratio meta-analysis plot [fixed effects]",
-       "incidence rate ratio (95% confidence interval)", 1, log = "x")
+       paste0("incidence rate ratio (", pct, " confidence interval)"), 1, log = "x")
 forest(irr, exact[1, ], exact[2, ], exp(res_r$random),
        exp(res_r$random - z * res_r$se_r), exp(res_r$random + z * res_r$se_r),
        res_r$random_pct, "Incidence rate ratio meta-analysis plot [random effects]",
-       "incidence rate ratio (95% confidence interval)", 1, log = "x")
+       paste0("incidence rate ratio (", pct, " confidence interval)"), 1, log = "x")

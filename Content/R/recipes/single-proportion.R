@@ -11,7 +11,8 @@
 # counts no more likely than the observed count; the two agree here and in the
 # other cases tried (for example 7 of 12 against 0.3: 0.0524 from both).
 pct <- paste0(100 * confidence, "%")
-print(binom.test(r, n, p = pi0))
+exact <- binom.test(r, n, p = pi0, conf.level = confidence)
+print(exact)
 
 # The report's lines, to 6 decimal places, P values to 4
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
@@ -19,7 +20,7 @@ pv <- function(p) {
   if (p < 0.0001) "P < 0.0001" else
     paste("P =", formatC(p, digits = 4, format = "f", drop0trailing = TRUE))
 }
-ci <- binom.test(r, n, p = pi0)$conf.int
+ci <- exact$conf.int
 cat("Total = ", n, ",  response = ", r, "\n", sep = "")
 cat("Proportion =", six(r / n), "\n")
 cat("Exact (Clopper-Pearson)", pct, "confidence interval =", six(ci[1]), "to", six(ci[2]),
@@ -30,12 +31,12 @@ cat("Exact (Clopper-Pearson)", pct, "confidence interval =", six(ci[1]), "to", s
 lower <- pbinom(r, n, pi0)                # P(count <= r)
 upper <- pbinom(r - 1, n, pi0, lower.tail = FALSE)   # P(count >= r)
 cat("Binomial one sided", pv(min(lower, upper)), "\n")
-cat("Binomial two sided", pv(binom.test(r, n, p = pi0)$p.value), "\n")
+cat("Binomial two sided", pv(exact$p.value), "\n")
 
 # The Wilson score interval, which prop.test gives when its continuity
 # correction is turned off
-wilson <- prop.test(r, n, correct = FALSE)$conf.int
-cat("Approximate (Wilson)", pct, "mid-P confidence interval =", six(wilson[1]), "to",
+wilson <- prop.test(r, n, correct = FALSE, conf.level = confidence)$conf.int
+cat("Approximate (Wilson)", pct, "confidence interval =", six(wilson[1]), "to",
     six(wilson[2]), "\n")
 
 # Mid-P: half the probability of the observed count is taken off the smaller

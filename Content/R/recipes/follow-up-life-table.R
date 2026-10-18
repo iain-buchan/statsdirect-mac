@@ -42,7 +42,9 @@ z <- qnorm((1 + confidence) / 2)
 lower <- 100 * lx^exp(z * s)
 upper <- 100 * lx^exp(-z * s)
 ci <- c("* to *", paste(six(lower), "to", six(upper)))
-print(data.frame(Interval = interval, "P(survival)" = star(c(p, NA)),
+survivors <- data.frame(Interval = interval, "P(survival)" = star(c(p, NA)),
                  "Survivors (lx%)" = six(100 * c(1, lx)),
                  "SD of lx%" = star(c(NA, 100 * sqrt(var_lx))),
-                 "95% CI for lx%" = ci, check.names = FALSE), row.names = FALSE)
+                 ci = ci, check.names = FALSE)
+names(survivors)[5] <- paste(pct, "CI for lx%")
+print(survivors, row.names = FALSE)

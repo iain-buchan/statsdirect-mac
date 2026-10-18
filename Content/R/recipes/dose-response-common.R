@@ -66,11 +66,25 @@ sd_dose_response_fit <- function(dose, subjects, responses, model, nc = 0, nrc =
   })
   best <- candidates[[which.min(vapply(candidates, function(result) result$value, 0.0))]]
   parameters <- best$par
-  # Fisher scoring polishes the likelihood solution after an objective-based optimizer
-  # stops, using a line search so every accepted step preserves the likelihood.
+  # Newton's method polishes the likelihood solution after an objective-based optimizer
+  # stops, with the observed Hessian (central differences of the analytic gradient) and a
+  # line search, so every accepted step preserves the likelihood.  The expected information,
+  # kept for the covariance below, can differ from the observed curvature when the natural
+  # response is small, and a scoring step with it then walks away from the optimum.
+  observed_hessian <- function(at) {
+    hessian <- matrix(0, 3L, 3L)
+    for (j in 1:3) {
+      h <- 1e-5 * (1 + abs(at[j])); e <- replace(numeric(3L), j, h)
+      hessian[, j] <- (evaluate(at + e)$gradient - evaluate(at - e)$gradient) / (2 * h)
+    }
+    (hessian + t(hessian)) / 2
+  }
   for (iteration in seq_len(50L)) {
     current <- evaluate(parameters, TRUE)
-    step <- tryCatch(solve(current$information, current$gradient), error = function(e) rep(NA_real_, 3L))
+    step <- tryCatch(solve(observed_hessian(parameters), current$gradient), error = function(e) rep(NA_real_, 3L))
+    # the scoring step stands in when Newton's is not a direction of descent
+    if (any(!is.finite(step)) || sum(step * current$gradient) <= 0)
+      step <- tryCatch(solve(current$information, current$gradient), error = function(e) rep(NA_real_, 3L))
     if (any(!is.finite(step))) break
     if (max(abs(step)) < 1e-11) break
     fraction <- 1

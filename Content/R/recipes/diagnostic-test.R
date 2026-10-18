@@ -13,7 +13,7 @@ print(addmargins(counts))
 
 # Each rate in the report is a binomial proportion with the exact (Clopper-Pearson)
 # confidence interval that binom.test gives; the prevalence, for instance:
-print(binom.test(tp + fn, n))
+print(binom.test(tp + fn, n, conf.level = confidence))
 
 # The report prints each rate as a proportion and as a percentage
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
@@ -81,7 +81,7 @@ cat("LR (negative test) = ", six(lr_neg[1]), " (", six(lr_neg[2]), " to ",
 # estimate with its exact interval, which fisher.test gives
 cat("Diagnostic Odds Ratio\n")
 cat("Observed odds ratio =", six(tp * tn / (fp * fn)), "\n")
-print(fisher.test(counts))
+print(fisher.test(counts, conf.level = confidence))
 
 # fisher.test's estimate and limits agree with the report's to about four significant
 # figures. Solving the same equations closely reproduces the report: given the

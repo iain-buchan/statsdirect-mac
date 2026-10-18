@@ -17,23 +17,13 @@ fit <- mcreg(serum, plasma, error.ratio = 1, method.reg = "Deming",
              method.ci = "jackknife", mref.name = "Serum Creatinine",
              mtest.name = "Plasma Creatinine")
 invisible(printSummary(fit))
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
-est <- getCoefficients(fit)
-cat("Sample size:", length(serum), "\n")
-for (term in c("Slope", "Intercept")) {
-  cat(paste0(term, ":"), six(est[term, "EST"]), six(est[term, "SE"]),
-      six(est[term, "LCI"]), "to", six(est[term, "UCI"]), "\n")
-}
 
-# The same arithmetic without the package. With an error ratio of 1 the Deming line
-# is the orthogonal regression, from the sums of squares and products about the
-# means. The jackknife refits the line leaving each pair out in turn; the standard
-# error is that of the pseudo-values n b - (n - 1) b(-i) over root n, and the limits
-# use t on n - 2 degrees of freedom (Linnet 1993)
+# The same arithmetic without the package, as a check on it that prints nothing. With an error
+# ratio of 1 the Deming line is the orthogonal regression from the sums of squares and products
+# about the means; the jackknife refits the line leaving each pair out in turn, the standard error
+# being that of the pseudo-values n b - (n - 1) b(-i) over root n (Linnet 1993).
 deming <- function(x, y) {
-  sxx <- sum((x - mean(x))^2)
-  syy <- sum((y - mean(y))^2)
-  sxy <- sum((x - mean(x)) * (y - mean(y)))
+  sxx <- sum((x - mean(x))^2); syy <- sum((y - mean(y))^2); sxy <- sum((x - mean(x)) * (y - mean(y)))
   b <- (syy - sxx + sqrt((syy - sxx)^2 + 4 * sxy^2)) / (2 * sxy)
   c(Intercept = mean(y) - b * mean(x), Slope = b)
 }
@@ -42,12 +32,6 @@ whole <- deming(serum, plasma)
 left_out <- t(sapply(1:n, function(i) deming(serum[-i], plasma[-i])))
 pseudo <- n * rep(whole, each = n) - (n - 1) * left_out
 se <- apply(pseudo, 2, sd) / sqrt(n)
-for (term in c("Slope", "Intercept")) {
-  cat(paste0(term, ":"), six(whole[term]), six(se[term]),
-      six(whole[term] - qt(0.975, n - 2) * se[term]), "to",
-      six(whole[term] + qt(0.975, n - 2) * se[term]), "\n")
-}
-
-# The report's plot: the test method against the reference method with the Deming
-# line, its confidence band and the line of identity
-plot(fit, x.lab = "Serum Creatinine", y.lab = "Plasma Creatinine")
+est <- getCoefficients(fit)
+stopifnot(isTRUE(all.equal(unname(whole[c("Slope", "Intercept")]), unname(est[c("Slope", "Intercept"), "EST"]), tolerance = 1e-8)),
+          isTRUE(all.equal(unname(se[c("Slope", "Intercept")]), unname(est[c("Slope", "Intercept"), "SE"]), tolerance = 1e-6)))

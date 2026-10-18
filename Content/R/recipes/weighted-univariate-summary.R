@@ -8,7 +8,16 @@
 # uses n - 1 for the variance and n for the moments and the standard error, so a
 # weighted summary is not the summary of the values repeated by their weights.
 pct <- paste0(100 * confidence, "%")
+if (length(value) != length(weight)) stop("values and weights must have the same length")
+if (any(weight < 0, na.rm = TRUE)) stop("weights must not be negative")
+keep <- !is.na(value) & !is.na(weight) & weight > 0
+value <- value[keep]
+weight <- weight[keep]
+ordered <- order(value)
+value <- value[ordered]
+weight <- weight[ordered]
 n <- length(value)
+if (n == 0) stop("at least one value with positive weight is needed")
 w <- weight * n / sum(weight)
 m <- weighted.mean(value, w)
 v <- sum(w * (value - m)^2) / (n - 1)
@@ -18,7 +27,7 @@ cat("Mean", six(m), "  Variance", six(v), "  Standard deviation", six(sqrt(v)), 
 cat("Variance coefficient", six(sqrt(v) / m), "  Standard error of mean",
     six(sqrt(v / n)), "\n")
 cat("Upper", pct, "CL of mean", six(m + qt((1 + confidence) / 2, n - 1) * sqrt(v / n)),
-    "  Lower 95% CL of mean", six(m - qt((1 + confidence) / 2, n - 1) * sqrt(v / n)), "\n")
+    "  Lower", pct, "CL of mean", six(m - qt((1 + confidence) / 2, n - 1) * sqrt(v / n)), "\n")
 cat("Geometric mean", six(exp(sum(w * log(value)) / n)), "\n")
 mom <- function(k) sum(w * (value - m)^k) / n
 cat("Skewness", six(mom(3) / mom(2)^1.5), "  Kurtosis", six(mom(4) / mom(2)^2), "\n")

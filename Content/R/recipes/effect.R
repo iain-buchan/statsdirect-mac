@@ -125,9 +125,9 @@ cat("Begg-Mazumdar: Kendall's tau =", six(begg$estimate), " ", pv(begg$p.value),
     power_note, "\n")
 egger <- lm(I(d / se) ~ I(1 / se))
 bias <- coef(summary(egger))[1, ]
+ci <- confint(egger, level = 0.9)[1, ]
 cat("Egger: bias = ", six(bias["Estimate"]), " (90% CI = ",
-    six(bias["Estimate"] - qt(0.95, k - 2) * bias["Std. Error"]), " to ",
-    six(bias["Estimate"] + qt(0.95, k - 2) * bias["Std. Error"]), ")  ",
+    six(ci[1]), " to ", six(ci[2]), ")  ",
     pv(bias["Pr(>|t|)"]), "\n", sep = "")
 
 # The bias assessment plot that follows in the report: each study's d against its

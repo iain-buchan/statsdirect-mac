@@ -117,13 +117,3 @@ cat("Population exposure % =", six(100 * px), "(exposure among the controls)\n")
 cat("Population attributable risk % =", six(100 * par), "\n")
 cat("Approximate 95% confidence interval =", six(100 * (par - z * sqrt(var_par))),
     "to", six(100 * (par + z * sqrt(var_par))), "\n")
-
-# If the population exposure is entered instead (say 50%), it carries no sampling
-# error, so the limits are the Woolf limits of the odds ratio put through the same
-# formula
-px <- 0.5
-attributable <- function(or) 100 * px * (or - 1) / (1 + px * (or - 1))
-cat("Population exposure % =", six(100 * px), "(as entered)\n")
-cat("Population attributable risk % =", six(attributable(odds)), "\n")
-cat("Approximate 95% confidence interval =", six(attributable(exp(log(odds) - z * se))),
-    "to", six(attributable(exp(log(odds) + z * se))), "\n")

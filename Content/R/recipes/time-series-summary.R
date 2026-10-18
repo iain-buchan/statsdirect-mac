@@ -73,12 +73,16 @@ for (g in unique(d$Group)) {
       two(mean(auc) + qt((1 + confidence) / 2, n - 1) * se), "\n")
   set.seed(2944296)
   tstar <- replicate(10000, {
-    b <- sample(auc, n, replace = TRUE)
+    b <- auc[sample.int(n, n, replace = TRUE)]
     (mean(b) - mean(auc)) / (sd(b) / sqrt(n))
   })
+  # Percentage points keep the 95% endpoints at .025 and .975: tiny subtraction
+  # errors at an exact order statistic would otherwise change type 2's averaging.
+  bootstrap_prob <- c(50 - 50 * confidence, 50 + 50 * confidence) / 100
+  bootstrap_ci <- mean(auc) + quantile(tstar, bootstrap_prob,
+      type = 2, na.rm = TRUE) * se
   cat(pct, "bootstrap-t interval for mean AUC (10000 iterations):",
-      two(mean(auc) + quantile(tstar, 0.025, type = 2, na.rm = TRUE) * se), "to",
-      two(mean(auc) + quantile(tstar, 0.975, type = 2, na.rm = TRUE) * se), "\n")
+      two(bootstrap_ci[1]), "to", two(bootstrap_ci[2]), "\n")
   cat(pct, "z-interval for mean AUC:", two(mean(auc) - qnorm((1 + confidence) / 2) * se), "to",
       two(mean(auc) + qnorm((1 + confidence) / 2) * se), "\n")
   cat("Median (IQR) area under curve:", two(median(auc)),

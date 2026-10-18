@@ -134,12 +134,10 @@ cat("Begg-Mazumdar: Kendall's tau =", six(kt$estimate), "", pv(kt$p.value),
 # interval, the level the test is conventionally reported at
 egger <- function(y, x, label) {
   fit <- lm(y ~ x)
-  bias <- coef(fit)[1]
-  se <- sqrt(vcov(fit)[1, 1])
-  t <- bias / se
-  cat(label, ": bias = ", six(bias), " (90% CI = ", six(bias - qt(0.95, k - 2) * se),
-      " to ", six(bias + qt(0.95, k - 2) * se), ") ",
-      pv(2 * pt(-abs(t), k - 2)), "\n", sep = "")
+  bias <- coef(summary(fit))[1, ]
+  ci <- confint(fit, level = 0.9)[1, ]
+  cat(label, ": bias = ", six(bias["Estimate"]), " (90% CI = ", six(ci[1]),
+      " to ", six(ci[2]), ") ", pv(bias["Pr(>|t|)"]), "\n", sep = "")
 }
 egger(lrr / se_i, 1 / se_i, "Egger")
 
@@ -154,8 +152,10 @@ egger(score / sqrt(info), sqrt(info), "Harbord-Egger")
 # The report's L'Abbe plot: the risk in the exposed group of each study against
 # the risk in its control group, the symbol growing with the study size, with the
 # line of equal risks and the line of the pooled relative risk
+# the axes reach the largest risk, rounded up to a multiple of 5, from 25% up to 100%
+labbe_top <- min(100, max(25, 5 * ceiling(max(c(100 * b / (b + d), 100 * a / (a + cx)), na.rm = TRUE) / 5)))
 plot(100 * b / (b + d), 100 * a / (a + cx), cex = 0.5 + 2 * sqrt(n / max(n)),
-     xlim = c(0, 25), ylim = c(0, 25), xlab = "control percent",
+     xlim = c(0, labbe_top), ylim = c(0, labbe_top), xlab = "control percent",
      ylab = "experimental percent",
      main = "L'Abbe plot (symbol size represents sample size)")
 abline(0, 1)

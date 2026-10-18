@@ -35,7 +35,7 @@ pool <- function(y, v) {
 # The pooled part of the report; f back-transforms a log ratio to a ratio
 summarise <- function(p, name, null, f = identity) {
   ci <- function(est, se) {
-    paste0("(95% CI = ", six(f(est - z * se)), " to ", six(f(est + z * se)), ")")
+    paste0("(", pct, " CI = ", six(f(est - z * se)), " to ", six(f(est + z * se)), ")")
   }
   cat("Fixed effects (inverse variance)\n")
   cat("Pooled", name, "=", six(f(p$fixed)), ci(p$fixed, p$se), "\n")
@@ -89,85 +89,8 @@ summarise(res, "IRD", 0)
 forest(ird, ird - z * se_ird, ird + z * se_ird, res$fixed, res$fixed - z * res$se,
        res$fixed + z * res$se, res$fixed_pct,
        "Incidence rate difference meta-analysis plot [fixed effects]",
-       "incidence rate difference (95% confidence interval)", 0)
+       paste0("incidence rate difference (", pct, " confidence interval)"), 0)
 forest(ird, ird - z * se_ird, ird + z * se_ird, res$random, res$random - z * res$se_r,
        res$random + z * res$se_r, res$random_pct,
        "Incidence rate difference meta-analysis plot [random effects]",
-       "incidence rate difference (95% confidence interval)", 0)
-
-# The same data as incidence rate ratios, StatsDirect's other option for this menu
-# item. poisson.test compares two rates and gives their ratio with the exact interval
-# of the report, from the binomial distribution of the exposed cases among all cases.
-# The standardised effect is the log ratio and the fixed effects weights invert its
-# variance, 1/a + 1/b
-irr <- (a / pt1) / (b / pt2)
-exact <- sapply(1:k, function(i) {
-  poisson.test(c(a[i], b[i]), c(pt1[i], pt2[i]))$conf.int
-})
-res_r <- pool(log(irr), 1 / a + 1 / b)
-cat("Incidence rate ratio (IRR) meta-analysis\n")
-print(data.frame(stratum = 1:k, IRR = six(irr), lower = six(exact[1, ]),
-                 upper = six(exact[2, ]), strata), row.names = FALSE)
-print(data.frame(stratum = 1:k, effect = six(log(irr)),
-                 variance = six(1 / a + 1 / b),
-                 fixed = six(res_r$fixed_pct), random = six(res_r$random_pct), strata),
-      row.names = FALSE)
-summarise(res_r, "IRR", 1, exp)
-
-# The report's exact conditional block (Martin and Austin 2000): given a stratum's
-# total cases, its exposed cases are binomial with probability pt1 psi / (pt1 psi + pt2)
-# for a common rate ratio psi, so the total of exposed cases over the strata has
-# the convolution of these binomials as its conditional distribution. Under psi = 1
-# each is dbinom(x, a + b, pt1 / (pt1 + pt2)); another psi multiplies the probability of
-# x exposed cases by psi^x. The conditional maximum likelihood estimate is the psi
-# whose expected total equals the observed total, and each exact limit the psi at
-# which one tail probability of the observed total is 2.5% (the mid-P versions count
-# half of the observed total's probability). The P values are the tails at psi = 1,
-# the two sided Fisher P summing the outcomes no more probable than the observed one
-null_p <- 1
-for (i in 1:k) {
-  coef <- dbinom(0:(a[i] + b[i]), a[i] + b[i], pt1[i] / (pt1[i] + pt2[i]))
-  product <- numeric(length(null_p) + length(coef) - 1)
-  for (j in seq_along(coef)) {
-    at <- j:(j + length(null_p) - 1)
-    product[at] <- product[at] + coef[j] * null_p
-  }
-  null_p <- product
-}
-x <- seq_along(null_p) - 1
-s <- sum(a)
-cond <- function(psi) {
-  lp <- log(null_p) + x * log(psi)
-  p <- exp(lp - max(lp))
-  p / sum(p)
-}
-tail_p <- function(psi, upper, half = 1) {
-  p <- cond(psi)
-  sum(p[if (upper) x > s else x < s]) + half * p[x == s]
-}
-root <- function(f) uniroot(f, c(0.01, 100), tol = 1e-10)$root  # brackets this example
-cmle <- root(function(psi) sum(x * cond(psi)) - s)
-fisher <- c(root(function(psi) tail_p(psi, TRUE) - (1 - confidence) / 2),
-            root(function(psi) tail_p(psi, FALSE) - (1 - confidence) / 2))
-mid <- c(root(function(psi) tail_p(psi, TRUE, 0.5) - (1 - confidence) / 2),
-         root(function(psi) tail_p(psi, FALSE, 0.5) - (1 - confidence) / 2))
-p_null <- cond(1)
-one_f <- min(tail_p(1, TRUE), tail_p(1, FALSE))
-two_f <- sum(p_null[p_null <= p_null[x == s]])
-one_m <- min(tail_p(1, TRUE, 0.5), tail_p(1, FALSE, 0.5))
-cat("Fixed effects (conditional maximum likelihood)\n")
-cat("Pooled rate ratio =", six(cmle), "\n")
-cat("Exact Fisher", pct, "confidence interval =", six(fisher[1]), "to", six(fisher[2]),
-    "\n")
-cat("Exact Fisher one sided ", pv(one_f), ", two sided ", pv(two_f), "\n", sep = "")
-cat("Exact mid-P", pct, "confidence interval =", six(mid[1]), "to", six(mid[2]), "\n")
-cat("Exact mid-P one sided ", pv(one_m), ", two sided ", pv(min(1, 2 * one_m)), "\n",
-    sep = "")
-forest(irr, exact[1, ], exact[2, ], exp(res_r$fixed), exp(res_r$fixed - z * res_r$se),
-       exp(res_r$fixed + z * res_r$se), res_r$fixed_pct,
-       "Incidence rate ratio meta-analysis plot [fixed effects]",
-       "incidence rate ratio (95% confidence interval)", 1, log = "x")
-forest(irr, exact[1, ], exact[2, ], exp(res_r$random),
-       exp(res_r$random - z * res_r$se_r), exp(res_r$random + z * res_r$se_r),
-       res_r$random_pct, "Incidence rate ratio meta-analysis plot [random effects]",
-       "incidence rate ratio (95% confidence interval)", 1, log = "x")
+       paste0("incidence rate difference (", pct, " confidence interval)"), 0)

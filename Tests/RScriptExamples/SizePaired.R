@@ -34,11 +34,3 @@ pw <- function(n) {
 }
 cat("Power with", n, "pairs =", six(pw(n)), "and with", n - 1, "pairs =",
     six(pw(n - 1)), "\n")
-
-# The same plan with 90% power
-r90 <- power.t.test(delta = delta, sd = sdiff, sig.level = alpha, power = 0.9,
-                    type = "paired", strict = TRUE)
-n90 <- ceiling(r90$n)
-cat("Power = 0.9\n")
-cat("Estimated minimum sample size =", n90, "pairs\n")
-cat("Degrees of freedom =", n90 - 1, "\n")

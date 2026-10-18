@@ -30,16 +30,3 @@ cat("Test SENSITIVITY = ", six(100 * sensitivity), "%\n", sep = "")
 cat("Probability of a FALSE POSITIVE result =", six(false_positive), "\n")
 cat("Test SPECIFICITY = ", six(100 * specificity), "%\n", sep = "")
 cat("Probability of a FALSE NEGATIVE result =", six(false_negative), "\n")
-
-# The same answers from the expected counts in 10000 people screened: 100 have the
-# disease, of whom 95.1 test positive, and 9900 do not, of whom 108.9 test positive
-screened <- 10000
-diseased <- screened * prevalence
-expected <- matrix(c(diseased * sensitivity, (screened - diseased) * (1 - specificity),
-                     diseased * (1 - sensitivity), (screened - diseased) * specificity),
-                   2, byrow = TRUE, dimnames = dimnames(counts))
-print(addmargins(expected))
-cat("False positives among the positive results =",
-    six(expected["Positive", "Absent"] / sum(expected["Positive", ])), "\n")
-cat("False negatives among the negative results =",
-    six(expected["Negative", "Present"] / sum(expected["Negative", ])), "\n")

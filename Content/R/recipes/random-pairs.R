@@ -1,6 +1,6 @@
 # StatsDirect recipe: Randomized intervention-control pairs, as the help shows them in R.
 # From the help's R code (randomization/intervention_control_pairs.htm); the data and settings above come from the run.
-# settings: pairs = pairs, seed = seed
+# settings: pairs = pairs, seed = seed, balance = balance
 
 if (!exists("seed") || is.null(seed)) seed <- sample.int(1e6, 1)   # StatsDirect took its seed from the clock
 # Randomization of intervention-control pairs: the StatsDirect help example (50
@@ -15,21 +15,17 @@ orders <- c("Intervention - Control", "Control - Intervention")
 # number of pairs must be even) in a random arrangement: sample() without
 # replacement returns the 25 copies of each order in a random permutation.
 set.seed(seed)
-balanced <- sample(rep(orders, pairs / 2))
+if (!exists("balance") || is.null(balance)) balance <- TRUE
+balanced <- isTRUE(balance) && pairs %% 2 == 0
+allocation <- if (balanced) sample(rep(orders, pairs / 2)) else
+  sample(orders, pairs, replace = TRUE)
 cat("Randomized intervention-control pairs\n")
-cat(paste0("Randomized with seed: ", seed, ", balanced allocation"), "\n")
-print(data.frame(pair = seq_len(pairs), order = balanced), row.names = FALSE)
-cat("Pairs allocated Intervention - Control =", sum(balanced == orders[1]), "\n")
-cat("Pairs allocated Control - Intervention =", sum(balanced == orders[2]), "\n")
+cat("Randomized with seed:", seed,
+    if (balanced) "balanced allocation" else "unbalanced allocation", "\n")
+print(data.frame(pair = seq_len(pairs), order = allocation), row.names = FALSE)
+cat("Pairs allocated Intervention - Control =", sum(allocation == orders[1]), "\n")
+cat("Pairs allocated Control - Intervention =", sum(allocation == orders[2]), "\n")
 
 # Every arrangement of 25 of each order is equally likely: there are choose(50, 25)
-cat("Equally likely balanced arrangements =",
+if (balanced) cat("Equally likely balanced arrangements =",
     formatC(choose(pairs, pairs / 2), format = "f", digits = 0), "\n")
-
-# Without balancing, each pair's order is decided independently, like a coin
-# toss, so the two orders need not be equally frequent (with this seed they happen
-# to be): sample() with replacement
-set.seed(seed)
-tossed <- sample(orders, pairs, replace = TRUE)
-cat("Unbalanced: Intervention - Control =", sum(tossed == orders[1]),
-    "  Control - Intervention =", sum(tossed == orders[2]), "\n")

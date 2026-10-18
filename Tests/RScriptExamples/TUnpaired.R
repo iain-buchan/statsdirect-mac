@@ -22,11 +22,8 @@ cat(sprintf("Mean of Low Protein = %s  (n = %d)\n", six(mean(low)), length(low))
 delta <- mean(high) - mean(low)
 report <- function(r, label, t) {
   cat(label, "\n")
-  cat("Combined standard error =", six(delta / r$statistic), "  df =",
-      six(r$parameter), " ", t, "=", six(r$statistic), "\n")
-  cat(sprintf("One sided P = %.4f   Two sided P = %.4f\n", r$p.value / 2, r$p.value))
-  cat("95% confidence interval for difference between means =", six(r$conf.int[1]),
-      "to", six(r$conf.int[2]), "\n")
+  cat("Combined standard error =", six(r$stderr), "\n")
+  cat(sprintf("One sided P = %.4f\n", r$p.value / 2))
   # Power of a two sided test at the 5% level to detect the difference seen, from
   # the noncentral t distribution: the noncentrality parameter is the t observed
   tc <- qt(0.975, r$parameter)

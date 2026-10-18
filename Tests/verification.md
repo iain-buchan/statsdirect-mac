@@ -1922,8 +1922,9 @@ API and redirect, the uploaded archive's digest, the update prompt in an older
 packaged app, and the current-version result in the new signed app. Release
 artifacts retain matching native symbols and deployment/signature verification.
 The Developer ID signature does not imply notarisation: no Apple submission or
-stapling is part of this release. The engine pin, calculation source, report
-editor and Windows version are unchanged.
+stapling is part of this release. The engine pin, calculation source and Windows version are unchanged. The
+subsequent raster-readback correction below changes the two shared report-editor
+modules before publication.
 
 ## Codex's sixteen Mac commits d329267..e8eeaff checked against the Windows side — 18 October 2026
 
@@ -1931,6 +1932,47 @@ Iain: Codex is working on the Mac; the pin policy agreed through the Windows ses
 
 Three independent readings against Windows origin/main (d4912360) found no functional defect: the shared editor's 23 sources in `Report/` are blob-identical to the Windows copy (`ReportEditor/upstream/Report/`, its README pinning fragment/import/svg-isolation to d1494f2, which they still match; the built bundles differ only by the Windows adapters); report Save still writes the report's own HTML without asking and Save As offers HTML, Word and PDF, now starting at HTML and with PDF/Word copies no longer marking the report saved, as the Windows dialog does; the clipboard order on paste matches Windows with RTF accepted in addition; the PNG decode rule is the same change on both sides; the PDF device wrapper behaves with `dev.new()` with and without arguments, `file=`, `file=NULL`, `onefile=FALSE` and `pdf.options()`. Noted, not changed: copying an automatic chart from the Mac pane gives a raster only (PDF source) where Windows copies SVG and PNG; `Report/README.md` says editor/transfer/export match Windows 8d6e7a6d where they now match 8401a7db; no workflow signs or notarizes (the 17 October `v0.3.29-signed.20261017` preview was signed by hand with the Developer ID and hardened runtime, not notarized or stapled, and is a prerelease the updater ignores); `README.md` already calls 0.3.30 Developer ID signed before a 0.3.30 release exists; the bundle identifier is unchanged, and changing it would move Application Support and the defaults domain.
 
-Suites on e8eeaff here (build clean, `DOTNET` set for every suite): test.sh 616, beta 84, r-pane 11, calculator-pane 53, report-export 68, r-integration 55, unified-toolbar 20, script-ai 65, report-ai 56, startup-r-setup 29, mac-parity 20, grid-selection 18, paired-workflow 37, learning-workspace 6, provider-learning 6, ai-sharing 1, learning-recovery 5, conversation-r 16, analysis-workflow 47, follow-on-workflow 104, help-pane 48, tutor-setup 15, tutor-protocol 2, tutor-runtime 37, form-descriptors; all exit 0. In the sequential chain the beta check first stopped at "Wrong password must not remain in the field" and the calculator suite at "saved expression insertion supports Undo", both passing on a rerun alone, so timing rather than the code; the hosted run for e8eeaff sat on the column-selection step for hours where the three previous runs passed it in 25 seconds, a runner stall rather than the commit, which only bumps the version and adds the update-discovery check.
+Suites on e8eeaff here (build clean, `DOTNET` set for every suite): test.sh 616, beta 84, r-pane 11, calculator-pane 53, report-export 68, r-integration 55, unified-toolbar 20, script-ai 65, report-ai 56, startup-r-setup 29, mac-parity 20, grid-selection 18, paired-workflow 37, learning-workspace 6, provider-learning 6, ai-sharing 1, learning-recovery 5, conversation-r 16, analysis-workflow 47, follow-on-workflow 104, help-pane 48, tutor-setup 15, tutor-protocol 2, tutor-runtime 37, form-descriptors; all exit 0. In the sequential chain the beta check first stopped at "Wrong password must not remain in the field" and the calculator suite at "saved expression insertion supports Undo", both passing on a rerun alone. These reruns do not establish a cause. The hosted status available during that independent review was incomplete: full run `39100979941` subsequently completed at e8eeaff and failed the blank-PNG assertion in its final combined WebKit step. Its raster probes, rather than a presumed runner stall, support the readback correction recorded below.
 
 The Windows head d4912360 is six commits past the Mac's pin and changes the engine set the Mac compiles (`Charting/Options/BoxWhiskerOptions.cs`, `Charting/Renderer/BoxWhiskerChartRenderer.cs`, `R/RRecipes.cs`, `R/RScriptWriter.cs`, `R/RScriptWriter.Tukey.cs`, the 5.2.3 csproj), 51 recipes (`chart-common.R`, the native box plot and Tukey hinges, bar, Kaplan-Meier, meta-analysis, method comparison, random and rate recipes) and the rebuilt help; the Windows session's review of those commits confirmed the dose-response rewrite by derivation and R and found recipe defects (the exported dose-response script's control-adjusted polish loop reporting non-convergence on ordinary data; help-example variable names kept in printed text for the user's data in paired-t.R and unpaired-t.R; the L'Abbe plot's fixed 0-25% axes) whose fixes follow on Windows and reach the Mac at the next tag.
+
+## Report raster readback correction — 18 October 2026
+
+Full hosted run `39100979941` at `e8eeaff` passed the preceding checks but failed
+in the final combined report suite: Save Chart PNG contained zero inked pixels.
+Publication of that candidate was held. Its failure-only probes finally
+separated the canvas paths: default 2D contexts returned transparent pixels for
+a solid fill, a known PNG and every SVG variant; contexts first created with
+`willReadFrequently: true` returned the expected coloured pixels in every case.
+The window was visible and focused, and the SVG had decoded dimensions. Earlier
+packaging/decode changes alone therefore do not explain or clear this failure.
+
+The three fresh, temporary canvases used by chart saving, clipboard/Word SVG
+fallbacks and bitmap/canvas export now request that readback setting when their
+contexts are first created. It is a backend hint for immediate PNG serialization;
+no global WebKit/GPU setting, retry or blank-image acceptance was added. Existing
+image decoding, white SVG backgrounds, bitmap transparency, size limits, SVG
+originals and interactive rendering are retained. Pixel reference/fixture
+canvases use the same readback setting; diagnostic default-context controls stay
+unchanged. The two authored Report modules and generated bundles are shared
+with the Windows editor. The Windows session reviewed the approach; its released
+application and installers have not been changed by this Mac correction.
+
+A native regression deliberately makes default contexts draw nothing, while
+retaining native canvas types and PNG encoding. It validates both negative and
+positive controls in the page and export JavaScript worlds, then independently
+decodes the actual saved chart PNG, native SVG-copy PNG and both PNG media files
+inside a generated DOCX (SVG fallback and raster input). All must contain ink.
+The isolated fault is restored and its temporary report removed after the check.
+The ordinary native suite retains its nonblank, exact-pixel and twelve cold-SVG
+assertions. Three separate negative bundles restore just one old context setting
+each, to establish that the regression catches every affected production path.
+
+Local validation passes: all 115 JavaScript tests, the native report suite with
+this forced-backend regression, all five report document verifiers and the
+0.3.30 update-discovery fixtures. Each of the three single-context negative
+bundles fails at its expected blank Save Chart, clipboard or DOCX image check.
+Logs are under `.build/release-0.3.30-2026-10-18/` (`raster-fixed.log`,
+`raster-negative/*.log`, `report-full-fixed.log`). Final hosted CI and the fresh
+signed archive remain publication gates recorded with the release, rather than
+being inferred from this local pass.

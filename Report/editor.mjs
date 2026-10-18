@@ -461,7 +461,9 @@ export async function chartImage(format,scale=1) {
   // A load event alone does not establish decoded pixels for drawImage.
   await img.decode().catch(()=>{throw new Error('The chart could not be drawn.');});
   const k=Math.max(1,Number(scale)||1),canvas=document.createElement('canvas');canvas.width=w*k;canvas.height=h*k;
-  const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.scale(k,k);ctx.drawImage(img,0,0,w,h);
+  // This canvas is immediately read back for PNG, not displayed. WebKit's
+  // accelerated canvas path can return transparent pixels even after decode.
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.scale(k,k);ctx.drawImage(img,0,0,w,h);
   return canvas.toDataURL('image/png');
 }
 export function command(name,value=null) {

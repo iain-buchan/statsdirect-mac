@@ -23,6 +23,7 @@ import PDFKit
                         try await archived(viewer, url:URL(fileURLWithPath:CommandLine.arguments[index+1]), output:URL(fileURLWithPath:CommandLine.arguments[1]))
                     } else if CommandLine.arguments.contains("--saving-only") {try await reportSaving(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--single-region-only") {try await singleRegion(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--raster-readback-only") {try await rasterReadbackRegression(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--images-only") {try await imageEditing(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--svg-isolation-only") {try await importedRCharts(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--deletion-only") {try await deletions(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
@@ -617,7 +618,7 @@ import PDFKit
         let same=try await asyncJS("""
         return (()=>{const el=document.getElementById('sr-svg'),out=StatsDirectReportEditor.exportableSvg(el);
           if(out.querySelector('[style]')||!out.getAttribute('height'))return {styled:!!out.querySelector('[style]'),height:out.getAttribute('height')};
-          const draw=async markup=>{const img=new Image();img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(markup);await img.decode();if(!img.naturalWidth||!img.naturalHeight)throw new Error('SVG has no decoded dimensions: '+markup);const c=document.createElement('canvas');c.width=200;c.height=80;const x=c.getContext('2d');x.drawImage(img,0,0,200,80);return x.getImageData(0,0,200,80).data;};
+          const draw=async markup=>{const img=new Image();img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(markup);await img.decode();if(!img.naturalWidth||!img.naturalHeight)throw new Error('SVG has no decoded dimensions: '+markup);const c=document.createElement('canvas');c.width=200;c.height=80;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,200,80);return x.getImageData(0,0,200,80).data;};
           const copy=el.cloneNode(true);copy.setAttribute('xmlns','http://www.w3.org/2000/svg');
           const original=new XMLSerializer().serializeToString(copy),exported=new XMLSerializer().serializeToString(out);
           return Promise.all([draw(original),draw(exported)]).then(([a,b])=>{let inked=0,differ=0;for(let i=3;i<a.length;i+=4){if(a[i]||b[i])inked++;if(a[i]!==b[i]||a[i-1]!==b[i-1]||a[i-2]!==b[i-2]||a[i-3]!==b[i-3])differ++;}return inked>50&&differ===0?{inked,differ}:{inked,differ,original,exported};});})()
@@ -630,7 +631,7 @@ import PDFKit
           rect.style.fill=`rgb(${30+i},80,120)`;
           const image=new Image();image.src=await StatsDirectReportEditor.chartImage('png',2);await image.decode();
           const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
-          const context=canvas.getContext('2d');context.drawImage(image,0,0);const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;
+          const context=canvas.getContext('2d',{willReadFrequently:true});context.drawImage(image,0,0);const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;
           let ink=0;for(let p=0;p<pixels.length;p+=4)if(pixels[p+3]>0&&Math.min(pixels[p],pixels[p+1],pixels[p+2])<242)ink++;
           counts.push(ink);
         }} finally {rect.setAttribute('style',fill);}
@@ -673,6 +674,7 @@ import PDFKit
         precondition(exported.contains("https://www.statsdirect.com/help/parametric_methods/paired_t.htm") && !exported.contains("data-help") && !exported.contains("contenteditable") && !exported.contains("<button"),"the saved report carries the method link, not the editing attributes")
         v.remove(report)
         print("PASS: one editable region: no controls in the report, commands and Clear formatting across results, context target with help/R/chart, text after the last result, reveal, and the method link in the saved report");fflush(stdout)
+        try await rasterReadbackRegression(v,output:output)
     }
 
     @MainActor static func chartResizing(_ v: Viewer, report: Document, output: URL) async throws {
@@ -741,7 +743,7 @@ import PDFKit
         precondition(retained==original,"Resizing changed chart contents")
         let narrow=try await report.web.evaluateJavaScript("(()=>{const s=document.querySelector('.report-body svg'),p=s.closest('.report-media'),before=s.getBoundingClientRect();p.style.width='240px';const b=s.getBoundingClientRect();p.style.removeProperty('width');return b.width<=240&&Math.abs(b.width/b.height-before.width/before.height)<0.01&&s.style.width==='320px';})()") as! Bool
         precondition(narrow)
-        let png=try await report.web.evaluateJavaScript("(()=>{const c=document.createElement('canvas');c.width=100;c.height=50;const x=c.getContext('2d');x.fillStyle='#197c70';x.fillRect(0,0,100,50);return c.toDataURL('image/png');})()") as! String
+        let png=try await report.web.evaluateJavaScript("(()=>{const c=document.createElement('canvas');c.width=100;c.height=50;const x=c.getContext('2d',{willReadFrequently:true});x.fillStyle='#197c70';x.fillRect(0,0,100,50);return c.toDataURL('image/png');})()") as! String
         v.appendReport(ReportEntry(id:UUID().uuidString,title:"Raster picture resize",operation:"",body:"<p>Raster picture resize</p><img alt='Raster resize check' src='\(png)'>",record:nil));try await settled(report)
         try await report.web.evaluateJavaScript("(()=>{const img=document.querySelector('.report-body img[alt=\"Raster resize check\"]');img.dispatchEvent(new MouseEvent('click',{bubbles:true}));const input=document.querySelector('[data-format=pictureWidth]');input.value='200';input.dispatchEvent(new Event('change'));})()")
         try await settled(report)

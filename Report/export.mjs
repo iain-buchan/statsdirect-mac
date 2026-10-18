@@ -56,7 +56,9 @@ async function raster(data,width,height) {
   await timeout(image.decode().catch(()=>{throw new Error('A report chart could not be exported.');}));
   const canvas=document.createElement('canvas'),scale=Math.min(2,4096/Math.max(width,height));
   canvas.width=Math.max(1,Math.ceil(width*scale));canvas.height=Math.max(1,Math.ceil(height*scale));
-  const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
+  // PNG serialization immediately reads these pixels. Prefer the readback
+  // backend: WebKit's accelerated canvas can otherwise serialize a blank image.
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
   return canvas.toDataURL('image/png');
 }
 async function snapshot({title,helpRoot,format}) {
@@ -90,7 +92,7 @@ async function snapshot({title,helpRoot,format}) {
       else {width=src.width;height=src.height;}
       if(!width||!height) throw new Error('A report image has no readable size.');
       const canvas=document.createElement('canvas');const scale=Math.min(1,4096/Math.max(width,height));canvas.width=Math.ceil(width*scale);canvas.height=Math.ceil(height*scale);
-      canvas.getContext('2d').drawImage(src,0,0,canvas.width,canvas.height);png=canvas.toDataURL('image/png');
+      canvas.getContext('2d',{willReadFrequently:true}).drawImage(src,0,0,canvas.width,canvas.height);png=canvas.toDataURL('image/png');
       if(src.localName==='canvas') {const image=document.createElement('img');image.src=png;dst.replaceWith(image);copies[i]=image;} else {dst.src=png;dst.removeAttribute('srcset');}
     }
     const factor=Math.min(explicitPictureWidth(src,width)/width,640/width,820/height);

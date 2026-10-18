@@ -1,1 +1,1 @@
-{"operation":"RandomPairs","file":"random-pairs.R","settings":{"pairs":50,"seed":10}}
+{"operation":"RandomPairs","file":"random-pairs.R","settings":{"pairs":50,"seed":10,"balance":true}}

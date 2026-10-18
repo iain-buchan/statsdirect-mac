@@ -2,6 +2,7 @@ import {explicitPictureWidth,wrapPicture,applyPictureWidth,fitPicture,pictureWid
 import {installTransfer,transferring,prepareClipboard,cutPrepared,preparePaste,pastePrepared,selectRange,clampSelection} from './transfer.mjs';
 import {installDeletion,selectAllResults,selectResult} from './deletion.mjs';
 import {region,entries,entryOf,entryById,entrySelector,inRegion,elementOf,field,emptyNotice,protectedSelector} from './region.mjs';
+import {exportableSvg} from './exportable.mjs';
 export {prepareClipboard,cutPrepared,preparePaste,pastePrepared,selectResult,explicitPictureWidth};
 let contextPicture=null;   // the chart under the pointer at the last right-click, for Save chart as SVG or PNG
 // The report is one editable region (see region.mjs). Results are blocks in it,
@@ -404,51 +405,8 @@ function describe(node) {
 // The chart under the pointer as a file, for the host's Save chart as SVG or PNG: its own markup for an SVG file (the xmlns
 // ensured), or a PNG drawn from it on a canvas at the given scale of its size on the page, on white. A raster picture gives
 // its own data as it is, and no SVG.
-// A chart as other programs read it (the Windows host's exportableSvg, shared here): the engine's charts carry text
-// anchoring and font styling in style attributes on tspans and baseline shifts as dy in em, which Office's converter to
-// shapes does not read, so every label was placed by its left edge at its anchor and off its baseline. The copy sets
-// xmlns, drops data-* attributes, derives the height from the width and the viewBox when missing, puts each text's
-// font-family (quotes removed), font-size, font-weight, font-style, fill and text-anchor as attributes of the text from
-// the declarations on it and its spans, folds a span's dy (em or px) into the text's y and drops the spans when they
-// carry nothing else, removes transform="rotate(0)", and turns shape style declarations into presentation attributes.
-export function exportableSvg(el) {
-  const svg=el.cloneNode(true);
-  // Margins position the chart on the report page, not inside a standalone SVG.
-  for(const name of ['margin','margin-left','margin-right','margin-top','margin-bottom'])svg.style.removeProperty(name);
-  if(!svg.style.length)svg.removeAttribute('style');
-  svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
-  for(const a of [...svg.attributes])if(a.name.startsWith('data-'))svg.removeAttribute(a.name);
-  const box=(svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
-  if(box.length===4&&box[2]>0&&box[3]>0){
-    const w=svg.getAttribute('width'),m=w&&/^([\d.]+)([a-z%]*)$/i.exec(w);
-    if(m&&!svg.getAttribute('height'))svg.setAttribute('height',(Math.round(Number(m[1])*box[3]/box[2]*1000)/1000)+(m[2]||''));
-    else if(!w){svg.setAttribute('width',String(box[2]));svg.setAttribute('height',String(box[3]));}
-  }
-  const declared=style=>{const out={};for(const d of (style||'').split(';')){const i=d.indexOf(':');if(i<0)continue;const k=d.slice(0,i).trim(),v=d.slice(i+1).trim();if(k&&v)out[k]=v;}return out;};
-  for(const text of svg.querySelectorAll('text')){
-    const spans=[...text.querySelectorAll('tspan')],props={};
-    for(const node of [text,...spans])for(const [k,v] of Object.entries(declared(node.getAttribute('style'))))if(!(k in props))props[k]=v;
-    for(const k of ['font-family','font-size','font-weight','font-style','fill','text-anchor'])if(props[k]!==undefined)text.setAttribute(k,props[k].replace(/['"]/g,''));
-    const size=parseFloat(props['font-size'])||16;
-    let shift=0;
-    for(const s of spans){
-      const dy=s.getAttribute('dy'),m=dy&&/^(-?[\d.]+)(em|px)?$/.exec(dy.trim());
-      if(m){shift+=Number(m[1])*(m[2]==='em'?size:1);s.removeAttribute('dy');}
-      s.removeAttribute('style');
-      for(const a of ['x','y'])if(s.getAttribute(a)==='0')s.removeAttribute(a);
-    }
-    if(shift)text.setAttribute('y',String((parseFloat(text.getAttribute('y'))||0)+shift));
-    text.removeAttribute('style');
-    if(/^rotate\(\s*0\s*\)$/.test(text.getAttribute('transform')||''))text.removeAttribute('transform');
-    if(spans.length&&spans.every(s=>!s.attributes.length))text.textContent=spans.map(s=>s.textContent).join('');
-  }
-  for(const node of svg.querySelectorAll('line,ellipse,circle,rect,path,polyline,polygon,g')){
-    const style=node.getAttribute('style');if(!style)continue;
-    for(const [k,v] of Object.entries(declared(style)))if(!node.hasAttribute(k))node.setAttribute(k,v);
-    node.removeAttribute('style');
-  }
-  return svg;
-}
+// A chart as other programs read it: exportable.mjs, shared with the clipboard copy.
+export {exportableSvg};
 export async function chartImage(format,scale=1) {
   const el=contextPicture;if(!el||!el.isConnected)throw new Error('No chart is under the pointer.');
   if(el.localName==='img'){if(format==='svg')throw new Error('This picture is not a vector chart.');return el.src;}

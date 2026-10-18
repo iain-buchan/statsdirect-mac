@@ -72,6 +72,29 @@ extension ReportExportTests {
         """) as? Bool == true,"standalone SVG drops report margins but retains drawing styles and leaves the source unchanged")
         print("PASS: standalone SVG removes page margins without changing chart drawing styles or report alignment");fflush(stdout)
 
+        // Windows 454ccff9 (v5.2.6): a converter that places every text by its left edge whatever text-anchor says (Office's Convert to
+        // Shape) keeps centred and right-aligned labels in place because the exportable SVG gives them an explicit left edge from the
+        // width measured on the page (the live element, or a hidden copy when the element is detached, as on the clipboard path) and
+        // the anchor start; a text whose span carries a position of its own is left alone. The same measurement serves both paths here.
+        let anchored=try await js("""
+        (()=>{const host=document.querySelector('.report-body'),wrap=document.createElement('div');wrap.id='anchor-check';
+          wrap.innerHTML='<svg width="300" height="150" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg"><text x="150" y="0" transform="rotate(0)"><tspan dy="0.8em" style="font-family:Arial,sans-serif;font-size:20px;fill:#000000;text-anchor:middle;">Centred</tspan></text><text x="290" y="100" style="font-family:Arial,sans-serif;font-size:20px;text-anchor:end;">Right</text><text x="10" y="140" text-anchor="middle" style="font-size:20px"><tspan x="20" y="140">Own</tspan></text></svg>';
+          host.appendChild(wrap);const el=wrap.querySelector('svg'),widths=[...el.querySelectorAll('text')].map(t=>t.getComputedTextLength());
+          const read=out=>[...out.querySelectorAll('text')].map(t=>({x:parseFloat(t.getAttribute('x')),y:t.getAttribute('y'),anchor:t.getAttribute('text-anchor'),text:t.textContent}));
+          const onPage=read(StatsDirectReportEditor.exportableSvg(el)),detached=read(StatsDirectReportEditor.exportableSvg(el.cloneNode(true)));
+          wrap.remove();return {widths,onPage,detached};})()
+        """) as! [String:Any]
+        let widths=anchored["widths"] as! [Double],onPage=anchored["onPage"] as! [[String:Any]],detached=anchored["detached"] as! [[String:Any]]
+        func near(_ a: Any?, _ b: Double) -> Bool { abs(((a as? NSNumber)?.doubleValue ?? .nan)-b)<0.01 }
+        precondition(widths.count==3&&widths[0]>40&&widths[1]>30,"the live labels measure: \(widths)")
+        for (name,texts) in [("on the page",onPage),("detached",detached)] {
+            precondition(texts.count==3&&texts[0]["anchor"] as? String=="start"&&near(texts[0]["x"],150-widths[0]/2)&&texts[0]["y"] as? String=="16"&&texts[0]["text"] as? String=="Centred",
+                         "a centred label takes its measured left edge \(name): \(texts[0])")
+            precondition(texts[1]["anchor"] as? String=="start"&&near(texts[1]["x"],290-widths[1]),"a right-aligned label takes its measured left edge \(name): \(texts[1])")
+            precondition(texts[2]["anchor"] as? String=="middle"&&near(texts[2]["x"],10),"a text whose span carries its own position is left alone \(name): \(texts[2])")
+        }
+        print("PASS: the exportable SVG gives centred and right-aligned labels their measured left edges with anchor start, on the page and detached, as Windows v5.2.6 does for Office's conversion to shapes");fflush(stdout)
+
         // Select actual text after a chart; the same controls must return to text editing.
         _ = try await js("(()=>{const p=document.getElementById('alignment-note');document.querySelector('.report-body').focus();getSelection().selectAllChildren(p);})()")
         try await Task.sleep(nanoseconds:50_000_000)

@@ -2,6 +2,7 @@ import {clipboardText, formatClipboardTables, formatOfficePresentation, flattenO
 import {wordEquation} from './math.mjs';
 import {explicitPictureWidth,pictureAlignment,setPictureAlignment} from './chart-size.mjs';
 import {inlinePresentation} from './fragment.mjs';
+import {exportableSvg} from './exportable.mjs';
 import {Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, ExternalHyperlink, HeadingLevel, WidthType, TableLayoutType, AlignmentType, BorderStyle, LevelFormat, ShadingType, VerticalAlignTable} from 'docx';
 
 const MAX_HTML = 30_000_000;
@@ -315,7 +316,8 @@ export async function clipboard(options) {
     const img=document.createElement('img');img.alt=svg.getAttribute('aria-label')||'StatsDirect chart';
     const vector=new XMLSerializer().serializeToString(svg);
     img.src=await raster('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(vector),width,height);
-    if(svg===picture)nativeImage={svg:vector,png:img.src};
+    // The clipboard's SVG as other programs read it: Office pastes it as a graphic and converts it to shapes.
+    if(svg===picture)nativeImage={svg:new XMLSerializer().serializeToString(exportableSvg(svg)),png:img.src};
     const displayWidth=Math.min(640,widths.get(svg)||width),displayHeight=Math.round(height*displayWidth/width);
     // Excel treats image HTML attributes as points but lays out CSS dimensions as pixels.
     img.width=Math.round(displayWidth*.75);img.height=Math.round(displayHeight*.75);

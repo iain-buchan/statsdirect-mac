@@ -1906,3 +1906,21 @@ Existing assertions, deadlines and application/engine/shared-editor code are
 unchanged; no retry or state-forcing workaround has been added. Local log:
 `.build/release-2026-10-17-macos14/parity-diagnostics.log`. Installer rebuilds are
 deferred at the user's latest instruction.
+
+## Signed release and update discovery — 18 October 2026
+
+The signed 17 October preview retained app version 0.3.29 and used a prerelease
+tag, so the existing stable-release updater intentionally did not offer it.
+Release 0.3.30 assigns a new numeric app/build version and matching stable GitHub
+tag. The update endpoint and its numeric comparison remain unchanged; older
+installations can discover the release without first installing an updater fix.
+
+Focused tests cover 0.3.30 discovery from 0.3.29 and earlier versions, no update
+for the current/newer version, exclusion of drafts/prereleases, and the public
+latest-release redirect fallback. Publication validation checks GitHub's live
+API and redirect, the uploaded archive's digest, the update prompt in an older
+packaged app, and the current-version result in the new signed app. Release
+artifacts retain matching native symbols and deployment/signature verification.
+The Developer ID signature does not imply notarisation: no Apple submission or
+stapling is part of this release. The engine pin, calculation source, report
+editor and Windows version are unchanged.

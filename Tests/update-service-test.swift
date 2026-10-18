@@ -70,6 +70,36 @@ private final class UpdateFixture: URLProtocol {
   assert(UpdateService.message(for:URLError(.timedOut)).contains("in time"))
   assert(UpdateService.message(for:URLError(.serverCertificateUntrusted)).contains("secure connection"))
   print("PASS: actual URLSession fallback after DNS/rate-limit/server errors, API-only success, both-host failure, cancellation and readable connection errors")
+  // This is the first release after 0.3.29: exercise the real check entry point
+  // for both GitHub routes, including versions whose ordering is not lexical.
+  let nextTag = "v0.3.30", nextURL = URL(string:"https://github.com/iain-buchan/statsdirect-mac/releases/tag/v0.3.30")!
+  for installedVersion in ["0.0.0","0.3.2","0.3.9","0.3.10","0.3.29","0.3.30","0.4.0"] {
+   for fallback in [false,true] {
+    fixture(fallback
+     ? [.error(.cannotFindHost),.response(nextURL,200,Data("unused HTML".utf8))]
+     : [.response(UpdateService.endpoint,200,try release(nextTag))])
+    let result = try await UpdateService.check(installed:installedVersion,session:session)
+    if AppVersion(installedVersion)! < AppVersion(nextTag)! {
+     guard case .available(let found) = result else { fatalError("0.3.30 was not offered to \(installedVersion) via \(fallback ? "website" : "API")") }
+     precondition(found.version == nextTag && found.url == nextURL,"The update must open the published 0.3.30 release")
+    } else {
+     guard case .current = result else { fatalError("0.3.30 was offered to current/newer \(installedVersion)") }
+    }
+    precondition(UpdateFixture.requests == (fallback ? [UpdateService.endpoint,UpdateService.latestRelease] : [UpdateService.endpoint]))
+    precondition(UpdateFixture.replies.isEmpty)
+   }
+  }
+  for flags in [(true,false),(false,true),(true,true)] {
+   fixture([.response(UpdateService.endpoint,200,try release(nextTag,draft:flags.0,prerelease:flags.1))])
+   guard case .noRelease = try await UpdateService.check(installed:"0.3.29",session:session) else { fatalError("Unpublished 0.3.30 was offered") }
+   precondition(UpdateFixture.requests == [UpdateService.endpoint],"Draft/prerelease responses must not trigger the website fallback")
+  }
+  for invalidTag in ["v0.3.30-beta","v0.3.30.1","v0..30"] {
+   do { _ = try UpdateService.interpret(release(invalidTag),status:200,installed:"0.3.29");fatalError("Invalid release version accepted") } catch {}
+   let invalidURL = UpdateService.releases.appendingPathComponent("tag").appendingPathComponent(invalidTag)
+   do { _ = try UpdateService.interpretReleasePage(page(invalidURL.absoluteString),installed:"0.3.29");fatalError("Invalid website release version accepted") } catch {}
+  }
+  print("PASS: 0.3.30 offered to 0.3.29 and older through API and website fallback, current/newer excluded, draft/prerelease/invalid versions excluded")
   var installed = "0.3.2"
   if let index = CommandLine.arguments.firstIndex(of:"--app") {
    guard index + 1 < CommandLine.arguments.count,
@@ -90,6 +120,44 @@ private final class UpdateFixture: URLProtocol {
     case .current: print("PASS: no newer published release than installed version \(installed) at the real public GitHub endpoint")
     case .available(let r): print("PASS: real public GitHub endpoint returned \(r.version)")
    }
+  }
+  // Use after publication to verify visibility, rather than treating any valid
+  // response (including an older latest release) as a successful release check.
+  if let index = CommandLine.arguments.firstIndex(of:"--live-release") {
+   guard index + 1 < CommandLine.arguments.count,
+         let expectedVersion = AppVersion(CommandLine.arguments[index + 1]),
+         expectedVersion > AppVersion("0.3.29")! else { fatalError("Supply the published release tag after --live-release") }
+   let expectedTag = CommandLine.arguments[index + 1]
+   let expectedURL = UpdateService.releases.appendingPathComponent("tag").appendingPathComponent(expectedTag)
+   let currentVersion = expectedTag.hasPrefix("v") ? String(expectedTag.dropFirst()) : expectedTag
+   var apiRequest = URLRequest(url:UpdateService.endpoint,cachePolicy:.reloadIgnoringLocalCacheData,timeoutInterval:20)
+   apiRequest.setValue("application/vnd.github+json",forHTTPHeaderField:"Accept")
+   apiRequest.setValue("StatsDirect-Mac-release-verification",forHTTPHeaderField:"User-Agent")
+   let (apiData,apiResponse) = try await URLSession.shared.data(for:apiRequest)
+   guard let apiResponse = apiResponse as? HTTPURLResponse else { fatalError("The public release API returned no HTTP response") }
+   guard case .available(let apiRelease) = try UpdateService.interpret(apiData,status:apiResponse.statusCode,installed:"0.3.29"),
+         apiRelease.version == expectedTag, apiRelease.url == expectedURL else { fatalError("The public latest-release API does not identify \(expectedTag)") }
+   for installedVersion in ["0.3.2","0.3.29",currentVersion] {
+    let result = try await UpdateService.check(installed:installedVersion)
+    if installedVersion == currentVersion {
+     guard case .current = result else { fatalError("The published app offers itself as an update") }
+    } else {
+     guard case .available(let found) = result, found.version == expectedTag, found.url == expectedURL else { fatalError("The public update check did not offer \(expectedTag) to \(installedVersion)") }
+    }
+   }
+   var request = URLRequest(url:UpdateService.latestRelease,cachePolicy:.reloadIgnoringLocalCacheData,timeoutInterval:20)
+   request.setValue("StatsDirect-Mac-release-verification",forHTTPHeaderField:"User-Agent")
+   let (_,response) = try await URLSession.shared.data(for:request)
+   guard let response = response as? HTTPURLResponse else { fatalError("The public latest-release redirect returned no HTTP response") }
+   for installedVersion in ["0.3.29",currentVersion] {
+    let result = try UpdateService.interpretReleasePage(response,installed:installedVersion)
+    if installedVersion == currentVersion {
+     guard case .current = result else { fatalError("The public website offers the current version again") }
+    } else {
+     guard case .available(let found) = result, found.version == expectedTag, found.url == expectedURL else { fatalError("The public latest-release redirect did not offer \(expectedTag)") }
+    }
+   }
+   print("PASS: live public GitHub check offers \(expectedTag) to 0.3.29 and older, current version is not offered, and the real latest-release website redirect agrees")
   }
  }
 }

@@ -810,6 +810,18 @@ without = sorted(op for op in runnable if not isinstance(real[op].get('record'),
 check(all(isinstance(real[op].get('record'), str) for op in recorded) and without == sorted(NO_REPORT_STEP) and all(real[op].get('recipe') is True for op in runnable),
       'the help\'s example inputs run through the engine as entered frames for %d operations, %d leaving a record at their report step (the %d writing to the worksheet alone, and the quick summary\'s builtin, leave none), all with recipe true; the %d follow-ons run from a parent result'
       % (len(runnable), len(recorded), len(NO_REPORT_STEP) - 1, len(FOLLOW_ONS)) + ('; without a record: ' + ', '.join(without) if without != sorted(NO_REPORT_STEP) else ''))
+# Follow-ons after a run (Windows 0630a7f3, 21 October 2026: since 5.2.0 the Further analysis drop-down of ten Windows operations whose
+# first follow-on waits for Run was laid out below the top bar's edge with a report in front; the Mac's form lists the suggestions in the
+# operation's own page). The shared half: the engine suggests every follow-on the operation's template names, on the help's example;
+# an operation naming itself (a screen-typed table or a calculator offering another) is left out, since the Mac's form can rerun it
+# (FullEngine/OperationSessions.cs).
+def suggested_in_xml(op):
+    return [name for name in re.findall(r'<suggested-operation>([^<]+)</suggested-operation>', (OPERATIONS / (op + '.xml')).read_text()) if name != op]
+with_follow_ons = {op: names for op in real for names in [suggested_in_xml(op)] if names}
+not_suggested = {op: sorted(set(names) - {s.get('operation') for s in (real[op].get('suggestions') or [])}) for op, names in with_follow_ons.items()}
+not_suggested = {op: m for op, m in not_suggested.items() if m}
+for op, m in sorted(not_suggested.items()): print('      %s does not suggest %s' % (op, ', '.join(m)), flush=True)
+check(not not_suggested and len(with_follow_ons) >= 15, 'every operation with follow-ons (%d of the %d run) suggests each one its template names after its run on the help\'s example' % (len(with_follow_ons), len(real)))
 # Where the dialog differs from the help's example: settings the dialog does not record under the example's name (asked on a branch the
 # default answers do not take; worked out from the inputs the dialog takes instead; written back by the operation as a result under the same
 # name). The rank correlation calculators record the score (df2) they work

@@ -49,6 +49,13 @@ correlation analyses all give the script of the run they continue. A table typed
 counts, the likelihood ratios, the Woolf and Mantel-Haenszel strata) reaches the record as an entered frame under the grid's name, usually `data`, its columns `Column 1`, `Column 2` and so on
 in the grid's order, and its recipe binds them by that name.
 
+A chart follow-on of the simple and multiple linear regressions (the residual plots, the regression line, the line with its standard
+error and confidence bands, the line with its prediction interval) also names under `after` a plots section: a second file under
+`recipes/` whose body the writer appends after the body of the recipe named by `file`, so that the script draws what the program
+draws after the analysis it continues, using that recipe's variables (its data, its settings, its `fit`) and the title variables
+the writer gives every column. The section's header may carry a `# settings:` line of its own, whose values are written after the
+recipe's settings; its other header lines bind nothing. The sections are marked `# hand-edited` and are kept through regeneration.
+
 A two-level frame (the replicated two-way and the nested analyses of variance) reaches the record as `"kind": "frame2d"` with its
 `value.frames`, an array per block or group of its columns, each with its title and values; the grouped covariance's data reach it as
 `"kind": "covariance"` in the same shape, each group's predictor levels first and then the outcome's replicates at each level, and the

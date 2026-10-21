@@ -543,27 +543,32 @@
   },
   "PlotMultipleLinearRegressionResiduals": {
     "file": "multiple-linear-regression.R",
-    "detail": "Multiple linear regression, as the help shows it in R.",
+    "after": "multiple-linear-regression-residual-plots.R",
+    "detail": "Multiple linear regression, as the help shows it in R, then its residual plots.",
     "inherits": "MultipleLinearRegression"
   },
   "PlotPredictionInterval": {
     "file": "simple-linear-regression.R",
-    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "after": "simple-linear-regression-prediction-plot.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R, then the regression line with its prediction interval.",
     "inherits": "SimpleLinearRegression"
   },
   "PlotResidualsSimple": {
     "file": "simple-linear-regression.R",
-    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "after": "simple-linear-regression-residual-plots.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R, then its residual plots.",
     "inherits": "SimpleLinearRegression"
   },
   "PlotSeCi": {
     "file": "simple-linear-regression.R",
-    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "after": "simple-linear-regression-se-ci-plot.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R, then the regression line with its standard error and confidence bands.",
     "inherits": "SimpleLinearRegression"
   },
   "PlotSimpleLinearRegression": {
     "file": "simple-linear-regression.R",
-    "detail": "Simple linear regression with its limits, as the help shows it in R.",
+    "after": "simple-linear-regression-plot.R",
+    "detail": "Simple linear regression with its limits, as the help shows it in R, then the regression line through the data.",
     "inherits": "SimpleLinearRegression"
   },
   "PoissonConfidenceInterval": {

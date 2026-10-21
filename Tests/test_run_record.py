@@ -127,6 +127,15 @@ for op, entry in manifest.items():
     if re.search(r'^# table:', text, re.M) and '<double-2-by-2>' not in xml: mismatches.append('%s: %s takes a 2 by 2 table, and the operation asks for none' % (op, entry['file']))
     if re.search(r'^# nested:', text, re.M) and '<frame2d>' not in xml and '<grouped-covariance>' not in xml: mismatches.append('%s: %s takes a two-level input, and the operation asks for none' % (op, entry['file']))
     if not re.search(r'^# (data|table|matrix|nested|settings):', text, re.M): mismatches.append('%s: %s has no header' % (op, entry['file']))
+    if entry.get('after'):   # a chart follow-on's plots section: present, taking only settings the operation asks for, and binding no data of its own
+        section_file = ROOT / 'Content/R/recipes' / entry['after']
+        if not section_file.is_file(): mismatches.append('%s: the plots section %s is not in the recipes folder' % (op, entry['after'])); continue
+        section = section_file.read_text()
+        more = re.search(r'^# settings:\s*(.*)$', section, re.M)
+        for item in ([x.strip() for x in more.group(1).split(',') if '=' in x] if more else []):
+            parameter = item[item.index('=') + 1:].strip()
+            if parameter not in parameters: mismatches.append('%s: %s takes the setting "%s"' % (op, entry['after'], parameter))
+        if re.search(r'^# (data|table|matrix|nested):', section, re.M): mismatches.append('%s: %s binds data, which a plots section cannot' % (op, entry['after']))
     # a package the recipe loads is installed first when it is missing, so that the script runs where the package is not yet
     for library in re.finditer(r'^[ ]*library\((\w[\w.]*)\)', text, re.M):
         if 'if (!requireNamespace("%s", quietly = TRUE)) install.packages("%s"' % (library.group(1), library.group(1)) not in text:
@@ -430,11 +439,14 @@ def run_time(record):
 def objects(values):
     if not isinstance(values, list): return []
     return [v if (is_number(v) or isinstance(v, (bool, str))) else None for v in values]
-def expected_script(record, recipe, detail):
-    """The script RScriptWriter.Write gives for a record without pointer frames (entered frames, two-level inputs, tables, settings), with no title given."""
+def expected_script(record, recipe, detail, after=None):
+    """The script RScriptWriter.Write gives for a record without pointer frames (entered frames, two-level inputs, tables, settings), with no title given;
+    a chart follow-on's plots section (Windows 37fc69ed) binds its settings after the recipe's and its body follows the recipe's after one blank line."""
     operation = text_of(record, 'operation') or ''
     title = text_of(record, 'title') or operation
     binding = parse_recipe(recipe) if recipe is not None else None
+    plots = parse_recipe(after) if binding and after else None
+    if plots: binding['settings'] = binding['settings'] + plots['settings']
     columns, tables, groups, nested = [], [], [], {}
     for inp in record.get('inputs', []) if isinstance(record.get('inputs'), list) else []:
         name = text_of(inp, 'name') or 'input'; kind = text_of(inp, 'kind') or 'other'; start = len(columns); inherited = inp.get('inherited') is True
@@ -533,6 +545,7 @@ def expected_script(record, recipe, detail):
     if binding and any(parameter == 'doseResponseModel' for _, parameter in binding['settings']):
         out.append((ROOT / 'Content/R/recipes/dose-response-common.R').read_text().rstrip('\n') + '\n')
     out.append(binding['body'].rstrip('\n') + '\n' if binding else '# Add your analysis here.\n')
+    if plots: out.append('\n' + plots['body'].rstrip('\n') + '\n')
     return ''.join(out)
 def first_difference(a, b):
     """The first line that differs between two texts, 1-based, with the two lines."""
@@ -552,7 +565,8 @@ def recipe_of(operation, record=None):
     entry = manifest[operation]
     root = (record or {}).get('rootOperation', entry.get('inherits', operation))
     file = entry.get('parentFiles', {}).get(root, entry['file'])
-    return (ROOT / 'Content/R/recipes' / file).read_text(), entry['detail']
+    after = (ROOT / 'Content/R/recipes' / entry['after']).read_text() if entry.get('after') else None   # a chart follow-on's plots section
+    return (ROOT / 'Content/R/recipes' / file).read_text(), entry['detail'], after
 
 # --- the record a run on the help's example would leave, as Recipes.cs's RecordOf builds it
 def record_of(example):
@@ -709,8 +723,8 @@ for op in operations:
     harness[op] = (record, script)
 mismatched = []
 for op in operations:
-    record, script = harness[op]; recipe, detail = recipe_of(op, record)
-    expected = expected_script(record, recipe, detail)
+    record, script = harness[op]; recipe, detail, after = recipe_of(op, record)
+    expected = expected_script(record, recipe, detail, after)
     if 'error' in script or not script['hasRecipe'] or script['detail'] != detail or script['text'] != expected:
         where = first_difference(script['text'], expected) if 'text' in script else None
         mismatched.append(op); print('      %s: %s' % (op, script.get('error') or ('line %d differs: engine %r, expected %r' % where if where else 'recipe flag or detail')), flush=True)
@@ -899,7 +913,7 @@ check(not problems, 'the record of each real run holds the example\'s columns as
 real_scripts = {op: rs.write(real[op]['record'], None, []) for op in recorded}
 mismatched = []
 for op in recorded:
-    script = real_scripts[op]; record = json.loads(real[op]['record']); recipe, detail = recipe_of(op, record); expected = expected_script(record, recipe, detail)
+    script = real_scripts[op]; record = json.loads(real[op]['record']); recipe, detail, after = recipe_of(op, record); expected = expected_script(record, recipe, detail, after)
     if 'error' in script or not script['hasRecipe'] or script['text'] != expected:
         where = first_difference(script['text'], expected) if 'text' in script else None
         mismatched.append(op); print('      %s: %s' % (op, script.get('error') or ('line %d differs: engine %r, expected %r' % where if where else 'no recipe')), flush=True)
@@ -934,7 +948,12 @@ check(not unexpected and not newly_agreeing, 'the scripts of the real runs print
 # carries the frames the follow-on inherited from the parent's run, marked inherited, with the parent's columns; its script is the parent's
 # (the same recipe on the same data) where it asked for no frame of its own, and holds every line of the parent's where it did; and its
 # text is what the writer's rules give for its record (an inherited frame no variable of the recipe takes is left out)
-FOLLOW_ON_ANSWERS = {}   # answers to the prompts a follow-on puts of its own, beyond its example's settings, by operation
+FOLLOW_ON_ANSWERS = {'PlotSeCi': {'reggamma': 0.9}}   # answers to the prompts a follow-on puts of its own, beyond its example's settings, by operation (the bands' own level)
+# the pages a chart follow-on's script draws in R on the help's example (Windows FollowOnPlots.cs): the residuals against the fitted values,
+# against each predictor and the normal plot for the multiple regression's two predictors; the simple regression's three residual plots;
+# one page for each line plot
+PLOT_PAGES = {'PlotMultipleLinearRegressionResiduals': 4, 'PlotResidualsSimple': 3, 'PlotSimpleLinearRegression': 1, 'PlotSeCi': 1, 'PlotPredictionInterval': 1}
+plots_drawn = []
 # a parent run answered otherwise than its example, so that it offers the follow-on: the agreement analysis offers the exact P simulation
 # only when no observer is marked as the reference standard, and the example (2570f206) marks observer 1
 PARENT_ANSWERS = {'UniversalAgreementSimulateExactP': {'reference': None}}
@@ -944,7 +963,7 @@ follow_on_problems = []; inherited_frames = 0; without_record = 0
 for op, parent_op in sorted(INHERITING.items()):
     try:
         parent_state = run_example(s, examples[parent_op], keep=True, extra=PARENT_ANSWERS.get(op))
-        try: child = run_example(s, examples[op], parent=parent_state['jobId'], extra=FOLLOW_ON_ANSWERS.get(op))
+        try: child = run_example(s, examples[op], parent=parent_state['jobId'], extra=FOLLOW_ON_ANSWERS.get(op), preferences={'use-default-ci': False} if op in FOLLOW_ON_ANSWERS else None)   # a level given is asked, not the default taken
         finally: s.close(parent_state['jobId'])
         assert isinstance(parent_state.get('record'), str), 'the parent %s left no record at a report step' % parent_op
         if op in FOLLOW_ON_NO_REPORT_STEP:
@@ -967,21 +986,39 @@ for op, parent_op in sorted(INHERITING.items()):
         inherited_frames += len(inherited)
         parent_script = rs.write(parent_state['record'], None, []); child_script = rs.write(child['record'], None, [])
         a, b = parent_script['text'].split('\n')[1:], child_script['text'].split('\n')[1:]
-        child_recipe, child_detail = recipe_of(op, cr)
+        child_recipe, child_detail, child_after = recipe_of(op, cr)
+        parent_recipe, parent_detail, _ = recipe_of(parent_op, pr)
         settings_used = [parameter for _, parameter in parse_recipe(child_recipe)['settings']]
-        contextual = (child_recipe != recipe_of(parent_op, pr)[0]
+        contextual = (child_recipe != parent_recipe
                       or any(parameter in ('statsdirectOperation', 'statsdirectRootOperation') for parameter in settings_used)
                       or any(pr.get('parameters', {}).get(parameter) != cr.get('parameters', {}).get(parameter) for parameter in settings_used))
-        if not contextual:
+        if child_after:
+            # a chart follow-on (Windows 37fc69ed, FollowOnPlots.cs): its script carries the parent's lines (the header's detail line aside), its
+            # header says the parent's analysis is followed by its plots, it ends with the plots section's body, and run in R it draws the
+            # plots the program draws, one page each
+            not_carried = [line for line in a if line != '# ' + parent_detail and line not in b]
+            assert not not_carried, 'the parent\'s line %r is not in the follow-on\'s script' % not_carried[0]
+            assert child_detail.startswith(parent_detail.rstrip('.') + ', then ') and ('# ' + child_detail) in b, 'the header does not say the parent\'s analysis is followed by the plots: %r' % child_detail
+            section_body = parse_recipe(child_after)['body'].rstrip()
+            assert section_body and len(b) > len(a) and child_script['text'].rstrip().endswith(section_body), 'the script does not end with the plots section %s' % manifest[op]['after']
+            drawn = run_r('options(device = function(...) grDevices::pdf(file = "plot-%03d.pdf", onefile = FALSE, ...))\n' + child_script['text']
+                          + '\ngraphics.off()\ncat("PLOT PAGES", length(list.files(pattern = "^plot-[0-9]+[.]pdf$")), "\\n")\n')
+            pages = int(re.search(r'^PLOT PAGES (\d+)', drawn, re.M).group(1))
+            assert pages == PLOT_PAGES[op], 'draws %d page(s) in R, %d expected' % (pages, PLOT_PAGES[op])
+            if op in FOLLOW_ON_ANSWERS and 'reggamma' in FOLLOW_ON_ANSWERS[op]:
+                assert '\nlevel <- %s\n' % literal(FOLLOW_ON_ANSWERS[op]['reggamma']) in child_script['text'], 'the plot does not take the level the follow-on was given as its own setting'
+            plots_drawn.append(op)
+        elif not contextual:
             if not own: assert b == a, 'the scripts differ at line %d: parent %r, follow-on %r' % first_difference(parent_script['text'], child_script['text'])
             else:
                 rest = iter(b); assert all(line in rest for line in a), 'the parent\'s script lines are not all in the follow-on\'s (which asked for %s itself)' % [i['name'] for i in own]
         # Routed/interpolation/ANOVA recipes intentionally differ from the parent.
         # Their inherited data are checked above and their exact own script below;
         # varied native numerical results are checked in test_recipe_regressions.
-        expected = expected_script(cr, child_recipe, child_detail)
+        expected = expected_script(cr, child_recipe, child_detail, child_after)
         assert child_script['text'] == expected, 'line %d differs from the writer\'s rules: engine %r, expected %r' % first_difference(child_script['text'], expected)
     except AssertionError as e: follow_on_problems.append(op); print('      %s: %s' % (op, str(e).replace('\n', ' | ')[:600]), flush=True)
+check(not follow_on_problems and sorted(plots_drawn) == sorted(PLOT_PAGES), 'the chart follow-ons of the regressions (%d) draw their plots in R after the parent\'s analysis, from the plots sections the manifest names' % len(plots_drawn))
 check(not follow_on_problems, 'the %d follow-on operations run from a parent run record the frames they inherit (%d), marked inherited, and their scripts use the correct recipe, inherited data and selected follow-on settings (the %d writing to the worksheet alone leave no record)' % (len(INHERITING), inherited_frames, without_record)
       + ('; failing: ' + ', '.join(follow_on_problems) if follow_on_problems else ''))
 

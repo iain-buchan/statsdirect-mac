@@ -953,7 +953,10 @@ FOLLOW_ON_ANSWERS = {'PlotSeCi': {'reggamma': 0.9}}   # answers to the prompts a
 # the pages a chart follow-on's script draws in R on the help's example (Windows FollowOnPlots.cs): the residuals against the fitted values,
 # against each predictor and the normal plot for the multiple regression's two predictors; the simple regression's three residual plots;
 # one page for each line plot
-PLOT_PAGES = {'PlotMultipleLinearRegressionResiduals': 4, 'PlotResidualsSimple': 3, 'PlotSimpleLinearRegression': 1, 'PlotSeCi': 1, 'PlotPredictionInterval': 1}
+PLOT_PAGES = {'PlotMultipleLinearRegressionResiduals': 4, 'PlotResidualsSimple': 3, 'PlotSimpleLinearRegression': 1, 'PlotSeCi': 1, 'PlotPredictionInterval': 1,
+              # the Cox regression's survival and hazard plots and, split by the help's binary predictor, the log-log plot; the logistic
+              # regression's eight diagnostic plots; the linearized model through the data; the polynomial's curve alone and with its two bands
+              'CoxHazardPlots': 3, 'LogisticRegressionDiagnostics': 8, 'LinearizedEstimatePlot': 1, 'PolynomialRegressionPlot': 3}
 plots_drawn = []
 # a parent run answered otherwise than its example, so that it offers the follow-on: the agreement analysis offers the exact P simulation
 # only when no observer is marked as the reference standard, and the example (2570f206) marks observer 1

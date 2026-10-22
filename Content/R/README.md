@@ -50,7 +50,9 @@ counts, the likelihood ratios, the Woolf and Mantel-Haenszel strata) reaches the
 in the grid's order, and its recipe binds them by that name.
 
 A chart follow-on of the simple and multiple linear regressions (the residual plots, the regression line, the line with its standard
-error and confidence bands, the line with its prediction interval) also names under `after` a plots section: a second file under
+error and confidence bands, the line with its prediction interval), of the Cox regression (its survival and cumulative hazard plots),
+of the logistic regression (its diagnostic plots), of the linearized estimates (the selected model through the data) and of the
+polynomial regression (the fitted curve, alone and with its confidence and prediction bands) also names under `after` a plots section: a second file under
 `recipes/` whose body the writer appends after the body of the recipe named by `file`, so that the script draws what the program
 draws after the analysis it continues, using that recipe's variables (its data, its settings, its `fit`) and the title variables
 the writer gives every column. The section's header may carry a `# settings:` line of its own, whose values are written after the

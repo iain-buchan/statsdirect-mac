@@ -23,6 +23,7 @@ import PDFKit
                         try await archived(viewer, url:URL(fileURLWithPath:CommandLine.arguments[index+1]), output:URL(fileURLWithPath:CommandLine.arguments[1]))
                     } else if CommandLine.arguments.contains("--notebook-import-only") {try await notebookImports(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--notebook-only") {try await notebooks(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--network-only") {try await networkIsolation(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--saving-only") {try await reportSaving(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--single-region-only") {try await singleRegion(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--raster-readback-only") {try await rasterReadbackRegression(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
@@ -183,6 +184,7 @@ import PDFKit
         try await imageEditing(v, output: output)
         try await notebooks(v, output: output)
         try await notebookImports(v, output: output)
+        try await networkIsolation(v, output: output)
     }
 
     @MainActor static func macReportControls(_ v: Viewer) async throws {

@@ -100,12 +100,26 @@ final class Document {
         item.label = title
         item.view = kind == "report" ? reportFindHost() : web
     }
+    /// Document pages load only their own files, data: URLs and snapshots. The Windows report view answers every other
+    /// request with 403; here a content rule list blocks every http(s) and ws(s) load, whatever markup an imported
+    /// report or notebook carries (poster, background, image and CSS URLs). It is compiled once at launch and given to
+    /// every web view made before it was ready.
+    static var networkBlock: WKContentRuleList?
+    static func compileNetworkBlock(_ ready: @escaping (WKContentRuleList) -> Void) {
+        // WebKit's filter grammar has no alternation, so one rule per scheme (matching is case-insensitive by default).
+        let rules = #"[{"trigger":{"url-filter":"^http://"},"action":{"type":"block"}},{"trigger":{"url-filter":"^https://"},"action":{"type":"block"}},{"trigger":{"url-filter":"^ws://"},"action":{"type":"block"}},{"trigger":{"url-filter":"^wss://"},"action":{"type":"block"}}]"#
+        WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "statsdirect-network-block", encodedContentRuleList: rules) { list, error in
+            guard let list else { NSLog("The network block rules did not compile: %@", error?.localizedDescription ?? "unknown error"); return }
+            networkBlock = list; ready(list)
+        }
+    }
     static func makeWebView() -> ReportWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         config.mediaTypesRequiringUserActionForPlayback = .all
         config.setURLSchemeHandler(SnapshotStore.shared, forURLScheme: SnapshotStore.scheme)
+        if let networkBlock { config.userContentController.add(networkBlock) }
         return ReportWebView(frame: .zero, configuration: config)
     }
 }
@@ -183,6 +197,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         return "\(title) · \(number)"
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Document.compileNetworkBlock { [weak self] list in self?.documents.forEach { $0.web.configuration.userContentController.add(list) } }
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 850), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "StatsDirect · Mac prototype"
         window.delegate = self

@@ -124,9 +124,12 @@ extension Viewer {
                 document.web.navigationDelegate = self; document.web.uiDelegate = self
                 documents.append(document); tabs.addTabViewItem(document.item); committed.append(document)
             }
-            let r = makeRScript(script: script, title: title + " · Notebook", saved: false)
-            committed.append(r); r.rPane?.setLanguage("R")
-            r.rPane?.state.stringValue = "Imported from notebook · Choose Run to execute the script"
+            // As on Windows, a notebook without R code opens its report and data but no script tab.
+            if !script.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let r = makeRScript(script: script, title: title + " · Notebook", saved: false)
+                committed.append(r); r.rPane?.setLanguage("R")
+                r.rPane?.state.stringValue = "Imported from notebook · Choose Run to execute the script"
+            }
             if let grid { analysisSourceID = grid.id }
             activeReportID = report.id
             tabs.selectTabViewItem(report.item); updateWindowMenu()

@@ -95,6 +95,14 @@ extension ReportExportTests {
         let kinds: [String] = try typed(columns.first?["kinds"], "typed cell kinds")
         try require(restoredValues.count == 7 && kinds[0] == "number" && kinds[1] == "blank" && kinds[2] == "boolean" && kinds[4] == "text" && kinds[5] == "text" && restoredValues[4] as? String == "=1+2" && restoredValues[6] as? String == "00123", "numbers, missing values, booleans and literal formula/date/identifier text are recovered without coercion")
 
+        // As on Windows, a notebook whose R cells were all deleted opens its report and data without a script tab.
+        var codeless = try object(Data(contentsOf: example))
+        codeless["cells"] = (try typed(codeless["cells"], "exported cells") as [[String: Any]]).filter { $0["cell_type"] as? String != "code" }
+        let codelessURL = output.appendingPathComponent("codeless-notebook.ipynb"); try encode(codeless).write(to: codelessURL)
+        let beforeCodeless = Set(v.documents.map(\.id)); _ = try await v.importNotebook(codelessURL)
+        let codelessOpened = v.documents.filter { !beforeCodeless.contains($0.id) }
+        try require(codelessOpened.contains { $0.kind == "report" } && codelessOpened.contains { $0.kind == "grid" } && !codelessOpened.contains { $0.kind == "r" }, "a notebook without R code opens its report and data but no script tab, as on Windows")
+
         // Invalid formats and cancellation must retain all existing work.
         var rejected = book
         rejected["metadata"] = ["kernelspec": ["name": "python3", "language": "python", "display_name": "Python"]]

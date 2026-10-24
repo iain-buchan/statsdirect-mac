@@ -51,8 +51,8 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('FullEngine/*.csproj', 'FullEngine/Upstream/**/*.csproj') }}
       - name: Install JavaScript dependencies
         run: for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
-      - name: Install openpyxl for the Excel tests
-        run: python3 -m pip install openpyxl xlrd
+      - name: Install document test dependencies
+        run: python3 -m pip install openpyxl xlrd nbformat==5.10.4
       - name: Build the application
         run: DOTNET="$(command -v dotnet)" ./build.sh
       - name: Committed bundles match their sources

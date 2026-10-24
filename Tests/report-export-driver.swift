@@ -21,7 +21,8 @@ import PDFKit
                 do {
                     if let index=CommandLine.arguments.firstIndex(where:{$0=="--legacy-file" || $0=="--report-file"}),index+1<CommandLine.arguments.count {
                         try await archived(viewer, url:URL(fileURLWithPath:CommandLine.arguments[index+1]), output:URL(fileURLWithPath:CommandLine.arguments[1]))
-                    } else if CommandLine.arguments.contains("--saving-only") {try await reportSaving(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    } else if CommandLine.arguments.contains("--notebook-only") {try await notebooks(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--saving-only") {try await reportSaving(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--single-region-only") {try await singleRegion(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--raster-readback-only") {try await rasterReadbackRegression(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--images-only") {try await imageEditing(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
@@ -179,6 +180,7 @@ import PDFKit
         try await reportSaving(v, output: output)
         try await importedRCharts(v, output: output)
         try await imageEditing(v, output: output)
+        try await notebooks(v, output: output)
     }
 
     @MainActor static func macReportControls(_ v: Viewer) async throws {

@@ -292,10 +292,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(export, "Current Worksheet as RDS…", #selector(saveActiveRDS))
         add(export, "All Worksheets as RData…", #selector(saveActiveRData))
         export.addItem(.separator())
-        add(export, "Report as HTML…", #selector(exportReportHTML))
-        add(export, "Report as PDF…", #selector(exportReportPDF))
-        add(export, "Report as Word (.docx)…", #selector(exportReportDOCX))
         add(export, "Chart as SVG…", #selector(saveChartSVG))
+        add(file, "Export Jupyter notebook…", #selector(exportReportNotebook))
         add(file, "Print…", #selector(printPage), "p")
         file.addItem(.separator()); add(file, "Close Document", #selector(closeTab), "w")
         let edit = menu("Edit")
@@ -352,6 +350,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(back) { return helpPane.web.canGoBack }
         if menuItem.action == #selector(forward) { return helpPane.web.canGoForward }
         if [#selector(exportReportHTML), #selector(exportReportPDF), #selector(exportReportDOCX)].contains(menuItem.action) { return active?.kind == "report" && active?.fileBusy == false && active?.web.isLoading == false }
+        if menuItem.action == #selector(exportReportNotebook) { return active?.kind == "report" && active?.fileBusy == false && active?.web.isLoading == false && window.attachedSheet == nil }
         if menuItem.action == #selector(saveChartSVG) { return active?.hasSVG == true }
         if [#selector(saveActiveExcel), #selector(exportActiveLegacyExcel), #selector(exportActiveCSV), #selector(saveActiveRDS), #selector(saveActiveRData)].contains(menuItem.action) { return active?.kind == "grid" }
         if menuItem.action == #selector(printPage) { if helpPane.isFocused { return true }; return active != nil && active?.kind != "operation" }

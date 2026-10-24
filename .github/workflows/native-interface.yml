@@ -49,7 +49,7 @@ jobs:
         run: |
           corepack enable
           for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
-          python3 -m pip install openpyxl
+          python3 -m pip install openpyxl nbformat==5.10.4
       - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
         if: inputs.suite == 'report' || inputs.suite == 'startup' || inputs.suite == 'integration' || inputs.release_tag == ''
         with:

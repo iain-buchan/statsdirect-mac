@@ -85,8 +85,18 @@ extension Viewer {
     @MainActor final class RecordFrameReader {
         unowned let viewer: Viewer
         var readers: [String: EngineWorkbookReader] = [:]
+        private let cacheReads: Bool
+        private let maxReadCells: Int?
+        private var readCells = 0
+        private var readCache: [Data: [[String: Any]]] = [:]
+        private struct ReadBudgetFailure: LocalizedError {
+            var errorDescription: String? { "Notebook data recovery would read too many worksheet cells. Export fewer analyses in one notebook." }
+        }
         static let reach = 64
-        init(viewer: Viewer) { self.viewer = viewer }
+        init(viewer: Viewer, cacheReads: Bool = false, maxReadCells: Int? = nil) {
+            self.viewer = viewer; self.cacheReads = cacheReads
+            self.maxReadCells = cacheReads ? maxReadCells.map { max(0, $0) } : nil
+        }
         func frames(of record: String) async throws -> [[String: Any]] {
             guard let object = try? JSONSerialization.jsonObject(with: Data(record.utf8)) as? [String: Any] else { throw RunRecordR.Failure(message: "the record of the run is not readable") }
             var frames: [[String: Any]] = []
@@ -115,7 +125,10 @@ extension Viewer {
                 guard !columns.isEmpty else { continue }
                 let band = RunRecordR.Frame(name: frame.name, file: frame.file, path: frame.path, sheet: item["sheet"] as? String ?? frame.sheet,
                                             columns: columns.map { RunRecordR.Pointer(title: "", column: $0, rows: firstRow...lastRow, hasTitle: false) }, blankBeyond: true)
-                guard let texts = try? await read(band) else { continue }
+                let texts: [[String: Any]]
+                do { texts = try await read(band) }
+                catch let error as ReadBudgetFailure { throw error }
+                catch { continue }
                 for (column, read) in zip(columns, texts) {
                     let values = read["values"] as? [String] ?? [], kinds = read["kinds"] as? [String] ?? []
                     let title: String = values.first ?? ""
@@ -128,6 +141,31 @@ extension Viewer {
             return result
         }
         func read(_ frame: RunRecordR.Frame) async throws -> [[String: Any]] {
+            guard cacheReads else { return try await readUncached(frame) }
+            // Notebook export resolves a selected input once for every result
+            // which references it. Ordinary Continue in R keeps its live reads.
+            let pointer: [String: Any] = ["file": frame.file, "path": frame.path, "sheet": frame.sheet,
+                                          "blankBeyond": frame.blankBeyond,
+                                          "columns": frame.columns.map { ["title": $0.title, "column": $0.column,
+                                                                          "rows": [$0.rows.lowerBound, $0.rows.upperBound],
+                                                                          "hasTitle": $0.hasTitle] }]
+            let key = try JSONSerialization.data(withJSONObject: pointer, options: [.sortedKeys])
+            if let cached = readCache[key] { return cached }
+            if let limit = maxReadCells {
+                let first = frame.columns.map(\.firstRow).min() ?? 1
+                let last = frame.columns.map(\.rows.upperBound).max() ?? 0
+                let span = max(0, last - first + 1)
+                let asked = Set(frame.columns.map(\.column)).count.multipliedReportingOverflow(by: span)
+                guard !asked.overflow, asked.partialValue <= limit - readCells else { throw ReadBudgetFailure() }
+                // Reserve before suspending; a failed read is not retried into
+                // an unbounded allocation. Cache hits consume no extra budget.
+                readCells += asked.partialValue
+            }
+            let value = try await readUncached(frame)
+            readCache[key] = value
+            return value
+        }
+        private func readUncached(_ frame: RunRecordR.Frame) async throws -> [[String: Any]] {
             if let grid = viewer.documents.first(where: { $0.kind == "grid" && $0.workbookSourceURL?.path == frame.path }) ?? viewer.documents.first(where: { $0.kind == "grid" && $0.workbookName == frame.file }) {
                 return try await RunRecordR.read(frame, fromGrid: grid)
             }
@@ -151,6 +189,8 @@ extension Viewer {
         func close() async {
             for reader in readers.values { for note in await reader.close() { viewer.status.stringValue = note } }
             readers = [:]
+            readCache = [:]
+            readCells = 0
         }
     }
     /// The values of the frames the record points to, through a reader of its own (the native checks call this).

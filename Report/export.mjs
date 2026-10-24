@@ -261,6 +261,48 @@ export async function capture(options) {
   return encoded;
 }
 
+// A notebook keeps the report as Markdown/HTML, so running its R cells cannot
+// erase the original results. Image attachments carry SVG and PNG together.
+export async function notebook(options) {
+  const {clone,pictures}=await snapshot({...options,format:'notebook'});
+  const blocks=[...clone.querySelectorAll('.report-entry')];
+  const entries=blocks.map(entry=>{
+    const cells=[],pending=[];let imageNumber=0;
+    // A raw HTML block keeps literal report text from becoming Markdown syntax.
+    const flush=()=>{const source=pending.join('').trim();pending.length=0;if(source)cells.push({source:`<div>\n${source}\n</div>`});};
+    const attachment=picture=>{
+      const name=`chart-${++imageNumber}.${picture.svg?'svg':'png'}`,bundle={};
+      if(picture.svg)bundle['image/svg+xml']=picture.svg;
+      if(picture.png?.startsWith('data:image/png;base64,'))bundle['image/png']=picture.png.slice('data:image/png;base64,'.length);
+      if(!Object.keys(bundle).length)throw Error('A report picture could not be included in the notebook.');
+      return {name,bundle};
+    };
+    const walk=node=>{
+      const picture=pictures.get(node);
+      if(picture){
+        flush();const {name,bundle}=attachment(picture);
+        const alt=String(picture.alt||'StatsDirect chart').replace(/[\\\[\]\r\n]/g,' ');
+        cells.push({source:`![${alt}](attachment:${name})`,attachments:{[name]:bundle}});return;
+      }
+      if(node.nodeType===Node.TEXT_NODE){pending.push(node.textContent.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'));return;}
+      if(node.nodeType!==Node.ELEMENT_NODE)return;
+      if(!node.querySelector('svg,img,canvas')){pending.push(node.outerHTML);return;}
+      {
+        // Keep paragraphs, list numbering and table geometry around pictures.
+        // Vectors remain in attachments as well as the complete original HTML;
+        // an embedded PNG preview works inside HTML in notebook renderers.
+        flush();const block=node.cloneNode(true),attachments={};
+        const original=[...node.querySelectorAll('svg,img,canvas')],copies=[...block.querySelectorAll('svg,img,canvas')];
+        original.forEach((source,i)=>{const p=pictures.get(source);if(!p)return;const {name,bundle}=attachment(p);attachments[name]=bundle;const img=document.createElement('img');img.src=p.png;img.alt=p.alt;img.width=p.width;img.height=p.height;copies[i].replaceWith(img);});
+        cells.push({source:`<div>\n${block.outerHTML}\n</div>`,attachments});return;
+      }
+    };
+    [...entry.childNodes].forEach(walk);flush();
+    return {html:entry.innerHTML,cells};
+  });
+  return {html:'<!doctype html>\n'+clone.outerHTML,entries};
+}
+
 export async function clipboard(options) {
   const selection=window.getSelection();
   if(!options.fragment&&(!selection||selection.isCollapsed||!selection.rangeCount))return null;

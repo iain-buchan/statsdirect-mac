@@ -173,7 +173,7 @@ import PDFKit
         try await select(1)
         let box = try await open("BoxWhiskerPlot")
         try await wait { try await yes(box, "!!document.querySelector('select[name=method]')") }
-        try check(try await yes(box, "document.querySelector('select[name=method]').options.length===6&&document.querySelector('input[name=confidence]').value==='95'&&document.querySelector('input[name=confidence]').disabled&&!document.querySelector('.column-chooser')"), "box plot uses the selection automatically and offers six methods with the saved 95% default")
+        try check(try await yes(box, "JSON.stringify([...document.querySelector('select[name=method]').options].map(o=>o.value))===JSON.stringify(['1','7','2','6','3','4','5'])&&document.querySelector('input[name=confidence]').value==='95'&&document.querySelector('input[name=confidence]').disabled&&!document.querySelector('.column-chooser')"), "box plot uses the selection automatically and offers all seven methods, including Tukey hinges, with the saved 95% default")
         if let path = ProcessInfo.processInfo.environment["STATSDIRECT_TEST_SCREENSHOT"] {
             let image = try await box.web.takeSnapshot(configuration:nil)
             if let tiff=image.tiffRepresentation, let bitmap=NSBitmapImageRep(data:tiff), let png=bitmap.representation(using:.png,properties:[:]) { try png.write(to:URL(fileURLWithPath:path)) }

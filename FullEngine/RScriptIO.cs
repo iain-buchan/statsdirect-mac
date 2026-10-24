@@ -28,12 +28,13 @@ using StatsDirect.Utilities;
 // or {"error"}. The values go through HostParameters.ReadFrame under the frame's recorded acquisition mode, as the original
 // run's did, so RunRecord.Hash of the variable equals the recorded hash exactly when the cells are unchanged (the Windows
 // FrameReader reads the grid the same way); a column whose hash differs is marked Changed and the script notes it.
-public static class RScriptIO {
+public static partial class RScriptIO {
     static readonly JsonSerializerOptions json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
     public static string Execute(string text) {
         try {
             using var request = JsonDocument.Parse(text);
             var root = request.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("notebook", out _)) return ExecuteNotebook(root);
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("record", out var given)) throw new Exception("The request names no record of a run.");
             using var parsed = given.ValueKind == JsonValueKind.String ? JsonDocument.Parse(given.GetString() ?? "") : null;
             var record = parsed != null ? parsed.RootElement : given;

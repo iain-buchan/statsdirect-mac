@@ -70,20 +70,20 @@ private final class UpdateFixture: URLProtocol {
   assert(UpdateService.message(for:URLError(.timedOut)).contains("in time"))
   assert(UpdateService.message(for:URLError(.serverCertificateUntrusted)).contains("secure connection"))
   print("PASS: actual URLSession fallback after DNS/rate-limit/server errors, API-only success, both-host failure, cancellation and readable connection errors")
-  // This is the first release after 0.3.29: exercise the real check entry point
+  // 1.0.0 is the first release after 0.3.30 (0.3.30 was never published): exercise the real check entry point
   // for both GitHub routes, including versions whose ordering is not lexical.
-  let nextTag = "v0.3.30", nextURL = URL(string:"https://github.com/iain-buchan/statsdirect-mac/releases/tag/v0.3.30")!
-  for installedVersion in ["0.0.0","0.3.2","0.3.9","0.3.10","0.3.29","0.3.30","0.4.0"] {
+  let nextTag = "v1.0.0", nextURL = URL(string:"https://github.com/iain-buchan/statsdirect-mac/releases/tag/v1.0.0")!
+  for installedVersion in ["0.0.0","0.3.2","0.3.9","0.3.10","0.3.29","0.3.30","1.0.0","1.0.1","1.1.0"] {
    for fallback in [false,true] {
     fixture(fallback
      ? [.error(.cannotFindHost),.response(nextURL,200,Data("unused HTML".utf8))]
      : [.response(UpdateService.endpoint,200,try release(nextTag))])
     let result = try await UpdateService.check(installed:installedVersion,session:session)
     if AppVersion(installedVersion)! < AppVersion(nextTag)! {
-     guard case .available(let found) = result else { fatalError("0.3.30 was not offered to \(installedVersion) via \(fallback ? "website" : "API")") }
-     precondition(found.version == nextTag && found.url == nextURL,"The update must open the published 0.3.30 release")
+     guard case .available(let found) = result else { fatalError("1.0.0 was not offered to \(installedVersion) via \(fallback ? "website" : "API")") }
+     precondition(found.version == nextTag && found.url == nextURL,"The update must open the published 1.0.0 release")
     } else {
-     guard case .current = result else { fatalError("0.3.30 was offered to current/newer \(installedVersion)") }
+     guard case .current = result else { fatalError("1.0.0 was offered to current/newer \(installedVersion)") }
     }
     precondition(UpdateFixture.requests == (fallback ? [UpdateService.endpoint,UpdateService.latestRelease] : [UpdateService.endpoint]))
     precondition(UpdateFixture.replies.isEmpty)
@@ -91,15 +91,15 @@ private final class UpdateFixture: URLProtocol {
   }
   for flags in [(true,false),(false,true),(true,true)] {
    fixture([.response(UpdateService.endpoint,200,try release(nextTag,draft:flags.0,prerelease:flags.1))])
-   guard case .noRelease = try await UpdateService.check(installed:"0.3.29",session:session) else { fatalError("Unpublished 0.3.30 was offered") }
+   guard case .noRelease = try await UpdateService.check(installed:"0.3.30",session:session) else { fatalError("Unpublished 1.0.0 was offered") }
    precondition(UpdateFixture.requests == [UpdateService.endpoint],"Draft/prerelease responses must not trigger the website fallback")
   }
-  for invalidTag in ["v0.3.30-beta","v0.3.30.1","v0..30"] {
+  for invalidTag in ["v1.0.0-beta","v1.0.0.1","v1..0"] {
    do { _ = try UpdateService.interpret(release(invalidTag),status:200,installed:"0.3.29");fatalError("Invalid release version accepted") } catch {}
    let invalidURL = UpdateService.releases.appendingPathComponent("tag").appendingPathComponent(invalidTag)
    do { _ = try UpdateService.interpretReleasePage(page(invalidURL.absoluteString),installed:"0.3.29");fatalError("Invalid website release version accepted") } catch {}
   }
-  print("PASS: 0.3.30 offered to 0.3.29 and older through API and website fallback, current/newer excluded, draft/prerelease/invalid versions excluded")
+  print("PASS: 1.0.0 offered to 0.3.30 and older through API and website fallback, current/newer excluded, draft/prerelease/invalid versions excluded")
   var installed = "0.3.2"
   if let index = CommandLine.arguments.firstIndex(of:"--app") {
    guard index + 1 < CommandLine.arguments.count,

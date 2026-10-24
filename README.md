@@ -6,7 +6,7 @@ A native macOS preview of StatsDirect, using the [Windows calculation engine](ht
 
 **[Download the latest Mac release](https://github.com/iain-buchan/statsdirect-mac/releases/latest)** — Apple Silicon, macOS 14 or later.
 
-Expand the application ZIP and move **StatsDirect.app** to Applications. Version 0.3.30 is Apple Developer ID signed; notarisation remains pending, so macOS may still show a verification warning. **Help → Check for Updates** finds new releases; installation is currently manual.
+Expand the application ZIP and move **StatsDirect.app** to Applications. Release 1.0.0 is signed and notarised with the University of Liverpool's Apple Developer ID, so macOS opens it without a security warning. **Help → Check for Updates** finds new releases; installation is currently manual.
 
 Upgrading from 0.3.18 or earlier: after saving work and quitting the old app, remove **StatsDirect Viewer.app** from Applications to avoid keeping both names. Your existing settings and learning records are retained.
 
@@ -39,6 +39,8 @@ For Docker, run `./docker-build.sh` instead. The build restores missing submodul
 Set `STATSDIRECT_APP_OUTPUT="$PWD/.build/ready/StatsDirect.app"` to build separately while an existing copy is running.
 
 Run `./test.sh` for engine and R comparison tests (requires R; `RSCRIPT` can select its executable).
+
+A release is signed and notarised from a tested build by the steps in [SIGNING.md](SIGNING.md), with `Scripts/sign-app.sh` and the entitlements in `StatsDirect.entitlements`.
 
 Offline help is imported independently of the engine pin: fetch `FullEngine/Upstream`, then run `python3 Scripts/import-desktop-help.py <published-statsdirect-commit>`. This copies the complete Windows DesktopHelp bundle without changing its files. Run `python3 Tests/test_desktop_help.py` and `Scripts/test-help-pane.sh` to verify it.
 

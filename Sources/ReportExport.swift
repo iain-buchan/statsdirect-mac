@@ -104,7 +104,10 @@ extension Viewer {
         // An isolated JS world prevents imported HTML from replacing the export code or receiving native messages.
         guard let value=try await reportScript(doc,method:"capture",format:format == .docx ? "docx":"html") else { throw ReportExportError("The report returned no exportable content.") }
         switch format {
-        case .html: return Data(await reportMetadata(doc, in: value).utf8)
+        case .html:
+            let data = Data(await reportMetadata(doc, in: value).utf8)
+            guard data.count <= 30_000_000 else { throw ReportExportError("The report and its saved analysis provenance exceed the 30 MB HTML import limit. Export a smaller report or a Jupyter notebook instead.") }
+            return data
         case .docx:
             guard let data=Data(base64Encoded:value), data.starts(with:[0x50,0x4b]) else { throw ReportExportError("The Word document could not be created.") }
             return data
@@ -128,7 +131,11 @@ extension Viewer {
             }
             return item
         }
-        guard let data = try? JSONSerialization.data(withJSONObject: ["version": 1, "entries": entries], options: [.withoutEscapingSlashes]) else { return html }
+        var metadata: [String: Any] = ["version": 1, "entries": entries]
+        // This is a JSON string on purpose: its original numeric literals and
+        // run provenance survive save/open without a Foundation number rewrite.
+        if let provenance = doc.notebookImportProvenance { metadata["notebookImportProvenance"] = provenance }
+        guard let data = try? JSONSerialization.data(withJSONObject: metadata, options: [.withoutEscapingSlashes]) else { return html }
         var block = String(decoding: data, as: UTF8.self)
         for (token, record) in records { block = block.replacingOccurrences(of: "\"" + token + "\"", with: record) }
         block = block.replacingOccurrences(of: "<", with: "\\u003c")

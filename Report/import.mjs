@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import {marked} from 'marked';
 import {borderProperties} from './presentation.mjs';
 import {validateMetafile} from './metafile.mjs';
 import {convertMetafileToSvg} from 'emf-converter';
@@ -18,20 +19,71 @@ function safeStyle(style) {
   return result.cssText;
 }
 const rasterURL = value => /^data:image\/(png|jpeg|gif|webp);base64,[a-z\d+/=\s]+$/i.test(value);
-DOMPurify.addHook('afterSanitizeAttributes', node => {
+DOMPurify.addHook('afterSanitizeAttributes', (node, _data, config) => {
   if (!node.attributes) return;
   for (const attr of [...node.attributes]) {
     if (/^(href|xlink:href)$/i.test(attr.name)) {
       const allowed = node.localName === 'use' ? attr.value.startsWith('#') : node.localName === 'a' ? /^(https?:|mailto:|#)/i.test(attr.value) : attr.value.startsWith('#') || rasterURL(attr.value);
       if (!allowed) node.removeAttribute(attr.name);
     }
-    if (attr.name === 'src' && !rasterURL(attr.value)) node.removeAttribute(attr.name);
+    if (attr.name === 'src' && !rasterURL(attr.value) && !(config.STATSDIRECT_ATTACHMENTS && attr.value.startsWith('attachment:'))) node.removeAttribute(attr.name);
   }
   node.removeAttribute('srcset'); node.removeAttribute('name');
   if (node.style) { const css=safeStyle(node.style); if(css)node.setAttribute('style',css);else node.removeAttribute('style'); }
 });
-function purify(html) {
-  return DOMPurify.sanitize(html,{WHOLE_DOCUMENT:true,ADD_TAGS:['use'],FORBID_TAGS:['script','iframe','object','embed','form','input','button','textarea','select','link','base','meta','foreignObject','animate','animateMotion','animateTransform','set'],FORBID_ATTR:['contenteditable','tabindex','autofocus'],ALLOW_DATA_ATTR:false,RETURN_DOM:true});
+function purify(html, attachments=false) {
+  return DOMPurify.sanitize(html,{STATSDIRECT_ATTACHMENTS:attachments,ADD_URI_SAFE_ATTR:attachments?['src']:[],WHOLE_DOCUMENT:true,ADD_TAGS:['use'],FORBID_TAGS:['script','iframe','object','embed','form','input','button','textarea','select','link','base','meta','foreignObject','animate','animateMotion','animateTransform','set'],FORBID_ATTR:['contenteditable','tabindex','autofocus'],ALLOW_DATA_ATTR:false,RETURN_DOM:true});
+}
+
+// Render current notebook cells, then use the same import boundary as HTML
+// reports. Attachments are local to a cell; no workbook or image URL is opened.
+export async function notebook({entries}) {
+  if(!Array.isArray(entries)||entries.length>1000)throw Error('Invalid notebook report sections.');
+  const output=[],warnings=[];let characters=0;
+  const content=value=>typeof value==='string'?value:Array.isArray(value)&&value.every(v=>typeof v==='string')?value.join(''):(()=>{throw Error('Invalid notebook text.');})();
+  const escape=value=>value.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+  for(const entry of entries){
+    const fragments=[];
+    for(const cell of entry.cells){
+      const source=content(cell.source),attachments=cell.attachments??{};
+      const rendered=cell.cellType==='raw'?`<pre>${escape(source)}</pre>`:cell.cellType==='html'?source:marked.parse(source,{mangle:false,headerIds:false});
+      const safe=purify(rendered,true);
+      for(const img of safe.querySelectorAll('img')){
+        const src=img.getAttribute('src')??'';let bundle;
+        if(src.startsWith('attachment:')){
+          let name=src.slice('attachment:'.length);try{name=decodeURIComponent(name);}catch{}
+          if(!Object.hasOwn(attachments,name))throw Error('A notebook image attachment is missing.');
+          bundle=attachments[name];
+        }else if(src.startsWith('data:image/png;base64,')){
+          // Nested report pictures use an HTML preview. Recover their vector
+          // only when the CURRENT visible PNG matches that cell's attachment.
+          bundle=Object.values(attachments).find(b=>b['image/svg+xml']&&b['image/png']&&src==='data:image/png;base64,'+content(b['image/png']).replace(/\s/g,''));
+        }
+        if(!bundle)continue;
+        if(bundle['image/svg+xml']){
+          const svg=purify(content(bundle['image/svg+xml'])).querySelector('svg');
+          if(!svg)throw Error('A notebook SVG attachment is invalid.');
+          for(const name of ['width','height','alt'])if(img.hasAttribute(name))svg.setAttribute(name==='alt'?'aria-label':name,img.getAttribute(name));
+          if(img.style.cssText)svg.style.cssText=img.style.cssText;
+          img.replaceWith(svg);
+        }else{
+          const mime=['image/png','image/jpeg','image/gif','image/webp'].find(type=>bundle[type]);
+          if(!mime)throw Error('A notebook image attachment has no supported picture.');
+          const raster='data:'+mime+';base64,'+content(bundle[mime]).replace(/\s/g,'');
+          if(!rasterURL(raster))throw Error('A notebook image attachment is invalid.');
+          const preview=new Image();preview.src=raster;
+          await preview.decode().catch(()=>{throw Error('A notebook image attachment could not be read.');});
+          img.src=raster;
+        }
+      }
+      fragments.push(safe.querySelector('body').innerHTML);
+    }
+    const html=fragments.join('\n');characters+=html.length;
+    if(characters>30_000_000)throw Error('The notebook report exceeds the 30 MB report limit.');
+    const converted=JSON.parse(await convert({html}));warnings.push(...converted.warnings);
+    output.push({...entry,html:converted.html,cells:undefined});
+  }
+  return JSON.stringify({entries:output,warnings:[...new Set(warnings)]});
 }
 export async function convert({html,pictures=[],legacy=false,tableRows=[]}) {
   if(html.length>30_000_000)throw new Error('This report is too large to open (30 MB limit).');

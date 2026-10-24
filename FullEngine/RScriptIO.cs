@@ -34,6 +34,7 @@ public static partial class RScriptIO {
         try {
             using var request = JsonDocument.Parse(text);
             var root = request.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("notebookImport", out _)) return ExecuteNotebookImport(root);
             if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("notebook", out _)) return ExecuteNotebook(root);
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("record", out var given)) throw new Exception("The request names no record of a run.");
             using var parsed = given.ValueKind == JsonValueKind.String ? JsonDocument.Parse(given.GetString() ?? "") : null;

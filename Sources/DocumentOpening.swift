@@ -18,8 +18,9 @@ extension Viewer: NSMenuDelegate {
             case "rds", "rdata", "rda": openRDataURL(url)
             case "r", "cs", "vb": openRScriptURL(url)
             case "html", "htm", "rtf", "txt": openReportURL(url)
+            case "ipynb": openNotebookURL(url)
             case "sdw": showError("This legacy StatsDirect workbook needs the StatsDirect 2 converter on Windows. Open it there and save it as an Excel workbook (.xlsx or .xls), then open that file here. The original SDW file has not been changed.")
-            default: showError("Choose an Excel, CSV, TSV or R data file, an R, C# or Visual Basic script, or an HTML, RTF or text report.")
+            default: showError("Choose an Excel, CSV, TSV or R data file, an R, C# or Visual Basic script, an HTML, RTF or text report, or a StatsDirect Jupyter notebook.")
             }
         }
     }

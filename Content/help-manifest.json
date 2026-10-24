@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "f6c09fb990df6e81dcd3eb0d5272a2da98e3c673",
+  "commit": "c5adc15977c9e0916fb46e978930650b7ec87c4a",
   "source": "StatsDirectUI/Assets/Help",
   "target": "DesktopHelp (offline HTML5)",
   "topics": 402,
@@ -258,7 +258,7 @@
     "basics/prospective.htm": "56fd3e3f836f276ab371db47705cd54d60d7966715be6879733a969d22d23388",
     "basics/r_script_window.htm": "88f5f26aa8dde238aa3982ee2c7ec77ce82ee6a453770ef62ebb06594146dd92",
     "basics/reliability.htm": "a550797d8ce6981a4e832627aeed26bda888f5188beb6e6b0883f8b5d39c1653",
-    "basics/report_window.htm": "fb2172f9f0bd86d97d9b681f413371c1cf435fd5048d445ceb4d5bd1b2746f05",
+    "basics/report_window.htm": "764e804d84ca1c2f4924087fe81c475e3800032bf65b44f41fee0c44024fbf46",
     "basics/script_ai.htm": "c6935ebe135e05e71c7766f8ea9daee2e3025c33b072db5b5c91875df6b163c1",
     "basics/statistics.htm": "10840db6089d183c79d9b959c9cdfb84c4c7fcc33f47a367545dc6a4533c880b",
     "basics/validity.htm": "52541b0c7fdea49e8a59680efd5a7fd0d74a309ce6fd5904492bdca8f27110dd",

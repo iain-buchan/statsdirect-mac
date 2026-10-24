@@ -16,7 +16,7 @@ Open your data with **File → Open**, or choose **Help → Example workbook**, 
 
 - Open Excel workbooks (`.xlsx`, `.xls`, `.xlsb`, `.xlsm` and templates), including password-protected files. Save data as `.xlsx`, CSV or R files.
 - Keep results together in an editable report with SVG charts; open legacy RTF reports and save as HTML, PDF or Word documents.
-- Source builds offer **File → Export Jupyter notebook…** for sharing the complete report, analysis data and runnable R code with a colleague.
+- Source builds can export reports as Jupyter notebooks and reopen StatsDirect notebooks into new report, data and R script tabs. Imported R code runs only when requested.
 - Choose **Continue in R** from a report's toolbar or context menu to open and run its editable script, or **File → New R Script** to start your own. Run, output and R setup controls stay in the script tab.
 - The script toolbar's **AI** icon opens a conversation beside your code, using your ChatGPT connection. Choose whether to share the script/output and a workbook, and check for person identifiers before sending.
 - Open **Analysis → Calculator** for the StatsDirect expression calculator. It docks below your work or pops out, with wrapping input and saved calculations for the current session.

@@ -152,24 +152,28 @@ enum RunRecordR {
     /// A record read from a file, kept as the JSON text it was saved with (the engine reads it exactly as it was written, its
     /// properties in their order) when it is one Windows or this program could have written: an object of version 1 naming an
     /// operation, its frame inputs pointing within the worksheet's bounds, its run time (and its source's modification time) an ISO
-    /// 8601 timestamp, no text longer than 4,096 characters, and at most 4 MB. A control character in a title or name is no bar:
+    /// 8601 timestamp and at most the HTML import envelope (30 MB). Structural text stays bounded to 4,096 characters;
+    /// complete cell-value arrays may hold longer text. A control character in a title or name is no bar:
     /// the engine's writer makes each one a space in the script's comment lines and escapes it in its string literals (U+0000, which
     /// R cannot hold in a string, becomes a space there too).
     static func validated(_ raw: String) -> String? {
-        guard raw.utf8.count <= 4_000_000, let object = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any] else { return nil }
+        guard raw.utf8.count <= 30_000_000, let object = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any] else { return nil }
         guard integer(object["version"]) == 1, let operation = object["operation"] as? String, isOperationName(operation) else { return nil }
         if let inputs = object["inputs"], !(inputs is NSNull) {
-            guard let list = inputs as? [Any], list.count <= 500 else { return nil }
+            let limit = object["notebookImport"] is [String: Any] ? 20_000 : 500
+            guard let list = inputs as? [Any], list.count <= limit else { return nil }
             for item in list {
                 guard let input = item as? [String: Any] else { return nil }
                 guard input["kind"] as? String == "frame" else { continue }
+                let held = completeHeldFrame(input, record: object)
                 if let columns = input["columns"], !(columns is NSNull) {
-                    guard let list = columns as? [Any], list.count <= 500 else { return nil }
+                    guard let list = columns as? [Any], list.count <= (held ? maxColumn : 500) else { return nil }
                     for item in list {
                         guard let column = item as? [String: Any] else { return nil }
                         if let c = column["column"], !(c is NSNull) { guard let n = integer(c), (1...maxColumn).contains(n) else { return nil } }
                         if let r = column["rows"], !(r is NSNull) {
-                            guard let rows = r as? [Any], rows.count == 2, let a = integer(rows[0]), let b = integer(rows[1]), a >= 1, a <= b, b <= maxRow else { return nil }
+                            guard let rows = r as? [Any], rows.count == 2, let a = integer(rows[0]), let b = integer(rows[1]), a >= 1, a <= maxRow,
+                                  (a <= b && b <= maxRow) || (held && b < 0) else { return nil }
                         }
                         if let h = column["hash"], !(h is NSNull) {
                             guard let hash = h as? String, hash.count == 16, hash.unicodeScalars.allSatisfy({ ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x61 && $0.value <= 0x66) }) else { return nil }
@@ -198,11 +202,27 @@ enum RunRecordR {
     static func isOperationName(_ s: String) -> Bool {
         s.count <= 100 && s.unicodeScalars.allSatisfy { ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A) || $0.value == 0x5F }
     }
-    private static func textsWithinBounds(_ value: Any, depth: Int) -> Bool {
+    private static func completeHeldFrame(_ input: [String: Any], record: [String: Any]) -> Bool {
+        guard let name = input["held"] as? String ?? input["name"] as? String,
+              let data = record["data"] as? [String: Any], let held = data[name] as? [String: Any],
+              let columns = input["columns"] as? [[String: Any]], !columns.isEmpty, held.count == columns.count else { return false }
+        var used = Set<String>()
+        for column in columns {
+            let title = column["title"] as? String ?? ""
+            var key = title, suffix = 2
+            while !used.insert(key).inserted { key = title + "_\(suffix)"; suffix += 1 }
+            guard held[key] is [Any] else { return false }
+        }
+        return true
+    }
+    private static func textsWithinBounds(_ value: Any, depth: Int, cellValues: Bool = false) -> Bool {
         guard depth <= 32 else { return false }
-        if let s = value as? String { return s.count <= 4096 }
-        if let items = value as? [Any] { return items.allSatisfy { textsWithinBounds($0, depth: depth + 1) } }
-        if let pairs = value as? [String: Any] { return pairs.allSatisfy { $0.key.count <= 4096 && textsWithinBounds($0.value, depth: depth + 1) } }
+        if let s = value as? String { return cellValues || s.count <= 4096 }
+        if let items = value as? [Any] { return items.allSatisfy { textsWithinBounds($0, depth: depth + 1, cellValues: cellValues) } }
+        if let pairs = value as? [String: Any] { return pairs.allSatisfy {
+            $0.key.count <= 4096 && textsWithinBounds($0.value, depth: depth + 1,
+                cellValues: cellValues || ($0.key == "data" && $0.value is [String: Any]) || ($0.key == "values" && $0.value is [Any]))
+        } }
         return true
     }
 

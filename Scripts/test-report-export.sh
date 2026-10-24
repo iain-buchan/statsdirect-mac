@@ -31,8 +31,18 @@ if [[ " $* " == *" --notebook-only "* || $# -eq 1 || $# -eq 0 ]]; then
   NOTEBOOK_PYTHON="${NOTEBOOK_PYTHON:-python3}"
   "$NOTEBOOK_PYTHON" Tests/verify-report-notebooks.py "$ROOT/.build/report-export-output"
 fi
+if [[ " $* " == *" --notebook-import-only "* || $# -eq 1 || $# -eq 0 ]]; then
+  "${RSCRIPT:-Rscript}" --vanilla "$ROOT/.build/report-export-output/imported-replay.R"
+  python3 - "$ROOT/.build/report-export-output/imported-replay.pdf" <<'PY'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1])
+assert p.stat().st_size>1000 and p.read_bytes().startswith(b'%PDF-')
+print('PASS: imported native run record replays in R and draws plots without its original workbook')
+PY
+fi
 
-if [[ " $* " == *" --notebook-only "* || " $* " == *" --saving-only "* || " $* " == *" --images-only "* || " $* " == *" --single-region-only "* || " $* " == *" --raster-readback-only "* ]]; then :
+if [[ " $* " == *" --notebook-import-only "* || " $* " == *" --notebook-only "* || " $* " == *" --saving-only "* || " $* " == *" --images-only "* || " $* " == *" --single-region-only "* || " $* " == *" --raster-readback-only "* ]]; then :
 elif [[ " $* " == *" --svg-isolation-only "* ]]; then python3 Tests/verify-report-svg.py "$ROOT/.build/report-export-output"
 elif [[ " $* " == *" --alignment-only "* ]]; then python3 Tests/verify-report-alignment.py "$ROOT/.build/report-export-output"
 elif [[ " $* " == *" --creole-only "* ]]; then python3 Tests/verify-report-creole.py "$ROOT/.build/report-export-output"

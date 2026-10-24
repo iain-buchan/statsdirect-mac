@@ -2081,3 +2081,23 @@ Validation:
 Limits are explicit: the shared writer caps notebook input values at five million; the Mac preflights aggregate worksheet acquisition before reading, and caps initial/candidate range acquisition at ten million cells. Original held data are preferred. Changed/unreadable required data and omitted nested inputs refuse export with recovery guidance. Historical pointer records without hashes are labelled as unverified, never presented as verified original values. Existing Mac reader limitations for unresolved negative whole-column row conventions and per-column worksheet overrides remain; unrecoverable inputs fail safely. These limits concern notebook recovery, not opening Excel workbooks.
 
 No installers, release tags or application version numbers changed. The unrelated AI workbook-consent parity work is outside this change.
+
+## Opening StatsDirect notebooks — 24 October 2026
+
+File → Open and Finder can open StatsDirect `.ipynb` files into a new editable report, an unexecuted R script and an unsaved data workbook containing the recovered tables as worksheets. Current notebook Markdown/HTML cells, current R code (including source arrays) and supported saved R outputs are used; stale `metadata.statsdirect.reportHtml` is archived, never substituted for the current report. Original native records are copied and rehydrated with embedded data, retaining their original provenance, so Continue in R does not require the old workbook. Generic notebooks and other kernels are rejected with guidance; this is not a general notebook editor.
+
+The shared reader and sanitized renderer are exact Windows checkpoint `467cc53c21919f21e155a4b64ec333de1de875a7`, pinned in `FullEngine/Notebook/import-upstream.json`. The calculation-engine submodule remains Windows 5.2.8 (`f54f5d05`). Marked 4.3.0 is pinned with its MIT notice; the renderer runs in the existing offline, unprivileged converter before report handlers are attached. Desktop help is refreshed from Windows `c5adc159`.
+
+All report conversion and typed data preparation finish before any tabs are registered. Hidden staging views acknowledge complete snapshot loading; only then are the recovered documents published. Failures or cancellation clean up owned views and snapshot files and retain the previous workspace. The original notebook is never assigned as a report/script/workbook save target. Formula-looking and ISO-looking strings remain text, booleans remain boolean and missing values remain blank. Numeric cells follow the shared reader's finite double representation; original JSON provenance is retained separately without a Foundation numeric rewrite.
+
+Validation passed:
+
+- Release application build, the 1,552 distribution checks, macOS 14 binary minimums, matching debug symbols and strict local app signatures.
+- Native import checks cover current colleague edits, new Markdown notes, source-array R code, saved R outputs, SVG/PNG/raster attachments, blocked script/external-image markup, unsaved destinations, selected-report keyboard focus, no automatic R execution (a valid R file-write sentinel plus an empty console), unchanged original files, unsupported formats, and cancellation during staging without document/snapshot leaks.
+- Imported run records replay without an original workbook; an independent Rscript run produces the paired-test results and agreement plot from those recovered values. The first verifier path used JSON's JavaScript-only escaped slash; only that test fixture's R quoting was corrected before the final passing run. Imported current code is not rewritten.
+- Typed worksheet recovery preserves numbers, blanks, booleans, literal formula text, ISO date text and zero-prefixed identifiers. HTML save/reopen preserves the raw provenance and native records, including a record larger than 4 MB, long cell strings and held whole-column row conventions.
+- Eight report JavaScript checks and the offline-help checks pass (987 files, 808 aliases, all 167 engine contexts).
+
+Record validation now shares the existing 30 MB HTML file envelope. Structural text/depth and unresolved worksheet bounds stay restricted; complete held data can retain longer cell strings and historical whole-column provenance without an external read. HTML export refuses an oversized report plus provenance before replacing a destination, rather than writing a file that cannot reopen. Notebook import uses the shared 90 MB file, five-million-value and expanded-content limits.
+
+No installer, application version, release tag or calculation routine changed. Local logs are in `.build/notebook-import`; the native import fixtures are part of the report suite and have a `--notebook-import-only` mode.

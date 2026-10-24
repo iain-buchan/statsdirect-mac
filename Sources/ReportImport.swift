@@ -27,6 +27,19 @@ import WebKit
         guard let result = value as? [String: Any], result["html"] is String else { throw LegacyReportError("The report could not be converted.") }
         return result
     }
+    /// Notebook Markdown and attachments use the same offline, unprivileged
+    /// sanitizer as report HTML. Neither notebook code nor page scripts run.
+    static func convertNotebook(entries: [[String: Any]], resources: URL) async throws -> [String: Any] {
+        let importer = try ReportImporter(resources: resources)
+        importer.payload = ["entries": entries]
+        importer.tail = "\nreturn await StatsDirectReportImport.notebook(payload);"
+        let value = try await withCheckedThrowingContinuation { importer.start($0) }
+        guard let result = value as? [String: Any], let converted = result["entries"] as? [[String: Any]],
+              converted.count == entries.count, converted.allSatisfy({ $0["html"] is String }) else {
+            throw LegacyReportError("The notebook's report content could not be converted.")
+        }
+        return result
+    }
     /// Each result of a saved report converted on its own, in the order given: the saved page with only that result's block (its
     /// styles then resolve as they did on the page), or, when the page no longer holds the block (a report saved by Windows), the
     /// markup kept with the result in the page's metadata. Each converts as `convert(html:)` does.
@@ -91,6 +104,19 @@ extension Viewer {
               let match = pattern.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)), let range = Range(match.range(at: 1), in: html) else { return nil }
         return RunRecordR.savedEntries(block: String(html[range]))
     }
+    /// Older report readers ignore this inert extension. Keep its JSON text as
+    /// a string, so numbers and provenance survive without being reserialized.
+    static func savedNotebookProvenance(in html: String) -> String? {
+        guard html.utf8.count <= 30_000_000,
+              let pattern = try? NSRegularExpression(pattern: "<script\\s+type=\"application/json\"\\s+id=\"statsdirect-report-data\">(.*?)</script>", options: [.dotMatchesLineSeparators]),
+              let match = pattern.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+              let range = Range(match.range(at: 1), in: html),
+              let object = try? JSONSerialization.jsonObject(with: Data(html[range].utf8)) as? [String: Any],
+              let raw = object["notebookImportProvenance"] as? String,
+              raw.utf8.count <= 30_000_000,
+              (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) is [String: Any] else { return nil }
+        return raw
+    }
     /// A result's help page from a saved report, kept only when it names a page of the bundled help.
     func savedHelpPath(_ path: String?) -> String? {
         guard let path, path.hasPrefix("Help/") else { return nil }
@@ -137,6 +163,7 @@ extension Viewer {
         guard results.reduce(0, { $0 + $1.body.utf8.count }) <= 30_000_000 else { throw LegacyReportError("The converted report is larger than 30 MB. Split it into smaller reports in the Windows application.") }
         let doc = newDocument(kind: "report", title: title)
         doc.reportSourceURL = url
+        if !legacy { doc.notebookImportProvenance = Self.savedNotebookProvenance(in: source.html) }
         doc.reportImportNotice = legacy ? "Imported from RTF. Save a copy as HTML, PDF or Word; the original RTF is unchanged." : nil
         if metafiles > 0 {
             doc.reportImportNotice = (doc.reportImportNotice ?? "") + " Windows charts have been converted to SVG; font substitutions and complex drawing effects may differ."

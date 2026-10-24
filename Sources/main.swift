@@ -78,6 +78,8 @@ final class Document {
     var reportSavedRevision = 0
     var reportDirty: Bool { reportRevision != reportSavedRevision }
     var reportSourceURL: URL?
+    /// Original notebook metadata retained separately from the recovered run records.
+    var notebookImportProvenance: String?
     /// The HTML file a report is saved to again by Save: the one it was saved as, else the one it was opened from.
     var reportFileURL: URL? {
         guard kind == "report" else { return nil }
@@ -605,9 +607,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func forward() { helpPane.forward() }
     @objc func openFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = (Self.excelExtensions + ["csv", "tsv", "rds", "rdata", "rda", "r", "cs", "vb", "html", "htm", "rtf", "txt", "sdw"]).compactMap { UTType(filenameExtension: $0) }
+        panel.allowedContentTypes = (Self.excelExtensions + ["csv", "tsv", "rds", "rdata", "rda", "r", "cs", "vb", "html", "htm", "rtf", "txt", "ipynb", "sdw"]).compactMap { UTType(filenameExtension: $0) }
         panel.allowsMultipleSelection = true; panel.canChooseDirectories = false
-        panel.message = "Open Excel, CSV or R data, an R script, or an HTML or legacy RTF report."
+        panel.message = "Open Excel, CSV or R data, a script, an HTML or legacy RTF report, or a StatsDirect Jupyter notebook."
         panel.beginSheetModal(for: window) { response in
             guard response == .OK else { return }
             self.openDocumentURLs(panel.urls)

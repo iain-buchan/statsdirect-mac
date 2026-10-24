@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -97,7 +99,8 @@ internal static class ReportNotebook
             else if (attachments != null) cell["attachments"] = attachments;
             return cell;
         }
-        void Note(string text, string entryId = null) => cells.Add(Cell("markdown", text, new JsonObject { ["role"] = "export note", ["entryId"] = entryId }));
+        // A note of the export's own, with the digest of its text: the import skips it when it is unchanged, and keeps it when the user has edited it
+        void Note(string text, string entryId = null) => cells.Add(Cell("markdown", text, new JsonObject { ["role"] = "export note", ["entryId"] = entryId, ["digest"] = Digest(text) }));
 
         Note("# " + Markdown(title) + "\n\nExported from StatsDirect" + (string.IsNullOrWhiteSpace(appVersion) ? "." : " " + Markdown(appVersion) + ".") +
             "\n\nThe report cells preserve saved report content, including native StatsDirect results and your edits. " +
@@ -128,7 +131,7 @@ internal static class ReportNotebook
                 }
                 cells.Add(Cell("markdown", source, new JsonObject { ["role"] = "original StatsDirect report", ["entryId"] = id }, attachments));
             }
-            var saved = new JsonObject { ["id"] = id, ["title"] = entryTitle, ["operation"] = operation, ["html"] = html };
+            var saved = new JsonObject { ["id"] = id, ["title"] = entryTitle, ["operation"] = operation, ["html"] = html, ["helpContextId"] = HelpContextId(entry) };
             savedEntries.Add(saved);
             if (!entry.TryGetProperty("record", out JsonElement record) || record.ValueKind == JsonValueKind.Null)
             {
@@ -200,7 +203,11 @@ internal static class ReportNotebook
             },
             ["cells"] = cells
         };
-        return notebook.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        string json = notebook.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        // The import's limit on the file, so that what is written opens again
+        if (json.Length > MaximumCharacters || Encoding.UTF8.GetByteCount(json) > MaximumCharacters)
+            throw Failure("the notebook would exceed the 90 MB limit that StatsDirect opens", "Export fewer analyses together, or a smaller input selection.");
+        return json;
     }
 
     private static void ResolveInputs(JsonElement record, string title, JsonArray datasets, Dictionary<string, ResolvedFrame> cache,
@@ -230,12 +237,12 @@ internal static class ReportNotebook
                 ValidatePointer(input, context);
                 FramePointer pointer = FramePointer.From(input);
                 string heldKey = Text(input, "held", context) ?? name;
+                if (!heldKeys.Add(heldKey)) throw Failure(context + " reuses an ambiguous held-data key", "Rerun the analysis and export the new report.");   // as the import refuses it, held or not
                 var columns = new JsonArray();
                 dataset["columns"] = columns;
                 if (held.ValueKind == JsonValueKind.Object && held.TryGetProperty(heldKey, out JsonElement data))
                 {
                     RequireObject(data, "the held values for " + context);
-                    if (!heldKeys.Add(heldKey)) throw Failure(context + " reuses an ambiguous held-data key", "Rerun the analysis and export the new report.");
                     JsonProperty[] stored = data.EnumerateObject().ToArray();
                     if (stored.Length != pointer.Columns.Count) throw Failure(context + " has incomplete held columns", "Rerun the analysis and export the new report.");
                     dataset["storedData"] = "Original values held with the saved run";
@@ -488,6 +495,9 @@ internal static class ReportNotebook
             throw Failure(context + " has a missing or malformed " + name + " array", "Reopen the report or rerun the affected analysis.");
         return value;
     }
+    // The result's help topic, so that Help on the reopened result finds it; 0 for a section of the user's own
+    private static int HelpContextId(JsonElement entry) =>
+        entry.TryGetProperty("helpContextId", out JsonElement help) && help.ValueKind == JsonValueKind.Number && help.TryGetInt32(out int topic) && topic >= 0 ? topic : 0;
     private static string RequiredText(JsonElement parent, string name, string context) => Text(parent, name, context) ??
         throw Failure(context + " has a missing " + name + " field", "Reopen the report or rerun the affected analysis.");
     private static string Text(JsonElement parent, string name, string context)
@@ -501,6 +511,7 @@ internal static class ReportNotebook
         if (value.ValueKind != JsonValueKind.Object) throw Failure(context + " is missing or malformed", "Reopen the report or rerun the affected analysis.");
     }
     private static JsonNode Copy(JsonElement value) => JsonNode.Parse(value.GetRawText());
-    private static string Markdown(string value) => string.Concat((value ?? "").Select(character => character < ' ' ? " " : "\\`*_{}[]<>#!|".Contains(character) ? "\\" + character : character.ToString()));
+    private static string Digest(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text ?? "")));
+    private static string Markdown(string value) => string.Concat((value ?? "").Select(character => character < ' ' ? " " : "\\`*_{}[]<>#!|$~".Contains(character) ? "\\" + character : character.ToString()));   // $ and ~ too: mathematics and strikethrough in a renderer
     private static InvalidOperationException Failure(string detail, string recovery) => new("Cannot export a complete Jupyter notebook: " + detail + ". " + recovery);
 }

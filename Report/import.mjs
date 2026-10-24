@@ -32,7 +32,7 @@ DOMPurify.addHook('afterSanitizeAttributes', (node, _data, config) => {
   if (node.style) { const css=safeStyle(node.style); if(css)node.setAttribute('style',css);else node.removeAttribute('style'); }
 });
 function purify(html, attachments=false) {
-  return DOMPurify.sanitize(html,{STATSDIRECT_ATTACHMENTS:attachments,ADD_URI_SAFE_ATTR:attachments?['src']:[],WHOLE_DOCUMENT:true,ADD_TAGS:['use'],FORBID_TAGS:['script','iframe','object','embed','form','input','button','textarea','select','link','base','meta','foreignObject','animate','animateMotion','animateTransform','set'],FORBID_ATTR:['contenteditable','tabindex','autofocus'],ALLOW_DATA_ATTR:false,RETURN_DOM:true});
+  return DOMPurify.sanitize(html,{STATSDIRECT_ATTACHMENTS:attachments,ADD_URI_SAFE_ATTR:attachments?['src']:[],WHOLE_DOCUMENT:true,ADD_TAGS:['use'],FORBID_TAGS:['script','iframe','object','embed','form','input','button','textarea','select','link','base','meta','foreignObject','animate','animateMotion','animateTransform','set','video','audio','source','track'],FORBID_ATTR:['contenteditable','tabindex','autofocus','poster','background','cite','download'],ALLOW_DATA_ATTR:false,RETURN_DOM:true});
 }
 
 // Render current notebook cells, then use the same import boundary as HTML
@@ -42,12 +42,17 @@ export async function notebook({entries}) {
   const output=[],warnings=[];let characters=0;
   const content=value=>typeof value==='string'?value:Array.isArray(value)&&value.every(v=>typeof v==='string')?value.join(''):(()=>{throw Error('Invalid notebook text.');})();
   const escape=value=>value.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+  // An SVG attachment as the export and the IDEs write it, the base64 of its text, or as an R kernel's output is, the text itself.
+  const svgText=value=>{const text=content(value);if(/^\s*</.test(text))return text;try{const binary=atob(text.replace(/\s/g,''));return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(binary,c=>c.charCodeAt(0)));}catch{throw Error('A notebook SVG attachment is invalid.');}};
   for(const entry of entries){
     const fragments=[];
     for(const cell of entry.cells){
       const source=content(cell.source),attachments=cell.attachments??{};
       const rendered=cell.cellType==='raw'?`<pre>${escape(source)}</pre>`:cell.cellType==='html'?source:marked.parse(source,{mangle:false,headerIds:false});
       const safe=purify(rendered,true);
+      // Nested report pictures use an HTML preview: their vector is recovered only when the CURRENT visible PNG matches that
+      // cell's attachment, looked up through one map per cell rather than a scan of the attachments per picture.
+      const byPng=new Map();for(const b of Object.values(attachments))if(b&&typeof b==='object'&&b['image/svg+xml']&&b['image/png'])byPng.set('data:image/png;base64,'+content(b['image/png']).replace(/\s/g,''),b);
       for(const img of safe.querySelectorAll('img')){
         const src=img.getAttribute('src')??'';let bundle;
         if(src.startsWith('attachment:')){
@@ -55,13 +60,11 @@ export async function notebook({entries}) {
           if(!Object.hasOwn(attachments,name))throw Error('A notebook image attachment is missing.');
           bundle=attachments[name];
         }else if(src.startsWith('data:image/png;base64,')){
-          // Nested report pictures use an HTML preview. Recover their vector
-          // only when the CURRENT visible PNG matches that cell's attachment.
-          bundle=Object.values(attachments).find(b=>b['image/svg+xml']&&b['image/png']&&src==='data:image/png;base64,'+content(b['image/png']).replace(/\s/g,''));
+          bundle=byPng.get(src);
         }
         if(!bundle)continue;
         if(bundle['image/svg+xml']){
-          const svg=purify(content(bundle['image/svg+xml'])).querySelector('svg');
+          const svg=purify(svgText(bundle['image/svg+xml'])).querySelector('svg');
           if(!svg)throw Error('A notebook SVG attachment is invalid.');
           for(const name of ['width','height','alt'])if(img.hasAttribute(name))svg.setAttribute(name==='alt'?'aria-label':name,img.getAttribute(name));
           if(img.style.cssText)svg.style.cssText=img.style.cssText;

@@ -269,11 +269,17 @@ export async function notebook(options) {
   const entries=blocks.map(entry=>{
     const cells=[],pending=[];let imageNumber=0;
     // A raw HTML block keeps literal report text from becoming Markdown syntax.
-    const flush=()=>{const source=pending.join('').trim();pending.length=0;if(source)cells.push({source:`<div>\n${source}\n</div>`});};
+    // A CommonMark HTML block ends at a blank line: a newline before a whitespace-only line is written as a character reference, which
+    // reads back as the newline itself, inside <pre> included, so no line of the block is blank and no text changes.
+    const htmlBlock=html=>`<div>\n${html.replace(/\n(?=[ \t\r]*\n)/g,'&#10;')}\n</div>`;
+    const flush=()=>{const source=pending.join('').trim();pending.length=0;if(source)cells.push({source:htmlBlock(source)});};
+    // Notebook renderers read an attachment as base64, and JupyterLab takes the bundle's first key and renders rasters only:
+    // the PNG comes first, then the SVG as the base64 of its UTF-8 text, which nbconvert prefers.
+    const base64=text=>{const bytes=new TextEncoder().encode(text);let binary='';for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(binary);};
     const attachment=picture=>{
       const name=`chart-${++imageNumber}.${picture.svg?'svg':'png'}`,bundle={};
-      if(picture.svg)bundle['image/svg+xml']=picture.svg;
       if(picture.png?.startsWith('data:image/png;base64,'))bundle['image/png']=picture.png.slice('data:image/png;base64,'.length);
+      if(picture.svg)bundle['image/svg+xml']=base64(picture.svg);
       if(!Object.keys(bundle).length)throw Error('A report picture could not be included in the notebook.');
       return {name,bundle};
     };
@@ -294,7 +300,7 @@ export async function notebook(options) {
         flush();const block=node.cloneNode(true),attachments={};
         const original=[...node.querySelectorAll('svg,img,canvas')],copies=[...block.querySelectorAll('svg,img,canvas')];
         original.forEach((source,i)=>{const p=pictures.get(source);if(!p)return;const {name,bundle}=attachment(p);attachments[name]=bundle;const img=document.createElement('img');img.src=p.png;img.alt=p.alt;img.width=p.width;img.height=p.height;copies[i].replaceWith(img);});
-        cells.push({source:`<div>\n${block.outerHTML}\n</div>`,attachments});return;
+        cells.push({source:htmlBlock(block.outerHTML),attachments});return;
       }
     };
     [...entry.childNodes].forEach(walk);flush();

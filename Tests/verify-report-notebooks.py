@@ -11,10 +11,13 @@ import nbformat
 
 root = Path(sys.argv[1]).resolve()
 for name in ("review-notebook.ipynb", "moved-notebook.ipynb"):
-    book = json.loads((root / name).read_text())
+    text = (root / name).read_text(encoding="utf-8")
+    book = json.loads(text)
     ids = [c.get("id") for c in book["cells"]]
     assert all(ids) and len(ids) == len(set(ids)), "missing or duplicate cell ids"
     nbformat.validate(book, version=4, version_minor=5)
+    # nbformat.reads is what Jupyter tooling does to the file; it must read back (from_dict would hand line arrays to renderers)
+    assert nbformat.reads(text, as_version=4).nbformat_minor == 5
     assert book["metadata"]["kernelspec"] == {"name": "ir", "display_name": "R", "language": "R"}
     assert book["metadata"]["language_info"]["name"] == "R"
     original = book["metadata"]["statsdirect"]
@@ -22,12 +25,15 @@ for name in ("review-notebook.ipynb", "moved-notebook.ipynb"):
     for cell in book["cells"]:
         if cell["cell_type"] == "code":
             assert cell["execution_count"] is None and cell["outputs"] == []
-        for bundle in cell.get("attachments", {}).values():
-            assert "image/png" in bundle
+        for attachment, bundle in cell.get("attachments", {}).items():
+            assert "image/png" in bundle, f"{attachment} lacks its PNG"
             png = base64.b64decode(bundle["image/png"], validate=True)
             assert png.startswith(b"\x89PNG\r\n\x1a\n")
             if "image/svg+xml" in bundle:
-                assert "<svg" in bundle["image/svg+xml"]
+                # Jupyter renderers decode every attachment as base64 and JupyterLab takes the bundle's first key, rasters only
+                assert list(bundle)[0] == "image/png", f"{attachment} does not list its PNG first"
+                svg = base64.b64decode(bundle["image/svg+xml"], validate=True)
+                assert svg.lstrip().startswith(b"<svg"), f"{attachment} is not the base64 of SVG text"
     print(f"PASS: Jupyter 4.5 schema, R kernel, unexecuted cells and portable attachments: {name}")
 
 book = json.loads((root / "review-notebook.ipynb").read_text())

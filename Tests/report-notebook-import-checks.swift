@@ -103,6 +103,49 @@ extension ReportExportTests {
         let codelessOpened = v.documents.filter { !beforeCodeless.contains($0.id) }
         try require(codelessOpened.contains { $0.kind == "report" } && codelessOpened.contains { $0.kind == "grid" } && !codelessOpened.contains { $0.kind == "r" }, "a notebook without R code opens its report and data but no script tab, as on Windows")
 
+        // Held workbook data: a notebook saved by Jupyter tooling comes back with every object's keys sorted (nbformat's writer),
+        // so the held copy of a frame input must be matched by column title, never by position (it was, until 24 October 2026).
+        var heldBook = try object(Data(contentsOf: example))
+        var heldMeta: [String: Any] = try typed(heldBook["metadata"], "metadata"), heldSD: [String: Any] = try typed(heldMeta["statsdirect"], "statsdirect metadata")
+        var heldEntries: [[String: Any]] = try typed(heldSD["entries"], "entries")
+        let pairedIndex: Int = try typed(heldEntries.firstIndex { $0["title"] as? String == "Paired t with agreement" }, "paired entry")
+        var heldRecord: [String: Any] = try typed(heldEntries[pairedIndex]["record"], "paired record")
+        var heldInputs: [[String: Any]] = try typed(heldRecord["inputs"], "paired inputs")
+        var heldInput = heldInputs[0]
+        let enteredColumns: [[String: Any]] = try typed(heldInput["columns"], "entered columns")
+        heldInput["kind"] = "frame"; heldInput["file"] = "unsaved.xlsx"; heldInput["sheet"] = "Sheet1"; heldInput["mode"] = "NumericReplaceMissing"
+        heldInput["columns"] = enteredColumns.enumerated().map { ["title": $0.element["title"] ?? "", "column": $0.offset + 1, "rows": [2, 1 + (($0.element["values"] as? [Any])?.count ?? 0)], "hasTitle": true] as [String: Any] }
+        heldInputs[0] = heldInput; heldRecord["inputs"] = heldInputs
+        heldRecord["data"] = ["data": Dictionary(uniqueKeysWithValues: enteredColumns.map { ($0["title"] as? String ?? "", $0["values"] ?? []) })]
+        heldEntries[pairedIndex]["record"] = heldRecord
+        var heldDatasets: [[String: Any]] = try typed(heldEntries[pairedIndex]["datasets"], "paired datasets")
+        heldDatasets[0]["kind"] = "frame"; heldDatasets[0]["originalInput"] = heldInput; heldDatasets[0]["storedData"] = "Original values held with the saved run"
+        heldDatasets[0]["columns"] = enteredColumns.map { ["title": $0["title"] ?? "", "values": $0["values"] ?? []] as [String: Any] }
+        heldEntries[pairedIndex]["datasets"] = heldDatasets
+        heldSD["entries"] = heldEntries; heldMeta["statsdirect"] = heldSD; heldBook["metadata"] = heldMeta
+        try require(enteredColumns.count == 2 && (enteredColumns[0]["title"] as? String ?? "") > (enteredColumns[1]["title"] as? String ?? ""), "the held columns sort differently from their column order, so the fixture exercises key order")
+        let heldURL = output.appendingPathComponent("held-frame-sorted-keys.ipynb"); try encode(heldBook).write(to: heldURL)   // encode sorts keys, as nbformat does
+        let beforeHeld = Set(v.documents.map(\.id)); _ = try await v.importNotebook(heldURL)
+        let heldGrid: Document = try typed(v.documents.first { !beforeHeld.contains($0.id) && $0.kind == "grid" }, "held data workbook")
+        let heldValues: [String: Any] = try typed(await js(heldGrid, "return statsDirectGrid.columnValues({sheet:0,columns:[0,1],first:2,last:10});"), "held values")
+        let heldColumns: [[String: Any]] = try typed(heldValues["columns"], "held columns")
+        try require(heldColumns.count == 2 && (heldColumns[0]["values"] as? [Any])?.count == 9 && (heldColumns[0]["values"] as? [Any])?.first as? Double == 312 && (heldColumns[1]["values"] as? [Any])?.first as? Double == 300, "a notebook re-saved with sorted keys imports its held workbook data in column order")
+
+        // Files saved by real Jupyter tooling (fixtures shared with Windows: saved by JupyterLab 4.6.4; executed with the R kernel by nbconvert).
+        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Notebooks")
+        for name in ["review-saved-by-jupyterlab", "review-executed-by-nbconvert"] {
+            let fixture = fixtures.appendingPathComponent(name + ".ipynb")
+            let beforeFixture = Set(v.documents.map(\.id))
+            let fixtureReport = try await v.importNotebook(fixture)
+            let fixtureOpened = v.documents.filter { !beforeFixture.contains($0.id) }
+            let fixtureText: String = try typed(await js(fixtureReport, "return document.getElementById('report-results').innerText;"), name + " report text")
+            let fixtureHTML: String = try typed(await js(fixtureReport, "return document.getElementById('report-results').innerHTML;"), name + " report html")
+            try require(fixtureOpened.contains { $0.kind == "grid" } && fixtureHTML.contains("<table") && fixtureHTML.contains("<svg") && fixtureText.contains("Original paired result"), name + " imports with its data, its tables and its chart vector")
+            if name.contains("jupyterlab") { try require(fixtureText.contains("Edited and saved in JupyterLab"), name + " keeps the edit made in JupyterLab") }
+            if name.contains("executed") { try require(fixtureText.contains("Paired t-test") && fixtureText.contains("Saved notebook R outputs"), name + " shows the R kernel's saved output as text, labelled as not recomputed") }
+        }
+        print("PASS: notebooks re-saved by Jupyter tooling, keys sorted and lines split, import with their held data; the JupyterLab and nbconvert fixtures import"); fflush(stdout)
+
         // Invalid formats and cancellation must retain all existing work.
         var rejected = book
         rejected["metadata"] = ["kernelspec": ["name": "python3", "language": "python", "display_name": "Python"]]

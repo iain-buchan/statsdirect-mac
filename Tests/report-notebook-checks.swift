@@ -74,7 +74,12 @@ extension ReportExportTests {
         var pngs = 0, vectors = 0
         for cell in cells {
             for (_, value) in cell["attachments"] as? [String: [String: Any]] ?? [:] {
-                if let svg = value["image/svg+xml"] as? String { vectors += 1; try require(svg.contains("<svg"), "SVG vector attachment") }
+                if let svg = value["image/svg+xml"] as? String {
+                    // Jupyter renderers decode every attachment as base64, so the SVG travels as the base64 of its text (its PNG listed first).
+                    vectors += 1
+                    let text = Data(base64Encoded: svg).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                    try require(text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<svg") && value["image/png"] != nil, "SVG vector attachment is the base64 of SVG text beside its PNG")
+                }
                 if let png = value["image/png"] as? String, let bytes = Data(base64Encoded: png), let image = NSBitmapImageRep(data: bytes) {
                     var ink = 0
                     for y in 0..<image.pixelsHigh { for x in 0..<image.pixelsWide {

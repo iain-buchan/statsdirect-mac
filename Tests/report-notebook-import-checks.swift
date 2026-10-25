@@ -129,7 +129,8 @@ extension ReportExportTests {
         let heldGrid: Document = try typed(v.documents.first { !beforeHeld.contains($0.id) && $0.kind == "grid" }, "held data workbook")
         let heldValues: [String: Any] = try typed(await js(heldGrid, "return statsDirectGrid.columnValues({sheet:0,columns:[0,1],first:2,last:10});"), "held values")
         let heldColumns: [[String: Any]] = try typed(heldValues["columns"], "held columns")
-        try require(heldColumns.count == 2 && (heldColumns[0]["values"] as? [Any])?.count == 9 && (heldColumns[0]["values"] as? [Any])?.first as? Double == 312 && (heldColumns[1]["values"] as? [Any])?.first as? Double == 300, "a notebook re-saved with sorted keys imports its held workbook data in column order")
+        let heldTexts = heldColumns.map { ($0["values"] as? [String]) ?? [] }, heldKinds = heldColumns.map { ($0["kinds"] as? [String]) ?? [] }
+        try require(heldTexts.count == 2 && heldTexts[0].count == 9 && heldTexts[0].first == "312" && heldTexts[1].first == "300" && heldKinds.allSatisfy { $0.allSatisfy { $0 == "number" } } && (heldValues["name"] as? String)?.hasSuffix("Paired t with agreement data") == true, "a notebook re-saved with sorted keys imports its held workbook data in column order (Before, After)")
 
         // Files saved by real Jupyter tooling (fixtures shared with Windows: saved by JupyterLab 4.6.4; executed with the R kernel by nbconvert).
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Notebooks")

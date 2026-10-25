@@ -63,9 +63,10 @@ public static partial class RScriptIO {
         }
     }
 
-    // Raw records cross the Swift boundary as strings so Foundation cannot
-    // round or reorder their numbers. Convert them inside the managed bridge,
-    // preserving their JSON values exactly for the shared writer.
+    // Raw records and report cells cross the Swift boundary as strings so
+    // Foundation cannot round their numbers or reorder their keys (an
+    // attachment bundle must keep its PNG first). Convert them inside the
+    // managed bridge, preserving their JSON exactly for the shared writer.
     static JsonDocument NotebookSnapshot(JsonElement supplied) {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream)) {
@@ -82,6 +83,10 @@ public static partial class RScriptIO {
                             using var record = JsonDocument.Parse(field.Value.GetString());
                             if (record.RootElement.ValueKind != JsonValueKind.Object) throw new InvalidDataException("The saved analysis record is unreadable. Rerun the analysis, then export again.");
                             record.RootElement.WriteTo(writer);
+                        } else if (field.Name == "cells" && field.Value.ValueKind == JsonValueKind.String) {
+                            using var cells = JsonDocument.Parse(field.Value.GetString());
+                            if (cells.RootElement.ValueKind != JsonValueKind.Array) throw new InvalidDataException("The report returned unreadable notebook cells. Try exporting again.");
+                            cells.RootElement.WriteTo(writer);
                         } else field.Value.WriteTo(writer);
                     }
                     writer.WriteEndObject();

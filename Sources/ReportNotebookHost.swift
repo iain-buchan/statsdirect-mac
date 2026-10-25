@@ -72,9 +72,10 @@ extension Viewer {
         do {
             for (entry, page) in zip(entries, rendered) {
                 guard let body = page["html"] as? String,
-                      let cells = page["cells"] as? [[String: Any]] else {
+                      let cells = page["cells"] as? String, cells.hasPrefix("[") else {
                     throw ReportNotebook.Failure(message: "The report returned an incomplete notebook snapshot. Try exporting again.")
                 }
+                // The cells stay JSON text to the engine, which parses them there (see RScriptNotebook.cs).
                 var result: [String: Any] = ["id": entry.id, "title": entry.title, "operation": entry.operation, "html": body, "cells": cells]
                 if let record = entry.record {
                     guard let object = try? JSONSerialization.jsonObject(with: Data(record.utf8)) as? [String: Any] else {
@@ -207,7 +208,10 @@ extension Viewer {
         };
         const idsBefore = notebookIDs();
         const captured = await StatsDirectReportExport.notebook(options);
-        return {...captured, idsBefore, idsAfter: notebookIDs()};
+        // Cells cross to Swift as JSON text: Foundation dictionaries have no key order, and a notebook attachment's
+        // bundle must keep its PNG first for JupyterLab (the editor writes it so).
+        const entries = (captured.entries || []).map(e => ({...e, cells: JSON.stringify(e.cells)}));
+        return {...captured, entries, idsBefore, idsAfter: notebookIDs()};
         """
         return try await withCheckedThrowingContinuation { continuation in
             doc.web.callAsyncJavaScript(script + "\n" + capture, arguments: ["options": options], in: nil, in: .defaultClient) { result in

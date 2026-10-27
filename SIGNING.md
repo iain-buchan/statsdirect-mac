@@ -9,12 +9,12 @@ Apple Developer ID, and published. Nothing in this repository or its workflows h
   provide `codesign`, `xcrun notarytool` and `xcrun stapler`.
 - The **Developer ID Application** certificate of the University's Apple Developer account, with its private key, in
   your login keychain. `security find-identity -v -p codesigning` must list it as valid, for example
-  `Developer ID Application: University of Liverpool (H2M4F4288Z)`. Use the identity exactly as that line prints it.
+  `Developer ID Application: University of Liverpool (ULCPE837C7)`. Use the identity exactly as that line prints it.
 - A notarytool keychain profile, made once from an Apple ID that is a member of the team, with an app-specific password
   from account.apple.com (not the Apple ID password), or from an App Store Connect API key:
 
   ```sh
-  xcrun notarytool store-credentials StatsDirect-notary --apple-id you@liverpool.ac.uk --team-id H2M4F4288Z
+  xcrun notarytool store-credentials StatsDirect-notary --apple-id you@liverpool.ac.uk --team-id ULCPE837C7
   # or
   xcrun notarytool store-credentials StatsDirect-notary --key AuthKey_XXXXXXXX.p8 --key-id XXXXXXXX --issuer <issuer id>
   ```
@@ -28,7 +28,7 @@ Apple Developer ID, and published. Nothing in this repository or its workflows h
 
 ## Steps
 
-1. From the draft release on GitHub, download `StatsDirect-<version>-macOS-arm64-unsigned.zip` and `SHA256SUMS.txt`,
+1. From the release on GitHub (published ahead of its notarisation, or a draft shared with you), download `StatsDirect-<version>-macOS-arm64-unsigned.zip` and `SHA256SUMS.txt`,
    and check the hash before touching anything: `shasum -a 256 -c SHA256SUMS.txt --ignore-missing`.
 2. Expand it so that resource forks and permissions survive: `ditto -x -k StatsDirect-<version>-macOS-arm64-unsigned.zip .`
    gives `StatsDirect.app` beside the ZIP.
@@ -36,7 +36,7 @@ Apple Developer ID, and published. Nothing in this repository or its workflows h
    timestamp, submit to Apple, wait for the verdict, staple the ticket and validate it, in one command:
 
    ```sh
-   Scripts/sign-app.sh "$PWD/StatsDirect.app" "Developer ID Application: University of Liverpool (H2M4F4288Z)" --notarize StatsDirect-notary
+   Scripts/sign-app.sh "$PWD/StatsDirect.app" "Developer ID Application: University of Liverpool (ULCPE837C7)" --notarize StatsDirect-notary
    ```
 
    The script signs the .NET runtime's libraries under `Contents/Resources/Engine` as well as the app's own code (a plain

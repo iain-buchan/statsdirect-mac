@@ -2150,3 +2150,7 @@ Fixed in `RPane.swift` by lifting `minSize` and `maxSize` of both text views (th
 ## Release 1.0.1: the R output pane fix — 28 October 2026
 
 On Iain's word, 1.0.1 is 1.0.0 (engine 5.2.9) plus the R output pane fix above. Version 1.0.1 in Info.plist; the updater's test expects v1.0.1 after 1.0.0 and older and excludes 1.0.1 and newer, drafts, pre-releases and malformed tags (5 checks on the rebuilt app). The chain on the fix's source ran in the release worktree: r-pane 12, analysis-workflow 47, calculator-pane 53, grid-selection 18, help-pane 48, report-export 80, update-service 5 at the time of this note, with test.sh, the beta driver and the other driver suites following; their results go in the next note. Packaged as StatsDirect-1.0.1-macOS-arm64-unsigned.zip for IT Services to sign and notarise, published ahead of that as 1.0.0 was.
+
+## The R pane fix passes every suite — 28 October 2026
+
+Chain on the fix's source with the screen kept awake: r-pane 12 (with the new scrolling check), analysis-workflow 47, calculator-pane 53, grid-selection 18, help-pane 48, report-export 80, update-service 5, test.sh 618, beta driver 92, ai-sharing 1, conversation-r 16, follow-on-workflow 104, form-descriptors, learning-recovery 5, learning-workspace 6, mac-parity 20, paired-workflow 37, provider-learning 6, r-integration 55, report-ai 56, script-ai 65, startup-r-setup 29, tutor-protocol 2, tutor-runtime 37, tutor-setup 15, unified-toolbar 20: all green. 1.0.1 (b15088e) differs from that source only in its version, the updater's expectations and the README.

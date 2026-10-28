@@ -43,6 +43,15 @@ struct RPaneChecks {
         precondition(pane.console.string.contains("Error: Deliberate test error"))
         run("plot(x); dev.off(); plot(x, -x)", plots: 2)
         print("PASS default plots, multiple pages/devices, errors and variables across runs")
+        // Output longer than the pane must be reachable: the console grows beyond its visible height and shows its end after a
+        // run, as the editor does (a text view built on an explicit TextKit 1 stack starts with a zero maximum size and would
+        // otherwise be clipped to one screenful, hiding later text and every chart).
+        run("for (i in 1:150) cat(sprintf('line %03d of the long output\\n', i)); plot(x, x, main='After the long output')", plots: 1)
+        let visible = pane.console.enclosingScrollView!.contentSize.height, document = pane.console.frame.height
+        precondition(document > visible + 100, "console grows beyond its visible height: document \(document) vs visible \(visible); maxSize \(pane.console.maxSize)")
+        let shown = pane.console.enclosingScrollView!.documentVisibleRect
+        precondition(shown.maxY >= document - 2, "the console shows its end after a run: visible to \(shown.maxY) of \(document)")
+        print("PASS long output grows the console and the view ends at the chart")
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 650), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         window.contentView = pane.view
         window.orderFront(nil)
@@ -58,7 +67,7 @@ struct RPaneChecks {
         // displayed, with its original file as the caption's single link.
         let sessionFolder = pane.outputFolder!
         let charts = (try FileManager.default.contentsOfDirectory(atPath: sessionFolder.path)).filter { $0.hasPrefix("plots-") }.sorted()
-        precondition(charts == ["plots-0001-001.pdf", "plots-0003-001.pdf", "plots-0004-001.pdf", "plots-0004-002.pdf"], charts.description)
+        precondition(charts == ["plots-0001-001.pdf", "plots-0003-001.pdf", "plots-0004-001.pdf", "plots-0004-002.pdf", "plots-0005-001.pdf"], charts.description)
         let originals = try charts.map { name -> (URL, Data, Date) in
             let file = sessionFolder.appendingPathComponent(name)
             return (file, try Data(contentsOf: file), try file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate!)
@@ -71,7 +80,7 @@ struct RPaneChecks {
         pane.console.textStorage!.enumerateAttribute(.link, in: NSRange(location: 0, length: pane.console.textStorage!.length)) { value, range, _ in
             if let url = value as? URL, url.lastPathComponent.hasPrefix("plots-") { captions.append((pane.console.string as NSString).substring(with: range)) }
         }
-        precondition(captions.count == 5 && captions.allSatisfy { $0.hasPrefix("Chart: plots-") && $0.hasSuffix("\n") && $0.contains(".pdf") }, captions.description)
+        precondition(captions.count == 6 && captions.allSatisfy { $0.hasPrefix("Chart: plots-") && $0.hasSuffix("\n") && $0.contains(".pdf") }, captions.description)
         precondition(captions.prefix(2).elementsEqual(["Chart: plots-0001-001.pdf · page 1\n", "Chart: plots-0001-001.pdf · page 2\n"]), "Multipage PDF captions identify both pages")
         precondition(!pane.console.string.contains("Open plot file") && !pane.console.string.contains("Files written") && !pane.console.string.contains("Plot · "), pane.console.string)
         print("PASS default PDF output preserves all pages, seven-inch geometry, per-device files and page captions without loading svglite")

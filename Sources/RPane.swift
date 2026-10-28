@@ -223,6 +223,10 @@ final class RPane: NSObject, NSTextViewDelegate {
         for text in [editor, console] {
             let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.borderType = .bezelBorder
             text.isVerticallyResizable = true; text.isHorizontallyResizable = false
+            // A text view made with an explicit text container starts with its maximum size equal to its (zero) frame, which
+            // the clip view then sets to one screenful: without lifting it the view never grows, so output beyond the first
+            // screen, and every chart appended after it, could not be scrolled to.
+            text.minSize = .zero; text.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
             text.autoresizingMask = [.width]; text.textContainer?.widthTracksTextView = true
             scroll.documentView = text; split.addArrangedSubview(scroll)
             if text === console {

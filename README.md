@@ -6,7 +6,7 @@ A native macOS preview of StatsDirect, using the [Windows calculation engine](ht
 
 **[Download the latest Mac release](https://github.com/iain-buchan/statsdirect-mac/releases/latest)** — Apple Silicon, macOS 14 or later.
 
-Expand the application ZIP and move **StatsDirect.app** to Applications. Release 1.0.0 is signed and notarised with the University of Liverpool's Apple Developer ID, so macOS opens it without a security warning. **Help → Check for Updates** finds new releases; installation is currently manual.
+Expand the application ZIP and move **StatsDirect.app** to Applications. Release 1.0.1 is being notarised by the University of Liverpool's IT Services with the University's Apple Developer ID; until the notarised ZIP replaces the one on the release page, macOS may say the app cannot be verified (open it from the right-click menu, or allow it under System Settings → Privacy & Security). **Help → Check for Updates** finds new releases; installation is currently manual.
 
 Upgrading from 0.3.18 or earlier: after saving work and quitting the old app, remove **StatsDirect Viewer.app** from Applications to avoid keeping both names. Your existing settings and learning records are retained.
 

@@ -156,6 +156,34 @@ import WebKit
         try await console(doc, "answer <- readline('Colour? '); cat('ANSWER=', answer, '\\n', sep='')")
         try await wait("readline input request") { (try await snapshot(doc))["state"] as? String == "input" }
         let beforeAnswer = pane.sourceText, reply = "chartreuse-reply-token-741"
+        let clearCommand = pane.session.commandId, clearRequest = pane.session.inputRequestId, clearState = pane.session.state
+        let cleared = try await evaluate(doc, """
+        (() => {
+          const input = document.getElementById('console-input');
+          input.value = 'unsent answer draft'; input.dispatchEvent(new Event('input', {bubbles:true}));
+          input.focus(); input.setSelectionRange(2, 10, 'backward');
+          const draft = input.value, selection = [input.selectionStart, input.selectionEnd, input.selectionDirection];
+          const before = StatsDirectRConsole.snapshot();
+          const retained = ({transcript, outputText, trimmed, ...state}) => JSON.stringify(state);
+          StatsDirectRConsole.clearOutput();
+          const after = StatsDirectRConsole.snapshot();
+          return {
+            hadTranscript: before.transcript.length > 0 && before.state === 'input' && !!before.requestId,
+            emptyOutput: after.transcript.length === 0 && after.outputText === '' && !after.trimmed,
+            retainedState: retained(before) === retained(after),
+            retainedDraft: input.value === draft,
+            retainedSelection: JSON.stringify([input.selectionStart, input.selectionEnd, input.selectionDirection]) === JSON.stringify(selection),
+            retainedFocus: document.activeElement === input
+          };
+        })()
+        """) as? [String: Any] ?? [:]
+        try await wait("cleared rendered R transcript") {
+            try await evaluate(doc, "document.querySelectorAll('#transcript .input-entry, #transcript .output-entry, #transcript .plot').length === 0 && document.getElementById('transcript').textContent.includes('Enter R commands below')") as? Bool == true
+        }
+        try check(["hadTranscript", "emptyOutput", "retainedState", "retainedDraft", "retainedSelection", "retainedFocus"].allSatisfy { cleared[$0] as? Bool == true }
+                  && pane.sourceText == beforeAnswer && pane.session.commandId == clearCommand
+                  && pane.session.inputRequestId == clearRequest && pane.session.state == clearState,
+                  "Clear Output removes only the rendered transcript while preserving the unsent draft, selection, focus, script, history, session and pending real R question")
         try await console(doc, reply)
         try await expectOutput(doc, "ANSWER=" + reply + "\n")
         let afterAnswer = try await snapshot(doc)

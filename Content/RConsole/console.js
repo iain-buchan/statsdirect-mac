@@ -24,8 +24,9 @@
         this.sessionId = event.sessionId; this.generation = event.generation; this.seq = event.seq;
         this.state = 'starting'; this.prompt = '> '; this.requestId = null; this.requestKind = null; this.entries = []; this.plotKeys.clear(); this.trimmed = false; this.restarting = false;
         this.historyIndex = null; this.historyDraft = ''; this.capabilities = event.capabilities && typeof event.capabilities === 'object' ? {...event.capabilities} : {};
-        if (typeof event.script === 'string') this.script = event.script;
         if (Array.isArray(event.events)) for (const item of event.events) this.receive(item);
+        // A host replay already includes console commands in its saved script.
+        if (typeof event.script === 'string') this.script = event.script;
         return true;
       }
       if (this.restarting || event.sessionId !== this.sessionId || event.generation !== this.generation || event.seq <= this.seq) return false;
@@ -60,7 +61,7 @@
           else this.entries.push({kind: 'output', stream, text: value});
           this.trim(); break;
         }
-        case 'notice': this.notice(text(event.text)); break;
+        case 'notice': this.notice(text(event.text), text(event.filePath), text(event.label)); break;
         case 'plot': {
           const id = text(event.plotId || event.id), revision = event.revision === undefined ? 1 : event.revision;
           if (!id || !Number.isInteger(revision) || revision < 0) break;
@@ -74,7 +75,7 @@
       }
       return true;
     }
-    notice(value) { if (value) this.entries.push({kind: 'notice', text: value}); this.trim(); }
+    notice(value, filePath, label) { if (value) this.entries.push({kind: 'notice', text: value, ...(filePath ? {filePath, label} : {})}); this.trim(); }
     trim() {
       let chars = this.entries.reduce((n, e) => n + (e.text?.length || 0), 0);
       let media = this.entries.reduce((n, e) => n + (e.preview?.length || 0), 0);
@@ -161,7 +162,16 @@
           const row = element('div', 'input-entry' + (entry.origin === 'input' ? ' reply' : ''));
           row.append(element('pre', 'echo-prompt', entry.prompt), element('pre', '', entry.text)); fragment.append(row);
         } else if (entry.kind === 'output') fragment.append(element('pre', 'output-entry ' + entry.stream, entry.text));
-        else if (entry.kind === 'notice') fragment.append(element('p', 'notice', entry.text));
+        else if (entry.kind === 'notice') {
+          const row = element('p', 'notice', entry.text);
+          if (entry.filePath) {
+            row.append(doc.createTextNode(' '));
+            const link = element('a', '', entry.label || 'Open file');
+            link.href = 'file:///' + encodeURI(entry.filePath.replace(/\\/g, '/')).replace(/#/g, '%23').replace(/\?/g, '%3F');
+            link.onclick = event => {event.preventDefault(); send('openFile', {path: entry.filePath});}; row.append(link);
+          }
+          fragment.append(row);
+        }
         else if (entry.kind === 'plot') {
           const figure = element('figure', 'plot');
           if (entry.preview) { const image = element('img'); image.src = entry.preview; image.alt = entry.label; figure.append(image); }
@@ -275,6 +285,7 @@
       if (event.type === 'inputRequested' || event.type === 'state' && ['ready', 'continuation', 'input'].includes(event.state)) focusAfterRender = true;
       schedule(); return true;
     },
+    clearOutput() { model.entries = []; model.plotKeys.clear(); model.trimmed = false; transcriptDirty = true; render(); },
     snapshot: () => model.snapshot(),
     focusInput() { if (model.mode !== 'console') mode('console'); if (!input.disabled) input.focus(); },
     setMode: mode,

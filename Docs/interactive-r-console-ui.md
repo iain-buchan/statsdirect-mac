@@ -174,14 +174,32 @@ plain output, history and transcript metadata, excluding image bytes.
 
 Additional presentation APIs: `focusInput()`, `setMode('console'|'script')`, and
 `paste(text)` (literal insertion into the active source/input field, no execution).
+`clearOutput()` clears the displayed transcript while retaining the Script,
+history, current draft, pending R prompt and workspace. It is a presentation API;
+the Mac host does not add a new menu command in this update.
 `receive()` returns true only for an accepted event. Native hosts must enforce
 their own session, request, state and file-access checks independently of the UI.
+
+The shared source incorporated from verified Windows commit `83a39468` restores
+the host's authoritative Script **after** replaying bundled session events. This
+avoids appending historical console commands a second time on renderer recovery,
+including when the learner has edited the saved Script. Mac's separate journal
+replay continues to label historical input as replay. The same source retains
+optional file-notice metadata for hosts that emit it; opening such links requires
+the host's path validation and handler.
 
 Run the meaningful model regression tests with:
 
 ```sh
-node --test Tests/r-console-ui.test.mjs
+node --test Tests/r-console-ui.test.mjs Tests/r-console-recovery.test.mjs
 ```
+
+After adopting `83a39468`, all 12 shared model checks and 49 native Mac integration
+checks passed. The native run verifies exact Script/output recovery without
+rerunning R, and clearing output during a real pending `readline` question while
+preserving the unsent draft, selection, focus, history, Script and request. The
+following real answer is still accepted. The R worker and frozen 1.0.1 signing
+candidate are unchanged by this shared presentation update.
 
 Transcript rendering preserves existing controls across focus and selection changes.
 New output waits while a transcript pointer is held down, then refreshes after

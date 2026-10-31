@@ -272,10 +272,12 @@ import Darwin
             guard let path = event["path"] as? String, let directory = workingDirectory else { return }
             let file = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
             let root = directory.resolvingSymlinksInPath().standardizedFileURL.path + "/"
-            guard file.path.hasPrefix(root), file.pathExtension.lowercased() == "pdf" else {
+            let extensionName = file.pathExtension.lowercased()
+            guard file.path.hasPrefix(root), ["pdf", "svg"].contains(extensionName) else {
                 emit(["type": "notice", "text": "A plot outside this console's output folder was not opened."]); return
             }
             forwarded["path"] = file.path
+            forwarded["mime"] = extensionName == "svg" ? "image/svg+xml" : "application/pdf"
         case "output":
             guard event["text"] is String, ["stdout", "stderr"].contains(event["stream"] as? String ?? "stdout") else { return }
         case "started", "capabilities":

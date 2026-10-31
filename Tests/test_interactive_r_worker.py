@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import time
-import zlib
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / '.build/interactive-r-console-worker').resolve()
@@ -109,20 +109,17 @@ def check(condition, reason):
     print('PASS: ' + reason, flush=True)
 
 
-def pdf_streams(path):
-    # R's PDF text is in Flate-compressed page streams. Inspecting their literal
-    # annotation is sufficient here; a PDF renderer is not a test dependency.
-    data = Path(path).read_bytes()
-    streams = []
-    for match in re.finditer(rb'stream\r?\n(.*?)endstream', data, re.S):
-        try:
-            streams.append(zlib.decompress(match.group(1)))
-        except zlib.error:
-            streams.append(match.group(1))
-    # Font kerning can split one visible phrase into several PDF string operands.
-    # These ASCII annotation checks do not need a full text/layout extractor.
-    return b''.join(value[1:-1] for stream in streams
-                    for value in re.findall(rb'\((?:\\.|[^\\)])*\)', stream, re.S))
+def svg_document(path):
+    root = ET.parse(path).getroot()
+    assert root.tag == '{http://www.w3.org/2000/svg}svg'
+    assert len(root) > 0 and root.get('viewBox') and root.get('width') and root.get('height')
+    assert not root.findall('.//{http://www.w3.org/2000/svg}script')
+    return root
+
+
+def svg_text(path):
+    return ''.join(svg_document(path).itertext()).encode('utf-8')
+
 
 
 def check_abrupt_parent_exit(during_input=False):
@@ -185,6 +182,8 @@ def check_abrupt_parent_exit(during_input=False):
 
 worker = Worker()
 try:
+    started = next(e for e in worker.events if e['type'] == 'started')
+    check(started['capabilities']['plotMimes'] == ['image/svg+xml'], 'worker advertises SVG as its sole visible plot output')
     done, text, _ = worker.execute('interactive()')
     check(done['status'] == 'ok' and 'TRUE' in text, 'real R runs in interactive mode')
     _, text, _ = worker.execute('kept <- 41; invisible(123)')
@@ -269,9 +268,9 @@ try:
 
     done, text, events = worker.execute('plot(1:3, 1:3)')
     plots = [e for e in events if e['type'] == 'plot']
-    check(done['status'] == 'ok' and len(plots) == 1, 'ordinary R plot produces a closed PDF snapshot')
+    check(done['status'] == 'ok' and len(plots) == 1 and plots[0]['mime'] == 'image/svg+xml', 'ordinary R plot produces one completed SVG snapshot')
     first = Path(plots[0]['path']); first_hash = hashlib.sha256(first.read_bytes()).hexdigest()
-    check(first.read_bytes().startswith(b'%PDF-'), 'plot attachment is a real PDF')
+    check(first.suffix == '.svg' and svg_document(first).tag.endswith('svg'), 'plot attachment is real SVG XML with a vector viewBox')
     _, _, events = worker.execute('cat("unchanged plot\\n"); mean(1:4)')
     check(not [e for e in events if e['type'] == 'plot'], 'nonplot expressions do not duplicate the previous chart snapshot')
     _, _, events = worker.execute('abline(a=0, b=1, col="red")')
@@ -280,31 +279,37 @@ try:
           'later drawing retains the original device and creates a new immutable snapshot')
     _, _, events = worker.execute('for (i in 1:3) plot(1:3, (1:3)*i)')
     paths = [Path(e['path']) for e in events if e['type'] == 'plot']
-    check(len(paths) == 3 and len(set(paths)) == 3 and all(p.read_bytes().startswith(b'%PDF-') for p in paths),
-          'multiple plots within one expression retain separate PDF snapshots')
+    check(len(paths) == 3 and len(set(paths)) == 3 and all(p.suffix == '.svg' and svg_document(p).tag.endswith('svg') for p in paths),
+          'multiple plots within one expression retain separate SVG snapshots')
 
     done, _, events = worker.execute('plot(1:5); abline(h=3); abline(h=c(1,5), col="red"); mtext("Finished annotations", side=3)')
     plots = [e for e in events if e['type'] == 'plot']
-    check(done['status'] == 'ok' and len(plots) == 1 and b'Finished annotations' in pdf_streams(plots[0]['path']),
+    check(done['status'] == 'ok' and len(plots) == 1 and b'Finished annotations' in svg_text(plots[0]['path']),
           'one submitted chart with lines and text emits only its completed annotated page')
     done, _, events = worker.execute('plot(1:3, main="First page"); abline(h=2); plot(3:1, main="Second page"); mtext("Second finished", side=3)')
     plots = [e for e in events if e['type'] == 'plot']
     check(done['status'] == 'ok' and len(plots) == 2
-          and b'First page' in pdf_streams(plots[0]['path']) and b'Second finished' in pdf_streams(plots[1]['path']),
+          and b'First page' in svg_text(plots[0]['path']) and b'Second finished' in svg_text(plots[1]['path']),
           'two distinct plot pages in one submission remain separate complete chart snapshots')
 
     paired_source = (ROOT / 'FullEngine/Upstream/tests/RScript/examples/TPaired.R').read_text()
     done, text, events = worker.execute(paired_source)
     plots = [e for e in events if e['type'] == 'plot']
     check(done['status'] == 'ok' and 'Paired t-test' in text and len(plots) == 1
-          and b'Mean difference and 95% limits of agreement' in pdf_streams(plots[0]['path']),
+          and b'Mean difference and 95% limits of agreement' in svg_text(plots[0]['path']),
           'actual paired t agreement script emits one final chart including its last annotation')
+    paired_svg = svg_document(plots[0]['path'])
+    circles = paired_svg.findall('.//{http://www.w3.org/2000/svg}circle')
+    limits = [node for node in paired_svg.findall('.//{http://www.w3.org/2000/svg}line')
+              if '#FF0000' in node.get('style', '').upper() and node.get('y1') == node.get('y2')]
+    check(len(circles) == 9 and len(limits) == 2,
+          'paired agreement SVG contains all nine data points and both limits-of-agreement lines')
 
     done, text, events = worker.execute('plot(1:3, main="Before error"); abline(h=2); stop("EXPECTED_PLOT_ERROR"); after_plot_error <- TRUE')
     plots = [e for e in events if e['type'] == 'plot']
     _, sentinel_text, _ = worker.execute('exists("after_plot_error", inherits=FALSE)')
     check(done['status'] == 'error' and 'EXPECTED_PLOT_ERROR' in text and len(plots) == 1
-          and b'Before error' in pdf_streams(plots[0]['path']) and '[1] FALSE' in sentinel_text,
+          and b'Before error' in svg_text(plots[0]['path']) and '[1] FALSE' in sentinel_text,
           'error flushes existing drawing once without running remaining source')
 
     command, start = worker.begin('plot(1:3, main="Before Stop"); abline(h=2); cat("PLOT_WAITING\\n"); Sys.sleep(30); after_plot_stop <- TRUE')
@@ -314,27 +319,31 @@ try:
     plots = [e for e in worker.events[start:] if e['type'] == 'plot']
     _, sentinel_text, _ = worker.execute('exists("after_plot_stop", inherits=FALSE)')
     check(done['status'] == 'interrupted' and len(plots) == 1
-          and b'Before Stop' in pdf_streams(plots[0]['path']) and '[1] FALSE' in sentinel_text,
+          and b'Before Stop' in svg_text(plots[0]['path']) and '[1] FALSE' in sentinel_text,
           'Stop flushes existing drawing once, retains interruption status and skips remaining source')
 
     done, _, events = worker.execute('graphics.off(); par(mfrow=c(1,2)); plot(1:3, main="Left panel"); plot(3:1, main="Right panel")')
     plots = [e for e in events if e['type'] == 'plot']
     check(done['status'] == 'ok' and len(plots) == 1
-          and b'Left panel' in pdf_streams(plots[0]['path']) and b'Right panel' in pdf_streams(plots[0]['path']),
+          and b'Left panel' in svg_text(plots[0]['path']) and b'Right panel' in svg_text(plots[0]['path']),
           'mfrow emits one completed two-panel page without a blank or partial panel snapshot')
     done, _, events = worker.execute('graphics.off(); par(mfrow=c(1,2)); for(i in 1:4) plot(1:3, main=paste("Panel", i))')
     plots = [e for e in events if e['type'] == 'plot']
     check(done['status'] == 'ok' and len(plots) == 2
-          and b'Panel 1' in pdf_streams(plots[0]['path']) and b'Panel 2' in pdf_streams(plots[0]['path'])
-          and b'Panel 3' in pdf_streams(plots[1]['path']) and b'Panel 4' in pdf_streams(plots[1]['path']),
+          and b'Panel 1' in svg_text(plots[0]['path']) and b'Panel 2' in svg_text(plots[0]['path'])
+          and b'Panel 3' in svg_text(plots[1]['path']) and b'Panel 4' in svg_text(plots[1]['path']),
           'mfrow preserves two complete pages while omitting their unfinished panel states')
     done, _, events = worker.execute('graphics.off(); grid::grid.newpage(); grid::grid.text("Grid first"); grid::grid.newpage(); grid::grid.text("Grid second")')
     plots = [e for e in events if e['type'] == 'plot']
     check(done['status'] == 'ok' and len(plots) == 2
-          and b'Grid first' in pdf_streams(plots[0]['path']) and b'Grid second' in pdf_streams(plots[1]['path']),
+          and b'Grid first' in svg_text(plots[0]['path']) and b'Grid second' in svg_text(plots[1]['path']),
           'grid graphics still preserve separate completed pages')
     _, text, _ = worker.execute('length(dev.list())')
     check('[1] 1' in text, 'snapshotting never closes the learner graphics device')
+    _, text, _ = worker.execute('"R_X11" %in% names(getLoadedDLLs())')
+    check('[1] FALSE' in text and not (worker.data / 'Rplots.pdf').exists()
+          and not list(worker.data.glob('Rplot*.svg')),
+          'SVG capture loads no XQuartz graphics module and creates no default fallback plot file')
     print('PASS: interactive R worker integration completed', flush=True)
 finally:
     worker.close()

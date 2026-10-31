@@ -8,7 +8,9 @@ Build with `Scripts/build-interactive-console-prototype.sh`. The separate app is
 `.build/interactive-r-console.noindex/StatsDirect Console Prototype.app`, with
 bundle identifier `com.statsdirect.consoleprototype`. It reuses the installed
 app's engine/runtime assets read-only and requires installed R and its headers
-for this development build. Signing is local/ad hoc only. Matching debug symbols
+for this development build. The builder prepares the SVG device with
+`Scripts/prepare-r-console-svg.sh` in the prototype’s private R library.
+Signing is local/ad hoc only. Matching debug symbols
 are stored outside the app.
 
 The app opens an R Console tab. File > New R Console (Prototype) opens another
@@ -26,14 +28,14 @@ console and runs it once. Existing Script/C#/VB functionality remains available.
   remain; subsequent expressions in that submission do not run after an error or
   interrupt. Stop is not a rollback. Restart explicitly clears the workspace,
   retains script source and invalidates old input requests.
-- Charts retain immutable vector PDF assets. Inline PNG previews are bounded;
-  Open vector PDF and Copy chart refer to that exact version, including an older
-  chart before a later `abline()`. Open vector PDF uses a native PDFKit window,
-  scales the original vector page to fit and supports Save, Print and Close
-  without depending on an external reader. Report SVG charts are unchanged.
-  A submitted script captures each completed plot page, rather than every
-  intermediate `plot()`, `abline()` and `mtext()` step. Multiple new plot pages
-  are preserved; a paired-t agreement script produces one completed chart.
+- Charts retain immutable SVG assets and display their original vector bytes in
+  the console WebView. Open chart uses a native window with the same SVG in a
+  WebView, scaled to fit; Save, Print and Close target the chart window. Copy
+  retains vector SVG with a PNG fallback. A submitted script captures each
+  completed plot page, rather than every intermediate `plot()`, `abline()` and
+  `mtext()` step. Multiple actual pages are preserved; a paired-t agreement
+  script produces one completed SVG. Earlier interactive chart versions remain
+  immutable. Report SVG charts and the released app are unchanged.
 - AI opens the existing right dock with the same sharing consent. It can receive
   an explicitly shared, bounded snapshot of script and output, not arbitrary R
   workspace objects. Opening the dock does not send code or data.
@@ -48,7 +50,10 @@ in `interactive-r-console-ui.md`.
 A separate native worker dynamically loads the installed R library, enables
 interactive R callbacks and evaluates parsed expressions on its main R thread.
 Private framed FIFO input and an event file carry control traffic; printed R
-output and user stdin never act as that protocol. The Swift transport validates
+output and user stdin never act as that protocol. The SVG snapshot device is `svglite`, installed from CRAN binaries in the
+prototype’s private R library; it works without XQuartz. An internal PDF
+recording device retains R’s display list for incremental drawing; it is not
+the displayed output. The Swift transport validates
 session IDs, generations and event sequences, drains raw output, and cancels only
 its own child. SIGUSR1 sets R's interrupt flag, including during sleep and input.
 The worker checks for a disappeared host while waiting for commands or answers.
@@ -56,7 +61,7 @@ Interactive prompts publish their actual UTF-8 answer capacity. Rejected input
 restores the current prompt so the learner can shorten an answer and retry.
 
 Each session has its own working directory under Application Support/StatsDirect
-Console Prototype/R Sessions. User-created files and plot PDFs remain there when
+Console Prototype/R Sessions. User-created files and SVG chart assets remain there when
 a console closes; private temporary IPC files are removed. A renderer reload
 replays retained output without executing R commands again. Visible output is
 bounded; this is not a complete disk-backed console log or saved R workspace.
@@ -72,13 +77,15 @@ this first prototype.
   interactive questions, multiline parsing, Unicode, error recovery, interrupts,
   repeated Stop, stale input, buffered output, multiple plots, revisions and
   non-plot command deduplication; abrupt host-death cleanup, rejected-answer retry, completed paired-t charts
-  plot preservation after errors/Stop, and multi-panel/base/grid pages (36 checks).
+  plot preservation after errors/Stop, and multi-panel/base/grid pages (39 checks).
 - `Tests/r-console-ui.test.mjs`: protocol/session guards, bounded safe output,
   source retention, both native continuation styles and exact plot revisions.
 - `Scripts/test-r-console-integration.sh`: live WebKit/native-worker integration,
-  including renderer recovery, input rejection, Restart and vector chart copying.
+  including renderer recovery, input rejection, Restart, original inline SVG,
+  SVG/PNG clipboard representations and vector chart opening/copying.
 - Manual app checks: paired t-test with inline charts, interactive question,
-  Stop without accepting an answer, retained variables and AI dock/focus return.
+  Stop without accepting an answer, retained variables, AI dock/focus return,
+  real chart-button clicks and wheel scrolling over the prompt.
 
 Only focused console checks are needed here: the calculation engine is unchanged
 and the frozen signing candidate already passed its release CI.

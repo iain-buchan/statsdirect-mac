@@ -1,6 +1,5 @@
 import Cocoa
 import WebKit
-import PDFKit
 
 /// Exercises the actual WebKit page, native message handler and embedded-R
 /// worker together. Commands enter through the same controls as user input.
@@ -28,16 +27,15 @@ import PDFKit
     @MainActor static func snapshot(_ doc: Document) async throws -> [String: Any] {
         try await evaluate(doc, "window.StatsDirectRConsole?.snapshot()") as? [String: Any] ?? [:]
     }
-    @MainActor static func pdfViews(_ view: NSView) -> [PDFView] {
-        (view as? PDFView).map { [$0] } ?? view.subviews.flatMap(pdfViews)
+    @MainActor static func webViews(_ view: NSView) -> [WKWebView] {
+        (view as? WKWebView).map { [$0] } ?? view.subviews.flatMap(webViews)
     }
     @MainActor static func vectorWindows() -> [NSWindow] {
-        NSApp.windows.filter { $0.identifier?.rawValue == "StatsDirectRConsolePDF" && $0.isVisible }
+        NSApp.windows.filter { $0.identifier?.rawValue == "StatsDirectRConsoleSVG" && $0.isVisible }
     }
     @MainActor static func vectorBytes(_ window: NSWindow) -> Data? {
-        guard let content = window.contentView, let document = pdfViews(content).first?.document else { return nil }
-        if let url = document.documentURL { return try? Data(contentsOf: url) }
-        return document.dataRepresentation()
+        guard let controller = window.windowController as? RConsoleSVGWindow else { return nil }
+        return try? Data(contentsOf: controller.fileURL)
     }
     @MainActor static func renderedOutput(_ doc: Document) async throws -> String {
         let state = try await snapshot(doc)
@@ -210,25 +208,42 @@ import PDFKit
         func plotEntries() async throws -> [[String: Any]] {
             (try await snapshot(doc))["transcript"] as? [[String: Any]] ?? []
         }
+        func svgDataURI(_ value: String) throws -> Data {
+            let prefix = "data:image/svg+xml;base64,"
+            guard value.hasPrefix(prefix), let data = Data(base64Encoded: String(value.dropFirst(prefix.count))), !data.isEmpty else {
+                throw NSError(domain:"RConsoleIntegration",code:3,userInfo:[NSLocalizedDescriptionKey:"The chart does not contain an original SVG image"])
+            }
+            return data
+        }
+        func inlineSVG(_ index: Int) async throws -> Data {
+            let source = try await evaluate(doc, "Array.from(document.querySelectorAll('figure.plot img'))[\(index)].src") as? String ?? ""
+            return try svgDataURI(source)
+        }
         func copyPlot(_ index: Int) async throws -> Data {
             let prior = board.changeCount
             _ = try await evaluate(doc, "Array.from(document.querySelectorAll('figure.plot'))[\(index)].querySelectorAll('button')[1].click(); true")
-            try await wait("native vector PDF copy") { board.changeCount != prior && board.data(forType: .pdf) != nil }
-            return board.data(forType: .pdf)!
+            let svgType = NSPasteboard.PasteboardType("public.svg-image")
+            try await wait("original SVG copy and PNG fallback") {
+                board.changeCount != prior && board.data(forType: svgType) != nil && !(board.data(forType: .png)?.isEmpty ?? true)
+            }
+            return board.data(forType: svgType)!
         }
         try await console(doc, "plot(1:5, 1:5, main='Console integration chart')")
-        try await wait("first inline PDF preview") {
+        try await wait("first inline SVG chart") {
             let idle = try await readyState(doc), entries = try await plotEntries()
             return idle && entries.filter { $0["kind"] as? String == "plot" }.count == 1
         }
         try await wait("decoded inline preview") {
             (try await evaluate(doc, "!!document.querySelector('figure.plot img')?.complete && document.querySelector('figure.plot img').naturalWidth > 0")) as? Bool == true
         }
-        let originalPDF = try await copyPlot(0)
+        let copiedOriginalSVG = try await copyPlot(0), originalSVG = try await inlineSVG(0)
+        let canonicalOriginalSVG = Data(try ReportImageClipboard.svgMarkup(originalSVG).utf8)
         let previewPNG = board.data(forType: .png), previewBitmap = previewPNG.flatMap { NSBitmapImageRep(data: $0) }
-        try check(PDFDocument(data: originalPDF)?.pageCount == 1 && !(previewPNG?.isEmpty ?? true)
+        let firstPlot = (try await plotEntries()).first { $0["kind"] as? String == "plot" }
+        try check(firstPlot?["mime"] as? String == "image/svg+xml" && copiedOriginalSVG == canonicalOriginalSVG
+                  && !(previewPNG?.isEmpty ?? true)
                   && (previewBitmap?.pixelsWide ?? 0) > 0 && (previewBitmap?.pixelsHigh ?? 0) > 0,
-                  "inline chart maps to its original vector PDF and a valid nonempty PNG preview")
+                  "inline chart uses original SVG bytes and copying preserves SVG with a valid nonempty PNG fallback")
         let survivesFocus = try await doc.web.callAsyncJavaScript("""
         const button = document.querySelector('figure.plot button');
         window.__rConsoleFocusOpen = button;
@@ -238,21 +253,35 @@ import PDFKit
         """, arguments: [:], in: nil, contentWorld: .page) as? Bool == true
         try check(survivesFocus, "focusing a chart action and changing selection preserves the original clickable DOM node")
         _ = try await evaluate(doc, "window.__rConsoleFocusOpen.click(); delete window.__rConsoleFocusOpen; true")
-        try await wait("the native vector PDF window") { vectorWindows().count == 1 }
+        try await wait("the native SVG window") { vectorWindows().count == 1 }
         let vectorWindow = vectorWindows()[0]
         defer { vectorWindow.performClose(nil) }
-        let vectorDocument = vectorWindow.contentView.flatMap { pdfViews($0).first?.document }
-        try check(vectorDocument?.pageCount == 1 && vectorBytes(vectorWindow) == originalPDF,
-                  "Open vector PDF displays the original chart in a visible native PDFKit window")
+        guard let vectorWeb = vectorWindow.contentView.flatMap({ webViews($0).first }) else {
+            throw NSError(domain:"RConsoleIntegration",code:3,userInfo:[NSLocalizedDescriptionKey:"The SVG window has no WebView"])
+        }
+        try await wait("the original SVG image in the chart WebView") {
+            if let detail = (vectorWindow.windowController as? RConsoleSVGWindow)?.loadError {
+                throw NSError(domain:"RConsoleIntegration",code:4,userInfo:[NSLocalizedDescriptionKey:"The native SVG window failed to load: " + detail])
+            }
+            return (try? await vectorWeb.evaluateJavaScript("!!document.querySelector('img')?.complete && document.querySelector('img').naturalWidth > 0 && document.querySelector('img').src.startsWith('data:image/svg+xml;base64,')")) as? Bool == true
+        }
+        let windowImageSource = try await vectorWeb.evaluateJavaScript("document.querySelector('img').src") as? String ?? ""
+        let windowSVG = try svgDataURI(windowImageSource)
+        try check(vectorBytes(vectorWindow) == originalSVG && windowSVG == originalSVG,
+                  "Open chart displays the original SVG in a visible native WebView window")
         viewer.window.makeKeyAndOrderFront(nil)
         try await console(doc, "abline(a=0, b=1, col='red', lwd=3)")
         try await wait("updated chart snapshot") {
             let idle = try await readyState(doc), entries = try await plotEntries()
             return idle && entries.filter { $0["kind"] as? String == "plot" }.count == 2
         }
-        let firstStillOriginal = try await copyPlot(0), updatedPDF = try await copyPlot(1)
-        try check(firstStillOriginal == originalPDF && updatedPDF != originalPDF && PDFDocument(data: updatedPDF)?.pageCount == 1,
-                  "plot then abline creates a new inline snapshot while earlier charts retain their original PDF mapping")
+        try await wait("decoded updated SVG image") {
+            (try await evaluate(doc, "document.querySelectorAll('figure.plot img').length === 2 && document.querySelectorAll('figure.plot img')[1].complete && document.querySelectorAll('figure.plot img')[1].naturalWidth > 0")) as? Bool == true
+        }
+        let firstStillOriginal = try await copyPlot(0), updatedSVG = try await copyPlot(1)
+        let updatedOriginalSVG = try await inlineSVG(1), canonicalUpdatedSVG = Data(try ReportImageClipboard.svgMarkup(updatedOriginalSVG).utf8)
+        try check(firstStillOriginal == canonicalOriginalSVG && updatedOriginalSVG != originalSVG && updatedSVG == canonicalUpdatedSVG,
+                  "plot then abline creates a new inline SVG while earlier charts retain their original SVG mapping")
         let pointerGate = pane.session.workingDirectory!.appendingPathComponent("pointer-output-gate")
         try await console(doc, "cat('POINTER_READY\\n'); while (!file.exists('pointer-output-gate')) Sys.sleep(0.02); cat('POINTER_OUTPUT\\n')")
         try await wait("R waiting to emit output during a chart click") {
@@ -281,16 +310,16 @@ import PDFKit
           button.click(); delete window.__rConsolePointerOpen; return true;
         })()
         """)
-        try await wait("the reused native vector PDF window") { vectorWindow.isKeyWindow }
+        try await wait("the reused native SVG window") { vectorWindow.isKeyWindow }
         try check(vectorWindows().count == 1 && vectorWindows().first === vectorWindow
-                  && vectorBytes(vectorWindow) == originalPDF,
-                  "opening an earlier chart after abline reuses its PDF window and preserves that chart version")
-        let documentCountBeforePDFClose = viewer.documents.count
+                  && vectorBytes(vectorWindow) == originalSVG,
+                  "opening an earlier chart after abline reuses its SVG window and preserves that chart version")
+        let documentCountBeforeChartClose = viewer.documents.count
         viewer.closeTab()
-        try await wait("the vector PDF window to close") { !vectorWindow.isVisible }
-        try check(viewer.documents.count == documentCountBeforePDFClose && viewer.documents.contains { $0 === doc }
+        try await wait("the SVG window to close") { !vectorWindow.isVisible }
+        try check(viewer.documents.count == documentCountBeforeChartClose && viewer.documents.contains { $0 === doc }
                   && pane.session.isRunning,
-                  "the native Close command closes the PDF window and retains the R console document and workspace")
+                  "the native Close command closes the SVG window and retains the R console document and workspace")
         viewer.window.makeKeyAndOrderFront(nil)
 
         try await console(doc, "cat(paste0('WHEEL_ROW_', seq_len(120), collapse='\\n'), '\\n', sep='')")

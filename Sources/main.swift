@@ -356,6 +356,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(saveDocument), NSApp.keyWindow?.windowController is RConsoleSVGWindow {
+            menuItem.title = "Save SVG…"; return true
+        }
         if menuItem.action == #selector(saveDocument), NSApp.keyWindow?.windowController is RConsolePDFWindow {
             menuItem.title = "Save PDF…"; return true
         }
@@ -566,6 +569,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         } catch { showError(error.localizedDescription) }
     }
     @objc func closeTab() {
+        if let svg = NSApp.keyWindow?.windowController as? RConsoleSVGWindow { svg.close(); return }
         if let pdf = NSApp.keyWindow?.windowController as? RConsolePDFWindow { pdf.close(); return }
         if scriptAI.isFocused { scriptAI.hide(); return }
         if calculatorPane.isFocused { calculatorPane.hide(); return }
@@ -654,6 +658,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>\(htmlEscape(title))</title><style>\(css)\n\(additionalCSS)</style></head><body class='\(htmlEscape(bodyClass))'>\(body)</body></html>"
     }
     @objc func printPage() {
+        if let svg = NSApp.keyWindow?.windowController as? RConsoleSVGWindow { svg.printSVG(); return }
         if let pdf = NSApp.keyWindow?.windowController as? RConsolePDFWindow { pdf.printPDF(); return }
         if helpPane.isFocused { helpPane.printHelp(); return }
         guard let doc = active else { return }
@@ -674,11 +679,13 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     /// Save As always asks where: for a report with the format choice (HTML, or a Word or PDF copy), for anything else as Save does.
     @objc func saveDocumentAs() {
+        if let svg = NSApp.keyWindow?.windowController as? RConsoleSVGWindow { svg.saveSVG(); return }
         if let pdf = NSApp.keyWindow?.windowController as? RConsolePDFWindow { pdf.savePDF(); return }
         if let doc = active, doc.kind == "report" { saveReportAs(doc); return }
         saveDocument()
     }
     @objc func saveDocument() {
+        if let svg = NSApp.keyWindow?.windowController as? RConsoleSVGWindow { svg.saveSVG(); return }
         if let pdf = NSApp.keyWindow?.windowController as? RConsolePDFWindow { pdf.savePDF(); return }
         if let pane = active?.rConsolePane { pane.saveScript(); return }
         if let pane = active?.rPane { pane.saveScript(); return }

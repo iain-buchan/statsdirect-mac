@@ -5,6 +5,7 @@ ROOT="$PWD"
 export DEVELOPER_DIR=/Library/Developer/CommandLineTools
 export STATSDIRECT_CONFIGURATION="${STATSDIRECT_CONFIGURATION:-Debug}"
 source Scripts/native-build-flags.sh
+/bin/bash Scripts/prepare-r-console-svg.sh
 # Typecheck this large host once rather than once per primary source file.
 # Debug remains unoptimised, with normal debug symbols.
 if [[ "$STATSDIRECT_CONFIGURATION" == Debug ]]; then STATSDIRECT_SWIFT_FLAGS+=(-whole-module-optimization); fi

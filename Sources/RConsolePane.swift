@@ -22,9 +22,10 @@ enum InteractiveRConsolePrototype {
     private var journalBytes = 0
     private var sequence = -1
     private var hasExecuted = false
-    private struct Plot { let url: URL; let page: Int }
+    private struct Plot { let url: URL; let page: Int; let mime: String }
     private var plots: [String: Plot] = [:]
     private var pdfWindows: [String: RConsolePDFWindow] = [:]
+    private var svgWindows: [String: RConsoleSVGWindow] = [:]
     var isBusy: Bool { session.isBusy || session.state == "continuation" }
     var hasUnsavedChanges: Bool { sourceText != savedSource }
     var hasWorkspace: Bool { hasExecuted && session.isRunning }
@@ -53,6 +54,8 @@ enum InteractiveRConsolePrototype {
         session.onEvent = nil; session.shutdown()
         let windows = Array(pdfWindows.values); pdfWindows.removeAll()
         for window in windows { window.onClose = nil; window.close() }
+        let vectorWindows = Array(svgWindows.values); svgWindows.removeAll()
+        for window in vectorWindows { window.onClose = nil; window.close() }
         document?.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectRConsole")
     }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -99,7 +102,22 @@ enum InteractiveRConsolePrototype {
                   let plot = plots[id + ":" + String(revision)] else {
                 forward(["type": "notice", "text": "This chart is no longer available in this console."]); return
             }
-            if action == "openPlot" { openPDF(plot) }
+            if action == "openPlot" { openChart(plot) }
+            else if plot.mime == "image/svg+xml" {
+                do {
+                    let svg = try Data(contentsOf: plot.url)
+                    let clean = Data(try ReportImageClipboard.svgMarkup(svg).utf8)
+                    guard let image = NSImage(data: clean), image.size.width > 0, image.size.height > 0 else {
+                        throw LegacyReportError("The SVG chart could not be rendered for the clipboard.")
+                    }
+                    let scale = 1600 / max(image.size.width, image.size.height)
+                    image.size = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+                    try ReportImageClipboard.write(image: image, svg: svg, to: .general)
+                } catch {
+                    forward(["type": "notice", "text": "The SVG chart could not be copied: " + error.localizedDescription])
+                    viewer?.showError("The SVG chart could not be copied: " + error.localizedDescription)
+                }
+            }
             else if let pdf = try? Data(contentsOf: plot.url) {
                 let board = NSPasteboard.general; board.clearContents()
                 board.setData(pdf, forType: .pdf)
@@ -111,17 +129,23 @@ enum InteractiveRConsolePrototype {
         default: break
         }
     }
-    private func openPDF(_ plot: Plot) {
+    private func openChart(_ plot: Plot) {
         let key = plot.url.path
         do {
+            if plot.mime == "image/svg+xml" {
+                if let existing = svgWindows[key] { existing.present(); return }
+                let window = try RConsoleSVGWindow(url: plot.url, title: scriptName + " · R chart")
+                window.onClose = { [weak self] in self?.svgWindows.removeValue(forKey: key) }
+                svgWindows[key] = window; window.present(); return
+            }
             if let existing = pdfWindows[key] { existing.present(page: plot.page); return }
             let window = try RConsolePDFWindow(url: plot.url, page: plot.page, title: scriptName + " · R chart")
             window.onClose = { [weak self] in self?.pdfWindows.removeValue(forKey: key) }
             pdfWindows[key] = window
             window.present(page: plot.page)
         } catch {
-            forward(["type": "notice", "text": "The chart PDF could not be opened: " + error.localizedDescription])
-            viewer?.showError("The chart PDF could not be opened: " + error.localizedDescription)
+            forward(["type": "notice", "text": "The chart could not be opened: " + error.localizedDescription])
+            viewer?.showError("The chart could not be opened: " + error.localizedDescription)
         }
     }
 
@@ -132,7 +156,7 @@ enum InteractiveRConsolePrototype {
         if type == "session" {
             journal = []; journalBytes = 0; sequence = -1; plots = [:]; outputText = ""; hasExecuted = false
             event["script"] = sourceText
-            event["capabilities"] = ["plotMimes": ["application/pdf"], "ai": true, "help": true, "openPlot": true, "copyPlot": true]
+            event["capabilities"] = ["plotMimes": ["image/svg+xml", "application/pdf"], "ai": true, "help": true, "openPlot": true, "copyPlot": true]
         }
         if type == "inputEcho", let text = event["text"] as? String {
             hasExecuted = true
@@ -172,15 +196,25 @@ enum InteractiveRConsolePrototype {
         guard let path = event["path"] as? String, let directory = session.workingDirectory else { return }
         let url = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
         guard url.path.hasPrefix(directory.resolvingSymlinksInPath().path + "/"),
-              let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 64 * 1024 * 1024,
-              let pdf = PDFDocument(url: url) else { return }
+              let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size < 64 * 1024 * 1024 else { return }
         let id = event["id"] as? String ?? url.lastPathComponent
         let revision = event["revision"] as? Int ?? 1
+        if url.pathExtension.lowercased() == "svg" {
+            do {
+                let data = try Data(contentsOf: url)
+                _ = try ReportImageClipboard.svgMarkup(data)
+                plots[id + ":" + String(revision)] = Plot(url: url, page: 0, mime: "image/svg+xml")
+                forward(["type": "plot", "plotId": id, "revision": revision, "mime": "image/svg+xml",
+                         "preview": "data:image/svg+xml;base64," + data.base64EncodedString(), "label": "R chart"])
+            } catch { forward(["type": "notice", "text": "The SVG chart could not be displayed: " + error.localizedDescription]) }
+            return
+        }
+        guard let pdf = PDFDocument(url: url) else { return }
         for index in 0..<min(pdf.pageCount, 20) {
             guard let page = pdf.page(at: index) else { continue }
             guard let png = preview(page, in: pdf) else { continue }
             let pageID = id + ":page-" + String(index + 1)
-            plots[pageID + ":" + String(revision)] = Plot(url: url, page: index)
+            plots[pageID + ":" + String(revision)] = Plot(url: url, page: index, mime: "application/pdf")
             forward(["type": "plot", "plotId": pageID, "revision": revision, "mime": "application/pdf",
                      "preview": "data:image/png;base64," + png.base64EncodedString(),
                      "label": "R chart" + (pdf.pageCount > 1 ? " · page \(index + 1) of \(pdf.pageCount)" : "")])

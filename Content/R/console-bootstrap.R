@@ -6,7 +6,13 @@ local({
   folder <- Sys.getenv("STATSDIRECT_R_FOLDER")
   if (!nzchar(folder)) folder <- path.expand("~/Library/Application Support/StatsDirect Viewer")
   library <- file.path(folder, "R Library")
-  if (dir.exists(library)) .libPaths(c(library, .libPaths()))
+  prototype_library <- Sys.getenv("STATSDIRECT_CONSOLE_R_LIBRARY")
+  if (!nzchar(prototype_library))
+    prototype_library <- path.expand("~/Library/Application Support/StatsDirect Console Prototype/R Library")
+  libraries <- c(prototype_library, library)
+  .libPaths(c(libraries[dir.exists(libraries)], .libPaths()))
+  if (!requireNamespace("svglite", quietly = TRUE))
+    stop("The SVG console requires svglite. Run Scripts/prepare-r-console-svg.sh for this prototype.")
   options(warn = 1)
   serial <- 0L
   device_serial <- 0L
@@ -58,8 +64,8 @@ local({
         if (identical(last[[key]], bytes)) next
         size <- grDevices::dev.size("in")
         serial <<- serial + 1L
-        path <- file.path(directory, sprintf("console-plot-%06d.pdf", serial))
-        copied <- grDevices::dev.copy(grDevices::pdf, file = path, width = size[1L], height = size[2L], onefile = TRUE)
+        path <- file.path(directory, sprintf("console-plot-%06d.svg", serial))
+        copied <- grDevices::dev.copy(svglite::svglite, file = path, width = size[1L], height = size[2L])
         grDevices::dev.off(copied)
         last[[key]] <<- bytes
         pending <<- c(pending, path)

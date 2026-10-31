@@ -267,7 +267,7 @@ void capturePlots() {
     if (!error) for (R_xlen_t i=0;i<r->length(paths);++i) {
         std::string path = r->utf8(r->stringAt(paths,i));
         emit("\"type\":\"plot\",\"commandId\":" + json(commandID) + ",\"id\":" + json(path.substr(path.find_last_of('/')+1)) +
-             ",\"mime\":\"application/pdf\",\"path\":" + json(path));
+             ",\"mime\":\"image/svg+xml\",\"path\":" + json(path));
     }
     r->unprotect(2);
 }
@@ -356,7 +356,7 @@ int main(int argc, char **argv) {
         installInterruptHandler();
         std::ifstream file(bootstrap); std::string init((std::istreambuf_iterator<char>(file)),{});
         if (init.empty() || !r->topLevel(loadBootstrap,&init) || commandError || !r->capture) throw std::runtime_error("The console graphics bootstrap could not be loaded.");
-        emit("\"type\":\"started\",\"capabilities\":{\"plotMimes\":[\"application/pdf\"],\"interactiveInput\":true,\"interrupt\":true,\"interruptSignal\":\"SIGUSR1\"}");
+        emit("\"type\":\"started\",\"capabilities\":{\"plotMimes\":[\"image/svg+xml\"],\"interactiveInput\":true,\"interrupt\":true,\"interruptSignal\":\"SIGUSR1\"}");
         state("ready",prompt("prompt","> "));
         Frame request;
         while (!quitRequested) {

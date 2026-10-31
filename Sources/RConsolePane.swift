@@ -87,9 +87,13 @@ enum InteractiveRConsolePrototype {
             rendererReady = true
             if session.generation == 0 { session.start() }
             else {
-                for var event in journal {
-                    if event["type"] as? String == "inputEcho" { event["origin"] = "replay" }
-                    deliver(event)
+                // Restore original execution origins for command recall. The
+                // shared model replays these events before applying the current
+                // edited Script, so console echoes cannot duplicate its source.
+                if var replay = journal.first {
+                    replay["script"] = sourceText
+                    replay["events"] = Array(journal.dropFirst())
+                    deliver(replay)
                 }
             }
             return

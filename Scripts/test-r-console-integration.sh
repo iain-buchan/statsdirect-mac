@@ -16,7 +16,15 @@ trap 'rm -rf "$TEST_WORK"' EXIT
 TEST_APP="$TEST_WORK/StatsDirect Console Integration Test.app"
 WORKER_OUTPUT_KEY="$(printf '%s' "$TEST_APP/Contents/MacOS/RConsoleWorker" | shasum -a 256)"
 WORKER_OBJECT_DIRECTORY="$ROOT/.build/r-console-worker-objects/${WORKER_OUTPUT_KEY%% *}"
-trap 'rm -rf "$TEST_WORK" "$WORKER_OBJECT_DIRECTORY"' EXIT
+cleanup() {
+  if [[ "${STATSDIRECT_KEEP_CONSOLE_TEST_APP:-0}" == 1 ]]; then
+    printf 'Retained diagnostic test app: %s\n' "$TEST_APP"
+  else
+    rm -rf "$TEST_WORK"
+  fi
+  rm -rf "$WORKER_OBJECT_DIRECTORY"
+}
+trap cleanup EXIT
 
 python3 - "$TEST_WORK" <<'PY'
 from pathlib import Path

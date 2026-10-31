@@ -2,6 +2,14 @@ import Cocoa
 import PDFKit
 import WebKit
 
+/// A scrolling fixture records UI messages but never creates an R worker.
+@MainActor private final class ConsoleScrollBridge: NSObject, WKScriptMessageHandler {
+    var messages: [[String: Any]] = []
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if let body = message.body as? [String: Any] { messages.append(body) }
+    }
+}
+
 /// Exercises the actual WebKit page, native message handler and embedded-R
 /// worker together. Commands enter through the same controls as user input.
 @main struct RConsoleIntegrationTests {
@@ -45,6 +53,50 @@ import WebKit
     }
     @MainActor static func ready(_ doc: Document) async throws {
         try await wait("native and rendered ready prompts") { try await readyState(doc) }
+        let diagnosticsScript = """
+        (()=>{
+          if(window.__consoleTestErrors)return true;
+          const errors=window.__consoleTestErrors=[];
+          const record=value=>{errors.push(value);if(errors.length>20)errors.shift();};
+          addEventListener('error',event=>record({message:event.message,file:event.filename,line:event.lineno,column:event.colno,stack:event.error?.stack||''}));
+          addEventListener('unhandledrejection',event=>record({rejection:String(event.reason),stack:event.reason?.stack||''}));
+          return true;
+        })()
+        """
+        if !doc.web.configuration.userContentController.userScripts.contains(where: { $0.source == diagnosticsScript }) {
+            doc.web.configuration.userContentController.addUserScript(WKUserScript(source: diagnosticsScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
+        _ = try await evaluate(doc, diagnosticsScript)
+    }
+    @MainActor static func makeConsoleVisible(_ viewer: Viewer, _ doc: Document) async throws {
+        viewer.tabs.selectTabViewItem(doc.item)
+        NSApp.unhide(nil)
+        viewer.window.orderFrontRegardless()
+        viewer.window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        try await wait("foreground WebKit console visibility before exercising rendered controls") {
+            guard !doc.web.isLoading else { return false }
+            return (try? await evaluate(doc, "document.visibilityState === 'visible' && typeof window.StatsDirectRConsole?.snapshot === 'function'")) as? Bool == true
+        }
+    }
+    @MainActor static func failureDiagnostics(_ viewer: Viewer) async {
+        guard let doc = viewer.active else { print("INFO: Failure diagnostics: no active document"); fflush(stdout); return }
+        if let pane = doc.rConsolePane {
+            print("INFO: Native console diagnostics: document=\(doc.id), state=\(pane.session.state), request=\(pane.session.inputRequestId ?? "nil"), command=\(pane.session.commandId ?? "nil"), session=\(pane.session.sessionId), generation=\(pane.session.generation), running=\(pane.session.isRunning), loading=\(doc.web.isLoading)")
+        } else { print("INFO: Active diagnostic document: \(doc.kind), \(doc.id), loading=\(doc.web.isLoading)") }
+        do {
+            let detail = try await evaluate(doc, """
+            (()=>{
+              const state=window.StatsDirectRConsole?.snapshot(),input=document.getElementById('console-input'),panel=document.getElementById('console-panel'),log=document.getElementById('transcript');
+              return {snapshot:state?{...state,outputText:state.outputText.slice(-3000),history:state.history.slice(-6).map(text=>text.slice(-1000)),transcript:state.transcript.slice(-6)}:null,
+                input:input?{disabled:input.disabled,hidden:input.hidden,value:input.value.slice(-500),selectionStart:input.selectionStart,selectionEnd:input.selectionEnd,clientHeight:input.clientHeight}:null,
+                panelHidden:panel?.hidden,visibility:document.visibilityState,hasFocus:document.hasFocus(),readyState:document.readyState,activeElement:document.activeElement?.id,
+                transcript:log?{top:log.scrollTop,height:log.scrollHeight,clientHeight:log.clientHeight}:null,errors:window.__consoleTestErrors||[]};
+            })()
+            """)
+            print("INFO: WebKit console diagnostics: \(try literal(detail))")
+        } catch { print("INFO: WebKit diagnostic evaluation failed: \(error.localizedDescription)") }
+        fflush(stdout)
     }
     @MainActor static func console(_ doc: Document, _ source: String) async throws {
         _ = try await evaluate(doc, """
@@ -89,10 +141,15 @@ import WebKit
                     try check(viewer.documents.count == 1 && viewer.active?.kind == "grid"
                               && viewer.active?.title == "Untitled" && viewer.active?.gridDirty == false,
                               "startup opens one active blank workbook without creating an R document")
-                    if !CommandLine.arguments.contains("--startup-only") { try await run(viewer) }
+                    if CommandLine.arguments.contains("--scroll-only") { try await transcriptFollowingChecks(viewer) }
+                    else if CommandLine.arguments.contains("--history-only") { try await historyRecallChecks(viewer) }
+                    else if !CommandLine.arguments.contains("--startup-only") { try await run(viewer) }
                     passed = true; print("PASS: live WebKit interactive R console integration completed"); fflush(stdout)
                 }
-                catch { print("FAIL: " + error.localizedDescription); fflush(stdout) }
+                catch {
+                    print("FAIL: " + error.localizedDescription); fflush(stdout)
+                    await failureDiagnostics(viewer)
+                }
                 await cleanup(viewer)
                 if passed { viewer.closeApproved = true; app.terminate(nil) }
                 else { exit(1) }
@@ -112,6 +169,7 @@ import WebKit
         viewer.window.setContentSize(NSSize(width: 1100, height: 800))
         let doc = viewer.makeRConsole(), pane = doc.rConsolePane!
         defer { pane.shutdown() }
+        try await makeConsoleVisible(viewer, doc)
         try await ready(doc)
         if let directory = pane.session.workingDirectory { sessionFolders.append(directory) }
         try check((try await snapshot(doc))["sessionId"] as? String == pane.session.sessionId,
@@ -133,6 +191,7 @@ import WebKit
             let timeOrigin = try? await evaluate(doc, "performance.timeOrigin") as? Double
             return !doc.web.isLoading && (timeOrigin ?? 0) > previousTimeOrigin
         }
+        try await makeConsoleVisible(viewer, doc)
         try await wait("replayed renderer state") {
             let state = try await snapshot(doc), output = try await renderedOutput(doc)
             return state["state"] as? String == "ready" && state["script"] as? String == recoverySource && output == recoveryOutput
@@ -162,6 +221,9 @@ import WebKit
 
         try await console(doc, "answer <- readline('Colour? '); cat('ANSWER=', answer, '\\n', sep='')")
         try await wait("readline input request") { (try await snapshot(doc))["state"] as? String == "input" }
+        try await wait("rendered readline input is enabled before entering an unsent draft") {
+            try await evaluate(doc, "!document.getElementById('console-input').disabled && StatsDirectRConsole.snapshot().state === 'input'") as? Bool == true
+        }
         let beforeAnswer = pane.sourceText, reply = "chartreuse-reply-token-741"
         let clearCommand = pane.session.commandId, clearRequest = pane.session.inputRequestId, clearState = pane.session.state
         let cleared = try await evaluate(doc, """
@@ -187,9 +249,14 @@ import WebKit
         try await wait("cleared rendered R transcript") {
             try await evaluate(doc, "document.querySelectorAll('#transcript .input-entry, #transcript .output-entry, #transcript .plot').length === 0 && document.getElementById('transcript').textContent.includes('Enter R commands below')") as? Bool == true
         }
-        try check(["hadTranscript", "emptyOutput", "retainedState", "retainedDraft", "retainedSelection", "retainedFocus"].allSatisfy { cleared[$0] as? Bool == true }
+        let clearPreserved = ["hadTranscript", "emptyOutput", "retainedState", "retainedDraft", "retainedSelection", "retainedFocus"].allSatisfy { cleared[$0] as? Bool == true }
                   && pane.sourceText == beforeAnswer && pane.session.commandId == clearCommand
-                  && pane.session.inputRequestId == clearRequest && pane.session.state == clearState,
+                  && pane.session.inputRequestId == clearRequest && pane.session.state == clearState
+        if !clearPreserved {
+            print("INFO: Clear Output flags=\(cleared); native source unchanged=\(pane.sourceText == beforeAnswer), command unchanged=\(pane.session.commandId == clearCommand), request unchanged=\(pane.session.inputRequestId == clearRequest), state before=\(clearState), state after=\(pane.session.state)")
+            fflush(stdout)
+        }
+        try check(clearPreserved,
                   "Clear Output removes only the rendered transcript while preserving the unsent draft, selection, focus, script, history, session and pending real R question")
         try await console(doc, reply)
         try await expectOutput(doc, "ANSWER=" + reply + "\n")
@@ -677,11 +744,197 @@ import WebKit
                   "closing R retains its original chart assets and leaves both SVG clipboard types and PNG available")
 
         try await graphicsDeviceChecks(viewer)
+        try await historyRecallChecks(viewer)
+        try await transcriptFollowingChecks(viewer)
+    }
+
+    @MainActor static func historyRecallChecks(_ viewer: Viewer) async throws {
+        let continued = "historyReplayCounter <- if (exists('historyReplayCounter')) historyReplayCounter + 1 else 1\ncontinuedValue <- 41\ncat('HISTORY_CONTINUED_READY\\n')\n"
+        viewer.openReportInR(text: continued, title: "History recall checks")
+        guard let doc = viewer.active, let pane = doc.rConsolePane else {
+            throw NSError(domain: "RConsoleIntegration", code: 9, userInfo: [NSLocalizedDescriptionKey: "Continue in R did not open the interactive console"])
+        }
+        defer { pane.shutdown() }
+        try await makeConsoleVisible(viewer, doc)
+        try await expectOutput(doc, "HISTORY_CONTINUED_READY\n")
+        if let directory = pane.session.workingDirectory { sessionFolders.append(directory) }
+        func recall(_ expected: String) async throws -> Bool {
+            try await doc.web.callAsyncJavaScript("""
+            StatsDirectRConsole.setMode('console');
+            const input=document.getElementById('console-input'),draft='# unsent history draft';
+            input.value=draft;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();input.setSelectionRange(draft.length,draft.length);
+            input.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}));
+            const recalled=input.value;
+            input.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));
+            return recalled===expected&&input.value===draft;
+            """, arguments: ["expected": expected], in: nil, contentWorld: .page) as? Bool == true
+        }
+        func setScript(_ source: String) async throws {
+            _ = try await evaluate(doc, """
+            (()=>{StatsDirectRConsole.setMode('script');const input=document.getElementById('script-source');
+            input.value=\(try literal(source));input.setSelectionRange(0,0);input.dispatchEvent(new Event('input',{bubbles:true}));return true;})()
+            """)
+            try await wait("edited Script source reaches the native host") { pane.sourceText == source }
+        }
+        let initialHistory = try await snapshot(doc)["history"] as? [String]
+        let continuedRecalled = try await recall(continued)
+        try check(initialHistory == [continued] && pane.sourceText == continued && continuedRecalled,
+                  "Continue in R executes and recalls the complete multiline batch through Up and Down without duplicating its Script source")
+        let unexecuted = "unexecutedHistorySentinel <- TRUE\n# This source has not been run\n"
+        try await setScript(unexecuted)
+        try check((try await snapshot(doc))["history"] as? [String] == [continued]
+                  && !pane.outputText.contains("unexecutedHistorySentinel"),
+                  "editing an unexecuted Script does not add it or internal startup work to command history")
+        let script = "scriptReplayCounter <- if (exists('scriptReplayCounter')) scriptReplayCounter + 1 else 1\nscriptValue <- continuedValue + 1\nhistoryAnswer <- readline('History answer? ')\ncat('HISTORY_SCRIPT=', scriptValue, '\\n', sep='')\n"
+        try await setScript(script)
+        _ = try await evaluate(doc, "document.getElementById('run').click(); true")
+        try await wait("history Script readline request") { (try await snapshot(doc))["state"] as? String == "input" }
+        let answer = "history-answer-must-not-be-source"
+        try await console(doc, answer)
+        try await expectOutput(doc, "HISTORY_SCRIPT=42\n")
+        let scriptRecalled = try await recall(script)
+        try check((try await snapshot(doc))["history"] as? [String] == [continued, script]
+                  && pane.sourceText == script && !pane.sourceText.contains(answer) && scriptRecalled,
+                  "Run Script recalls its whole multiline batch while excluding readline answers and preserving the single editable source")
+        let command = "historyConsoleCounter <- if (exists('historyConsoleCounter')) historyConsoleCounter + 1 else 1; cat('HISTORY_CONSOLE_READY\\n')"
+        try await console(doc, command)
+        try await expectOutput(doc, "HISTORY_CONSOLE_READY\n")
+        try await setScript(unexecuted)
+        let historyBeforeReload = try await snapshot(doc)["history"] as? [String], outputBeforeReload = try await renderedOutput(doc)
+        let sessionBeforeReload = pane.session.sessionId, commandBeforeReload = pane.session.commandId
+        let previousTimeOrigin = try await evaluate(doc, "performance.timeOrigin") as? Double ?? 0
+        pane.load()
+        try await wait("history renderer reload and replay") {
+            let origin = try? await evaluate(doc, "performance.timeOrigin") as? Double
+            let state = try await snapshot(doc)
+            return !doc.web.isLoading && (origin ?? 0) > previousTimeOrigin && state["state"] as? String == "ready"
+                && state["script"] as? String == unexecuted && state["history"] as? [String] == historyBeforeReload
+        }
+        try await makeConsoleVisible(viewer, doc)
+        let outputAfterReload = try await renderedOutput(doc), commandRecalled = try await recall(command)
+        try check(historyBeforeReload == [continued, script, command] && pane.sourceText == unexecuted
+                  && pane.session.sessionId == sessionBeforeReload && pane.session.commandId == commandBeforeReload
+                  && outputAfterReload == outputBeforeReload && commandRecalled,
+                  "renderer recovery retains executed console and Script history, current unexecuted edits and output without submitting R again")
+        try await console(doc, "stopifnot(historyReplayCounter == 1, scriptReplayCounter == 1, historyConsoleCounter == 1, !exists('unexecutedHistorySentinel')); cat('HISTORY_RELOAD_NO_RERUN\\n')")
+        try await expectOutput(doc, "HISTORY_RELOAD_NO_RERUN\n")
+        try check(true, "history recovery preserves the live R workspace and runs no previous batch or unexecuted edit")
+    }
+
+    @MainActor static func transcriptFollowingChecks(_ viewer: Viewer) async throws {
+        let doc = viewer.newDocument(kind: "console-scroll-fixture", title: "Console scroll fixture"), bridge = ConsoleScrollBridge()
+        doc.web.configuration.userContentController.add(bridge, name: "statsDirectRConsole")
+        defer {
+            doc.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectRConsole")
+            viewer.remove(doc)
+        }
+        doc.web.loadFileURL(viewer.root.appendingPathComponent("RConsole/index.html"), allowingReadAccessTo: viewer.root)
+        try await makeConsoleVisible(viewer, doc)
+        try await wait("worker-free console renderer") { try await evaluate(doc, "typeof window.StatsDirectRConsole?.snapshot === 'function'") as? Bool == true }
+        _ = try await evaluate(doc, """
+        (()=>{
+          const descriptor=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');
+          const f=window.__scrollFixture={descriptor,pending:[],generation:-1,seq:0,source:'preserved <- 42\\n# Scroll fixture source\\n'};
+          Object.defineProperty(HTMLImageElement.prototype,'src',{...descriptor,set(value){
+            if(typeof value==='string'&&value.startsWith('data:image/'))f.pending.push({image:this,value});else descriptor.set.call(this,value);
+          }});
+          f.send=event=>StatsDirectRConsole.receive({protocolVersion:1,sessionId:'scroll-fixture',generation:f.generation,seq:++f.seq,...event});
+          f.output=Array.from({length:150},(_,i)=>'Scroll fixture line '+i).join('\\n');
+          f.addPlot=()=>f.send({type:'plot',plotId:'delayed-'+f.generation,revision:3,mime:'image/svg+xml',label:'Delayed SVG',preview:'data:image/svg+xml;base64,'+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1800"><rect width="800" height="1800" fill="lightblue"/></svg>')});
+          f.begin=(plot=true,clear=true)=>{
+            getSelection().removeAllRanges();document.dispatchEvent(new Event('selectionchange'));
+            const input=document.getElementById('console-input'),log=document.getElementById('transcript');
+            input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));
+            if(clear){StatsDirectRConsole.clearOutput();log.scrollTop=log.scrollHeight;log.dispatchEvent(new Event('scroll'));}
+            f.generation++;f.seq=0;f.send({type:'session',script:f.source,capabilities:{openPlot:true,copyPlot:true}});
+            f.send({type:'state',state:'ready'});f.send({type:'output',stream:'stdout',text:f.output});if(plot)f.addPlot();
+          };
+          f.position=()=>document.getElementById('transcript').scrollTop;
+          f.gap=()=>{const log=document.getElementById('transcript');return log.scrollHeight-log.scrollTop-log.clientHeight;};
+          f.begin();
+        })()
+        """)
+        func frames() async throws {
+            _ = try await doc.web.callAsyncJavaScript("await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return true", arguments: [:], in: nil, contentWorld: .page)
+        }
+        func followEnd() async throws {
+            _ = try await evaluate(doc, "(()=>{const log=document.getElementById('transcript');log.scrollTop=0;log.dispatchEvent(new Event('scroll'));log.scrollTop=log.scrollHeight;log.dispatchEvent(new Event('scroll'));return true})()")
+            try await frames()
+        }
+        func begin() async throws -> Int {
+            _ = try await evaluate(doc, "window.__scrollFixture.begin(); true")
+            try await frames(); try await followEnd()
+            return try await pending()
+        }
+        func pending() async throws -> Int {
+            let index = try await evaluate(doc, "window.__scrollFixture.pending.length-1") as? Int ?? -1
+            guard index >= 0, try await evaluate(doc, "window.__scrollFixture.pending[\(index)].image.isConnected&&!window.__scrollFixture.pending[\(index)].image.hasAttribute('src')") as? Bool == true else {
+                throw NSError(domain: "RConsoleIntegration", code: 10, userInfo: [NSLocalizedDescriptionKey: "The scroll fixture did not retain a genuinely undecoded current SVG image"])
+            }
+            return index
+        }
+        func release(_ index: Int) async throws {
+            _ = try await doc.web.callAsyncJavaScript("const f=window.__scrollFixture,p=f.pending[index];f.descriptor.set.call(p.image,p.value);await p.image.decode();return true", arguments: ["index": index], in: nil, contentWorld: .page)
+            try await frames()
+        }
+        func result(_ source: String) async throws -> Bool { try await evaluate(doc, source) as? Bool == true }
+        try await frames(); try await followEnd()
+        let first = try await pending()
+        _ = try await evaluate(doc, "(()=>{const input=document.getElementById('console-input');input.value=Array.from({length:30},(_,i)=>'Unsent draft '+i).join('\\n');input.dispatchEvent(new Event('input',{bubbles:true}));return true})()")
+        try await release(first)
+        try check(try await result("window.__scrollFixture.gap()<=2&&document.getElementById('console-input').clientHeight>=140"),
+                  "a genuinely delayed SVG decode and multiline draft growth keep a following reader at the final console bottom")
+        try check(try await result("(()=>{const f=window.__scrollFixture,s=StatsDirectRConsole.snapshot(),card=document.querySelector('figure.plot');return s.script===f.source&&s.history.length===0&&card.dataset.plotId==='delayed-'+f.generation&&card.dataset.revision==='3'&&Array.from(card.querySelectorAll('button')).map(b=>b.textContent).join('|')==='Open chart|Copy chart'})()")
+                  && doc.rConsolePane == nil && bridge.messages.allSatisfy { !["submit", "inputReply"].contains($0["action"] as? String ?? "") },
+                  "scroll following preserves script, history, exact chart identity and Open/Copy controls without starting or submitting native R")
+        let upward = try await begin()
+        _ = try await evaluate(doc, "(()=>{const f=window.__scrollFixture,log=document.getElementById('transcript');log.scrollTop-=200;log.dispatchEvent(new Event('scroll'));f.before=f.position();return true})()")
+        try await release(upward)
+        try check(try await result("Math.abs(window.__scrollFixture.position()-window.__scrollFixture.before)<=2&&window.__scrollFixture.gap()>200"),
+                  "scrolling up before delayed chart decoding preserves the reader's chosen position")
+        let selected = try await begin()
+        _ = try await evaluate(doc, "(()=>{const f=window.__scrollFixture,range=document.createRange(),node=document.querySelector('.output-entry').firstChild;range.setStart(node,0);range.setEnd(node,19);getSelection().addRange(range);document.dispatchEvent(new Event('selectionchange'));f.selected=getSelection().toString();f.before=f.position();return true})()")
+        try await release(selected)
+        try check(try await result("getSelection().toString()===window.__scrollFixture.selected&&Math.abs(window.__scrollFixture.position()-window.__scrollFixture.before)<=2"),
+                  "delayed chart layout leaves selected transcript text and its reading position intact")
+        let pressed = try await begin()
+        _ = try await evaluate(doc, "(()=>{const f=window.__scrollFixture;document.querySelector('figure.plot').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:91,button:0,buttons:1}));f.before=f.position();return true})()")
+        try await release(pressed)
+        try check(try await result("Math.abs(window.__scrollFixture.position()-window.__scrollFixture.before)<=2"),
+                  "a held pointer prevents a delayed chart from moving the transcript underneath the press")
+        _ = try await evaluate(doc, "document.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:91,button:0,buttons:0}));true")
+        let detached = try await begin()
+        _ = try await evaluate(doc, "window.__scrollFixture.begin(false);true")
+        try await frames()
+        _ = try await evaluate(doc, "(()=>{const f=window.__scrollFixture,log=document.getElementById('transcript');log.scrollTop=100;log.dispatchEvent(new Event('scroll'));f.before=f.position();return true})()")
+        try await release(detached)
+        try check(try await result("!window.__scrollFixture.pending[\(detached)].image.isConnected&&Math.abs(window.__scrollFixture.position()-window.__scrollFixture.before)<=2&&document.querySelectorAll('figure.plot').length===0"),
+                  "a detached earlier SVG cannot scroll or restore a chart in the next console generation")
+        _ = try await evaluate(doc, "(()=>{const f=window.__scrollFixture;StatsDirectRConsole.clearOutput();f.send({type:'output',stream:'stdout',text:f.output});f.addPlot();return true})()")
+        try await frames(); try await release(try await pending())
+        try check(try await result("window.__scrollFixture.gap()<=2"),
+                  "Clear Output restores following for the next decoded chart after reading earlier lines")
+        _ = try await evaluate(doc, "(()=>{const log=document.getElementById('transcript');log.scrollTop=100;log.dispatchEvent(new Event('scroll'));window.__scrollFixture.begin(true,false);return true})()")
+        try await frames(); try await release(try await pending())
+        try check(try await result("window.__scrollFixture.gap()<=2"),
+                  "a new console generation follows its final chart even when the previous generation was scrolled up")
+        _ = try await evaluate(doc, "StatsDirectRConsole.setMode('script');document.getElementById('run').click();window.__scrollFixture.send({type:'state',state:'ready'});true")
+        try await frames()
+        try await wait("recorded Script submission in the worker-free fixture") { bridge.messages.filter { $0["action"] as? String == "submit" }.count == 1 }
+        try check(try await result("StatsDirectRConsole.snapshot().mode==='console'&&window.__scrollFixture.gap()<=2")
+                  && bridge.messages.first { $0["action"] as? String == "submit" }?["source"] as? String == "preserved <- 42\n# Scroll fixture source\n",
+                  "Script Run returns to Console at the bottom without hidden layout cancelling following")
+        _ = try await evaluate(doc, "(()=>{const f=window.__scrollFixture,log=document.getElementById('transcript');log.scrollTop=100;log.dispatchEvent(new Event('scroll'));f.before=f.position();StatsDirectRConsole.setMode('script');document.getElementById('run').click();f.send({type:'state',state:'ready'});return true})()")
+        try await frames()
+        try check(try await result("StatsDirectRConsole.snapshot().mode==='console'&&Math.abs(window.__scrollFixture.position()-window.__scrollFixture.before)<=2"),
+                  "Script Run preserves an intentionally earlier Console reading position")
+        _ = try await evaluate(doc, "(()=>{const f=window.__scrollFixture;Object.defineProperty(HTMLImageElement.prototype,'src',f.descriptor);document.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,pointerId:91}));getSelection().removeAllRanges();delete window.__scrollFixture;return true})()")
     }
 
     @MainActor static func graphicsDeviceChecks(_ viewer: Viewer) async throws {
         let doc = viewer.makeRConsole(title: "Graphics device checks"), pane = doc.rConsolePane!
         defer { pane.shutdown() }
+        try await makeConsoleVisible(viewer, doc)
         try await ready(doc)
         guard let directory = pane.session.workingDirectory else { throw CocoaError(.fileNoSuchFile) }
         sessionFolders.append(directory)

@@ -46,6 +46,35 @@ test('restored console history recalls commands while new commands append exactl
   assert.equal(model.script, script + next + '\n');
 });
 
+test('recovery recalls executed multiline batches once while preserving authoritative edited source', () => {
+  const selectedScript = '# Run selection\n  x <- c(1, 2, 3)\n\nmean(x)\n';
+  const continued = '# Continue in R\nresult <- t.test(x)\nprint(result)\n';
+  const authored = '# Unexecuted edits before recovery\n' + selectedScript + continued + entered + '\nnever_run()\n';
+  const events = [
+    event('inputEcho', 1, {origin: 'console', text: entered, prompt: '> '}),
+    event('inputEcho', 2, {origin: 'script', text: selectedScript, prompt: '> '}),
+    event('inputEcho', 3, {origin: 'input', text: 'private answer', prompt: 'Name? '}),
+    event('inputEcho', 4, {origin: 'continueInR', text: continued, prompt: '> '}),
+    event('inputEcho', 5, {origin: 'internal', text: 'initialise_bridge()', prompt: '> '}),
+    event('state', 6, {state: 'ready', prompt: '> '})
+  ];
+  let source = authored;
+  for (let reload = 0; reload < 3; reload++) {
+    const model = new ConsoleModel();
+    assert.equal(model.receive(event('session', 0, {script: source, events})), true);
+    assert.equal(model.script, authored, 'native authoritative edits are not reconstructed from history');
+    assert.deepEqual(model.history, [entered, selectedScript, continued]);
+    assert.equal(model.navigateHistory(-1, 'unfinished draft'), continued);
+    assert.equal(model.navigateHistory(-1, ''), selectedScript);
+    assert.equal(model.navigateHistory(-1, ''), entered);
+    assert.equal(model.navigateHistory(1, ''), selectedScript);
+    assert.equal(model.navigateHistory(1, ''), continued);
+    assert.equal(model.navigateHistory(1, ''), 'unfinished draft');
+    assert.equal(model.entries.filter(entry => entry.kind === 'input').length, 5, 'recovery retains answers and internal transcript entries as data');
+    source = model.script;
+  }
+});
+
 test('optional file notice metadata survives live output and renderer recovery', () => {
   const model = restore(new ConsoleModel());
   const filePath = 'C:\\R output\\résumé #1.txt', label = 'résumé #1.txt';

@@ -86,9 +86,50 @@ test('readline answers never enter script or command history; console commands r
   emit('inputEcho', {text: 'Alice', origin: 'input', prompt: 'Name? '});
   emit('inputEcho', {text: '', origin: 'input', prompt: 'Anything else? '});
   assert.equal(model.script, source + 'mean(before)\n');
-  assert.deepEqual(model.history, ['mean(before)']);
+  assert.deepEqual(model.history, [source, 'mean(before)']);
   assert.equal(model.navigateHistory(-1, 'draft <- 3'), 'mean(before)');
   assert.equal(model.navigateHistory(1, 'ignored'), 'draft <- 3');
+});
+
+test('executed Script and Continue in R batches recall whole multiline submissions without duplicating Script', () => {
+  const batch = '# Selected paired analysis\n  before <- c(1, 2, 3)\n\nmean(before)\n';
+  const authored = '# Unexecuted introduction\n' + batch + 'never_run <- stop("not selected")\n';
+  for (const origin of ['script', 'continueInR']) {
+    const model = new ConsoleModel(), emit = session(model, 0, origin, authored);
+    emit('state', {state: 'ready'});
+    assert.deepEqual(model.history, [], 'loading authored source does not add history');
+    const request = model.submission(batch, origin);
+    assert.equal(request.source, batch);
+    assert.equal(request.origin, origin);
+    assert.deepEqual(model.history, [], 'sending source does not claim native execution');
+    emit('inputEcho', {text: batch, origin, prompt: '> '});
+    emit('state', {state: 'ready'});
+    assert.deepEqual(model.history, [batch], 'only the executed selection is recalled');
+    assert.equal(model.script, authored, 'an executed batch does not append to its editable source');
+    const draft = 'unfinished <- c(\n  4, 5\n)';
+    assert.equal(model.navigateHistory(-1, draft), batch, 'recall preserves comments, indentation and blank lines');
+    assert.equal(model.navigateHistory(-1, ''), batch, 'Up stays on the oldest batch');
+    assert.equal(model.navigateHistory(1, ''), draft, 'Down restores the unsent multiline draft');
+    emit('inputEcho', {text: batch, origin, prompt: '> '});
+    assert.deepEqual(model.history, [batch], 'consecutive repeated batches occupy one history entry');
+    assert.equal(model.script, authored);
+  }
+});
+
+test('answers, internal echoes and unexecuted source never become executable history', () => {
+  const authored = 'unexecuted <- stop("source only")\n';
+  const model = new ConsoleModel(), emit = session(model, 0, 'excluded-origins', authored);
+  emit('state', {state: 'ready'});
+  for (const origin of ['input', 'replay', 'internal', 'startup']) {
+    emit('inputEcho', {text: `not_a_command_from_${origin}`, origin, prompt: 'Answer? '});
+  }
+  for (const origin of ['script', 'continueInR']) emit('inputEcho', {text: ' \n\t ', origin});
+  emit('output', {text: 'printed_code()', origin: 'console'});
+  emit('notice', {text: 'instruction_only()', origin: 'script'});
+  assert.deepEqual(model.history, []);
+  assert.equal(model.navigateHistory(-1, 'unsent()'), null);
+  assert.equal(model.script, authored);
+  assert.equal(model.entries.some(entry => entry.text === 'not_a_command_from_input'), true, 'answers remain visible as transcript data');
 });
 
 test('plot revisions are immutable and preview URIs cannot load a page or external resource', () => {

@@ -19,9 +19,16 @@ console and runs it once. Existing Script/C#/VB functionality remains available.
 
 - Enter runs a command; Shift+Enter inserts a line. Up/Down recalls history.
 - Commands, text output and charts share one scrolling transcript. The toolbar
-  and input prompt stay visible.
+  and input prompt stay visible. Following the end survives chart decoding,
+  multiline input growth and window resizing. Reading earlier output, selecting
+  text or holding a pointer pauses following; Clear Output/new sessions restore
+  it. Script/Console switches retain the reader's position.
 - Script shows accumulated executable commands, supports editing, Run selection
   or Run all, and Save R Script. Console and Script use the same R workspace.
+  Executed Script and Continue in R batches enter Up/Down recall intact, without
+  duplicating Script source. Unexecuted source and prompt answers stay out of
+  executable history. Renderer recovery restores recorded origins and history
+  before applying the exact current edited Script; it never executes a replay.
 - `readline()` and menu questions accept real answers; answers are not added to
   executable source or command history.
 - Stop interrupts without sending a blank answer or EOF. Completed assignments
@@ -83,7 +90,15 @@ this first prototype.
   source retention, both native continuation styles and exact plot revisions.
 - `Scripts/test-r-console-integration.sh`: live WebKit/native-worker integration,
   including renderer recovery, input rejection, Restart, original inline SVG,
-  SVG/PNG clipboard representations and vector chart opening/copying.
+  SVG/PNG clipboard representations and vector chart opening/copying. The
+  scrolling/history adoption passed the full suite on 31 October 2026 (84 pass
+  results), including genuinely delayed SVG decoding, multiline draft layout,
+  upscroll/selection/pointer preservation, detached-image rejection,
+  Clear/new-session following and both Script/Console reading positions. Actual
+  R counters prove renderer recovery reruns no executed batch or unexecuted edit.
+- `Tests/r-console-ui.test.mjs` and `Tests/r-console-recovery.test.mjs`: 15 model
+  checks passed, including whole multiline execution recall and exact source
+  preservation during repeated recovery.
 - Manual app checks: paired t-test with inline charts, interactive question,
   Stop without accepting an answer, retained variables, AI dock/focus return,
   real chart-button clicks and wheel scrolling over the prompt.
@@ -91,7 +106,19 @@ this first prototype.
 Only focused console checks are needed here: the calculation engine is unchanged
 and the frozen signing candidate already passed its release CI.
 
-Windows coordination: `iain-buchan/statsdirect`, branch
-`prototype/interactive-r-console`, commit `7e55acb52658d0a7ef019db750ffa4599904b739`.
-Windows reported 82 focused checks passing, with identical shared UI assets from
-Mac commit `25d0341`. Windows main and its released installers remain unchanged.
+Rendered UI checks require a visible native test window. WebKit can accept model
+events while suspending animation frames in a hidden/occluded page; the runner
+now requires visibility before interacting with controls and records diagnostics
+on failure. On this Mac, activating the test window through computer use allowed
+the complete suite to run. `--scroll-only` and `--history-only` select focused
+subsets. `STATSDIRECT_KEEP_CONSOLE_TEST_APP=1` retains the disposable test bundle
+for diagnosis; normal runs remove it, and the retained local bundle was removed
+after verification.
+
+Windows coordination: the scrolling/history update comes from
+`iain-buchan/statsdirect` main commit
+`7eab958252a9be691fc02d56bc1acf89baca5e25`. The adopted `console.js` is byte-identical
+to Windows blob `0416d8bbe5fa4f9d59fa53466dd414d27da12780`; both Open chart and Copy
+chart card buttons remain. Windows reported 121 native checks and 13 model checks
+passing. The Mac adoption also includes the Mac host's renderer-recovery envelope
+fix and its own WebKit/R checks. It does not change Windows sources or installers.

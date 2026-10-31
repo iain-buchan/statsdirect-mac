@@ -17,6 +17,12 @@ multiline draft scrolls within its input first, then forwards at its directional
 boundary. Pixel, line and page wheel deltas are supported; horizontal gestures,
 modifier/zoom gestures and the separate Script editor keep their native behavior.
 Scrolling does not change the draft, focus or command history.
+The transcript keeps following the end while chart images decode, the input
+grows or the window resizes. Scrolling back, selecting transcript text or holding
+a pointer pauses that following; returning to the end resumes it. Clear Output
+and a new session restore following. Image callbacks from replaced transcripts
+cannot scroll the current view. Switching through Script retains the reader's
+position in Console.
 
 The shared console uses semantic CSS colour properties for readable R roles:
 `--r-code: #0645ad` for entered code, prompts, readline answers and both editors;
@@ -86,7 +92,9 @@ The host echoes accepted submissions; the page never pretends execution happened
 merely because an action was sent. Use **origin `input` for human answers**, so
 answers do not become executable source or command history. Continuation source
 lines should use origin `console`. Console command echoes append to the Script;
-script/Continue-in-R echoes do not duplicate the existing source.
+script/Continue-in-R echoes do not duplicate the existing source. Echoes from
+all three execution origins enter Up/Down history as complete submitted batches;
+unexecuted source, human answers and internal echoes do not.
 
 `state:'ready'` is authoritative after R has unwound. Do not translate Busy(false)
 or `commandFinished` alone into top-level readiness. A matching input request is

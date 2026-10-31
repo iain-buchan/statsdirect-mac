@@ -48,8 +48,10 @@
         case 'inputEcho': {
           const source = text(event.text), origin = text(event.origin) || 'console';
           this.entries.push({kind: 'input', text: source, prompt: typeof event.prompt === 'string' ? event.prompt : '> ', origin, commandId: event.commandId || null});
+          // Recall submitted Script/Continue in R batches too, without
+          // duplicating their existing source in the editable Script.
+          if (['console', 'script', 'continueInR'].includes(origin) && source.trim()) this.remember(source);
           if (origin === 'console' && source.trim()) {
-            this.remember(source);
             this.script += (this.script && !this.script.endsWith('\n') ? '\n' : '') + source + (source.endsWith('\n') ? '' : '\n');
           }
           this.trim(); break;
@@ -135,6 +137,37 @@
   const byId = id => doc.getElementById(id), input = byId('console-input'), script = byId('script-source'), transcript = byId('transcript');
   let scheduled = false, renderingScript = false, focusAfterRender = false, transcriptDirty = true;
   const transcriptPointers = new Set();
+  let followEnd = true, lastTranscriptTop = 0, transcriptVersion = 0, followScheduled = false, followVersion = 0;
+  function selectingTranscript() {
+    const range = global.getSelection();
+    return !!range?.rangeCount && !range.isCollapsed && transcript.contains(range.anchorNode);
+  }
+  function trackTranscriptScroll() {
+    if (!transcript.clientHeight) return;
+    const top = transcript.scrollTop;
+    if (top < lastTranscriptTop || selectingTranscript() || transcriptPointers.size) followEnd = false;
+    else if (top > lastTranscriptTop && transcript.scrollHeight - top - transcript.clientHeight < 45) followEnd = true;
+    lastTranscriptTop = top;
+  }
+  function resetTranscriptFollow() {
+    if (selectingTranscript()) global.getSelection().removeAllRanges();
+    followEnd = true; lastTranscriptTop = transcript.scrollTop;
+  }
+  function followTranscriptEnd(version = transcriptVersion) {
+    if (version !== transcriptVersion || !followEnd) return;
+    followVersion = version;
+    if (followScheduled) return;
+    followScheduled = true;
+    global.requestAnimationFrame(() => {
+      followScheduled = false;
+      if (followVersion !== transcriptVersion || !followEnd || !transcript.clientHeight || selectingTranscript() || transcriptPointers.size) return;
+      // A user's scroll can precede its scroll event. Image growth alone must
+      // not turn off following just because the new bottom is farther away.
+      if (transcript.scrollTop < lastTranscriptTop) { trackTranscriptScroll(); return; }
+      transcript.scrollTop = transcript.scrollHeight;
+      lastTranscriptTop = transcript.scrollTop;
+    });
+  }
   function post(message) {
     const handler = global.webkit?.messageHandlers?.statsDirectRConsole;
     if (handler) { handler.postMessage(message); return true; }
@@ -148,12 +181,12 @@
   function schedule() { if (!scheduled) { scheduled = true; global.requestAnimationFrame(() => {scheduled = false; render();}); } }
   function element(tag, className, value) { const node = doc.createElement(tag); if (className) node.className = className; if (value !== undefined) node.textContent = value; return node; }
   function render() {
-    const atEnd = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 45;
-    const range = global.getSelection();
-    const selecting = !!range?.rangeCount && !range.isCollapsed && transcript.contains(range.anchorNode);
+    trackTranscriptScroll();
+    const selecting = selectingTranscript();
     // Keep copied text selected and keep a pressed plot button alive until its click.
     // Control, focus and selection changes alone must not replace transcript nodes.
     if (transcriptDirty && !selecting && !transcriptPointers.size) {
+      const version = ++transcriptVersion;
       const fragment = doc.createDocumentFragment();
       if (model.trimmed) fragment.append(element('p', 'notice', 'Earlier output is omitted from this view. Your R script is retained.'));
       if (!model.entries.length) fragment.append(element('p', 'notice', model.sessionId ? 'Enter R commands below, or switch to Script.' : 'An interactive R session will start here.'));
@@ -175,7 +208,11 @@
         else if (entry.kind === 'plot') {
           const figure = element('figure', 'plot');
           figure.dataset.plotId = entry.plotId; figure.dataset.revision = entry.revision;
-          if (entry.preview) { const image = element('img'); image.src = entry.preview; image.alt = entry.label; figure.append(image); }
+          if (entry.preview) {
+            const image = element('img');
+            image.addEventListener('load', () => {if (image.isConnected) followTranscriptEnd(version);}, {once: true});
+            image.src = entry.preview; image.alt = entry.label; figure.append(image);
+          }
           figure.append(element('figcaption', '', entry.label));
           const actions = element('div', 'plot-actions');
           if (model.capabilities.openPlot) { const open = element('button', '', entry.mime === 'application/pdf' ? 'Open vector PDF' : 'Open chart'); open.type = 'button'; open.onclick = () => {const request = model.plotAction('openPlot', entry); if (request) post(request);}; actions.append(open); }
@@ -185,7 +222,7 @@
       }
       transcript.replaceChildren(fragment);
       transcriptDirty = false;
-      if (atEnd) transcript.scrollTop = transcript.scrollHeight;
+      lastTranscriptTop = transcript.scrollTop;
     }
     if (script.value !== model.script && doc.activeElement !== script) { renderingScript = true; script.value = model.script; renderingScript = false; }
     input.disabled = !model.acceptsInput(); byId('prompt').textContent = model.prompt;
@@ -205,7 +242,14 @@
       if (model.mode === 'console' && !input.disabled && !selecting && doc.hasFocus() && [doc.body, input, byId('run'), byId('stop'), byId('restart')].includes(focused)) input.focus({preventScroll: true});
     }
   }
-  function sizeInput() { input.style.height = 'auto'; input.style.height = Math.min(150, Math.max(26, input.scrollHeight)) + 'px'; }
+  function sizeInput() {
+    trackTranscriptScroll();
+    input.style.height = 'auto'; input.style.height = Math.min(150, Math.max(26, input.scrollHeight)) + 'px';
+    lastTranscriptTop = transcript.scrollTop;
+    followTranscriptEnd();
+  }
+  transcript.addEventListener('scroll', trackTranscriptScroll, {passive: true});
+  global.addEventListener('resize', () => {lastTranscriptTop = transcript.scrollTop; followTranscriptEnd();});
   input.parentElement.addEventListener('wheel', event => {
     if (model.mode !== 'console' || event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey || !Number.isFinite(event.deltaY) || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
     // A long draft scrolls normally inside the textarea until its directional
@@ -221,11 +265,14 @@
     const delta = event.deltaY * scale, previous = transcript.scrollTop;
     if (!Number.isFinite(delta) || !delta) return;
     transcript.scrollTop += delta;
+    trackTranscriptScroll();
     if (transcript.scrollTop !== previous) event.preventDefault();
   }, {passive: false});
   function mode(value) {
+    trackTranscriptScroll();
     model.mode = value;
     byId('console-panel').hidden = value !== 'console'; byId('script-panel').hidden = value !== 'script';
+    lastTranscriptTop = transcript.scrollTop;
     for (const name of ['console', 'script']) { const tab = byId(name + '-tab'); tab.setAttribute('aria-selected', String(name === value)); tab.tabIndex = name === value ? 0 : -1; }
     send('modeChanged', {mode: value}); render(); (value === 'script' ? script : input).focus();
   }
@@ -268,25 +315,31 @@
       event.preventDefault(); byId('stop').click();
     }
   });
-  transcript.addEventListener('pointerdown', event => {transcriptPointers.add(event.pointerId);});
+  transcript.addEventListener('pointerdown', event => {transcriptPointers.add(event.pointerId); followEnd = false;});
   function releaseTranscriptPointer(event) {
-    if (transcriptPointers.delete(event.pointerId) && !transcriptPointers.size && transcriptDirty) schedule();
+    if (!transcriptPointers.delete(event.pointerId) || transcriptPointers.size) return;
+    if (!selectingTranscript() && transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 45) followEnd = true;
+    if (transcriptDirty) schedule();
   }
   // The RAF runs after pointerup's click, so output arriving during a press cannot
   // detach the clicked button between its physical pointerdown and click events.
   doc.addEventListener('pointerup', releaseTranscriptPointer);
   doc.addEventListener('pointercancel', releaseTranscriptPointer);
-  doc.addEventListener('selectionchange', () => {if (transcriptDirty && global.getSelection()?.isCollapsed) schedule();});
+  doc.addEventListener('selectionchange', () => {
+    if (selectingTranscript()) followEnd = false;
+    if (transcriptDirty && global.getSelection()?.isCollapsed) schedule();
+  });
   global.StatsDirectRConsole = {
     receive(event) {
       const previousSource = model.script;
       if (!model.receive(event)) return false;
+      if (event.type === 'session') resetTranscriptFollow();
       if (['session', 'inputEcho', 'output', 'plot', 'notice', 'exited', 'capabilities'].includes(event.type)) transcriptDirty = true;
       if (previousSource !== model.script && event.type === 'inputEcho') send('scriptChanged', {source: model.script});
       if (event.type === 'inputRequested' || event.type === 'state' && ['ready', 'continuation', 'input'].includes(event.state)) focusAfterRender = true;
       schedule(); return true;
     },
-    clearOutput() { model.entries = []; model.plotKeys.clear(); model.trimmed = false; transcriptDirty = true; render(); },
+    clearOutput() { model.entries = []; model.plotKeys.clear(); model.trimmed = false; transcriptDirty = true; resetTranscriptFollow(); render(); },
     snapshot: () => model.snapshot(),
     focusInput() { if (model.mode !== 'console') mode('console'); if (!input.disabled) input.focus(); },
     setMode: mode,

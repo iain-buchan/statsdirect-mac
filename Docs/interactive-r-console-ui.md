@@ -112,3 +112,8 @@ Run the meaningful model regression tests with:
 ```sh
 node --test Tests/r-console-ui.test.mjs
 ```
+
+Transcript rendering preserves existing controls across focus and selection changes.
+New output waits while a transcript pointer is held down, then refreshes after
+the click. Native integration tests retain the original button reference through
+selection-change animation frames and real R output during a pointer press.

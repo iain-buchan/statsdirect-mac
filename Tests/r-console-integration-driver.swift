@@ -229,7 +229,15 @@ import PDFKit
         try check(PDFDocument(data: originalPDF)?.pageCount == 1 && !(previewPNG?.isEmpty ?? true)
                   && (previewBitmap?.pixelsWide ?? 0) > 0 && (previewBitmap?.pixelsHigh ?? 0) > 0,
                   "inline chart maps to its original vector PDF and a valid nonempty PNG preview")
-        _ = try await evaluate(doc, "document.querySelector('figure.plot button').click(); true")
+        let survivesFocus = try await doc.web.callAsyncJavaScript("""
+        const button = document.querySelector('figure.plot button');
+        window.__rConsoleFocusOpen = button;
+        button.focus(); document.dispatchEvent(new Event('selectionchange'));
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return button.isConnected && document.querySelector('figure.plot button') === button;
+        """, arguments: [:], in: nil, contentWorld: .page) as? Bool == true
+        try check(survivesFocus, "focusing a chart action and changing selection preserves the original clickable DOM node")
+        _ = try await evaluate(doc, "window.__rConsoleFocusOpen.click(); delete window.__rConsoleFocusOpen; true")
         try await wait("the native vector PDF window") { vectorWindows().count == 1 }
         let vectorWindow = vectorWindows()[0]
         defer { vectorWindow.performClose(nil) }
@@ -245,7 +253,34 @@ import PDFKit
         let firstStillOriginal = try await copyPlot(0), updatedPDF = try await copyPlot(1)
         try check(firstStillOriginal == originalPDF && updatedPDF != originalPDF && PDFDocument(data: updatedPDF)?.pageCount == 1,
                   "plot then abline creates a new inline snapshot while earlier charts retain their original PDF mapping")
-        _ = try await evaluate(doc, "document.querySelector('figure.plot button').click(); true")
+        let pointerGate = pane.session.workingDirectory!.appendingPathComponent("pointer-output-gate")
+        try await console(doc, "cat('POINTER_READY\\n'); while (!file.exists('pointer-output-gate')) Sys.sleep(0.02); cat('POINTER_OUTPUT\\n')")
+        try await wait("R waiting to emit output during a chart click") {
+            (try await renderedOutput(doc)).contains("POINTER_READY\n")
+        }
+        _ = try await evaluate(doc, """
+        (() => {
+          const button = document.querySelector('figure.plot button');
+          window.__rConsolePointerOpen = button;
+          button.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true, pointerId:71, button:0, isPrimary:true}));
+          button.focus(); document.dispatchEvent(new Event('selectionchange')); return true;
+        })()
+        """)
+        try Data("go".utf8).write(to: pointerGate, options: .atomic)
+        try await expectOutput(doc, "POINTER_OUTPUT\n")
+        let survivesOutput = try await doc.web.callAsyncJavaScript("""
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const button = window.__rConsolePointerOpen;
+        return button.isConnected && document.querySelector('figure.plot button') === button;
+        """, arguments: [:], in: nil, contentWorld: .page) as? Bool == true
+        try check(survivesOutput, "real R output arriving during pointer-down preserves the original chart action until pointer-up")
+        _ = try await evaluate(doc, """
+        (() => {
+          const button = window.__rConsolePointerOpen;
+          button.dispatchEvent(new PointerEvent('pointerup', {bubbles:true, pointerId:71, button:0, isPrimary:true}));
+          button.click(); delete window.__rConsolePointerOpen; return true;
+        })()
+        """)
         try await wait("the reused native vector PDF window") { vectorWindow.isKeyWindow }
         try check(vectorWindows().count == 1 && vectorWindows().first === vectorWindow
                   && vectorBytes(vectorWindow) == originalPDF,

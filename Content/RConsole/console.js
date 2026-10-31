@@ -132,7 +132,8 @@
 
   const doc = global.document, model = new ConsoleModel();
   const byId = id => doc.getElementById(id), input = byId('console-input'), script = byId('script-source'), transcript = byId('transcript');
-  let scheduled = false, renderingScript = false, focusAfterRender = false;
+  let scheduled = false, renderingScript = false, focusAfterRender = false, transcriptDirty = true;
+  const transcriptPointers = new Set();
   function post(message) {
     const handler = global.webkit?.messageHandlers?.statsDirectRConsole;
     if (handler) { handler.postMessage(message); return true; }
@@ -141,7 +142,7 @@
   }
   function send(action, fields) { return post(model.envelope(action, fields)); }
   function showBridgeFailure(previousState) {
-    model.state = previousState; model.notice('Open this console inside StatsDirect to run R.'); render();
+    model.state = previousState; model.notice('Open this console inside StatsDirect to run R.'); transcriptDirty = true; render();
   }
   function schedule() { if (!scheduled) { scheduled = true; global.requestAnimationFrame(() => {scheduled = false; render();}); } }
   function element(tag, className, value) { const node = doc.createElement(tag); if (className) node.className = className; if (value !== undefined) node.textContent = value; return node; }
@@ -149,8 +150,9 @@
     const atEnd = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 45;
     const range = global.getSelection();
     const selecting = !!range?.rangeCount && !range.isCollapsed && transcript.contains(range.anchorNode);
-    // A user copying a result keeps their selection while more output arrives.
-    if (!selecting) {
+    // Keep copied text selected and keep a pressed plot button alive until its click.
+    // Control, focus and selection changes alone must not replace transcript nodes.
+    if (transcriptDirty && !selecting && !transcriptPointers.size) {
       const fragment = doc.createDocumentFragment();
       if (model.trimmed) fragment.append(element('p', 'notice', 'Earlier output is omitted from this view. Your R script is retained.'));
       if (!model.entries.length) fragment.append(element('p', 'notice', model.sessionId ? 'Enter R commands below, or switch to Script.' : 'An interactive R session will start here.'));
@@ -171,6 +173,7 @@
         }
       }
       transcript.replaceChildren(fragment);
+      transcriptDirty = false;
       if (atEnd) transcript.scrollTop = transcript.scrollHeight;
     }
     if (script.value !== model.script && doc.activeElement !== script) { renderingScript = true; script.value = model.script; renderingScript = false; }
@@ -237,11 +240,20 @@
       event.preventDefault(); byId('stop').click();
     }
   });
-  doc.addEventListener('selectionchange', () => {if (global.getSelection()?.isCollapsed) schedule();});
+  transcript.addEventListener('pointerdown', event => {transcriptPointers.add(event.pointerId);});
+  function releaseTranscriptPointer(event) {
+    if (transcriptPointers.delete(event.pointerId) && !transcriptPointers.size && transcriptDirty) schedule();
+  }
+  // The RAF runs after pointerup's click, so output arriving during a press cannot
+  // detach the clicked button between its physical pointerdown and click events.
+  doc.addEventListener('pointerup', releaseTranscriptPointer);
+  doc.addEventListener('pointercancel', releaseTranscriptPointer);
+  doc.addEventListener('selectionchange', () => {if (transcriptDirty && global.getSelection()?.isCollapsed) schedule();});
   global.StatsDirectRConsole = {
     receive(event) {
       const previousSource = model.script;
       if (!model.receive(event)) return false;
+      if (['session', 'inputEcho', 'output', 'plot', 'notice', 'exited', 'capabilities'].includes(event.type)) transcriptDirty = true;
       if (previousSource !== model.script && event.type === 'inputEcho') send('scriptChanged', {source: model.script});
       if (event.type === 'inputRequested' || event.type === 'state' && ['ready', 'continuation', 'input'].includes(event.state)) focusAfterRender = true;
       schedule(); return true;

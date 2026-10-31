@@ -311,7 +311,8 @@ import WebKit
     @objc func hide() {
         guard visible else { return };saveChoices();stop();dockWidth=view.frame.width;visible=false
         view.removeFromSuperview();viewer.workspaceSplit.adjustSubviews()
-        if let doc=viewer.active, let pane=doc.rPane { viewer.window.makeFirstResponder(pane.editor) }
+        if let doc=viewer.active, let pane=doc.rConsolePane { pane.focusInput() }
+        else if let doc=viewer.active, let pane=doc.rPane { viewer.window.makeFirstResponder(pane.editor) }
         else if let doc=viewer.active, doc.kind=="report" { viewer.window.makeFirstResponder(doc.web) }
     }
     @objc func newConversation() {

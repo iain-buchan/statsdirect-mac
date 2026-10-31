@@ -16,6 +16,7 @@ final class Document {
     /// The file the document was opened from or last saved to, shown as its tab's tooltip (as the Windows tabs do).
     var savedPath: String? { (openedFileURL ?? reportSourceURL)?.path }
     var rPane: RPane?
+    var rConsolePane: RConsolePane?
     var gridDirty = false
     var gridVersion = 0
     var workbookID: String?
@@ -259,7 +260,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         finishedLaunching = true
         let requested = pendingOpenURLs; pendingOpenURLs = []
         openDocumentURLs(requested)
-        startUpdateChecks()
+        if InteractiveRConsolePrototype.enabled { makeRConsole() }
+        else { startUpdateChecks() }
     }
     @objc func showDropdown(_ sender: NSButton) {
         guard let title = sender.identifier?.rawValue,
@@ -293,6 +295,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(file, "New Worksheet", #selector(newWorksheet), "n")
         add(file, "New Report", #selector(newReport))
         add(file, "New Script", #selector(newRTab), "r")
+        if InteractiveRConsolePrototype.enabled { add(file, "New R Console (Prototype)", #selector(newRConsolePrototype), "") }
         file.addItem(.separator())
         add(file, "Open…", #selector(openFile), "o")
         addRecentDocumentsMenu(to: file)
@@ -422,7 +425,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     /// A tab's caption follows its document's name and its tooltip the file's path, as the Windows tabs do (c01cb8f).
     func retitleDocument(_ doc: Document, _ title: String) {
         doc.title = title; doc.item.label = title
-        if doc.kind == "r" { doc.rPane?.scriptName = title }
+        if doc.kind == "r" { doc.rPane?.scriptName = title; doc.rConsolePane?.scriptName = title }
         updateWindowMenu()
         if active === doc { window.title = "\(title) · StatsDirect" }
     }
@@ -589,6 +592,11 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             alert.informativeText = "Unsaved counts and labels will be discarded. Use Save Table to keep a CSV copy. Reports remain open."
             alert.addButton(withTitle: "Close Table"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
+        } else if let pane = doc.rConsolePane, pane.hasUnsavedChanges || pane.hasWorkspace || pane.isBusy {
+            let alert = NSAlert(); alert.messageText = "Close this R console?"
+            alert.informativeText = "Unsaved script edits and R variables will be discarded. Save the script first to keep your commands."
+            alert.addButton(withTitle: "Close R Console"); alert.addButton(withTitle: "Cancel")
+            alert.beginSheetModal(for: window) { response in if response == .alertFirstButtonReturn { self.remove(doc) } }
         } else if let pane = doc.rPane, pane.hasUnsavedChanges || pane.isRunning {
             let alert = NSAlert(); alert.messageText = pane.language == "R" ? "Close this R session?" : "Close this script?"
             alert.informativeText = pane.language == "R" ? "Unsaved script edits and R variables will be discarded. Any running script will stop." : "Unsaved script edits will be discarded. A running script will be asked to cancel at its next engine checkpoint."
@@ -613,6 +621,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         doc.learningRequestID = nil; doc.learningTask?.cancel(); doc.learningTask = nil
         doc.learningResourceTask?.cancel(); doc.learningResourceTask = nil
         doc.rPane?.shutdown()
+        doc.rConsolePane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }
         scriptAI.documentClosed(doc)
         tabs.removeTabViewItem(doc.item)
@@ -664,6 +673,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         saveDocument()
     }
     @objc func saveDocument() {
+        if let pane = active?.rConsolePane { pane.saveScript(); return }
         if let pane = active?.rPane { pane.saveScript(); return }
         guard let doc = active else { return }
         if doc.kind == "learn" { doc.web.evaluateJavaScript("window.statsDirectLearn?.exportRecord()"); return }
@@ -732,7 +742,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if documents.contains(where: { $0.fileBusy }) { showError("Please wait for the file save to finish."); return .terminateCancel }
         if running { showError("Please wait for the running analysis to finish, or cancel it from its form."); return .terminateCancel }
         if closeApproved { return .terminateNow }
-        if documents.contains(where: { $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true || $0.gridDirty || $0.reportDirty || $0.analysisJobID != nil }) {
+        if documents.contains(where: { $0.rConsolePane?.hasUnsavedChanges == true || $0.rConsolePane?.hasWorkspace == true || $0.rConsolePane?.isBusy == true || $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true || $0.gridDirty || $0.reportDirty || $0.analysisJobID != nil }) {
             let alert = NSAlert(); alert.messageText = "Quit with unsaved work?"
             alert.informativeText = "Unsaved report, worksheet and R script edits will be lost. Open analyses and R sessions will stop."
             alert.addButton(withTitle: "Quit"); alert.addButton(withTitle: "Cancel")
@@ -740,7 +750,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         return .terminateNow
     }
-    func applicationWillTerminate(_ notification: Notification) { helpPane.shutdown(); calculatorPane.shutdown(); scriptAI.shutdown(); if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }; RInstaller.shared.shutdown(); chatGPTTutor.runtime?.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
+    func applicationWillTerminate(_ notification: Notification) { helpPane.shutdown(); calculatorPane.shutdown(); scriptAI.shutdown(); if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }; RInstaller.shared.shutdown(); chatGPTTutor.runtime?.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown(); doc.rConsolePane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 MainActor.assumeIsolated {

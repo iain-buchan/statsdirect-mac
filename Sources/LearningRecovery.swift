@@ -3,6 +3,7 @@ import WebKit
 
 extension Viewer {
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        if let pane = document(for: webView)?.rConsolePane { pane.load(); return }
         guard let doc = document(for:webView), doc.kind == "learn" else { return }
         doc.learningRendererReady = false; doc.learningNeedsRecovery = true
         // The host retains portfolio state and the latest reply event. A reply can

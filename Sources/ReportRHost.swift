@@ -200,6 +200,13 @@ extension Viewer {
         catch { await reader.close(); throw error }
     }
     func openReportInR(text: String, title: String, operation: String? = nil, helpPath: String? = nil) {
+        if InteractiveRConsolePrototype.enabled {
+            let doc = makeRConsole(script: text, title: title, saved: true, autoRun: true)
+            doc.operationName = operation
+            if let helpPath { doc.followOnDefinition = ["help": helpPath] }
+            status.stringValue = "R console from " + title
+            return
+        }
         let doc = makeRScript(script: text, title: title, saved: true)
         doc.operationName = operation
         if let helpPath { doc.followOnDefinition = ["help": helpPath] }

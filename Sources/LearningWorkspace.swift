@@ -50,7 +50,11 @@ import WebKit
             if !reused { viewer.aiSharing.shareDocument=true;viewer.aiSharing.shareWorkbook = !dataIDs.isEmpty }
             allowed = Set(candidates.map(\.id))
             for doc in candidates {
-                if let pane=doc.rPane {
+                if let pane=doc.rConsolePane {
+                    let source=pane.sourceText, output=pane.outputText
+                    rSource += source + "\n\n"
+                    scriptSnapshots[doc.id] = ["title":doc.title,"kind":"script","language":"R","script":String(source.prefix(12000)),"output":String(output.suffix(16000)),"truncated":source.count > 12000 || output.count > 16000,"running":pane.isBusy,"snapshot":true]
+                } else if let pane=doc.rPane {
                     if pane.language == "R" { rSource += pane.editor.string + "\n\n" }
                     scriptSnapshots[doc.id] = ["title":doc.title,"kind":"script","language":pane.language,"script":String(pane.editor.string.prefix(12000)),"output":String(pane.console.string.suffix(16000)),"truncated":pane.editor.string.count > 12000 || pane.console.string.count > 16000,"running":pane.isRunning,"snapshot":true]
                 }

@@ -17,11 +17,14 @@ import Cocoa
     private(set) var rData = ""
     private let active: () -> Bool
     init(viewer: Viewer, script: Document?, workbook: Document?, report: Document? = nil, reportResultID: String? = nil, active: @escaping () -> Bool) {
-        self.rSource=script?.rPane?.language == "R" ? script?.rPane?.editor.string ?? "" : ""
+        self.rSource=script?.rConsolePane?.sourceText ?? (script?.rPane?.language == "R" ? script?.rPane?.editor.string ?? "" : "")
         self.consentRevision=viewer.aiSharing.revision
         self.viewer=viewer; self.script=script; self.workbook=workbook; self.version=workbook?.gridVersion; self.active=active
         self.report=report; self.reportRevision=report?.reportRevision; self.reportResultID=reportResultID
-        if let script, let pane=script.rPane {
+        if let script, let pane=script.rConsolePane {
+            let source=pane.sourceText, output=pane.outputText
+            scriptSnapshot=["documentId":script.id,"title":script.title,"kind":"script","language":"R","script":String(source.prefix(12000)),"output":String(output.suffix(8000)),"truncated":source.count>12000 || output.count>8000,"running":pane.isBusy,"snapshot":true]
+        } else if let script, let pane=script.rPane {
             scriptSnapshot=["documentId":script.id,"title":script.title,"kind":"script","language":pane.language,"script":String(pane.editor.string.prefix(12000)),"output":String(pane.console.string.suffix(8000)),"truncated":pane.editor.string.count>12000 || pane.console.string.count>8000,"running":pane.isRunning,"snapshot":true]
         } else { scriptSnapshot=nil }
     }

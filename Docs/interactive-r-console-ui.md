@@ -18,6 +18,15 @@ boundary. Pixel, line and page wheel deltas are supported; horizontal gestures,
 modifier/zoom gestures and the separate Script editor keep their native behavior.
 Scrolling does not change the draft, focus or command history.
 
+The shared console uses semantic CSS colour properties for readable R roles:
+`--r-code: #0645ad` for entered code, prompts, readline answers and both editors;
+`--r-output: #202124` for ordinary output; `--r-stderr: #a32424` for errors and
+warnings; and `--r-notice: #607583` for notices, status and captions. Their contrast
+ratios on white are respectively 8.53, 16.10, 7.41 and 4.81; on the prompt's
+`#fafcfc` background they are 8.28, 15.63, 7.19 and 4.67. Prompts and spacing also
+distinguish input from output; colour is not the sole cue. Toolbar and plot colours
+are unchanged, and disabled input may use a muted colour.
+
 ## Native bridge
 
 Mac: `window.webkit.messageHandlers.statsDirectRConsole.postMessage(message)`.

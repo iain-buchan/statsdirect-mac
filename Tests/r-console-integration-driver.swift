@@ -413,6 +413,40 @@ import WebKit
         try check(wheel["finalSource"] as? Bool == true && pane.sourceText == sourceBeforeWheel,
                   "wheel handling never changes or executes the editable R source")
 
+        try await console(doc, "cat('PALETTE_STDOUT\\n'); warning('PALETTE_WARNING', immediate.=TRUE); stop('PALETTE_ERROR')")
+        try await expectOutput(doc, "PALETTE_ERROR")
+        try await wait("rendered palette stdout, warning and error") {
+            (try await evaluate(doc, "Array.from(document.querySelectorAll('.output-entry.stdout')).some(x=>x.textContent.includes('PALETTE_STDOUT')) && Array.from(document.querySelectorAll('.output-entry.stderr')).some(x=>x.textContent.includes('PALETTE_WARNING') && x.textContent.includes('PALETTE_ERROR'))")) as? Bool == true
+        }
+        let palette = try await evaluate(doc, """
+        (() => {
+          const code = Array.from(document.querySelectorAll('.input-entry:not(.reply) pre:not(.echo-prompt)')).find(x=>x.textContent.includes('PALETTE_STDOUT'));
+          const echoPrompt = code?.closest('.input-entry').querySelector('.echo-prompt');
+          const stdout = Array.from(document.querySelectorAll('.output-entry.stdout')).find(x=>x.textContent.includes('PALETTE_STDOUT'));
+          const stderr = Array.from(document.querySelectorAll('.output-entry.stderr')).find(x=>x.textContent.includes('PALETTE_ERROR'));
+          const notice = Array.from(document.querySelectorAll('.notice')).find(x=>x.textContent.includes('NUL character'));
+          const reply = Array.from(document.querySelectorAll('.input-entry.reply pre:not(.echo-prompt)')).find(x=>x.textContent.includes('chartreuse-reply-token-741'));
+          const prompt = document.getElementById('prompt'), input = document.getElementById('console-input');
+          const color = node => node ? getComputedStyle(node).color : '';
+          const colors = {code:color(code),echoPrompt:color(echoPrompt),prompt:color(prompt),input:color(input),reply:color(reply),stdout:color(stdout),stderr:color(stderr),notice:color(notice)};
+          const scriptBefore = StatsDirectRConsole.snapshot().script;
+          StatsDirectRConsole.setMode('script'); colors.script = color(document.getElementById('script-source'));
+          StatsDirectRConsole.setMode('console');
+          return {
+            blue:['code','echoPrompt','prompt','input','reply','script'].every(role=>colors[role]==='rgb(6, 69, 173)'),
+            stdout:colors.stdout==='rgb(32, 33, 36)',stderr:colors.stderr==='rgb(163, 36, 36)',notice:colors.notice==='rgb(96, 117, 131)',
+            markers:echoPrompt?.textContent.trim()==='>' && prompt.textContent.trim()==='>' && stdout?.textContent.includes('PALETTE_STDOUT') && stderr?.textContent.includes('PALETTE_WARNING') && stderr?.textContent.includes('PALETTE_ERROR') && notice?.textContent.includes('NUL character'),
+            sourceUnchanged:StatsDirectRConsole.snapshot().script===scriptBefore,colors
+          };
+        })()
+        """) as? [String:Any] ?? [:]
+        try check(palette["blue"] as? Bool == true,
+                  "echoed R code, replies, prompts, current input and Script editor use the shared dark-blue code color")
+        try check(palette["stdout"] as? Bool == true && palette["stderr"] as? Bool == true && palette["notice"] as? Bool == true,
+                  "real R stdout is near black, warnings and errors are red, and application notices are muted gray")
+        try check(palette["markers"] as? Bool == true && palette["sourceUnchanged"] as? Bool == true,
+                  "palette roles retain actual R prompt, output and diagnostic text without changing source")
+
         let originalSession = pane.session.sessionId
         let script = "scriptValue <- saved + 9; cat('SCRIPT_SHARED=', scriptValue, '\\n', sep='')\n"
         _ = try await evaluate(doc, """

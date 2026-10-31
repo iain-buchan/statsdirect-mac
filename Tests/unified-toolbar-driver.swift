@@ -40,8 +40,13 @@ import WebKit
         func fit(_ doc:Document) async throws {
             try check(try await js(doc,"(()=>{const row=document.querySelector('.sd-toolbar-row'),box=row.getBoundingClientRect();return [...row.children].filter(x=>!x.hidden&&getComputedStyle(x).display!=='none').every(x=>{const r=x.getBoundingClientRect();return r.left>=box.left-1&&r.right<=box.right+1&&r.top>=box.top-1&&r.bottom<=box.bottom+1;});})()") as? Bool == true,"\(doc.kind) toolbar fits one row")
         }
+        func scrollReport(_ doc:Document, toEnd:Bool) async throws {
+            _=try await js(doc,toEnd ? "window.scrollTo(0,document.scrollingElement.scrollHeight)" : "window.scrollTo(0,900)")
+            try await Task.sleep(nanoseconds:100_000_000)
+            try check(try await js(doc,"(()=>{const bar=document.getElementById('report-toolbar'),r=bar.getBoundingClientRect(),save=bar.querySelector('[data-command=save]').getBoundingClientRect();return window.scrollY>500&&Math.abs(r.top)<1&&r.bottom<innerHeight&&bar.contains(document.elementFromPoint(save.left+save.width/2,save.top+save.height/2));})()") as? Bool == true,toEnd ? "report toolbar stays visible and usable at the end of a long report" : "report toolbar stays visible and usable in the middle of a long report")
+        }
         let report=v.makeReport()
-        report.reportEntries=[ReportEntry(id:"toolbar-test",title:"Paired comparison",operation:"",body:"<h2>Paired comparison</h2><p id='selection'>Preserve this selection for formatting.</p><table><tr><th>Mean difference</th><th>95% CI</th></tr><tr><td>12.50</td><td>8.10 to 16.90</td></tr></table>",record:nil)]
+        report.reportEntries=[ReportEntry(id:"toolbar-test",title:"Paired comparison",operation:"",body:"<h2>Paired comparison</h2><p id='selection'>Preserve this selection for formatting.</p><table><tr><th>Mean difference</th><th>95% CI</th></tr><tr><td>12.50</td><td>8.10 to 16.90</td></tr></table><p style='margin-top:2400px'>End of the long report.</p>",record:nil)]
         v.renderReport(report)
         try await wait { (try? await js(report,"!!window.StatsDirectToolbar && !!document.querySelector('[data-command=save]')")) as? Bool == true }
         v.window.setContentSize(NSSize(width:1180,height:800));v.window.contentView!.layoutSubtreeIfNeeded()
@@ -49,13 +54,19 @@ import WebKit
         let order=try await js(report,"[...document.querySelector('.sd-toolbar-row').children].filter(x=>x.dataset.command).map(x=>x.dataset.command).slice(0,7)") as? [String]
         try check(order==common,"report common command order")
         try await fit(report);try await snapshot(report.web,"report-wide")
+        try await scrollReport(report,toEnd:false)
+        try await scrollReport(report,toEnd:true)
+        try await snapshot(report.web,"report-scrolled")
+        _=try await js(report,"window.scrollTo(0,0)")
         _=try await js(report,"(()=>{const p=document.getElementById('selection');p.closest('.report-body').focus();const r=document.createRange();r.selectNodeContents(p);getSelection().removeAllRanges();getSelection().addRange(r);})()")
         // Docked panes can leave a document narrower than the main window minimum.
         v.helpLibrary();v.workspaceSplit.setPosition(380,ofDividerAt:0);v.window.contentView!.layoutSubtreeIfNeeded()
         try await Task.sleep(nanoseconds:250_000_000)
         try await fit(report)
+        try await scrollReport(report,toEnd:true)
         _=try await js(report,"document.getElementById('report-more-toggle').click()")
         try check(try await js(report,"!document.getElementById('report-more-tools').hidden && !!document.querySelector('.sd-toolbar-overflow [data-command=bold]')") as? Bool == true,"report formatting moves to accessible More")
+        try check(try await js(report,"(()=>{const menu=document.getElementById('report-more-tools'),r=menu.getBoundingClientRect(),bar=document.getElementById('report-toolbar').getBoundingClientRect();return r.top>=bar.bottom&&r.bottom<=innerHeight&&menu.contains(document.elementFromPoint(r.left+10,r.top+10));})()") as? Bool == true,"report More popup remains visible and usable while scrolled with a dock open")
         try await click(report,"bold")
         try await wait { report.reportUndo.count==1 }
         try check(try await js(report,"(()=>{const p=document.getElementById('selection');return p.textContent==='Preserve this selection for formatting.'&&!!p.querySelector('b,strong,span[style]');})()") as? Bool == true,"formatting in More retains the selected report text")

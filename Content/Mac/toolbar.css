@@ -1,5 +1,7 @@
 /* Same 20 px Windows outline glyphs, 30 px targets and order in each document. */
 .sd-toolbar { position:relative; flex-shrink:0; color:#24353d; background:#fff; border:1px solid #cdd5d9; border-radius:6px; padding:5px; }
+/* Reports scroll with the page; retain their sticky bar when adding the shared Mac toolbar styles. */
+.report-toolbar.sd-toolbar { position:sticky; top:0; }
 .sd-toolbar-row { display:flex!important; align-items:center; flex-wrap:nowrap; gap:4px; width:100%; min-width:0; }
 .sd-toolbar button { display:inline-flex; align-items:center; justify-content:center; gap:5px; flex-shrink:0; height:30px; min-width:30px; padding:3px 7px; border:1px solid transparent; border-radius:4px; background:transparent; color:inherit; font:12px -apple-system,sans-serif; white-space:nowrap; cursor:default; }
 .sd-toolbar button.sd-icon { width:30px; padding:4px; }

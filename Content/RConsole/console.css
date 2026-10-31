@@ -4,7 +4,7 @@ html, body { height: 100%; margin: 0; overflow: hidden; }
 body { display: flex; flex-direction: column; padding: 10px 14px 8px; }
 button, textarea { font: inherit; color: inherit; }
 button { cursor: default; }
-.toolbar { display: flex; align-items: center; flex-shrink: 0; gap: 4px; min-height: 42px; padding: 5px; border: 1px solid #cdd5d9; border-radius: 6px; background: #fff; }
+.toolbar { overflow-x: auto; display: flex; align-items: center; flex-shrink: 0; gap: 4px; min-height: 42px; padding: 5px; border: 1px solid #cdd5d9; border-radius: 6px; background: #fff; }
 .toolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0; height: 30px; min-width: 30px; padding: 3px 7px; border: 1px solid transparent; border-radius: 4px; background: transparent; white-space: nowrap; font-size: 12px; }
 .toolbar button:hover:not(:disabled), .plot-actions button:hover { background: #edf4f1; border-color: #c9d5d2; }
 button:disabled { opacity: .4; }

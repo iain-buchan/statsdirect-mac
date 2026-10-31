@@ -106,6 +106,21 @@ cannot accidentally resolve the latest picture. The UI rejects actions from a
 card removed by a session reset. IDs, revisions and generations must resolve only
 the matching immutable assets owned by the console host.
 
+Mac capture runs before a device is closed, before a genuine base/grid page
+transition, and when the submitted command finishes. Close and page-transition
+capture target that device alone, so another device's unfinished drawing is not
+published accidentally. Device identities are retired on close; identical new
+pages and reused device numbers remain distinct, while unchanged pages are not
+duplicated. Capture state stays in the native worker's preserved private R
+environment, so clearing learner globals does not remove it.
+
+Explicit named PDF, PNG and SVG devices retain R's normal file writing and also
+provide SVG snapshots of their recorded plots for the console. These preview
+assets are separate from the learner's output files. A completed submitted plot
+can be previewed while its file device remains open; flushing the named output
+file still follows R's normal close behaviour. On this Mac the native checks use
+Quartz PNG, PDF and the existing svglite SVG device, without adding XQuartz.
+
 SVG generation remains experimental. Earlier integration failures included reused
 chart identifiers, lost glyph references, CSS leaking between charts, and malformed
 Office clipboard rewrites. An isolated package installation does not resolve those
@@ -205,3 +220,28 @@ Transcript rendering preserves existing controls across focus and selection chan
 New output waits while a transcript pointer is held down, then refreshes after
 the click. Native integration tests retain the original button reference through
 selection-change animation frames and real R output during a pointer press.
+
+The console toolbar uses the same horizontal overflow rule as Windows. At narrow
+widths its controls scroll within the toolbar rather than extending the document;
+the console input and Script editor retain the available width.
+
+The focused lifecycle regressions run with:
+
+```sh
+Rscript --vanilla Tests/r-console-device-capture.R
+```
+
+They cover qualified/unqualified closes, character-valued device numbers,
+identity reuse, explicit file devices, targeted page transitions, identical new
+pages, blank devices and learner-global clearing. The native integration suite
+also checks the actual files and inline SVG geometry, and exercises all toolbar
+controls at 420- and 320-point window widths. Chart assertions wait for WebKit's
+rendered images to match the model; an R-ready event alone does not establish
+that the browser has finished rendering.
+
+The device/toolbar update passed 25 focused R lifecycle checks, 39 embedded-R
+worker checks, 62 native Mac WebKit/R checks and 12 shared UI model tests. The
+native checks include valid original PDF/PNG/SVG files, exact point counts and
+last annotations, character device-ID coercion/reuse, and accessible toolbar
+controls at both narrow widths. No R package or C++ worker changes were needed.
+The frozen 1.0.1 signing pack still matches all nine recorded file hashes.

@@ -1,4 +1,5 @@
 import Cocoa
+import PDFKit
 import WebKit
 
 /// Exercises the actual WebKit page, native message handler and embedded-R
@@ -616,6 +617,169 @@ import WebKit
         try check((try Data(contentsOf: originalPlotURL)) == originalSVG && (try Data(contentsOf: updatedPlotURL)) == updatedOriginalSVG
                   && svgClipboardMatches(updatedOriginalSVG, label: "Copied chart after console shutdown"),
                   "closing R retains its original chart assets and leaves both SVG clipboard types and PNG available")
+
+        try await graphicsDeviceChecks(viewer)
+    }
+
+    @MainActor static func graphicsDeviceChecks(_ viewer: Viewer) async throws {
+        let doc = viewer.makeRConsole(title: "Graphics device checks"), pane = doc.rConsolePane!
+        defer { pane.shutdown() }
+        try await ready(doc)
+        guard let directory = pane.session.workingDirectory else { throw CocoaError(.fileNoSuchFile) }
+        sessionFolders.append(directory)
+        try await narrowConsoleChecks(viewer, doc)
+
+        var command = 0
+        func renderedPlotsReady() async throws {
+            try await wait("rendered graphics-device previews match the retained transcript") {
+                try await evaluate(doc, """
+                (() => {
+                  const images = Array.from(document.querySelectorAll('figure.plot img'));
+                  const expected = StatsDirectRConsole.snapshot().transcript.filter(entry => entry.kind === 'plot').length;
+                  return images.length === expected && images.every(image => image.complete && image.naturalWidth > 0);
+                })()
+                """) as? Bool == true
+            }
+        }
+        func newPlots(_ source: String) async throws -> [Data] {
+            try await renderedPlotsReady()
+            let previous = try await evaluate(doc, "document.querySelectorAll('figure.plot img').length") as? Int ?? 0
+            command += 1
+            let marker = "DEVICE_CASE_\(command)_FINISHED"
+            try await console(doc, source + "; cat('\(marker)\\n')")
+            try await expectOutput(doc, marker + "\n")
+            try await renderedPlotsReady()
+            let sources = try await evaluate(doc, "Array.from(document.querySelectorAll('figure.plot img')).slice(\(previous)).map(image => image.src)") as? [String] ?? []
+            return try sources.map { source in
+                let prefix = "data:image/svg+xml;base64,"
+                guard source.hasPrefix(prefix), let data = Data(base64Encoded: String(source.dropFirst(prefix.count))) else {
+                    throw NSError(domain: "RConsoleIntegration", code: 8, userInfo: [NSLocalizedDescriptionKey: "A graphics-device preview is not original SVG"])
+                }
+                _ = try ReportImageClipboard.svgMarkup(data)
+                return data
+            }
+        }
+        func contains(_ svg: Data, _ text: String) -> Bool { String(decoding: svg, as: UTF8.self).contains(text) }
+        func points(_ svg: Data) -> Int { String(decoding: svg, as: UTF8.self).components(separatedBy: "<circle ").count - 1 }
+        func pdfPages(_ name: String) -> Int { PDFDocument(url: directory.appendingPathComponent(name))?.pageCount ?? 0 }
+
+        let closed = try await newPlots("plot(1:3, pch=16, main='Closed final page'); mtext('Final close annotation'); grDevices::dev.off()")
+        try check(closed.count == 1 && points(closed[0]) == 3 && contains(closed[0], "Final close annotation"),
+                  "qualified dev.off preserves one completed final SVG page and its last annotation in the same submission")
+        let characterClosed = try await newPlots("plot(1:3, pch=16, main='Character device close'); characterDeviceID <- dev.cur(); mtext('Character close final'); grDevices::dev.off(as.character(dev.cur()))")
+        let afterCharacterClose = try await newPlots("grDevices::pdf('character-reused.pdf'); stopifnot(dev.cur() == characterDeviceID); plot(1:4, pch=16, main='After character close'); mtext('Fresh character ID page'); dev.off()")
+        let characterCloseMatches = characterClosed.count == 1 && points(characterClosed[0]) == 3 && contains(characterClosed[0], "Character close final")
+                  && afterCharacterClose.count == 1 && points(afterCharacterClose[0]) == 4 && contains(afterCharacterClose[0], "Fresh character ID page")
+                  && pdfPages("character-reused.pdf") == 1
+        if !characterCloseMatches {
+            print("INFO: character close previews=\(characterClosed.count), points=\(characterClosed.map { points($0) }), annotation=\(characterClosed.map { contains($0, "Character close final") }); reused previews=\(afterCharacterClose.count), points=\(afterCharacterClose.map { points($0) }), annotation=\(afterCharacterClose.map { contains($0, "Fresh character ID page") }), PDF pages=\(pdfPages("character-reused.pdf"))")
+            fflush(stdout)
+        }
+        try check(characterCloseMatches,
+                  "a character-valued device number closes with its complete annotation and allows the same device ID to register a fresh named PDF page")
+        let allClosed = try await newPlots("plot(1:4, pch=16, main='Graphics off final page'); mtext('Final graphics off annotation'); graphics.off()")
+        try check(allClosed.count == 1 && points(allClosed[0]) == 4 && contains(allClosed[0], "Final graphics off annotation"),
+                  "graphics.off preserves the completed final page without an empty or intermediate preview")
+
+        let pdf = try await newPlots("grDevices::pdf('named-device.pdf'); plot(1:5, pch=16, main='Named PDF page'); mtext('PDF final annotation'); dev.off()")
+        try check(pdf.count == 1 && points(pdf[0]) == 5 && contains(pdf[0], "PDF final annotation") && pdfPages("named-device.pdf") == 1,
+                  "an explicitly named PDF writes its real one-page file and emits exactly one complete five-point SVG preview")
+        let png = try await newPlots("grDevices::png('named-device.png', type='quartz', width=400, height=300); plot(1:6, pch=16, main='Named PNG page'); mtext('PNG final annotation'); dev.off()")
+        let pngData = try Data(contentsOf: directory.appendingPathComponent("named-device.png")), bitmap = NSBitmapImageRep(data: pngData)
+        try check(png.count == 1 && points(png[0]) == 6 && contains(png[0], "PNG final annotation")
+                  && pngData.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]) && bitmap?.pixelsWide == 400 && bitmap?.pixelsHigh == 300,
+                  "an explicitly named native PNG writes a valid 400 by 300 raster and emits exactly one complete six-point SVG preview")
+        let svg = try await newPlots("svglite::svglite('named-device.svg'); plot(1:7, pch=16, main='Named SVG page'); mtext('SVG final annotation'); dev.off()")
+        let namedSVG = try Data(contentsOf: directory.appendingPathComponent("named-device.svg"))
+        _ = try ReportImageClipboard.svgMarkup(namedSVG)
+        try check(svg.count == 1 && points(svg[0]) == 7 && contains(svg[0], "SVG final annotation")
+                  && points(namedSVG) == 7 && contains(namedSVG, "SVG final annotation"),
+                  "an explicitly named SVG retains its real seven-point vector file and emits one complete independent preview")
+
+        let noncurrent = try await newPlots("""
+        grDevices::pdf('older-device.pdf'); older <- dev.cur(); plot(1:3, pch=16, main='Older device');
+        grDevices::pdf('newer-device.pdf'); newer <- dev.cur(); plot(1:4, pch=16, main='Newer device');
+        grDevices::dev.off(which=older); stopifnot(dev.cur() == newer); abline(h=2, col='red');
+        mtext('Newer final annotation'); dev.off()
+        """)
+        try check(noncurrent.count == 2 && points(noncurrent[0]) == 3 && points(noncurrent[1]) == 4
+                  && contains(noncurrent[0], "Older device") && !contains(noncurrent[0], "Newer final annotation")
+                  && contains(noncurrent[1], "Newer final annotation")
+                  && !String(decoding: noncurrent[0], as: UTF8.self).uppercased().contains("#FF0000")
+                  && String(decoding: noncurrent[1], as: UTF8.self).uppercased().contains("#FF0000")
+                  && pdfPages("older-device.pdf") == 1 && pdfPages("newer-device.pdf") == 1,
+                  "closing a named noncurrent device preserves the newer active device and emits no unrelated or duplicate chart")
+        let firstReuse = try await newPlots("grDevices::pdf('reused-device.pdf'); reusedID <- dev.cur(); plot(1:3, pch=16, main='Reused device'); dev.off()")
+        let retainedSource = try await evaluate(doc, "Array.from(document.querySelectorAll('figure.plot img')).at(-1).src") as? String
+        let reusedIndex = try await evaluate(doc, "document.querySelectorAll('figure.plot img').length - 1") as? Int ?? -1
+        let secondReuse = try await newPlots("grDevices::pdf('reused-device.pdf'); stopifnot(dev.cur() == reusedID); plot(1:3, pch=16, main='Reused device'); dev.off()")
+        let retainedAfterReuse = try await evaluate(doc, "document.querySelectorAll('figure.plot img')[\(reusedIndex)].src") as? String
+        try check(firstReuse.count == 1 && secondReuse.count == 1 && points(firstReuse[0]) == 3 && points(secondReuse[0]) == 3
+                  && retainedSource != nil && retainedSource == retainedAfterReuse && pdfPages("reused-device.pdf") == 1,
+                  "reusing a closed device ID and filename emits a fresh identical page while retaining the earlier chart asset")
+
+        let panels = try await newPlots("par(mfrow=c(1,2)); plot(1:3, pch=16, main='Closed left panel'); plot(3:1, pch=16, main='Closed right panel'); dev.off()")
+        try check(panels.count == 1 && points(panels[0]) == 6 && contains(panels[0], "Closed left panel") && contains(panels[0], "Closed right panel"),
+                  "closing a completed two-panel base page preserves both panels in one SVG")
+        let grid = try await newPlots("grid::grid.newpage(); grid::grid.text('Closed grid first'); grid::grid.newpage(); grid::grid.text('Closed grid second'); graphics.off()")
+        try check(grid.count == 2 && contains(grid[0], "Closed grid first") && contains(grid[1], "Closed grid second"),
+                  "closing grid graphics preserves both completed physical pages without blank snapshots")
+        let cleared = try await newPlots("plot(1:8, pch=16, main='Before globals cleared'); mtext('Private capture survives'); rm(list=ls(all.names=TRUE), envir=.GlobalEnv); dev.off(); stopifnot(length(ls(all.names=TRUE)) == 0)")
+        let afterClear = try await newPlots("plot(1:9, pch=16, main='After globals cleared'); mtext('Capture still active'); graphics.off()")
+        try check(cleared.count == 1 && points(cleared[0]) == 8 && contains(cleared[0], "Private capture survives")
+                  && afterClear.count == 1 && points(afterClear[0]) == 9 && contains(afterClear[0], "Capture still active"),
+                  "clearing every learner global leaves private capture active for the closing page and subsequent graphics")
+    }
+
+    @MainActor static func narrowConsoleChecks(_ viewer: Viewer, _ doc: Document) async throws {
+        let originalFrame = viewer.window.frame, originalMinimum = viewer.window.minSize
+        defer { viewer.window.minSize = originalMinimum; viewer.window.setFrame(originalFrame, display: true) }
+        viewer.window.minSize = NSSize(width: 300, height: 500)
+        try await console(doc, "narrowValue <- 41; cat('NARROW_READY\\n')")
+        try await expectOutput(doc, "NARROW_READY\n")
+        for width in [420, 320] {
+            viewer.window.setContentSize(NSSize(width: CGFloat(width), height: 700))
+            try await wait("narrow console width \(width)") {
+                let actual = try await evaluate(doc, "window.innerWidth") as? Int ?? 0
+                return actual > 200 && actual <= width
+            }
+            let layout = try await doc.web.callAsyncJavaScript("""
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const toolbar = document.querySelector('.toolbar'); toolbar.scrollLeft = 0;
+            const buttons = Array.from(toolbar.querySelectorAll('button'));
+            const reachable = buttons.every(button => {
+              button.scrollIntoView({block:'nearest', inline:'nearest'});
+              const bounds = button.getBoundingClientRect(), clip = toolbar.getBoundingClientRect();
+              const hit = document.elementFromPoint((bounds.left+bounds.right)/2, (bounds.top+bounds.bottom)/2);
+              return bounds.left >= clip.left-1 && bounds.right <= clip.right+1 && bounds.top >= clip.top && bounds.bottom <= clip.bottom && button.contains(hit);
+            });
+            const didScroll = toolbar.scrollLeft > 0;
+            const noBodyOverflow = document.documentElement.scrollWidth <= document.documentElement.clientWidth+1 && document.body.scrollWidth <= document.documentElement.clientWidth+1;
+            const nativeScroll = ['auto','scroll'].includes(getComputedStyle(toolbar).overflowX);
+            const scriptTab = document.getElementById('script-tab'); scriptTab.scrollIntoView({block:'nearest', inline:'nearest'}); scriptTab.click();
+            const scriptWorks = StatsDirectRConsole.snapshot().mode === 'script' && !document.getElementById('script-panel').hidden && !document.getElementById('script-source').disabled;
+            const consoleTab = document.getElementById('console-tab'); consoleTab.scrollIntoView({block:'nearest', inline:'nearest'}); consoleTab.click();
+            StatsDirectRConsole.focusInput();
+            return {reachable, noBodyOverflow, nativeScroll, didScroll, needsScroll:toolbar.scrollWidth > toolbar.clientWidth,
+              scriptWorks, consoleWorks:StatsDirectRConsole.snapshot().mode === 'console' && document.activeElement === document.getElementById('console-input')};
+            """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any] ?? [:]
+            try await console(doc, "cat('NARROW_CONSOLE_\(width)=', narrowValue+1, '\\n', sep='')")
+            try await expectOutput(doc, "NARROW_CONSOLE_\(width)=42\n")
+            let narrowScript = "cat('NARROW_SCRIPT_\(width)=', narrowValue+2, '\\n', sep='')"
+            _ = try await evaluate(doc, """
+            (() => {
+              document.getElementById('script-tab').click();
+              const source = document.getElementById('script-source');
+              source.value = \(try literal(narrowScript));
+              source.setSelectionRange(0,0); source.dispatchEvent(new Event('input', {bubbles:true}));
+              document.getElementById('run').scrollIntoView({block:'nearest', inline:'nearest'}); document.getElementById('run').click(); return true;
+            })()
+            """)
+            try await expectOutput(doc, "NARROW_SCRIPT_\(width)=43\n")
+            try check(["reachable", "noBodyOverflow", "nativeScroll", "scriptWorks", "consoleWorks"].allSatisfy { layout[$0] as? Bool == true }
+                      && (layout["needsScroll"] as? Bool != true || layout["didScroll"] as? Bool == true),
+                      "at \(width) points every toolbar control remains reachable by horizontal scroll while Console, Script and the persistent R workspace work without body overflow")
+        }
     }
 
     @MainActor static func readyState(_ doc: Document) async throws -> Bool {

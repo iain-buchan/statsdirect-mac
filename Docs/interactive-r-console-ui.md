@@ -112,14 +112,23 @@ Office clipboard rewrites. An isolated package installation does not resolve tho
 failures or establish device stability. Separate image documents avoid cross-chart
 DOM collisions; report insertion still needs the report importer's isolation rules.
 
-On 31 October 2026, the actual Mac PowerPoint clipboard test offered native
-`public.svg-image` first and PNG second, but ordinary paste saved only PNG media in
-the resulting PPTX. Inserting the same nine-point agreement chart through Picture
-from File preserved SVG media and an `svgBlip` reference, with points, labels and
-agreement lines intact. Copy chart therefore offers SVG but is **not yet verified
-to paste vector graphics into Mac Office**. Save SVG and insert the file when vector
-Office output is needed. Do not equate native clipboard-type tests with receiver
-interoperability or treat this one chart as a stability certification.
+Mac Copy chart publishes the retained original SVG using native `NSURL` file
+transfer. Do not add competing PNG, TIFF or `public.svg-image` representations:
+actual Mac PowerPoint tests on 31 October 2026 selected PNG when available, and
+could not paste the raw SVG image representation. File transfer avoids rewriting
+SVG dimensions, fonts, identifiers, CSS and glyph references. The file remains in
+the retained R session directory after Restart or console closure. StatsDirect's
+report clipboard reader accepts this file representation through its existing
+SVG sanitizer and isolation pipeline.
+
+The rebuilt app's Copy chart was tested in Mac PowerPoint with ordinary Paste and
+Paste Special. Both preserved vector SVG media and `svgBlip` references in the
+saved PPTX, with all nine paired-test points, labels and agreement lines intact.
+Paste Special calls the native representation **FILES** on this Mac; ordinary
+Paste is sufficient. The 39 native checks also verify exact original file bytes,
+distinct earlier/updated chart versions, retained files and invalid-input guards.
+This verifies clipboard interoperability on the tested PowerPoint installation;
+it does not certify broader graphics-device stability or change chart generation.
 
 The UI accepts only base64 image-data previews; no arbitrary HTML, file URLs,
 external image URLs, frames or widgets. R output uses DOM `textContent`, never

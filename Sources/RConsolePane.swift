@@ -105,14 +105,10 @@ enum InteractiveRConsolePrototype {
             if action == "openPlot" { openChart(plot) }
             else if plot.mime == "image/svg+xml" {
                 do {
-                    let svg = try Data(contentsOf: plot.url)
-                    let clean = Data(try ReportImageClipboard.svgMarkup(svg).utf8)
-                    guard let image = NSImage(data: clean), image.size.width > 0, image.size.height > 0 else {
-                        throw LegacyReportError("The SVG chart could not be rendered for the clipboard.")
-                    }
-                    let scale = 1600 / max(image.size.width, image.size.height)
-                    image.size = NSSize(width: image.size.width * scale, height: image.size.height * scale)
-                    try ReportImageClipboard.write(image: image, svg: svg, to: .general)
+                    // Retained session assets survive closing/restarting R.
+                    // Transfer the original file without rasterizing or
+                    // rewriting SVG text, dimensions, glyphs or identifiers.
+                    try ReportImageClipboard.writeSVGFile(plot.url, to: .general)
                 } catch {
                     forward(["type": "notice", "text": "The SVG chart could not be copied: " + error.localizedDescription])
                     viewer?.showError("The SVG chart could not be copied: " + error.localizedDescription)

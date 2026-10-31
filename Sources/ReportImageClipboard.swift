@@ -25,7 +25,39 @@ import UniformTypeIdentifiers
         for type in svgTypes {
             if let data = pasteboard.data(forType: type), !data.isEmpty { return try svgMarkup(data) }
         }
+        // A native SVG file copy is how Mac PowerPoint accepts vector charts.
+        // Keep pasting that representation into our reports working too; the
+        // report importer still sanitizes and isolates the returned markup.
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
+           urls.count == 1, let url = urls.first, url.pathExtension.lowercased() == "svg" {
+            return try svgMarkup(svgFileData(url))
+        }
         return nil
+    }
+
+    /// Publish the retained original as a native file, like Finder. PowerPoint
+    /// for Mac chooses PNG if advertised, and does not accept public.svg-image
+    /// through its image-paste route. NSURL supplies the file access grant for
+    /// the receiving app. Do not add competing image types to this writer.
+    static func writeSVGFile(_ url: URL, to pasteboard: NSPasteboard) throws {
+        _ = try svgMarkup(svgFileData(url)) // Validate before replacing the clipboard.
+        pasteboard.clearContents()
+        guard pasteboard.writeObjects([url as NSURL]) else {
+            throw LegacyReportError("The SVG chart could not be copied.")
+        }
+    }
+
+    private static func svgFileData(_ url: URL) throws -> Data {
+        guard url.isFileURL, url.pathExtension.lowercased() == "svg" else {
+            throw LegacyReportError("The chart is not a local SVG file.")
+        }
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        guard values.isRegularFile == true, let size = values.fileSize, size > 0, size <= maximumBytes else {
+            throw LegacyReportError("The SVG chart is unavailable or too large to copy.")
+        }
+        let data = try Data(contentsOf: url)
+        try checkSize(data)
+        return data
     }
 
     static func rasterHTML(from pasteboard: NSPasteboard) throws -> String? {

@@ -12,6 +12,11 @@ waiting for an incomplete expression. Console entry supports Enter to submit,
 Shift+Enter for a new line, single-line Up/Down history, and Escape/Control+C to
 interrupt when no text is selected. Stop sends an interrupt action without an
 empty answer or EOF. Restart invalidates the old input request immediately.
+Vertical scrolling over the fixed prompt/input row scrolls the transcript. A
+multiline draft scrolls within its input first, then forwards at its directional
+boundary. Pixel, line and page wheel deltas are supported; horizontal gestures,
+modifier/zoom gestures and the separate Script editor keep their native behavior.
+Scrolling does not change the draft, focus or command history.
 
 ## Native bridge
 

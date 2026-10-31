@@ -293,6 +293,77 @@ import PDFKit
                   "the native Close command closes the PDF window and retains the R console document and workspace")
         viewer.window.makeKeyAndOrderFront(nil)
 
+        try await console(doc, "cat(paste0('WHEEL_ROW_', seq_len(120), collapse='\\n'), '\\n', sep='')")
+        try await expectOutput(doc, "WHEEL_ROW_120\n")
+        try await wait("long, scrollable console history") {
+            (try await evaluate(doc, "document.getElementById('transcript').scrollHeight > document.getElementById('transcript').clientHeight * 4")) as? Bool == true
+        }
+        let sourceBeforeWheel = pane.sourceText
+        let wheel = try await doc.web.callAsyncJavaScript("""
+        const log = document.getElementById('transcript'), input = document.getElementById('console-input');
+        const prompt = document.getElementById('prompt'), row = document.querySelector('.input-row');
+        const source = StatsDirectRConsole.snapshot().script, history = JSON.stringify(StatsDirectRConsole.snapshot().history);
+        const sendWheel = (target, deltaY, deltaMode=0, fields={}) => {
+          const event = new WheelEvent('wheel', {bubbles:true, cancelable:true, deltaY, deltaMode, ...fields});
+          target.dispatchEvent(event); return event.defaultPrevented;
+        };
+        const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        StatsDirectRConsole.setMode('console'); input.value = draft;
+        input.dispatchEvent(new Event('input', {bubbles:true})); input.focus(); input.setSelectionRange(5,8);
+        await settle();
+        log.scrollTop = log.scrollHeight;
+        const bottom = log.scrollTop, upPrevented = sendWheel(input,-120), afterUp = log.scrollTop;
+        const downPrevented = sendWheel(prompt,120), afterDown = log.scrollTop;
+        log.scrollTop = 0; const topPrevented = sendWheel(row,-120), atTop = log.scrollTop;
+        const middle = Math.min(log.scrollHeight-log.clientHeight, log.clientHeight*2+200);
+        log.scrollTop = middle; const pixelPrevented = sendWheel(row,-1,0), pixelDistance = middle-log.scrollTop;
+        log.scrollTop = middle; const linePrevented = sendWheel(input,-1,1), lineDistance = middle-log.scrollTop;
+        log.scrollTop = middle; const pagePrevented = sendWheel(prompt,-1,2), pageDistance = middle-log.scrollTop;
+        const shortDraftPreserved = input.value === draft && document.activeElement === input && input.selectionStart === 5 && input.selectionEnd === 8;
+        const unchangedSource = StatsDirectRConsole.snapshot().script === source && JSON.stringify(StatsDirectRConsole.snapshot().history) === history;
+
+        const longDraft = Array.from({length:200},(_,i)=>'# unsent multiline draft '+i).join('\\n');
+        input.value = longDraft; input.dispatchEvent(new Event('input',{bubbles:true})); input.focus(); await settle();
+        input.scrollTop = (input.scrollHeight-input.clientHeight)/2; log.scrollTop = middle;
+        const localInput = input.scrollTop, localLog = log.scrollTop, localPrevented = sendWheel(input,80);
+        const textareaLocal = input.scrollHeight > input.clientHeight && !localPrevented && log.scrollTop === localLog && input.scrollTop === localInput && input.value === longDraft;
+        input.scrollTop = input.scrollHeight; log.scrollTop = middle;
+        const downStart = log.scrollTop, textareaDownPrevented = sendWheel(input,80), textareaDown = log.scrollTop;
+        input.scrollTop = 0; log.scrollTop = middle;
+        const upStart = log.scrollTop, textareaUpPrevented = sendWheel(input,-80), textareaUp = log.scrollTop;
+        const multilinePreserved = input.value === longDraft && document.activeElement === input;
+        log.scrollTop = middle; const modifiersStart = log.scrollTop;
+        const ignored = [{ctrlKey:true},{metaKey:true},{shiftKey:true},{deltaX:300}].every(fields=>!sendWheel(input,-80,0,fields));
+        const modifiersUntouched = ignored && log.scrollTop === modifiersStart && input.value === longDraft;
+
+        StatsDirectRConsole.setMode('script');
+        const script = document.getElementById('script-source'), scriptText = script.value, scriptLog = log.scrollTop;
+        const scriptPrevented = sendWheel(script,80);
+        const scriptUntouched = !scriptPrevented && script.value === scriptText && log.scrollTop === scriptLog && StatsDirectRConsole.snapshot().mode === 'script';
+        StatsDirectRConsole.setMode('console'); input.value = draft;
+        input.dispatchEvent(new Event('input',{bubbles:true})); input.focus(); input.setSelectionRange(5,8);
+        return {
+          forwardsUpDown:upPrevented && afterUp < bottom && downPrevented && Math.abs(afterDown-bottom)<1,
+          topBounded:!topPrevented && atTop===0,
+          units:pixelPrevented && linePrevented && pagePrevented && pixelDistance>0 && lineDistance>pixelDistance*8 && lineDistance<100 && Math.abs(pageDistance-log.clientHeight)<2,
+          shortDraftPreserved, unchangedSource, textareaLocal,
+          textareaBoundaries:textareaDownPrevented && textareaDown>downStart && textareaUpPrevented && textareaUp<upStart && multilinePreserved,
+          modifiersUntouched, scriptUntouched,
+          finalSource:StatsDirectRConsole.snapshot().script === source && JSON.stringify(StatsDirectRConsole.snapshot().history) === history
+        };
+        """, arguments: ["draft":"# unsubmitted draft\nsqrt(144)"], in: nil, contentWorld: .page) as? [String:Any] ?? [:]
+        try check(wheel["forwardsUpDown"] as? Bool == true && wheel["topBounded"] as? Bool == true,
+                  "wheel input over the prompt, input row and short draft scrolls console history in both directions and respects its top boundary")
+        try check(wheel["units"] as? Bool == true, "pixel, line and page wheel deltas scroll console history in their expected units")
+        try check(wheel["shortDraftPreserved"] as? Bool == true && wheel["unchangedSource"] as? Bool == true,
+                  "prompt wheel scrolling preserves unsent draft text, selection, keyboard focus, script and command history")
+        try check(wheel["textareaLocal"] as? Bool == true && wheel["textareaBoundaries"] as? Bool == true,
+                  "a multiline draft retains native textarea scrolling until its boundary, then forwards wheel movement to console history")
+        try check(wheel["modifiersUntouched"] as? Bool == true && wheel["scriptUntouched"] as? Bool == true,
+                  "modified or horizontal wheel gestures and the Script view retain their normal browser behavior")
+        try check(wheel["finalSource"] as? Bool == true && pane.sourceText == sourceBeforeWheel,
+                  "wheel handling never changes or executes the editable R source")
+
         let originalSession = pane.session.sessionId
         let script = "scriptValue <- saved + 9; cat('SCRIPT_SHARED=', scriptValue, '\\n', sep='')\n"
         _ = try await evaluate(doc, """

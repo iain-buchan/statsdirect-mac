@@ -195,6 +195,23 @@
     }
   }
   function sizeInput() { input.style.height = 'auto'; input.style.height = Math.min(150, Math.max(26, input.scrollHeight)) + 'px'; }
+  input.parentElement.addEventListener('wheel', event => {
+    if (model.mode !== 'console' || event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey || !Number.isFinite(event.deltaY) || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    // A long draft scrolls normally inside the textarea until its directional
+    // boundary; the fixed prompt row then scrolls the earlier console results.
+    if (event.target === input) {
+      const limit = Math.max(0, input.scrollHeight - input.clientHeight);
+      const top = Math.max(0, Math.min(limit, input.scrollTop));
+      if (event.deltaY < 0 ? top > 0 : top < limit) return;
+    }
+    const style = global.getComputedStyle(input);
+    const lineHeight = Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.45;
+    const scale = event.deltaMode === 1 ? lineHeight : event.deltaMode === 2 ? transcript.clientHeight : 1;
+    const delta = event.deltaY * scale, previous = transcript.scrollTop;
+    if (!Number.isFinite(delta) || !delta) return;
+    transcript.scrollTop += delta;
+    if (transcript.scrollTop !== previous) event.preventDefault();
+  }, {passive: false});
   function mode(value) {
     model.mode = value;
     byId('console-panel').hidden = value !== 'console'; byId('script-panel').hidden = value !== 'script';

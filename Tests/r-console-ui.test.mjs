@@ -105,6 +105,24 @@ test('plot revisions are immutable and preview URIs cannot load a page or extern
   assert.equal(safePreview('javascript:alert(1)'), null);
   assert.equal(safePreview('file:///private/data.svg'), null);
   assert.equal('preview' in model.snapshot().transcript[0], false, 'native context snapshots do not contain chart bytes');
+  assert.deepEqual(model.plotAction('openPlot', model.entries[0]), {protocolVersion: 1, action: 'openPlot', sessionId: 'session-a', generation: 0, plotId: 'plot-1', revision: 1});
+  assert.deepEqual(model.plotAction('copyPlot', model.entries[1]), {protocolVersion: 1, action: 'copyPlot', sessionId: 'session-a', generation: 0, plotId: 'plot-1', revision: 2});
+  const oldCard = model.entries[0];
+  session(model, 1, 'replacement-session');
+  assert.equal(model.plotAction('openPlot', oldCard), null, 'an old DOM card cannot resolve against a replacement session');
+});
+
+test('Restart keeps the edited script when the host starts the new session with its current source', () => {
+  const initial = 'initial <- 1\n', current = 'initial <- 1\nmodified <- 42\n';
+  const model = new ConsoleModel(), emit = session(model, 0, 'first', initial);
+  model.script = current; // The Script input handler also sends this source through scriptChanged.
+  emit('inputEcho', {text: 'modified', origin: 'console', prompt: '> '});
+  const mirroredSource = model.script;
+  model.restart();
+  session(model, 1, 'second', mirroredSource);
+  assert.equal(model.script, current + 'modified\n');
+  assert.deepEqual(model.history, ['modified']);
+  assert.equal(model.entries.length, 0, 'displayed output resets for the new workspace');
 });
 
 test('large output is bounded without discarding the full source script', () => {

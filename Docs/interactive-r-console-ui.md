@@ -29,7 +29,7 @@ that bootstrap action from their existing-session check. Other actions are:
 | `interrupt`, `restart` | no source or answer payload |
 | `saveScript`, `scriptChanged` | `source` (the complete source) |
 | `ai`, `help` | no content payload |
-| `openPlot`, `copyPlot` | `plotId` only; resolve the asset in native-owned state |
+| `openPlot`, `copyPlot` | `plotId`, `revision`; resolve that exact asset in native-owned state |
 | `modeChanged` | `mode:'console'|'script'` |
 
 The native host calls `window.StatsDirectRConsole.receive(event)`. First send:
@@ -43,6 +43,9 @@ Later events carry the same version/session/generation and a strictly increasing
 sequence values. A new session requires a higher generation. The source script
 and command history survive Restart; displayed output resets to the new session.
 An optional `events` array in the initial session packet can replay that session.
+When sending `script` on Restart, the host must use its current source mirrored
+by `scriptChanged`, rather than the original seed. Omitting `script` retains the
+page's existing source; a reloaded WebView needs the native copy supplied again.
 
 | Event | Fields and meaning |
 | --- | --- |
@@ -82,7 +85,10 @@ previews and resolves Open vector PDF/Copy chart using its own plot map. Windows
 may advertise ordinary SVG; an image-data SVG preview is accepted. Emit one plot
 event per displayed PDF page, with a distinct plot ID or revision and useful label.
 Revisions append immutable transcript pictures rather than overwriting earlier
-results. IDs and generations must resolve only assets owned by the console host.
+results. Open/Copy actions carry both `plotId` and `revision`, so an older card
+cannot accidentally resolve the latest picture. The UI rejects actions from a
+card removed by a session reset. IDs, revisions and generations must resolve only
+the matching immutable assets owned by the console host.
 
 The UI accepts only base64 image-data previews; no arbitrary HTML, file URLs,
 external image URLs, frames or widgets. R output uses DOM `textContent`, never

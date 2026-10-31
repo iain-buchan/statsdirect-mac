@@ -117,6 +117,10 @@
       if (!this.sessionId || this.restarting) return null;
       this.requestId = null; this.requestKind = null; this.state = 'restarting'; this.restarting = true; return this.envelope('restart');
     }
+    plotAction(action, entry) {
+      if (!this.sessionId || !['openPlot', 'copyPlot'].includes(action) || !this.entries.includes(entry) || entry.kind !== 'plot') return null;
+      return this.envelope(action, {plotId: entry.plotId, revision: entry.revision});
+    }
     snapshot() {
       return {protocolVersion: VERSION, sessionId: this.sessionId, generation: this.generation, seq: this.seq, state: this.state, prompt: this.prompt, requestId: this.requestId, requestKind: this.requestKind, mode: this.mode, script: this.script,
         outputText: this.entries.map(e => e.kind === 'plot' ? '[' + e.label + ']' : e.kind === 'input' ? e.prompt + e.text : e.text || '').join('\n'),
@@ -161,8 +165,8 @@
           if (entry.preview) { const image = element('img'); image.src = entry.preview; image.alt = entry.label; figure.append(image); }
           figure.append(element('figcaption', '', entry.label));
           const actions = element('div', 'plot-actions');
-          if (model.capabilities.openPlot) { const open = element('button', '', entry.mime === 'application/pdf' ? 'Open vector PDF' : 'Open chart'); open.type = 'button'; open.onclick = () => send('openPlot', {plotId: entry.plotId}); actions.append(open); }
-          if (model.capabilities.copyPlot) { const copy = element('button', '', 'Copy chart'); copy.type = 'button'; copy.onclick = () => send('copyPlot', {plotId: entry.plotId}); actions.append(copy); }
+          if (model.capabilities.openPlot) { const open = element('button', '', entry.mime === 'application/pdf' ? 'Open vector PDF' : 'Open chart'); open.type = 'button'; open.onclick = () => {const request = model.plotAction('openPlot', entry); if (request) post(request);}; actions.append(open); }
+          if (model.capabilities.copyPlot) { const copy = element('button', '', 'Copy chart'); copy.type = 'button'; copy.onclick = () => {const request = model.plotAction('copyPlot', entry); if (request) post(request);}; actions.append(copy); }
           if (actions.childNodes.length) figure.append(actions); fragment.append(figure);
         }
       }

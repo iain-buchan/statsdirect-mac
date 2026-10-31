@@ -199,7 +199,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func applicationDidFinishLaunching(_ notification: Notification) {
         Document.compileNetworkBlock { [weak self] list in self?.documents.forEach { $0.web.configuration.userContentController.add(list) } }
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 850), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "StatsDirect · Mac prototype"
+        window.title = "StatsDirect"
         window.delegate = self
         window.minSize = NSSize(width: 850, height: 520)
         let container = NSView(); window.contentView = container
@@ -424,7 +424,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         doc.title = title; doc.item.label = title
         if doc.kind == "r" { doc.rPane?.scriptName = title }
         updateWindowMenu()
-        if active === doc { window.title = "\(title) · Mac prototype" }
+        if active === doc { window.title = "\(title) · StatsDirect" }
     }
     /// After a save the document is captioned by its file: a workbook by the file's name, a report or script by its stem.
     func noteDocumentSaved(_ doc: Document, at url: URL) {
@@ -456,7 +456,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         if let doc = active, doc.kind == "grid" { analysisSourceID = doc.id }
         if let doc = active, doc.reportEntries != nil { activeReportID = doc.id }
-        window.title = "\(active?.title ?? "StatsDirect") · Mac prototype"
+        window.title = active.map { "\($0.title) · StatsDirect" } ?? "StatsDirect"
         status.stringValue = running ? "Running analysis…" : "\(documents.count) open documents · \(active?.kind.capitalized ?? "Ready")"
         if windowsMenu != nil { updateWindowMenu() }
     }
@@ -494,9 +494,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "StatsDirect",
             .applicationIcon: NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")) ?? NSApp.applicationIconImage!,
-            .applicationVersion: "\(version) · macOS prototype",
+            .applicationVersion: "\(version) · macOS",
             .version: "",
-            .credits: NSAttributedString(string: "Calculation engine: StatsDirect \(engineVersion)\nEngine revision: \(engineRevision)\nA development preview for macOS.", attributes: [.font: NSFont.systemFont(ofSize: 12)])
+            .credits: NSAttributedString(string: "Calculation engine: StatsDirect \(engineVersion)\nEngine revision: \(engineRevision)\nStatsDirect for macOS.", attributes: [.font: NSFont.systemFont(ofSize: 12)])
         ])
     }
     @objc func editCommand(_ sender: NSMenuItem) {
@@ -717,7 +717,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             webView.evaluateJavaScript("document.querySelector('h1')?.textContent?.trim() || document.title") { value, _ in
                 if let name = value as? String, !name.isEmpty {
                     doc.title = "Help · \(name)"; doc.item.label = doc.title; self.updateWindowMenu()
-                    if self.active === doc { self.window.title = "\(doc.title) · Mac prototype" }
+                    if self.active === doc { self.window.title = "\(doc.title) · StatsDirect" }
                 }
             }
         }

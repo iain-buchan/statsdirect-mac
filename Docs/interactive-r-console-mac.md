@@ -31,7 +31,8 @@ console and runs it once. Existing Script/C#/VB functionality remains available.
 - Charts retain immutable SVG assets and display their original vector bytes in
   the console WebView. Open chart uses a native window with the same SVG in a
   WebView, scaled to fit; Save, Print and Close target the chart window. Copy
-  retains vector SVG with a PNG fallback. A submitted script captures each
+  advertises vector SVG first under its native Mac clipboard type, with a PNG
+  fallback. A submitted script captures each
   completed plot page, rather than every intermediate `plot()`, `abline()` and
   `mtext()` step. Multiple actual pages are preserved; a paired-t agreement
   script produces one completed SVG. Earlier interactive chart versions remain

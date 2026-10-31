@@ -53,11 +53,13 @@ import UniformTypeIdentifiers
         }
         try checkSize(png)
         let item = NSPasteboardItem()
-        item.setData(png, forType: .png)
         if let svg {
             let data = Data(try svgMarkup(svg).utf8)
+            // Advertise SVG first under its native Mac type. NSPasteboardItem
+            // requires UTIs; raw SVG MIME/legacy names are read-only aliases.
             item.setData(data, forType: svgTypes[0])
         }
+        item.setData(png, forType: .png)
         pasteboard.clearContents()
         guard pasteboard.writeObjects([item]) else { throw LegacyReportError("The clipboard could not be written.") }
     }

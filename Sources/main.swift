@@ -261,8 +261,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         finishedLaunching = true
         let requested = pendingOpenURLs; pendingOpenURLs = []
         openDocumentURLs(requested)
-        if InteractiveRConsolePrototype.enabled { makeRConsole() }
-        else { startUpdateChecks() }
+        if !InteractiveRConsolePrototype.enabled { startUpdateChecks() }
     }
     @objc func showDropdown(_ sender: NSButton) {
         guard let title = sender.identifier?.rawValue,

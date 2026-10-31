@@ -85,7 +85,13 @@ import WebKit
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             Task { @MainActor in
                 var passed = false
-                do { try await run(viewer); passed = true; print("PASS: live WebKit interactive R console integration completed"); fflush(stdout) }
+                do {
+                    try check(viewer.documents.count == 1 && viewer.active?.kind == "grid"
+                              && viewer.active?.title == "Untitled" && viewer.active?.gridDirty == false,
+                              "startup opens one active blank workbook without creating an R document")
+                    if !CommandLine.arguments.contains("--startup-only") { try await run(viewer) }
+                    passed = true; print("PASS: live WebKit interactive R console integration completed"); fflush(stdout)
+                }
                 catch { print("FAIL: " + error.localizedDescription); fflush(stdout) }
                 await cleanup(viewer)
                 if passed { viewer.closeApproved = true; app.terminate(nil) }

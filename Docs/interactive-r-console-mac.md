@@ -1,8 +1,8 @@
 # Interactive R console: Mac prototype
 
-This work is isolated on `prototype/interactive-r-console`. It does not change
-main, the 1.0.1 University signing candidate, the installed StatsDirect app or
-any GitHub release. No installer is produced.
+The console implementation is merged into `main`. The development build remains
+isolated from the 1.0.1 University signing candidate, the installed StatsDirect app
+and GitHub releases. No installer is produced.
 
 Build with `Scripts/build-interactive-console-prototype.sh`. The separate app is
 `.build/interactive-r-console.noindex/StatsDirect Console Prototype.app`, with
@@ -13,8 +13,8 @@ for this development build. The builder prepares the SVG device with
 Signing is local/ad hoc only. Matching debug symbols
 are stored outside the app.
 
-The app opens an R Console tab. File > New R Console (Prototype) opens another
-independent session. Continue in R opens the generated analysis script in the
+The app starts with one blank workbook. File > New R Console (Prototype) opens an
+independent session when requested. Continue in R opens the generated analysis script in the
 console and runs it once. Existing Script/C#/VB functionality remains available.
 
 - Enter runs a command; Shift+Enter inserts a line. Up/Down recalls history.

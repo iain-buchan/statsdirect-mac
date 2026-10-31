@@ -94,6 +94,11 @@ required before the page allows an answer; Stop/Restart removes it immediately.
 
 ## Graphics and retained data
 
+Startup opens one blank workbook. The prototype flag enables the interactive R
+commands but does not open an R tab or start its worker automatically. File
+commands and Continue in R create a session only when requested; explicit files
+opened from Finder continue to replace the untouched startup workbook normally.
+
 The isolated Mac console prototype currently trials SVG snapshots from an internal
 PDF recording device. It displays each SVG as a separate image document and resolves
 Open chart/Copy chart using its own plot map. Released Mac ordinary R output remains

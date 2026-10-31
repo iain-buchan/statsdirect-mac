@@ -44,10 +44,11 @@ rm -rf "$TEST_APP/Contents/Resources/Content"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.statsdirect.consoleintegration.${TEST_WORK##*.}" "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Console Integration Test' "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName StatsDirect Console Integration Test' "$TEST_APP/Contents/Info.plist"
-# Tests explicitly create their console; an optional prototype base must not
-# create a second console at startup or share its application preferences.
+# Exercise the real prototype startup policy: a blank workbook, with R sessions
+# created only by explicit commands. The test bundle has separate preferences.
 /usr/libexec/PlistBuddy -c 'Delete :StatsDirectInteractiveConsolePrototype' "$TEST_APP/Contents/Info.plist" >/dev/null 2>&1 || true
+/usr/libexec/PlistBuddy -c 'Add :StatsDirectInteractiveConsolePrototype bool true' "$TEST_APP/Contents/Info.plist"
 /usr/bin/codesign --force --sign - "$TEST_APP/Contents/MacOS/RConsoleWorker"
 /usr/bin/codesign --force --sign - "$TEST_APP"
 printf 'Test app: %s\n' "$TEST_APP"
-"$TEST_APP/Contents/MacOS/$EXECUTABLE" --run-tests
+"$TEST_APP/Contents/MacOS/$EXECUTABLE" --run-tests "${@:2}"

@@ -9,6 +9,18 @@ struct RPaneChecks {
     @MainActor static func main() throws {
         setvbuf(stdout, nil, _IOLBF, 0)
         _ = NSApplication.shared
+        let board = NSPasteboard.general
+        let clipboard = board.pasteboardItems?.map { item in
+            item.types.reduce(into: [NSPasteboard.PasteboardType: Data]()) { $0[$1] = item.data(forType: $1) }
+        } ?? []
+        defer {
+            board.clearContents()
+            board.writeObjects(clipboard.map { values in
+                let item = NSPasteboardItem()
+                for (type, data) in values { item.setData(data, forType: type) }
+                return item
+            })
+        }
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
         let pane = RPane(resources: resources)
         pane.view.frame = NSRect(x: 0, y: 0, width: 900, height: 650)
@@ -24,6 +36,29 @@ struct RPaneChecks {
             }
             return found
         }
+        func chartIndex(_ target: RPane, attachment: NSTextAttachment) -> Int {
+            let storage = target.console.textStorage!
+            var index: Int?
+            storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+                if let found = value as? NSTextAttachment, found === attachment { index = range.location }
+            }
+            precondition(index != nil, "Chart is present in its original output pane")
+            return index!
+        }
+        func chartMenu(_ target: RPane, attachment: NSTextAttachment) -> NSMenu {
+            let menu = target.plotMenu(at: chartIndex(target, attachment: attachment))
+            precondition(menu != nil, "Chart has a native context menu")
+            return menu!
+        }
+        func copyChart(_ menu: NSMenu) {
+            let item = menu.items[0]
+            precondition(NSApp.sendAction(item.action!, to: item.target, from: item), "Copy Chart action is connected")
+        }
+        func waitForClipboard(_ pasteboard: NSPasteboard, after change: Int) {
+            let deadline = Date().addingTimeInterval(15)
+            while pasteboard.changeCount == change && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
+            precondition(pasteboard.changeCount != change, "Asynchronous chart copy completes: " + pane.state.stringValue)
+        }
         func wait(_ targets: [RPane]) {
             let deadline = Date().addingTimeInterval(30)
             while targets.contains(where: \.isRunning) && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
@@ -38,6 +73,10 @@ struct RPaneChecks {
         }
         run("stopifnot(!'svglite' %in% loadedNamespaces()); x <- 1:5\nplot(x, x^2, main='First plot')\nplot(x, rev(x), main='Second plot')", plots: 2)
         precondition(images(pane).allSatisfy { ($0.image?.size.width ?? 0) > 0 })
+        let rasterMenu = chartMenu(pane, attachment: images(pane)[0])
+        precondition(rasterMenu.items.map(\.title) == ["Copy Chart", "Save Chart as SVG…", "Save Chart as PNG…"], "Chart menu matches report actions without an Open command")
+        precondition(!rasterMenu.items[1].isEnabled && rasterMenu.items[2].isEnabled, "PDF/raster previews offer PNG without inventing SVG")
+        print("PASS legacy chart menu offers Copy, SVG and PNG with truthful vector availability")
         run("stopifnot(identical(x, 1:5)); cat('Variables retained\\n')", plots: 0)
         run("plot(x, x * 2); stop('Deliberate test error')", plots: 1)
         precondition(pane.console.string.contains("Error: Deliberate test error"))
@@ -130,6 +169,27 @@ struct RPaneChecks {
         run("svglite::svglite('explicit.svg', width=4, height=3); plot(1:3, main='Explicit SVG'); dev.off(); pdf('explicit.pdf', width=4, height=3); plot(1:3); plot(3:1); dev.off()", plots: 3)
         precondition(try String(contentsOf: folder.appendingPathComponent("explicit.svg"), encoding: .utf8).contains("<svg"), "Explicit R SVG output remains available")
         precondition(PDFDocument(url: folder.appendingPathComponent("explicit.pdf"))?.pageCount == 2, "Explicit PDF device retains both pages")
+        let svgFile = folder.appendingPathComponent("explicit.svg")
+        let originalSVG = try Data(contentsOf: svgFile)
+        let vectorAttachment = images(pane).first { chartMenu(pane, attachment: $0).items[1].isEnabled }!
+        let vectorMenu = chartMenu(pane, attachment: vectorAttachment)
+        precondition(vectorMenu.items[2].isEnabled, "A retained vector chart also offers PNG")
+        // A menu belongs to the completed attachment, not its old text index or
+        // a file that a subsequent R command can overwrite.
+        storage.insert(NSAttributedString(string: "Output inserted before the chart\n"), at: 0)
+        try Data("<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><rect width='10' height='10' fill='blue'/></svg>".utf8).write(to: svgFile)
+        let clipboardChange = board.changeCount
+        copyChart(vectorMenu)
+        waitForClipboard(board, after: clipboardChange)
+        precondition(NSPasteboard.general.data(forType: ReportImageClipboard.svgTypes[0]) == originalSVG && NSPasteboard.general.data(forType: .png) != nil, "Copy Chart preserves original SVG plus PNG after text shifts and source-file replacement")
+        let privateBoard = NSPasteboard.withUniqueName()
+        defer { privateBoard.releaseGlobally() }
+        let privateChange = privateBoard.changeCount
+        precondition(try pane.copyPlot(at: chartIndex(pane, attachment: vectorAttachment), to: privateBoard), "Selected vector chart is handled by the existing Copy action")
+        waitForClipboard(privateBoard, after: privateChange)
+        precondition(privateBoard.data(forType: ReportImageClipboard.svgTypes[0]) == originalSVG && privateBoard.data(forType: .png) != nil, "Selected-chart Copy retains SVG with a WebKit-rendered PNG on its original pasteboard")
+        try originalSVG.write(to: svgFile)
+        print("PASS legacy chart context keeps its original vector bytes and attachment through output shifts")
         run("pdf('explicit-error.pdf'); plot(1:3); stop('Explicit device error')", plots: 1)
         precondition(PDFDocument(url: folder.appendingPathComponent("explicit-error.pdf"))?.pageCount == 1, "An error still flushes the explicit device")
         print("PASS explicit SVG and multipage PDF devices render, including an explicit device flushed after an R error")
@@ -149,6 +209,12 @@ struct RPaneChecks {
             precondition(try Data(contentsOf: file) == data && file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate == modified, "Reruns and other sessions cannot overwrite prior charts")
         }
         print("PASS concurrent R tabs, repeated runs and earlier chart bytes/timestamps remain independent")
+        let removedChartMenu = chartMenu(other, attachment: images(other)[0])
+        other.console.string = ""
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString("chart removed", forType: .string)
+        copyChart(removedChartMenu)
+        precondition(NSPasteboard.general.string(forType: .string) == "chart removed", "A chart menu cannot act after its output is cleared")
+        print("PASS cleared legacy chart context cannot copy a different attachment")
         let beforeSplit = Set(try FileManager.default.contentsOfDirectory(atPath: folder.path))
         run("dev.new(onefile=FALSE, width=4, height=3); plot(1:3); plot(3:1); dev.off()", plots: 2)
         let splitFiles = Set(try FileManager.default.contentsOfDirectory(atPath: folder.path)).subtracting(beforeSplit).sorted()
@@ -175,5 +241,11 @@ struct RPaneChecks {
         precondition(pane.console.string.contains("edited script ran") && !pane.console.string.contains("slow finished") && pane.console.string.contains("Run stopped"), pane.console.string.suffix(400).description)
         print("PASS Run script during a run stops it and runs the edited script")
         precondition(pane.console.textStorage!.containsAttachments)
+        let stoppedChartMenu = chartMenu(pane, attachment: images(pane)[0])
+        pane.shutdown()
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString("session stopped", forType: .string)
+        copyChart(stoppedChartMenu)
+        precondition(NSPasteboard.general.string(forType: .string) == "session stopped", "A chart menu cannot act after its owning session is reset")
+        print("PASS stopped legacy session invalidates pending chart menu actions")
     }
 }

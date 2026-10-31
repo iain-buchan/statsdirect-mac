@@ -6,6 +6,7 @@ import PDFKit
 final class ScriptTextView: NSTextView {
     var didFocus: (() -> Void)?
     var copyPicture: ((Int, NSPasteboard) -> Bool)?
+    var pictureMenu: ((Int) -> NSMenu?)?
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
         if accepted { didFocus?() }
@@ -18,7 +19,7 @@ final class ScriptTextView: NSTextView {
     }
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = super.menu(for: event)
-        guard copyPicture != nil, let layout = layoutManager, let container = textContainer, layout.numberOfGlyphs > 0 else { return menu }
+        guard let pictureMenu, let layout = layoutManager, let container = textContainer, layout.numberOfGlyphs > 0 else { return menu }
         let point = convert(event.locationInWindow, from: nil)
         let local = NSPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
         let glyph = layout.glyphIndex(for: local, in: container)
@@ -26,14 +27,7 @@ final class ScriptTextView: NSTextView {
         let index = layout.characterIndexForGlyph(at: glyph)
         guard index < (textStorage?.length ?? 0), textStorage?.attribute(.attachment, at: index, effectiveRange: nil) != nil,
               layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).contains(local) else { return menu }
-        let result = menu ?? NSMenu()
-        let item = NSMenuItem(title: "Copy image", action: #selector(copyPictureItem(_:)), keyEquivalent: "")
-        item.target = self; item.representedObject = index
-        result.insertItem(item, at: 0)
-        return result
-    }
-    @objc private func copyPictureItem(_ sender: NSMenuItem) {
-        if let index = sender.representedObject as? Int { _ = copyPicture?(index, .general) }
+        return pictureMenu(index) ?? menu
     }
 }
 
@@ -104,6 +98,8 @@ final class RPane: NSObject, NSTextViewDelegate {
     private var directory: URL?
     private var pending = Data()
     private var generation = UUID()
+    private var plotCopyRequest = UUID()
+    private var plotSaveRequest = UUID()
     private var marker = ""
     private weak var editingFocus: NSTextView?
     private var busy = false
@@ -119,6 +115,17 @@ final class RPane: NSObject, NSTextViewDelegate {
     var showHelp: (() -> Void)?
     private let resources: URL
     private struct PlotStamp: Equatable { let modified: Date; let size: Int }
+    @MainActor private final class PlotContext {
+        let owner: ObjectIdentifier
+        let generation: UUID
+        let attachment: RPlotAttachment
+        let image: NSImage
+        let svg: Data?
+        init(owner: RPane, attachment: RPlotAttachment, image: NSImage) {
+            self.owner = ObjectIdentifier(owner); generation = owner.generation
+            self.attachment = attachment; self.image = image; svg = attachment.svgData
+        }
+    }
     private var plotsBefore: [URL: PlotStamp] = [:]
     private var filesBefore: [URL: PlotStamp] = [:]
     var outputFolder: URL? { directory }
@@ -150,6 +157,7 @@ final class RPane: NSObject, NSTextViewDelegate {
             do { return try self.copyPlot(at: index, to: pasteboard) }
             catch { self.state.stringValue = error.localizedDescription; return true }
         }
+        console.pictureMenu = { [weak self] index in self?.plotMenu(at: index) }
         runButton.target = self; runButton.action = #selector(runScript)
         runButton.keyEquivalent = "\r"; runButton.keyEquivalentModifierMask = [.command]
         runButton.toolTip = "Run this script (⌘Return). Results and charts appear below."
@@ -432,7 +440,7 @@ final class RPane: NSObject, NSTextViewDelegate {
         storage.append(NSAttributedString(string: "Chart: \(label)\n", attributes: [.link: url, .font: NSFont.systemFont(ofSize: 12)]))
         let attachment = RPlotAttachment(); attachment.image = image
         // Snapshot the vector bytes now: a later R run may overwrite this file.
-        if url.pathExtension.lowercased() == "svg" { attachment.svgData = try? Data(contentsOf: url) }
+        if url.pathExtension.lowercased() == "svg" { attachment.svgData = try? RChartExport.svgData(from: url) }
         storage.append(NSAttributedString(attachment: attachment))
         append("\n")
         chartsShown.insert(url)
@@ -442,8 +450,102 @@ final class RPane: NSObject, NSTextViewDelegate {
         guard let storage = console.textStorage, index >= 0, index < storage.length,
               let attachment = storage.attribute(.attachment, at: index, effectiveRange: nil) as? RPlotAttachment,
               let image = attachment.image else { return false }
-        try ReportImageClipboard.write(image: image, svg: attachment.svgData, to: pasteboard)
+        try copyPlot(PlotContext(owner: self, attachment: attachment, image: image), to: pasteboard)
         return true
+    }
+    private func copyPlot(_ context: PlotContext, to pasteboard: NSPasteboard) throws {
+        let request = UUID(); plotCopyRequest = request
+        guard let svg = context.svg else {
+            try ReportImageClipboard.write(image: context.image, svg: nil, to: pasteboard)
+            return
+        }
+        let clipboardChange = pasteboard.changeCount
+        // WebKit applies the SVG's CSS before drawing its PNG fallback. Keep
+        // the destination pasteboard alive until rendering has completed.
+        Task { @MainActor [weak self, pasteboard] in
+            guard let self, self.plotCopyRequest == request, self.isCurrentPlot(context),
+                  pasteboard.changeCount == clipboardChange else { return }
+            do {
+                let png = try await RChartExport.pngData(fromSVG: svg)
+                guard self.plotCopyRequest == request, self.isCurrentPlot(context),
+                      pasteboard.changeCount == clipboardChange else { return }
+                guard let image = NSImage(data: png) else { throw LegacyReportError("The chart PNG could not be read.") }
+                try ReportImageClipboard.write(image: image, svg: svg, to: pasteboard)
+            } catch {
+                guard self.plotCopyRequest == request, self.isCurrentPlot(context),
+                      pasteboard.changeCount == clipboardChange else { return }
+                self.state.stringValue = error.localizedDescription
+            }
+        }
+    }
+    /// Capture the attachment itself: output trimming or another run can change
+    /// its character index while the menu or its Save panel is open.
+    func plotMenu(at index: Int) -> NSMenu? {
+        guard let storage = console.textStorage, index >= 0, index < storage.length,
+              let attachment = storage.attribute(.attachment, at: index, effectiveRange: nil) as? RPlotAttachment,
+              let image = attachment.image else { return nil }
+        let context = PlotContext(owner: self, attachment: attachment, image: image)
+        let menu = NSMenu(); menu.autoenablesItems = false
+        for (title, action, tag, enabled) in [
+            ("Copy Chart", #selector(copyContextPlot(_:)), 0, true),
+            ("Save Chart as SVG…", #selector(saveContextPlot(_:)), 0, context.svg != nil),
+            ("Save Chart as PNG…", #selector(saveContextPlot(_:)), 1, true)
+        ] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self; item.representedObject = context; item.tag = tag; item.isEnabled = enabled
+            menu.addItem(item)
+        }
+        return menu
+    }
+    private func isCurrentPlot(_ context: PlotContext) -> Bool {
+        guard context.owner == ObjectIdentifier(self), generation == context.generation,
+              let storage = console.textStorage else { return false }
+        var present = false
+        storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, _, stop in
+            if let attachment = value as? RPlotAttachment, attachment === context.attachment {
+                present = true; stop.pointee = true
+            }
+        }
+        return present
+    }
+    @objc private func copyContextPlot(_ sender: NSMenuItem) {
+        guard let context = sender.representedObject as? PlotContext, isCurrentPlot(context) else { return }
+        do { try copyPlot(context, to: .general) }
+        catch { state.stringValue = error.localizedDescription }
+    }
+    @objc private func saveContextPlot(_ sender: NSMenuItem) {
+        guard let context = sender.representedObject as? PlotContext, isCurrentPlot(context),
+              let owner = view.window, owner.attachedSheet == nil else { return }
+        let png = sender.tag == 1
+        let request = UUID(); plotSaveRequest = request
+        Task { @MainActor [weak self, weak owner] in
+            guard let self, let owner, self.plotSaveRequest == request,
+                  self.view.window === owner, owner.isVisible, self.isCurrentPlot(context) else { return }
+            let data: Data
+            do {
+                if png {
+                    if let svg = context.svg { data = try await RChartExport.pngData(fromSVG: svg) }
+                    else { data = try RChartExport.pngData(fromImage: context.image) }
+                }
+                else { guard let svg = context.svg else { return }; data = svg }
+            } catch {
+                guard self.plotSaveRequest == request, self.isCurrentPlot(context), self.view.window === owner else { return }
+                self.state.stringValue = error.localizedDescription
+                return
+            }
+            guard self.plotSaveRequest == request, self.isCurrentPlot(context),
+                  self.view.window === owner, owner.isVisible, owner.attachedSheet == nil else { return }
+            let panel = NSSavePanel()
+            panel.title = png ? "Save Chart as PNG" : "Save Chart as SVG"
+            panel.allowedContentTypes = [png ? .png : .svg]
+            panel.nameFieldStringValue = png ? "R chart.png" : "R chart.svg"
+            panel.beginSheetModal(for: owner) { [weak self, weak owner] response in
+                guard let self, let owner, self.plotSaveRequest == request, self.view.window === owner, owner.isVisible,
+                      self.isCurrentPlot(context), response == .OK, let target = panel.url else { return }
+                do { try data.write(to: target, options: .atomic); self.state.stringValue = "Chart saved as " + target.lastPathComponent }
+                catch { self.state.stringValue = error.localizedDescription }
+            }
+        }
     }
     @objc func runScript() {
         if language != "R" {

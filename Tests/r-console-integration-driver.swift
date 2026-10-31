@@ -369,6 +369,28 @@ import WebKit
                   "plot then abline creates a new inline SVG while earlier charts retain their original SVG mapping")
         try check(earlierSVGPreserved && svgClipboardMatches(updatedOriginalSVG, label: "Updated chart"),
                   "both SVG clipboard representations and PNG preserve the selected earlier or updated chart version")
+        let earlierExportSVG = try RChartExport.svgData(from: originalPlotURL), updatedExportSVG = try RChartExport.svgData(from: updatedPlotURL)
+        try check(earlierExportSVG == originalSVG && updatedExportSVG == updatedOriginalSVG && earlierExportSVG != updatedExportSVG,
+                  "Save SVG exports the exact original bytes of the selected earlier or updated chart revision")
+        let earlierExportPNG = try await RChartExport.pngData(fromSVG: earlierExportSVG), updatedExportPNG = try await RChartExport.pngData(fromSVG: updatedExportSVG)
+        let earlierExportBitmap = NSBitmapImageRep(data: earlierExportPNG), updatedExportBitmap = NSBitmapImageRep(data: updatedExportPNG)
+        let earlierIntrinsicSize = NSImage(data: earlierExportSVG)?.size ?? .zero, updatedIntrinsicSize = NSImage(data: updatedExportSVG)?.size ?? .zero
+        try check(earlierExportPNG.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]) && updatedExportPNG.starts(with: [137, 80, 78, 71, 13, 10, 26, 10])
+                  && earlierIntrinsicSize.width > 0 && earlierIntrinsicSize.height > 0 && updatedIntrinsicSize.width > 0 && updatedIntrinsicSize.height > 0
+                  && earlierExportBitmap?.pixelsWide == Int(ceil(earlierIntrinsicSize.width * 2))
+                  && earlierExportBitmap?.pixelsHigh == Int(ceil(earlierIntrinsicSize.height * 2))
+                  && updatedExportBitmap?.pixelsWide == Int(ceil(updatedIntrinsicSize.width * 2))
+                  && updatedExportBitmap?.pixelsHigh == Int(ceil(updatedIntrinsicSize.height * 2))
+                  && earlierExportBitmap?.bitsPerSample == 8 && updatedExportBitmap?.bitsPerSample == 8 && earlierExportPNG != updatedExportPNG,
+                  "Save PNG exports valid distinct eight-bit images at twice the intrinsic size of each selected chart revision")
+        if let folder = ProcessInfo.processInfo.environment["STATSDIRECT_R_EXPORT_QA"] {
+            let output = URL(fileURLWithPath: folder, isDirectory: true)
+            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+            for (name, data) in [("earlier.svg", earlierExportSVG), ("earlier.png", earlierExportPNG),
+                                 ("updated.svg", updatedExportSVG), ("updated.png", updatedExportPNG)] {
+                try data.write(to: output.appendingPathComponent(name), options: .atomic)
+            }
+        }
 
         func chartContextMenu(_ index: Int?) async throws -> NSMenu {
             _ = try await doc.web.callAsyncJavaScript("""
@@ -388,18 +410,37 @@ import WebKit
             }
             guard NSApp.sendAction(action, to: item.target, from: item) else { throw CocoaError(.featureUnsupported) }
         }
+        func waitForMenuCopy(_ expected: Data, previousChange: Int, label: String) async throws {
+            try await wait(label + " SVG and PNG clipboard copy") {
+                board.changeCount != previousChange && board.data(forType: nativeSVGType) == expected
+                    && board.data(forType: ReportImageClipboard.officeSVGType) == expected
+                    && !(board.data(forType: .png)?.isEmpty ?? true)
+            }
+        }
+        let popoutMenu = NSMenu(); popoutMenu.addItem(withTitle: "Browser image command", action: nil, keyEquivalent: "")
+        let popoutController = vectorWindow.windowController as! RConsoleSVGWindow
+        popoutController.prepareChartMenu(popoutMenu)
+        let clipboardBeforePopoutCopy = board.changeCount
+        try performChartAction(popoutMenu, "Copy Chart")
+        try await waitForMenuCopy(originalSVG, previousChange: clipboardBeforePopoutCopy, label: "Popout chart")
+        try check(popoutMenu.items.map(\.title) == ["Copy Chart", "Save Chart as SVG…", "Save Chart as PNG…"]
+                  && popoutMenu.items.allSatisfy { ($0.target as? RConsoleSVGWindow) === popoutController && $0.action != nil }
+                  && svgClipboardMatches(originalSVG, label: "Popout chart context-menu copy"),
+                  "the separate chart window uses the same three native popup commands in order and copies its retained original SVG")
         let earlierChartMenu = try await chartContextMenu(0)
-        try check(earlierChartMenu.items.map(\.title) == ["Open Chart in New Window", "Copy Chart", "Save Chart as SVG…"],
-                  "the injected context-menu bridge replaces inert WebKit image commands with native Open, combined Copy and Save SVG actions")
+        try check(earlierChartMenu.items.map(\.title) == ["Copy Chart", "Save Chart as SVG…", "Save Chart as PNG…"],
+                  "the injected context-menu bridge offers only native Copy Chart, Save SVG and Save PNG in that order")
+        let clipboardBeforeEarlierCopy = board.changeCount
         try performChartAction(earlierChartMenu, "Copy Chart")
+        try await waitForMenuCopy(originalSVG, previousChange: clipboardBeforeEarlierCopy, label: "Earlier chart context menu")
         try check(svgClipboardMatches(originalSVG, label: "Earlier image context-menu copy"),
                   "right-click Copy on an earlier chart copies that exact original SVG rather than the latest chart")
-        try performChartAction(earlierChartMenu, "Open Chart")
-        try await wait("context-menu original chart window") { vectorWindow.isKeyWindow }
+        _ = try await evaluate(doc, "document.querySelector('figure.plot button').click(); true")
+        try await wait("card Open original chart window") { vectorWindow.isKeyWindow }
         try check(vectorWindows().count == 1 && vectorBytes(vectorWindow) == originalSVG,
-                  "right-click Open targets the selected original chart and reuses its native SVG window")
+                  "the retained Open chart card button targets the original chart and reuses its native SVG window")
         viewer.window.makeKeyAndOrderFront(nil)
-        try performChartAction(earlierChartMenu, "Save Chart")
+        try performChartAction(earlierChartMenu, "Save Chart as SVG")
         try await wait("native chart Save SVG panel") { viewer.window.attachedSheet is NSSavePanel }
         let cancelledSave = viewer.window.attachedSheet as! NSSavePanel
         try check(cancelledSave.nameFieldStringValue.hasSuffix(".svg") && cancelledSave.allowedContentTypes.contains { $0.identifier == "public.svg-image" },
@@ -408,10 +449,21 @@ import WebKit
         try await wait("cancelled chart Save panel closes") { viewer.window.attachedSheet == nil }
         try check((try Data(contentsOf: originalPlotURL)) == originalSVG,
                   "cancelling Save SVG leaves the original chart file unchanged")
+        try performChartAction(earlierChartMenu, "Save Chart as PNG")
+        try await wait("native chart Save PNG panel") { viewer.window.attachedSheet is NSSavePanel }
+        let cancelledPNGSave = viewer.window.attachedSheet as! NSSavePanel
+        try check(cancelledPNGSave.nameFieldStringValue.hasSuffix(".png") && cancelledPNGSave.allowedContentTypes.contains { $0.identifier == "public.png" },
+                  "right-click Save PNG opens a real PNG save dialog for the selected original chart")
+        cancelledPNGSave.cancel(nil)
+        try await wait("cancelled chart PNG Save panel closes") { viewer.window.attachedSheet == nil }
+        try check((try Data(contentsOf: originalPlotURL)) == originalSVG && (try Data(contentsOf: updatedPlotURL)) == updatedOriginalSVG,
+                  "cancelling Save PNG preserves both earlier and updated original SVG assets")
         // Successful Save is checked through the real macOS dialog in desktop
         // QA. Forcing a remote NSSavePanel's acceptance bypasses that UI path.
         let updatedChartMenu = try await chartContextMenu(1)
+        let clipboardBeforeUpdatedCopy = board.changeCount
         try performChartAction(updatedChartMenu, "Copy Chart")
+        try await waitForMenuCopy(updatedOriginalSVG, previousChange: clipboardBeforeUpdatedCopy, label: "Updated chart context menu")
         try check(svgClipboardMatches(updatedOriginalSVG, label: "Updated image context-menu copy"),
                   "the context-menu bridge identifies the updated image separately from its earlier chart version")
         let textMenu = try await chartContextMenu(nil)
@@ -598,14 +650,14 @@ import WebKit
                   "Restart creates a fresh workspace and preserves the editable script")
         let clipboardBeforeStaleMenu = board.changeCount
         let windowsBeforeStaleMenu = vectorWindows().count
-        for prefix in ["Open Chart", "Copy Chart", "Save Chart"] { try performChartAction(earlierChartMenu, prefix) }
+        for prefix in ["Copy Chart", "Save Chart as SVG", "Save Chart as PNG"] { try performChartAction(earlierChartMenu, prefix) }
         try await post(doc, "chartContext", fields: ["preview": "data:image/svg+xml;base64," + originalSVG.base64EncodedString()], envelope: oldEnvelope)
         _ = try await doc.web.callAsyncJavaScript("await new Promise(resolve => requestAnimationFrame(resolve)); return true", arguments: [:], in: nil, contentWorld: .page)
         let retiredMenu = NSMenu(); retiredMenu.addItem(withTitle: "Standard text command", action: nil, keyEquivalent: "")
         pane.extendChartMenu(retiredMenu)
         try check(board.changeCount == clipboardBeforeStaleMenu && vectorWindows().count == windowsBeforeStaleMenu
                   && viewer.window.attachedSheet == nil && retiredMenu.items.map(\.title) == ["Standard text command"],
-                  "Restart retires old context-menu actions and bridge previews without reopening, copying or saving charts")
+                  "Restart retires old Copy, Save SVG, Save PNG and bridge previews without copying or saving charts")
         try check((try Data(contentsOf: originalPlotURL)) == originalSVG && (try Data(contentsOf: updatedPlotURL)) == updatedOriginalSVG
                   && svgClipboardMatches(updatedOriginalSVG, label: "Copied chart after Restart"),
                   "Restart retains both original chart files while the combined SVG and PNG clipboard remains available")
@@ -729,6 +781,27 @@ import WebKit
         try check(cleared.count == 1 && points(cleared[0]) == 8 && contains(cleared[0], "Private capture survives")
                   && afterClear.count == 1 && points(afterClear[0]) == 9 && contains(afterClear[0], "Capture still active"),
                   "clearing every learner global leaves private capture active for the closing page and subsequent graphics")
+        let identical = try await newPlots("plot(1:3, pch=16, main='Identical charts'); dev.off(); plot(1:3, pch=16, main='Identical charts'); dev.off()")
+        let identicalCards = Array(((try await snapshot(doc))["transcript"] as? [[String: Any]] ?? []).filter { $0["kind"] as? String == "plot" }.suffix(2))
+        let expectedKeys = identicalCards.map { ($0["plotId"] as? String ?? "") + ":" + String($0["revision"] as? Int ?? -1) }
+        var contextKeys: [String] = [], exactMenus = true
+        for index in 0..<2 {
+            _ = try await doc.web.callAsyncJavaScript("""
+            const figures = Array.from(document.querySelectorAll('figure.plot')).slice(-2);
+            figures[index].querySelector('img').dispatchEvent(new MouseEvent('contextmenu', {bubbles:true, cancelable:true, button:2}));
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            return true;
+            """, arguments: ["index": index], in: nil, contentWorld: .page)
+            let menu = NSMenu(); menu.addItem(withTitle: "Standard text command", action: nil, keyEquivalent: "")
+            pane.extendChartMenu(menu)
+            let keys = menu.items.map { ($0.representedObject as? [String: Any])?["key"] as? String ?? "" }
+            contextKeys.append(keys.first ?? "")
+            exactMenus = exactMenus && menu.items.map(\.title) == ["Copy Chart", "Save Chart as SVG…", "Save Chart as PNG…"]
+                && index < expectedKeys.count && keys.allSatisfy { $0 == expectedKeys[index] }
+        }
+        try check(identical.count == 2 && identical[0] == identical[1] && points(identical[0]) == 3
+                  && expectedKeys.count == 2 && expectedKeys[0] != expectedKeys[1] && contextKeys == expectedKeys && exactMenus,
+                  "right-clicking either of two byte-identical SVG charts binds all three popup actions to that card's distinct plot identity and revision")
     }
 
     @MainActor static func narrowConsoleChecks(_ viewer: Viewer, _ doc: Document) async throws {

@@ -174,6 +174,7 @@
         }
         else if (entry.kind === 'plot') {
           const figure = element('figure', 'plot');
+          figure.dataset.plotId = entry.plotId; figure.dataset.revision = entry.revision;
           if (entry.preview) { const image = element('img'); image.src = entry.preview; image.alt = entry.label; figure.append(image); }
           figure.append(element('figcaption', '', entry.label));
           const actions = element('div', 'plot-actions');

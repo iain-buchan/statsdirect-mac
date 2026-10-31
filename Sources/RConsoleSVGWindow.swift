@@ -14,22 +14,16 @@ private final class RChartWebView: WKWebView {
 @MainActor final class RConsoleSVGWindow: NSWindowController, NSWindowDelegate, WKNavigationDelegate {
     let fileURL: URL
     let web: WKWebView
+    private let originalSVG: Data
+    private var closed = false
+    private var copyRequest = 0
+    private var saveRequest = 0
     private(set) var loadError: String?
     var onClose: (() -> Void)?
 
     init(url: URL, title: String) throws {
-        guard url.isFileURL, url.pathExtension.lowercased() == "svg",
-              let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
-              size > 0, size <= 64 * 1024 * 1024 else {
-            throw NSError(domain: "StatsDirect.RConsoleSVG", code: 1,
-                          userInfo: [NSLocalizedDescriptionKey: "The chart SVG is unavailable or too large to open."])
-        }
-        let data = try Data(contentsOf: url)
-        guard let text = String(data: data, encoding: .utf8),
-              text.range(of: "<svg(?:\\s|>)", options: .regularExpression) != nil else {
-            throw NSError(domain: "StatsDirect.RConsoleSVG", code: 2,
-                          userInfo: [NSLocalizedDescriptionKey: "The chart file does not contain a readable SVG image."])
-        }
+        let data = try RChartExport.svgData(from: url)
+        originalSVG = data
         fileURL = url
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
@@ -85,14 +79,14 @@ private final class RChartWebView: WKWebView {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func prepareChartMenu(_ menu: NSMenu) {
+    func prepareChartMenu(_ menu: NSMenu) {
         // WebKit's browser image actions cannot open/download this inert data
         // image. Native commands operate on its retained original SVG instead.
         menu.removeAllItems()
         for (title, action) in [
             ("Copy Chart", #selector(copySVG(_:))),
             ("Save Chart as SVG…", #selector(saveSVG)),
-            ("Print Chart…", #selector(printSVG))
+            ("Save Chart as PNG…", #selector(savePNG))
         ] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = self
@@ -101,27 +95,59 @@ private final class RChartWebView: WKWebView {
     }
 
     @objc private func copySVG(_ sender: Any?) {
-        do { try ReportImageClipboard.writeSVG(Data(contentsOf: fileURL), to: .general) }
-        catch {
-            guard let owner = window else { return }
-            let alert = NSAlert(error: error)
-            alert.messageText = "The chart SVG could not be copied."
-            alert.beginSheetModal(for: owner)
+        guard !closed, let owner = window else { return }
+        copyRequest += 1
+        let request = copyRequest, changeCount = NSPasteboard.general.changeCount
+        Task { @MainActor [weak self, weak owner] in
+            guard let self, let owner else { return }
+            do {
+                let png = try await RChartExport.pngData(fromSVG: self.originalSVG)
+                guard !self.closed, self.window === owner, self.copyRequest == request,
+                      NSPasteboard.general.changeCount == changeCount, let image = NSImage(data: png) else { return }
+                try ReportImageClipboard.write(image: image, svg: self.originalSVG, to: .general)
+            } catch {
+                guard !self.closed, self.window === owner, self.copyRequest == request,
+                      NSPasteboard.general.changeCount == changeCount, owner.attachedSheet == nil else { return }
+                let alert = NSAlert(error: error)
+                alert.messageText = "The chart SVG could not be copied."
+                await alert.beginSheetModal(for: owner)
+            }
         }
     }
 
-    @objc func saveSVG() {
-        guard let owner = window else { return }
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.svg]
-        panel.nameFieldStringValue = "R chart.svg"
-        panel.beginSheetModal(for: owner) { [weak self] response in
-            guard let self, response == .OK, let target = panel.url else { return }
-            do { try Data(contentsOf: self.fileURL).write(to: target, options: .atomic) }
+    @objc func saveSVG() { saveChart(asPNG: false) }
+    @objc func savePNG() { saveChart(asPNG: true) }
+
+    private func saveChart(asPNG: Bool) {
+        guard !closed, let owner = window, owner.attachedSheet == nil else { return }
+        saveRequest += 1
+        let request = saveRequest
+        Task { @MainActor [weak self, weak owner] in
+            guard let self, let owner else { return }
+            let data: Data
+            do { data = asPNG ? try await RChartExport.pngData(fromSVG: self.originalSVG) : self.originalSVG }
             catch {
+                guard !self.closed, self.window === owner, self.saveRequest == request, owner.attachedSheet == nil else { return }
                 let alert = NSAlert(error: error)
-                alert.messageText = "The chart SVG could not be saved."
-                alert.beginSheetModal(for: owner)
+                alert.messageText = "The chart could not be prepared for export."
+                await alert.beginSheetModal(for: owner)
+                return
+            }
+            guard !self.closed, self.window === owner, self.saveRequest == request,
+                  owner.isVisible, owner.attachedSheet == nil else { return }
+            let panel = NSSavePanel()
+            panel.title = asPNG ? "Save Chart as PNG" : "Save Chart as SVG"
+            panel.allowedContentTypes = [asPNG ? .png : .svg]
+            panel.nameFieldStringValue = asPNG ? "R chart.png" : "R chart.svg"
+            panel.beginSheetModal(for: owner) { [weak self, weak owner] response in
+                guard let self, let owner, !self.closed, self.window === owner, self.saveRequest == request, owner.isVisible,
+                      response == .OK, let target = panel.url else { return }
+                do { try data.write(to: target, options: .atomic) }
+                catch {
+                    let alert = NSAlert(error: error)
+                    alert.messageText = "The chart could not be saved."
+                    alert.beginSheetModal(for: owner)
+                }
             }
         }
     }
@@ -136,5 +162,5 @@ private final class RChartWebView: WKWebView {
         decisionHandler(navigationAction.request.url?.scheme == "about" ? .allow : .cancel)
     }
 
-    func windowWillClose(_ notification: Notification) { onClose?() }
+    func windowWillClose(_ notification: Notification) { closed = true; onClose?() }
 }

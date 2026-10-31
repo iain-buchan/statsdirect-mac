@@ -2,7 +2,6 @@ import Cocoa
 import WebKit
 import PDFKit
 import UniformTypeIdentifiers
-import CryptoKit
 
 enum InteractiveRConsolePrototype {
     static var enabled: Bool { Bundle.main.object(forInfoDictionaryKey: "StatsDirectInteractiveConsolePrototype") as? Bool == true }
@@ -19,11 +18,14 @@ enum InteractiveRConsolePrototype {
     private var savedSource: String
     private var autoRun: Bool
     private var rendererReady = false
+    private var closed = false
+    private var chartCopyRequest = 0
+    private var chartSaveRequest = 0
     private var journal: [[String: Any]] = []
     private var journalBytes = 0
     private var sequence = -1
     private var hasExecuted = false
-    private struct Plot { let url: URL; let page: Int; let mime: String; let previewHash: SHA256.Digest }
+    private struct Plot { let url: URL; let page: Int; let mime: String }
     private var plots: [String: Plot] = [:]
     private var chartContextKey: String?
     private var pdfWindows: [String: RConsolePDFWindow] = [:]
@@ -42,17 +44,19 @@ enum InteractiveRConsolePrototype {
         super.init()
         session.onEvent = { [weak self] event in self?.receive(event) }
         document.web.configuration.userContentController.add(self, name: "statsDirectRConsole")
-        // Mac-only bridge: match the actual image under the pointer, including
-        // older images while new R output is waiting to render. No shared UI
-        // changes or arbitrary data-URL navigation/downloads are needed.
+        // Bind the actual card under the pointer to its retained plot/revision.
+        // Image bytes can be identical across distinct charts, so they cannot
+        // identify which card's native popup the user requested.
         document.web.configuration.userContentController.addUserScript(WKUserScript(source: """
         document.addEventListener('contextmenu', event => {
           const state = window.StatsDirectRConsole?.snapshot();
           if (!state?.sessionId) return;
           const image = event.target instanceof Element ? event.target.closest('figure.plot img') : null;
+          const figure = image?.closest('figure.plot');
           window.webkit.messageHandlers.statsDirectRConsole.postMessage({
             protocolVersion: 1, sessionId: state.sessionId, generation: state.generation,
-            action: 'chartContext', preview: image?.src ?? null
+            action: 'chartContext', plotId: figure?.dataset.plotId ?? null,
+            revision: figure ? Number(figure.dataset.revision) : null
           });
         }, true);
         """, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
@@ -67,6 +71,7 @@ enum InteractiveRConsolePrototype {
     }
     func focusInput() { document?.web.evaluateJavaScript("window.StatsDirectRConsole?.focusInput()") }
     func shutdown() {
+        closed = true
         session.onEvent = nil; session.shutdown()
         let windows = Array(pdfWindows.values); pdfWindows.removeAll()
         for window in windows { window.onClose = nil; window.close() }
@@ -93,9 +98,9 @@ enum InteractiveRConsolePrototype {
         switch action {
         case "chartContext":
             chartContextKey = nil
-            if let preview = body["preview"] as? String, preview.utf8.count <= 34 * 1024 * 1024 {
-                let hash = SHA256.hash(data: Data(preview.utf8))
-                chartContextKey = plots.first { $0.value.previewHash == hash }?.key
+            if let id = body["plotId"] as? String, let revision = body["revision"] as? Int,
+               revision >= 0, plots[id + ":" + String(revision)] != nil {
+                chartContextKey = id + ":" + String(revision)
             }
         case "submit":
             if let text = body["source"] as? String { _ = session.submit(source: text, origin: body["origin"] as? String == "script" ? "script" : "console") }
@@ -131,38 +136,53 @@ enum InteractiveRConsolePrototype {
     }
 
     func extendChartMenu(_ menu: NSMenu) {
-        guard let key = chartContextKey, let plot = plots[key] else { return }
+        guard !closed, let key = chartContextKey, let plot = plots[key] else { return }
         chartContextKey = nil // Never reuse the last image's context for text.
         menu.removeAllItems()
-        for (title, command) in [("Open Chart in New Window", "open"),
-                                 ("Copy Chart", "copy"),
-                                 ("Save Chart as " + (plot.mime == "image/svg+xml" ? "SVG…" : "PDF…"), "save")] {
+        menu.autoenablesItems = false
+        for (title, command) in [("Copy Chart", "copy"),
+                                 ("Save Chart as SVG…", "saveSVG"),
+                                 ("Save Chart as PNG…", "savePNG")] {
             let item = NSMenuItem(title: title, action: #selector(chartMenuAction(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = ["key": key, "command": command, "sessionId": session.sessionId, "generation": session.generation]
+            item.isEnabled = command != "saveSVG" || plot.mime == "image/svg+xml"
             menu.addItem(item)
         }
     }
 
     @objc private func chartMenuAction(_ sender: NSMenuItem) {
-        guard let token = sender.representedObject as? [String: Any],
+        guard !closed, sender.isEnabled, let token = sender.representedObject as? [String: Any],
               token["sessionId"] as? String == session.sessionId, token["generation"] as? Int == session.generation,
               let document, viewer?.documents.contains(where: { $0 === document }) == true,
               let key = token["key"] as? String, let plot = plots[key] else { return }
         switch token["command"] as? String {
-        case "open": openChart(plot)
         case "copy": copyChart(plot)
-        case "save": saveChart(plot)
+        case "saveSVG": saveChart(plot, key: key, asPNG: false)
+        case "savePNG": saveChart(plot, key: key, asPNG: true)
         default: break
         }
     }
 
     private func copyChart(_ plot: Plot) {
+        chartCopyRequest += 1
         if plot.mime == "image/svg+xml" {
-            do { try ReportImageClipboard.writeSVG(Data(contentsOf: plot.url), to: .general) }
-            catch {
-                forward(["type": "notice", "text": "The SVG chart could not be copied: " + error.localizedDescription])
-                viewer?.showError("The SVG chart could not be copied: " + error.localizedDescription)
+            let sessionID = session.sessionId, generation = session.generation
+            let request = chartCopyRequest, pasteboardChange = NSPasteboard.general.changeCount
+            Task { @MainActor [weak self] in
+                guard let self, self.isCurrentChart(plot, sessionID: sessionID, generation: generation) else { return }
+                do {
+                    let svg = try RChartExport.svgData(from: plot.url)
+                    let png = try await RChartExport.pngData(fromSVG: svg)
+                    guard self.isCurrentChart(plot, sessionID: sessionID, generation: generation),
+                          self.chartCopyRequest == request, NSPasteboard.general.changeCount == pasteboardChange else { return }
+                    guard let image = NSImage(data: png) else { throw LegacyReportError("The chart PNG could not be read.") }
+                    try ReportImageClipboard.write(image: image, svg: svg, to: .general)
+                } catch {
+                    guard self.isCurrentChart(plot, sessionID: sessionID, generation: generation), self.chartCopyRequest == request else { return }
+                    self.forward(["type": "notice", "text": "The SVG chart could not be copied: " + error.localizedDescription])
+                    if self.viewer?.window.attachedSheet == nil { self.viewer?.showError("The SVG chart could not be copied: " + error.localizedDescription) }
+                }
             }
         } else if let pdf = try? Data(contentsOf: plot.url) {
             let board = NSPasteboard.general; board.clearContents(); board.setData(pdf, forType: .pdf)
@@ -173,16 +193,57 @@ enum InteractiveRConsolePrototype {
         }
     }
 
-    private func saveChart(_ plot: Plot) {
+    private func isCurrentChart(_ plot: Plot, sessionID: String, generation: Int) -> Bool {
+        guard !closed, session.sessionId == sessionID, session.generation == generation,
+              let document, viewer?.documents.contains(where: { $0 === document }) == true else { return false }
+        return plots.values.contains { $0.url == plot.url && $0.page == plot.page && $0.mime == plot.mime }
+    }
+
+    private func saveChart(_ plot: Plot, key: String, asPNG: Bool) {
         guard let owner = viewer?.window, owner.attachedSheet == nil else { return }
-        let panel = NSSavePanel()
-        let svg = plot.mime == "image/svg+xml"
-        panel.allowedContentTypes = [svg ? .svg : .pdf]
-        panel.nameFieldStringValue = svg ? "R chart.svg" : "R chart.pdf"
-        panel.beginSheetModal(for: owner) { [weak self] response in
-            guard let self, response == .OK, let target = panel.url else { return }
-            do { try Data(contentsOf: plot.url).write(to: target, options: .atomic) }
-            catch { self.viewer?.showError("The chart could not be saved: " + error.localizedDescription) }
+        chartSaveRequest += 1
+        let request = chartSaveRequest
+        let sessionID = session.sessionId, generation = session.generation
+        Task { @MainActor [weak self, weak owner] in
+            guard let self, let owner, self.isCurrentChart(plot, sessionID: sessionID, generation: generation) else { return }
+            let data: Data
+            do {
+                if plot.mime == "image/svg+xml" {
+                    let svg = try RChartExport.svgData(from: plot.url)
+                    data = asPNG ? try await RChartExport.pngData(fromSVG: svg) : svg
+                } else {
+                    guard asPNG, let pdf = PDFDocument(url: plot.url), let page = pdf.page(at: plot.page) else {
+                        throw LegacyReportError("This chart has no SVG image to save.")
+                    }
+                    let bounds = page.bounds(for: .mediaBox), width = ceil(bounds.width * 2), height = ceil(bounds.height * 2)
+                    guard width.isFinite, height.isFinite, width >= 1, height >= 1,
+                          width * height <= CGFloat(RChartExport.maximumPixels) else {
+                        throw LegacyReportError("The chart is too large to render as PNG.")
+                    }
+                    data = try withExtendedLifetime(pdf) {
+                        try RChartExport.pngData(fromImage: page.thumbnail(of: NSSize(width: width, height: height), for: .mediaBox))
+                    }
+                }
+            } catch {
+                if self.isCurrentChart(plot, sessionID: sessionID, generation: generation), self.chartSaveRequest == request,
+                   owner.attachedSheet == nil {
+                    self.viewer?.showError("The chart could not be prepared for export: " + error.localizedDescription)
+                }
+                return
+            }
+            guard self.isCurrentChart(plot, sessionID: sessionID, generation: generation), self.chartSaveRequest == request,
+                  self.viewer?.window === owner, owner.attachedSheet == nil else { return }
+            let panel = NSSavePanel()
+            panel.title = asPNG ? "Save Chart as PNG" : "Save Chart as SVG"
+            panel.allowedContentTypes = [asPNG ? .png : .svg]
+            panel.nameFieldStringValue = asPNG ? "R chart.png" : "R chart.svg"
+            panel.beginSheetModal(for: owner) { [weak self, weak owner] response in
+                guard let self, let owner, self.viewer?.window === owner,
+                      self.isCurrentChart(plot, sessionID: sessionID, generation: generation), self.chartSaveRequest == request,
+                      self.plots[key]?.url == plot.url, response == .OK, let target = panel.url else { return }
+                do { try data.write(to: target, options: .atomic) }
+                catch { self.viewer?.showError("The chart could not be saved: " + error.localizedDescription) }
+            }
         }
     }
     private func openChart(_ plot: Plot) {
@@ -260,7 +321,7 @@ enum InteractiveRConsolePrototype {
                 let data = try Data(contentsOf: url)
                 _ = try ReportImageClipboard.svgMarkup(data)
                 let preview = "data:image/svg+xml;base64," + data.base64EncodedString()
-                plots[id + ":" + String(revision)] = Plot(url: url, page: 0, mime: "image/svg+xml", previewHash: SHA256.hash(data: Data(preview.utf8)))
+                plots[id + ":" + String(revision)] = Plot(url: url, page: 0, mime: "image/svg+xml")
                 forward(["type": "plot", "plotId": id, "revision": revision, "mime": "image/svg+xml",
                          "preview": preview, "label": "R chart"])
             } catch { forward(["type": "notice", "text": "The SVG chart could not be displayed: " + error.localizedDescription]) }
@@ -272,7 +333,7 @@ enum InteractiveRConsolePrototype {
             guard let png = preview(page, in: pdf) else { continue }
             let pageID = id + ":page-" + String(index + 1)
             let preview = "data:image/png;base64," + png.base64EncodedString()
-            plots[pageID + ":" + String(revision)] = Plot(url: url, page: index, mime: "application/pdf", previewHash: SHA256.hash(data: Data(preview.utf8)))
+            plots[pageID + ":" + String(revision)] = Plot(url: url, page: index, mime: "application/pdf")
             forward(["type": "plot", "plotId": pageID, "revision": revision, "mime": "application/pdf",
                      "preview": preview,
                      "label": "R chart" + (pdf.pageCount > 1 ? " · page \(index + 1) of \(pdf.pageCount)" : "")])

@@ -158,22 +158,46 @@ paste and cut/undo, and table borders and Excel numeric formatting. The Office
 verification files are local test artifacts under
 `.build/powerpoint-svg-check.noindex/actual-app-chart-copy.{docx,pptx}`.
 
-Mac chart context menus use native Open Chart in New Window, Copy Chart and
-Save Chart as SVG commands instead of WebKit's inert image-data browser commands.
-A Mac-only injected handler identifies the image actually under the pointer;
-the host matches its SHA-256 against a registered preview and binds menu actions
-to the document, R session and generation. Text menus remain unchanged. The
-separate chart window offers native Copy, Save and Print while keeping JavaScript
-disabled. Neither path enables arbitrary image-data navigation or downloads.
+Mac R chart popups use **Copy Chart**, **Save Chart as SVG…**, and
+**Save Chart as PNG…**, in the same order as the report's chart commands, with no
+Open command. The inline console, enlarged SVG chart and legacy R output use the
+same commands. SVG saving is disabled for a PDF/raster chart without original
+SVG data. SVG exports retain the original vector bytes; WebKit renders PNG at
+twice the SVG's intrinsic point dimensions. This uses the same inert image
+rendering as the console, including embedded stylesheets, clipping and labels.
+The card's Open chart button remains
+available independently of the popup.
+A Mac-only injected handler identifies the exact figure under the pointer;
+the shared figure's `data-plot-id` and `data-revision` bind menu actions
+to the document, R session and generation, including when distinct cards contain
+identical SVG bytes. Text menus remain unchanged. The separate chart window keeps
+JavaScript disabled. Neither path enables arbitrary image-data navigation or downloads.
 
-On 31 October 2026, real right-click Open and native Save dialogs were checked in
-both views. The two SVG exports were byte-identical and retained all nine points
+Copy also uses the WebKit PNG alongside the original SVG. Native AppKit SVG
+drawing ignores svglite's embedded stylesheet and can fill outlined shapes black;
+the PNG path therefore never asks AppKit to draw the SVG. The pixel regression
+fixture checks colours, orientation, opaque background and the real styled R
+chart. Async Copy/Save completion checks document/session or attachment identity,
+request order and window lifetime before presenting a dialog or publishing data.
+
+Earlier prototype checks on 31 October 2026 exercised right-click Open (before
+its removal from the popup) and native Save dialogs in both views. The two SVG
+exports were byte-identical and retained all nine points
 and labels. All 48 retained native checks passed, including earlier/updated chart
 selection, Save cancellation and rejection of retired menu actions. A forced
 programmatic Save-panel acceptance attempt crashed the test host during a Swift
 main-executor check; its cause is undetermined. Successful Save is verified through
 the real macOS dialogs instead. This does not establish a cause or resolution for
 that test-host crash.
+
+The aligned-popup update passed 68 native console checks, 16 legacy R-output
+check groups, 12 shared model tests and 5 pixel-rendering checks. Save-dialog
+types/cancellation and exact exported SVG/PNG bytes are checked separately;
+forcing a remote Save-panel acceptance is still avoided. Identical SVG cards
+must carry distinct plot/revision IDs and target their own menus. The shared
+console JavaScript matches Windows `0f1551ee` (blob
+`f7fa80a07bdec3ee0d668455af11f53888edbc1d`). No R package, worker or 1.0.1 signing
+candidate change is part of this UI update.
 
 The UI accepts only base64 image-data previews; no arbitrary HTML, file URLs,
 external image URLs, frames or widgets. R output uses DOM `textContent`, never

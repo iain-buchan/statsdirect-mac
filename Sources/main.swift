@@ -132,6 +132,7 @@ final class ReportWebView: WKWebView {
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)
         if let document, document.kind == "report", let viewer = NSApp.delegate as? Viewer { viewer.extendReportMenu(menu, for: document) }
+        document?.rConsolePane?.extendChartMenu(menu)
     }
 }
 

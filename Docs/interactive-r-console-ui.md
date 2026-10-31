@@ -130,6 +130,23 @@ distinct earlier/updated chart versions, retained files and invalid-input guards
 This verifies clipboard interoperability on the tested PowerPoint installation;
 it does not certify broader graphics-device stability or change chart generation.
 
+Mac chart context menus use native Open Chart in New Window, Copy Chart as SVG and
+Save Chart as SVG commands instead of WebKit's inert image-data browser commands.
+A Mac-only injected handler identifies the image actually under the pointer;
+the host matches its SHA-256 against a registered preview and binds menu actions
+to the document, R session and generation. Text menus remain unchanged. The
+separate chart window offers native Copy, Save and Print while keeping JavaScript
+disabled. Neither path enables arbitrary image-data navigation or downloads.
+
+On 31 October 2026, real right-click Open and native Save dialogs were checked in
+both views. The two SVG exports were byte-identical and retained all nine points
+and labels. All 48 retained native checks passed, including earlier/updated chart
+selection, Save cancellation and rejection of retired menu actions. A forced
+programmatic Save-panel acceptance attempt crashed the test host during a Swift
+main-executor check; its cause is undetermined. Successful Save is verified through
+the real macOS dialogs instead. This does not establish a cause or resolution for
+that test-host crash.
+
 The UI accepts only base64 image-data previews; no arbitrary HTML, file URLs,
 external image URLs, frames or widgets. R output uses DOM `textContent`, never
 HTML. The page blocks network connections, frames, object plugins and inline

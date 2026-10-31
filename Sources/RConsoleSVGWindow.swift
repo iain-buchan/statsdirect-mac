@@ -2,6 +2,14 @@ import Cocoa
 import WebKit
 import UniformTypeIdentifiers
 
+private final class RChartWebView: WKWebView {
+    var chartMenu: ((NSMenu) -> Void)?
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        super.willOpenMenu(menu, with: event)
+        chartMenu?(menu)
+    }
+}
+
 /// A vector chart remains an SVG image; its markup never becomes active page DOM.
 @MainActor final class RConsoleSVGWindow: NSWindowController, NSWindowDelegate, WKNavigationDelegate {
     let fileURL: URL
@@ -27,7 +35,8 @@ import UniformTypeIdentifiers
         configuration.websiteDataStore = .nonPersistent()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
-        web = WKWebView(frame: NSRect(x: 0, y: 0, width: 850, height: 700), configuration: configuration)
+        let chartWeb = RChartWebView(frame: NSRect(x: 0, y: 0, width: 850, height: 700), configuration: configuration)
+        web = chartWeb
         web.autoresizingMask = [.width, .height]
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 850, height: 700),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -41,6 +50,7 @@ import UniformTypeIdentifiers
         super.init(window: window)
         window.delegate = self
         web.navigationDelegate = self
+        chartWeb.chartMenu = { [weak self] menu in self?.prepareChartMenu(menu) }
 
         let html = """
         <!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -75,7 +85,32 @@ import UniformTypeIdentifiers
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func saveSVG() {
+    private func prepareChartMenu(_ menu: NSMenu) {
+        // WebKit's browser image actions cannot open/download this inert data
+        // image. Native commands operate on its retained original SVG instead.
+        menu.removeAllItems()
+        for (title, action) in [
+            ("Copy Chart as SVG", #selector(copySVG(_:))),
+            ("Save Chart as SVG…", #selector(saveSVG)),
+            ("Print Chart…", #selector(printSVG))
+        ] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
+    }
+
+    @objc private func copySVG(_ sender: Any?) {
+        do { try ReportImageClipboard.writeSVGFile(fileURL, to: .general) }
+        catch {
+            guard let owner = window else { return }
+            let alert = NSAlert(error: error)
+            alert.messageText = "The chart SVG could not be copied."
+            alert.beginSheetModal(for: owner)
+        }
+    }
+
+    @objc func saveSVG() {
         guard let owner = window else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.svg]
@@ -91,7 +126,7 @@ import UniformTypeIdentifiers
         }
     }
 
-    func printSVG() {
+    @objc func printSVG() {
         guard let owner = window else { return }
         web.printOperation(with: NSPrintInfo.shared).runModal(for: owner, delegate: nil, didRun: nil, contextInfo: nil)
     }

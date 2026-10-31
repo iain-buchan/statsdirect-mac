@@ -331,6 +331,60 @@ import WebKit
                   "plot then abline creates a new inline SVG while earlier charts retain their original SVG mapping")
         try check(earlierSVGPreserved && svgClipboardMatches(updatedOriginalSVG, url: updatedURL, label: "Updated chart"),
                   "the native SVG file clipboard preserves distinct readable earlier and updated chart versions")
+
+        func chartContextMenu(_ index: Int?) async throws -> NSMenu {
+            _ = try await doc.web.callAsyncJavaScript("""
+            const target = index === null ? document.getElementById('console-input') : document.querySelectorAll('figure.plot img')[index];
+            target.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true, cancelable:true, button:2}));
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            return true;
+            """, arguments: ["index": index.map { $0 as Any } ?? NSNull()], in: nil, contentWorld: .page)
+            let menu = NSMenu()
+            menu.addItem(withTitle: "Standard text command", action: nil, keyEquivalent: "")
+            pane.extendChartMenu(menu)
+            return menu
+        }
+        func performChartAction(_ menu: NSMenu, _ prefix: String) throws {
+            guard let item = menu.items.first(where: { $0.title.hasPrefix(prefix) }), let action = item.action else {
+                throw NSError(domain: "RConsoleIntegration", code: 6, userInfo: [NSLocalizedDescriptionKey: "Missing native chart menu command: " + prefix])
+            }
+            guard NSApp.sendAction(action, to: item.target, from: item) else { throw CocoaError(.featureUnsupported) }
+        }
+        let earlierChartMenu = try await chartContextMenu(0)
+        try check(earlierChartMenu.items.map(\.title) == ["Open Chart in New Window", "Copy Chart as SVG", "Save Chart as SVG…"],
+                  "the injected context-menu bridge replaces inert WebKit image commands with native Open, Copy SVG and Save SVG actions")
+        try performChartAction(earlierChartMenu, "Copy Chart")
+        try check(svgClipboardMatches(originalSVG, url: copiedOriginalURL, label: "Earlier image context-menu copy"),
+                  "right-click Copy on an earlier chart copies that exact original SVG rather than the latest chart")
+        try performChartAction(earlierChartMenu, "Open Chart")
+        try await wait("context-menu original chart window") { vectorWindow.isKeyWindow }
+        try check(vectorWindows().count == 1 && vectorBytes(vectorWindow) == originalSVG,
+                  "right-click Open targets the selected original chart and reuses its native SVG window")
+        viewer.window.makeKeyAndOrderFront(nil)
+        try performChartAction(earlierChartMenu, "Save Chart")
+        try await wait("native chart Save SVG panel") { viewer.window.attachedSheet is NSSavePanel }
+        let cancelledSave = viewer.window.attachedSheet as! NSSavePanel
+        try check(cancelledSave.nameFieldStringValue.hasSuffix(".svg") && cancelledSave.allowedContentTypes.contains { $0.identifier == "public.svg-image" },
+                  "right-click Save opens a real SVG save dialog instead of downloading an image-data URL")
+        cancelledSave.cancel(nil)
+        try await wait("cancelled chart Save panel closes") { viewer.window.attachedSheet == nil }
+        try check((try Data(contentsOf: copiedOriginalURL)) == originalSVG,
+                  "cancelling Save SVG leaves the original chart file unchanged")
+        // Successful Save is checked through the real macOS dialog in desktop
+        // QA. Forcing a remote NSSavePanel's acceptance bypasses that UI path.
+        let updatedChartMenu = try await chartContextMenu(1)
+        try performChartAction(updatedChartMenu, "Copy Chart")
+        try check(svgClipboardMatches(updatedOriginalSVG, url: updatedURL, label: "Updated image context-menu copy"),
+                  "the context-menu bridge identifies the updated image separately from its earlier chart version")
+        let textMenu = try await chartContextMenu(nil)
+        try check(textMenu.items.map(\.title) == ["Standard text command"],
+                  "right-clicking ordinary console text retains the supplied standard menu without stale chart actions")
+        try await post(doc, "chartContext", fields: ["preview": "data:image/svg+xml;base64,PHN2Zy8+"])
+        _ = try await doc.web.callAsyncJavaScript("await new Promise(resolve => requestAnimationFrame(resolve)); return true", arguments: [:], in: nil, contentWorld: .page)
+        let unknownMenu = NSMenu(); unknownMenu.addItem(withTitle: "Standard text command", action: nil, keyEquivalent: "")
+        pane.extendChartMenu(unknownMenu)
+        try check(unknownMenu.items.map(\.title) == ["Standard text command"],
+                  "unregistered image previews cannot create native chart commands or access a file")
         let pointerGate = pane.session.workingDirectory!.appendingPathComponent("pointer-output-gate")
         try await console(doc, "cat('POINTER_READY\\n'); while (!file.exists('pointer-output-gate')) Sys.sleep(0.02); cat('POINTER_OUTPUT\\n')")
         try await wait("R waiting to emit output during a chart click") {
@@ -504,6 +558,16 @@ import WebKit
         try check(pane.session.sessionId != originalSession && pane.sourceText == scriptBeforeRestart
                   && restartedScript == scriptBeforeRestart,
                   "Restart creates a fresh workspace and preserves the editable script")
+        let clipboardBeforeStaleMenu = board.changeCount
+        let windowsBeforeStaleMenu = vectorWindows().count
+        for prefix in ["Open Chart", "Copy Chart", "Save Chart"] { try performChartAction(earlierChartMenu, prefix) }
+        try await post(doc, "chartContext", fields: ["preview": "data:image/svg+xml;base64," + originalSVG.base64EncodedString()], envelope: oldEnvelope)
+        _ = try await doc.web.callAsyncJavaScript("await new Promise(resolve => requestAnimationFrame(resolve)); return true", arguments: [:], in: nil, contentWorld: .page)
+        let retiredMenu = NSMenu(); retiredMenu.addItem(withTitle: "Standard text command", action: nil, keyEquivalent: "")
+        pane.extendChartMenu(retiredMenu)
+        try check(board.changeCount == clipboardBeforeStaleMenu && vectorWindows().count == windowsBeforeStaleMenu
+                  && viewer.window.attachedSheet == nil && retiredMenu.items.map(\.title) == ["Standard text command"],
+                  "Restart retires old context-menu actions and bridge previews without reopening, copying or saving charts")
         try check((try Data(contentsOf: copiedOriginalURL)) == originalSVG
                   && svgClipboardMatches(updatedOriginalSVG, url: updatedURL, label: "Copied chart after Restart"),
                   "Restart retains both original SVG chart files and the last copied native file remains readable")

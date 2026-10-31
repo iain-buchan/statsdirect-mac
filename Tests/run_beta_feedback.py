@@ -56,4 +56,7 @@ subprocess.run(['codesign','--force','--sign','-',str(app)],check=True)
 subprocess.run(['codesign','--verify','--deep','--strict',str(app)],check=True)
 subprocess.run(['codesign','--display','--verbose=2',str(app)],check=True)
 print('Testing app resources and engine:',source_app,flush=True)
-subprocess.run([str(driver),str(root/'.build/beta-feedback-exports')]+(['--live'] if args.live else [])+(['--groups-only'] if args.groups_only else [])+(['--privacy-only'] if args.privacy_only else [])+(['--excel-only'] if args.excel_only else [])+(['--forms-only'] if args.forms_only else [])+(['--stay-open'] if args.stay_open else []),cwd=root,check=True)
+try:
+    subprocess.run([str(driver),str(root/'.build/beta-feedback-exports')]+(['--live'] if args.live else [])+(['--groups-only'] if args.groups_only else [])+(['--privacy-only'] if args.privacy_only else [])+(['--excel-only'] if args.excel_only else [])+(['--forms-only'] if args.forms_only else [])+(['--stay-open'] if args.stay_open else []),cwd=root,check=True)
+finally:
+    shutil.rmtree(bundle, ignore_errors=True)   # the copied app and driver are not kept; logs and exports stay in .build

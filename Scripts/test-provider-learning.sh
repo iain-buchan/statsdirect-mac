@@ -7,6 +7,7 @@ source Scripts/native-build-flags.sh
 BASE="${1:-$ROOT/StatsDirect.app}"
 mkdir -p .build
 TEST_WORK="$(mktemp -d "$ROOT/.build/provider-learning.XXXXXX")"
+trap 'rm -rf "$TEST_WORK"' EXIT   # the driver, its copy of the app and its module cache are not kept after the run
 TEST_APP="$TEST_WORK/StatsDirect Provider Learning Test.app"
 python3 - "$TEST_WORK" <<'PY'
 from pathlib import Path

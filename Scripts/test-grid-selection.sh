@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 mkdir -p .build
 TEST_WORK="$(mktemp -d "$ROOT/.build/grid-selection.XXXXXX")"
+trap 'rm -rf "$TEST_WORK"' EXIT   # the driver, its copy of the app and its module cache are not kept after the run
 TEST_APP="$TEST_WORK/Grid Selection Test.app"
 mkdir -p "$TEST_APP/Contents/MacOS"
 python3 - "$TEST_APP" <<'PY'

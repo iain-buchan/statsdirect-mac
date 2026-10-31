@@ -6,6 +6,7 @@ ROOT="$PWD"
 source Scripts/native-build-flags.sh
 BASE="${1:-$ROOT/StatsDirect.app}"
 TEST_WORK="$(mktemp -d "$ROOT/.build/startup-r-setup.XXXXXX")"
+trap 'rm -rf "$TEST_WORK"' EXIT   # the driver, its copy of the app and its module cache are not kept after the run
 TEST_APP="$TEST_WORK/StatsDirect Startup Test.app"
 # Keep this isolated fixture out of Finder's Open With menu after the test.
 unregister_fixture() {

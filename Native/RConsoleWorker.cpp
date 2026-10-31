@@ -271,6 +271,7 @@ void capturePlots() {
     }
     r->unprotect(2);
 }
+void captureCompletedPlots(void *) { capturePlots(); }
 void evaluate(void *) {
     r->checkInterrupt();
     ParseStatus status;
@@ -289,7 +290,6 @@ void evaluate(void *) {
         if (interrupted) { commandError=true; r->unprotect(1); break; }
         if (*r->visible) r->print(result);
         r->unprotect(1);
-        capturePlots();
     }
     r->unprotect(2);
 }
@@ -381,7 +381,19 @@ int main(int argc, char **argv) {
             const bool completed = r->topLevel(evaluate,nullptr);
             if (!completed) commandError=true;
             if (incomplete && !interrupted) state("continuation",prompt("continue","+ "));
-            else finish(interrupted!=0);
+            else {
+                // A submitted script may build one chart across plot(), lines(),
+                // abline() and mtext(). Publish its finished page rather than a
+                // separate unfinished snapshot after every expression. The R
+                // before-new-page hooks retain distinct earlier pages.
+                const bool wasInterrupted = interrupted != 0;
+                interrupted=0; *interruptPending=0;
+                // Evaluation errors/Stop unwind the first R boundary. Capture
+                // completed drawing through a fresh boundary without running
+                // any remaining source, including after an interrupt.
+                r->topLevel(captureCompletedPlots,nullptr);
+                finish(wasInterrupted || interrupted!=0);
+            }
         }
         if (r->capture) r->release(r->capture);
         r->end(0); state("stopped","");

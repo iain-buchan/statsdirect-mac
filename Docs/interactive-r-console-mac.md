@@ -29,6 +29,9 @@ console and runs it once. Existing Script/C#/VB functionality remains available.
 - Charts retain immutable vector PDF assets. Inline PNG previews are bounded;
   Open vector PDF and Copy chart refer to that exact version, including an older
   chart before a later `abline()`. Report SVG charts are unchanged.
+  A submitted script captures each completed plot page, rather than every
+  intermediate `plot()`, `abline()` and `mtext()` step. Multiple new plot pages
+  are preserved; a paired-t agreement script produces one completed chart.
 - AI opens the existing right dock with the same sharing consent. It can receive
   an explicitly shared, bounded snapshot of script and output, not arbitrary R
   workspace objects. Opening the dock does not send code or data.
@@ -66,7 +69,8 @@ this first prototype.
 - `Tests/test_interactive_r_worker.py`: actual installed R, persistent variables,
   interactive questions, multiline parsing, Unicode, error recovery, interrupts,
   repeated Stop, stale input, buffered output, multiple plots, revisions and
-  non-plot command deduplication; abrupt host-death cleanup and rejected-answer retry (28 checks).
+  non-plot command deduplication; abrupt host-death cleanup, rejected-answer retry, completed paired-t charts
+  and plot preservation after errors/Stop (33 checks).
 - `Tests/r-console-ui.test.mjs`: protocol/session guards, bounded safe output,
   source retention, both native continuation styles and exact plot revisions.
 - `Scripts/test-r-console-integration.sh`: live WebKit/native-worker integration,

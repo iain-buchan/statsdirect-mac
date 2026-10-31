@@ -3,12 +3,14 @@ from pathlib import Path
 import hashlib
 import json
 import os
+import re
 import signal
 import struct
 import subprocess
 import sys
 import tempfile
 import time
+import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / '.build/interactive-r-console-worker').resolve()
@@ -105,6 +107,22 @@ class Worker:
 def check(condition, reason):
     assert condition, reason
     print('PASS: ' + reason, flush=True)
+
+
+def pdf_streams(path):
+    # R's PDF text is in Flate-compressed page streams. Inspecting their literal
+    # annotation is sufficient here; a PDF renderer is not a test dependency.
+    data = Path(path).read_bytes()
+    streams = []
+    for match in re.finditer(rb'stream\r?\n(.*?)endstream', data, re.S):
+        try:
+            streams.append(zlib.decompress(match.group(1)))
+        except zlib.error:
+            streams.append(match.group(1))
+    # Font kerning can split one visible phrase into several PDF string operands.
+    # These ASCII annotation checks do not need a full text/layout extractor.
+    return b''.join(value[1:-1] for stream in streams
+                    for value in re.findall(rb'\((?:\\.|[^\\)])*\)', stream, re.S))
 
 
 def check_abrupt_parent_exit(during_input=False):
@@ -264,6 +282,40 @@ try:
     paths = [Path(e['path']) for e in events if e['type'] == 'plot']
     check(len(paths) == 3 and len(set(paths)) == 3 and all(p.read_bytes().startswith(b'%PDF-') for p in paths),
           'multiple plots within one expression retain separate PDF snapshots')
+
+    done, _, events = worker.execute('plot(1:5); abline(h=3); abline(h=c(1,5), col="red"); mtext("Finished annotations", side=3)')
+    plots = [e for e in events if e['type'] == 'plot']
+    check(done['status'] == 'ok' and len(plots) == 1 and b'Finished annotations' in pdf_streams(plots[0]['path']),
+          'one submitted chart with lines and text emits only its completed annotated page')
+    done, _, events = worker.execute('plot(1:3, main="First page"); abline(h=2); plot(3:1, main="Second page"); mtext("Second finished", side=3)')
+    plots = [e for e in events if e['type'] == 'plot']
+    check(done['status'] == 'ok' and len(plots) == 2
+          and b'First page' in pdf_streams(plots[0]['path']) and b'Second finished' in pdf_streams(plots[1]['path']),
+          'two distinct plot pages in one submission remain separate complete chart snapshots')
+
+    paired_source = (ROOT / 'FullEngine/Upstream/tests/RScript/examples/TPaired.R').read_text()
+    done, text, events = worker.execute(paired_source)
+    plots = [e for e in events if e['type'] == 'plot']
+    check(done['status'] == 'ok' and 'Paired t-test' in text and len(plots) == 1
+          and b'Mean difference and 95% limits of agreement' in pdf_streams(plots[0]['path']),
+          'actual paired t agreement script emits one final chart including its last annotation')
+
+    done, text, events = worker.execute('plot(1:3, main="Before error"); abline(h=2); stop("EXPECTED_PLOT_ERROR"); after_plot_error <- TRUE')
+    plots = [e for e in events if e['type'] == 'plot']
+    _, sentinel_text, _ = worker.execute('exists("after_plot_error", inherits=FALSE)')
+    check(done['status'] == 'error' and 'EXPECTED_PLOT_ERROR' in text and len(plots) == 1
+          and b'Before error' in pdf_streams(plots[0]['path']) and '[1] FALSE' in sentinel_text,
+          'error flushes existing drawing once without running remaining source')
+
+    command, start = worker.begin('plot(1:3, main="Before Stop"); abline(h=2); cat("PLOT_WAITING\\n"); Sys.sleep(30); after_plot_stop <- TRUE')
+    worker.wait(lambda e: e['type'] == 'output' and 'PLOT_WAITING' in e.get('text', ''), start)
+    worker.interrupt()
+    done = worker.wait(lambda e: e['type'] == 'commandFinished' and e.get('commandId') == command, start)
+    plots = [e for e in worker.events[start:] if e['type'] == 'plot']
+    _, sentinel_text, _ = worker.execute('exists("after_plot_stop", inherits=FALSE)')
+    check(done['status'] == 'interrupted' and len(plots) == 1
+          and b'Before Stop' in pdf_streams(plots[0]['path']) and '[1] FALSE' in sentinel_text,
+          'Stop flushes existing drawing once, retains interruption status and skips remaining source')
     _, text, _ = worker.execute('length(dev.list())')
     check('[1] 1' in text, 'snapshotting never closes the learner graphics device')
     print('PASS: interactive R worker integration completed', flush=True)

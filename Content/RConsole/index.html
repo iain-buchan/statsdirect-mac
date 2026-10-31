@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>StatsDirect R console</title>
+  <link rel="stylesheet" href="console.css">
+  <script src="console.js" defer></script>
+</head>
+<body>
+  <header class="toolbar" role="toolbar" aria-label="R console commands">
+    <div class="view-switch" role="tablist" aria-label="R view">
+      <button id="console-tab" role="tab" aria-selected="true" aria-controls="console-panel">Console</button>
+      <button id="script-tab" role="tab" aria-selected="false" aria-controls="script-panel" tabindex="-1">Script</button>
+    </div>
+    <button id="save" class="icon-button group-start" title="Save R script" aria-label="Save R script"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h13l4 4v14H3V3h1M7 3v6h9V3M7 21v-7h10v7"/></svg></button>
+    <button id="run" title="Run the current input (Command/Ctrl+Enter)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 3 14 9-14 9Z"/></svg><span>Run</span></button>
+    <button id="stop" class="icon-button" title="Interrupt R; keep existing variables" aria-label="Interrupt R"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14"/></svg></button>
+    <button id="restart" title="Restart R and clear its workspace"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 8M4 3v7h7"/></svg><span>Restart</span></button>
+    <span class="toolbar-space"></span>
+    <button id="ai" class="ai-button" title="AI assistance" aria-label="AI assistance" disabled>AI</button>
+    <button id="help" class="icon-button" title="Method help" aria-label="Method help" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M8.5 8c0-3.5 7.5-3.5 7.5.5 0 2.5-4 2.5-4 5.5M12 17v.2"/></svg></button>
+  </header>
+  <main>
+    <section id="console-panel" role="tabpanel" aria-labelledby="console-tab">
+      <div id="transcript" class="transcript" role="log" aria-label="R commands, results and charts" aria-live="off" tabindex="0">
+        <p id="welcome" class="notice">An interactive R session will start here.</p>
+      </div>
+      <div class="input-row">
+        <label id="prompt" for="console-input" aria-label="R prompt">&gt; </label>
+        <textarea id="console-input" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="R console input" placeholder="Enter R code · Enter to run · Shift+Enter for a new line" disabled></textarea>
+      </div>
+    </section>
+    <section id="script-panel" role="tabpanel" aria-labelledby="script-tab" hidden>
+      <label class="script-caption" for="script-source">R script · Run uses this session’s workspace</label>
+      <textarea id="script-source" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="R script"></textarea>
+    </section>
+  </main>
+  <footer><span id="state" role="status" aria-live="polite">Starting R…</span><span id="input-hint">Enter: run · Shift+Enter: new line</span></footer>
+</body>
+</html>

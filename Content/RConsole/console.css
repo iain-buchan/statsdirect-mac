@@ -1,0 +1,48 @@
+:root { color-scheme: light; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #24353d; background: #fff; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body { display: flex; flex-direction: column; padding: 10px 14px 8px; }
+button, textarea { font: inherit; color: inherit; }
+button { cursor: default; }
+.toolbar { display: flex; align-items: center; flex-shrink: 0; gap: 4px; min-height: 42px; padding: 5px; border: 1px solid #cdd5d9; border-radius: 6px; background: #fff; }
+.toolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0; height: 30px; min-width: 30px; padding: 3px 7px; border: 1px solid transparent; border-radius: 4px; background: transparent; white-space: nowrap; font-size: 12px; }
+.toolbar button:hover:not(:disabled), .plot-actions button:hover { background: #edf4f1; border-color: #c9d5d2; }
+button:disabled { opacity: .4; }
+button:focus-visible { outline: 2px solid #23695f; outline-offset: 1px; }
+.toolbar button[aria-selected="true"] { background: #d5eae6; border-color: #37897b; color: #145d51; }
+.toolbar svg { height: 20px; width: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.toolbar .icon-button { width: 30px; padding: 4px; }
+.toolbar .ai-button { font: 21px Arial, sans-serif; padding: 2px 5px; }
+.view-switch { display: flex; gap: 2px; }
+.group-start { margin-left: 5px; }
+.toolbar-space { flex: 1; }
+main { flex: 1; min-height: 0; margin-top: 9px; border: 1px solid #d8dfe2; border-radius: 5px; overflow: hidden; }
+[hidden] { display: none !important; }
+#console-panel, #script-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.transcript { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; scroll-behavior: auto; overscroll-behavior: contain; }
+.transcript:focus { outline: none; }
+pre { margin: 0; font: 13px/1.45 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2; }
+.input-entry { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0 3px; padding-top: 5px; border-top: 1px solid #edf0f2; }
+.input-entry:first-child { margin-top: 0; border-top: 0; }
+.input-entry .echo-prompt { color: #096d62; user-select: none; flex: 0 0 auto; }
+.input-entry pre { color: #1e4e48; }
+.input-entry.reply pre { color: #4f5578; }
+.output-entry { padding: 0 0 5px 0; }
+.output-entry.stderr { color: #a32424; }
+.notice { margin: 6px 0; color: #607583; font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.plot { margin: 12px 0 18px; max-width: 100%; }
+.plot img { display: block; width: auto; max-width: 100%; height: auto; margin: 0; background: #fff; }
+.plot figcaption { color: #607583; font-size: 12px; margin-top: 5px; }
+.plot-actions { display: flex; gap: 8px; margin-top: 3px; }
+.plot-actions button { border: 1px solid transparent; border-radius: 3px; padding: 2px 4px; background: transparent; color: #096d62; font-size: 12px; }
+.input-row { display: flex; flex-shrink: 0; align-items: flex-start; gap: 8px; border-top: 1px solid #d8dfe2; padding: 9px 12px; background: #fafcfc; }
+#prompt { flex-shrink: 0; max-width: 45%; padding-top: 3px; color: #096d62; font: 13px/1.45 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+#console-input { display: block; resize: none; flex: 1; min-width: 0; min-height: 26px; max-height: 150px; padding: 3px 0; border: 0; outline: none; background: transparent; font: 13px/1.45 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; tab-size: 2; }
+#console-input:disabled { color: #71808a; }
+.script-caption { flex-shrink: 0; padding: 8px 12px; color: #607583; background: #fafcfc; border-bottom: 1px solid #e4e9ec; font-size: 12px; }
+#script-source { display: block; width: 100%; flex: 1; min-height: 0; resize: none; border: 0; outline: none; padding: 12px 14px; background: #fff; font: 13px/1.45 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; tab-size: 2; }
+footer { display: flex; flex-shrink: 0; justify-content: space-between; gap: 12px; padding: 7px 2px 0; color: #607583; font-size: 11px; }
+#state { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#input-hint { white-space: nowrap; }
+@media(max-width: 570px) { body { padding: 6px; } .toolbar { gap: 1px; } .toolbar button { padding: 3px 5px; } #restart span, #input-hint { display: none; } .group-start { margin-left: 1px; } }
+@media print { html, body { height: auto; overflow: visible; } body { padding: 0; } .toolbar, .input-row, footer, #script-panel { display: none !important; } main { border: 0; overflow: visible; } #console-panel, .transcript { display: block; overflow: visible; height: auto; } .plot { break-inside: avoid; } .plot-actions { display: none; } }

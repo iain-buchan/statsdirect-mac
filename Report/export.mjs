@@ -21,10 +21,10 @@ const bytes = data => Uint8Array.from(atob(data.substring(data.indexOf(',')+1)),
 const text = node => (node.textContent ?? '').replace(/\s+/g,' ').trim();
 const safeLink = value => /^(https?:|mailto:|#)/i.test(value);
 
-function clean(root, helpRoot) {
+function clean(root, helpRoot, includeMethodLinks = true) {
   // A result's help lives on its block for the host's context menu; a saved or
   // exported report carries it as a link, so the method stays one click away.
-  for(const entry of root.querySelectorAll('.report-entry[data-help]')) {
+  for(const entry of includeMethodLinks ? root.querySelectorAll('.report-entry[data-help]') : []) {
     if(entry.querySelector('.report-links a[href]'))continue;
     const links=document.createElement('p');links.className='report-links';
     const link=document.createElement('a');link.setAttribute('href',entry.getAttribute('data-help'));link.textContent='Method and worked example →';
@@ -62,7 +62,7 @@ async function raster(data,width,height) {
   const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
   return canvas.toDataURL('image/png');
 }
-async function snapshot({title,helpRoot,format}) {
+async function snapshot({title,helpRoot,format,includeMethodLinks = true}) {
   if(document.documentElement.outerHTML.length>MAX_HTML) throw new Error('This report is too large to export in one file. Save smaller reports.');
   const clone=document.documentElement.cloneNode(true);
   // Resolve presentation while still attached, including the body defaults.
@@ -102,7 +102,7 @@ async function snapshot({title,helpRoot,format}) {
     copies[i].style.display='block';
     pictures.set(copies[i],{svg,png,alignment,width:Math.round(width*factor),height:Math.round(height*factor),alt:src.getAttribute('aria-label')||src.getAttribute('alt')||src.querySelector('title')?.textContent||'StatsDirect chart'});
   }
-  clean(clone,helpRoot);
+  clean(clone,helpRoot,includeMethodLinks);
   const head=clone.querySelector('head');let css='';
   for(const sheet of document.styleSheets) {
     try {css += [...sheet.cssRules].map(r=>r.cssText).join('\n')+'\n';}

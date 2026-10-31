@@ -45,14 +45,52 @@ import WebKit
     /// markup kept with the result in the page's metadata. Each converts as `convert(html:)` does.
     static func convert(page: String, entries: [[String: String]], resources: URL) async throws -> [[String: Any]] {
         let importer = try ReportImporter(resources: resources)
-        importer.payload = ["html": page, "entries": entries]
+        importer.payload = ["html": page, "entries": entries,
+                            "helpRoot": resources.appendingPathComponent("Help", isDirectory: true).absoluteString]
         importer.tail = """
 
         const page=new DOMParser().parseFromString(payload.html,'text/html'),out=[];
+        // Export adds a portable method link. It is host chrome when reopened,
+        // not editable result text. Remove it before import flattens classes;
+        // otherwise a later export cannot recognize it and appends another.
+        function generatedHelpParagraph(node,helpPath){
+          if(!helpPath?.startsWith('Help/')||node.localName!=='p'||node.closest('svg')||node.children.length!==1)return false;
+          const link=node.firstElementChild;
+          if(link.localName!=='a'||link.children.length||node.textContent.replace(/\\s+/g,' ').trim()!=='Method and worked example →')return false;
+          if([...node.childNodes].some(n=>n!==link&&(n.nodeType!==Node.TEXT_NODE||n.textContent.trim())))return false;
+          const path=helpPath.slice(5),raw=link.getAttribute('href')||'';
+          try{
+            const url=new URL(raw.startsWith('Help/')?raw.slice(5):raw,payload.helpRoot);
+            const bundled=new URL(path,payload.helpRoot);
+            if(url.href===bundled.href)return true;
+            const publicURL=new URL(path,'https://www.statsdirect.com/help/');
+            return ['http:','https:'].includes(url.protocol)&&['statsdirect.com','www.statsdirect.com'].includes(url.hostname)&&
+              !url.port&&!url.username&&!url.password&&url.pathname===publicURL.pathname&&url.search===publicURL.search&&url.hash===publicURL.hash;
+          }catch{return false;}
+        }
+        function atResultTail(node,root){
+          for(let current=node;current!==root;current=current.parentElement){
+            if(!current||!current.parentElement)return false;
+            for(let next=current.nextSibling;next;next=next.nextSibling)
+              if(next.nodeType!==Node.TEXT_NODE||next.textContent.trim())return false;
+            const parent=current.parentElement;
+            if(parent!==root&&!['DIV','SECTION','ARTICLE'].includes(parent.tagName))return false;
+          }
+          return true;
+        }
+        function removeGeneratedHelp(root,helpPath){
+          for(const p of root.querySelectorAll('p.report-links'))if(generatedHelpParagraph(p,helpPath))p.remove();
+          // Older imports stripped the footer's class. Repair only matching
+          // standalone links at the result's tail, including nested wrappers.
+          for(const p of [...root.querySelectorAll('p')].reverse())
+            if(!p.classList.length&&generatedHelpParagraph(p,helpPath)&&atResultTail(p,root))p.remove();
+        }
         for(const entry of payload.entries){
           const clone=page.cloneNode(true),blocks=[...clone.querySelectorAll('article.report-entry')],id='result-'+entry.id;
-          if(blocks.some(a=>a.id===id)){for(const a of blocks)if(a.id!==id)a.remove();}
-          else{clone.body.replaceChildren();const div=clone.createElement('div');div.className='report-body';div.innerHTML=entry.html;clone.body.append(div);}
+          let result=blocks.find(a=>a.id===id);
+          if(result){for(const a of blocks)if(a!==result)a.remove();}
+          else{clone.body.replaceChildren();result=clone.createElement('div');result.className='report-body';result.innerHTML=entry.html;clone.body.append(result);}
+          removeGeneratedHelp(result,entry.helpPath);
           out.push(JSON.parse(await StatsDirectReportImport.convert({html:'<!doctype html>'+clone.documentElement.outerHTML,pictures:[],legacy:false,tableRows:[]})));
         }
         return JSON.stringify(out);
@@ -147,7 +185,11 @@ extension Viewer {
         // A report saved by this program or by Windows carries its results in a metadata block: each is converted on its own and
         // keeps its title, help page and the record of its run, so Continue in R works after reopening. Any other page is one result.
         if !legacy, let saved = Self.savedReport(in: source.html) {
-            let converted = try await ReportImporter.convert(page: source.html, entries: saved.entries.map { ["id": $0.id, "html": $0.html] }, resources: root)
+            let converted = try await ReportImporter.convert(page: source.html, entries: saved.entries.map {
+                var payload = ["id": $0.id, "html": $0.html]
+                if let helpPath = savedHelpPath($0.helpPath) { payload["helpPath"] = helpPath }
+                return payload
+            }, resources: root)
             for (entry, result) in zip(saved.entries, converted) {
                 results.append((entry.title, entry.operation, result["html"] as? String ?? "", entry.record, savedHelpPath(entry.helpPath)))
                 for warning in result["warnings"] as? [String] ?? [] where !warnings.contains(warning) { warnings.append(warning) }

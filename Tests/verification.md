@@ -2158,3 +2158,23 @@ Chain on the fix's source with the screen kept awake: r-pane 12 (with the new sc
 ## The suites remove their temporary app bundles — 31 October 2026
 
 Iain found many "Mac prototype" copies of the app on this Mac: 243 bundles in the session folders, nearly all left by the suites. Each driver suite copies the app into a `mktemp` folder under `.build` and only one of the eighteen removed it afterwards, and the beta driver kept a `bundle-<uuid>` folder per run; 288 such folders (17 GB) had accumulated and Launch Services had registered each copy under the app's bundle identifier. The folders were removed and unregistered; every suite script now removes its work folder at exit and the beta driver removes its bundle after the run, whatever the outcome; the logs and exports stay under `.build`. Checked by running the R pane suite (12, no folder left) and the beta driver (its bundle gone; the run itself stopped at the tutor checks with "ChatGPT disconnected", which the unchanged driver in the other worktree also reports today, so it is the ChatGPT connection on this Mac, not the drivers).
+
+## Remove exported help footers from reopened Mac reports — 31 October 2026
+
+The export helper added a portable method link in commit 3278ad2f on 11 October.
+The live report renderer never added that footer. The Mac importer flattened its
+class into editable content, so subsequent exports could add another footer.
+Mac saved-report import now removes marked generated help paragraphs and matching
+legacy trailing copies, retaining the result's help metadata. Mac capture opts
+out of new footer generation through `includeMethodLinks: false`; the shared
+export helper's default remains true for existing callers, including Windows.
+No Windows application or frozen signing candidate was changed.
+
+The focused native `--help-links-only` suite passes three save/reopen cycles:
+no generated Mac footer, four authored links retained, numeric text, table border
+and alignment, SVG chart, help metadata and exact run record preserved. A separate
+omitted-option capture confirms the shared helper's previous default remains
+unchanged. The actual edited paired-test report was backed up and reopened in the
+rebuilt prototype: zero footer links in its UI, Method Help and Continue in R still
+available. A separately saved cleaned copy removes three accumulated footer links;
+every other visible word/value and the run record compare equal with the backup.

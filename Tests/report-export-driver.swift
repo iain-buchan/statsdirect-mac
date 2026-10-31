@@ -25,6 +25,7 @@ import PDFKit
                     else if CommandLine.arguments.contains("--notebook-only") {try await notebooks(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--network-only") {try await networkIsolation(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--saving-only") {try await reportSaving(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--help-links-only") {try await helpLinkRoundTrips(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--single-region-only") {try await singleRegion(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--raster-readback-only") {try await rasterReadbackRegression(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--images-only") {try await imageEditing(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}

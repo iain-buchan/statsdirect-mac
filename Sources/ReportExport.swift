@@ -41,6 +41,9 @@ extension Viewer {
     func reportScript(_ doc: Document, method: String, format: String = "html", fragment: String? = nil, nativeImage: Bool = false) async throws -> String? {
         let script=try String(contentsOf:root.appendingPathComponent("Report/export.js"),encoding:.utf8)
         var options: [String: Any] = ["title":doc.title,"helpRoot":root.appendingPathComponent("Help",isDirectory:true).absoluteString,"format":format]
+        // Help belongs in the Mac toolbar/context menu, including after a
+        // saved report is reopened. Do not manufacture links in its content.
+        if method == "capture" { options["includeMethodLinks"] = false }
         if let fragment { options["fragment"] = fragment }
         if nativeImage { options["nativeImage"] = true }
         return try await withCheckedThrowingContinuation { continuation in

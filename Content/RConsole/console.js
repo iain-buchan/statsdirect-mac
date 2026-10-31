@@ -213,7 +213,7 @@
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); run(); return; }
     const lineHeight = Number.parseFloat(global.getComputedStyle(input).lineHeight);
     const singleLine = !input.value.includes('\n') && input.scrollHeight <= lineHeight * 1.8 + 6;
-    if (singleLine && input.selectionStart === input.selectionEnd && !event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
+    if ((singleLine || model.historyIndex !== null) && input.selectionStart === input.selectionEnd && !event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
       const value = model.navigateHistory(event.key === 'ArrowUp' ? -1 : 1, input.value);
       if (value !== null) { event.preventDefault(); input.value = value; input.setSelectionRange(value.length, value.length); sizeInput(); }
     }

@@ -350,7 +350,7 @@ extension Viewer {
               data.count <= ReportImageClipboard.maximumBytes, let raster = NSImage(data: data) else {
             throw LegacyReportError("The selected chart could not be copied as PNG.")
         }
-        try ReportImageClipboard.write(image: raster, svg: format == "svg" ? Data(image.utf8) : nil,
+        try ReportImageClipboard.write(image: raster, svg: format == "svg" ? OfficeSVG.forClipboard(Data(image.utf8)) : nil,
             to: pasteboard, reportFragment: result["fragment"] as? String)
         status.stringValue = format == "svg" ? "Copied chart as SVG and PNG" : "Copied chart as PNG"
         return true

@@ -34,7 +34,7 @@ extension Viewer {
                 guard data.count <= ReportImageClipboard.maximumBytes else { throw LegacyReportError("The clipboard picture is too large.") }
                 item.setData(data, forType: .png)
                 if let svg = image["svg"] {
-                    let vector = Data(svg.utf8)
+                    let vector = OfficeSVG.forClipboard(Data(svg.utf8))
                     guard vector.count <= ReportImageClipboard.maximumBytes else { throw LegacyReportError("The clipboard picture is too large.") }
                     item.setData(vector, forType: ReportImageClipboard.officeSVGType)
                     item.setData(vector, forType: ReportImageClipboard.svgTypes[0])

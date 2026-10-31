@@ -129,6 +129,75 @@ extension ReportExportTests {
                      && board.string(forType: .string)?.contains("2.50") == true
                      && board.data(forType: ReportImageClipboard.officeSVGType) == nil && board.data(forType: ReportImageClipboard.svgTypes[0]) == nil,
                      "Table Copy retains HTML, borders, fonts and Excel numeric precision without advertising an unrelated SVG")
+        try await engineChartOfficeClipboard(v, output: output)
         print("PASS: Mac report context/selection SVG Office formats, PNG fallback, selection preservation, stale guards, paste/cut undo and Excel table formatting"); fflush(stdout)
+    }
+
+    @MainActor static func engineChartOfficeClipboard(_ v: Viewer, output: URL) async throws {
+        let fixture = try Data(contentsOf: v.root.appendingPathComponent("Examples/paired-agreement.svg"))
+        let original = try XMLDocument(data: fixture, options: .nodeLoadExternalEntitiesNever)
+        func count(_ document: XMLDocument, _ element: String) throws -> Int {
+            try document.nodes(forXPath: "//*[local-name()='\(element)']").count
+        }
+        precondition(try count(original, "ellipse") == 9 && count(original, "line") == 19
+                     && count(original, "text") == 17 && count(original, "tspan") == 17,
+                     "The canonical engine PEFR agreement chart includes all nine observations and seventeen labels")
+        let unsupported = Data("<svg xmlns='http://www.w3.org/2000/svg'><text x='1' y='20' font-size='14'>Keep unspecified font</text></svg>".utf8)
+        precondition(OfficeSVG.forClipboard(unsupported) == unsupported && OfficeSVG.forClipboard(fixture) == fixture,
+                     "Clipboard outlining leaves unspecified fonts and unflattened tspan source byte-identical")
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        let report = v.makeReport()
+        report.reportEntries = [ReportEntry(id: "engine-pefr-office", title: "PEFR agreement", operation: "TPaired",
+                                           body: "<p>Canonical engine PEFR agreement chart.</p>" + String(decoding: fixture, as: UTF8.self), record: nil)]
+        v.renderReport(report); try await settled(report)
+        let before = try await report.web.evaluateJavaScript("StatsDirectReportEditor.serialize(document.getElementById('report-results'))") as? String
+        let revision = report.reportRevision
+        func verify(_ label: String) async throws {
+            guard let apple = board.data(forType: ReportImageClipboard.svgTypes[0]),
+                  let office = board.data(forType: ReportImageClipboard.officeSVGType), apple == office,
+                  let fragment = board.string(forType: Viewer.reportFragmentType),
+                  let png = board.data(forType: .png), let bitmap = NSBitmapImageRep(data: png) else {
+                throw LegacyReportError("The engine chart clipboard is missing its SVG, PNG or private report representation.")
+            }
+            let publicSVG = try XMLDocument(data: office, options: .nodeLoadExternalEntitiesNever)
+            precondition(try count(publicSVG, "text") == 0 && count(publicSVG, "tspan") == 0
+                         && count(publicSVG, "path") >= 17 && count(publicSVG, "ellipse") == 9 && count(publicSVG, "line") == 19
+                         && bitmap.bitsPerSample == 8 && bitmap.pixelsWide > 0 && bitmap.pixelsHigh > 0,
+                         "\(label) outlines the eligible PEFR labels only in matching public SVG representations, retaining every chart point and line")
+            let privateUnchanged = try await report.web.callAsyncJavaScript("""
+            const parsed=new DOMParser().parseFromString(fragment,'text/html'),svg=parsed.querySelector('svg');
+            return !!svg&&svg.querySelectorAll('text').length===17&&svg.querySelectorAll('tspan').length===17&&
+              svg.querySelectorAll('ellipse').length===9&&svg.querySelectorAll('line').length===19&&
+              svg.textContent.includes('Mean ((PEFR Before + PEFR After) / 2)')&&
+              svg.textContent.includes('Difference (PEFR Before - PEFR After)')&&
+              svg.textContent.includes('mean difference ± 95% limits of agreement');
+            """, arguments: ["fragment": fragment], in: nil, contentWorld: .page) as? Bool == true
+            let after = try await report.web.evaluateJavaScript("StatsDirectReportEditor.serialize(document.getElementById('report-results'))") as? String
+            precondition(privateUnchanged && before != nil && after == before && report.reportRevision == revision,
+                         "\(label) preserves original editable text, tspans, chart geometry, report contents and revision")
+            try office.write(to: output.appendingPathComponent("engine-pefr-\(label).svg"))
+            try png.write(to: output.appendingPathComponent("engine-pefr-\(label).png"))
+        }
+        let previousContext = report.reportContext["nativeContextToken"] as? String
+        _ = try await report.web.callAsyncJavaScript("""
+        document.querySelector('.report-body svg').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2}));
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return true;
+        """, arguments: [:], in: nil, contentWorld: .page)
+        var contextToken: String?
+        for _ in 0..<100 {
+            if let token = report.reportContext["nativeContextToken"] as? String, token != previousContext { contextToken = token; break }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+        guard let contextToken else { throw LegacyReportError("The canonical engine chart context did not reach the native report host.") }
+        precondition(try await v.copyReportChart(report, format: "svg", context: contextToken, revision: revision, pasteboard: board))
+        try await verify("context")
+        _ = try await report.web.evaluateJavaScript("""
+        (()=>{const svg=document.querySelector('.report-body svg'),target=svg.closest('.report-media'),range=document.createRange();
+        target.focus({preventScroll:true});range.selectNode(target);getSelection().removeAllRanges();getSelection().addRange(range);})()
+        """)
+        precondition(try await v.transferReportClipboard(report, command: "copy", pasteboard: board))
+        try await verify("selected")
+        print("PASS: Canonical engine PEFR chart public clipboard outlines preserve all geometry, private editable labels and original report contents"); fflush(stdout)
     }
 }

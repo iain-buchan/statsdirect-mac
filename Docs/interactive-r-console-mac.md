@@ -70,7 +70,7 @@ this first prototype.
   interactive questions, multiline parsing, Unicode, error recovery, interrupts,
   repeated Stop, stale input, buffered output, multiple plots, revisions and
   non-plot command deduplication; abrupt host-death cleanup, rejected-answer retry, completed paired-t charts
-  and plot preservation after errors/Stop (33 checks).
+  plot preservation after errors/Stop, and multi-panel/base/grid pages (36 checks).
 - `Tests/r-console-ui.test.mjs`: protocol/session guards, bounded safe output,
   source retention, both native continuation styles and exact plot revisions.
 - `Scripts/test-r-console-integration.sh`: live WebKit/native-worker integration,

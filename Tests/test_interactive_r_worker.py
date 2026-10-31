@@ -316,6 +316,23 @@ try:
     check(done['status'] == 'interrupted' and len(plots) == 1
           and b'Before Stop' in pdf_streams(plots[0]['path']) and '[1] FALSE' in sentinel_text,
           'Stop flushes existing drawing once, retains interruption status and skips remaining source')
+
+    done, _, events = worker.execute('graphics.off(); par(mfrow=c(1,2)); plot(1:3, main="Left panel"); plot(3:1, main="Right panel")')
+    plots = [e for e in events if e['type'] == 'plot']
+    check(done['status'] == 'ok' and len(plots) == 1
+          and b'Left panel' in pdf_streams(plots[0]['path']) and b'Right panel' in pdf_streams(plots[0]['path']),
+          'mfrow emits one completed two-panel page without a blank or partial panel snapshot')
+    done, _, events = worker.execute('graphics.off(); par(mfrow=c(1,2)); for(i in 1:4) plot(1:3, main=paste("Panel", i))')
+    plots = [e for e in events if e['type'] == 'plot']
+    check(done['status'] == 'ok' and len(plots) == 2
+          and b'Panel 1' in pdf_streams(plots[0]['path']) and b'Panel 2' in pdf_streams(plots[0]['path'])
+          and b'Panel 3' in pdf_streams(plots[1]['path']) and b'Panel 4' in pdf_streams(plots[1]['path']),
+          'mfrow preserves two complete pages while omitting their unfinished panel states')
+    done, _, events = worker.execute('graphics.off(); grid::grid.newpage(); grid::grid.text("Grid first"); grid::grid.newpage(); grid::grid.text("Grid second")')
+    plots = [e for e in events if e['type'] == 'plot']
+    check(done['status'] == 'ok' and len(plots) == 2
+          and b'Grid first' in pdf_streams(plots[0]['path']) and b'Grid second' in pdf_streams(plots[1]['path']),
+          'grid graphics still preserve separate completed pages')
     _, text, _ = worker.execute('length(dev.list())')
     check('[1] 1' in text, 'snapshotting never closes the learner graphics device')
     print('PASS: interactive R worker integration completed', flush=True)

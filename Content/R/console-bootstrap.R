@@ -11,6 +11,7 @@ local({
   serial <- 0L
   device_serial <- 0L
   device_keys <- list()
+  page_started <- list()
   last <- list()
   pending <- character()
   capturing <- FALSE
@@ -67,9 +68,28 @@ local({
     invisible()
   }
   `%||%` <- function(left, right) if (is.null(left)) right else left
+  page_key <- function() {
+    device <- grDevices::dev.cur()
+    paste(device, device_keys[[as.character(device)]] %||% "explicit", sep = ":")
+  }
+  mark_page_started <- function() {
+    if (!capturing && !is.null(grDevices::dev.list()))
+      page_started[[page_key()]] <<- TRUE
+    invisible()
+  }
+  before_base_page <- function() {
+    if (capturing || is.null(grDevices::dev.list())) return(invisible())
+    # plot.new also begins each mfrow/layout panel. Only preserve a completed
+    # physical page, and never a par()-only display list before the first plot.
+    if (isTRUE(page_started[[page_key()]]) && isTRUE(graphics::par("page")))
+      capture_current()
+    invisible()
+  }
   # Preserve earlier pages when several plots are produced by one expression.
-  setHook("before.plot.new", capture_current, action = "append")
+  setHook("before.plot.new", before_base_page, action = "append")
+  setHook("plot.new", mark_page_started, action = "append")
   setHook("before.grid.newpage", capture_current, action = "append")
+  setHook("grid.newpage", mark_page_started, action = "append")
   function() {
     capture_current()
     result <- pending

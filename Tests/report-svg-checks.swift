@@ -28,8 +28,12 @@ extension ReportExportTests {
         }
         func picture(_ doc: Document, index: Int, name: String) async throws -> NSBitmapImageRep {
             v.tabs.selectTabViewItem(doc.item)
-            let box = try await doc.web.evaluateJavaScript("(()=>{const s=[...document.querySelectorAll('.report-body svg')].filter(s=>!s.parentElement.closest('svg'))[\(index)];s.scrollIntoView({block:'start'});const b=s.getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,height:b.height};})()") as! [String: Double]
+            // A pinned toolbar covers a chart scrolled to the viewport's top.
+            // Compare unobscured chart pixels, with geometry measured after scrolling settles.
+            _ = try await doc.web.evaluateJavaScript("(()=>{const s=[...document.querySelectorAll('.report-body svg')].filter(s=>!s.parentElement.closest('svg'))[\(index)];s.scrollIntoView({block:'center',behavior:'instant'});})()")
             try await Task.sleep(nanoseconds: 80_000_000)
+            let box = try await doc.web.evaluateJavaScript("(()=>{const s=[...document.querySelectorAll('.report-body svg')].filter(s=>!s.parentElement.closest('svg'))[\(index)],b=s.getBoundingClientRect(),bar=document.getElementById('report-toolbar')?.getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,height:b.height,toolbarBottom:bar?.bottom??0,viewportHeight:innerHeight};})()") as! [String: Double]
+            precondition(box["y"]! >= max(0, box["toolbarBottom"]!) && box["y"]! + box["height"]! <= box["viewportHeight"]!, "\(name): chart snapshot must fit below the pinned toolbar and inside the viewport")
             let config = WKSnapshotConfiguration()
             config.rect = CGRect(x: box["x"]!, y: box["y"]!, width: box["width"]!, height: box["height"]!)
             config.snapshotWidth = NSNumber(value: box["width"]!)

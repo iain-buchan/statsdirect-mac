@@ -94,15 +94,32 @@ required before the page allows an answer; Stop/Restart removes it immediately.
 
 ## Graphics and retained data
 
-Mac ordinary plots retain a vector PDF master. The native host supplies PNG page
-previews and resolves Open vector PDF/Copy chart using its own plot map. Windows
-may advertise ordinary SVG; an image-data SVG preview is accepted. Emit one plot
-event per displayed PDF page, with a distinct plot ID or revision and useful label.
+The isolated Mac console prototype currently trials SVG snapshots from an internal
+PDF recording device. It displays each SVG as a separate image document and resolves
+Open chart/Copy chart using its own plot map. Released Mac ordinary R output remains
+PDF; this trial does not change the 1.0.1 signing candidate. Windows may advertise
+ordinary SVG too. Emit one plot event per completed page, with a distinct plot ID
+or revision and useful label.
 Revisions append immutable transcript pictures rather than overwriting earlier
 results. Open/Copy actions carry both `plotId` and `revision`, so an older card
 cannot accidentally resolve the latest picture. The UI rejects actions from a
 card removed by a session reset. IDs, revisions and generations must resolve only
 the matching immutable assets owned by the console host.
+
+SVG generation remains experimental. Earlier integration failures included reused
+chart identifiers, lost glyph references, CSS leaking between charts, and malformed
+Office clipboard rewrites. An isolated package installation does not resolve those
+failures or establish device stability. Separate image documents avoid cross-chart
+DOM collisions; report insertion still needs the report importer's isolation rules.
+
+On 31 October 2026, the actual Mac PowerPoint clipboard test offered native
+`public.svg-image` first and PNG second, but ordinary paste saved only PNG media in
+the resulting PPTX. Inserting the same nine-point agreement chart through Picture
+from File preserved SVG media and an `svgBlip` reference, with points, labels and
+agreement lines intact. Copy chart therefore offers SVG but is **not yet verified
+to paste vector graphics into Mac Office**. Save SVG and insert the file when vector
+Office output is needed. Do not equate native clipboard-type tests with receiver
+interoperability or treat this one chart as a stability certification.
 
 The UI accepts only base64 image-data previews; no arbitrary HTML, file URLs,
 external image URLs, frames or widgets. R output uses DOM `textContent`, never

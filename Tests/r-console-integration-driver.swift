@@ -423,6 +423,7 @@ import WebKit
         let windowSVG = try svgDataURI(windowImageSource)
         try check(vectorBytes(vectorWindow) == originalSVG && windowSVG == originalSVG,
                   "Open chart displays the original SVG in a visible native WebView window")
+        try await chartZoomChecks(vectorWindow)
         viewer.window.makeKeyAndOrderFront(nil)
         try await console(doc, "abline(a=0, b=1, col='red', lwd=3)")
         try await wait("updated chart snapshot") {
@@ -748,6 +749,65 @@ import WebKit
         try await transcriptFollowingChecks(viewer)
     }
 
+    @MainActor static func chartZoomChecks(_ window: NSWindow) async throws {
+        guard let controller = window.windowController as? RConsoleSVGWindow, let content = window.contentView else {
+            throw LegacyReportError("The chart zoom test has no native SVG window.")
+        }
+        func button(_ identifier: String, in view: NSView) -> NSButton? {
+            if let button = view as? NSButton, button.identifier?.rawValue == identifier { return button }
+            return view.subviews.compactMap { button(identifier, in: $0) }.first
+        }
+        guard let zoomIn = button("RChartZoomIn", in: content), let zoomOut = button("RChartZoomOut", in: content),
+              let percent = button("RChartZoomPercent", in: content), let fit = button("RChartZoomFit", in: content) else {
+            throw LegacyReportError("The chart window has no usable zoom controls.")
+        }
+        let web = controller.web, original = try Data(contentsOf: controller.fileURL)
+        try await wait("enabled chart zoom controls") { zoomIn.isEnabled && fit.isEnabled }
+        func frame() async throws {
+            _ = try await web.callAsyncJavaScript("await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return true", arguments: [:], in: nil, contentWorld: .page)
+        }
+        func screenshot() async throws -> Data {
+            let image = try await web.takeSnapshot(configuration: nil)
+            guard let tiff = image.tiffRepresentation else { throw LegacyReportError("The chart zoom snapshot is unavailable.") }
+            return tiff
+        }
+        fit.performClick(nil); try await frame()
+        let fitted = try await screenshot()
+        zoomIn.performClick(nil); try await frame()
+        let enlarged = try await screenshot()
+        try check(web.allowsMagnification && web.magnification > 1.2 && percent.title == "125%" && enlarged != fitted,
+                  "the native chart Zoom In control visibly enlarges the rendered vector chart and updates its percentage")
+        zoomOut.performClick(nil); try await frame()
+        try check(abs(web.magnification - 1) < 0.001 && percent.title == "100%",
+                  "Zoom Out reverses the chart enlargement without changing its image source")
+        web.setMagnification(2, centeredAt: NSPoint(x: web.bounds.midX, y: web.bounds.midY)); try await frame()
+        if percent.title != "200%" { print("INFO: Native chart magnification=\(web.magnification), displayed percentage=\(percent.title)"); fflush(stdout) }
+        try check(percent.title == "200%", "native magnification changes used by trackpad zoom update the chart percentage")
+        func key(_ characters: String, code: UInt16) -> Bool {
+            guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, characters: characters,
+                charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code) else { return false }
+            return web.performKeyEquivalent(with: event)
+        }
+        let plus = key("=", code: 24), afterPlus = web.magnification
+        let minus = key("-", code: 27), afterMinus = web.magnification
+        let reset = key("0", code: 29)
+        try check(plus && minus && reset && afterPlus > 2 && abs(afterMinus - 2) < 0.001 && abs(web.magnification - 1) < 0.001,
+                  "Command-plus, Command-minus and Command-zero operate the chart zoom and Fit controls")
+        for _ in 0..<20 { zoomIn.performClick(nil) }
+        try check(web.magnification <= 8 && !zoomIn.isEnabled, "chart enlargement has a bounded maximum with a disabled Zoom In control")
+        for _ in 0..<40 { zoomOut.performClick(nil) }
+        try check(web.magnification >= 0.25 && !zoomOut.isEnabled, "chart reduction has a bounded minimum with a disabled Zoom Out control")
+        fit.performClick(nil); try await frame()
+        let source = try await web.evaluateJavaScript("document.querySelector('img').src") as? String ?? ""
+        let prefix = "data:image/svg+xml;base64,"
+        let renderedOriginal = source.hasPrefix(prefix) ? Data(base64Encoded: String(source.dropFirst(prefix.count))) : nil
+        try check(web.magnification == 1 && percent.title == "100%" && renderedOriginal == original
+                  && (try Data(contentsOf: controller.fileURL)) == original
+                  && !web.configuration.defaultWebpagePreferences.allowsContentJavaScript,
+                  "Fit restores the complete inert vector chart and all zooming preserves the original SVG bytes for copy and export")
+    }
+
     @MainActor static func historyRecallChecks(_ viewer: Viewer) async throws {
         let continued = "historyReplayCounter <- if (exists('historyReplayCounter')) historyReplayCounter + 1 else 1\ncontinuedValue <- 41\ncat('HISTORY_CONTINUED_READY\\n')\n"
         viewer.openReportInR(text: continued, title: "History recall checks")
@@ -928,6 +988,49 @@ import WebKit
         try await frames()
         try check(try await result("StatsDirectRConsole.snapshot().mode==='console'&&Math.abs(window.__scrollFixture.position()-window.__scrollFixture.before)<=2"),
                   "Script Run preserves an intentionally earlier Console reading position")
+        let submissionsBeforeConsole = bridge.messages.filter { $0["action"] as? String == "submit" }.count
+        _ = try await evaluate(doc, """
+        (()=>{const f=window.__scrollFixture,input=document.getElementById('console-input');
+        input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));
+        input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));return true;})()
+        """)
+        try await frames()
+        try check(try await result("Math.abs(window.__scrollFixture.position()-window.__scrollFixture.before)<=2")
+                  && bridge.messages.filter { $0["action"] as? String == "submit" }.count == submissionsBeforeConsole,
+                  "an empty console submission leaves the earlier reading position and native command count unchanged")
+        _ = try await evaluate(doc, """
+        (()=>{const f=window.__scrollFixture,input=document.getElementById('console-input');
+        input.value='print(42)';input.dispatchEvent(new Event('input',{bubbles:true}));
+        input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+        f.send({type:'inputEcho',origin:'console',text:'print(42)'});
+        f.send({type:'output',stream:'stdout',text:'\\nNEW_CONSOLE_RESULT 42\\n'+f.output});
+        f.send({type:'state',state:'ready'});return true;})()
+        """)
+        try await frames()
+        try check(try await result("window.__scrollFixture.gap()<=2&&document.getElementById('console-input').value===''&&StatsDirectRConsole.snapshot().history.at(-1)==='print(42)'")
+                  && bridge.messages.filter { $0["action"] as? String == "submit" }.count == submissionsBeforeConsole + 1,
+                  "pressing Enter for an explicit console command resumes following and brings its new results into view after reading earlier output")
+        _ = try await evaluate(doc, """
+        (()=>{const f=window.__scrollFixture,log=document.getElementById('transcript');
+        log.scrollTop=100;log.dispatchEvent(new Event('scroll'));f.before=f.position();
+        f.send({type:'output',stream:'stdout',text:'\\nBACKGROUND_OUTPUT\\n'+f.output});return true;})()
+        """)
+        try await frames()
+        try check(try await result("Math.abs(window.__scrollFixture.position()-window.__scrollFixture.before)<=2"),
+                  "background output still preserves an intentionally earlier reading position after explicit console following")
+        _ = try await evaluate(doc, "window.__scrollFixture.send({type:'inputRequested',requestId:'scroll-answer',prompt:'Answer? '});true")
+        try await frames()
+        _ = try await evaluate(doc, """
+        (()=>{const f=window.__scrollFixture,input=document.getElementById('console-input');
+        input.value='yes';input.dispatchEvent(new Event('input',{bubbles:true}));
+        input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+        f.send({type:'inputEcho',origin:'input',text:'yes'});f.send({type:'output',stream:'stdout',text:'\\nREPLY_RESULT\\n'+f.output});
+        f.send({type:'state',state:'ready'});return true;})()
+        """)
+        try await frames()
+        try check(try await result("window.__scrollFixture.gap()<=2&&!StatsDirectRConsole.snapshot().history.includes('yes')")
+                  && bridge.messages.contains { $0["action"] as? String == "inputReply" && $0["text"] as? String == "yes" },
+                  "an explicitly submitted R answer follows its resulting output while staying out of executable history")
         _ = try await evaluate(doc, "(()=>{const f=window.__scrollFixture;Object.defineProperty(HTMLImageElement.prototype,'src',f.descriptor);document.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,pointerId:91}));getSelection().removeAllRanges();delete window.__scrollFixture;return true})()")
     }
 

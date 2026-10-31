@@ -23,6 +23,9 @@ a pointer pauses that following; returning to the end resumes it. Clear Output
 and a new session restore following. Image callbacks from replaced transcripts
 cannot scroll the current view. Switching through Script retains the reader's
 position in Console.
+Submitting a Console command or an answer to R explicitly resumes following the
+new results. Empty/rejected UI submissions and background output do not change
+an earlier reading position; Script Run retains that position too.
 
 The shared console uses semantic CSS colour properties for readable R roles:
 `--r-code: #0645ad` for entered code, prompts, readline answers and both editors;

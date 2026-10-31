@@ -281,7 +281,9 @@
     const code = origin === 'script' ? script.selectionStart !== script.selectionEnd ? script.value.slice(script.selectionStart, script.selectionEnd) : script.value : input.value, request = model.submission(code, origin);
     if (!request) return;
     if (!post(request)) { showBridgeFailure(previous); return; }
-    if (origin === 'console') input.value = '';
+    // Explicit console commands/replies resume following their new results;
+    // background output and Script runs retain the reader's scroll position.
+    if (origin === 'console') { resetTranscriptFollow(); input.value = ''; }
     else mode('console');
     render();
   }

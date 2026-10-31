@@ -22,7 +22,9 @@ console and runs it once. Existing Script/C#/VB functionality remains available.
   and input prompt stay visible. Following the end survives chart decoding,
   multiline input growth and window resizing. Reading earlier output, selecting
   text or holding a pointer pauses following; Clear Output/new sessions restore
-  it. Script/Console switches retain the reader's position.
+  it. Entering a new Console command or answering R explicitly resumes following
+  so its results come into view. Script/Console switches retain the reader's
+  position.
 - Script shows accumulated executable commands, supports editing, Run selection
   or Run all, and Save R Script. Console and Script use the same R workspace.
   Executed Script and Continue in R batches enter Up/Down recall intact, without
@@ -37,7 +39,9 @@ console and runs it once. Existing Script/C#/VB functionality remains available.
   retains script source and invalidates old input requests.
 - Charts retain immutable SVG assets and display their original vector bytes in
   the console WebView. Open chart uses a native window with the same SVG in a
-  WebView, scaled to fit; Save, Print and Close target the chart window. Copy
+  WebView, scaled to fit, with native zoom buttons, a percentage display,
+  Command-plus/minus/zero shortcuts and trackpad magnification. Fit restores the
+  full chart. Save, Print and Close target the chart window. Copy
   advertises vector SVG first under its native Mac clipboard type, with a PNG
   fallback. A submitted script captures each
   completed plot page, rather than every intermediate `plot()`, `abline()` and
@@ -91,11 +95,15 @@ this first prototype.
 - `Scripts/test-r-console-integration.sh`: live WebKit/native-worker integration,
   including renderer recovery, input rejection, Restart, original inline SVG,
   SVG/PNG clipboard representations and vector chart opening/copying. The
-  scrolling/history adoption passed the full suite on 31 October 2026 (84 pass
+  scrolling/history and chart-zoom updates passed the full suite on 31 October 2026 (95 pass
   results), including genuinely delayed SVG decoding, multiline draft layout,
   upscroll/selection/pointer preservation, detached-image rejection,
   Clear/new-session following and both Script/Console reading positions. Actual
   R counters prove renderer recovery reruns no executed batch or unexecuted edit.
+  Native chart checks verify rendered enlargement, percentage updates, keyboard
+  shortcuts, zoom limits, Fit and unchanged SVG bytes. Explicit Console commands
+  and replies resume following while empty submissions/background output retain
+  the reader's position.
 - `Tests/r-console-ui.test.mjs` and `Tests/r-console-recovery.test.mjs`: 15 model
   checks passed, including whole multiline execution recall and exact source
   preservation during repeated recovery.
@@ -117,8 +125,10 @@ after verification.
 
 Windows coordination: the scrolling/history update comes from
 `iain-buchan/statsdirect` main commit
-`7eab958252a9be691fc02d56bc1acf89baca5e25`. The adopted `console.js` is byte-identical
-to Windows blob `0416d8bbe5fa4f9d59fa53466dd414d27da12780`; both Open chart and Copy
+`7eab958252a9be691fc02d56bc1acf89baca5e25`. Its original `console.js` base was
+byte-identical to Windows blob `0416d8bbe5fa4f9d59fa53466dd414d27da12780`. A later
+shared-UI refinement resumes following after an explicit Console command/reply;
+this behaviour was agreed with the Windows session. Both Open chart and Copy
 chart card buttons remain. Windows reported 121 native checks and 13 model checks
 passing. The Mac adoption also includes the Mac host's renderer-recovery envelope
 fix and its own WebKit/R checks. It does not change Windows sources or installers.

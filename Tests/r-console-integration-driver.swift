@@ -28,6 +28,17 @@ import PDFKit
     @MainActor static func snapshot(_ doc: Document) async throws -> [String: Any] {
         try await evaluate(doc, "window.StatsDirectRConsole?.snapshot()") as? [String: Any] ?? [:]
     }
+    @MainActor static func pdfViews(_ view: NSView) -> [PDFView] {
+        (view as? PDFView).map { [$0] } ?? view.subviews.flatMap(pdfViews)
+    }
+    @MainActor static func vectorWindows() -> [NSWindow] {
+        NSApp.windows.filter { $0.identifier?.rawValue == "StatsDirectRConsolePDF" && $0.isVisible }
+    }
+    @MainActor static func vectorBytes(_ window: NSWindow) -> Data? {
+        guard let content = window.contentView, let document = pdfViews(content).first?.document else { return nil }
+        if let url = document.documentURL { return try? Data(contentsOf: url) }
+        return document.dataRepresentation()
+    }
     @MainActor static func renderedOutput(_ doc: Document) async throws -> String {
         let state = try await snapshot(doc)
         return (state["transcript"] as? [[String: Any]] ?? [])
@@ -218,6 +229,14 @@ import PDFKit
         try check(PDFDocument(data: originalPDF)?.pageCount == 1 && !(previewPNG?.isEmpty ?? true)
                   && (previewBitmap?.pixelsWide ?? 0) > 0 && (previewBitmap?.pixelsHigh ?? 0) > 0,
                   "inline chart maps to its original vector PDF and a valid nonempty PNG preview")
+        _ = try await evaluate(doc, "document.querySelector('figure.plot button').click(); true")
+        try await wait("the native vector PDF window") { vectorWindows().count == 1 }
+        let vectorWindow = vectorWindows()[0]
+        defer { vectorWindow.performClose(nil) }
+        let vectorDocument = vectorWindow.contentView.flatMap { pdfViews($0).first?.document }
+        try check(vectorDocument?.pageCount == 1 && vectorBytes(vectorWindow) == originalPDF,
+                  "Open vector PDF displays the original chart in a visible native PDFKit window")
+        viewer.window.makeKeyAndOrderFront(nil)
         try await console(doc, "abline(a=0, b=1, col='red', lwd=3)")
         try await wait("updated chart snapshot") {
             let idle = try await readyState(doc), entries = try await plotEntries()
@@ -226,6 +245,18 @@ import PDFKit
         let firstStillOriginal = try await copyPlot(0), updatedPDF = try await copyPlot(1)
         try check(firstStillOriginal == originalPDF && updatedPDF != originalPDF && PDFDocument(data: updatedPDF)?.pageCount == 1,
                   "plot then abline creates a new inline snapshot while earlier charts retain their original PDF mapping")
+        _ = try await evaluate(doc, "document.querySelector('figure.plot button').click(); true")
+        try await wait("the reused native vector PDF window") { vectorWindow.isKeyWindow }
+        try check(vectorWindows().count == 1 && vectorWindows().first === vectorWindow
+                  && vectorBytes(vectorWindow) == originalPDF,
+                  "opening an earlier chart after abline reuses its PDF window and preserves that chart version")
+        let documentCountBeforePDFClose = viewer.documents.count
+        viewer.closeTab()
+        try await wait("the vector PDF window to close") { !vectorWindow.isVisible }
+        try check(viewer.documents.count == documentCountBeforePDFClose && viewer.documents.contains { $0 === doc }
+                  && pane.session.isRunning,
+                  "the native Close command closes the PDF window and retains the R console document and workspace")
+        viewer.window.makeKeyAndOrderFront(nil)
 
         let originalSession = pane.session.sessionId
         let script = "scriptValue <- saved + 9; cat('SCRIPT_SHARED=', scriptValue, '\\n', sep='')\n"

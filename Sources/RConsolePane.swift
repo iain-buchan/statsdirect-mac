@@ -24,6 +24,7 @@ enum InteractiveRConsolePrototype {
     private var hasExecuted = false
     private struct Plot { let url: URL; let page: Int }
     private var plots: [String: Plot] = [:]
+    private var pdfWindows: [String: RConsolePDFWindow] = [:]
     var isBusy: Bool { session.isBusy || session.state == "continuation" }
     var hasUnsavedChanges: Bool { sourceText != savedSource }
     var hasWorkspace: Bool { hasExecuted && session.isRunning }
@@ -50,6 +51,8 @@ enum InteractiveRConsolePrototype {
     func focusInput() { document?.web.evaluateJavaScript("window.StatsDirectRConsole?.focusInput()") }
     func shutdown() {
         session.onEvent = nil; session.shutdown()
+        let windows = Array(pdfWindows.values); pdfWindows.removeAll()
+        for window in windows { window.onClose = nil; window.close() }
         document?.web.configuration.userContentController.removeScriptMessageHandler(forName: "statsDirectRConsole")
     }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -93,15 +96,32 @@ enum InteractiveRConsolePrototype {
             else { viewer?.helpLibrary() }
         case "openPlot", "copyPlot":
             guard let id = body["plotId"] as? String, let revision = body["revision"] as? Int,
-                  let plot = plots[id + ":" + String(revision)] else { return }
-            if action == "openPlot" { NSWorkspace.shared.open(plot.url) }
+                  let plot = plots[id + ":" + String(revision)] else {
+                forward(["type": "notice", "text": "This chart is no longer available in this console."]); return
+            }
+            if action == "openPlot" { openPDF(plot) }
             else if let pdf = try? Data(contentsOf: plot.url) {
                 let board = NSPasteboard.general; board.clearContents()
                 board.setData(pdf, forType: .pdf)
                 if let document = PDFDocument(data: pdf), let page = document.page(at: plot.page),
                    let png = preview(page, in: document) { board.setData(png, forType: .png) }
+            } else {
+                forward(["type": "notice", "text": "The chart PDF could not be read. Its file may have been moved or deleted."])
             }
         default: break
+        }
+    }
+    private func openPDF(_ plot: Plot) {
+        let key = plot.url.path
+        do {
+            if let existing = pdfWindows[key] { existing.present(page: plot.page); return }
+            let window = try RConsolePDFWindow(url: plot.url, page: plot.page, title: scriptName + " · R chart")
+            window.onClose = { [weak self] in self?.pdfWindows.removeValue(forKey: key) }
+            pdfWindows[key] = window
+            window.present(page: plot.page)
+        } catch {
+            forward(["type": "notice", "text": "The chart PDF could not be opened: " + error.localizedDescription])
+            viewer?.showError("The chart PDF could not be opened: " + error.localizedDescription)
         }
     }
 

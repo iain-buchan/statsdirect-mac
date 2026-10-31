@@ -28,7 +28,9 @@ console and runs it once. Existing Script/C#/VB functionality remains available.
   retains script source and invalidates old input requests.
 - Charts retain immutable vector PDF assets. Inline PNG previews are bounded;
   Open vector PDF and Copy chart refer to that exact version, including an older
-  chart before a later `abline()`. Report SVG charts are unchanged.
+  chart before a later `abline()`. Open vector PDF uses a native PDFKit window,
+  scales the original vector page to fit and supports Save, Print and Close
+  without depending on an external reader. Report SVG charts are unchanged.
   A submitted script captures each completed plot page, rather than every
   intermediate `plot()`, `abline()` and `mtext()` step. Multiple new plot pages
   are preserved; a paired-t agreement script produces one completed chart.

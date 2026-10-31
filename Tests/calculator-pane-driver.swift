@@ -63,6 +63,9 @@ import WebKit
         let before=try await js(worksheet.web,"JSON.stringify(statsDirectGrid.analysisSource())") as? String
         try check(!c.visible && v.documentSplit.subviews.count==1,"calculator starts hidden without a document tab")
         let menu=NSApp.mainMenu!.items.first { $0.submenu?.title=="Analysis" }!.submenu!
+        try check(menu.items.suffix(4).map { $0.isSeparatorItem ? "separator" : $0.title } == ["separator","Calculator","separator","Options"],"Analysis ends with separated Calculator and Options commands")
+        let options=menu.items.filter { $0.representedObject as? String=="AnalysisOptions" }
+        try check(options.count==1 && options[0].action == #selector(Viewer.openAnalysisOperation(_:)) && options[0].target === v,"Analysis Options keeps its operation identity and action")
         let command=menu.items.first { $0.title=="Calculator" }!
         try check(NSApp.sendAction(command.action!,to:command.target,from:command),"Analysis → Calculator opens the pane")
         try await settle()

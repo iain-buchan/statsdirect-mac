@@ -336,8 +336,14 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             let operations = menu(title)
             populateOperationMenu(operations)
             if title == "Analysis" {
-                operations.addItem(.separator())
+                let options = operations.items.first { $0.representedObject as? String == "AnalysisOptions" }
+                if let options { operations.removeItem(options) }
+                if operations.items.last?.isSeparatorItem != true { operations.addItem(.separator()) }
                 add(operations, "Calculator", #selector(showCalculator))
+                if let options {
+                    operations.addItem(.separator())
+                    operations.addItem(options)
+                }
             }
         }
         windowsMenu = menu("Window")

@@ -11,9 +11,10 @@ Apple Developer ID, and published. Nothing in this repository or its workflows h
 - Until then, keep the candidate in a **draft** for the signing handover, or publish it explicitly as a
   **pre-release** with `make_latest: false` for testing. Never publish an unsigned candidate as a stable release,
   overwrite the live release's assets, or replace the stable `StatsDirect-macOS-arm64.zip` alias with it.
-- As agreed on 31 October 2026, **1.0.0 remains the live signed and notarised release**. The University signs and
-  notarises once a week; the next planned handover for **1.0.1 is Wednesday, 4 November 2026**. The date alone does
-  not authorise promotion: wait for the returned build and verify it first.
+- As agreed on 31 October 2026, **1.0.0 remains the live signed and notarised release**, and the next Mac release
+  is **1.1.0**. The **1.0.1 candidate is superseded** and is no longer the IT Services handover target.
+  Complete the applicable release tests and CI checks on the 1.1.0 candidate before asking IT Services to sign
+  and notarise it. A planned date alone does not authorise promotion: verify the returned build before publishing.
 - StatsDirect Ltd's separate Apple Developer enrolment is pending. Continue using the University's signing route
   until the company's Developer ID certificate, private key and notarisation access are active and verified.
   When switching, use the company's actual signing identity and its own notarytool profile; record the signer

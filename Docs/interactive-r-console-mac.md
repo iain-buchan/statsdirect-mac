@@ -1,8 +1,9 @@
 # Interactive R console: Mac prototype
 
 The console implementation is merged into `main`. The development build remains
-isolated from the 1.0.1 University signing candidate, the installed StatsDirect app
-and GitHub releases. No installer is produced.
+isolated from the installed StatsDirect app and GitHub releases. The next release
+is 1.1.0, for IT Services to sign and notarise after release testing; the earlier
+1.0.1 candidate is superseded. This prototype builder produces no installer.
 
 Build with `Scripts/build-interactive-console-prototype.sh`. The separate app is
 `.build/interactive-r-console.noindex/StatsDirect Console Prototype.app`, with
@@ -111,8 +112,9 @@ this first prototype.
   Stop without accepting an answer, retained variables, AI dock/focus return,
   real chart-button clicks and wheel scrolling over the prompt.
 
-Only focused console checks are needed here: the calculation engine is unchanged
-and the frozen signing candidate already passed its release CI.
+Focused console checks validate these changes without repeating unrelated engine
+work. The 1.1.0 signing handover still requires the complete applicable release
+tests and CI checks on that candidate.
 
 Rendered UI checks require a visible native test window. WebKit can accept model
 events while suspending animation frames in a hidden/occluded page; the runner

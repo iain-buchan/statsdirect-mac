@@ -57,6 +57,10 @@ fi
 /usr/bin/xcrun dsymutil "$STAGED_APP/Contents/MacOS/RConsoleWorker" -o "$SYMBOLS/RConsoleWorker.dSYM"
 
 PLIST="$STAGED_APP/Contents/Info.plist"
+for VERSION_KEY in CFBundleShortVersionString CFBundleVersion; do
+  VERSION_VALUE="$("$PLIST_BUDDY" -c "Print :$VERSION_KEY" Info.plist)"
+  "$PLIST_BUDDY" -c "Set :$VERSION_KEY $VERSION_VALUE" "$PLIST"
+done
 "$PLIST_BUDDY" -c 'Set :CFBundleIdentifier com.statsdirect.consoleprototype' "$PLIST"
 "$PLIST_BUDDY" -c 'Set :CFBundleDisplayName StatsDirect Console Prototype' "$PLIST"
 "$PLIST_BUDDY" -c 'Set :CFBundleName StatsDirect Console Prototype' "$PLIST"

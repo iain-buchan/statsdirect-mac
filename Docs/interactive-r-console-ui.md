@@ -113,7 +113,7 @@ opened from Finder continue to replace the untouched startup workbook normally.
 The isolated Mac console prototype currently trials SVG snapshots from an internal
 PDF recording device. It displays each SVG as a separate image document and resolves
 Open chart/Copy chart using its own plot map. Released Mac ordinary R output remains
-PDF; this trial does not change the 1.0.1 signing candidate. Windows may advertise
+PDF; the next Mac release target is 1.1.0, superseding the 1.0.1 candidate. Windows may advertise
 ordinary SVG too. Emit one plot event per completed page, with a distinct plot ID
 or revision and useful label.
 Revisions append immutable transcript pictures rather than overwriting earlier

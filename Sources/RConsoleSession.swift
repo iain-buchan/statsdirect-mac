@@ -418,7 +418,7 @@ import Darwin
     nonisolated private static func resolveRHome(_ executable: String, probe: RConsoleHomeProbe) -> Result<String, HomeFailure> {
         let task = Process(), pipe = Pipe()
         task.executableURL = URL(fileURLWithPath: executable)
-        task.arguments = ["--vanilla", "-e", "cat(R.home())"]
+        task.arguments = ["--vanilla", "-e", "cat(R.home(), as.character(getRversion()), sep = '\\n')"]
         task.standardInput = FileHandle.nullDevice; task.standardOutput = pipe; task.standardError = FileHandle.nullDevice
         do {
             guard try probe.start(task) else { return .failure(HomeFailure(message: "R startup was cancelled.")) }
@@ -426,13 +426,21 @@ import Darwin
             DispatchQueue.global().asyncAfter(deadline: .now() + 8, execute: timeout)
             let bytes = pipe.fileHandleForReading.readDataToEndOfFile()
             task.waitUntilExit(); timeout.cancel()
-            let home = String(decoding: bytes, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            let (home, version) = parseHomeProbe(String(decoding: bytes, as: UTF8.self))
             guard task.terminationStatus == 0, !home.isEmpty,
                   FileManager.default.fileExists(atPath: URL(fileURLWithPath: home).appendingPathComponent("lib/libR.dylib").path) else {
                 return .failure(HomeFailure(message: "The installed R runtime did not provide a usable R home directory."))
             }
+            // The console needs R at its stated minimum; the script pane runs any R, so the message names the version.
+            if let problem = RRuntime.consoleVersionProblem(version) { return .failure(HomeFailure(message: problem)) }
             return .success(home)
         } catch { return .failure(HomeFailure(message: "The installed R runtime could not be started: " + error.localizedDescription)) }
+    }
+
+    /// The probe prints R's home and then its version, one per line.
+    nonisolated static func parseHomeProbe(_ output: String) -> (home: String, version: String) {
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        return (lines.first ?? "", lines.count > 1 ? lines[1] : "")
     }
 
     /// Leave a split final UTF-8 scalar for the next pipe chunk. Invalid bytes

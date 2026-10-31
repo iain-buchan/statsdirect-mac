@@ -38,7 +38,7 @@ For Docker, run `./docker-build.sh` instead. The build restores missing submodul
 
 Set `STATSDIRECT_APP_OUTPUT="$PWD/.build/ready/StatsDirect.app"` to build separately while an existing copy is running.
 
-Run `./test.sh` for engine and R comparison tests (requires R; `RSCRIPT` can select its executable).
+Run `./test.sh` for engine and R comparison tests (requires R; `RSCRIPT` can select its executable). The app uses the newest R it finds (CRAN's framework versions, then Homebrew); the script pane runs any R, and the interactive console needs an Apple Silicon R 4.2 or later.
 
 A release is signed and notarised from a tested build by the steps in [SIGNING.md](SIGNING.md), with `Scripts/sign-app.sh` and the entitlements in `StatsDirect.entitlements`.
 

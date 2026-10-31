@@ -2,9 +2,99 @@ import Foundation
 import CryptoKit
 
 enum RRuntime {
+    /// The interactive console embeds R and needs this version or later, as the Windows console does (R 4.2); the
+    /// script pane runs any R through Rscript. Stated here once; the console's message names it.
+    static let consoleMinimum = (major: 4, minor: 2)
     static let candidates = ["/Library/Frameworks/R.framework/Resources/bin/Rscript", "/opt/homebrew/bin/Rscript", "/usr/local/bin/Rscript"]
+    /// One R the candidates reach: its Rscript, the version and architecture its path tells (CRAN's framework keeps
+    /// each series under Versions/<major.minor>-<arch>; Homebrew keeps R under Cellar/r/<version>), and its place
+    /// in the candidate order.
+    struct Installation: Equatable {
+        let path: String
+        let version: [Int]
+        let native: Bool
+        let order: Int
+    }
+    /// Every R the candidates reach. A framework candidate stands for every version in its Versions folder, so a
+    /// newer series installed beside an older one is seen whichever the framework's Current link names.
+    static func installations(in paths: [String] = candidates) -> [Installation] {
+        let fm = FileManager.default
+        var found: [Installation] = [], seen = Set<String>()
+        func add(_ path: String, order: Int) {
+            guard fm.isExecutableFile(atPath: path) else { return }
+            let real = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+            guard seen.insert(real).inserted else { return }
+            found.append(Installation(path: path, version: version(ofRscript: real), native: isNative(rscript: real), order: order))
+        }
+        for (order, path) in paths.enumerated() {
+            let marker = "/R.framework/Resources/bin/Rscript"
+            if path.hasSuffix(marker) {
+                let versions = String(path.dropLast(marker.count)) + "/R.framework/Versions"
+                let names = ((try? fm.contentsOfDirectory(atPath: versions)) ?? []).filter { $0 != "Current" }.sorted()
+                for name in names { add(versions + "/" + name + "/Resources/bin/Rscript", order: order) }
+            }
+            add(path, order: order)
+        }
+        return found
+    }
+    /// The R to use: the newest, a native (Apple Silicon) R before an Intel one of any version, the earlier candidate
+    /// when nothing else separates two.
     static func executable(in paths: [String] = candidates) -> String? {
-        paths.first { FileManager.default.isExecutableFile(atPath: $0) }
+        installations(in: paths).max { a, b in
+            if a.native != b.native { return !a.native }
+            if a.version != b.version { return a.version.lexicographicallyPrecedes(b.version) }
+            return a.order > b.order
+        }?.path
+    }
+    /// "4.6", "4.6-arm64" (a framework Versions folder) or "4.5.1", "4.5.1_2" (a Homebrew Cellar folder) as numbers;
+    /// empty when the path says nothing.
+    static func version(ofRscript real: String) -> [Int] {
+        let parts = real.split(separator: "/").map(String.init)
+        var name: String?
+        if let i = parts.firstIndex(of: "Versions"), i + 1 < parts.count, parts.contains("R.framework") { name = parts[i + 1] }
+        else if let i = parts.firstIndex(of: "Cellar"), i + 2 < parts.count, parts[i + 1] == "r" { name = parts[i + 2] }
+        guard let name else { return [] }
+        let numeric = name.prefix { $0.isNumber || $0 == "." }
+        return numeric.split(separator: ".").compactMap { Int($0) }
+    }
+    /// Whether this R runs natively on Apple Silicon, which the console's helper needs to load it: read from the
+    /// Rscript binary's Mach-O header (a thin arm64 image or a universal one with an arm64 slice). CRAN names its
+    /// framework folders inconsistently ("4.6" here for an arm64 build, "4.3-arm64" elsewhere), so the name is only
+    /// the fallback for a file that is not a Mach-O image, such as a script; Homebrew under /opt/homebrew is arm64.
+    static func isNative(rscript real: String) -> Bool {
+        if let native = machOHasArm64(at: real) { return native }
+        if real.hasPrefix("/opt/homebrew/") { return true }
+        let parts = real.split(separator: "/").map(String.init)
+        if let i = parts.firstIndex(of: "Versions"), i + 1 < parts.count, parts.contains("R.framework") { return parts[i + 1].hasSuffix("-arm64") }
+        return false
+    }
+    /// nil when the file is not a Mach-O image; otherwise whether it carries arm64 code.
+    static func machOHasArm64(at path: String) -> Bool? {
+        guard let handle = FileHandle(forReadingAtPath: path), let header = try? handle.read(upToCount: 4096), header.count >= 8 else { return nil }
+        let arm64: UInt32 = 0x0100000C
+        func word(_ offset: Int, bigEndian: Bool) -> UInt32 {
+            let b = [UInt32](header[offset..<offset + 4].map { UInt32($0) })
+            return bigEndian ? (b[0] << 24 | b[1] << 16 | b[2] << 8 | b[3]) : (b[3] << 24 | b[2] << 16 | b[1] << 8 | b[0])
+        }
+        switch word(0, bigEndian: false) {
+        case 0xFEEDFACF, 0xFEEDFACE: return word(4, bigEndian: false) == arm64       // thin, little-endian
+        case 0xBEBAFECA, 0xBFBAFECA:                                                   // universal: big-endian fat header
+            let count = Int(word(4, bigEndian: true))
+            guard count > 0, count < 32, header.count >= 8 + count * 20 else { return false }
+            return (0..<count).contains { word(8 + $0 * 20, bigEndian: true) == arm64 }
+        default: return nil
+        }
+    }
+    /// Why the interactive console cannot use an R of this version, or nil when it can; `reported` is what R
+    /// prints for getRversion(), such as "4.1.3".
+    static func consoleVersionProblem(_ reported: String) -> String? {
+        let needed = "\(consoleMinimum.major).\(consoleMinimum.minor)"
+        let numbers = reported.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ".").compactMap { Int($0) }
+        guard numbers.count >= 2 else { return "The interactive console needs R \(needed) or later; this R did not report its version (\"\(reported.trimmingCharacters(in: .whitespacesAndNewlines))\"). Install a current R, then choose Restart." }
+        if numbers.lexicographicallyPrecedes([consoleMinimum.major, consoleMinimum.minor]) {
+            return "The interactive console needs R \(needed) or later; this R is \(numbers.map(String.init).joined(separator: ".")). Install a current R, then choose Restart."
+        }
+        return nil
     }
     // A framework directory can appear before Installer has finished. Check that R actually runs.
     static func ready(in paths: [String] = candidates) -> Bool {

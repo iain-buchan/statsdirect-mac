@@ -5,7 +5,9 @@ import UniformTypeIdentifiers
 /// fragment sanitizer and its per-picture SVG ID/style isolation.
 @MainActor enum ReportImageClipboard {
     static let maximumBytes = 20_000_000 // Base64 fits the report's 30 MB paste bound.
-    static let svgTypes = [UTType.svg.identifier, "image/svg+xml", "image/x-svg+xml", "SVG"].map { NSPasteboard.PasteboardType($0) }
+    static let reportFragmentType = NSPasteboard.PasteboardType("com.statsdirect.report-fragment.html")
+    static let officeSVGType = NSPasteboard.PasteboardType("com.microsoft.image-svg-xml")
+    static let svgTypes = [UTType.svg.identifier, "image/svg+xml", "image/x-svg+xml", "SVG", officeSVGType.rawValue].map { NSPasteboard.PasteboardType($0) }
 
     static func svgMarkup(_ data: Data) throws -> String {
         try checkSize(data)
@@ -25,8 +27,7 @@ import UniformTypeIdentifiers
         for type in svgTypes {
             if let data = pasteboard.data(forType: type), !data.isEmpty { return try svgMarkup(data) }
         }
-        // A native SVG file copy is how Mac PowerPoint accepts vector charts.
-        // Keep pasting that representation into our reports working too; the
+        // Keep accepting native SVG file copies too; the
         // report importer still sanitizes and isolates the returned markup.
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
            urls.count == 1, let url = urls.first, url.pathExtension.lowercased() == "svg" {
@@ -35,15 +36,33 @@ import UniformTypeIdentifiers
         return nil
     }
 
-    /// Publish the retained original as a native file, like Finder. PowerPoint
-    /// for Mac chooses PNG if advertised, and does not accept public.svg-image
-    /// through its image-paste route. NSURL supplies the file access grant for
-    /// the receiving app. Do not add competing image types to this writer.
+    /// Legacy file-transfer fallback. Ordinary chart copying uses the Office
+    /// SVG type together with native SVG and PNG representations below.
     static func writeSVGFile(_ url: URL, to pasteboard: NSPasteboard) throws {
         _ = try svgMarkup(svgFileData(url)) // Validate before replacing the clipboard.
         pasteboard.clearContents()
         guard pasteboard.writeObjects([url as NSURL]) else {
             throw LegacyReportError("The SVG chart could not be copied.")
+        }
+    }
+
+    /// One clipboard item offers vector SVG to Office and native image readers,
+    /// plus a standard PNG fallback. No R graphics device or package is involved.
+    static func writeSVG(_ data: Data, reportFragment: String? = nil, to pasteboard: NSPasteboard) throws {
+        try checkReportFragment(reportFragment)
+        _ = try svgMarkup(data)
+        guard let image = NSImage(data: data), image.size.width.isFinite, image.size.height.isFinite,
+              image.size.width > 0, image.size.height > 0 else {
+            throw LegacyReportError("The SVG chart could not be rendered for the clipboard.")
+        }
+        let scale = 1600 / max(image.size.width, image.size.height)
+        image.size = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+        try write(image: image, svg: data, to: pasteboard, reportFragment: reportFragment)
+    }
+
+    private static func checkReportFragment(_ fragment: String?) throws {
+        guard (fragment?.utf8.count ?? 0) <= 30_000_000 else {
+            throw LegacyReportError("The report selection is too large to copy.")
         }
     }
 
@@ -70,7 +89,10 @@ import UniformTypeIdentifiers
         return "<img alt=\"Pasted image\" src=\"data:image/png;base64,\(png.base64EncodedString())\">"
     }
 
-    static func write(image: NSImage, svg: Data?, to pasteboard: NSPasteboard) throws {
+    static func write(image: NSImage, svg: Data?, to pasteboard: NSPasteboard, reportFragment: String? = nil) throws {
+        try checkReportFragment(reportFragment)
+        if let svg { _ = try svgMarkup(svg) }
+        let vector = svg
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let context = CGContext(data: nil, width: cg.width, height: cg.height, bitsPerComponent: 8, bytesPerRow: 0,
                   space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
@@ -85,13 +107,20 @@ import UniformTypeIdentifiers
         }
         try checkSize(png)
         let item = NSPasteboardItem()
-        if let svg {
-            let data = Data(try svgMarkup(svg).utf8)
-            // Advertise SVG first under its native Mac type. NSPasteboardItem
-            // requires UTIs; raw SVG MIME/legacy names are read-only aliases.
-            item.setData(data, forType: svgTypes[0])
+        if let vector {
+            // Office for Mac recognizes its own SVG UTI. The public SVG type
+            // alone was ignored in favour of PNG by both Word and PowerPoint.
+            guard item.setData(vector, forType: officeSVGType),
+                  item.setData(vector, forType: svgTypes[0]) else {
+                throw LegacyReportError("The SVG chart could not be prepared for the clipboard.")
+            }
         }
-        item.setData(png, forType: .png)
+        guard item.setData(png, forType: .png) else { throw LegacyReportError("The chart PNG could not be prepared for the clipboard.") }
+        if let reportFragment {
+            guard item.setString(reportFragment, forType: reportFragmentType) else {
+                throw LegacyReportError("The report chart's formatting could not be copied.")
+            }
+        }
         pasteboard.clearContents()
         guard pasteboard.writeObjects([item]) else { throw LegacyReportError("The clipboard could not be written.") }
     }

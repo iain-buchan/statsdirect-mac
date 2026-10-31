@@ -90,7 +90,7 @@ private final class RChartWebView: WKWebView {
         // image. Native commands operate on its retained original SVG instead.
         menu.removeAllItems()
         for (title, action) in [
-            ("Copy Chart as SVG", #selector(copySVG(_:))),
+            ("Copy Chart", #selector(copySVG(_:))),
             ("Save Chart as SVG…", #selector(saveSVG)),
             ("Print Chart…", #selector(printSVG))
         ] {
@@ -101,7 +101,7 @@ private final class RChartWebView: WKWebView {
     }
 
     @objc private func copySVG(_ sender: Any?) {
-        do { try ReportImageClipboard.writeSVGFile(fileURL, to: .general) }
+        do { try ReportImageClipboard.writeSVG(Data(contentsOf: fileURL), to: .general) }
         catch {
             guard let owner = window else { return }
             let alert = NSAlert(error: error)

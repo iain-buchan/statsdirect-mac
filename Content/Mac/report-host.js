@@ -6,6 +6,36 @@
   const row = document.querySelector('.report-format-row');
   let active = null;
   const buttons = new Map();
+  let contextPicture = null;
+  document.addEventListener('contextmenu', event => {
+    contextPicture = event.target?.closest?.('.report-media')?.querySelector('svg,img') ?? null;
+  }, true);
+  // Capture the exact right-clicked picture without changing the user's
+  // selection. The private fragment keeps report sizing/alignment on paste;
+  // the public SVG is prepared by the existing chart export routine.
+  window.StatsDirectMacReportChart = {
+    async image(format, scale) {
+      const picture = contextPicture, wrapper = picture?.closest('.report-media');
+      if (!wrapper?.isConnected || !root.contains(wrapper)) throw new Error('This chart is no longer available.');
+      const selection = getSelection(), before = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+      const focused = document.activeElement;
+      let fragment;
+      try {
+        wrapper.focus({preventScroll:true});
+        const range = document.createRange(); range.selectNode(wrapper);
+        selection.removeAllRanges(); selection.addRange(range);
+        fragment = StatsDirectReportEditor.prepareClipboard(false)?.html;
+      } finally {
+        if (focused?.isConnected) focused.focus({preventScroll:true});
+        selection.removeAllRanges();
+        if (before && document.contains(before.commonAncestorContainer)) selection.addRange(before);
+      }
+      const image = await StatsDirectReportEditor.chartImage(format, scale);
+      const png = format === 'svg' ? await StatsDirectReportEditor.chartImage('png', scale) : image;
+      if (contextPicture !== picture || !picture.isConnected) throw new Error('The chart context has changed. Right-click the chart again.');
+      return {image, png, fragment};
+    }
+  };
   const post = body => window.webkit.messageHandlers.statsDirectReport.postMessage(body);
   const {icon, overflow} = window.StatsDirectToolbar;
   function control(command, title, glyph, action) {

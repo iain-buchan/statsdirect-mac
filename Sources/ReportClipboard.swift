@@ -2,7 +2,7 @@ import Cocoa
 import WebKit
 
 extension Viewer {
-    static let reportFragmentType = NSPasteboard.PasteboardType("com.statsdirect.report-fragment.html")
+    static let reportFragmentType = ReportImageClipboard.reportFragmentType
 
     func reportClipboardCommand(_ doc: Document, command: String) {
         Task { @MainActor in
@@ -36,6 +36,7 @@ extension Viewer {
                 if let svg = image["svg"] {
                     let vector = Data(svg.utf8)
                     guard vector.count <= ReportImageClipboard.maximumBytes else { throw LegacyReportError("The clipboard picture is too large.") }
+                    item.setData(vector, forType: ReportImageClipboard.officeSVGType)
                     item.setData(vector, forType: ReportImageClipboard.svgTypes[0])
                 }
             }

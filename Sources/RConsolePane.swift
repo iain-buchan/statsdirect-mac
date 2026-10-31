@@ -135,7 +135,7 @@ enum InteractiveRConsolePrototype {
         chartContextKey = nil // Never reuse the last image's context for text.
         menu.removeAllItems()
         for (title, command) in [("Open Chart in New Window", "open"),
-                                 ("Copy Chart as " + (plot.mime == "image/svg+xml" ? "SVG" : "PDF"), "copy"),
+                                 ("Copy Chart", "copy"),
                                  ("Save Chart as " + (plot.mime == "image/svg+xml" ? "SVG…" : "PDF…"), "save")] {
             let item = NSMenuItem(title: title, action: #selector(chartMenuAction(_:)), keyEquivalent: "")
             item.target = self
@@ -159,7 +159,7 @@ enum InteractiveRConsolePrototype {
 
     private func copyChart(_ plot: Plot) {
         if plot.mime == "image/svg+xml" {
-            do { try ReportImageClipboard.writeSVGFile(plot.url, to: .general) }
+            do { try ReportImageClipboard.writeSVG(Data(contentsOf: plot.url), to: .general) }
             catch {
                 forward(["type": "notice", "text": "The SVG chart could not be copied: " + error.localizedDescription])
                 viewer?.showError("The SVG chart could not be copied: " + error.localizedDescription)

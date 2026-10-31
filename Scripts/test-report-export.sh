@@ -43,7 +43,7 @@ print('PASS: imported native run record replays in R and draws plots without its
 PY
 fi
 
-if [[ " $* " == *" --notebook-import-only "* || " $* " == *" --notebook-only "* || " $* " == *" --saving-only "* || " $* " == *" --help-links-only "* || " $* " == *" --images-only "* || " $* " == *" --single-region-only "* || " $* " == *" --raster-readback-only "* ]]; then :
+if [[ " $* " == *" --notebook-import-only "* || " $* " == *" --notebook-only "* || " $* " == *" --saving-only "* || " $* " == *" --help-links-only "* || " $* " == *" --office-clipboard-only "* || " $* " == *" --images-only "* || " $* " == *" --single-region-only "* || " $* " == *" --raster-readback-only "* ]]; then :
 elif [[ " $* " == *" --svg-isolation-only "* ]]; then python3 Tests/verify-report-svg.py "$ROOT/.build/report-export-output"
 elif [[ " $* " == *" --alignment-only "* ]]; then python3 Tests/verify-report-alignment.py "$ROOT/.build/report-export-output"
 elif [[ " $* " == *" --creole-only "* ]]; then python3 Tests/verify-report-creole.py "$ROOT/.build/report-export-output"

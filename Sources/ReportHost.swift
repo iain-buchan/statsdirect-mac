@@ -105,7 +105,11 @@ extension Viewer {
         if action == "ai" { scriptAI.open(doc,reportResultID:body["resultID"] as? String); return }
         if action == "editing" { doc.reportEditing = body["value"] as? Bool ?? false; return }
         // What the pointer was on at a right-click, for the context menu the shell shows.
-        if action == "context" { doc.reportContext = body; return }
+        if action == "context" {
+            doc.reportContext = body
+            doc.reportContext["nativeContextToken"] = UUID().uuidString
+            return
+        }
         if action == "addText" {
             let entry = ReportEntry(id: UUID().uuidString, title: "Text", operation: "", body: "<p>Enter your text here.</p>", record: nil)
             pushReportChange(doc, ReportChange(edits: [], added: [IndexedReportEntry(index: doc.reportEntries?.count ?? 0, entry: entry)], typing: false))
@@ -303,7 +307,10 @@ extension Viewer {
         var items: [NSMenuItem] = []
         func add(_ title: String, _ kind: String, _ value: String = "") {
             let item = NSMenuItem(title: title, action: #selector(reportContextAction(_:)), keyEquivalent: "")
-            item.target = self; item.representedObject = ["kind": kind, "value": value, "document": doc.id]; items.append(item)
+            item.target = self
+            item.representedObject = ["kind": kind, "value": value, "document": doc.id,
+                                      "context": context["nativeContextToken"] as? String ?? "", "revision": String(doc.reportRevision)]
+            items.append(item)
         }
         let id = context["resultId"] as? String
         if let help = context["help"] as? String, !help.isEmpty { add("Method Help", "help", help) }
@@ -317,12 +324,36 @@ extension Viewer {
         }
         // A chart as a file, as the Windows report's menu offers: its own markup, or a PNG at twice its size on the page.
         if context["picture"] as? Bool == true {
+            add("Copy Chart", "copyChart", context["chartKind"] as? String == "svg" ? "svg" : "png")
             if context["chartKind"] as? String == "svg" { add("Save Chart as SVG…", "saveChart", "svg") }
             add("Save Chart as PNG…", "saveChart", "png")
         }
         guard !items.isEmpty else { return }
         for (index, item) in items.enumerated() { menu.insertItem(item, at: index) }
         menu.insertItem(.separator(), at: items.count)
+    }
+    /// Publish SVG under Office's Mac type as well as Apple's, with PNG and
+    /// the private report fragment available to other receiving applications.
+    @discardableResult func copyReportChart(_ doc: Document, format: String, context: String, revision: Int,
+                                            pasteboard: NSPasteboard = .general) async throws -> Bool {
+        func valid() -> Bool {
+            documents.contains(where: { $0 === doc }) && !doc.web.isLoading && doc.reportRevision == revision
+                && !context.isEmpty && doc.reportContext["nativeContextToken"] as? String == context
+        }
+        guard ["svg", "png"].contains(format), valid() else { return false }
+        guard let result = try await doc.web.callAsyncJavaScript("return await StatsDirectMacReportChart.image(format, 2);",
+            arguments: ["format": format], in: nil, contentWorld: .page) as? [String: Any],
+              let image = result["image"] as? String else { throw LegacyReportError("The selected chart could not be prepared.") }
+        guard valid() else { return false }
+        guard let png = result["png"] as? String, png.hasPrefix("data:image/"), let comma = png.firstIndex(of: ","),
+              png[..<comma].hasSuffix(";base64"), let data = Data(base64Encoded: String(png[png.index(after: comma)...])),
+              data.count <= ReportImageClipboard.maximumBytes, let raster = NSImage(data: data) else {
+            throw LegacyReportError("The selected chart could not be copied as PNG.")
+        }
+        try ReportImageClipboard.write(image: raster, svg: format == "svg" ? Data(image.utf8) : nil,
+            to: pasteboard, reportFragment: result["fragment"] as? String)
+        status.stringValue = format == "svg" ? "Copied chart as SVG and PNG" : "Copied chart as PNG"
+        return true
     }
     func saveReportChart(_ doc: Document, format: String) {
         let png = format == "png"
@@ -353,6 +384,14 @@ extension Viewer {
         guard let info = sender.representedObject as? [String: String], let kind = info["kind"], let doc = documents.first(where: { $0.id == info["document"] }) else { return }
         let value = info["value"] ?? ""
         switch kind {
+        case "copyChart":
+            let context = info["context"] ?? "", revision = Int(info["revision"] ?? "") ?? -1
+            Task { @MainActor in
+                do { _ = try await self.copyReportChart(doc, format: value, context: context, revision: revision) }
+                catch {
+                    if self.documents.contains(where: { $0 === doc }) { self.showError("The chart could not be copied: " + error.localizedDescription) }
+                }
+            }
         case "help": openHelp(root.appendingPathComponent(value), title: doc.title)
         case "ai": scriptAI.open(doc,reportResultID:value.isEmpty ? nil:value)
         case "r": continueResultInR(doc, id: value)

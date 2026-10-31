@@ -219,19 +219,23 @@ import WebKit
             let source = try await evaluate(doc, "Array.from(document.querySelectorAll('figure.plot img'))[\(index)].src") as? String ?? ""
             return try svgDataURI(source)
         }
-        func copiedSVGURL() -> URL? {
-            guard board.pasteboardItems?.count == 1,
-                  let urls = board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
-                  urls.count == 1, let url = urls.first, url.pathExtension.lowercased() == "svg" else { return nil }
-            return url
-        }
-        func copyPlot(_ index: Int) async throws -> URL {
+        let nativeSVGType = NSPasteboard.PasteboardType("public.svg-image")
+        func copyPlot(_ index: Int) async throws -> Data {
             let prior = board.changeCount
             _ = try await evaluate(doc, "Array.from(document.querySelectorAll('figure.plot'))[\(index)].querySelectorAll('button')[1].click(); true")
-            try await wait("native original SVG file copy") {
-                board.changeCount != prior && copiedSVGURL() != nil
+            try await wait("original SVG and Office SVG with PNG fallback") {
+                board.changeCount != prior && board.data(forType: nativeSVGType) != nil
+                    && board.data(forType: ReportImageClipboard.officeSVGType) != nil
+                    && !(board.data(forType: .png)?.isEmpty ?? true)
             }
-            return copiedSVGURL()!
+            return board.data(forType: nativeSVGType)!
+        }
+        func retainedSVGURL(matching expected: Data) throws -> URL {
+            let files = try FileManager.default.contentsOfDirectory(at: pane.session.workingDirectory!, includingPropertiesForKeys: nil)
+            guard let file = files.first(where: { $0.pathExtension == "svg" && (try? Data(contentsOf: $0)) == expected }) else {
+                throw NSError(domain: "RConsoleIntegration", code: 7, userInfo: [NSLocalizedDescriptionKey: "The original SVG asset was not retained in the R session"])
+            }
+            return file
         }
         try await console(doc, "plot(1:5, 1:5, main='Console integration chart')")
         try await wait("first inline SVG chart") {
@@ -241,25 +245,27 @@ import WebKit
         try await wait("decoded inline preview") {
             (try await evaluate(doc, "!!document.querySelector('figure.plot img')?.complete && document.querySelector('figure.plot img').naturalWidth > 0")) as? Bool == true
         }
-        let copiedOriginalURL = try await copyPlot(0), originalSVG = try await inlineSVG(0)
-        let copiedOriginalSVG = try Data(contentsOf: copiedOriginalURL)
+        let copiedOriginalSVG = try await copyPlot(0), originalSVG = try await inlineSVG(0)
         let canonicalOriginalSVG = Data(try ReportImageClipboard.svgMarkup(originalSVG).utf8)
-        func svgClipboardMatches(_ expected: Data, url: URL, label: String) -> Bool {
+        func svgClipboardMatches(_ expected: Data, label: String) -> Bool {
             let actualTypes = board.pasteboardItems?.first?.types ?? []
-            print("INFO: \(label) native file clipboard types: \(actualTypes.map(\.rawValue).joined(separator: ", "))")
+            print("INFO: \(label) combined image clipboard types: \(actualTypes.map(\.rawValue).joined(separator: ", "))")
             fflush(stdout)
-            return copiedSVGURL() == url && (try? Data(contentsOf: url)) == expected
-                && actualTypes.contains(.fileURL) && board.data(forType: .png) == nil && board.data(forType: .tiff) == nil
-                && board.data(forType: NSPasteboard.PasteboardType("public.svg-image")) == nil
+            let png = board.data(forType: .png)
+            let bitmap = png.flatMap { NSBitmapImageRep(data: $0) }
+            return board.pasteboardItems?.count == 1 && board.data(forType: nativeSVGType) == expected
+                && board.data(forType: ReportImageClipboard.officeSVGType) == expected
+                && actualTypes.contains(.png) && (bitmap?.pixelsWide ?? 0) > 0 && (bitmap?.pixelsHigh ?? 0) > 0
+                && !actualTypes.contains(.fileURL)
         }
         let firstPlot = (try await plotEntries()).first { $0["kind"] as? String == "plot" }
         try check(firstPlot?["mime"] as? String == "image/svg+xml" && copiedOriginalSVG == originalSVG,
-                  "Copy chart exposes the exact original SVG file bytes without Office rewrites or rasterization")
-        try check(svgClipboardMatches(originalSVG, url: copiedOriginalURL, label: "Original chart"),
-                  "Copy chart publishes one native SVG file with no competing PNG, TIFF or raw SVG image representation")
+                  "Copy chart preserves the exact original SVG bytes without Office XML rewriting")
+        try check(svgClipboardMatches(originalSVG, label: "Original chart"),
+                  "one Copy chart publishes original SVG under both Mac and Office types alongside a valid PNG fallback")
         let importedClipboardSVG = try ReportImageClipboard.svgHTML(from: board)
         try check(importedClipboardSVG.map { Data($0.utf8) } == canonicalOriginalSVG,
-                  "the report clipboard reader accepts the native SVG file and retains its chart markup")
+                  "the report clipboard reader prefers the original vector markup over the PNG fallback")
 
         let guardBoard = NSPasteboard.withUniqueName()
         defer { guardBoard.releaseGlobally() }
@@ -299,6 +305,9 @@ import WebKit
         try await wait("the native SVG window") { vectorWindows().count == 1 }
         let vectorWindow = vectorWindows()[0]
         defer { vectorWindow.performClose(nil) }
+        guard let originalPlotURL = (vectorWindow.windowController as? RConsoleSVGWindow)?.fileURL else {
+            throw NSError(domain: "RConsoleIntegration", code: 7, userInfo: [NSLocalizedDescriptionKey: "The native SVG window has no original chart file"])
+        }
         guard let vectorWeb = vectorWindow.contentView.flatMap({ webViews($0).first }) else {
             throw NSError(domain:"RConsoleIntegration",code:3,userInfo:[NSLocalizedDescriptionKey:"The SVG window has no WebView"])
         }
@@ -321,16 +330,16 @@ import WebKit
         try await wait("decoded updated SVG image") {
             (try await evaluate(doc, "document.querySelectorAll('figure.plot img').length === 2 && document.querySelectorAll('figure.plot img')[1].complete && document.querySelectorAll('figure.plot img')[1].naturalWidth > 0")) as? Bool == true
         }
-        let firstStillOriginalURL = try await copyPlot(0)
-        let earlierSVGPreserved = svgClipboardMatches(originalSVG, url: copiedOriginalURL, label: "Earlier chart after abline")
-        let updatedURL = try await copyPlot(1)
-        let updatedOriginalSVG = try await inlineSVG(1), updatedSVG = try Data(contentsOf: updatedURL)
-        try check(firstStillOriginalURL == copiedOriginalURL && updatedURL != copiedOriginalURL
-                  && (try Data(contentsOf: firstStillOriginalURL)) == originalSVG
+        let firstStillOriginalSVG = try await copyPlot(0)
+        let earlierSVGPreserved = svgClipboardMatches(originalSVG, label: "Earlier chart after abline")
+        let updatedSVG = try await copyPlot(1), updatedOriginalSVG = try await inlineSVG(1)
+        let updatedPlotURL = try retainedSVGURL(matching: updatedOriginalSVG)
+        try check(firstStillOriginalSVG == originalSVG && updatedPlotURL != originalPlotURL
+                  && (try Data(contentsOf: originalPlotURL)) == originalSVG
                   && updatedOriginalSVG != originalSVG && updatedSVG == updatedOriginalSVG,
                   "plot then abline creates a new inline SVG while earlier charts retain their original SVG mapping")
-        try check(earlierSVGPreserved && svgClipboardMatches(updatedOriginalSVG, url: updatedURL, label: "Updated chart"),
-                  "the native SVG file clipboard preserves distinct readable earlier and updated chart versions")
+        try check(earlierSVGPreserved && svgClipboardMatches(updatedOriginalSVG, label: "Updated chart"),
+                  "both SVG clipboard representations and PNG preserve the selected earlier or updated chart version")
 
         func chartContextMenu(_ index: Int?) async throws -> NSMenu {
             _ = try await doc.web.callAsyncJavaScript("""
@@ -351,10 +360,10 @@ import WebKit
             guard NSApp.sendAction(action, to: item.target, from: item) else { throw CocoaError(.featureUnsupported) }
         }
         let earlierChartMenu = try await chartContextMenu(0)
-        try check(earlierChartMenu.items.map(\.title) == ["Open Chart in New Window", "Copy Chart as SVG", "Save Chart as SVG…"],
-                  "the injected context-menu bridge replaces inert WebKit image commands with native Open, Copy SVG and Save SVG actions")
+        try check(earlierChartMenu.items.map(\.title) == ["Open Chart in New Window", "Copy Chart", "Save Chart as SVG…"],
+                  "the injected context-menu bridge replaces inert WebKit image commands with native Open, combined Copy and Save SVG actions")
         try performChartAction(earlierChartMenu, "Copy Chart")
-        try check(svgClipboardMatches(originalSVG, url: copiedOriginalURL, label: "Earlier image context-menu copy"),
+        try check(svgClipboardMatches(originalSVG, label: "Earlier image context-menu copy"),
                   "right-click Copy on an earlier chart copies that exact original SVG rather than the latest chart")
         try performChartAction(earlierChartMenu, "Open Chart")
         try await wait("context-menu original chart window") { vectorWindow.isKeyWindow }
@@ -368,13 +377,13 @@ import WebKit
                   "right-click Save opens a real SVG save dialog instead of downloading an image-data URL")
         cancelledSave.cancel(nil)
         try await wait("cancelled chart Save panel closes") { viewer.window.attachedSheet == nil }
-        try check((try Data(contentsOf: copiedOriginalURL)) == originalSVG,
+        try check((try Data(contentsOf: originalPlotURL)) == originalSVG,
                   "cancelling Save SVG leaves the original chart file unchanged")
         // Successful Save is checked through the real macOS dialog in desktop
         // QA. Forcing a remote NSSavePanel's acceptance bypasses that UI path.
         let updatedChartMenu = try await chartContextMenu(1)
         try performChartAction(updatedChartMenu, "Copy Chart")
-        try check(svgClipboardMatches(updatedOriginalSVG, url: updatedURL, label: "Updated image context-menu copy"),
+        try check(svgClipboardMatches(updatedOriginalSVG, label: "Updated image context-menu copy"),
                   "the context-menu bridge identifies the updated image separately from its earlier chart version")
         let textMenu = try await chartContextMenu(nil)
         try check(textMenu.items.map(\.title) == ["Standard text command"],
@@ -568,17 +577,17 @@ import WebKit
         try check(board.changeCount == clipboardBeforeStaleMenu && vectorWindows().count == windowsBeforeStaleMenu
                   && viewer.window.attachedSheet == nil && retiredMenu.items.map(\.title) == ["Standard text command"],
                   "Restart retires old context-menu actions and bridge previews without reopening, copying or saving charts")
-        try check((try Data(contentsOf: copiedOriginalURL)) == originalSVG
-                  && svgClipboardMatches(updatedOriginalSVG, url: updatedURL, label: "Copied chart after Restart"),
-                  "Restart retains both original SVG chart files and the last copied native file remains readable")
+        try check((try Data(contentsOf: originalPlotURL)) == originalSVG && (try Data(contentsOf: updatedPlotURL)) == updatedOriginalSVG
+                  && svgClipboardMatches(updatedOriginalSVG, label: "Copied chart after Restart"),
+                  "Restart retains both original chart files while the combined SVG and PNG clipboard remains available")
         try await post(doc, "submit", fields: ["source": "staleSentinel <- TRUE", "origin": "console"], envelope: oldEnvelope)
         try await console(doc, "cat('RESTART_CLEAR=', !exists('saved') && !exists('scriptValue') && !exists('staleSentinel'), '\\n', sep='')")
         try await expectOutput(doc, "RESTART_CLEAR=TRUE\n")
         try check(!pane.sourceText.contains("staleSentinel <- TRUE"), "retired-generation bridge commands cannot alter the new workspace or script")
         pane.shutdown()
-        try check((try Data(contentsOf: copiedOriginalURL)) == originalSVG
-                  && svgClipboardMatches(updatedOriginalSVG, url: updatedURL, label: "Copied chart after console shutdown"),
-                  "closing the R session leaves retained original and copied SVG files available to receiving apps")
+        try check((try Data(contentsOf: originalPlotURL)) == originalSVG && (try Data(contentsOf: updatedPlotURL)) == updatedOriginalSVG
+                  && svgClipboardMatches(updatedOriginalSVG, label: "Copied chart after console shutdown"),
+                  "closing R retains its original chart assets and leaves both SVG clipboard types and PNG available")
     }
 
     @MainActor static func readyState(_ doc: Document) async throws -> Bool {

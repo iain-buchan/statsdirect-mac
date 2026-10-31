@@ -112,25 +112,38 @@ Office clipboard rewrites. An isolated package installation does not resolve tho
 failures or establish device stability. Separate image documents avoid cross-chart
 DOM collisions; report insertion still needs the report importer's isolation rules.
 
-Mac Copy chart publishes the retained original SVG using native `NSURL` file
-transfer. Do not add competing PNG, TIFF or `public.svg-image` representations:
-actual Mac PowerPoint tests on 31 October 2026 selected PNG when available, and
-could not paste the raw SVG image representation. File transfer avoids rewriting
-SVG dimensions, fonts, identifiers, CSS and glyph references. The file remains in
-the retained R session directory after Restart or console closure. StatsDirect's
-report clipboard reader accepts this file representation through its existing
-SVG sanitizer and isolation pipeline.
+Mac Copy chart publishes original R SVG bytes under both `public.svg-image` and
+Office's `com.microsoft.image-svg-xml`, together with an 8-bit PNG. The Office type
+was identified by inspecting PowerPoint's own SVG copy. With it present, both Word
+and PowerPoint offer **Picture (SVG)**, **Picture (PNG)** and **Picture (TIFF)** in
+Paste Special from the same clipboard item. Offering only Apple's SVG type and
+PNG had hidden the SVG option; that did not establish a general inability to paste
+SVG on Mac. The earlier native-file transfer was a temporary workaround, and is
+no longer the default Copy path. Native file copies remain readable on import.
 
-The rebuilt app's Copy chart was tested in Mac PowerPoint with ordinary Paste and
-Paste Special. Both preserved vector SVG media and `svgBlip` references in the
-saved PPTX, with all nine paired-test points, labels and agreement lines intact.
-Paste Special calls the native representation **FILES** on this Mac; ordinary
-Paste is sufficient. The 39 native checks also verify exact original file bytes,
-distinct earlier/updated chart versions, retained files and invalid-input guards.
-This verifies clipboard interoperability on the tested PowerPoint installation;
-it does not certify broader graphics-device stability or change chart generation.
+Regular report chart copy adds the same Office type, retaining the private rich
+fragment for sizing, alignment and formatted paste inside StatsDirect. The report
+also provides a native **Copy Chart** context command, so a right-click copies
+that exact image while leaving any text selection intact. Text/table copy and
+their Excel formatting continue through the existing rich clipboard pipeline.
+Windows and shared editor source are unchanged by this Mac clipboard-type fix.
 
-Mac chart context menus use native Open Chart in New Window, Copy Chart as SVG and
+The 48 native R checks verify both SVG representations match the original image,
+PNG decodes correctly, earlier/updated charts stay distinct, and the clipboard
+remains available after Restart or shutdown. This does not certify broader
+graphics-device stability or change chart generation.
+
+The rebuilt native prototype was also checked in the installed Mac Word and
+PowerPoint. Report context Copy Chart, ordinary selected-chart Copy, and R console
+Copy chart all exposed SVG and PNG in Paste Special. Saved DOCX/PPTX packages
+retained SVG media with `svgBlip` references: all nine regular-report ellipses and
+all nine R circles, labels and agreement lines survived. Native report checks
+also cover selection preservation, stale context/revision rejection, internal
+paste and cut/undo, and table borders and Excel numeric formatting. The Office
+verification files are local test artifacts under
+`.build/powerpoint-svg-check.noindex/actual-app-chart-copy.{docx,pptx}`.
+
+Mac chart context menus use native Open Chart in New Window, Copy Chart and
 Save Chart as SVG commands instead of WebKit's inert image-data browser commands.
 A Mac-only injected handler identifies the image actually under the pointer;
 the host matches its SHA-256 against a registered preview and binds menu actions

@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import signal
 import struct
 import subprocess
@@ -14,7 +15,8 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / '.build/interactive-r-console-worker').resolve()
-R_HOME = subprocess.check_output(['/usr/local/bin/R', 'RHOME'], text=True).strip()
+R_BIN = os.environ.get('R_BIN') or shutil.which('R') or '/Library/Frameworks/R.framework/Resources/bin/R'
+R_HOME = subprocess.check_output([R_BIN, 'RHOME'], text=True).strip()
 
 
 class Worker:

@@ -99,7 +99,7 @@ final class Document {
         item = NSTabViewItem(identifier: id)
         view.document = self
         item.label = title
-        item.view = kind == "report" ? reportFindHost() : web
+        item.view = kind == "report" || (kind == "r" && InteractiveRConsole.enabled) ? reportFindHost() : web
     }
     /// Document pages load only their own files, data: URLs and snapshots. The Windows report view answers every other
     /// request with 403; here a content rule list blocks every http(s) and ws(s) load, whatever markup an imported
@@ -295,6 +295,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(file, "New Worksheet", #selector(newWorksheet), "n")
         add(file, "New Report", #selector(newReport))
         add(file, "New Script", #selector(newRTab), "r")
+        if InteractiveRConsole.enabled {
+            add(file, "New C# Script", #selector(newCSharpScript))
+            add(file, "New VB Script", #selector(newVBScript))
+        }
         if InteractiveRConsolePrototype.enabled { add(file, "New R Console (Prototype)", #selector(newRConsolePrototype), "") }
         file.addItem(.separator())
         add(file, "Open…", #selector(openFile), "o")
@@ -376,6 +380,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             return doc.reportEditing
         }
         if menuItem.action == #selector(showReportFind) { return findableDocument != nil }
+        if [#selector(findReportNext), #selector(findReportPrevious)].contains(menuItem.action) {
+            return findableReport != nil || findableDocument?.rConsolePane != nil
+        }
         if isReportFindItem(menuItem) { return findableReport != nil }
         if menuItem.action == #selector(editCommand(_:)) { return calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused || active != nil }
         if menuItem.action == #selector(closeTab), calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused { return true }
@@ -533,7 +540,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func newRTab() {
         makeRScript()
     }
-    @discardableResult func makeRScript(script: String = "", title: String? = nil, saved: Bool = false) -> Document {
+    @objc func newCSharpScript() { makeRScript(language: "CSharp") }
+    @objc func newVBScript() { makeRScript(language: "VB") }
+    @discardableResult func makeRScript(script: String = "", title: String? = nil, saved: Bool = false, language: String = "R") -> Document {
+        if language == "R", InteractiveRConsole.enabled {
+            return makeRConsole(script: script, title: title, saved: saved, startInScript: true)
+        }
         var number = 1
         while documents.contains(where: { $0.kind == "r" && ($0.title == "R Script \(number)" || $0.title.hasPrefix("R Script \(number): ")) }) { number += 1 }
         let name = "R Script \(number)" + (title.map { ": " + $0 } ?? "")
@@ -545,7 +557,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             if let path = self.methodHelpPath(doc) { self.openHelp(self.root.appendingPathComponent(path), title: doc.title) }
             else { self.helpLibrary() }
         }
-        pane.languageChanged = { [weak self, weak doc, weak pane] language in
+        pane.languageChanged = { [weak self, weak doc] language in
             guard let self, let doc else { return }
             let label = language == "CSharp" ? "C#" : language
             self.retitleDocument(doc, doc.title.replacingOccurrences(of: "^(R|C#|VB) Script", with: label + " Script", options: .regularExpression))
@@ -561,14 +573,15 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             run.analysisCancelled = true; self.operationRequest(["action": "cancel", "id": id], doc: run, id: id)
         }
         pane.showAI = { [weak self, weak doc] in if let self, let doc { self.scriptAI.open(doc) } }
+        pane.setLanguage(language)
         window.makeFirstResponder(pane.editor)
         return doc
     }
     func openRScriptURL(_ url: URL) {
         do {
             let script = try String(contentsOf: url, encoding: .utf8)
-            let doc = makeRScript(script: script, title: url.lastPathComponent, saved: true)
-            doc.rPane?.setLanguage(url.pathExtension.lowercased() == "cs" ? "CSharp" : url.pathExtension.lowercased() == "vb" ? "VB" : "R")
+            let language = url.pathExtension.lowercased() == "cs" ? "CSharp" : url.pathExtension.lowercased() == "vb" ? "VB" : "R"
+            let doc = makeRScript(script: script, title: url.lastPathComponent, saved: true, language: language)
             doc.rPane?.scriptFileName = url.lastPathComponent
             didOpenDocument(doc, url: url)
             status.stringValue = "Opened " + url.lastPathComponent + ". Choose Run to run the script."
@@ -668,7 +681,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if let pdf = NSApp.keyWindow?.windowController as? RConsolePDFWindow { pdf.printPDF(); return }
         if helpPane.isFocused { helpPane.printHelp(); return }
         guard let doc = active else { return }
-        if doc.rPane != nil || doc.kind == "grid" || doc.kind == "analysis" {
+        if doc.rPane != nil || doc.rConsolePane != nil || doc.kind == "grid" || doc.kind == "analysis" {
             Task { @MainActor in
                 do {
                     let html = try await self.documentPrintHTML(doc)

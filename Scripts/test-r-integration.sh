@@ -24,6 +24,12 @@ cp "$TEST_WORK/driver" "$TEST_APP/Contents/MacOS/$EXECUTABLE"
 rsync -a --delete Content/ "$TEST_APP/Contents/Resources/Content/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.statsdirect.viewer.rintegrationtest.${TEST_WORK##*.}" "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect R Integration Test' "$TEST_APP/Contents/Info.plist"
+# This fixture qualifies the retained RPane integration. Production console
+# workflows are covered separately by test-r-console-integration.sh.
+for key in StatsDirectInteractiveRConsole StatsDirectInteractiveConsolePrototype; do
+  /usr/libexec/PlistBuddy -c "Delete :$key" "$TEST_APP/Contents/Info.plist" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Add :$key bool false" "$TEST_APP/Contents/Info.plist"
+done
 codesign --force --sign - "$TEST_APP"
 printf 'Test app: %s\n' "$TEST_APP"
 "$TEST_APP/Contents/MacOS/$EXECUTABLE" --run-tests "${@:2}"

@@ -194,19 +194,27 @@ import PDFKit
   _=try await v.learningJavaScript(learn,"({ok:document.querySelector('[data-code=r]').click()===undefined})")
   // A lesson's R block opens as a reviewable replay (ConversationRScript, as the Windows script window's Open R code): a header saying nothing
   // has been run, then the block under its label
-  try await ProviderLearningTests.wait {(v.active?.rPane?.editor.string ?? "").contains("x <- c(2, 4, 6)\nmean(x)")}
-  let replay=v.active?.rPane?.editor.string ?? ""
+  try await ProviderLearningTests.wait {(v.active?.rConsolePane?.sourceText ?? "").contains("x <- c(2, 4, 6)\nmean(x)") && v.active?.rConsolePane?.session.state == "ready"}
+  let replay=v.active?.rConsolePane?.sourceText ?? ""
   if !(replay.hasPrefix("# AI suggestion — review before running. Nothing has been run automatically.") && replay.contains("# Selected message — R block 1\nx <- c(2, 4, 6)\nmean(x)")) {
     throw LearningTutor.Failure(message:"a lesson's R block should open as the replay with its header and label; the pane holds: \(replay.prefix(400))")
   }
-  precondition(v.active!.rPane?.isRunning == false)
-  // Open in R, as the Windows script window offers it: the script saved as an R file named after the window in the program's R Scripts
-  // folder (the opening of RStudio or R is left to the desktop; the check saves alone)
-  RPane.opensExternally=false
-  let rDoc=v.active!, saved=rDoc.rPane!.openInR()
-  let expectedName=rDoc.title.replacingOccurrences(of:"/",with:"_").replacingOccurrences(of:":",with:"_")+".R"
-  precondition(saved != nil && saved!.lastPathComponent==expectedName && saved!.deletingLastPathComponent().lastPathComponent=="R Scripts" && (try? String(contentsOf:saved!,encoding:.utf8))==replay && rDoc.rPane!.state.stringValue.hasPrefix("Saved "),"Open in R: \(saved?.path ?? "nil") · \(rDoc.rPane!.state.stringValue)")
-  print("PASS: Open in R saves the script as an R file named after the window in the program's R Scripts folder");fflush(stdout)
+  precondition(v.active!.rConsolePane?.hasWorkspace == false && v.active!.rConsolePane?.isBusy == false)
+  // Preserve the external R/RStudio handoff as well as the embedded console.
+  // Only launching the other application is suppressed in this fixture.
+  let rDoc=v.active!, originalExternal=RExternalScript.opensExternally
+  let externalButton = try await rDoc.web.evaluateJavaScript("(()=>{const b=document.getElementById('open-in-r');return !!b&&!b.hidden&&!b.disabled&&b.textContent.trim()==='R+'&&b.previousElementSibling?.id==='ai'})()") as? Bool
+  precondition(externalButton == true,"the production console keeps an enabled R+ Open in R control immediately after AI")
+  v.retitleDocument(rDoc,"Tutor/replay: "+UUID().uuidString+".R")
+  RExternalScript.opensExternally=false
+  defer { RExternalScript.opensExternally=originalExternal }
+  var expectedName=rDoc.title.replacingOccurrences(of:"/",with:"_").replacingOccurrences(of:":",with:"_")
+  if !expectedName.lowercased().hasSuffix(".r") { expectedName += ".R" }
+  let saved=v.openConsoleInExternalR(rDoc)
+  defer { if let saved { try? FileManager.default.removeItem(at:saved) } }
+  precondition(saved != nil && saved!.lastPathComponent==expectedName && saved!.deletingLastPathComponent().lastPathComponent=="R Scripts" && (try? String(contentsOf:saved!,encoding:.utf8))==replay,"Open in R saves the exact console replay using its normalized window name in R Scripts")
+  precondition(rDoc.rConsolePane?.hasWorkspace == false && rDoc.rConsolePane?.isBusy == false,"external handoff does not execute code in the embedded console")
+  print("PASS: the production console Open in R handoff writes the exact tutor replay for R or RStudio without executing it");fflush(stdout)
   v.tabs.selectTabViewItem(learn.item)
   _=try await v.learningJavaScript(learn,"({ok:document.querySelector('[data-lesson=diagnostic]').click()===undefined})")
   let switched=try await v.learningJavaScript(learn,"({old:!!document.querySelector('.katex')})");precondition(switched["old"] as? Bool == false)

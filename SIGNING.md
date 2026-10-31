@@ -36,11 +36,13 @@ Apple Developer ID, and published. Nothing in this repository or its workflows h
   xcrun notarytool store-credentials StatsDirect-notary --key AuthKey_XXXXXXXX.p8 --key-id XXXXXXXX --issuer <issuer id>
   ```
 
-- A clone of this repository at the release tag, for `Scripts/sign-app.sh` and `StatsDirect.entitlements`:
+- A clone at the candidate's exact source commit (recorded in `BUILD-INFO.txt`), including `Scripts/sign-app.sh`,
+  `StatsDirect.entitlements` and `RConsoleWorker.entitlements`. Do not use an older release's signing script:
 
   ```sh
   git clone https://github.com/iain-buchan/statsdirect-mac.git
-  cd statsdirect-mac && git checkout v1.0.0
+  cd statsdirect-mac
+  git checkout CANDIDATE_SOURCE_COMMIT  # replace with the source commit in BUILD-INFO.txt
   ```
 
 ## Steps
@@ -58,13 +60,15 @@ Apple Developer ID, and published. Nothing in this repository or its workflows h
 
    The script signs the .NET runtime's libraries under `Contents/Resources/Engine` as well as the app's own code (a plain
    `codesign --deep` would miss them), verifies the signature strictly, checks that the `com.apple.security.cs.allow-jit`
-   entitlement is in it (the engine runs on CoreCLR and needs nothing else), and ends with `spctl --assess` accepting the
+   entitlement is in it. Only `Contents/MacOS/RConsoleWorker` receives the separate worker entitlements described below;
+   its signature is checked too. The script ends with `spctl --assess` accepting the
    app. If Apple's verdict is "Invalid", `xcrun notarytool log <submission id> --keychain-profile StatsDirect-notary`
    names the file at fault.
 4. Check what you will ship:
 
    ```sh
    codesign --verify --deep --strict --verbose=2 StatsDirect.app
+   codesign --display --entitlements - StatsDirect.app/Contents/MacOS/RConsoleWorker
    spctl --assess --type exec --verbose=2 StatsDirect.app      # "accepted", source=Notarized Developer ID
    xcrun stapler validate StatsDirect.app
    open StatsDirect.app                                        # it launches, Help → About shows the version
@@ -93,4 +97,9 @@ Apple Developer ID, and published. Nothing in this repository or its workflows h
 - `StatsDirect.entitlements` holds only `com.apple.security.cs.allow-jit`: the hardened runtime otherwise refuses the
   CoreCLR just-in-time compiler. Library validation stays on, which a Developer ID signature satisfies because every
   library in the bundle then carries the team identifier.
+- `RConsoleWorker.entitlements` applies only to the separate R helper. It allows JIT and disables library validation
+  so the helper can load the user's external `libR.dylib` and native CRAN packages signed by other organisations.
+  The worker does not receive unsigned-executable-memory, debugger or Apple-events permissions. The main app and
+  other bundled code keep their existing policy. After signing, test a real R command and an SVG chart as well as
+  verifying signatures; an ad hoc test cannot by itself certify Developer ID or notarisation behaviour.
 - The timestamp and the stapled ticket let the app open on a Mac that is offline.

@@ -236,12 +236,21 @@ extension ReportExportTests {
         try await check("!!document.querySelector('#result-image-result svg path')&&!document.querySelector('#result-image-result script,#result-image-result foreignObject,#result-image-result [onload],#result-image-result [href^=\"https:\"]')", "Native SVG goes through the existing offline sanitizer")
         print("PASS: two native SVG pastes render independently across undo/redo and HTML reopen; external entities/active SVG stay blocked"); fflush(stdout)
 
-        // Copy image dispatch in the actual R output view, then the report's
+        // Copy Chart dispatch in the retained native R output view, then the report's
         // native Paste action. Preserve the user's general pasteboard afterwards.
         func require(_ ok: Bool, _ reason: String = "R clipboard check failed") throws {
             if !ok { throw LegacyReportError(reason) }
         }
         let general = NSPasteboard.general
+        func vectorCopyCompleted(after change: Int) async throws {
+            let deadline = Date().addingTimeInterval(20)
+            while Date() < deadline {
+                if general.changeCount != change, general.data(forType: ReportImageClipboard.svgTypes[0]) != nil,
+                   let png = general.data(forType: .png), NSBitmapImageRep(data: png) != nil { return }
+                try await Task.sleep(nanoseconds: 50_000_000)
+            }
+            throw LegacyReportError("R chart SVG/PNG copy did not complete: types=\(general.types ?? [])")
+        }
         let savedClipboard = general.pasteboardItems?.map { item in item.types.reduce(into: [NSPasteboard.PasteboardType: Data]()) { $0[$1] = item.data(forType: $1) } } ?? []
         defer {
             general.clearContents(); general.writeObjects(savedClipboard.map { values in
@@ -294,13 +303,17 @@ extension ReportExportTests {
         let point = pane.console.convert(NSPoint(x: rect.midX + pane.console.textContainerOrigin.x, y: rect.midY + pane.console.textContainerOrigin.y), to: nil)
         let event = NSEvent.mouseEvent(with: .rightMouseDown, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1)!
         let menu = pane.console.menu(for: event)
-        let copy = menu?.items.first { $0.title == "Copy image" }
-        try require(copy != nil && NSApp.sendAction(copy!.action!, to: copy!.target, from: copy!), "Native R output Copy image menu dispatch")
+        let copy = menu?.items.first { $0.title == "Copy Chart" }
+        let beforeChartCopy = general.changeCount
+        try require(copy != nil && NSApp.sendAction(copy!.action!, to: copy!.target, from: copy!), "Native R output Copy Chart menu dispatch")
+        try await vectorCopyCompleted(after: beforeChartCopy)
         let vector = general.data(forType: ReportImageClipboard.svgTypes[0])
-        try require(vector != nil && general.data(forType: .png) != nil, "R Copy image offers SVG plus Office PNG fallback: types=\(general.types ?? []), status=\(pane.state.stringValue), output=\(pane.console.string)")
+        try require(vector != nil && general.data(forType: .png) != nil, "R Copy Chart offers SVG plus Office PNG fallback: types=\(general.types ?? []), status=\(pane.state.stringValue), output=\(pane.console.string)")
         try require(NSBitmapImageRep(data: general.data(forType: .png)!) != nil)
         try "<svg xmlns='http://www.w3.org/2000/svg'/>".write(to: pane.outputFolder!.appendingPathComponent("clipboard-vector.svg"), atomically: true, encoding: .utf8)
+        let beforeSelectionCopy = general.changeCount
         pane.console.setSelectedRange(NSRange(location: index, length: 1)); pane.console.copy(nil)
+        try await vectorCopyCompleted(after: beforeSelectionCopy)
         try require(general.data(forType: ReportImageClipboard.svgTypes[0]) == vector, "R Copy keeps original vector bytes after file overwrite")
         try await reset("<p>R interpretation</p>"); try await caret("#result-image-result p")
         v.window.makeKeyAndOrderFront(nil); v.tabs.selectTabViewItem(report.item)
@@ -316,7 +329,7 @@ extension ReportExportTests {
         try require(general.string(forType: Viewer.reportFragmentType) != nil && general.data(forType: .png) != nil && general.data(forType: ReportImageClipboard.svgTypes[0]) != nil && NSImage(pasteboard: general) != nil, "Native report Copy menu retains vector and native image formats after a real picture click")
         let pdfIndex = try await run("plot(1:3, main='Ordinary PDF')")
         try require(try pane.copyPlot(at: pdfIndex, to: board) && board.data(forType: .png) != nil && board.data(forType: ReportImageClipboard.svgTypes[0]) == nil, "Ordinary PDF chart offers a readable PNG copy without changing its output format")
-        print("PASS: real R SVG Copy image menu/selection, PNG fallback, original-byte snapshot, native report Paste and ordinary PDF image copying"); fflush(stdout)
+        print("PASS: real R SVG Copy Chart menu/selection, PNG fallback, original-byte snapshot, native report Paste and ordinary PDF image copying"); fflush(stdout)
         v.remove(report)
     }
 }

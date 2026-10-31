@@ -13,7 +13,7 @@ import WebKit
 /// Exercises the actual WebKit page, native message handler and embedded-R
 /// worker together. Commands enter through the same controls as user input.
 @main struct RConsoleIntegrationTests {
-    @MainActor private static var sessionFolders: [URL] = []
+    @MainActor static var sessionFolders: [URL] = []
 
     @MainActor static func check(_ ok: Bool, _ message: String) throws {
         guard ok else { throw NSError(domain: "RConsoleIntegration", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
@@ -141,7 +141,15 @@ import WebKit
                     try check(viewer.documents.count == 1 && viewer.active?.kind == "grid"
                               && viewer.active?.title == "Untitled" && viewer.active?.gridDirty == false,
                               "startup opens one active blank workbook without creating an R document")
-                    if CommandLine.arguments.contains("--scroll-only") { try await transcriptFollowingChecks(viewer) }
+                    try check(InteractiveRConsole.enabled && !InteractiveRConsolePrototype.enabled,
+                              "the normal release enables the interactive console without prototype identity or disabling automatic updates")
+                    if CommandLine.arguments.contains("--release-tail-only") {
+                        sessionFolders += try await consoleDocumentChecks(viewer)
+                        try await graphicsDeviceChecks(viewer)
+                        try await historyRecallChecks(viewer)
+                        try await transcriptFollowingChecks(viewer)
+                    }
+                    else if CommandLine.arguments.contains("--scroll-only") { try await transcriptFollowingChecks(viewer) }
                     else if CommandLine.arguments.contains("--history-only") { try await historyRecallChecks(viewer) }
                     else if !CommandLine.arguments.contains("--startup-only") { try await run(viewer) }
                     passed = true; print("PASS: live WebKit interactive R console integration completed"); fflush(stdout)
@@ -739,6 +747,8 @@ import WebKit
         try await console(doc, "cat('RESTART_CLEAR=', !exists('saved') && !exists('scriptValue') && !exists('staleSentinel'), '\\n', sep='')")
         try await expectOutput(doc, "RESTART_CLEAR=TRUE\n")
         try check(!pane.sourceText.contains("staleSentinel <- TRUE"), "retired-generation bridge commands cannot alter the new workspace or script")
+        sessionFolders += try await consoleAIChecks(viewer, doc)
+        sessionFolders += try await consoleDocumentChecks(viewer)
         pane.shutdown()
         try check((try Data(contentsOf: originalPlotURL)) == originalSVG && (try Data(contentsOf: updatedPlotURL)) == updatedOriginalSVG
                   && svgClipboardMatches(updatedOriginalSVG, label: "Copied chart after console shutdown"),

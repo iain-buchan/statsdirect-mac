@@ -35,6 +35,13 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Framewor
 swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirect -emit-module-path "$BUILD_WORK/native/$STATSDIRECT_CONFIGURATION/StatsDirect.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/*.swift -o "$APP/Contents/MacOS/StatsDirect" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
 # The compiler links the dSYM while its temporary object files still exist.
 statsdirect_store_symbols "$APP/Contents/MacOS/StatsDirect.dSYM" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION/StatsDirect.app.dSYM"
+# R remains an optional first-use installation for users. The small console
+# helper is built against the build Mac's R headers and loads R at runtime.
+/bin/bash Scripts/build-r-console-worker.sh "$APP/Contents/MacOS/RConsoleWorker"
+WORKER_SYMBOLS="$BUILD_WORK/native/$STATSDIRECT_CONFIGURATION/RConsoleWorker.dSYM"
+rm -rf "$WORKER_SYMBOLS"
+xcrun dsymutil "$APP/Contents/MacOS/RConsoleWorker" -o "$WORKER_SYMBOLS"
+statsdirect_store_symbols "$WORKER_SYMBOLS" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION/RConsoleWorker.dSYM"
 cp FullEngine/publish/StatsDirectEngine.dylib "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
 ditto FullEngine/publish "$APP/Contents/Resources/Engine"
 python3 Scripts/build-icon.py "$BUILD_WORK"
@@ -48,6 +55,7 @@ cp STATSDIRECT-LICENSE.txt STATISTICALHELP-LICENSE.txt DOTNET-LICENSE.txt DOTNET
 rm -rf "$APP/Contents/Resources/Content/Help"
 ditto Content "$APP/Contents/Resources/Content"
 codesign --force --sign - "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
+codesign --force --sign - "$APP/Contents/MacOS/RConsoleWorker"
 codesign --force --sign - "$APP"
 python3 Scripts/verify-symbols.py "$APP" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION"
 printf 'Built %s (%s); symbols: %s\n' "$APP" "$STATSDIRECT_CONFIGURATION" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION"

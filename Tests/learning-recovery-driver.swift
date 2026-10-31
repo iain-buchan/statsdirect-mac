@@ -89,8 +89,9 @@ import Darwin
         _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-code=r]').click()===undefined})")
         try await wait("single working Open in R bridge") { v.documents.filter{$0.kind == "r"}.count == count+1 }
         try await Task.sleep(nanoseconds:200_000_000)
-        try check(v.documents.filter{$0.kind == "r"}.count == count+1 && v.active?.rPane?.editor.string.contains("x <- c(2, 4, 6)\nmean(x)") == true,"Duplicate or incorrect Open in R handler")
-        try check(v.active?.rPane?.isRunning == false,"Tutor code ran without Run")
+        try await wait("unexecuted console ready for tutor code") { v.active?.rConsolePane?.session.state == "ready" }
+        try check(v.documents.filter{$0.kind == "r"}.count == count+1 && v.active?.rConsolePane?.sourceText.contains("x <- c(2, 4, 6)\nmean(x)") == true,"Duplicate or incorrect Open in R handler")
+        try check(v.active?.rConsolePane?.hasWorkspace == false && v.active?.rConsolePane?.isBusy == false,"Tutor code ran without Run")
         v.tabs.selectTabViewItem(d.item)
         let restrictions = try await d.web.callAsyncJavaScript("let blocked=false;try{await fetch('https://example.invalid/private-test')}catch{blocked=true}return {blocked,csp:document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]').content}",arguments:[:],in:nil,contentWorld:.page) as! [String:Any]
         try check(restrictions["blocked"] as? Bool == true && (restrictions["csp"] as? String)?.contains("frame-src 'none'") == true,"External resource restrictions lost")

@@ -51,11 +51,15 @@ if __name__ == '__main__':
     parser.add_argument('symbols', type=Path)
     args = parser.parse_args()
     check_deployment_targets(args.app)
-    for binary, name in [
+    binaries = [
         ('MacOS/StatsDirect', 'StatsDirect.app'),
         ('Frameworks/StatsDirectEngine.dylib', 'StatsDirectEngine.dylib'),
         ('Resources/Engine/libStatsDirectText.dylib', 'libStatsDirectText.dylib'),
-    ]:
+    ]
+    info = plistlib.loads((args.app / 'Contents/Info.plist').read_bytes())
+    if info.get('StatsDirectInteractiveRConsole') or (args.app / 'Contents/MacOS/RConsoleWorker').exists():
+        binaries.append(('MacOS/RConsoleWorker', 'RConsoleWorker'))
+    for binary, name in binaries:
         actual = uuids(args.app / 'Contents' / binary)
         symbols = args.symbols / (name + '.dSYM')
         expected = uuids(symbols)

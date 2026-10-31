@@ -21,7 +21,8 @@ import PDFKit
                 do {
                     if let index=CommandLine.arguments.firstIndex(where:{$0=="--legacy-file" || $0=="--report-file"}),index+1<CommandLine.arguments.count {
                         try await archived(viewer, url:URL(fileURLWithPath:CommandLine.arguments[index+1]), output:URL(fileURLWithPath:CommandLine.arguments[1]))
-                    } else if CommandLine.arguments.contains("--notebook-import-only") {try await notebookImports(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    } else if CommandLine.arguments.contains("--release-tail-only") {try await releaseTail(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--notebook-import-only") {try await notebookImports(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--notebook-only") {try await notebooks(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--network-only") {try await networkIsolation(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--saving-only") {try await reportSaving(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
@@ -61,8 +62,8 @@ import PDFKit
             let record=result["record"] as? String
             precondition(record != nil && result["recipe"] as? Bool == true,"\(operation): the completed output must carry the record of the run and its recipe flag")
             let body="<section class='engine-report'>"+(result["html"] as! String)+"</section>"
-            // The paired entry carries its help page (the export writes it as a portable link); the chi-square entry does not, since
-            // the clipboard checks below copy one row of its table and the export appends an entry's help link to any copy of it.
+            // Keep the paired entry's help metadata for Method Help after reopening.
+            // Mac exports omit generated footers; authored report links remain content.
             v.appendReport(ReportEntry(id:entryID,title:operation,operation:operation,body:body,record:record,recipe:true,helpPath:operation=="TPaired" ? v.analysisCatalog[operation]?["help"] as? String : nil))
         }
         // LOESS runs its script through R, and its chart is the SVG R drew (square, 432 by 432 points): it must reach the pane and every export like the engine's SVG charts.
@@ -108,10 +109,12 @@ import PDFKit
             if format == .html {
                 let html=String(decoding:data,as:UTF8.self)
                 precondition(html.contains("56.111111")&&html.contains("8.64")&&html.contains("Observation 65"))
-                precondition(html.contains("<svg")&&html.contains("https://www.statsdirect.com/help/"))
+                let footers = try await report.web.callAsyncJavaScript("return new DOMParser().parseFromString(html,'text/html').querySelectorAll('article.report-entry .report-links').length;",
+                    arguments:["html":html],in:nil,contentWorld:.defaultClient) as? Int
+                precondition(html.contains("<svg") && footers == 0,"Mac HTML keeps vector charts without manufacturing method-help footers")
                 precondition(html.contains("Residual Standard Error")&&html.contains("svglite"),"the LOESS report's inline SVG chart must survive HTML export")
                 precondition(!html.contains("onclick=") && !html.contains("statsDirectReport.postMessage") && !html.contains("file:///"))
-                print("PASS: HTML contains every result, inline vector charts including R's, and portable help links; no app handlers or file paths")
+                print("PASS: HTML contains every result and inline vector charts including R's, without generated help footers, app handlers or file paths")
             }
             if format == .pdf {
                 let pdf=PDFDocument(data:data)!,text=pdf.string ?? ""
@@ -187,6 +190,19 @@ import PDFKit
         try await notebooks(v, output: output)
         try await notebookImports(v, output: output)
         try await networkIsolation(v, output: output)
+        try await helpLinkRoundTrips(v, output: output)
+        try await officeClipboard(v, output: output)
+    }
+
+    /// Resume the remaining release checks after a qualified report prefix.
+    /// The default CI path above continues to run the complete suite.
+    @MainActor static func releaseTail(_ v: Viewer, output: URL) async throws {
+        try await imageEditing(v, output: output)
+        try await notebooks(v, output: output)
+        try await notebookImports(v, output: output)
+        try await networkIsolation(v, output: output)
+        try await helpLinkRoundTrips(v, output: output)
+        try await officeClipboard(v, output: output)
     }
 
     @MainActor static func macReportControls(_ v: Viewer) async throws {
@@ -679,9 +695,17 @@ import PDFKit
         precondition(report.reportUndo.count==1 && (report.reportEntries!.first!.editedBody ?? "").contains("Gamma one edited"),"the first edit after a load was lost: \(report.reportUndo.count) changes")
         report.reportEntries=[ReportEntry(id:a,title:"Alpha",operation:"TPaired",body:"<h1 id='sr-a-h'>Alpha</h1><p id='sr-a1'>Alpha one</p>",record:nil,helpPath:"Help/parametric_methods/paired_t.htm")];report.reportUndo=[];report.reportRedo=[];v.renderReport(report);try await settled(report)
         let exported=String(decoding:try await v.reportExportData(report,format:.html),as:UTF8.self)
-        precondition(exported.contains("https://www.statsdirect.com/help/parametric_methods/paired_t.htm") && !exported.contains("data-help") && !exported.contains("contenteditable") && !exported.contains("<button"),"the saved report carries the method link, not the editing attributes")
+        let helpFooters = try await report.web.callAsyncJavaScript("return new DOMParser().parseFromString(html,'text/html').querySelectorAll('article.report-entry .report-links').length;",
+            arguments:["html":exported],in:nil,contentWorld:.defaultClient) as? Int
+        precondition(helpFooters == 0 && !exported.contains("data-help") && !exported.contains("contenteditable") && !exported.contains("<button"),"the saved report omits generated method footers and editing attributes")
+        let savedHelp = output.appendingPathComponent("single-region-help-metadata.html")
+        try Data(exported.utf8).write(to:savedHelp)
+        let reopenedHelp = try await v.importReport(savedHelp); try await settled(reopenedHelp)
+        precondition(reopenedHelp.reportEntries?.first?.helpPath == "Help/parametric_methods/paired_t.htm",
+                     "saved method-help metadata remains available after reopening without a generated footer")
+        v.remove(reopenedHelp)
         v.remove(report)
-        print("PASS: one editable region: no controls in the report, commands and Clear formatting across results, context target with help/R/chart, text after the last result, reveal, and the method link in the saved report");fflush(stdout)
+        print("PASS: one editable region: no controls in the report, commands and Clear formatting across results, context target with help/R/chart, text after the last result, reveal, and saved method-help metadata without generated footers");fflush(stdout)
         try await rasterReadbackRegression(v,output:output)
     }
 
@@ -934,7 +958,8 @@ extension ReportExportTests {
             v.continueResultInR(report,id:id)
             try await wait("the R script", timeout:60) { v.documents.filter{$0.kind=="r"}.count>before && (v.status.stringValue.hasPrefix("R script") || v.status.stringValue.hasPrefix("The R script")) }
             let pane=v.documents.last{$0.kind=="r"}!
-            let text=pane.rPane?.editor.string ?? "", status=v.status.stringValue
+            try check(pane.rConsolePane != nil,"Continue in R uses the production interactive console")
+            let text=pane.rConsolePane?.sourceText ?? "", status=v.status.stringValue
             v.remove(pane)
             return (text,status)
         }

@@ -1,9 +1,16 @@
-# Interactive R console: Mac prototype
+# Interactive R console: Mac 1.1.0
 
-The console implementation is merged into `main`. The development build remains
-isolated from the installed StatsDirect app and GitHub releases. The next release
-is 1.1.0, for IT Services to sign and notarise after release testing; the earlier
-1.0.1 candidate is superseded. This prototype builder produces no installer.
+The console is enabled in the normal 1.1.0 app by
+`StatsDirectInteractiveRConsole`, independently of prototype identity. Normal
+updates and the blank-workbook startup remain enabled. R is optional until a
+session is requested: guided setup installs native Apple Silicon R if needed,
+then prepares compatible SVG support from official CRAN Mac binaries in
+`~/Library/Application Support/StatsDirect Viewer/R Library`. Setup is shared by
+concurrent tabs, cancellable and retryable, and leaves scripts unexecuted.
+
+1.0.0 remains the live signed and notarised release. IT Services will sign and
+notarise 1.1.0 after release testing; 1.0.1 is superseded. Neither these checks nor
+the separate prototype builder produces an installer or publishes a release.
 
 Build with `Scripts/build-interactive-console-prototype.sh`. The separate app is
 `.build/interactive-r-console.noindex/StatsDirect Console Prototype.app`, with
@@ -14,9 +21,12 @@ for this development build. The builder prepares the SVG device with
 Signing is local/ad hoc only. Matching debug symbols
 are stored outside the app.
 
-The app starts with one blank workbook. File > New R Console (Prototype) opens an
-independent session when requested. Continue in R opens the generated analysis script in the
-console and runs it once. Existing Script/C#/VB functionality remains available.
+The app starts with one blank workbook. File > New Script and opened R files
+start in Script view without executing the source. Continue in R opens the
+generated analysis script in Console view and runs it once. Open in R (R+), after
+AI, saves the source in R Scripts and opens RStudio or starts a fresh R.app
+session. File > New C# Script and New VB Script preserve the managed script
+editors. The isolated development app also offers New R Console (Prototype).
 
 - Enter runs a command; Shift+Enter inserts a line. Up/Down recalls history.
 - Commands, text output and charts share one scrolling transcript. The toolbar

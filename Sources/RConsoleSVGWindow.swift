@@ -82,13 +82,13 @@ private final class RChartWebView: WKWebView {
         zoomGestureMonitor = NSEvent.addLocalMonitorForEvents(matching: [.magnify, .smartMagnify]) { [weak self] event in
             MainActor.assumeIsolated {
                 guard let self, event.window === self.window,
-                      self.web.bounds.contains(self.web.convert(event.locationInWindow, from: nil)) else { return event }
+                      self.web.bounds.contains(self.web.convert(event.locationInWindow, from: nil)) else { return }
                 self.refreshNativeZoom()
                 if event.type == .smartMagnify || event.phase.contains(.ended) || event.phase.contains(.cancelled) {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.updateZoomControls() }
                 }
-                return event
             }
+            return event
         }
         installZoomControls(in: window)
         zoomObservation = web.observe(\.magnification, options: [.initial, .new]) { [weak self] _, _ in

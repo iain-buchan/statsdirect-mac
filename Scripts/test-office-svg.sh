@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+export DEVELOPER_DIR="${DEVELOPER_DIR:-$(/usr/bin/xcode-select -p)}"
 mkdir -p .build
 TEST_WORK="$(mktemp -d "$PWD/.build/office-svg.XXXXXX")"
 trap 'rm -rf "$TEST_WORK"' EXIT

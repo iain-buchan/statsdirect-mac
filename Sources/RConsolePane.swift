@@ -7,6 +7,22 @@ enum InteractiveRConsolePrototype {
     static var enabled: Bool { Bundle.main.object(forInfoDictionaryKey: "StatsDirectInteractiveConsolePrototype") as? Bool == true }
 }
 
+enum InteractiveRConsole {
+    static var enabled: Bool {
+        InteractiveRConsolePrototype.enabled || Bundle.main.object(forInfoDictionaryKey: "StatsDirectInteractiveRConsole") as? Bool == true
+    }
+    static var supportFolder: URL {
+        if InteractiveRConsolePrototype.enabled {
+            return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Console Prototype")
+        }
+        if let path = ProcessInfo.processInfo.environment["STATSDIRECT_R_FOLDER"], !path.isEmpty {
+            return URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true)
+        }
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Viewer")
+    }
+    static var privateLibrary: URL { supportFolder.appendingPathComponent("R Library", isDirectory: true) }
+}
+
 /// A presentation layer only: R executes in its own worker, never in WebKit.
 @MainActor final class RConsolePane: NSObject, WKScriptMessageHandler {
     private weak var viewer: Viewer?
@@ -18,6 +34,8 @@ enum InteractiveRConsolePrototype {
     private var savedSource: String
     private var autoRun: Bool
     private var rendererReady = false
+    private var desiredMode: String
+    private var setupRequest: UUID?
     private var closed = false
     private var chartCopyRequest = 0
     private var chartSaveRequest = 0
@@ -34,13 +52,14 @@ enum InteractiveRConsolePrototype {
     var hasUnsavedChanges: Bool { sourceText != savedSource }
     var hasWorkspace: Bool { hasExecuted && session.isRunning }
 
-    init(viewer: Viewer, document: Document, script: String, saved: Bool, autoRun: Bool) {
+    init(viewer: Viewer, document: Document, script: String, saved: Bool, autoRun: Bool, startInScript: Bool = false) {
         self.viewer = viewer; self.document = document; sourceText = script
+        desiredMode = startInScript ? "script" : "console"
         savedSource = saved ? script : ""; self.autoRun = autoRun; scriptName = document.title
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         session = RConsoleSession(worker: Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/RConsoleWorker"),
                                   bootstrap: viewer.root.appendingPathComponent("R/console-bootstrap.R"),
-                                  workingRoot: support.appendingPathComponent("StatsDirect Console Prototype/R Sessions"))
+                                  workingRoot: InteractiveRConsole.supportFolder.appendingPathComponent("R Sessions"),
+                                  privateLibrary: InteractiveRConsole.privateLibrary)
         super.init()
         session.onEvent = { [weak self] event in self?.receive(event) }
         document.web.configuration.userContentController.add(self, name: "statsDirectRConsole")
@@ -72,6 +91,7 @@ enum InteractiveRConsolePrototype {
     func focusInput() { document?.web.evaluateJavaScript("window.StatsDirectRConsole?.focusInput()") }
     func shutdown() {
         closed = true
+        if let setupRequest { RConsoleSetup.shared.cancel(setupRequest); self.setupRequest = nil }
         session.onEvent = nil; session.shutdown()
         let windows = Array(pdfWindows.values); pdfWindows.removeAll()
         for window in windows { window.onClose = nil; window.close() }
@@ -85,7 +105,7 @@ enum InteractiveRConsolePrototype {
               let action = body["action"] as? String else { return }
         if action == "ready" {
             rendererReady = true
-            if session.generation == 0 { session.start() }
+            if session.generation == 0 { startConsole() }
             else {
                 // Restore original execution origins for command recall. The
                 // shared model replays these events before applying the current
@@ -96,10 +116,13 @@ enum InteractiveRConsolePrototype {
                     deliver(replay)
                 }
             }
+            document.web.evaluateJavaScript("window.StatsDirectRConsole?.setMode('\(desiredMode)')")
             return
         }
         guard body["sessionId"] as? String == session.sessionId, body["generation"] as? Int == session.generation else { return }
         switch action {
+        case "modeChanged":
+            if let mode = body["mode"] as? String, ["console", "script"].contains(mode) { desiredMode = mode }
         case "chartContext":
             chartContextKey = nil
             if let id = body["plotId"] as? String, let revision = body["revision"] as? Int,
@@ -112,18 +135,20 @@ enum InteractiveRConsolePrototype {
             if let id = body["requestId"] as? String, let text = body["text"] as? String { session.reply(requestId: id, text: text) }
         case "interrupt": session.interrupt()
         case "restart":
+            if !session.isRunning && session.state == "stopped" { startConsole(); return }
             let alert = NSAlert(); alert.messageText = "Restart R?"
             alert.informativeText = "R variables will be cleared. Your script remains available."
             alert.addButton(withTitle: "Restart R"); alert.addButton(withTitle: "Cancel")
             alert.beginSheetModal(for: viewer!.window) { [weak self] response in
                 guard let self else { return }
-                if response == .alertFirstButtonReturn { self.autoRun = false; self.session.restart() }
+                if response == .alertFirstButtonReturn { self.autoRun = false; self.startConsole() }
                 else { self.load() } // Restore authoritative state after the cancelled restart.
             }
         case "scriptChanged":
             if let text = body["source"] as? String, text.utf8.count <= 8 * 1024 * 1024 { sourceText = text }
         case "saveScript":
             if let text = body["source"] as? String { sourceText = text }; saveScript()
+        case "openInR": viewer?.openConsoleInExternalR(document)
         case "ai": viewer?.scriptAI.open(document)
         case "help":
             if let viewer, let path = viewer.methodHelpPath(document) { viewer.openHelp(viewer.root.appendingPathComponent(path), title: document.title) }
@@ -136,6 +161,21 @@ enum InteractiveRConsolePrototype {
             if action == "openPlot" { openChart(plot) }
             else { copyChart(plot) }
         default: break
+        }
+    }
+
+    private func startConsole() {
+        guard !closed, let viewer else { return }
+        if let setupRequest { RConsoleSetup.shared.cancel(setupRequest); self.setupRequest = nil }
+        session.prepareForSetup()
+        let generation = session.generation
+        setupRequest = RConsoleSetup.shared.ensureReady(resources: viewer.root, library: InteractiveRConsole.privateLibrary) { [weak self] result in
+            guard let self, !self.closed, self.session.generation == generation else { return }
+            self.setupRequest = nil
+            switch result {
+            case .success: self.session.start()
+            case .failure(let error): self.session.setupFailed(error.localizedDescription)
+            }
         }
     }
 
@@ -277,8 +317,9 @@ enum InteractiveRConsolePrototype {
         if type == "session" {
             journal = []; journalBytes = 0; sequence = -1; plots = [:]; chartContextKey = nil; outputText = ""; hasExecuted = false
             event["script"] = sourceText
-            event["capabilities"] = ["plotMimes": ["image/svg+xml", "application/pdf"], "ai": true, "help": true, "openPlot": true, "copyPlot": true]
+            event["capabilities"] = ["plotMimes": ["image/svg+xml", "application/pdf"], "ai": true, "help": true, "openInR": true, "openPlot": true, "copyPlot": true]
         }
+        if type == "exited" { RConsoleSetup.shared.invalidate(library: InteractiveRConsole.privateLibrary) }
         if type == "inputEcho", let text = event["text"] as? String {
             hasExecuted = true
             if event["origin"] as? String == "console", !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -356,7 +397,8 @@ enum InteractiveRConsolePrototype {
     func saveScript() {
         guard let viewer else { return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [UTType(filenameExtension: "r")!]
-        panel.nameFieldStringValue = scriptName + ".R"
+        let name = (scriptName as NSString).lastPathComponent
+        panel.nameFieldStringValue = (name as NSString).pathExtension.lowercased() == "r" ? name : name + ".R"
         panel.beginSheetModal(for: viewer.window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
             do {
@@ -369,13 +411,35 @@ enum InteractiveRConsolePrototype {
 }
 
 extension Viewer {
+    @discardableResult func openConsoleInExternalR(_ doc: Document) -> URL? {
+        guard documents.contains(where: { $0 === doc }), let pane = doc.rConsolePane else { return nil }
+        let url: URL, source = pane.sourceText
+        do { url = try RExternalScript.save(source, name: pane.scriptName) }
+        catch { showError("Open in R failed: \(error.localizedDescription)"); return nil }
+        guard RExternalScript.opensExternally else {
+            status.stringValue = "Saved \(url.lastPathComponent) in R Scripts"; return url
+        }
+        let launch: () -> Void = { [weak self, weak doc] in
+            guard let self, let doc, self.documents.contains(where: { $0 === doc }) else { return }
+            let folder = pane.session.workingDirectory ?? InteractiveRConsole.supportFolder.appendingPathComponent("R Sessions")
+            RExternalScript.launch(url, source: source, workingDirectory: folder) { [weak self, weak doc] text in
+                guard let self, let doc, self.documents.contains(where: { $0 === doc }) else { return }
+                self.status.stringValue = text
+            }
+        }
+        if RRuntime.executable() == nil {
+            RInstaller.shared.ensureInstalled { installed in if installed { launch() } }
+        } else { launch() }
+        return url
+    }
     @objc func newRConsolePrototype() { makeRConsole() }
-    @discardableResult func makeRConsole(script: String = "", title: String? = nil, saved: Bool = false, autoRun: Bool = false) -> Document {
+    @discardableResult func makeRConsole(script: String = "", title: String? = nil, saved: Bool = false, autoRun: Bool = false, startInScript: Bool = false) -> Document {
         var number = 1
-        while documents.contains(where: { $0.title == "R Console \(number)" }) { number += 1 }
-        let doc = newDocument(kind: "r", title: title.map { "R Console: " + $0 } ?? "R Console \(number)")
-        let pane = RConsolePane(viewer: self, document: doc, script: script, saved: saved, autoRun: autoRun)
-        doc.rConsolePane = pane; pane.load()
+        while documents.contains(where: { $0.kind == "r" && ($0.title == "R Console \(number)" || $0.title.hasPrefix("R Console \(number): ")) }) { number += 1 }
+        let doc = newDocument(kind: "r", title: "R Console \(number)" + (title.map { ": " + $0 } ?? ""))
+        let pane = RConsolePane(viewer: self, document: doc, script: script, saved: saved, autoRun: autoRun, startInScript: startInScript)
+        doc.rConsolePane = pane
+        pane.load()
         return doc
     }
 }

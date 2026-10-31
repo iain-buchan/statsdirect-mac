@@ -43,11 +43,13 @@ import WebKit
                     if let index = CommandLine.arguments.firstIndex(of: "--finder-file"), CommandLine.arguments.indices.contains(index + 1) {
                         let requested = URL(fileURLWithPath: CommandLine.arguments[index + 1]).resolvingSymlinksInPath()
                         try await wait { viewer.active?.openedFileURL?.resolvingSymlinksInPath() == requested }
-                        try check(viewer.documents.count == 1 && viewer.active?.rPane?.editor.string == source && viewer.active?.rPane?.isRunning == false, "Launch Services opens the actual requested file without a chooser or automatic execution")
+                        try await wait { viewer.active?.rConsolePane?.session.state == "ready" }
+                        try check(viewer.documents.count == 1 && viewer.active?.rConsolePane?.sourceText == source && viewer.active?.rConsolePane?.hasWorkspace == false && viewer.active?.rConsolePane?.isBusy == false, "Launch Services opens the actual requested file in the console without a chooser or automatic execution")
                     } else if CommandLine.arguments.contains("--startup-file") {
                         try check(viewer.finishedLaunching && viewer.pendingOpenURLs.isEmpty, "early Finder open event is drained after window construction")
-                        try check(viewer.documents.count == 1 && viewer.active?.rPane?.editor.string == source, "file launch opens the requested document without an extra blank worksheet")
-                        try check(viewer.active?.rPane?.isRunning == false && viewer.active?.rPane?.console.string.isEmpty == true && viewer.active?.rPane?.outputFolder == nil, "opening a script at startup neither runs it nor starts an R process")
+                        try await wait { viewer.active?.rConsolePane?.session.state == "ready" }
+                        try check(viewer.documents.count == 1 && viewer.active?.rConsolePane?.sourceText == source, "file launch opens the requested document without an extra blank worksheet")
+                        try check(viewer.active?.rConsolePane?.hasWorkspace == false && viewer.active?.rConsolePane?.isBusy == false && viewer.active?.rConsolePane?.outputText.isEmpty == true, "opening a script starts an idle console without executing any script code")
                     } else { try await run(viewer, folder: folder) }
                     viewer.clearRecentDocuments(nil)
                     print("PASS: startup and R setup checks completed"); fflush(stdout)
@@ -84,7 +86,8 @@ import WebKit
         let script = folder.appendingPathComponent("Keep my work.R")
         try "stop('not executed')\n".write(to: script, atomically: true, encoding: .utf8)
         v.application(NSApp, open: [script])
-        try check(v.documents.contains { $0 === edited } && edited.gridDirty && v.active?.rPane?.isRunning == false, "file open preserves an edited startup sheet and does not execute R code")
+        try await wait { v.active?.rConsolePane?.session.state == "ready" }
+        try check(v.documents.contains { $0 === edited } && edited.gridDirty && v.active?.rConsolePane?.hasWorkspace == false && v.active?.rConsolePane?.isBusy == false, "file open preserves an edited startup sheet and does not execute R code")
         let recent = v.recentDocumentsMenu!; v.menuNeedsUpdate(recent)
         let item = recent.items.first { ($0.representedObject as? URL)?.resolvingSymlinksInPath() == csv.resolvingSymlinksInPath() }!
         let count = v.documents.count
@@ -118,6 +121,8 @@ import WebKit
     }
 
     @MainActor static func testRSetup(_ folder: URL) async throws {
+        // Retained RPane-specific installer callbacks are exercised directly;
+        // the startup/file-opening checks above use the production console.
         guard let installedR = RRuntime.executable() else { throw CocoaError(.fileNoSuchFile) }
         var available = false, attempts = 0, handoffs = 0
         let installer = RInstaller(findExecutable: { available ? installedR : nil }, probe: { available }, download: { _, progress in
@@ -192,5 +197,30 @@ import WebKit
         try await wait { setupButton("Cancel Download") != nil }
         setupButton("Cancel Download")!.performClick(nil)
         try check(setupWindow == nil && cancelPane.editor.string == "# Keep this" && !cancelPane.isRunning, "cancelling an active download closes setup and preserves unsaved code")
+
+        // The embedded console requires native Apple Silicon R. An existing
+        // Intel executable must not bypass this shared guided-installation path.
+        var nativeAvailable = false, nativeHandoffs = 0
+        var nativeCompletions: [Bool] = []
+        let nativeInstaller = RInstaller(findExecutable: { installedR }, probe: { true }, nativeProbe: { nativeAvailable }, download: { _, _ in
+            let stage = folder.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: stage, withIntermediateDirectories: true)
+            let file = stage.appendingPathComponent("Native-fixture.pkg"); try Data().write(to: file); return file
+        }, openPackage: { _ in nativeHandoffs += 1; return true })
+        defer { nativeInstaller.shutdown() }
+        nativeInstaller.ensureInstalled(requireNativeR: true) { nativeCompletions.append($0) }
+        try check(setupButton("Download and Install R") != nil && nativeCompletions.isEmpty,
+                  "the console offers native R installation even when an incompatible R executable exists")
+        setupButton("Download and Install R")!.performClick(nil)
+        try await wait { setupButton("Check Again") != nil }
+        setupButton("Check Again")!.performClick(nil)
+        try await wait { setupButton("Check Again") != nil }
+        try check(nativeHandoffs == 1 && nativeCompletions.isEmpty && setupWindow != nil,
+                  "Check Again keeps the console installation pending while R is still incompatible")
+        nativeAvailable = true
+        setupButton("Check Again")!.performClick(nil)
+        try await wait { setupWindow == nil && nativeCompletions == [true] }
+        try check(nativeHandoffs == 1 && nativeCompletions == [true],
+                  "a successful native R probe completes the pending console installation exactly once")
     }
 }

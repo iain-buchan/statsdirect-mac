@@ -96,7 +96,7 @@ import WebKit
         try await wait("the R script") { v.documents.filter{$0.kind=="r"}.count>before && v.status.stringValue.hasPrefix("R script") }
         let pane=v.documents.last{$0.kind=="r"}!
         v.tabs.selectTabViewItem(pane.item)
-        try await wait("R's output", timeout:90) { (pane.rPane?.console.string.contains("t = ") ?? false) || (pane.rPane?.console.string.contains("Paired t-test") ?? false) }
+        try await wait("R's output", timeout:90) { pane.rConsolePane?.session.state == "ready" && ((pane.rConsolePane?.outputText.contains("t = ") ?? false) || (pane.rConsolePane?.outputText.contains("Paired t-test") ?? false)) }
         try await settle(1.5)
         try capture("4-continue-in-r")
         // 5. The R menu, popped up over the window

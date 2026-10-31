@@ -36,7 +36,9 @@ import Cocoa
         try await wait { (d.learningState?["courseWork"] as? [Any])?.count == 1 }
         _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-action=r]').click()===undefined})")
         try await wait { v.documents.contains{$0.kind == "r"} }
-        let r = v.documents.last{$0.kind == "r"}!; precondition(r.rPane?.isRunning == false && r.rPane!.editor.string.contains("paired=TRUE"))
+        let r = v.documents.last{$0.kind == "r"}!
+        try await wait { r.rConsolePane?.session.state == "ready" }
+        precondition(r.rConsolePane?.hasWorkspace == false && r.rConsolePane?.isBusy == false && r.rConsolePane!.sourceText.contains("paired=TRUE"))
         v.captureLearningEvidence(d,documentID:r.id)
         try await wait { (d.learningState?["evidence"] as? [Any])?.count == 1 }
         v.learningScript(d,"providerReview",["schemaVersion":1,"portfolioID":d.learningState!["id"]!,"provider":"Example provider","reviewer":"Synthetic tutor","reviewedAt":"2026-09-30","decision":"Further work requested","feedback":"Discuss the comparison group."])
@@ -75,10 +77,10 @@ import Cocoa
         _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-lesson=\"risk\"]').click()===undefined})")
         _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-action=r]').click()===undefined})")
         let riskLesson = v.learningLessons.first{$0["id"] as? String == "risk"}!
-        try await wait { v.documents.contains{$0.rPane?.editor.string == riskLesson["r"] as? String} }
-        let riskScript = v.documents.last{$0.rPane?.editor.string == riskLesson["r"] as? String}!
-        try await wait { riskScript.rPane?.isRunning == false && riskScript.rPane?.console.string.contains("0.123548112373") == true }
-        precondition(riskScript.rPane?.console.string.contains("Error") == false)
+        try await wait { v.documents.contains{$0.rConsolePane?.sourceText == riskLesson["r"] as? String} }
+        let riskScript = v.documents.last{$0.rConsolePane?.sourceText == riskLesson["r"] as? String}!
+        try await wait(timeout:30) { riskScript.rConsolePane?.session.state == "ready" && riskScript.rConsolePane?.outputText.contains("0.123548112373") == true }
+        precondition(riskScript.rConsolePane?.outputText.contains("Error") == false)
         print("PASS: revised interval explanations and review dates display in all guides; the complete Miettinen-Nurminen script runs in R with the expected interval")
         _ = try await v.learningJavaScript(d,"({ok:(document.getElementById('question').value='RISK_METHOD_TEST Explain the score interval in the supplied R example.',document.getElementById('send').click(),true)})")
         try await wait { (d.learningState?["conversation"] as? [[String:Any]])?.last?["model"] as? String == "fixture-model" }

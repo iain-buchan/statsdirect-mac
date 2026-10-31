@@ -12,6 +12,12 @@ enum RRuntime {
               let result = try? RInstallProcess.run(path, ["--vanilla", "-e", "cat('STATSDIRECT_R_READY')"], timeout: 10) else { return false }
         return result.status == 0 && result.output.contains("STATSDIRECT_R_READY")
     }
+    static func nativeReady(in paths: [String] = candidates) -> Bool {
+        guard let path = executable(in: paths),
+              let result = try? RInstallProcess.run(path, ["--vanilla", "-e",
+                "if (R.version$arch %in% c('arm64','aarch64')) cat('STATSDIRECT_NATIVE_R_READY')"], timeout: 10) else { return false }
+        return result.status == 0 && result.output.contains("STATSDIRECT_NATIVE_R_READY")
+    }
 }
 
 struct RInstallPackage {

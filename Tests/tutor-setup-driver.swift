@@ -93,7 +93,7 @@ actor SetupFixture {
         }
         try click("Cancel")
         try await wait {!v.openingTutorConnection && panel == nil}
-        try check(v.scriptAI.input.string == "Keep my unfinished question" && script.rPane!.editor.string.contains("Synthetic draft"),"cancelling setup preserves the question and script")
+        try check(v.scriptAI.input.string == "Keep my unfinished question" && script.rConsolePane?.sourceText.contains("Synthetic draft") == true && script.rConsolePane?.hasWorkspace == false,"cancelling setup preserves the question and unexecuted console script")
         try check(try String(contentsOf:marker,encoding:.utf8) == "unchanged","setup does not modify existing credentials")
         await fixture.set("fail")
         let retryTask=Task {await runtime.ensureAvailable()}

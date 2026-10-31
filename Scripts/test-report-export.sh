@@ -28,11 +28,11 @@ codesign --force --sign - "$TEST_APP"
 printf 'Test app: %s\n' "$TEST_APP"
 "$TEST_APP/Contents/MacOS/$EXECUTABLE" "$ROOT/.build/report-export-output" "${@:2}"
 
-if [[ " $* " == *" --notebook-only "* || $# -eq 1 || $# -eq 0 ]]; then
+if [[ " $* " == *" --notebook-only "* || " $* " == *" --release-tail-only "* || $# -eq 1 || $# -eq 0 ]]; then
   NOTEBOOK_PYTHON="${NOTEBOOK_PYTHON:-python3}"
   "$NOTEBOOK_PYTHON" Tests/verify-report-notebooks.py "$ROOT/.build/report-export-output"
 fi
-if [[ " $* " == *" --notebook-import-only "* || $# -eq 1 || $# -eq 0 ]]; then
+if [[ " $* " == *" --notebook-import-only "* || " $* " == *" --release-tail-only "* || $# -eq 1 || $# -eq 0 ]]; then
   "${RSCRIPT:-Rscript}" --vanilla "$ROOT/.build/report-export-output/imported-replay.R"
   python3 - "$ROOT/.build/report-export-output/imported-replay.pdf" <<'PY'
 from pathlib import Path

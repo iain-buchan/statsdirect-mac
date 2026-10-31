@@ -107,7 +107,7 @@ import Darwin
         ai.sendButton.performClick(nil)
         try await wait("report and method help reply") { (await text(ai)).contains("mean paired difference is about 56.1") }
         try check(requests().contains("statsdirect-report-assistant") && requests().contains("statsdirect_method_help"),"report-specific instructions, actual paired results and method-help tool work through the native provider bridge")
-        try check(report.reportRevision==revision && report.reportEntries![0].body==original && !unrelatedScript.rPane!.isRunning,"AI interpretation does not edit reports or execute R")
+        try check(report.reportRevision==revision && report.reportEntries![0].body==original && unrelatedScript.rConsolePane != nil && unrelatedScript.rConsolePane?.hasWorkspace==false,"AI interpretation does not edit reports or execute R")
         try check(try await js(ai,"!!document.querySelector('.message-body strong') && !!document.querySelector('.message-body table') && !!document.querySelector('.katex')") as? Bool == true,"AI replies display formatted headings, tables and equations in a WebView")
         try check(!ai.transcript.web.configuration.websiteDataStore.isPersistent && !ai.transcript.web.configuration.preferences.javaScriptCanOpenWindowsAutomatically,"AI WebView uses isolated storage and disallows automatic popups")
         let image=try await ai.transcript.web.takeSnapshot(configuration:nil)
@@ -174,8 +174,8 @@ import Darwin
         learner.learningRequestID=nil;v.tabs.selectTabViewItem(report.item)
         try await wait("R button after conversation switch") { (try? await js(ai,"!!document.querySelector('[data-code=r]:not(:disabled)')")) as? Bool == true }
         _=try await js(ai,"document.querySelector('[data-code=r]').click();true")
-        try await wait("R script from HTML button") { v.active?.rPane?.editor.string.contains("x <- c(1, 2, 3)")==true }
-        try check(v.active?.rPane?.editor.string.contains("x <- c(1, 2, 3)")==true && v.active?.rPane?.isRunning==false,"R suggestions from report AI open for review without running")
+        try await wait("R script from HTML button") { v.active?.rConsolePane?.sourceText.contains("x <- c(1, 2, 3)")==true && v.active?.rConsolePane?.session.state=="ready" }
+        try check(v.active?.rConsolePane?.sourceText.contains("x <- c(1, 2, 3)")==true && v.active?.rConsolePane?.hasWorkspace==false && v.active?.rConsolePane?.isBusy==false,"R suggestions from report AI open in the console for review without running")
         v.tabs.selectTabViewItem(report.item)
         ai.shareScript.state = .off;ai.shareWorkbook.state = .off;ai.sharingChanged();ai.input.string="CANCEL_TEST";ai.send()
         try await wait("pending report reply") { requests().contains("CANCEL_TEST") }

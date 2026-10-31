@@ -6,13 +6,14 @@ local({
   folder <- Sys.getenv("STATSDIRECT_R_FOLDER")
   if (!nzchar(folder)) folder <- path.expand("~/Library/Application Support/StatsDirect Viewer")
   library <- file.path(folder, "R Library")
-  prototype_library <- Sys.getenv("STATSDIRECT_CONSOLE_R_LIBRARY")
-  if (!nzchar(prototype_library))
-    prototype_library <- path.expand("~/Library/Application Support/StatsDirect Console Prototype/R Library")
-  libraries <- c(prototype_library, library)
+  console_library <- Sys.getenv("STATSDIRECT_CONSOLE_R_LIBRARY")
+  libraries <- c(console_library, library)
   .libPaths(c(libraries[dir.exists(libraries)], .libPaths()))
   if (!requireNamespace("svglite", quietly = TRUE))
-    stop("The SVG console requires svglite. Run Scripts/prepare-r-console-svg.sh for this prototype.")
+    stop("R chart support is not ready. Choose Restart to prepare it and try again.")
+  if (getNamespaceVersion("svglite") < package_version("2.2.2") ||
+      getNamespaceVersion("svglite") >= package_version("3.0.0"))
+    stop("R chart support needs updating. Choose Restart to prepare it and try again.")
   options(warn = 1)
   serial <- 0L
   device_serial <- 0L

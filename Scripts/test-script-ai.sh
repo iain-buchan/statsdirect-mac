@@ -24,6 +24,14 @@ cp "$TEST_WORK/driver" "$TEST_APP/Contents/MacOS/$EXECUTABLE"
 rsync -a --delete Content/ "$TEST_APP/Contents/Resources/Content/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.statsdirect.viewer.scriptaitest.${TEST_WORK##*.}" "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Script AI Test' "$TEST_APP/Contents/Info.plist"
+# The original Script AI fixture qualifies retained RPane support. Report AI
+# delegates this host with its own driver and keeps the production console mode.
+if [[ "${STATSDIRECT_AI_TEST_DRIVER:-Tests/script-ai-driver.swift}" == 'Tests/script-ai-driver.swift' ]]; then
+  for key in StatsDirectInteractiveRConsole StatsDirectInteractiveConsolePrototype; do
+    /usr/libexec/PlistBuddy -c "Delete :$key" "$TEST_APP/Contents/Info.plist" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :$key bool false" "$TEST_APP/Contents/Info.plist"
+  done
+fi
 codesign --force --sign - "$TEST_APP"
 printf 'Test app: %s\n' "$TEST_APP"
 if [[ "${STATSDIRECT_TEST_BUILD_ONLY:-0}" == "1" ]]; then echo "PASS: native test app compiled: $TEST_APP"; exit 0; fi

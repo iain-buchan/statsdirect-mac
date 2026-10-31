@@ -17,14 +17,14 @@ Open your data with **File → Open**, or choose **Help → Example workbook**, 
 - Open Excel workbooks (`.xlsx`, `.xls`, `.xlsb`, `.xlsm` and templates), including password-protected files. Save data as `.xlsx`, CSV or R files.
 - Keep results together in an editable report with SVG charts; open legacy RTF reports and save as HTML, PDF or Word documents.
 - Source builds can export reports as Jupyter notebooks and reopen StatsDirect notebooks into new report, data and R script tabs. Imported R code runs only when requested.
-- Choose **Continue in R** from a report's toolbar or context menu to open and run its editable script, or **File → New R Script** to start your own. Run, output and R setup controls stay in the script tab.
+- Choose **Continue in R** from a report's toolbar or context menu to open and run its editable script, or **File → New Script** to start your own. Script and Console views share an interactive workspace, with SVG charts and guided R setup. **Open in R (R+)** opens the script in RStudio or R.app.
 - The script toolbar's **AI** icon opens a conversation beside your code, using your ChatGPT connection. Choose whether to share the script/output and a workbook, and check for person identifiers before sending.
 - Open **Analysis → Calculator** for the StatsDirect expression calculator. It docks below your work or pops out, with wrapping input and saved calculations for the current session.
 - Use **Help → Learning** for biostatistics, epidemiology, practice questions and a tutor connected to your open work. **Use my ChatGPT** downloads its connection component once (about 94 MB, no administrator password), then signs in through your browser; your account’s Codex access and usage allowance apply.
 
 ## Build
 
-Requires an Apple Silicon Mac, Xcode command line tools, Python 3 and either the .NET 10 SDK or Docker Desktop.
+Requires an Apple Silicon Mac, Xcode command line tools, Python 3, native Apple Silicon R (for the console headers), and either the .NET 10 SDK or Docker Desktop.
 
 ```sh
 git clone --recurse-submodules https://github.com/iain-buchan/statsdirect-mac.git
@@ -32,7 +32,7 @@ cd statsdirect-mac
 ./build.sh
 ```
 
-For Docker, run `./docker-build.sh` instead. The build restores missing submodules at their pinned revision. Prebuilt web content is included; R is not needed to build or run StatsDirect.
+For Docker, run `./docker-build.sh` instead. The build restores missing submodules at their pinned revision. Prebuilt web content is included. R is only needed by users when starting an R session; StatsDirect guides its installation on first use.
 
 `./build.sh` defaults to an optimised Release build of the Swift shell and native bridges, retaining runtime safety checks. Matching crash-debugging symbols are saved under `.build/symbols/Release`, outside the app. Use `STATSDIRECT_CONFIGURATION=Debug ./build.sh` for an unoptimised native build; the managed calculation engine uses its existing Release configuration.
 

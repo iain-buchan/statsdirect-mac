@@ -6,6 +6,7 @@ final class RInstaller: NSObject, NSWindowDelegate {
     static let shared = RInstaller()
     private let findExecutable: () -> String?
     private let probe: () async -> Bool
+    private let nativeProbe: () async -> Bool
     private let download: (RInstallPackage, @escaping @Sendable (Double?) -> Void) async throws -> URL
     private let openPackage: (URL) -> Bool
     private var panel: NSPanel?
@@ -16,6 +17,7 @@ final class RInstaller: NSObject, NSWindowDelegate {
     private var downloadedFile: URL?
     private var openedInstaller = false
     private var checking = false
+    private var requiresNativeR = false
     private let detail = NSTextField(wrappingLabelWithString: "")
     private let status = NSTextField(wrappingLabelWithString: "")
     private let progress = NSProgressIndicator()
@@ -25,24 +27,27 @@ final class RInstaller: NSObject, NSWindowDelegate {
 
     init(findExecutable: @escaping () -> String? = { RRuntime.executable() },
          probe: @escaping () async -> Bool = { await Task.detached { RRuntime.ready() }.value },
+         nativeProbe: @escaping () async -> Bool = { await Task.detached { RRuntime.nativeReady() }.value },
          download: @escaping (RInstallPackage, @escaping @Sendable (Double?) -> Void) async throws -> URL = { package, progress in
              let parent = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("com.statsdirect.viewer/R Installers", isDirectory: true)
              return try await RPackageDownload(package: package, progress: progress).fetch(into: parent)
          }, openPackage: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) }) {
-        self.findExecutable = findExecutable; self.probe = probe; self.download = download; self.openPackage = openPackage
+        self.findExecutable = findExecutable; self.probe = probe; self.nativeProbe = nativeProbe
+        self.download = download; self.openPackage = openPackage
         super.init()
         NotificationCenter.default.addObserver(self, selector: #selector(applicationActivated), name: NSApplication.didBecomeActiveNotification, object: nil)
     }
 
-    func ensureInstalled(_ completion: @escaping (Bool) -> Void) {
-        if panel == nil, findExecutable() != nil { completion(true); return }
+    func ensureInstalled(requireNativeR: Bool = false, _ completion: @escaping (Bool) -> Void) {
+        if panel == nil, !requireNativeR, findExecutable() != nil { completion(true); return }
+        requiresNativeR = requiresNativeR || requireNativeR
         callbacks.append(completion)
         if let panel { panel.makeKeyAndOrderFront(nil); return }
         token = UUID(); downloadedFile = nil; openedInstaller = false; checking = false
         let window = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 540, height: 240), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Install R for StatsDirect"; window.delegate = self; window.isReleasedWhenClosed = false
         panel = window
-        let heading = NSTextField(labelWithString: "R is needed for this feature")
+        let heading = NSTextField(labelWithString: requiresNativeR ? "Apple Silicon R is needed" : "R is needed for this feature")
         heading.font = .boldSystemFont(ofSize: 18)
         primary.target = self; primary.action = #selector(primaryAction); primary.isEnabled = true
         primary.title = "Download and Install R"; primary.keyEquivalent = "\r"
@@ -124,11 +129,14 @@ final class RInstaller: NSObject, NSWindowDelegate {
         let request = token
         Task { [weak self] in
             guard let self else { return }
-            let ready = await self.probe()
+            var ready = await self.probe()
+            if ready && self.requiresNativeR { ready = await self.nativeProbe() }
             guard self.token == request else { return }
             self.checking = false; self.primary.isEnabled = true
             if ready { self.finish(true) }
-            else { self.status.stringValue = "R is not ready yet. Complete the steps in macOS Installer, then click Check Again or return to StatsDirect." }
+            else { self.status.stringValue = self.requiresNativeR
+                ? "Apple Silicon R is not ready yet. Complete the steps in macOS Installer, then click Check Again or return to StatsDirect."
+                : "R is not ready yet. Complete the steps in macOS Installer, then click Check Again or return to StatsDirect." }
         }
     }
     @objc private func cancelSetup() { finish(false) }
@@ -140,6 +148,7 @@ final class RInstaller: NSObject, NSWindowDelegate {
         // Installer may still be using the package if the user chooses Later.
         if let file = downloadedFile, installed || !openedInstaller { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
         downloadedFile = nil; openedInstaller = false; checking = false
+        requiresNativeR = false
         let pending = callbacks; callbacks.removeAll()
         for callback in pending { callback(installed) }
     }

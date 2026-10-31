@@ -17,12 +17,14 @@ import WebKit
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             page.continuation = continuation
             page.web.loadHTMLString("""
-            <!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>
+            <!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>
             body { color:#000; background:#fff; font:11pt -apple-system, sans-serif; }
             h1 {font-size:14pt;} table {border-collapse:collapse;width:100%;table-layout:fixed;}
             th,td {border:1px solid #999;padding:4px 6px;overflow-wrap:anywhere;white-space:pre-wrap;text-align:left;vertical-align:top;}
             thead {display:table-header-group;} tr {break-inside:avoid;} section+section {break-before:page;}
             pre {font:10pt Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;}
+            figure {margin:12px 0;break-inside:avoid;} img {max-width:100%;height:auto;}
+            .input-entry {color:#0645ad;} .stderr {color:#a32424;}
             </style></head><body>\(html)</body></html>
             """, baseURL: nil)
         }
@@ -40,6 +42,18 @@ import WebKit
 }
 extension Viewer {
     func documentPrintHTML(_ doc: Document) async throws -> String {
+        if let pane = doc.rConsolePane {
+            let snapshot = try? await doc.web.evaluateJavaScript("""
+            (()=>{const mode=window.StatsDirectRConsole?.snapshot().mode;
+            if(mode==='console'){const copy=document.getElementById('transcript')?.cloneNode(true);
+              copy?.querySelectorAll('.plot-actions,button').forEach(node=>node.remove());
+              return {mode,html:copy?.innerHTML??''};}
+            return {mode:'script',source:document.getElementById('script-source')?.value};})()
+            """) as? [String: Any]
+            let title = "<h1>\(htmlEscape(doc.title))</h1>"
+            if snapshot?["mode"] as? String == "console" { return title + (snapshot?["html"] as? String ?? "") }
+            return title + "<pre>\(htmlEscape(snapshot?["source"] as? String ?? pane.sourceText))</pre>"
+        }
         if let pane = doc.rPane { return "<h1>\(htmlEscape(doc.title))</h1><pre>\(htmlEscape(pane.editor.string))</pre>" }
         let bridge = doc.kind == "analysis" ? "statsDirectChiSquare" : "statsDirectGrid"
         let value = try await doc.web.evaluateJavaScript("window.\(bridge).printHTML()")

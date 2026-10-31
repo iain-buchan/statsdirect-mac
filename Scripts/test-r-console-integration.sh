@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
-export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+export DEVELOPER_DIR="${DEVELOPER_DIR:-$(/usr/bin/xcode-select -p)}"
 export STATSDIRECT_CONFIGURATION="${STATSDIRECT_CONFIGURATION:-Debug}"
 source Scripts/native-build-flags.sh
 /bin/bash Scripts/prepare-r-console-svg.sh
@@ -39,7 +39,7 @@ done
 /usr/bin/swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirectConsoleIntegration \
   -emit-module-path "$TEST_WORK/StatsDirectConsoleIntegration.swiftmodule" \
   -target arm64-apple-macosx14.0 -module-cache-path "$ROOT/.build/swift-cache" \
-  "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/r-console-integration-driver.swift \
+  "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/r-console-integration-driver.swift Tests/r-console-ai-checks.swift Tests/r-console-document-checks.swift \
   -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit \
   -framework Security -framework UniformTypeIdentifiers
 
@@ -52,10 +52,12 @@ rm -rf "$TEST_APP/Contents/Resources/Content"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.statsdirect.consoleintegration.${TEST_WORK##*.}" "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Console Integration Test' "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName StatsDirect Console Integration Test' "$TEST_APP/Contents/Info.plist"
-# Exercise the real prototype startup policy: a blank workbook, with R sessions
+# Exercise the production startup policy: a blank workbook, with R sessions
 # created only by explicit commands. The test bundle has separate preferences.
 /usr/libexec/PlistBuddy -c 'Delete :StatsDirectInteractiveConsolePrototype' "$TEST_APP/Contents/Info.plist" >/dev/null 2>&1 || true
-/usr/libexec/PlistBuddy -c 'Add :StatsDirectInteractiveConsolePrototype bool true' "$TEST_APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c 'Add :StatsDirectInteractiveConsolePrototype bool false' "$TEST_APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c 'Delete :StatsDirectInteractiveRConsole' "$TEST_APP/Contents/Info.plist" >/dev/null 2>&1 || true
+/usr/libexec/PlistBuddy -c 'Add :StatsDirectInteractiveRConsole bool true' "$TEST_APP/Contents/Info.plist"
 /usr/bin/codesign --force --sign - "$TEST_APP/Contents/MacOS/RConsoleWorker"
 /usr/bin/codesign --force --sign - "$TEST_APP"
 printf 'Test app: %s\n' "$TEST_APP"

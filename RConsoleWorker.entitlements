@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Only the separate R worker loads the user's external R framework and
+	     native CRAN packages, signed by other organisations. -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<!-- R's native regex/runtime code can use JIT, as permitted by the
+	     official R executable. No unsigned-executable-memory exception. -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+</dict>
+</plist>

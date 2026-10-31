@@ -19,6 +19,7 @@ import Darwin
     private let bootstrap: URL
     private let workingRoot: URL
     private let rExecutable: () -> String?
+    private let privateLibrary: URL?
     private var process: Process?
     private var startup: Task<Void, Never>?
     private var homeProbe: RConsoleHomeProbe?
@@ -40,11 +41,29 @@ import Darwin
     private let maximumEventBytes = 8 * 1024 * 1024
 
     init(worker: URL, bootstrap: URL, workingRoot: URL,
+         privateLibrary: URL? = nil,
          rExecutable: @escaping () -> String? = { RRuntime.executable() }) {
         self.worker = worker
         self.bootstrap = bootstrap
         self.workingRoot = workingRoot
         self.rExecutable = rExecutable
+        self.privateLibrary = privateLibrary
+    }
+
+    /// Give the renderer a retryable session while external R/setup is pending.
+    func prepareForSetup() {
+        shutdown(announce: false)
+        generation += 1; sessionId = UUID().uuidString; lifecycle = UUID()
+        workerSequence = -1; viewSequence = -1; eventBuffer.removeAll(); rawBuffers.removeAll()
+        commandId = nil; inputRequestId = nil; interruptRequested = false; closing = false
+        state = "starting"; prompt = "> "
+        emit(["type": "session"])
+        emit(["type": "state", "state": state, "prompt": prompt])
+    }
+    func setupFailed(_ message: String) {
+        emit(["type": "notice", "text": message])
+        state = "stopped"
+        emit(["type": "state", "state": state, "prompt": prompt])
     }
 
     func start() {
@@ -59,7 +78,7 @@ import Darwin
         emit(["type": "state", "state": state, "prompt": prompt])
         guard FileManager.default.isExecutableFile(atPath: worker.path),
               FileManager.default.isReadableFile(atPath: bootstrap.path) else {
-            fail("The interactive R prototype worker is missing. Build the console prototype first."); return
+            fail("The interactive R helper is missing. Reinstall StatsDirect before starting R."); return
         }
         guard let executable = rExecutable() else {
             fail("R is not installed. Use Install R to set it up before starting this console."); return
@@ -170,6 +189,7 @@ import Darwin
         var environment = ProcessInfo.processInfo.environment
         environment["R_HOME"] = rHome
         environment["LC_CTYPE"] = "en_US.UTF-8"
+        if let privateLibrary { environment["STATSDIRECT_CONSOLE_R_LIBRARY"] = privateLibrary.path }
         task.environment = environment
         task.terminationHandler = { [weak self] child in
             DispatchQueue.main.async { [weak self] in

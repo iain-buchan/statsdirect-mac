@@ -123,9 +123,9 @@ import PDFKit
         try await wait { paired.analysisJobID == nil }
         try check(paired.analysisCancelled && report.reportEntries!.count==3,"cancelling the repeat ends the loop and retains the first report")
 
-        let script=v.makeRScript(script:"Console.WriteLine(Math.Sqrt(81));",title:"C# check")
+        let script=v.makeRScript(script:"Console.WriteLine(Math.Sqrt(81));",title:"C# check",language:"CSharp")
         scriptState(v,script,"C#: created")
-        script.rPane!.setLanguage("CSharp");script.rPane!.runScript()
+        script.rPane!.runScript()
         scriptState(v,script,"C#: Run returned")
         try await wait("C# completion") { !script.rPane!.isRunning }
         scriptState(v,script,"C#: completed")

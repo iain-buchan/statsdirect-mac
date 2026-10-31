@@ -54,9 +54,15 @@ extension ReportExportTests {
         try require(opened.filter { $0.kind == "report" }.count == 1 && opened.filter { $0.kind == "r" }.count == 1 && opened.filter { $0.kind == "grid" }.count == 1, "one report, R script and recovered data workbook open")
         let script: Document = try typed(opened.first { $0.kind == "r" }, "recovered R script")
         let grid: Document = try typed(opened.first { $0.kind == "grid" }, "recovered data workbook")
-        try require(report.title == "colleague-edits" && report.reportDirty && report.reportEditing && report.reportFileURL == nil && grid.gridDirty && grid.openedFileURL == nil && grid.workbookSourceURL == nil && script.openedFileURL == nil && script.rPane?.hasUnsavedChanges == true, "import creates editable unsaved copies named for the current notebook file")
-        try require(script.rPane?.language == "R" && script.rPane?.editor.string.contains("NOTEBOOK_IMPORT_MUST_NOT_RUN") == true && script.rPane?.isRunning == false && script.rPane?.console.string.isEmpty == true && !FileManager.default.fileExists(atPath: marker.path), "current edited R code is restored without execution")
-        try require(v.active === report && v.window.firstResponder !== script.rPane?.editor, "the selected report does not leave keyboard focus in the hidden script editor")
+        let consoleDeadline = Date().addingTimeInterval(30)
+        while script.rConsolePane?.session.state != "ready", Date() < consoleDeadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        try require(script.rConsolePane?.session.state == "ready", "imported console becomes ready without executing notebook code")
+        try require(report.title == "colleague-edits" && report.reportDirty && report.reportEditing && report.reportFileURL == nil && grid.gridDirty && grid.openedFileURL == nil && grid.workbookSourceURL == nil && script.openedFileURL == nil && script.rConsolePane?.hasUnsavedChanges == true, "import creates editable unsaved copies named for the current notebook file")
+        try require(script.rPane == nil && script.rConsolePane?.sourceText.contains("NOTEBOOK_IMPORT_MUST_NOT_RUN") == true && script.rConsolePane?.hasWorkspace == false && script.rConsolePane?.isBusy == false && script.rConsolePane?.outputText.isEmpty == true && !FileManager.default.fileExists(atPath: marker.path), "current edited R code is restored in the production console without execution")
+        let focus = v.window.firstResponder as? NSView
+        try require(v.active === report && focus !== script.web && focus?.isDescendant(of: script.web) != true, "the selected report does not leave keyboard focus in the hidden console")
         let visible: String = try typed(await js(report, "return document.getElementById('report-results').innerText;"), "recovered report text")
         try require(visible.contains("Colleague clarified this interpretation") && visible.contains("new explanation") && visible.contains("Saved colleague R output") && !visible.contains("Edited clinical interpretation"), "current notebook cells and saved R output replace stale metadata report text")
         let safe = try await js(report, "return !document.querySelector('.report-body script,.report-body img[src^=http]') && !window.NOTEBOOK_UNSAFE && document.querySelectorAll('.report-body svg').length>=2 && document.querySelectorAll('.report-body img').length>=1;") as? Bool

@@ -12,6 +12,7 @@ final class ReportFindBar: NSView, NSSearchFieldDelegate {
     let matchCase = NSButton(checkboxWithTitle: "Match Case", target: nil, action: nil)
     // The result of the last search or replacement, as the Windows bar reports it: not found, or how many were replaced.
     let outcome = NSTextField(labelWithString: "")
+    private var replacementRow: NSStackView?
     private var viewer: Viewer? { NSApp.delegate as? Viewer }
     // Whether the keyboard is in the bar, so the Edit menu's clipboard and undo commands go to its fields, not the report.
     var isFocused: Bool { !isHidden && (window?.firstResponder as? NSView)?.isDescendant(of: self) == true }
@@ -28,6 +29,7 @@ final class ReportFindBar: NSView, NSSearchFieldDelegate {
         }
         let find = row([term, matchCase, button("Find Next", #selector(findNext), "Select the next match (Return; Shift-Return for the previous)"), outcome, button("Done", #selector(close), "Close the find bar (Escape)")])
         let replace = row([replacement, button("Replace", #selector(replaceSelection), "Replace the selected match and find the next (Return)"), button("Replace All", #selector(replaceAll), "Replace every match in the report"), NSView()])
+        replacementRow = replace
         for field in [term, replacement] { field.widthAnchor.constraint(equalToConstant: 220).isActive = true }
         for view in [find.arrangedSubviews, replace.arrangedSubviews].joined() { view.setContentHuggingPriority(.defaultHigh, for: .horizontal) }
         // The outcome and the spacer take the width the controls leave, so Done sits at the right end.
@@ -54,6 +56,7 @@ final class ReportFindBar: NSView, NSSearchFieldDelegate {
 
     // Opens the bar with the keyboard in the term (or the replacement), the find pasteboard's string as the term when there is none yet.
     func open(replace: Bool) {
+        replacementRow?.isHidden = document?.rConsolePane != nil
         isHidden = false; outcome.stringValue = ""
         if term.stringValue.isEmpty, let shared = NSPasteboard(name: .find).string(forType: .string), !shared.isEmpty { term.stringValue = shared }
         (replace ? replacement : term).selectText(nil)
@@ -161,7 +164,8 @@ extension Viewer {
     func showFindBar(_ doc: Document, replace: Bool) { doc.findBar?.open(replace: replace) }
     func hideFindBar(_ doc: Document) { doc.findBar?.close() }
     private func findReportAgain(backwards: Bool) {
-        guard let doc = findableReport, let bar = doc.findBar else { return }
+        guard let doc = findableDocument, doc.kind == "report" || doc.rConsolePane != nil,
+              let bar = doc.findBar else { return }
         if bar.term.stringValue.isEmpty { bar.open(replace: false) } else { bar.find(backwards: backwards) }
     }
     // Editing on before a replacement, as the editor's own commands need it; the editor reports the change back (editing message).
@@ -176,6 +180,29 @@ extension Viewer {
     // The next match after the selection, round to the start of the report (or backwards, round to the end); the match is selected.
     func reportFindNext(_ doc: Document, term: String, matchCase: Bool, backwards: Bool = false) async throws -> Bool {
         guard !term.isEmpty else { return false }
+        if doc.rConsolePane != nil {
+            return try await doc.web.callAsyncJavaScript("""
+            if (window.StatsDirectRConsole?.snapshot().mode !== 'script')
+              return window.find(term, matchCase, backwards, true, false, false, false);
+            const field=document.getElementById('script-source');
+            if (!field) return false;
+            const pattern=term.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&');
+            const expression=new RegExp(pattern,matchCase?'gu':'giu'),source=field.value;
+            let first=null,last=null,next=null,previous=null,match;
+            while ((match=expression.exec(source))!==null) {
+              if (!first) first=match; last=match;
+              if (match.index<field.selectionStart) previous=match;
+              if (!backwards&&match.index>=field.selectionEnd) { next=match;break; }
+            }
+            const found=backwards?(previous??last):(next??first);
+            if (!found) return false;
+            field.focus();field.setSelectionRange(found.index,found.index+found[0].length);
+            const line=source.slice(0,found.index).split('\\n').length-1;
+            const height=parseFloat(getComputedStyle(field).lineHeight)||19;
+            field.scrollTop=Math.max(0,line*height-field.clientHeight/2);
+            return true;
+            """, arguments: ["term": term, "matchCase": matchCase, "backwards": backwards], in: nil, contentWorld: .page) as? Bool == true
+        }
         return try await doc.web.evaluateJavaScript("window.find(\(jsString(term)), \(matchCase), \(backwards), true, false, false, false)") as? Bool ?? false
     }
     // Replaces the selection when it is the term; false when it is not, or cannot be edited.

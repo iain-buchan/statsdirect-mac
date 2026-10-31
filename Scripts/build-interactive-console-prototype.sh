@@ -7,7 +7,8 @@ cd "$(dirname "$0")/.."
 export DEVELOPER_DIR=/Library/Developer/CommandLineTools
 export STATSDIRECT_CONFIGURATION=Release
 source Scripts/native-build-flags.sh
-/bin/bash Scripts/prepare-r-console-svg.sh
+STATSDIRECT_CONSOLE_R_LIBRARY="${STATSDIRECT_CONSOLE_R_LIBRARY:-$HOME/Library/Application Support/StatsDirect Console Prototype/R Library}" \
+  /bin/bash Scripts/prepare-r-console-svg.sh
 
 BASE_APP=/Applications/StatsDirect.app
 BUILD_WORK="$PWD/.build/interactive-r-console.noindex"

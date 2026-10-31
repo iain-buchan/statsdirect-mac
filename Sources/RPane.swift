@@ -601,37 +601,16 @@ final class RPane: NSObject, NSTextViewDelegate {
     /// folder, then opened in RStudio when installed, otherwise run in a new R.app session.
     @discardableResult @objc func openInR() -> URL? {
         guard language == "R" else { return nil }
-        let folder = Self.scriptsFolder
-        let name = scriptName.components(separatedBy: CharacterSet(charactersIn: "/:")).joined(separator: "_").trimmingCharacters(in: .whitespaces)
-        let url = folder.appendingPathComponent((name.isEmpty ? "Script" : name) + ".R")
+        let url: URL
         do {
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try editor.string.write(to: url, atomically: true, encoding: .utf8); savedScript = editor.string
+            url = try RExternalScript.save(editor.string, name: scriptName)
+            savedScript = editor.string
         } catch { state.stringValue = "Open in R failed: \(error.localizedDescription)"; return nil }
         guard Self.opensExternally else { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts"; return url }
         guard executable() != nil else { requestInstallation(run: false, openExternally: true); return url }
-        let workspace = NSWorkspace.shared
-        let completed: @Sendable (NSRunningApplication?, Error?) -> Void = { [weak self] application, error in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if let error { self.state.stringValue = "Open in R failed: \(error.localizedDescription). Your script is saved in R Scripts." }
-                else { self.state.stringValue = "Opened \(url.lastPathComponent) in \(application?.localizedName ?? "R")" }
-            }
-        }
-        if let rstudio = workspace.urlForApplication(withBundleIdentifier: "org.rstudio.RStudio") ?? workspace.urlForApplication(withBundleIdentifier: "com.rstudio.desktop") {
-            state.stringValue = "Opening script in RStudio…"
-            workspace.open([url], withApplicationAt: rstudio, configuration: NSWorkspace.OpenConfiguration(), completionHandler: completed)
-        } else if let r = workspace.urlForApplication(withBundleIdentifier: "org.R-project.R") {
-            do {
-                let directory = try workingDirectory().appendingPathComponent("External R-" + UUID().uuidString, isDirectory: true)
-                let session = try RExternalSession(script: url, directory: directory)
-                state.stringValue = "Starting R and running the script…"
-                // Supplying a fresh directory also prevents R.app restoring a
-                // workspace from its default working directory at GUI startup.
-                workspace.open([session.directory], withApplicationAt: r, configuration: session.configuration(), completionHandler: completed)
-            } catch { state.stringValue = "Open in R failed: \(error.localizedDescription)" }
-        }
-        else { state.stringValue = "Saved \(url.lastPathComponent) in R Scripts; install RStudio or R to open it" }
+        do {
+            RExternalScript.launch(url, workingDirectory: try workingDirectory()) { [weak self] text in self?.state.stringValue = text }
+        } catch { state.stringValue = "Open in R failed: \(error.localizedDescription)" }
         return url
     }
     @objc private func changeLanguage() {

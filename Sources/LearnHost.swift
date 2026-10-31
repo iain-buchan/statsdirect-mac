@@ -294,7 +294,9 @@ extension Viewer {
         Task { @MainActor in
             do {
                 let text: String
-                if let pane = source.rPane {
+                if let pane = source.rConsolePane {
+                    text = "R SCRIPT\n" + pane.sourceText + "\nR OUTPUT\n" + pane.outputText
+                } else if let pane = source.rPane {
                     text = "R SCRIPT\n" + pane.editor.string + "\nR OUTPUT\n" + pane.console.string
                 } else {
                     let value = try await self.learningJavaScript(source,"({text:document.body.innerText})")
@@ -309,8 +311,13 @@ extension Viewer {
     func openLearningExample(_ lesson: [String:Any], inR: Bool) {
         let title = lesson["title"] as? String ?? "Learning example"
         if inR, let script = lesson["r"] as? String {
-            let doc = makeRScript(script: script, title: title, saved: true)
-            if lesson["providerCourse"] as? Bool != true { doc.rPane?.runScript() }
+            let providerCourse = lesson["providerCourse"] as? Bool == true
+            if InteractiveRConsole.enabled {
+                makeRConsole(script: script, title: title, saved: true, autoRun: !providerCourse, startInScript: providerCourse)
+            } else {
+                let doc = makeRScript(script: script, title: title, saved: true)
+                if !providerCourse { doc.rPane?.runScript() }
+            }
             return
         }
         guard let operation = lesson["operation"] as? String, let definition = analysisCatalog[operation] else { return }

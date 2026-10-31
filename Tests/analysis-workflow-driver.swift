@@ -195,12 +195,12 @@ import PDFKit
         let boxReport = report.reportEntries!.last!
         try check(boxReport.body.contains("<svg") && boxReport.body.contains("Selected measurements") && boxReport.body.contains("Value (units)") && boxReport.body.contains("First measurement"), "box plot options draw one SVG in the active report with the chosen chart, axis and series labels")
         v.continueResultInR(report, id:boxReport.id)
-        try await wait { v.active?.rPane != nil }
-        let script = v.active!, r = script.rPane!
-        try await wait { !r.isRunning && r.console.textStorage!.containsAttachments }
-        let plots = try FileManager.default.contentsOfDirectory(at: r.outputFolder!, includingPropertiesForKeys:nil).filter { $0.lastPathComponent.hasPrefix("plots-") }
-        try check(plots.count == 1 && plots[0].pathExtension == "pdf" && PDFDocument(url:plots[0])?.pageCount == 1, "Continue in R displays exactly one PDF page for the chosen box plot")
-        try check(r.editor.string.contains("box_settings <- list(") && r.editor.string.contains("Selected measurements") && r.editor.string.contains("First measurement"), "box plot script retains the recorded choices and edited labels")
+        try await wait { v.active?.rConsolePane != nil }
+        let script = v.active!, r = script.rConsolePane!
+        let oneSVG = "(()=>{const s=window.StatsDirectRConsole?.snapshot(),plots=s?.transcript.filter(e=>e.kind==='plot')||[],images=Array.from(document.querySelectorAll('figure.plot img'));return s?.state==='ready'&&plots.length===1&&plots[0].mime==='image/svg+xml'&&images.length===1&&images[0].src.startsWith('data:image/svg+xml;base64,')&&images[0].complete&&images[0].naturalWidth>0})()"
+        try await wait { let rendered=try await yes(script,oneSVG);return r.session.state == "ready" && rendered }
+        try check(try await yes(script,oneSVG), "Continue in R displays exactly one decoded SVG chart for the chosen box plot")
+        try check(r.sourceText.contains("box_settings <- list(") && r.sourceText.contains("Selected measurements") && r.sourceText.contains("First measurement"), "box plot script retains the recorded choices and edited labels")
         v.remove(script)
 
         try await select(1)
@@ -219,12 +219,11 @@ import PDFKit
         let histogramReport = report.reportEntries!.last!
         try check(["First selected histogram", "Second selected histogram", "First measurement", "Second measurement"].allSatisfy { histogramReport.body.contains($0) }, "the report draws both histograms with their edited chart and axis labels")
         v.continueResultInR(report, id:histogramReport.id)
-        try await wait { v.active?.rPane != nil }
-        let histogramScript = v.active!, hr = histogramScript.rPane!
-        try await wait { !hr.isRunning && hr.console.textStorage!.containsAttachments }
-        let histogramPDFs = try FileManager.default.contentsOfDirectory(at: hr.outputFolder!, includingPropertiesForKeys:nil).filter { $0.lastPathComponent.hasPrefix("plots-") && $0.pathExtension == "pdf" }
-        try check(histogramPDFs.count == 1 && PDFDocument(url:histogramPDFs[0])?.pageCount == 1, "Continue in R shows the two requested histogram panels on one PDF page")
-        try check(hr.editor.string.contains("First selected histogram") && hr.editor.string.contains("Second selected histogram"), "histogram replay retains both selected titles")
+        try await wait { v.active?.rConsolePane != nil }
+        let histogramScript = v.active!, hr = histogramScript.rConsolePane!
+        try await wait { let rendered=try await yes(histogramScript,oneSVG);return hr.session.state == "ready" && rendered }
+        try check(try await yes(histogramScript,oneSVG), "Continue in R shows the two requested histogram panels in one decoded SVG chart")
+        try check(hr.sourceText.contains("First selected histogram") && hr.sourceText.contains("Second selected histogram"), "histogram replay retains both selected titles")
         v.remove(histogramScript)
     }
 }

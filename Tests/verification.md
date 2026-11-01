@@ -2271,3 +2271,11 @@ build. Its 1,552 distribution checks, four matching dSYMs, strict signature chec
 and 48 hardened-worker checks also pass. All 137 native console PASS groups also pass with this callback path. The
 exact-commit CI result and revised build receipt accompany the eventual signing
 handover.
+
+## Codex's R session fixes checked on this Mac: 2c49f19 and f52b44b — 1 November 2026
+
+Codex's two commits of this morning were built and run here (Apple Silicon, R 4.6.1), each on a fresh build of main:
+
+- 2c49f19 (handler persistence, graceful shutdown, accessible questions): build; 21 console unit checks (`Tests/r-console-ui.test.mjs`, `r-console-recovery.test.mjs`); 48 real-R worker checks (`Tests/test_interactive_r_worker.py` against the built RConsoleWorker, including the three global-calling-handler checks); the worker-signing policy checks; 5 console-setup checks; desktop help 987 files, 808 aliases and 167 context IDs; test.sh 618; r-console-integration 137 (up from 115 with the new question and shutdown checks).
+- f52b44b (the Quit hang Codex's CI caught in 2c49f19, fixed with a run-loop callback in the AppKit termination modal loop): build; `Scripts/test-r-console-termination.sh` all five real NSApplication termination cases (idle, busy, readline, held startup probe, Restart with a retiring predecessor); r-console-integration 137; analysis-workflow 47; test.sh 618.
+- The shared console page: 2c49f19 keeps the v5.3.0 status wording (fresh-R when `persistentWorkspace === false`) but replaces the status line carrying R's question with a separate polite live region announcing "R question N: …", labels the answer field by `aria-labelledby` (hidden label + prompt) with hidden instructions, and keeps each question as its own numbered transcript entry from the moment it is asked. This diverges the shared page from Windows 5.3.0; Codex notes it for a Windows backport. Raised with the Windows session and Iain for a ruling on which design the shared page follows; nothing changed in the page here.

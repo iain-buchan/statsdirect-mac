@@ -123,10 +123,12 @@ import WebKit
         _ = try await evaluate(doc, "window.webkit.messageHandlers.statsDirectRConsole.postMessage(\(try literal(body))); true")
     }
     @MainActor static func cleanup(_ viewer: Viewer) async {
+        let hadLegacyWorker = viewer.documents.contains { $0.rPane?.isRunning == true }
         for doc in viewer.documents { doc.rConsolePane?.shutdown(); doc.rPane?.shutdown() }
         // Session shutdown preserves user files. These directories were created
         // solely by this test, so remove them after their workers have exited.
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        await RConsoleSession.waitForPendingShutdowns()
+        if hadLegacyWorker { try? await Task.sleep(nanoseconds: 1_000_000_000) }
         for url in sessionFolders { try? FileManager.default.removeItem(at: url) }
         sessionFolders = []
     }
@@ -143,7 +145,8 @@ import WebKit
                               "startup opens one active blank workbook without creating an R document")
                     try check(InteractiveRConsole.enabled && !InteractiveRConsolePrototype.enabled,
                               "the normal release enables the interactive console without prototype identity or disabling automatic updates")
-                    if CommandLine.arguments.contains("--release-tail-only") {
+                    if CommandLine.arguments.contains("--session-gaps-only") { try await sessionGapChecks(viewer) }
+                    else if CommandLine.arguments.contains("--release-tail-only") {
                         sessionFolders += try await consoleDocumentChecks(viewer)
                         try await graphicsDeviceChecks(viewer)
                         try await historyRecallChecks(viewer)
@@ -757,6 +760,31 @@ import WebKit
         try await graphicsDeviceChecks(viewer)
         try await historyRecallChecks(viewer)
         try await transcriptFollowingChecks(viewer)
+        try await sessionGapChecks(viewer)
+    }
+
+    @MainActor static func sessionGapChecks(_ viewer: Viewer) async throws {
+        sessionFolders += try await consoleQuestionChecks(viewer)
+        let count = try await rConsoleShutdownChecks(
+            worker: Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/RConsoleWorker"),
+            bootstrap: viewer.root.appendingPathComponent("R/console-bootstrap.R"),
+            workingRoot: InteractiveRConsole.supportFolder.appendingPathComponent("R Sessions"),
+            privateLibrary: InteractiveRConsole.privateLibrary)
+        try check(count > 0, "the real R session shutdown regression checks complete")
+
+        let doc = viewer.makeRConsole(title: "App quit cleanup"), pane = doc.rConsolePane!
+        try await makeConsoleVisible(viewer, doc)
+        try await ready(doc)
+        if let folder = pane.session.workingDirectory { sessionFolders.append(folder) }
+        try await console(doc, "repeat Sys.sleep(0.02)")
+        try await wait("the app-quit fixture's running worker") { pane.session.state == "busy" }
+        var completed = false
+        let pending = viewer.prepareConsoleTermination { completed = true }
+        try check(pending && !completed && pane.session.state == "stopped",
+                  "app quit retires active consoles immediately and defers exit without blocking the main thread")
+        try await wait("all R workers and startup probes to finish before app exit", seconds: 5) { completed }
+        try check(!RConsoleSession.hasPendingShutdowns,
+                  "app quit completion waits for all retired R workers and their internal cleanup")
     }
 
     @MainActor static func chartZoomChecks(_ window: NSWindow) async throws {

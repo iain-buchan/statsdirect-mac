@@ -259,20 +259,39 @@ SEXP makeText(const std::string &text) {
     SEXP chars = r->protect(r->utf8Char(text.c_str(),CE_UTF8));
     SEXP result = r->scalarString(chars); r->unprotect(1); return result;
 }
+void rearmGlobalHandlers() {
+    // R_ToplevelExec clears/restores the active handler stack, but base R keeps
+    // the globalCallingHandlers registry in its closure. Reinstall that exact
+    // registry inside the fresh top-level context, before any try/eval handler
+    // is active. An explicitly emptied registry must stay empty.
+    static const std::string code =
+        "local({ h <- globalCallingHandlers(); if (length(h)) { "
+        "globalCallingHandlers(NULL); globalCallingHandlers(h) } })";
+    ParseStatus status;
+    SEXP source = r->protect(makeText(code));
+    SEXP expressions = r->protect(r->parse(source,-1,&status,*r->nil));
+    if (status != PARSE_OK) throw std::runtime_error("Could not restore R condition handlers.");
+    // Resolve base functions independently of names in the learner's workspace.
+    r->eval(r->vectorAt(expressions,0),*r->base);
+    r->unprotect(2);
+}
 void capturePlots() {
     if (!r->capture) return;
-    SEXP call = r->protect(r->lang1(r->capture)); int error = 0;
-    SEXP paths = r->protect(r->tryEval(call,*r->global,&error));
+    SEXP call = r->protect(r->lang1(r->capture));
+    // The caller already supplies R_ToplevelExec. A nested R_tryEval would
+    // clear the global handlers again while the private capture function runs.
+    SEXP paths = r->protect(r->eval(call,*r->global));
     flushConsoleOutput(false);
-    if (!error) for (R_xlen_t i=0;i<r->length(paths);++i) {
+    for (R_xlen_t i=0;i<r->length(paths);++i) {
         std::string path = r->utf8(r->stringAt(paths,i));
         emit("\"type\":\"plot\",\"commandId\":" + json(commandID) + ",\"id\":" + json(path.substr(path.find_last_of('/')+1)) +
              ",\"mime\":\"image/svg+xml\",\"path\":" + json(path));
     }
     r->unprotect(2);
 }
-void captureCompletedPlots(void *) { capturePlots(); }
+void captureCompletedPlots(void *) { rearmGlobalHandlers(); capturePlots(); }
 void evaluate(void *) {
+    rearmGlobalHandlers();
     r->checkInterrupt();
     ParseStatus status;
     SEXP source = r->protect(makeText(pendingCode));

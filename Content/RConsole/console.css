@@ -27,6 +27,8 @@ pre { margin: 0; font: 13px/1.45 ui-monospace, "SFMono-Regular", Menlo, Consolas
 .input-entry .echo-prompt { color: var(--r-code); user-select: none; flex: 0 0 auto; }
 .input-entry pre { color: var(--r-code); }
 .input-entry.reply pre { color: var(--r-code); }
+.question-entry { color: var(--r-output); padding: 0 0 5px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .output-entry { color: var(--r-output); padding: 0 0 5px 0; }
 .output-entry.stderr { color: var(--r-stderr); }
 .notice { margin: 6px 0; color: var(--r-notice); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }

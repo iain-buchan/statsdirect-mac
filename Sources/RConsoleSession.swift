@@ -4,6 +4,25 @@ import Darwin
 /// The prototype's R worker has its own process and private control channel.
 /// Neither user stdin nor printed R output is interpreted as control traffic.
 @MainActor final class RConsoleSession {
+    private static var pendingShutdowns = Set<UUID>()
+    private static var shutdownWaiters: [CheckedContinuation<Void, Never>] = []
+    static var hasPendingShutdowns: Bool { !pendingShutdowns.isEmpty }
+
+    /// App termination must keep its run loop alive until retired workers have
+    /// finished. Closing a tab and Restart remain immediate and nonblocking.
+    static func waitForPendingShutdowns() async {
+        guard hasPendingShutdowns else { return }
+        await withCheckedContinuation { shutdownWaiters.append($0) }
+    }
+    private static func beginShutdown() -> UUID {
+        let id = UUID(); pendingShutdowns.insert(id); return id
+    }
+    private static func finishShutdown(_ id: UUID) {
+        guard pendingShutdowns.remove(id) != nil, pendingShutdowns.isEmpty else { return }
+        let waiters = shutdownWaiters; shutdownWaiters = []
+        waiters.forEach { $0.resume() }
+    }
+
     var onEvent: (([String: Any]) -> Void)?
     private(set) var sessionId = ""
     private(set) var generation = 0
@@ -172,6 +191,11 @@ import Darwin
         let ipc = fm.temporaryDirectory.appendingPathComponent("StatsDirect-RConsole-" + UUID().uuidString, isDirectory: true)
         try fm.createDirectory(at: ipc, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         ipcDirectory = ipc
+        // R owns everything under this private temporary root. Retire it only
+        // after its worker exits; never sweep the persistent session folder,
+        // which can contain the user's charts, data and external-R scripts.
+        let rTemporary = ipc.appendingPathComponent("Rtmp", isDirectory: true)
+        try fm.createDirectory(at: rTemporary, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         let fifo = ipc.appendingPathComponent("input"), events = ipc.appendingPathComponent("events.ndjson")
         guard Darwin.mkfifo(fifo.path, 0o600) == 0 else { throw posixError("Could not create the private R input channel") }
         guard fm.createFile(atPath: events.path, contents: Data(), attributes: [.posixPermissions: 0o600]) else {
@@ -189,6 +213,7 @@ import Darwin
         var environment = ProcessInfo.processInfo.environment
         environment["R_HOME"] = rHome
         environment["LC_CTYPE"] = "en_US.UTF-8"
+        environment["TMPDIR"] = rTemporary.path
         if let privateLibrary { environment["STATSDIRECT_CONSOLE_R_LIBRARY"] = privateLibrary.path }
         task.environment = environment
         task.terminationHandler = { [weak self] child in
@@ -356,17 +381,48 @@ import Darwin
     private func shutdown(announce: Bool) {
         let child = process
         lifecycle = UUID(); startup?.cancel(); startup = nil
-        homeProbe?.cancel(); homeProbe = nil
+        if let probe = homeProbe {
+            let retirement = Self.beginShutdown()
+            probe.cancel { Task { @MainActor in Self.finishShutdown(retirement) } }
+            homeProbe = nil
+        }
         inputRequestId = nil; commandId = nil; interruptRequested = false; closing = true
+        // Keep the retired worker's input channel alive long enough to deliver
+        // Q. Closing it in releaseIO would skip R's device/finalizer cleanup.
+        let retiredChannel = channel, retiredIPC = ipcDirectory, retiredReaders = rawReaders
+        channel = nil; ipcDirectory = nil
+        // Native package exit finalizers can still write directly to stdout or
+        // stderr. Drain those pipes until exit instead of causing SIGPIPE.
+        rawReaders = []
         releaseIO(); process = nil; state = "stopped"
         if let child, child.isRunning {
             child.terminationHandler = nil
-            child.terminate()
-            let pid = child.processIdentifier
-            DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(700)) {
-                if child.isRunning, child.processIdentifier == pid, pid > 0 { _ = Darwin.kill(pid, SIGKILL) }
+            let retirement = Self.beginShutdown()
+            retiredChannel?.send(operation: 81, payload: "") { _ in }
+            // Waiting and escalation are off the main thread. The old process,
+            // channel and directory are captured independently of a restarted
+            // session, so an old callback cannot touch its replacement.
+            DispatchQueue.global(qos: .utility).async {
+                let graceDeadline = DispatchTime.now().uptimeNanoseconds + 700_000_000
+                while child.isRunning && DispatchTime.now().uptimeNanoseconds < graceDeadline { usleep(10_000) }
+                if child.isRunning {
+                    retiredChannel?.close()
+                    child.terminate()
+                    let terminateDeadline = DispatchTime.now().uptimeNanoseconds + 700_000_000
+                    while child.isRunning && DispatchTime.now().uptimeNanoseconds < terminateDeadline { usleep(10_000) }
+                    let pid = child.processIdentifier
+                    if child.isRunning, pid > 0 { _ = Darwin.kill(pid, SIGKILL) }
+                }
                 child.waitUntilExit()
+                retiredChannel?.close()
+                retiredReaders.forEach { $0.finish() }
+                if let retiredIPC { try? FileManager.default.removeItem(at: retiredIPC) }
+                Task { @MainActor in Self.finishShutdown(retirement) }
             }
+        } else {
+            retiredChannel?.close()
+            retiredReaders.forEach { $0.finish() }
+            if let retiredIPC { try? FileManager.default.removeItem(at: retiredIPC) }
         }
         if announce { emit(["type": "state", "state": "stopped"]) }
     }
@@ -463,21 +519,38 @@ private final class RConsoleHomeProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var cancelled = false
     private var child: Process?
+    private var cancellationFinished = false
+    private var cancellationCompletions: [@Sendable () -> Void] = []
     func start(_ process: Process) throws -> Bool {
         lock.lock(); defer { lock.unlock() }
         guard !cancelled else { return false }
-        child = process
         try process.run()
+        child = process
         return true
     }
-    func cancel() {
-        lock.lock(); cancelled = true; let process = child; lock.unlock()
-        guard let process, process.isRunning else { return }
-        process.terminate()
-        let pid = process.processIdentifier
-        DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(700)) {
-            if process.isRunning, process.processIdentifier == pid, pid > 0 { _ = Darwin.kill(pid, SIGKILL) }
+    func cancel(completion: (@Sendable () -> Void)? = nil) {
+        lock.lock()
+        if cancellationFinished { lock.unlock(); completion?(); return }
+        if let completion { cancellationCompletions.append(completion) }
+        if cancelled { lock.unlock(); return }
+        cancelled = true; let process = child; lock.unlock()
+        guard let process else { finishCancellation(); return }
+        DispatchQueue.global(qos: .utility).async { [self] in
+            if process.isRunning {
+                process.terminate()
+                let deadline = DispatchTime.now().uptimeNanoseconds + 700_000_000
+                while process.isRunning && DispatchTime.now().uptimeNanoseconds < deadline { usleep(10_000) }
+                let pid = process.processIdentifier
+                if process.isRunning, pid > 0 { _ = Darwin.kill(pid, SIGKILL) }
+            }
+            process.waitUntilExit()
+            finishCancellation()
         }
+    }
+    private func finishCancellation() {
+        lock.lock(); cancellationFinished = true
+        let completions = cancellationCompletions; cancellationCompletions = []; lock.unlock()
+        completions.forEach { $0() }
     }
 }
 

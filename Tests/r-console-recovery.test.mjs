@@ -91,3 +91,42 @@ test('optional file notice metadata survives live output and renderer recovery',
   assert.equal(recovered.entries.at(-1).text, 'Plain notice remains supported');
   assert.equal(recovered.entries.at(-1).filePath, undefined);
 });
+
+test('renderer recovery retains unanswered questions after Stop or error without inventing replies or code', () => {
+  for (const status of ['interrupted','error']) {
+    const events = [
+      event('inputEcho',1,{origin:'script',commandId:'cmd-question',text:'answer <- readline(prompt)',prompt:'> '}),
+      event('inputRequested',2,{requestId:'question-1',commandId:'cmd-question',prompt:'Which method? '}),
+      event('commandFinished',3,{status}),
+      event('state',4,{state:'ready',prompt:'> '})
+    ];
+    const authored = '# unexecuted edits\nanswer <- readline(prompt)\n';
+    for (let reload=0;reload<3;reload++) {
+      const model = new ConsoleModel();
+      assert.equal(model.receive(event('session',0,{script:authored,events})),true);
+      const questions=model.entries.filter(entry=>entry.kind==='question');
+      assert.equal(questions.length,1); assert.equal(questions[0].text,'Which method? ');
+      assert.equal(questions[0].commandId,'cmd-question'); assert.equal(questions[0].answered,false);
+      assert.equal(model.entries.some(entry=>entry.origin==='input'),false);
+      assert.equal(model.script,authored); assert.deepEqual(model.history,['answer <- readline(prompt)']);
+    }
+  }
+});
+
+test('a pending question recovers its reply target and an answered question replays once', () => {
+  const authored = '# source stays exactly edited\n';
+  const question = event('inputRequested',1,{requestId:'question-1',commandId:'cmd-question',prompt:'Answer? '});
+  const model=new ConsoleModel();
+  assert.equal(model.receive(event('session',0,{script:authored,events:[question]})),true);
+  assert.deepEqual(model.submission(''),{protocolVersion:1,action:'inputReply',sessionId:'retained-session',generation:1,requestId:'question-1',text:''});
+  const reply=event('inputEcho',2,{origin:'input',requestId:'question-1',prompt:'Answer? ',text:'answer data'});
+  const events=[question,reply,event('state',3,{state:'ready',prompt:'> '})];
+  for(let reload=0;reload<3;reload++) {
+    const restored=new ConsoleModel();
+    assert.equal(restored.receive(event('session',0,{script:authored,events})),true);
+    assert.equal(restored.snapshot().outputText,'Answer? \nanswer data');
+    assert.equal(restored.entries.filter(entry=>entry.kind==='question').length,1);
+    assert.equal(restored.entries[0].answered,true);
+    assert.equal(restored.script,authored);assert.deepEqual(restored.history,[]);
+  }
+});

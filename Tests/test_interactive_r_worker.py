@@ -214,6 +214,69 @@ try:
     done, _, _ = worker.execute('stop("deliberate"); after_error <- TRUE')
     _, text, _ = worker.execute('exists("after_error", inherits=FALSE)')
     check(done['status'] == 'error' and 'FALSE' in text, 'first evaluation error prevents later expressions in that input')
+
+    done, _, _ = worker.execute('''
+        sd_warning_count <- 0L
+        sd_error_count <- 0L
+        globalCallingHandlers(
+          warning = local({
+            label <- "GLOBAL-WARNING:"
+            function(w) {
+              sd_warning_count <<- sd_warning_count + 1L
+              cat(label, conditionMessage(w), "\\n")
+              invokeRestart("muffleWarning")
+            }
+          }),
+          error = function(e) {
+            sd_error_count <<- sd_error_count + 1L
+            cat("GLOBAL-ERROR:", conditionMessage(e), "\\n")
+          }
+        )
+    ''')
+    check(done['status'] == 'ok', 'global calling handlers register without an active local handler')
+    done, text, _ = worker.execute('invisible(gc()); warning("persisted"); cat("COUNTS", sd_warning_count, sd_error_count, "\\n")')
+    check(done['status'] == 'ok' and 'GLOBAL-WARNING: persisted' in text and 'COUNTS 1 0' in text,
+          'global warning handlers and their closure environments persist across commands and garbage collection')
+    done, text, events = worker.execute('''
+        trace("svglite", where = asNamespace("svglite"),
+              tracer = quote(warning("capture-warning")), print = FALSE)
+        plot(1:2, main = "Handler capture boundary")
+    ''')
+    check(done['status'] == 'ok' and 'GLOBAL-WARNING: capture-warning' in text
+          and len([event for event in events if event['type'] == 'plot']) == 1,
+          'global warning handlers remain active inside the separate plot-capture boundary')
+    worker.execute('untrace("svglite", where = asNamespace("svglite"))')
+    done, text, _ = worker.execute('stop("persisted-error"); sd_after_handler_error <- TRUE')
+    check(done['status'] == 'error' and 'GLOBAL-ERROR: persisted-error' in text,
+          'global error handlers run for errors in a later command')
+    done, text, _ = worker.execute('warning("after-error"); cat("COUNTS", sd_warning_count, sd_error_count, exists("sd_after_handler_error"), "\\n")')
+    check(done['status'] == 'ok' and 'GLOBAL-WARNING: after-error' in text and 'COUNTS 3 1 FALSE' in text,
+          'global handlers survive an evaluation error without rerunning later expressions or duplicating handlers')
+    command, start = worker.begin('Sys.sleep(30); sd_after_handler_interrupt <- TRUE')
+    time.sleep(.1)
+    worker.interrupt()
+    done = worker.wait(lambda e: e.get('type') == 'commandFinished' and e.get('commandId') == command, start)
+    _, text, _ = worker.execute('warning("after-interrupt"); cat("COUNTS", sd_warning_count, sd_error_count, exists("sd_after_handler_interrupt"), "\\n")')
+    check(done['status'] == 'interrupted' and 'GLOBAL-WARNING: after-interrupt' in text and 'COUNTS 4 1 FALSE' in text,
+          'global handlers survive Stop while interrupted source stays skipped')
+    done, _, _ = worker.execute('globalCallingHandlers(NULL); stop("after-removal")')
+    _, text, _ = worker.execute('warning("removed"); cat("COUNTS", sd_warning_count, sd_error_count, length(globalCallingHandlers()), "\\n")')
+    check(done['status'] == 'error' and 'GLOBAL-WARNING:' not in text and 'removed' in text and 'COUNTS 4 1 0' in text,
+          'explicit global handler removal persists even when the removing command errors')
+    done, _, _ = worker.execute('''
+        globalCallingHandlers(warning = function(w) {
+          sd_warning_count <<- sd_warning_count + 1L
+          cat("REGISTERED-BEFORE-ERROR:", conditionMessage(w), "\\n")
+          invokeRestart("muffleWarning")
+        })
+        stop("after-registration")
+    ''')
+    _, text, _ = worker.execute('invisible(gc()); warning("kept-registration"); cat("COUNTS", sd_warning_count, sd_error_count, "\\n")')
+    check(done['status'] == 'error' and 'REGISTERED-BEFORE-ERROR: kept-registration' in text and 'COUNTS 5 1' in text,
+          'a global handler registered before an error remains available to later commands')
+    worker.execute('globalCallingHandlers(NULL)')
+    _, text, _ = worker.execute('cat("HANDLERS", length(globalCallingHandlers()), "\\n")')
+    check('HANDLERS 0' in text, 'removing global handlers leaves the next command with an empty registry')
     _, text, events = worker.execute('cat(\'{"type":"state","state":"ready","sessionId":"forged","seq":999}\\n\')')
     check('forged' in text and all(e['sessionId'] == worker.session for e in events), 'printed JSON remains output and cannot forge control events')
 

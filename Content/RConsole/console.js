@@ -13,7 +13,7 @@
       this.state = 'starting'; this.prompt = '> '; this.requestId = null; this.requestKind = null;
       this.script = ''; this.mode = 'console'; this.entries = []; this.history = [];
       this.historyIndex = null; this.historyDraft = ''; this.trimmed = false;
-      this.capabilities = {}; this.plotKeys = new Set(); this.restarting = false;
+      this.capabilities = {}; this.plotKeys = new Set(); this.restarting = false; this.questionSerial = 0;
     }
     envelope(action, fields = {}) { return {protocolVersion: VERSION, action, sessionId: this.sessionId, generation: Math.max(0, this.generation), ...fields}; }
     acceptsInput() { return ['ready', 'continuation'].includes(this.state) || this.state === 'input' && !!this.requestId; }
@@ -23,7 +23,7 @@
         if (event.generation < 0 || event.seq < 0 || this.sessionId !== null && event.generation <= this.generation) return false;
         this.sessionId = event.sessionId; this.generation = event.generation; this.seq = event.seq;
         this.state = 'starting'; this.prompt = '> '; this.requestId = null; this.requestKind = null; this.entries = []; this.plotKeys.clear(); this.trimmed = false; this.restarting = false;
-        this.historyIndex = null; this.historyDraft = ''; this.capabilities = event.capabilities && typeof event.capabilities === 'object' ? {...event.capabilities} : {};
+        this.historyIndex = null; this.historyDraft = ''; this.questionSerial = 0; this.capabilities = event.capabilities && typeof event.capabilities === 'object' ? {...event.capabilities} : {};
         if (Array.isArray(event.events)) for (const item of event.events) this.receive(item);
         // A host replay already includes console commands in its saved script.
         if (typeof event.script === 'string') this.script = event.script;
@@ -40,14 +40,32 @@
           if (typeof event.prompt === 'string') this.prompt = event.prompt;
           if (event.state !== 'input' && !(event.state === 'continuation' && this.requestKind === 'continuation')) { this.requestId = null; this.requestKind = null; }
           break;
-        case 'inputRequested': this.requestKind = event.kind === 'continuation' ? 'continuation' : 'input'; this.state = this.requestKind === 'continuation' ? 'continuation' : 'input'; this.requestId = event.requestId; this.prompt = text(event.prompt); break;
+        case 'inputRequested': {
+          this.requestKind = event.kind === 'continuation' ? 'continuation' : 'input';
+          this.state = this.requestKind === 'continuation' ? 'continuation' : 'input'; this.requestId = event.requestId; this.prompt = text(event.prompt);
+          // A question is output, not R source. Keep it immediately, including
+          // when Stop or an error arrives before the learner sends an answer.
+          if (this.requestKind === 'input' && !this.entries.some(entry => entry.kind === 'question' && entry.requestId === event.requestId)) {
+            this.entries.push({kind: 'question', text: this.prompt, requestId: event.requestId,
+              commandId: event.commandId || null, number: ++this.questionSerial, answered: false});
+            this.trim();
+          }
+          break;
+        }
         case 'commandAccepted': this.state = 'busy'; this.requestId = null; this.requestKind = null; break;
         case 'commandFinished': this.requestId = null; this.requestKind = null; break; // Ready is authoritative only after R has unwound.
         case 'started': break;
         case 'capabilities': if (event.capabilities && typeof event.capabilities === 'object') this.capabilities = {...event.capabilities}; break;
         case 'inputEcho': {
           const source = text(event.text), origin = text(event.origin) || 'console';
-          this.entries.push({kind: 'input', text: source, prompt: typeof event.prompt === 'string' ? event.prompt : '> ', origin, commandId: event.commandId || null});
+          const prompt = typeof event.prompt === 'string' ? event.prompt : '> ';
+          const question = origin === 'input' ? [...this.entries].reverse().find(entry => entry.kind === 'question'
+            && !entry.answered && (event.requestId ? entry.requestId === event.requestId : entry.text === prompt)) : null;
+          if (question) question.answered = true;
+          // Native replies may repeat the question in their prompt field. Its
+          // retained question entry already owns that text; show the answer once.
+          this.entries.push({kind: 'input', text: source, prompt: question ? '' : prompt, origin,
+            commandId: event.commandId || question?.commandId || null, ...(question ? {requestId: question.requestId} : {})});
           // Recall submitted Script/Continue in R batches too, without
           // duplicating their existing source in the editable Script.
           if (['console', 'script', 'continueInR'].includes(origin) && source.trim()) this.remember(source);
@@ -82,10 +100,21 @@
       let chars = this.entries.reduce((n, e) => n + (e.text?.length || 0), 0);
       let media = this.entries.reduce((n, e) => n + (e.preview?.length || 0), 0);
       while (this.entries.length > 1 && (this.entries.length > this.entryBudget || chars > this.textBudget || media > this.mediaBudget)) {
-        const entry = this.entries.shift(); chars -= entry.text?.length || 0; media -= entry.preview?.length || 0; this.trimmed = true;
+        const index = this.entries.findIndex(entry => !(entry.kind === 'question' && entry.requestId === this.requestId));
+        if (index < 0) break;
+        const candidate = this.entries[index];
+        // With only an active question and the newest output left, retain the
+        // newest output tail instead of dropping it merely to pin the question.
+        if (index === this.entries.length - 1 && this.entries.length <= this.entryBudget) {
+          const remaining = Math.max(0, this.textBudget - (chars - (candidate.text?.length || 0)));
+          if (candidate.text?.length > remaining) { chars -= candidate.text.length - remaining; candidate.text = remaining ? candidate.text.slice(-remaining) : ''; this.trimmed = true; }
+          if (media > this.mediaBudget && candidate.preview) { media -= candidate.preview.length; candidate.preview = null; this.trimmed = true; }
+          if (chars <= this.textBudget && media <= this.mediaBudget) break;
+        }
+        const [entry] = this.entries.splice(index, 1); chars -= entry.text?.length || 0; media -= entry.preview?.length || 0; this.trimmed = true;
       }
       const first = this.entries[0];
-      if (first?.text?.length > this.textBudget) { first.text = first.text.slice(-this.textBudget); this.trimmed = true; }
+      if (first?.text?.length > this.textBudget && !(first.kind === 'question' && first.requestId === this.requestId)) { first.text = first.text.slice(-this.textBudget); this.trimmed = true; }
       // Large plot previews can be reopened from their original native assets.
       if (first?.preview?.length > this.mediaBudget) { first.preview = null; this.trimmed = true; }
     }
@@ -194,6 +223,10 @@
         if (entry.kind === 'input') {
           const row = element('div', 'input-entry' + (entry.origin === 'input' ? ' reply' : ''));
           row.append(element('pre', 'echo-prompt', entry.prompt), element('pre', '', entry.text)); fragment.append(row);
+        } else if (entry.kind === 'question') {
+          const row = element('pre', 'question-entry', entry.text);
+          row.dataset.requestId = entry.requestId; if (entry.commandId) row.dataset.commandId = entry.commandId;
+          fragment.append(row);
         } else if (entry.kind === 'output') fragment.append(element('pre', 'output-entry ' + entry.stream, entry.text));
         else if (entry.kind === 'notice') {
           const row = element('p', 'notice', entry.text);
@@ -225,11 +258,21 @@
       lastTranscriptTop = transcript.scrollTop;
     }
     if (script.value !== model.script && doc.activeElement !== script) { renderingScript = true; script.value = model.script; renderingScript = false; }
-    input.disabled = !model.acceptsInput(); byId('prompt').textContent = model.prompt;
+    input.disabled = !model.acceptsInput();
+    const question = model.state === 'input' ? model.entries.find(entry => entry.kind === 'question' && entry.requestId === model.requestId) : null;
+    // The current prompt remains visible beside the answer even while the
+    // learner is reading older transcript output. It is also the field's label.
+    if (byId('prompt').textContent !== model.prompt) byId('prompt').textContent = model.prompt;
+    const announcement = question ? 'R question ' + question.number + ': ' + question.text : '';
+    const announcer = byId('question-announcement');
+    if (announcer.textContent !== announcement) announcer.textContent = announcement;
     input.placeholder = model.state === 'input' ? 'Type your answer · Enter to send' : 'Enter R code · Enter to run · Shift+Enter for a new line';
     const fresh = model.capabilities.persistentWorkspace === false;   // each command in a fresh R, through Rscript: nothing is retained or cleared
     const status = {starting: 'Starting R…', ready: fresh ? 'Ready · each command runs in a fresh R' : 'Ready · R workspace retained', continuation: 'Continue the R expression', input: 'R is waiting for your answer', busy: 'R is running…', submitting: 'Sending to R…', interrupting: 'Interrupting R…', restarting: fresh ? 'Restarting R' : 'Restarting R · workspace will be cleared', stopped: 'R session ended'};
-    byId('state').textContent = model.state === 'input' && model.prompt.trim() ? status.input + ': ' + model.prompt.trim() : status[model.state] || 'R console';   // the live status carries R's question
+    // The dedicated question region announces each new request once. Keep
+    // ordinary output from rewriting either live region or the field's label.
+    const stateText = status[model.state] || 'R console';
+    if (byId('state').textContent !== stateText) byId('state').textContent = stateText;
     byId('run').disabled = model.mode === 'script' ? model.state !== 'ready' || !model.script.trim() : !model.acceptsInput();
     byId('run').querySelector('span').textContent = model.mode === 'script' ? script.selectionStart !== script.selectionEnd ? 'Run selection' : 'Run script' : model.state === 'input' ? 'Reply' : 'Run';
     byId('stop').disabled = !['busy', 'input', 'continuation', 'submitting'].includes(model.state);
@@ -340,7 +383,7 @@
       const previousSource = model.script;
       if (!model.receive(event)) return false;
       if (event.type === 'session') resetTranscriptFollow();
-      if (['session', 'inputEcho', 'output', 'plot', 'notice', 'exited', 'capabilities'].includes(event.type)) transcriptDirty = true;
+      if (['session', 'inputRequested', 'inputEcho', 'output', 'plot', 'notice', 'exited', 'capabilities'].includes(event.type)) transcriptDirty = true;
       if (previousSource !== model.script && event.type === 'inputEcho') send('scriptChanged', {source: model.script});
       if (event.type === 'inputRequested' || event.type === 'state' && ['ready', 'continuation', 'input'].includes(event.state)) focusAfterRender = true;
       schedule(); return true;

@@ -22,7 +22,7 @@ for alias in aliases:
 assert numeric["1239"] == "parametric_methods/paired_t.htm"
 assert numeric["1020"] == "basics/calculator.htm"
 calculator = (root / numeric["1020"]).read_text()
-for command in ["Tools &gt; Calculator", "Pop out", "Shift+Enter", "Recall", "Insert", "Copy result", "Copy saved"]:
+for command in ["Analysis &gt; Calculator", "Pop out", "Shift+Enter", "Recall", "Insert", "Copy result", "Copy saved"]:
     assert command in calculator, f"Calculator help lacks {command}"
 print(f"PASS: {len(actual)} files match source hashes; {len(numeric) + len(named)} numeric/named aliases resolve")
 contexts = set()

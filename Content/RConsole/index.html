@@ -29,8 +29,11 @@
         <p id="welcome" class="notice">An interactive R session will start here.</p>
       </div>
       <div class="input-row">
+        <span id="console-input-label" class="visually-hidden">R console input</span>
+        <span id="input-instructions" class="visually-hidden">Enter sends a command or answer. Shift+Enter adds a line.</span>
+        <span id="question-announcement" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></span>
         <label id="prompt" for="console-input">&gt; </label>
-        <textarea id="console-input" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="R console input" aria-describedby="prompt" placeholder="Enter R code · Enter to run · Shift+Enter for a new line" disabled></textarea>
+        <textarea id="console-input" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-labelledby="console-input-label prompt" aria-describedby="input-instructions" placeholder="Enter R code · Enter to run · Shift+Enter for a new line" disabled></textarea>
       </div>
     </section>
     <section id="script-panel" role="tabpanel" aria-labelledby="script-tab" hidden>

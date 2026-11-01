@@ -177,3 +177,62 @@ test('large output is bounded without discarding the full source script', () => 
   assert.equal(model.entries.reduce((n, x) => n + (x.text?.length || 0), 0) <= 64, true);
   assert.equal(model.snapshot().outputText.endsWith('b'.repeat(64)), true);
 });
+
+test('an unanswered question is transcript data immediately and survives Stop or an R error', () => {
+  for (const status of ['interrupted', 'error']) {
+    const source = '# authored source only\n', model = new ConsoleModel(), emit = session(model, 0, status, source);
+    emit('inputRequested', {requestId: 'q1', commandId: 'command-7', prompt: 'Choose a method? '});
+    assert.deepEqual(model.entries, [{kind:'question', text:'Choose a method? ', requestId:'q1', commandId:'command-7', number:1, answered:false}]);
+    if (status === 'interrupted') model.interrupt();
+    else emit('output', {stream:'stderr', text:'Expected R error\n'});
+    emit('commandFinished', {status});
+    emit('state', {state:'ready', prompt:'> '});
+    assert.equal(model.entries.filter(entry => entry.kind === 'question').length, 1);
+    assert.equal(model.snapshot().outputText.includes('Choose a method? '), true);
+    assert.equal(model.entries.some(entry => entry.kind === 'input'), false, 'Stop/error must not fabricate an answer');
+    assert.equal(model.script, source);
+    assert.deepEqual(model.history, []);
+  }
+});
+
+test('answered questions appear once and replies retain request/command identity without becoming code', () => {
+  const source = '# unchanged\n', model = new ConsoleModel(), emit = session(model, 0, 'questions', source);
+  emit('inputRequested', {requestId:'q1', commandId:'cmd1', prompt:'Name? '});
+  emit('inputRequested', {requestId:'q1', commandId:'cmd1', prompt:'Name? '});
+  assert.equal(model.entries.length, 1, 'native current-state publication does not duplicate an outstanding question');
+  assert.equal(model.submission('student answer').action, 'inputReply');
+  emit('inputEcho', {origin:'input', requestId:'q1', text:'student answer', prompt:'Name? '});
+  emit('state', {state:'ready', prompt:'> '});
+  assert.equal(model.entries[0].answered, true);
+  assert.deepEqual(model.entries[1], {kind:'input', text:'student answer', prompt:'', origin:'input', commandId:'cmd1', requestId:'q1'});
+  assert.equal(model.snapshot().outputText, 'Name? \nstudent answer');
+  assert.equal(model.script, source);
+  assert.deepEqual(model.history, []);
+  emit('inputRequested', {requestId:'q2', commandId:'cmd2', prompt:'Name? '});
+  assert.equal(model.entries.filter(entry => entry.kind === 'question').length, 2, 'a new request with the same words is a separate question');
+  assert.equal(model.entries.at(-1).number, 2);
+});
+
+test('empty and older-host replies avoid duplicate prompts, but unmatched replies keep their prompt', () => {
+  const model = new ConsoleModel(), emit = session(model);
+  emit('inputRequested', {requestId:'q1', prompt:'Anything else? '});
+  assert.equal(model.submission('').text, '');
+  emit('inputEcho', {origin:'input', text:'', prompt:'Anything else? '});
+  assert.equal(model.entries[1].prompt, '');
+  assert.equal(model.entries[1].requestId, 'q1');
+  emit('inputEcho', {origin:'input', requestId:'unknown', text:'later answer', prompt:'Another question? '});
+  assert.equal(model.entries.at(-1).prompt, 'Another question? ');
+  assert.equal(model.script, ''); assert.deepEqual(model.history, []);
+});
+
+test('parser continuation is not a question, and active questions survive bounded background output', () => {
+  const model = new ConsoleModel({textBudget:64, entryBudget:3}), emit = session(model);
+  emit('inputRequested', {kind:'continuation', requestId:'c1', prompt:'+ '});
+  assert.equal(model.entries.length, 0);
+  emit('inputRequested', {requestId:'q1', prompt:'Keep this question? '});
+  emit('output', {text:'x'.repeat(1000)});
+  assert.equal(model.entries[0].kind, 'question');
+  assert.equal(model.entries[0].text, 'Keep this question? ');
+  assert.equal(model.entries[1].text, 'x'.repeat(64 - 'Keep this question? '.length));
+  assert.equal(model.entries.reduce((size,entry) => size + (entry.text?.length || 0), 0), 64);
+});

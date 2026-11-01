@@ -140,6 +140,7 @@ final class ReportWebView: WKWebView {
 final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, NSTabViewDelegate, NSMenuItemValidation, NSWindowDelegate {
     var window: NSWindow!
     var closeApproved = false
+    private var consoleQuitPending = false
     var tabs: NSTabView!
     let workspaceSplit = NSSplitView()
     let documentSplit = NSSplitView()
@@ -756,22 +757,42 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        let allowed = applicationShouldTerminate(NSApp) == .terminateNow
+        let allowed = approveApplicationClose()
         closeApproved = allowed
         if allowed { helpPane.shutdown(); calculatorPane.shutdown(); scriptAI.shutdown() }
         return allowed
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if documents.contains(where: { $0.fileBusy }) { showError("Please wait for the file save to finish."); return .terminateCancel }
-        if running { showError("Please wait for the running analysis to finish, or cancel it from its form."); return .terminateCancel }
-        if closeApproved { return .terminateNow }
+        if consoleQuitPending { return .terminateLater }
+        guard approveApplicationClose() else { return .terminateCancel }
+        if prepareConsoleTermination(completion: { sender.reply(toApplicationShouldTerminate: true) }) {
+            consoleQuitPending = true
+            return .terminateLater
+        }
+        return .terminateNow
+    }
+    /// Stop every console before allowing the host process to exit. Tab close
+    /// and Restart use the same bounded retirement without blocking the UI.
+    @discardableResult func prepareConsoleTermination(completion: @escaping @MainActor () -> Void) -> Bool {
+        for doc in documents { doc.rConsolePane?.shutdown() }
+        guard RConsoleSession.hasPendingShutdowns else { return false }
+        Task { @MainActor in
+            await RConsoleSession.waitForPendingShutdowns()
+            completion()
+        }
+        return true
+    }
+    private func approveApplicationClose() -> Bool {
+        if documents.contains(where: { $0.fileBusy }) { showError("Please wait for the file save to finish."); return false }
+        if running { showError("Please wait for the running analysis to finish, or cancel it from its form."); return false }
+        if closeApproved { return true }
         if documents.contains(where: { $0.rConsolePane?.hasUnsavedChanges == true || $0.rConsolePane?.hasWorkspace == true || $0.rConsolePane?.isBusy == true || $0.rPane?.hasUnsavedChanges == true || $0.rPane?.isRunning == true || $0.gridDirty || $0.reportDirty || $0.analysisJobID != nil }) {
             let alert = NSAlert(); alert.messageText = "Quit with unsaved work?"
             alert.informativeText = "Unsaved report, worksheet and R script edits will be lost. Open analyses and R sessions will stop."
             alert.addButton(withTitle: "Quit"); alert.addButton(withTitle: "Cancel")
-            if alert.runModal() != .alertFirstButtonReturn { return .terminateCancel }
+            if alert.runModal() != .alertFirstButtonReturn { return false }
         }
-        return .terminateNow
+        return true
     }
     func applicationWillTerminate(_ notification: Notification) { helpPane.shutdown(); calculatorPane.shutdown(); scriptAI.shutdown(); if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }; RInstaller.shared.shutdown(); chatGPTTutor.runtime?.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown(); doc.rConsolePane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

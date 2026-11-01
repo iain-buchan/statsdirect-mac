@@ -2202,3 +2202,47 @@ Windows 5.3.0 (tagged 95082f3b, released 1 November) brings the interactive R co
 - Windows 61de3eb6 (in 5.3.0) fixed the document host writing a keep-selection frame into the data's workbook whatever sheet was picked. The Mac host does not have the defect: the form's placement applies to the first frame whatever its keep-selection, and later frames follow the frame before (or replace, by their own step), as `Grid/write-back.mjs` has always done. A new check with three keep-selection frames (as MultipleLinearRegressionResiduals writes them) at LastColumn and BeforeSelection: first at the pick, the others after it, the selected column moved along once (17/17). Platform difference raised with Iain, unchanged: the Mac's "new worksheet document" choice opens one document per frame, where Windows' new-sheet pick now makes one sheet for all frames.
 - Four suite scripts had no executable bit (CI runs them through bash); they now have it like the others.
 - Suites on the pinned source, the Mac's screen locked (Iain away): build; test.sh 618; update-service 5; startup-r-setup 32, r-pane 16, r-integration 55; form-descriptors (1009 descriptors, 0 failed), tutor-protocol 2, tutor-runtime 37, learning-recovery 5, conversation-r 16, ai-sharing 1, office-svg 64, r-chart-export-lifetime 7, r-chart-export-render 5, report-ai 56. The app-driving suites stall or fail under the lock (report-export stalled at its clipboard-outlines check), so they await an unlocked, idle screen and are added below when run: report-export, unified-toolbar, learning-workspace, mac-parity, paired-workflow, provider-learning, tutor-setup, script-ai, follow-on-workflow, r-console-integration, analysis-workflow, calculator-pane, grid-selection, help-pane and the beta driver.
+
+# 1 November 2026 — persistent R handlers, graceful shutdown and accessible questions
+
+Built on Claude's Mac `6ce6854`, preserving the Windows 5.3.0 engine/help/menu
+update (`95082f3b42a178f0b1bb37fbbd469bc2a2320226`). The worker rearms base R's
+`globalCallingHandlers()` registry inside each fresh top-level command and plot
+capture boundary, preserving registration/removal through errors, Stop and GC.
+No Windows source was edited.
+
+Close and Restart send the existing Quit frame before bounded TERM/KILL fallback.
+Retired workers keep draining output, then remove only private IPC/R temporary
+files; original charts, user files and external-R snapshots remain. App Quit waits
+asynchronously for workers and cancelled startup probes before the host exits.
+
+The shared console page retains each question immediately as nonexecuting
+transcript data, associates replies without repeating the question, and restores
+pending/unanswered questions after renderer reload, Stop and errors. The answer
+field's accessible name includes the current question; a separate polite region
+announces new questions without replaying the transcript or rewriting unchanged
+announcements. Shared `Content/RConsole/{console.js,index.html,console.css}` must
+be considered together for a later Windows backport.
+
+Local qualification on Apple Silicon with R 4.6.1:
+
+- Release build: 1,552 distribution checks; 20 native deployment targets and four
+  matching dSYMs; strict ad-hoc code-signature verification.
+- 137 JavaScript tests and 137 native interactive-console PASS groups. Native
+  coverage includes real question/reply/Stop/error/reload behaviour, WebKit ARIA
+  attributes, retained chart/clipboard/export behaviour, shutdown finalizers and
+  device completion, bounded busy-worker retirement, restart isolation, startup
+  cancellation and app-quit draining. This checks the WebKit accessibility
+  contract; it does not claim an automated VoiceOver session.
+- Three worker-signing policy tests, including all 48 real-R worker checks under
+  a hardened ad-hoc signature, and five R runtime selection/minimum checks.
+- All 987 offline help files match their source hashes, 808 aliases and all 167
+  engine context IDs resolve. Updated the stale Calculator help assertion to
+  the new Analysis menu location.
+
+The first native launch was hidden by macOS and failed its explicit visibility
+precondition; the same compiled test host passed after foreground activation.
+Logs and the exact build-input hash snapshot are retained under
+`.build/r-session-fixes.noindex`. Full exact-commit GitHub CI is required before
+refreshing the unsigned 1.1.0 IT signing handover. Signed/notarised 1.0.0 remains
+live; no stable release, download alias or update policy is changed here.

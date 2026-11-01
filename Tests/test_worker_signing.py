@@ -103,7 +103,7 @@ elif '--display' in a:
                                   str(self.worker)], text=True, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, timeout=180)
         self.assertEqual(checks.returncode, 0, checks.stdout)
-        self.assertGreaterEqual(checks.stdout.count("PASS:"), 39, checks.stdout)
+        self.assertGreaterEqual(checks.stdout.count("PASS:"), 48, checks.stdout)
         print(checks.stdout, end="")
 
 

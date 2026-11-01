@@ -39,7 +39,7 @@ done
 /usr/bin/swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirectConsoleIntegration \
   -emit-module-path "$TEST_WORK/StatsDirectConsoleIntegration.swiftmodule" \
   -target arm64-apple-macosx14.0 -module-cache-path "$ROOT/.build/swift-cache" \
-  "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/r-console-integration-driver.swift Tests/r-console-ai-checks.swift Tests/r-console-document-checks.swift \
+  "${SOURCES[@]}" "$TEST_WORK/Viewer.swift" Tests/r-console-integration-driver.swift Tests/r-console-ai-checks.swift Tests/r-console-document-checks.swift Tests/r-console-shutdown-checks.swift Tests/r-console-question-checks.swift \
   -o "$TEST_WORK/driver" -framework Cocoa -framework WebKit -framework PDFKit \
   -framework Security -framework UniformTypeIdentifiers
 

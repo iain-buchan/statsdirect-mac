@@ -285,32 +285,35 @@ extension Viewer {
         openOutputDocuments(doc, frames)
         finishOperationReport(doc, output, frames: frames, note: nil)
     }
-    // Each output frame opened as its own worksheet document (with the source columns beside it when the operation derives columns).
+    // The operation's output frames open side by side in one new worksheet document, as Windows holds them in the one sheet
+    // the user picked (with the source columns beside them when the operation derives columns).
     func openOutputDocuments(_ doc: Document, _ frames: [[String: Any]]) {
-        for (index, frame) in frames.enumerated() {
-            let title = "\(doc.title) · Data \(index + 1)"
-            let plan = doc.includeSourceColumns && supportsDerivedWorksheet(doc.operationName ?? "") ? derivedWorksheet(source:doc.operationSourceSnapshot,range:doc.operationInputRange,frame:frame) : nil
-            func open(_ sheet: [String: Any], snapshotID: String?) {
-                let dataDoc = self.newDocument(kind: "grid", title: title, url: self.root.appendingPathComponent("Grid/index.html"))
-                var sheet = sheet
-                if let snapshotID { sheet["snapshot"] = SnapshotStore.shared.url(for: snapshotID); dataDoc.snapshotIDs.append(snapshotID) }
-                dataDoc.pendingWorkbook = ["name": title, "sheets": [sheet], "formulaCount": 0]
-                dataDoc.workbookName = "\(doc.title).xlsx"; dataDoc.gridDirty = true
-            }
-            // The source worksheet's columns are copied beside the result through a typed snapshot.
-            if let plan, let columns = plan.sourceColumns, let source = documents.first(where: { $0.id == (doc.operationSourceID ?? analysisSourceID) }), source.kind == "grid" {
-                source.web.callAsyncJavaScript("return window.statsDirectGrid.snapshotColumns(request)", arguments: ["request": columns], in: nil, in: .page) { result in
-                    if case .success(let value) = result, let info = value as? [String: Any], let id = info["id"] as? String { open(plan.sheet, snapshotID: id) }
-                    else { open(frame, snapshotID: nil) }
-                }
-            } else { open(plan?.sheet ?? frame, snapshotID: nil) }
+        guard let frame = combinedOutputFrame(frames) else { return }
+        let title = "\(doc.title) · Data"
+        // The source columns go beside the results only when every frame has one value per selected row (frames of unequal
+        // length would otherwise be aligned by the longest); the operations that derive columns write one frame.
+        let aligned = frames.filter { ($0["columns"] as? Int ?? 0) > 0 }.allSatisfy { ($0["rows"] as? Int) == (frame["rows"] as? Int) }
+        let plan = aligned && doc.includeSourceColumns && supportsDerivedWorksheet(doc.operationName ?? "") ? derivedWorksheet(source:doc.operationSourceSnapshot,range:doc.operationInputRange,frame:frame) : nil
+        func open(_ sheet: [String: Any], snapshotID: String?) {
+            let dataDoc = self.newDocument(kind: "grid", title: title, url: self.root.appendingPathComponent("Grid/index.html"))
+            var sheet = sheet
+            if let snapshotID { sheet["snapshot"] = SnapshotStore.shared.url(for: snapshotID); dataDoc.snapshotIDs.append(snapshotID) }
+            dataDoc.pendingWorkbook = ["name": title, "sheets": [sheet], "formulaCount": 0]
+            dataDoc.workbookName = "\(doc.title).xlsx"; dataDoc.gridDirty = true
         }
+        // The source worksheet's columns are copied beside the result through a typed snapshot.
+        if let plan, let columns = plan.sourceColumns, let source = documents.first(where: { $0.id == (doc.operationSourceID ?? analysisSourceID) }), source.kind == "grid" {
+            source.web.callAsyncJavaScript("return window.statsDirectGrid.snapshotColumns(request)", arguments: ["request": columns], in: nil, in: .page) { result in
+                if case .success(let value) = result, let info = value as? [String: Any], let id = info["id"] as? String { open(plan.sheet, snapshotID: id) }
+                else { open(frame, snapshotID: nil) }
+            }
+        } else { open(plan?.sheet ?? frame, snapshotID: nil) }
     }
     func finishOperationReport(_ doc: Document, _ output: [String: Any], frames: [[String: Any]], note: String?) {
         let resultID = UUID().uuidString
         let html = output["html"] as? String ?? ""
         let body = """
-        <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\(frames.isEmpty ? "" : " \(frames.count) data table(s) opened in separate documents.")</p>" : html)\(note.map { "<p class=\"note\">\(htmlEscape($0))</p>" } ?? "")</section>
+        <section class="engine-report">\(html.isEmpty ? "<p>Completed successfully.\({ let tables = frames.filter { ($0["columns"] as? Int ?? 0) > 0 }.count; return tables == 0 ? "" : tables == 1 ? " The data opened in a new worksheet document." : " \(tables) data tables opened side by side in a new worksheet document." }())</p>" : html)\(note.map { "<p class=\"note\">\(htmlEscape($0))</p>" } ?? "")</section>
         """
         let operation = doc.operationName ?? ""
         let instant = doc.operationName.flatMap({ analysisCatalog[$0]?["instant"] as? Bool }) == true

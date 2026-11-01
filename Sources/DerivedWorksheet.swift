@@ -49,3 +49,24 @@ func derivedWorksheet(source: [String:Any]?, range: [String:Any]?, frame: [Strin
     }
     return DerivedWorksheetPlan(sheet: sheet, sourceColumns: sourceColumns)
 }
+
+// Windows writes every output frame of an operation to the one place the user picked: a new sheet holds the first frame
+// and each later frame after it (the pick comes before the selection a step keeps, 5.3.0). The Mac's "new worksheet
+// document" does the same: the frames side by side in one sheet, in their order, empty frames left out.
+func combinedOutputFrame(_ frames: [[String:Any]]) -> [String:Any]? {
+    var cells: [[String:Any]] = [], lengths: [Int] = [], columns = 0, rows = 0, name: String? = nil, headerRow: Bool? = nil
+    for frame in frames {
+        guard let count = frame["columns"] as? Int, count > 0 else { continue }
+        for cell in frame["cells"] as? [[String:Any]] ?? [] {
+            guard let col = cell["col"] as? Int, col >= 0, col < count else { continue }
+            var moved = cell; moved["col"] = columns + col; cells.append(moved)
+        }
+        let known = frame["lengths"] as? [Int]
+        lengths += (0..<count).map { known?.indices.contains($0) == true ? known![$0] : max(0, (frame["rows"] as? Int ?? 1) - 1) }
+        columns += count; rows = max(rows, frame["rows"] as? Int ?? 0)
+        if name == nil { name = frame["name"] as? String }
+        if headerRow == nil { headerRow = frame["headerRow"] as? Bool }
+    }
+    guard columns > 0 else { return nil }
+    return ["name": name ?? "Analysis data", "rows": max(rows, 1), "columns": columns, "cells": cells, "headerRow": headerRow ?? true, "hidden": false, "lengths": lengths]
+}

@@ -123,7 +123,9 @@ import WebKit
                 try check(!html.contains("Error rendering"), "\(name) report failed to render")
                 if !frames.isEmpty {
                     let sheets = v.documents.filter { !previous.contains($0.id) && $0.kind == "grid" }
-                    try check(sheets.count == (writesToSource ? 0 : frames.count), "\(name) lost worksheet output (expected \(writesToSource ? 0 : frames.count) new sheets, got \(sheets.count); entered=\(child.operationInputEntered), source=\(child.operationSnapshotSourceID ?? "none"))")
+                    // Every frame of one operation opens in ONE new worksheet document, as Windows holds them in the one sheet picked.
+                    let expected = writesToSource ? 0 : (frames.contains { ($0["columns"] as? Int ?? 0) > 0 } ? 1 : 0)
+                    try check(sheets.count == expected, "\(name) lost worksheet output (expected \(expected) new sheets for \(frames.count) frames, got \(sheets.count); entered=\(child.operationInputEntered), source=\(child.operationSnapshotSourceID ?? "none"))")
                     for sheet in sheets { v.remove(sheet) }
                 }
                 try check(v.methodHelpPath(child) != nil, "\(name) lost inherited help")

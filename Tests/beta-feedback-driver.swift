@@ -285,6 +285,19 @@ import PDFKit
   precondition(cells.contains{ $0["col"] as? Int == 1 && $0["row"] as? Int == 3 && $0["text"] as? String == "9" })
   precondition(derivedWorksheet(source:source,range:["firstRow":1,"lastRow":3],frame:frame)==nil)
   print("PASS: derived worksheet preserves source columns and aligns selected rows; mismatched output is kept separate")
+  // Several frames (the fits, studentised and jackknife residuals of a multiple linear regression) go side by side into one
+  // document, in order, with an empty frame left out, as Windows's new-sheet pick holds them since 5.3.0.
+  let fits:[String:Any]=["name":"yfit","columns":1,"rows":3,"headerRow":true,"lengths":[2],"cells":[["col":0,"row":0,"text":"yfit","kind":"text"],["col":0,"row":1,"text":"1.5","kind":"number"],["col":0,"row":2,"text":"2.5","kind":"number"]]]
+  let residuals:[String:Any]=["name":"studentised","columns":2,"rows":2,"headerRow":true,"lengths":[1,1],"cells":[["col":0,"row":0,"text":"r1","kind":"text"],["col":1,"row":0,"text":"r2","kind":"text"],["col":1,"row":1,"text":"-0.3","kind":"number"]]]
+  let combined=combinedOutputFrame([fits,["name":"empty","columns":0,"rows":1,"cells":[]],residuals])!
+  let combinedCells=combined["cells"] as! [[String:Any]]
+  precondition(combined["columns"] as? Int==3 && combined["rows"] as? Int==3 && combined["name"] as? String=="yfit" && combined["lengths"] as? [Int]==[2,1,1])
+  precondition(combinedCells.contains{ $0["col"] as? Int == 0 && $0["row"] as? Int == 2 && $0["text"] as? String == "2.5" } && combinedCells.contains{ $0["col"] as? Int == 1 && $0["row"] as? Int == 0 && $0["text"] as? String == "r1" } && combinedCells.contains{ $0["col"] as? Int == 2 && $0["row"] as? Int == 1 && $0["text"] as? String == "-0.3" })
+  precondition(combinedOutputFrame([])==nil && combinedOutputFrame([["name":"empty","columns":0,"rows":1,"cells":[]]])==nil)
+  // The combined frame still takes the source columns beside it when every frame has one value per selected row.
+  let both=derivedWorksheet(source:source,range:["firstRow":2,"lastRow":3],frame:combinedOutputFrame([frame,frame])!)!
+  precondition(both.sheet["columns"] as? Int==4 && (both.sheet["cells"] as! [[String:Any]]).contains{ $0["col"] as? Int == 3 && $0["row"] as? Int == 3 && $0["text"] as? String == "1.4" })
+  print("PASS: an operation's output frames open side by side in one worksheet document, in order, empty frames left out, source columns once beside them")
  }
  @MainActor static func live(_ v:Viewer) async throws {
   let storage=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("com.statsdirect.viewer.prototype/ChatGPT Tutor")

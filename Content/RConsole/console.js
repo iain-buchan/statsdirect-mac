@@ -27,6 +27,12 @@
         if (Array.isArray(event.events)) for (const item of event.events) this.receive(item);
         // A host replay already includes console commands in its saved script.
         if (typeof event.script === 'string') this.script = event.script;
+        // Native recall survives output clearing and bounded transcript replay.
+        // Older hosts omit this seed and retain the echo-derived history above.
+        if (Array.isArray(event.commandHistory)) {
+          this.history = []; this.historyIndex = null; this.historyDraft = '';
+          for (const source of event.commandHistory) if (typeof source === 'string' && source.trim()) this.remember(source);
+        }
         return true;
       }
       if (this.restarting || event.sessionId !== this.sessionId || event.generation !== this.generation || event.seq <= this.seq) return false;

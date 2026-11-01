@@ -46,6 +46,71 @@ test('restored console history recalls commands while new commands append exactl
   assert.equal(model.script, script + next + '\n');
 });
 
+test('native command recall survives cleared output and repeated recovery without using unexecuted Script', () => {
+  const batch = '# executed startup café β\nvalues <- c(\n  1, 2, 3\n)\nmean(values)';
+  const recall = [batch, 'answer <- readline("Name? ")', 'sum(values)'];
+  const edited = '# not executed\nneverRun <- 999\n';
+  for (let reload = 0; reload < 3; reload++) {
+    const model = new ConsoleModel();
+    assert.equal(model.receive(event('session', 0, {
+      script: edited, commandHistory: recall, events: [event('state', 8, {state: 'ready', prompt: '> '})]
+    })), true);
+    assert.deepEqual(model.history, recall);
+    assert.deepEqual(model.entries, []);
+    assert.equal(model.script, edited);
+    assert.equal(model.navigateHistory(-1, 'unfinished draft'), 'sum(values)');
+    assert.equal(model.navigateHistory(1, ''), 'unfinished draft');
+    assert.equal(model.script, edited, 'recalling a command does not execute it or alter Script');
+  }
+});
+
+test('the native recall seed is authoritative after replay and answers remain outside it', () => {
+  const records = [
+    event('inputEcho', 1, {origin: 'console', text: 'x <- 1'}),
+    event('inputEcho', 2, {origin: 'console', text: 'x <- 2'}),
+    event('inputRequested', 3, {requestId: 'q1', prompt: 'Answer? '}),
+    event('inputEcho', 4, {origin: 'input', text: 'reply data', prompt: 'Answer? '}),
+    event('state', 5, {state: 'ready', prompt: '> '})
+  ];
+  const model = new ConsoleModel();
+  assert.equal(model.receive(event('session', 0, {script, events: records, commandHistory: ['earlier <- 0', 'x <- 2']})), true);
+  assert.deepEqual(model.history, ['earlier <- 0', 'x <- 2'], 'the native seed replaces replay-derived recall');
+  assert.equal(model.receive(event('inputEcho', 6, {origin: 'console', text: 'x + 1'})), true);
+  assert.deepEqual(model.history, ['earlier <- 0', 'x <- 2', 'x + 1']);
+  model.navigateHistory(-1, 'old draft');
+  assert.equal(model.receive(event('session', 0, {generation: 2, script, commandHistory: []})), true);
+  assert.deepEqual(model.history, [], 'an explicit empty seed replaces prior recall');
+  assert.equal(model.historyIndex, null);
+  assert.equal(model.historyDraft, '');
+  assert.equal(model.script, script);
+  const empty = new ConsoleModel();
+  empty.receive(event('session', 0, {events: records, commandHistory: []}));
+  assert.deepEqual(empty.history, [], 'an explicit empty seed also replaces replay-derived recall');
+});
+
+test('recall seeds retain multiline commands within the existing limits and ignore noncommands', () => {
+  const model = new ConsoleModel();
+  const commands = Array.from({length: 105}, (_, index) => `value <- ${index}`);
+  model.receive(event('session', 0, {commandHistory: [null, 42, {}, '', '   ', '\uFEFF', ...commands, commands.at(-1)]}));
+  assert.deepEqual(model.history, commands.slice(-100));
+  const unicode = '😀'.repeat(125000), text = 'x'.repeat(250000);
+  const bounded = new ConsoleModel();
+  bounded.receive(event('session', 0, {commandHistory: [unicode, text]}));
+  assert.deepEqual(bounded.history, [unicode, text], 'exactly 500000 UTF-16 code units fit');
+  bounded.receive(event('inputEcho', 1, {origin: 'console', text: 'next <- 1'}));
+  assert.deepEqual(bounded.history, [text, 'next <- 1'], 'the oldest whole command is removed above the text bound');
+  const large = '# startup\n' + 'x'.repeat(500001);
+  const batch = new ConsoleModel();
+  batch.receive(event('session', 0, {commandHistory: ['old command', large]}));
+  assert.deepEqual(batch.history, [large], 'a large submitted batch remains intact as the newest entry');
+  for (const fields of [{}, ...[null, 'not an array', {}, 42].map(commandHistory => ({commandHistory}))]) {
+    const oldHost = new ConsoleModel();
+    oldHost.receive(event('session', 0, {script, events: replay, ...fields}));
+    assert.deepEqual(oldHost.history, [entered], 'older hosts without an array seed still recover recall from echoes');
+    assert.equal(oldHost.script, script);
+  }
+});
+
 test('recovery recalls executed multiline batches once while preserving authoritative edited source', () => {
   const selectedScript = '# Run selection\n  x <- c(1, 2, 3)\n\nmean(x)\n';
   const continued = '# Continue in R\nresult <- t.test(x)\nprint(result)\n';

@@ -8,7 +8,7 @@ let notice='StatsDirect reports use docx (MIT), DOMPurify (Apache-2.0 or MPL-2.0
 // virtual store after upgrades. This keeps notices reproducible on a clean CI install.
 const included=new Map();
 async function visit(directory) {
-  const canonical=await realpath(directory).catch(()=>null);
+  const canonical=(await realpath(directory).catch(()=>null))?.replace(/\\/g,'/');   // forward slashes on Windows too, so the node_modules root is found
   if(!canonical||included.has(canonical))return;
   const pkg=JSON.parse(await readFile(canonical+'/package.json','utf8'));
   if(pkg.name.startsWith('@types/'))return;

@@ -164,3 +164,18 @@ test('replacement at Excel width does not require room for an insertion', () => 
   apply(s,planWriteBack(s,[frame('new',['7'])],'ReplaceSelection',{columns:[0]}));
   assert.equal(s.get(0,1),'7'); assert.equal(s.get(MAX_COLS-1,1),'2'); assert.deepEqual(s.inserts,[]);
 });
+test('the chosen placement comes before the selection the steps keep: every frame of a residuals operation keeps the selection, the first goes where the user chose and the others follow it', () => {
+  // As Windows 5.3.0 fixed it (the sheet picked for an operation's output comes before the selection its steps keep):
+  // MultipleLinearRegressionResiduals and LOESS write every frame with keep-selection="true".
+  const frames = () => [frame('yfit', ['1', '2', '3'], {keepSelection: true, placement: 'AfterSelection'}), frame('studentised', ['4', '5', '6'], {keepSelection: true, placement: 'AfterSelection'}), frame('jackknife', ['7', '8', '9'], {keepSelection: true, placement: 'AfterSelection'})];
+  const s = sheet();
+  const plan = planWriteBack(s, frames(), 'LastColumn', {firstRow: 2, lastRow: 4, columns: [0]});
+  assert.deepEqual(plan.written.map(w => w.x), [3, 4, 5]);
+  apply(s, plan);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(c => text(s, c, 0)), ['dose', 'weight', 'note', 'yfit', 'studentised', 'jackknife']);
+  const b = sheet();
+  const before = planWriteBack(b, frames(), 'BeforeSelection', {firstRow: 2, lastRow: 4, columns: [1]});
+  assert.deepEqual(before.written.map(w => w.x), [1, 2, 3]);
+  apply(b, before);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(c => text(b, c, 0)), ['dose', 'yfit', 'studentised', 'jackknife', 'weight', 'note']);   // the selected column moved along, once
+});

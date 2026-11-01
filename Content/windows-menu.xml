@@ -405,6 +405,10 @@
         <menu-item label="&amp;Crosstabs" operation="Crosstabs"/>
         <menu-item label="&amp;Frequencies" operation="Frequency"/>
         <menu-item label="-" />
+        <menu-item label="Calculator" command="calculator">
+          <help chm-id="1020" />
+        </menu-item>
+        <menu-item label="-" />
         <menu-item label="Options" operation="AnalysisOptions"/>
       </sub-items>
     </menu-item>

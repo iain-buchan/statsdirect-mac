@@ -337,17 +337,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         populateReportFormatMenu(menu("Format"))
         for title in ["Data", "Analysis", "Graphics"] {
             let operations = menu(title)
-            populateOperationMenu(operations)
-            if title == "Analysis" {
-                let options = operations.items.first { $0.representedObject as? String == "AnalysisOptions" }
-                if let options { operations.removeItem(options) }
-                if operations.items.last?.isSeparatorItem != true { operations.addItem(.separator()) }
-                add(operations, "Calculator", #selector(showCalculator))
-                if let options {
-                    operations.addItem(.separator())
-                    operations.addItem(options)
-                }
-            }
+            populateOperationMenu(operations)   // the Windows menu places the Calculator in its own section before Options
         }
         windowsMenu = menu("Window")
         let help = menu("Help")

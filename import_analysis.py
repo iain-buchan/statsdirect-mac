@@ -17,13 +17,12 @@ def convert(node):
         title=root.findtext('s:friendly-name',default=op,namespaces=ns)
         ops[op]={'id':op,'title':title,'help':path,'instant':any(x.text==op for x in root.findall('s:suggested-operations/s:suggested-operation',ns))}
         result['operation']=op
+    if command:=node.get('command'):result['command']=command   # a window of the application rather than an operation, such as the calculator
     children=node.find('m:sub-items',ns)
     if children is not None:result['children']=[convert(x) for x in children]
     return result
 menus=[convert(x) for x in ET.parse(menu).findall('m:sub-items/m:menu-item',ns)]
 result={'menu':next(x for x in menus if x['label']=='Analysis'),'menus':menus,'operations':ops,'sourceSHA256':hashlib.sha256(menu.read_bytes()).hexdigest()}
-for op in ('LOESS','MethodComparisonRegression'):
-    ops[op]['unavailable']='This R-based method is not enabled in the Mac prototype yet. Method help and R → New R Session are available.'
 (base/'Content/analysis-menu.json').write_text(json.dumps(result,indent=2)+'\n')
 shutil.copy2(menu,base/'Content/windows-menu.xml')
 print(len(ops),'menu operations;',sum(bool(x['help']) for x in ops.values()),'offline help links')

@@ -745,6 +745,13 @@
         "separator": true
       },
       {
+        "label": "Calculator",
+        "command": "calculator"
+      },
+      {
+        "separator": true
+      },
+      {
         "label": "Options",
         "operation": "AnalysisOptions"
       }
@@ -1770,6 +1777,13 @@
         {
           "label": "Frequencies",
           "operation": "Frequency"
+        },
+        {
+          "separator": true
+        },
+        {
+          "label": "Calculator",
+          "command": "calculator"
         },
         {
           "separator": true
@@ -3115,5 +3129,5 @@
       "instant": false
     }
   },
-  "sourceSHA256": "ef91d33e1cd058e800dca63ef0248fd7ebcb1b21fb22d85ad9f7e46d4397ba80"
+  "sourceSHA256": "8f3709294dfa9c519c93d2a9b1cac343893320a46753915d4f7cecd374cb0266"
 }

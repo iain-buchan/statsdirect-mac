@@ -13,6 +13,9 @@ extension Viewer {
                     let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                     if let children = node["children"] as? [[String: Any]] {
                         let child = NSMenu(title: title); item.submenu = child; append(children, to: child)
+                    } else if node["command"] as? String == "calculator" {
+                        // The Windows menu's own command item: the Mac's calculator pane, in the place Windows gives it (its own section before Options).
+                        item.target = self; item.action = #selector(showCalculator)
                     } else if let operation = node["operation"] as? String {
                         item.toolTip = analysisCatalog[operation]?["unavailable"] as? String
                         item.target = self; item.action = #selector(openAnalysisOperation(_:)); item.representedObject = operation

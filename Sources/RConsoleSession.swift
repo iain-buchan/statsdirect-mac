@@ -1,11 +1,13 @@
 import Foundation
 import Darwin
+import CoreFoundation
 
 /// The prototype's R worker has its own process and private control channel.
 /// Neither user stdin nor printed R output is interpreted as control traffic.
 @MainActor final class RConsoleSession {
     private static var pendingShutdowns = Set<UUID>()
     private static var shutdownWaiters: [CheckedContinuation<Void, Never>] = []
+    private static var shutdownCallbacks: [@MainActor () -> Void] = []
     static var hasPendingShutdowns: Bool { !pendingShutdowns.isEmpty }
 
     /// App termination must keep its run loop alive until retired workers have
@@ -14,6 +16,12 @@ import Darwin
         guard hasPendingShutdowns else { return }
         await withCheckedContinuation { shutdownWaiters.append($0) }
     }
+    /// NSApplication.terminateLater runs a nested modal event loop. A new Swift
+    /// main-actor Task can be starved there, so Quit uses a run-loop callback.
+    static func whenShutdownComplete(_ completion: @escaping @MainActor () -> Void) {
+        guard hasPendingShutdowns else { completion(); return }
+        shutdownCallbacks.append(completion)
+    }
     private static func beginShutdown() -> UUID {
         let id = UUID(); pendingShutdowns.insert(id); return id
     }
@@ -21,6 +29,17 @@ import Darwin
         guard pendingShutdowns.remove(id) != nil, pendingShutdowns.isEmpty else { return }
         let waiters = shutdownWaiters; shutdownWaiters = []
         waiters.forEach { $0.resume() }
+        let callbacks = shutdownCallbacks; shutdownCallbacks = []
+        callbacks.forEach { $0() }
+    }
+    nonisolated private static func deliverShutdownCompletion(_ id: UUID) {
+        let main = CFRunLoopGetMain()
+        let modes = [CFRunLoopMode.defaultMode.rawValue, CFRunLoopMode.commonModes.rawValue,
+                     "NSModalPanelRunLoopMode" as CFString] as CFArray
+        CFRunLoopPerformBlock(main, modes) {
+            MainActor.assumeIsolated { Self.finishShutdown(id) }
+        }
+        CFRunLoopWakeUp(main)
     }
 
     var onEvent: (([String: Any]) -> Void)?
@@ -383,7 +402,7 @@ import Darwin
         lifecycle = UUID(); startup?.cancel(); startup = nil
         if let probe = homeProbe {
             let retirement = Self.beginShutdown()
-            probe.cancel { Task { @MainActor in Self.finishShutdown(retirement) } }
+            probe.cancel { Self.deliverShutdownCompletion(retirement) }
             homeProbe = nil
         }
         inputRequestId = nil; commandId = nil; interruptRequested = false; closing = true
@@ -417,7 +436,7 @@ import Darwin
                 retiredChannel?.close()
                 retiredReaders.forEach { $0.finish() }
                 if let retiredIPC { try? FileManager.default.removeItem(at: retiredIPC) }
-                Task { @MainActor in Self.finishShutdown(retirement) }
+                Self.deliverShutdownCompletion(retirement)
             }
         } else {
             retiredChannel?.close()

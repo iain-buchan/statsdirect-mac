@@ -2246,3 +2246,28 @@ Logs and the exact build-input hash snapshot are retained under
 `.build/r-session-fixes.noindex`. Full exact-commit GitHub CI is required before
 refreshing the unsigned 1.1.0 IT signing handover. Signed/notarised 1.0.0 remains
 live; no stable release, download alias or update policy is changed here.
+
+## Actual AppKit Quit regression
+
+Full CI on `2c49f19` passed the analysis interactions but caught a shutdown hang:
+`NSApplication.terminate` entered its deferred modal loop while the main-actor
+Task that called it was still active. Scheduling another Swift Task for retirement
+completion/reply could not progress in that loop. This was a real lifecycle bug;
+the failed CI run is not treated as passing evidence.
+
+Retirement completion now uses a main CFRunLoop callback in default, common and
+AppKit modal modes, and Quit registers a direct completion callback instead of
+starting another Task. Ordinary asynchronous callers retain the awaitable drain.
+`Scripts/test-r-console-termination.sh` exercises five real child application
+processes: idle R, busy R, readline, held startup probe, and Restart with a retiring
+predecessor. Each must reach `applicationWillTerminate`, exit within five seconds
+of Quit, leave no worker/probe PID or internal IPC/Rtmp, and preserve user files;
+idle device finalisation and cancelled-readline continuation are checked too.
+This regression runs early in CI to catch the actual AppKit termination path.
+
+Local requalification: all five actual-quit cases and all 47 analysis workflow
+PASS groups, including normal process exit, pass with the corrected Release
+build. Its 1,552 distribution checks, four matching dSYMs, strict signature check
+and 48 hardened-worker checks also pass. All 137 native console PASS groups also pass with this callback path. The
+exact-commit CI result and revised build receipt accompany the eventual signing
+handover.

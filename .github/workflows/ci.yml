@@ -59,6 +59,8 @@ jobs:
         run: |
           node Grid/build.mjs && node Report/build.mjs && node Learn/build.mjs
           git diff --exit-code --stat -- Content/Grid Content/Report Content/Learn Content/AI
+      - name: AppKit R quit lifecycle
+        run: bash Scripts/test-r-console-termination.sh "$PWD/StatsDirect.app/Contents/MacOS/RConsoleWorker"
       - name: Update discovery
         run: |
           swiftc -g -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache Sources/UpdateService.swift Tests/update-service-test.swift -o .build/update-service-test

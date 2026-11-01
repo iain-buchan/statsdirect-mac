@@ -776,10 +776,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @discardableResult func prepareConsoleTermination(completion: @escaping @MainActor () -> Void) -> Bool {
         for doc in documents { doc.rConsolePane?.shutdown() }
         guard RConsoleSession.hasPendingShutdowns else { return false }
-        Task { @MainActor in
-            await RConsoleSession.waitForPendingShutdowns()
-            completion()
-        }
+        // AppKit runs a modal loop after terminateLater. A new Swift Task on
+        // the main actor cannot make progress there; use its modal-safe callback.
+        RConsoleSession.whenShutdownComplete(completion)
         return true
     }
     private func approveApplicationClose() -> Bool {

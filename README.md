@@ -6,7 +6,7 @@ A native macOS preview of StatsDirect, using the [Windows calculation engine](ht
 
 **[Download the latest Mac release](https://www.statsdirect.com/download.aspx)** — Apple Silicon, macOS 14 or later.
 
-Expand the application ZIP and move **StatsDirect.app** to Applications. **1.0.0 is the live signed and notarised release.** The next release is **1.1.0**, for IT Services to sign and notarise after testing; it supersedes the 1.0.1 candidate. Unsigned previews remain drafts or pre-releases and do not replace the live download or appear in **Help → Check for Updates**. Installation is currently manual.
+Expand the application ZIP and move **StatsDirect.app** to Applications. **1.1.0 is the live signed and notarised release.** Unsigned previews do not replace the live download or appear in **Help → Check for Updates**. Installation is currently manual.
 
 Upgrading from 0.3.18 or earlier: after saving work and quitting the old app, remove **StatsDirect Viewer.app** from Applications to avoid keeping both names. Your existing settings and learning records are retained.
 
@@ -24,15 +24,17 @@ Open your data with **File → Open**, or choose **Help → Example workbook**, 
 
 ## Build
 
-Requires an Apple Silicon Mac, Xcode command line tools, Python 3, native Apple Silicon R (for the console headers), and either the .NET 10 SDK or Docker Desktop.
+Requires an Apple Silicon Mac, Xcode command line tools, Python 3, Node.js 24 with pnpm, native Apple Silicon R (for the console headers), and either the .NET 10 SDK or Docker Desktop.
 
 ```sh
 git clone --recurse-submodules https://github.com/iain-buchan/statsdirect-mac.git
 cd statsdirect-mac
+corepack enable
+for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
 ./build.sh
 ```
 
-For Docker, run `./docker-build.sh` instead. The build restores missing submodules at their pinned revision. Prebuilt web content is included. R is only needed by users when starting an R session; StatsDirect guides its installation on first use.
+For Docker, run `./docker-build.sh` instead. The build restores missing submodules at their pinned revision. It resolves the latest published help/tutor snapshot from `statisticalhelp` once and incorporates that pinned content into the app. Installed apps use their bundled content. Use `STATSDIRECT_CONTENT_MODE=offline ./build.sh` to rebuild committed inputs without fetching content; [content build modes](Docs/help-editor-content.md) also cover explicit pins. R is only needed by users when starting an R session.
 
 `./build.sh` defaults to an optimised Release build of the Swift shell and native bridges, retaining runtime safety checks. Matching crash-debugging symbols are saved under `.build/symbols/Release`, outside the app. Use `STATSDIRECT_CONFIGURATION=Debug ./build.sh` for an unoptimised native build; the managed calculation engine uses its existing Release configuration.
 
@@ -42,7 +44,7 @@ Run `./test.sh` for engine and R comparison tests (requires R; `RSCRIPT` can sel
 
 A release is signed and notarised from a tested build by the steps in [SIGNING.md](SIGNING.md), with `Scripts/sign-app.sh` and the entitlements in `StatsDirect.entitlements`.
 
-Offline help is imported independently of the engine pin: fetch `FullEngine/Upstream`, then run `python3 Scripts/import-desktop-help.py <published-statsdirect-commit>`. This copies the complete Windows DesktopHelp bundle without changing its files. Run `python3 Tests/test_desktop_help.py` and `Scripts/test-help-pane.sh` to verify it.
+Help and tutor publications are independent of the engine pin. Their receipts, complete file hashes and shared revision are validated before each app build; [the content contract](Docs/help-editor-content.md) describes explicit refresh and offline verification.
 
 Every push to `main` and every pull request runs `.github/workflows/ci.yml` on a GitHub-hosted Apple Silicon runner: the build, `test.sh`, the JavaScript tests, the Excel and data-file tests, the report export and the WebKit integration driver, and a check that the committed `Content` bundles match their sources.
 

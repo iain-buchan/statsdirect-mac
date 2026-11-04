@@ -1,3 +1,10 @@
 # Preserve the upstream menu and bundled third-party legal notices byte for byte.
 Content/windows-menu.xml -text -whitespace
 Content/Grid/*.LEGAL.txt -text -whitespace
+# Published content receipts hash exact producer bytes, including Windows CRLF.
+# Git must not rewrite these imported files on checkout or commit.
+Content/Help/** -text -whitespace
+Learn/AuthoredTutor/** -text -whitespace
+Learn/lessons.json -text -whitespace
+Content/Learn/lessons.json -text -whitespace
+Content/learning-source-manifest.json -text -whitespace

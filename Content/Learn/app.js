@@ -103,9 +103,9 @@
          * @param {Tree} parseTree - the parse tree (must support `walk` API)
          * @param {{classPrefix: string}} options
          */
-        constructor(parseTree3, options3) {
+        constructor(parseTree3, options2) {
           this.buffer = "";
-          this.classPrefix = options3.classPrefix;
+          this.classPrefix = options2.classPrefix;
           parseTree3.walk(this);
         }
         /**
@@ -228,9 +228,9 @@
         /**
          * @param {*} options
          */
-        constructor(options3) {
+        constructor(options2) {
           super();
-          this.options = options3;
+          this.options = options2;
         }
         /**
          * @param {string} text
@@ -945,7 +945,7 @@
         let SAFE_MODE = true;
         const LANGUAGE_NOT_FOUND = "Could not find the language '{}', did you forget to load/include a language module?";
         const PLAINTEXT_LANGUAGE = { disableAutodetect: true, name: "Plain text", contains: [] };
-        let options3 = {
+        let options2 = {
           ignoreUnescapedHTML: false,
           throwUnescapedHTML: false,
           noHighlightRe: /^(no-?highlight)$/i,
@@ -958,12 +958,12 @@
           __emitter: TokenTreeEmitter
         };
         function shouldNotHighlight(languageName) {
-          return options3.noHighlightRe.test(languageName);
+          return options2.noHighlightRe.test(languageName);
         }
         function blockLanguage(block2) {
           let classes = block2.className + " ";
           classes += block2.parentNode ? block2.parentNode.className : "";
-          const match = options3.languageDetectRe.exec(classes);
+          const match = options2.languageDetectRe.exec(classes);
           if (match) {
             const language = getLanguage(match[1]);
             if (!language) {
@@ -1262,7 +1262,7 @@
           let result = "";
           let top = continuation || md;
           const continuations = {};
-          const emitter = new options3.__emitter(options3);
+          const emitter = new options2.__emitter(options2);
           processContinuations();
           let modeBuffer = "";
           let relevance = 0;
@@ -1337,13 +1337,13 @@
             illegal: false,
             relevance: 0,
             _top: PLAINTEXT_LANGUAGE,
-            _emitter: new options3.__emitter(options3)
+            _emitter: new options2.__emitter(options2)
           };
           result._emitter.addText(code);
           return result;
         }
         function highlightAuto(code, languageSubset) {
-          languageSubset = languageSubset || options3.languages || Object.keys(languages);
+          languageSubset = languageSubset || options2.languages || Object.keys(languages);
           const plaintext = justTextHighlightResult(code);
           const results = languageSubset.filter(getLanguage).filter(autoDetection).map(
             (name) => _highlight(name, code, false)
@@ -1383,13 +1383,13 @@
             return;
           }
           if (element.children.length > 0) {
-            if (!options3.ignoreUnescapedHTML) {
+            if (!options2.ignoreUnescapedHTML) {
               console.warn("One of your code blocks includes unescaped HTML. This is a potentially serious security risk.");
               console.warn("https://github.com/highlightjs/highlight.js/wiki/security");
               console.warn("The element with unescaped HTML:");
               console.warn(element);
             }
-            if (options3.throwUnescapedHTML) {
+            if (options2.throwUnescapedHTML) {
               const err = new HTMLInjectionError(
                 "One of your code blocks includes unescaped HTML.",
                 element.innerHTML
@@ -1418,7 +1418,7 @@
           fire("after:highlightElement", { el: element, result, text: text3 });
         }
         function configure2(userOptions) {
-          options3 = inherit(options3, userOptions);
+          options2 = inherit(options2, userOptions);
         }
         const initHighlighting = () => {
           highlightAll();
@@ -1440,7 +1440,7 @@
             wantsHighlight = true;
             return;
           }
-          const blocks = document.querySelectorAll(options3.cssSelector);
+          const blocks = document.querySelectorAll(options2.cssSelector);
           blocks.forEach(highlightElement);
         }
         function registerLanguage(languageName, languageDefinition) {
@@ -1842,8 +1842,8 @@
     }).join("\n");
   }
   var Tokenizer = class {
-    constructor(options3) {
-      this.options = options3 || defaults;
+    constructor(options2) {
+      this.options = options2 || defaults;
     }
     space(src) {
       const cap = this.rules.block.newline.exec(src);
@@ -2581,10 +2581,10 @@
     return out;
   }
   var Lexer = class _Lexer {
-    constructor(options3) {
+    constructor(options2) {
       this.tokens = [];
       this.tokens.links = /* @__PURE__ */ Object.create(null);
-      this.options = options3 || defaults;
+      this.options = options2 || defaults;
       this.options.tokenizer = this.options.tokenizer || new Tokenizer();
       this.tokenizer = this.options.tokenizer;
       this.tokenizer.options = this.options;
@@ -2624,15 +2624,15 @@
     /**
      * Static Lex Method
      */
-    static lex(src, options3) {
-      const lexer2 = new _Lexer(options3);
+    static lex(src, options2) {
+      const lexer2 = new _Lexer(options2);
       return lexer2.lex(src);
     }
     /**
      * Static Lex Inline Method
      */
-    static lexInline(src, options3) {
-      const lexer2 = new _Lexer(options3);
+    static lexInline(src, options2) {
+      const lexer2 = new _Lexer(options2);
       return lexer2.inlineTokens(src);
     }
     /**
@@ -2951,8 +2951,8 @@
     }
   };
   var Renderer = class {
-    constructor(options3) {
-      this.options = options3 || defaults;
+    constructor(options2) {
+      this.options = options2 || defaults;
     }
     code(code, infostring, escaped) {
       const lang = (infostring || "").match(/\S*/)[0];
@@ -3174,14 +3174,14 @@ ${content}</tr>
      * @param {boolean} [options.dryrun] Generates the next unique slug without
      * updating the internal accumulator.
      */
-    slug(value, options3 = {}) {
+    slug(value, options2 = {}) {
       const slug = this.serialize(value);
-      return this.getNextSafeSlug(slug, options3.dryrun);
+      return this.getNextSafeSlug(slug, options2.dryrun);
     }
   };
   var Parser = class _Parser {
-    constructor(options3) {
-      this.options = options3 || defaults;
+    constructor(options2) {
+      this.options = options2 || defaults;
       this.options.renderer = this.options.renderer || new Renderer();
       this.renderer = this.options.renderer;
       this.renderer.options = this.options;
@@ -3191,15 +3191,15 @@ ${content}</tr>
     /**
      * Static Parse Method
      */
-    static parse(tokens, options3) {
-      const parser2 = new _Parser(options3);
+    static parse(tokens, options2) {
+      const parser2 = new _Parser(options2);
       return parser2.parse(tokens);
     }
     /**
      * Static Parse Inline Method
      */
-    static parseInline(tokens, options3) {
-      const parser2 = new _Parser(options3);
+    static parseInline(tokens, options2) {
+      const parser2 = new _Parser(options2);
       return parser2.parseInline(tokens);
     }
     /**
@@ -3412,8 +3412,8 @@ ${content}</tr>
     }
   };
   var Hooks = class {
-    constructor(options3) {
-      this.options = options3 || defaults;
+    constructor(options2) {
+      this.options = options2 || defaults;
     }
     static passThroughHooks = /* @__PURE__ */ new Set([
       "preprocess",
@@ -4711,8 +4711,8 @@ ${content}</tr>
       uponSanitizeShadowNode: []
     };
   };
-  var _resolveSetOption = function _resolveSetOption2(cfg, key, fallback, options3) {
-    return objectHasOwnProperty(cfg, key) && arrayIsArray(cfg[key]) ? addToSet(options3.base ? clone(options3.base) : {}, cfg[key], options3.transform) : fallback;
+  var _resolveSetOption = function _resolveSetOption2(cfg, key, fallback, options2) {
+    return objectHasOwnProperty(cfg, key) && arrayIsArray(cfg[key]) ? addToSet(options2.base ? clone(options2.base) : {}, cfg[key], options2.transform) : fallback;
   };
   var _resolveObjectOption = function _resolveObjectOption2(cfg, key, makeFallback) {
     const value = objectHasOwnProperty(cfg, key) ? cfg[key] : void 0;
@@ -5920,15 +5920,15 @@ ${content}</tr>
     var type = Array.isArray(schema.type) ? schema.type[0] : schema.type;
     return getImplicitDefault(type);
   }
-  function applySetting(target, prop, options3, schema) {
-    var optionValue = Object.prototype.hasOwnProperty.call(options3, prop) ? options3[prop] : void 0;
+  function applySetting(target, prop, options2, schema) {
+    var optionValue = Object.prototype.hasOwnProperty.call(options2, prop) ? options2[prop] : void 0;
     var processor = Object.prototype.hasOwnProperty.call(schema, "processor") ? schema.processor : void 0;
     target[prop] = optionValue !== void 0 ? processor ? processor(optionValue) : optionValue : getDefaultValue(schema);
   }
   var Settings = class {
-    constructor(options3) {
-      if (options3 === void 0) {
-        options3 = {};
+    constructor(options2) {
+      if (options2 === void 0) {
+        options2 = {};
       }
       this.displayMode = void 0;
       this.output = void 0;
@@ -5944,11 +5944,11 @@ ${content}</tr>
       this.maxSize = void 0;
       this.maxExpand = void 0;
       this.globalGroup = void 0;
-      options3 = options3 || {};
+      options2 = options2 || {};
       for (var prop of Object.keys(SETTINGS_SCHEMA)) {
         var schema = SETTINGS_SCHEMA[prop];
         if (schema) {
-          applySetting(this, prop, options3, schema);
+          applySetting(this, prop, options2, schema);
         }
       }
     }
@@ -6401,18 +6401,18 @@ ${content}</tr>
     }
     return unit in ptPerUnit || unit in relativeUnit || unit === "ex";
   };
-  var calculateSize = function calculateSize2(sizeValue, options3) {
+  var calculateSize = function calculateSize2(sizeValue, options2) {
     var scale;
     if (sizeValue.unit in ptPerUnit) {
-      scale = ptPerUnit[sizeValue.unit] / options3.fontMetrics().ptPerEm / options3.sizeMultiplier;
+      scale = ptPerUnit[sizeValue.unit] / options2.fontMetrics().ptPerEm / options2.sizeMultiplier;
     } else if (sizeValue.unit === "mu") {
-      scale = options3.fontMetrics().cssEmPerMu;
+      scale = options2.fontMetrics().cssEmPerMu;
     } else {
       var unitOptions;
-      if (options3.style.isTight()) {
-        unitOptions = options3.havingStyle(options3.style.text());
+      if (options2.style.isTight()) {
+        unitOptions = options2.havingStyle(options2.style.text());
       } else {
-        unitOptions = options3;
+        unitOptions = options2;
       }
       if (sizeValue.unit === "ex") {
         scale = unitOptions.fontMetrics().xHeight;
@@ -6421,11 +6421,11 @@ ${content}</tr>
       } else {
         throw new ParseError("Invalid unit: '" + sizeValue.unit + "'");
       }
-      if (unitOptions !== options3) {
-        scale *= unitOptions.sizeMultiplier / options3.sizeMultiplier;
+      if (unitOptions !== options2) {
+        scale *= unitOptions.sizeMultiplier / options2.sizeMultiplier;
       }
     }
-    return Math.min(sizeValue.number * scale, options3.maxSize);
+    return Math.min(sizeValue.number * scale, options2.maxSize);
   };
   var makeEm = function makeEm2(n) {
     return +n.toFixed(4) + "em";
@@ -6443,18 +6443,18 @@ ${content}</tr>
     }
     return styles2;
   };
-  var initNode = function initNode2(classes, options3, style) {
+  var initNode = function initNode2(classes, options2, style) {
     this.classes = classes || [];
     this.attributes = {};
     this.height = 0;
     this.depth = 0;
     this.maxFontSize = 0;
     this.style = style || {};
-    if (options3) {
-      if (options3.style.isTight()) {
+    if (options2) {
+      if (options2.style.isTight()) {
         this.classes.push("mtight");
       }
-      var color = options3.getColor();
+      var color = options2.getColor();
       if (color) {
         this.style.color = color;
       }
@@ -6496,7 +6496,7 @@ ${content}</tr>
     return markup;
   };
   var Span = class {
-    constructor(classes, children, options3, style) {
+    constructor(classes, children, options2, style) {
       this.children = void 0;
       this.attributes = void 0;
       this.classes = void 0;
@@ -6506,7 +6506,7 @@ ${content}</tr>
       this.maxFontSize = void 0;
       this.style = void 0;
       this.italic = void 0;
-      initNode.call(this, classes, options3, style);
+      initNode.call(this, classes, options2, style);
       this.children = children || [];
     }
     /**
@@ -6528,7 +6528,7 @@ ${content}</tr>
     }
   };
   var Anchor = class {
-    constructor(href, classes, children, options3) {
+    constructor(href, classes, children, options2) {
       this.children = void 0;
       this.attributes = void 0;
       this.classes = void 0;
@@ -6536,7 +6536,7 @@ ${content}</tr>
       this.depth = void 0;
       this.maxFontSize = void 0;
       this.style = void 0;
-      initNode.call(this, classes, options3);
+      initNode.call(this, classes, options2);
       this.children = children || [];
       this.setAttribute("href", href);
     }
@@ -9979,46 +9979,46 @@ ${content}</tr>
       metrics: getCharacterMetrics(value, fontName, mode)
     };
   };
-  var makeSymbol = function makeSymbol2(value, fontName, mode, options3, classes) {
+  var makeSymbol = function makeSymbol2(value, fontName, mode, options2, classes) {
     var lookup = lookupSymbol(value, fontName, mode);
     var metrics = lookup.metrics;
     value = lookup.value;
     var symbolNode;
     if (metrics) {
       var italic2 = metrics.italic;
-      if (mode === "text" || options3 && options3.font === "mathit") {
+      if (mode === "text" || options2 && options2.font === "mathit") {
         italic2 = 0;
       }
       symbolNode = new SymbolNode(value, metrics.height, metrics.depth, italic2, metrics.skew, metrics.width, classes);
     } else {
       handleStrict({
-        strict: options3.strict,
+        strict: options2.strict,
         errorCode: "symbolNotInFont",
         errorMsg: "No character metrics for '" + value + "' in style '" + fontName + "' and mode '" + mode + "'",
         report: true
       });
       symbolNode = new SymbolNode(value, 0, 0, 0, 0, 0, classes);
     }
-    symbolNode.maxFontSize = options3.sizeMultiplier;
-    if (options3.style.isTight()) {
+    symbolNode.maxFontSize = options2.sizeMultiplier;
+    if (options2.style.isTight()) {
       symbolNode.classes.push("mtight");
     }
-    var color = options3.getColor();
+    var color = options2.getColor();
     if (color) {
       symbolNode.style.color = color;
     }
     return symbolNode;
   };
-  var mathsym = function mathsym2(value, mode, options3, classes) {
+  var mathsym = function mathsym2(value, mode, options2, classes) {
     if (classes === void 0) {
       classes = [];
     }
-    if (options3.font === "boldsymbol" && lookupSymbol(value, "Main-Bold", mode).metrics) {
-      return makeSymbol(value, "Main-Bold", mode, options3, classes.concat(["mathbf"]));
+    if (options2.font === "boldsymbol" && lookupSymbol(value, "Main-Bold", mode).metrics) {
+      return makeSymbol(value, "Main-Bold", mode, options2, classes.concat(["mathbf"]));
     } else if (value === "\\" || symbols[mode][value].font === "main") {
-      return makeSymbol(value, "Main-Regular", mode, options3, classes);
+      return makeSymbol(value, "Main-Regular", mode, options2, classes);
     } else {
-      return makeSymbol(value, "AMS-Regular", mode, options3, classes.concat(["amsrm"]));
+      return makeSymbol(value, "AMS-Regular", mode, options2, classes.concat(["amsrm"]));
     }
   };
   var boldSymbol = function boldSymbol2(value, mode, type) {
@@ -10034,12 +10034,12 @@ ${content}</tr>
       };
     }
   };
-  var makeOrd = function makeOrd2(group, options3) {
+  var makeOrd = function makeOrd2(group, options2) {
     var type = group.type === "mathord" ? "mathord" : "textord";
     var mode = group.mode;
     var text3 = group.text;
     var classes = ["mord"];
-    var font = options3.font, fontFamily = options3.fontFamily, fontWeight = options3.fontWeight, fontShape = options3.fontShape;
+    var font = options2.font, fontFamily = options2.fontFamily, fontWeight = options2.fontWeight, fontShape = options2.fontShape;
     var useFont = mode === "math" || mode === "text" && !!font;
     var fontOrFamily = useFont ? font : fontFamily;
     var wideFontName = "";
@@ -10050,7 +10050,7 @@ ${content}</tr>
       wideFontClass = wideCharData[mode + "Class"];
     }
     if (wideFontName) {
-      return makeSymbol(text3, wideFontName, mode, options3, classes.concat(wideFontClass));
+      return makeSymbol(text3, wideFontName, mode, options2, classes.concat(wideFontClass));
     } else if (fontOrFamily) {
       var fontName;
       var fontClasses;
@@ -10066,28 +10066,28 @@ ${content}</tr>
         fontClasses = [fontFamily, fontWeight, fontShape];
       }
       if (lookupSymbol(text3, fontName, mode).metrics) {
-        return makeSymbol(text3, fontName, mode, options3, classes.concat(fontClasses));
+        return makeSymbol(text3, fontName, mode, options2, classes.concat(fontClasses));
       } else if (Object.prototype.hasOwnProperty.call(ligatures, text3) && fontName.slice(0, 10) === "Typewriter") {
         var parts = [];
         for (var i = 0; i < text3.length; i++) {
-          parts.push(makeSymbol(text3[i], fontName, mode, options3, classes.concat(fontClasses)));
+          parts.push(makeSymbol(text3[i], fontName, mode, options2, classes.concat(fontClasses)));
         }
         return makeFragment(parts);
       }
     }
     if (type === "mathord") {
-      return makeSymbol(text3, "Math-Italic", mode, options3, classes.concat(["mathnormal"]));
+      return makeSymbol(text3, "Math-Italic", mode, options2, classes.concat(["mathnormal"]));
     } else if (type === "textord") {
       var _font = symbols[mode][text3] && symbols[mode][text3].font;
       if (_font === "ams") {
         var _fontName = retrieveTextFontName("amsrm", fontWeight, fontShape);
-        return makeSymbol(text3, _fontName, mode, options3, classes.concat("amsrm", fontWeight, fontShape));
+        return makeSymbol(text3, _fontName, mode, options2, classes.concat("amsrm", fontWeight, fontShape));
       } else if (_font === "main" || !_font) {
         var _fontName2 = retrieveTextFontName("textrm", fontWeight, fontShape);
-        return makeSymbol(text3, _fontName2, mode, options3, classes.concat(fontWeight, fontShape));
+        return makeSymbol(text3, _fontName2, mode, options2, classes.concat(fontWeight, fontShape));
       } else {
         var _fontName3 = retrieveTextFontName(_font, fontWeight, fontShape);
-        return makeSymbol(text3, _fontName3, mode, options3, classes.concat(_fontName3, fontWeight, fontShape));
+        return makeSymbol(text3, _fontName3, mode, options2, classes.concat(_fontName3, fontWeight, fontShape));
       }
     } else {
       throw new Error("unexpected type: " + type + " in makeOrd");
@@ -10150,21 +10150,21 @@ ${content}</tr>
     elem.depth = depth;
     elem.maxFontSize = maxFontSize;
   };
-  var makeSpan = function makeSpan2(classes, children, options3, style) {
-    var span = new Span(classes, children, options3, style);
+  var makeSpan = function makeSpan2(classes, children, options2, style) {
+    var span = new Span(classes, children, options2, style);
     sizeElementFromChildren(span);
     return span;
   };
-  var makeSvgSpan = (classes, children, options3, style) => new Span(classes, children, options3, style);
-  var makeLineSpan = function makeLineSpan2(className, options3, thickness) {
-    var line = makeSpan([className], [], options3);
-    line.height = Math.max(thickness || options3.fontMetrics().defaultRuleThickness, options3.minRuleThickness);
+  var makeSvgSpan = (classes, children, options2, style) => new Span(classes, children, options2, style);
+  var makeLineSpan = function makeLineSpan2(className, options2, thickness) {
+    var line = makeSpan([className], [], options2);
+    line.height = Math.max(thickness || options2.fontMetrics().defaultRuleThickness, options2.minRuleThickness);
     line.style.borderBottomWidth = makeEm(line.height);
     line.maxFontSize = 1;
     return line;
   };
-  var makeAnchor = function makeAnchor2(href, classes, children, options3) {
-    var anchor = new Anchor(href, classes, children, options3);
+  var makeAnchor = function makeAnchor2(href, classes, children, options2) {
+    var anchor = new Anchor(href, classes, children, options2);
     sizeElementFromChildren(anchor);
     return anchor;
   };
@@ -10173,9 +10173,9 @@ ${content}</tr>
     sizeElementFromChildren(fragment);
     return fragment;
   };
-  var wrapFragment = function wrapFragment2(group, options3) {
+  var wrapFragment = function wrapFragment2(group, options2) {
     if (group instanceof DocumentFragment) {
-      return makeSpan([], [group], options3);
+      return makeSpan([], [group], options2);
     }
     return group;
   };
@@ -10228,7 +10228,7 @@ ${content}</tr>
       depth
     };
   };
-  var makeVList = function makeVList2(params, options3) {
+  var makeVList = function makeVList2(params, options2) {
     var _getVListChildrenAndD = getVListChildrenAndDepth(params), children = _getVListChildrenAndD.children, depth = _getVListChildrenAndD.depth;
     var pstrutSize = 0;
     for (var i = 0; i < children.length; i++) {
@@ -10287,9 +10287,9 @@ ${content}</tr>
     vtable.depth = -minPos;
     return vtable;
   };
-  var makeGlue = (measurement, options3) => {
-    var rule = makeSpan(["mspace"], [], options3);
-    var size = calculateSize(measurement, options3);
+  var makeGlue = (measurement, options2) => {
+    var rule = makeSpan(["mspace"], [], options2);
+    var size = calculateSize(measurement, options2);
     rule.style.marginRight = makeEm(size);
     return rule;
   };
@@ -10388,7 +10388,7 @@ ${content}</tr>
     oiiintSize1: ["oiiintSize1", 1.304, 0.499],
     oiiintSize2: ["oiiintSize2", 1.98, 0.659]
   };
-  var staticSvg = function staticSvg2(value, options3) {
+  var staticSvg = function staticSvg2(value, options2) {
     var _svgData$value = svgData[value], pathName = _svgData$value[0], width = _svgData$value[1], height = _svgData$value[2];
     var path2 = new PathNode(pathName);
     var svgNode = new SvgNode([path2], {
@@ -10399,7 +10399,7 @@ ${content}</tr>
       "viewBox": "0 0 " + 1e3 * width + " " + 1e3 * height,
       "preserveAspectRatio": "xMinYMin"
     });
-    var span = makeSvgSpan(["katex-overlay"], [svgNode], options3);
+    var span = makeSvgSpan(["katex-overlay"], [svgNode], options2);
     span.height = height;
     span.style.height = makeEm(height);
     span.style.width = makeEm(width);
@@ -10537,13 +10537,13 @@ ${content}</tr>
     mpunct: "mpunct",
     minner: "minner"
   };
-  var buildExpression$1 = function buildExpression(expression, options3, isRealGroup, surrounding) {
+  var buildExpression$1 = function buildExpression(expression, options2, isRealGroup, surrounding) {
     if (surrounding === void 0) {
       surrounding = [null, null];
     }
     var groups = [];
     for (var i = 0; i < expression.length; i++) {
-      var output = buildGroup$1(expression[i], options3);
+      var output = buildGroup$1(expression[i], options2);
       if (output instanceof DocumentFragment) {
         var children = output.children;
         groups.push(...children);
@@ -10555,17 +10555,17 @@ ${content}</tr>
     if (!isRealGroup) {
       return groups;
     }
-    var glueOptions = options3;
+    var glueOptions = options2;
     if (expression.length === 1) {
       var node = expression[0];
       if (node.type === "sizing") {
-        glueOptions = options3.havingSize(node.size);
+        glueOptions = options2.havingSize(node.size);
       } else if (node.type === "styling") {
-        glueOptions = options3.havingStyle(styleMap$1[node.style]);
+        glueOptions = options2.havingStyle(styleMap$1[node.style]);
       }
     }
-    var dummyPrev = makeSpan([surrounding[0] || "leftmost"], [], options3);
-    var dummyNext = makeSpan([surrounding[1] || "rightmost"], [], options3);
+    var dummyPrev = makeSpan([surrounding[0] || "leftmost"], [], options2);
+    var dummyNext = makeSpan([surrounding[1] || "rightmost"], [], options2);
     var isRoot = isRealGroup === "root";
     _traverseNonSpaceNodes(groups, (node2, prev) => {
       var prevType = prev.classes[0];
@@ -10659,19 +10659,19 @@ ${content}</tr>
     var className = node.classes[0];
     return DomEnum[className] || null;
   };
-  var makeNullDelimiter = function makeNullDelimiter2(options3, classes) {
-    var moreClasses = ["nulldelimiter"].concat(options3.baseSizingClasses());
+  var makeNullDelimiter = function makeNullDelimiter2(options2, classes) {
+    var moreClasses = ["nulldelimiter"].concat(options2.baseSizingClasses());
     return makeSpan(classes.concat(moreClasses));
   };
-  var buildGroup$1 = function buildGroup(group, options3, baseOptions) {
+  var buildGroup$1 = function buildGroup(group, options2, baseOptions) {
     if (!group) {
       return makeSpan();
     }
     if (_htmlGroupBuilders[group.type]) {
-      var groupNode = _htmlGroupBuilders[group.type](group, options3);
-      if (baseOptions && options3.size !== baseOptions.size) {
-        groupNode = makeSpan(options3.sizingClasses(baseOptions), [groupNode], options3);
-        var multiplier = options3.sizeMultiplier / baseOptions.sizeMultiplier;
+      var groupNode = _htmlGroupBuilders[group.type](group, options2);
+      if (baseOptions && options2.size !== baseOptions.size) {
+        groupNode = makeSpan(options2.sizingClasses(baseOptions), [groupNode], options2);
+        var multiplier = options2.sizeMultiplier / baseOptions.sizeMultiplier;
         groupNode.height *= multiplier;
         groupNode.depth *= multiplier;
       }
@@ -10680,8 +10680,8 @@ ${content}</tr>
       throw new ParseError("Got group of unknown type: '" + group.type + "'");
     }
   };
-  function buildHTMLUnbreakable(children, options3) {
-    var body = makeSpan(["katex-base"], children, options3);
+  function buildHTMLUnbreakable(children, options2) {
+    var body = makeSpan(["katex-base"], children, options2);
     var strut = makeSpan(["katex-strut"]);
     strut.style.height = makeEm(body.height + body.depth);
     if (body.depth) {
@@ -10690,13 +10690,13 @@ ${content}</tr>
     body.children.unshift(strut);
     return body;
   }
-  function buildHTML(tree, options3) {
+  function buildHTML(tree, options2) {
     var tag = null;
     if (tree.length === 1 && tree[0].type === "tag") {
       tag = tree[0].tag;
       tree = tree[0].body;
     }
-    var expression = buildExpression$1(tree, options3, "root");
+    var expression = buildExpression$1(tree, options2, "root");
     var eqnNum;
     if (expression.length === 2 && expression[1].hasClass("katex-tag")) {
       eqnNum = expression.pop();
@@ -10715,24 +10715,24 @@ ${content}</tr>
           }
         }
         if (!nobreak) {
-          children.push(buildHTMLUnbreakable(parts, options3));
+          children.push(buildHTMLUnbreakable(parts, options2));
           parts = [];
         }
       } else if (expression[i].hasClass("katex-newline")) {
         parts.pop();
         if (parts.length > 0) {
-          children.push(buildHTMLUnbreakable(parts, options3));
+          children.push(buildHTMLUnbreakable(parts, options2));
           parts = [];
         }
         children.push(expression[i]);
       }
     }
     if (parts.length > 0) {
-      children.push(buildHTMLUnbreakable(parts, options3));
+      children.push(buildHTMLUnbreakable(parts, options2));
     }
     var tagChild;
     if (tag) {
-      tagChild = buildHTMLUnbreakable(buildExpression$1(tag, options3, true), options3);
+      tagChild = buildHTMLUnbreakable(buildExpression$1(tag, options2, true), options2);
       tagChild.classes = ["katex-tag"];
       children.push(tagChild);
     } else if (eqnNum) {
@@ -10920,9 +10920,9 @@ ${content}</tr>
   };
   var noVariantSymbols = /* @__PURE__ */ new Set(["\\imath", "\\jmath"]);
   var rowLikeTypes = /* @__PURE__ */ new Set(["mrow", "mtable"]);
-  var makeText = function makeText2(text3, mode, options3) {
+  var makeText = function makeText2(text3, mode, options2) {
     var _options$fontFamily, _options$font;
-    if (symbols[mode][text3] && symbols[mode][text3].replace && text3.charCodeAt(0) !== 55349 && !(Object.prototype.hasOwnProperty.call(ligatures, text3) && ((options3 == null || (_options$fontFamily = options3.fontFamily) == null ? void 0 : _options$fontFamily.slice(4, 6)) === "tt" || (options3 == null || (_options$font = options3.font) == null ? void 0 : _options$font.slice(4, 6)) === "tt"))) {
+    if (symbols[mode][text3] && symbols[mode][text3].replace && text3.charCodeAt(0) !== 55349 && !(Object.prototype.hasOwnProperty.call(ligatures, text3) && ((options2 == null || (_options$fontFamily = options2.fontFamily) == null ? void 0 : _options$fontFamily.slice(4, 6)) === "tt" || (options2 == null || (_options$font = options2.font) == null ? void 0 : _options$font.slice(4, 6)) === "tt"))) {
       text3 = symbols[mode][text3].replace;
     }
     return new TextNode(text3);
@@ -10946,29 +10946,29 @@ ${content}</tr>
     mathsf: "sans-serif",
     mathtt: "monospace"
   };
-  var getVariant = (group, options3) => {
+  var getVariant = (group, options2) => {
     if (group.mode === "text") {
-      if (options3.fontFamily === "texttt") {
+      if (options2.fontFamily === "texttt") {
         return "monospace";
-      } else if (options3.fontFamily === "textsf") {
-        if (options3.fontShape === "textit" && options3.fontWeight === "textbf") {
+      } else if (options2.fontFamily === "textsf") {
+        if (options2.fontShape === "textit" && options2.fontWeight === "textbf") {
           return "sans-serif-bold-italic";
-        } else if (options3.fontShape === "textit") {
+        } else if (options2.fontShape === "textit") {
           return "sans-serif-italic";
-        } else if (options3.fontWeight === "textbf") {
+        } else if (options2.fontWeight === "textbf") {
           return "bold-sans-serif";
         } else {
           return "sans-serif";
         }
-      } else if (options3.fontShape === "textit" && options3.fontWeight === "textbf") {
+      } else if (options2.fontShape === "textit" && options2.fontWeight === "textbf") {
         return "bold-italic";
-      } else if (options3.fontShape === "textit") {
+      } else if (options2.fontShape === "textit") {
         return "italic";
-      } else if (options3.fontWeight === "textbf") {
+      } else if (options2.fontWeight === "textbf") {
         return "bold";
       }
     }
-    var font = options3.font;
+    var font = options2.font;
     if (!font || font === "mathnormal") {
       return null;
     }
@@ -11007,9 +11007,9 @@ ${content}</tr>
       return false;
     }
   }
-  var buildExpression2 = function buildExpression3(expression, options3, isOrdgroup) {
+  var buildExpression2 = function buildExpression3(expression, options2, isOrdgroup) {
     if (expression.length === 1) {
-      var group = buildGroup2(expression[0], options3);
+      var group = buildGroup2(expression[0], options2);
       if (isOrdgroup && group instanceof MathNode && group.type === "mo") {
         group.setAttribute("lspace", "0em");
         group.setAttribute("rspace", "0em");
@@ -11019,7 +11019,7 @@ ${content}</tr>
     var groups = [];
     var lastGroup;
     for (var i = 0; i < expression.length; i++) {
-      var _group = buildGroup2(expression[i], options3);
+      var _group = buildGroup2(expression[i], options2);
       if (_group instanceof MathNode && lastGroup instanceof MathNode) {
         if (_group.type === "mtext" && lastGroup.type === "mtext" && _group.getAttribute("mathvariant") === lastGroup.getAttribute("mathvariant")) {
           lastGroup.children.push(..._group.children);
@@ -11055,21 +11055,21 @@ ${content}</tr>
     }
     return groups;
   };
-  var buildExpressionRow = function buildExpressionRow2(expression, options3, isOrdgroup) {
-    return makeRow(buildExpression2(expression, options3, isOrdgroup));
+  var buildExpressionRow = function buildExpressionRow2(expression, options2, isOrdgroup) {
+    return makeRow(buildExpression2(expression, options2, isOrdgroup));
   };
-  var buildGroup2 = function buildGroup3(group, options3) {
+  var buildGroup2 = function buildGroup3(group, options2) {
     if (!group) {
       return new MathNode("mrow");
     }
     if (_mathmlGroupBuilders[group.type]) {
-      return _mathmlGroupBuilders[group.type](group, options3);
+      return _mathmlGroupBuilders[group.type](group, options2);
     } else {
       throw new ParseError("Got group of unknown type: '" + group.type + "'");
     }
   };
-  function buildMathML(tree, texExpression, options3, isDisplayMode, forMathmlOnly) {
-    var expression = buildExpression2(tree, options3);
+  function buildMathML(tree, texExpression, options2, isDisplayMode, forMathmlOnly) {
+    var expression = buildExpression2(tree, options2);
     var wrapper;
     if (expression.length === 1 && expression[0] instanceof MathNode && rowLikeTypes.has(expression[0].type)) {
       wrapper = expression[0];
@@ -11375,23 +11375,23 @@ ${content}</tr>
     return node;
   };
   var buildTree = function buildTree2(tree, expression, settings2) {
-    var options3 = optionsFromSettings(settings2);
+    var options2 = optionsFromSettings(settings2);
     var katexNode;
     if (settings2.output === "mathml") {
-      return buildMathML(tree, expression, options3, settings2.displayMode, true);
+      return buildMathML(tree, expression, options2, settings2.displayMode, true);
     } else if (settings2.output === "html") {
-      var htmlNode = buildHTML(tree, options3);
+      var htmlNode = buildHTML(tree, options2);
       katexNode = makeSpan(["katex"], [htmlNode]);
     } else {
-      var mathMLNode = buildMathML(tree, expression, options3, settings2.displayMode, false);
-      var _htmlNode = buildHTML(tree, options3);
+      var mathMLNode = buildMathML(tree, expression, options2, settings2.displayMode, false);
+      var _htmlNode = buildHTML(tree, options2);
       katexNode = makeSpan(["katex"], [mathMLNode, _htmlNode]);
     }
     return displayWrap(katexNode, settings2);
   };
   var buildHTMLTree = function buildHTMLTree2(tree, settings2) {
-    var options3 = optionsFromSettings(settings2);
-    var htmlNode = buildHTML(tree, options3);
+    var options2 = optionsFromSettings(settings2);
+    var htmlNode = buildHTML(tree, options2);
     var katexNode = makeSpan(["katex"], [htmlNode]);
     return displayWrap(katexNode, settings2);
   };
@@ -11499,7 +11499,7 @@ ${content}</tr>
     xleftequilibrium: [["shortbaraboveleftharpoon", "shortrightharpoonabovebar"], 1.75, 716]
   };
   var wideAccentLabels = /* @__PURE__ */ new Set(["widehat", "widecheck", "widetilde", "utilde"]);
-  var stretchySvg = function stretchySvg2(group, options3) {
+  var stretchySvg = function stretchySvg2(group, options2) {
     function buildSvgSpan_() {
       var viewBoxWidth = 4e5;
       var label = group.label.slice(1);
@@ -11542,7 +11542,7 @@ ${content}</tr>
           "preserveAspectRatio": "none"
         });
         return {
-          span: makeSvgSpan([], [svgNode], options3),
+          span: makeSvgSpan([], [svgNode], options2),
           minWidth: 0,
           height: _height
         };
@@ -11580,7 +11580,7 @@ ${content}</tr>
             "viewBox": "0 0 " + viewBoxWidth + " " + _viewBoxHeight,
             "preserveAspectRatio": aligns[i] + " slice"
           });
-          var _span = makeSvgSpan([widthClasses[i]], [_svgNode], options3);
+          var _span = makeSvgSpan([widthClasses[i]], [_svgNode], options2);
           if (numSvgChildren === 1) {
             return {
               span: _span,
@@ -11593,7 +11593,7 @@ ${content}</tr>
           }
         }
         return {
-          span: makeSpan(["katex-stretchy"], spans, options3),
+          span: makeSpan(["katex-stretchy"], spans, options2),
           minWidth: _minWidth,
           height: _height2
         };
@@ -11607,13 +11607,13 @@ ${content}</tr>
     }
     return span;
   };
-  var stretchyEnclose = function stretchyEnclose2(inner2, label, topPad, bottomPad, options3) {
+  var stretchyEnclose = function stretchyEnclose2(inner2, label, topPad, bottomPad, options2) {
     var img;
     var totalHeight = inner2.height + inner2.depth + topPad + bottomPad;
     if (/fbox|color|angl/.test(label)) {
-      img = makeSpan(["katex-stretchy", label], [], options3);
+      img = makeSpan(["katex-stretchy", label], [], options2);
       if (label === "fbox") {
-        var color = options3.color && options3.getColor();
+        var color = options2.color && options2.getColor();
         if (color) {
           img.style.borderColor = color;
         }
@@ -11642,7 +11642,7 @@ ${content}</tr>
         "width": "100%",
         "height": makeEm(totalHeight)
       });
-      img = makeSvgSpan([], [svgNode], options3);
+      img = makeSvgSpan([], [svgNode], options2);
     }
     img.height = totalHeight;
     img.style.height = makeEm(totalHeight);
@@ -11695,7 +11695,7 @@ ${content}</tr>
       return getBaseSymbol(group.children[0]);
     }
   };
-  var htmlBuilder$a = (grp, options3) => {
+  var htmlBuilder$a = (grp, options2) => {
     var base;
     var group;
     var supSubGroup;
@@ -11703,13 +11703,13 @@ ${content}</tr>
       group = assertNodeType(grp.base, "accent");
       base = group.base;
       grp.base = base;
-      supSubGroup = assertSpan(buildGroup$1(grp, options3));
+      supSubGroup = assertSpan(buildGroup$1(grp, options2));
       grp.base = group;
     } else {
       group = assertNodeType(grp, "accent");
       base = group.base;
     }
-    var body = buildGroup$1(base, options3.havingCrampedStyle());
+    var body = buildGroup$1(base, options2.havingCrampedStyle());
     var mustShift = group.isShifty && isCharacterBox(base);
     var skew = 0;
     if (mustShift) {
@@ -11717,20 +11717,20 @@ ${content}</tr>
       skew = (_getBaseSymbol$skew = (_getBaseSymbol = getBaseSymbol(body)) == null ? void 0 : _getBaseSymbol.skew) != null ? _getBaseSymbol$skew : 0;
     }
     var accentBelow = group.label === "\\c";
-    var clearance = accentBelow ? body.height + body.depth : Math.min(body.height, options3.fontMetrics().xHeight);
+    var clearance = accentBelow ? body.height + body.depth : Math.min(body.height, options2.fontMetrics().xHeight);
     var accentBody;
     if (!group.isStretchy) {
       var accent2;
       var width;
       if (group.label === "\\vec") {
-        accent2 = staticSvg("vec", options3);
+        accent2 = staticSvg("vec", options2);
         width = svgData.vec[1];
       } else {
         accent2 = makeOrd({
           type: "textord",
           mode: group.mode,
           text: group.label
-        }, options3);
+        }, options2);
         accent2 = assertSymbolDomNode(accent2);
         accent2.italic = 0;
         width = accent2.width;
@@ -11766,7 +11766,7 @@ ${content}</tr>
         }]
       });
     } else {
-      accentBody = stretchySvg(group, options3);
+      accentBody = stretchySvg(group, options2);
       accentBody = makeVList({
         positionType: "firstBaseline",
         children: [{
@@ -11783,7 +11783,7 @@ ${content}</tr>
         }]
       });
     }
-    var accentWrap = makeSpan(["mord", "katex-accent"], [accentBody], options3);
+    var accentWrap = makeSpan(["mord", "katex-accent"], [accentBody], options2);
     if (supSubGroup) {
       supSubGroup.children[0] = accentWrap;
       supSubGroup.height = Math.max(accentWrap.height, supSubGroup.height);
@@ -11793,9 +11793,9 @@ ${content}</tr>
       return accentWrap;
     }
   };
-  var mathmlBuilder$9 = (group, options3) => {
+  var mathmlBuilder$9 = (group, options2) => {
     var accentNode = group.isStretchy ? stretchyMathML(group.label) : new MathNode("mo", [makeText(group.label, group.mode)]);
-    var node = new MathNode("mover", [buildGroup2(group.base, options3), accentNode]);
+    var node = new MathNode("mover", [buildGroup2(group.base, options2), accentNode]);
     node.setAttribute("accent", "true");
     return node;
   };
@@ -11864,9 +11864,9 @@ ${content}</tr>
         base
       };
     },
-    htmlBuilder: (group, options3) => {
-      var innerGroup = buildGroup$1(group.base, options3);
-      var accentBody = stretchySvg(group, options3);
+    htmlBuilder: (group, options2) => {
+      var innerGroup = buildGroup$1(group.base, options2);
+      var accentBody = stretchySvg(group, options2);
       var kern = group.label === "\\utilde" ? 0.12 : 0;
       var vlist = makeVList({
         positionType: "top",
@@ -11883,11 +11883,11 @@ ${content}</tr>
           elem: innerGroup
         }]
       });
-      return makeSpan(["mord", "accentunder"], [vlist], options3);
+      return makeSpan(["mord", "accentunder"], [vlist], options2);
     },
-    mathmlBuilder: (group, options3) => {
+    mathmlBuilder: (group, options2) => {
       var accentNode = stretchyMathML(group.label);
-      var node = new MathNode("munder", [buildGroup2(group.base, options3), accentNode]);
+      var node = new MathNode("munder", [buildGroup2(group.base, options2), accentNode]);
       node.setAttribute("accentunder", "true");
       return node;
     }
@@ -11942,27 +11942,27 @@ ${content}</tr>
         below: optArgs[0]
       };
     },
-    htmlBuilder(group, options3) {
-      var style = options3.style;
-      var newOptions = options3.havingStyle(style.sup());
-      var upperGroup = wrapFragment(buildGroup$1(group.body, newOptions, options3), options3);
+    htmlBuilder(group, options2) {
+      var style = options2.style;
+      var newOptions = options2.havingStyle(style.sup());
+      var upperGroup = wrapFragment(buildGroup$1(group.body, newOptions, options2), options2);
       var arrowPrefix = group.label.slice(0, 2) === "\\x" ? "x" : "cd";
       upperGroup.classes.push(arrowPrefix + "-arrow-pad");
       var lowerGroup;
       if (group.below) {
-        newOptions = options3.havingStyle(style.sub());
-        lowerGroup = wrapFragment(buildGroup$1(group.below, newOptions, options3), options3);
+        newOptions = options2.havingStyle(style.sub());
+        lowerGroup = wrapFragment(buildGroup$1(group.below, newOptions, options2), options2);
         lowerGroup.classes.push(arrowPrefix + "-arrow-pad");
       }
-      var arrowBody = stretchySvg(group, options3);
-      var arrowShift = -options3.fontMetrics().axisHeight + 0.5 * arrowBody.height;
-      var upperShift = -options3.fontMetrics().axisHeight - 0.5 * arrowBody.height - 0.111;
+      var arrowBody = stretchySvg(group, options2);
+      var arrowShift = -options2.fontMetrics().axisHeight + 0.5 * arrowBody.height;
+      var upperShift = -options2.fontMetrics().axisHeight - 0.5 * arrowBody.height - 0.111;
       if (upperGroup.depth > 0.25 || group.label === "\\xleftequilibrium") {
         upperShift -= upperGroup.depth;
       }
       var vlist;
       if (lowerGroup) {
-        var lowerShift = -options3.fontMetrics().axisHeight + lowerGroup.height + 0.5 * arrowBody.height + 0.111;
+        var lowerShift = -options2.fontMetrics().axisHeight + lowerGroup.height + 0.5 * arrowBody.height + 0.111;
         vlist = makeVList({
           positionType: "individualShift",
           children: [{
@@ -11995,22 +11995,22 @@ ${content}</tr>
           }]
         });
       }
-      return makeSpan(["mrel", "x-arrow"], [vlist], options3);
+      return makeSpan(["mrel", "x-arrow"], [vlist], options2);
     },
-    mathmlBuilder(group, options3) {
+    mathmlBuilder(group, options2) {
       var arrowNode = stretchyMathML(group.label);
       arrowNode.setAttribute("minsize", group.label.charAt(0) === "x" ? "1.75em" : "3.0em");
       var node;
       if (group.body) {
-        var upperNode = paddedNode(buildGroup2(group.body, options3));
+        var upperNode = paddedNode(buildGroup2(group.body, options2));
         if (group.below) {
-          var lowerNode = paddedNode(buildGroup2(group.below, options3));
+          var lowerNode = paddedNode(buildGroup2(group.below, options2));
           node = new MathNode("munderover", [arrowNode, lowerNode, upperNode]);
         } else {
           node = new MathNode("mover", [arrowNode, upperNode]);
         }
       } else if (group.below) {
-        var _lowerNode = paddedNode(buildGroup2(group.below, options3));
+        var _lowerNode = paddedNode(buildGroup2(group.below, options2));
         node = new MathNode("munder", [arrowNode, _lowerNode]);
       } else {
         node = paddedNode();
@@ -12019,13 +12019,13 @@ ${content}</tr>
       return node;
     }
   });
-  function htmlBuilder$9(group, options3) {
-    var elements = buildExpression$1(group.body, options3, true);
-    return makeSpan([group.mclass], elements, options3);
+  function htmlBuilder$9(group, options2) {
+    var elements = buildExpression$1(group.body, options2, true);
+    return makeSpan([group.mclass], elements, options2);
   }
-  function mathmlBuilder$8(group, options3) {
+  function mathmlBuilder$8(group, options2) {
     var node;
-    var inner2 = buildExpression2(group.body, options3);
+    var inner2 = buildExpression2(group.body, options2);
     if (group.mclass === "minner") {
       node = new MathNode("mpadded", inner2);
     } else if (group.mclass === "mord") {
@@ -12155,9 +12155,9 @@ ${content}</tr>
         body: ordargument(args[0])
       };
     },
-    htmlBuilder(group, options3) {
-      var elements = buildExpression$1(group.body, options3, true);
-      var node = makeSpan([group.mclass], elements, options3);
+    htmlBuilder(group, options2) {
+      var elements = buildExpression$1(group.body, options2, true);
+      var node = makeSpan([group.mclass], elements, options2);
       node.style.textShadow = "0.02em 0.01em 0.04px";
       return node;
     },
@@ -12356,17 +12356,17 @@ ${content}</tr>
         label: args[0]
       };
     },
-    htmlBuilder(group, options3) {
-      var newOptions = options3.havingStyle(options3.style.sup());
-      var label = wrapFragment(buildGroup$1(group.label, newOptions, options3), options3);
+    htmlBuilder(group, options2) {
+      var newOptions = options2.havingStyle(options2.style.sup());
+      var label = wrapFragment(buildGroup$1(group.label, newOptions, options2), options2);
       label.classes.push("cd-label-" + group.side);
       label.style.bottom = makeEm(0.8 - label.depth);
       label.height = 0;
       label.depth = 0;
       return label;
     },
-    mathmlBuilder(group, options3) {
-      var label = new MathNode("mrow", [buildGroup2(group.label, options3)]);
+    mathmlBuilder(group, options2) {
+      var label = new MathNode("mrow", [buildGroup2(group.label, options2)]);
       label = new MathNode("mpadded", [label]);
       label.setAttribute("width", "0");
       if (group.side === "left") {
@@ -12391,13 +12391,13 @@ ${content}</tr>
         fragment: args[0]
       };
     },
-    htmlBuilder(group, options3) {
-      var parent = wrapFragment(buildGroup$1(group.fragment, options3), options3);
+    htmlBuilder(group, options2) {
+      var parent = wrapFragment(buildGroup$1(group.fragment, options2), options2);
       parent.classes.push("cd-vert-arrow");
       return parent;
     },
-    mathmlBuilder(group, options3) {
-      return new MathNode("mrow", [buildGroup2(group.fragment, options3)]);
+    mathmlBuilder(group, options2) {
+      return new MathNode("mrow", [buildGroup2(group.fragment, options2)]);
     }
   });
   defineFunction({
@@ -12428,12 +12428,12 @@ ${content}</tr>
       };
     }
   });
-  var htmlBuilder$8 = (group, options3) => {
-    var elements = buildExpression$1(group.body, options3.withColor(group.color), false);
+  var htmlBuilder$8 = (group, options2) => {
+    var elements = buildExpression$1(group.body, options2.withColor(group.color), false);
     return makeFragment(elements);
   };
-  var mathmlBuilder$7 = (group, options3) => {
-    var inner2 = buildExpression2(group.body, options3.withColor(group.color));
+  var mathmlBuilder$7 = (group, options2) => {
+    var inner2 = buildExpression2(group.body, options2.withColor(group.color));
     var node = new MathNode("mstyle", inner2);
     node.setAttribute("mathcolor", group.color);
     return node;
@@ -12501,22 +12501,22 @@ ${content}</tr>
     },
     // The following builders are called only at the top level,
     // not within tabular/array environments.
-    htmlBuilder(group, options3) {
-      var span = makeSpan(["mspace"], [], options3);
+    htmlBuilder(group, options2) {
+      var span = makeSpan(["mspace"], [], options2);
       if (group.newLine) {
         span.classes.push("katex-newline");
         if (group.size) {
-          span.style.marginTop = makeEm(calculateSize(group.size, options3));
+          span.style.marginTop = makeEm(calculateSize(group.size, options2));
         }
       }
       return span;
     },
-    mathmlBuilder(group, options3) {
+    mathmlBuilder(group, options2) {
       var node = new MathNode("mspace");
       if (group.newLine) {
         node.setAttribute("linebreak", "newline");
         if (group.size) {
-          node.setAttribute("height", makeEm(calculateSize(group.size, options3)));
+          node.setAttribute("height", makeEm(calculateSize(group.size, options2)));
         }
       }
       return node;
@@ -12698,56 +12698,56 @@ ${content}</tr>
     }
     return metrics;
   };
-  var styleWrap = function styleWrap2(delim, toStyle, options3, classes) {
-    var newOptions = options3.havingBaseStyle(toStyle);
-    var span = makeSpan(classes.concat(newOptions.sizingClasses(options3)), [delim], options3);
-    var delimSizeMultiplier = newOptions.sizeMultiplier / options3.sizeMultiplier;
+  var styleWrap = function styleWrap2(delim, toStyle, options2, classes) {
+    var newOptions = options2.havingBaseStyle(toStyle);
+    var span = makeSpan(classes.concat(newOptions.sizingClasses(options2)), [delim], options2);
+    var delimSizeMultiplier = newOptions.sizeMultiplier / options2.sizeMultiplier;
     span.height *= delimSizeMultiplier;
     span.depth *= delimSizeMultiplier;
     span.maxFontSize = newOptions.sizeMultiplier;
     return span;
   };
-  var centerSpan = function centerSpan2(span, options3, style) {
-    var newOptions = options3.havingBaseStyle(style);
-    var shift = (1 - options3.sizeMultiplier / newOptions.sizeMultiplier) * options3.fontMetrics().axisHeight;
+  var centerSpan = function centerSpan2(span, options2, style) {
+    var newOptions = options2.havingBaseStyle(style);
+    var shift = (1 - options2.sizeMultiplier / newOptions.sizeMultiplier) * options2.fontMetrics().axisHeight;
     span.classes.push("delimcenter");
     span.style.top = makeEm(shift);
     span.height -= shift;
     span.depth += shift;
   };
-  var makeSmallDelim = function makeSmallDelim2(delim, style, center, options3, mode, classes) {
-    var text3 = makeSymbol(delim, "Main-Regular", mode, options3);
-    var span = styleWrap(text3, style, options3, classes);
+  var makeSmallDelim = function makeSmallDelim2(delim, style, center, options2, mode, classes) {
+    var text3 = makeSymbol(delim, "Main-Regular", mode, options2);
+    var span = styleWrap(text3, style, options2, classes);
     if (center) {
-      centerSpan(span, options3, style);
+      centerSpan(span, options2, style);
     }
     return span;
   };
-  var mathrmSize = function mathrmSize2(value, size, mode, options3) {
-    return makeSymbol(value, "Size" + size + "-Regular", mode, options3);
+  var mathrmSize = function mathrmSize2(value, size, mode, options2) {
+    return makeSymbol(value, "Size" + size + "-Regular", mode, options2);
   };
-  var makeLargeDelim = function makeLargeDelim2(delim, size, center, options3, mode, classes) {
-    var inner2 = mathrmSize(delim, size, mode, options3);
-    var span = styleWrap(makeSpan(["delimsizing", "size" + size], [inner2], options3), Style$1.TEXT, options3, classes);
+  var makeLargeDelim = function makeLargeDelim2(delim, size, center, options2, mode, classes) {
+    var inner2 = mathrmSize(delim, size, mode, options2);
+    var span = styleWrap(makeSpan(["delimsizing", "size" + size], [inner2], options2), Style$1.TEXT, options2, classes);
     if (center) {
-      centerSpan(span, options3, Style$1.TEXT);
+      centerSpan(span, options2, Style$1.TEXT);
     }
     return span;
   };
-  var makeGlyphSpan = function makeGlyphSpan2(symbol, font, mode, options3) {
+  var makeGlyphSpan = function makeGlyphSpan2(symbol, font, mode, options2) {
     var sizeClass;
     if (font === "Size1-Regular") {
       sizeClass = "delim-size1";
     } else {
       sizeClass = "delim-size4";
     }
-    var corner = makeSpan(["delimsizinginner", sizeClass], [makeSpan([], [makeSymbol(symbol, font, mode, options3)])]);
+    var corner = makeSpan(["delimsizinginner", sizeClass], [makeSpan([], [makeSymbol(symbol, font, mode, options2)])]);
     return {
       type: "elem",
       elem: corner
     };
   };
-  var makeInner = function makeInner2(ch, height, options3) {
+  var makeInner = function makeInner2(ch, height, options2) {
     var width = fontMetricsData["Size4-Regular"][ch.charCodeAt(0)] ? fontMetricsData["Size4-Regular"][ch.charCodeAt(0)][4] : fontMetricsData["Size1-Regular"][ch.charCodeAt(0)][4];
     var path2 = new PathNode("inner", innerPath(ch, Math.round(1e3 * height)));
     var svgNode = new SvgNode([path2], {
@@ -12758,7 +12758,7 @@ ${content}</tr>
       "viewBox": "0 0 " + 1e3 * width + " " + Math.round(1e3 * height),
       "preserveAspectRatio": "xMinYMin"
     });
-    var span = makeSvgSpan([], [svgNode], options3);
+    var span = makeSvgSpan([], [svgNode], options2);
     span.height = height;
     span.style.height = makeEm(height);
     span.style.width = makeEm(width);
@@ -12774,7 +12774,7 @@ ${content}</tr>
   };
   var verts = /* @__PURE__ */ new Set(["|", "\\lvert", "\\rvert", "\\vert"]);
   var doubleVerts = /* @__PURE__ */ new Set(["\\|", "\\lVert", "\\rVert", "\\Vert"]);
-  var makeStackedDelim = function makeStackedDelim2(delim, heightTotal, center, options3, mode, classes) {
+  var makeStackedDelim = function makeStackedDelim2(delim, heightTotal, center, options2, mode, classes) {
     var top;
     var middle;
     var repeat;
@@ -12909,9 +12909,9 @@ ${content}</tr>
     var minHeight = topHeightTotal + bottomHeightTotal + middleHeightTotal;
     var repeatCount = Math.max(0, Math.ceil((heightTotal - minHeight) / (middleFactor * repeatHeightTotal)));
     var realHeightTotal = minHeight + repeatCount * middleFactor * repeatHeightTotal;
-    var axisHeight = options3.fontMetrics().axisHeight;
+    var axisHeight = options2.fontMetrics().axisHeight;
     if (center) {
-      axisHeight *= options3.sizeMultiplier;
+      axisHeight *= options2.sizeMultiplier;
     }
     var depth = realHeightTotal / 2 - axisHeight;
     var stack = [];
@@ -12927,7 +12927,7 @@ ${content}</tr>
         "height": height,
         "viewBox": "0 0 " + viewBoxWidth + " " + viewBoxHeight
       });
-      var wrapper = makeSvgSpan([], [svg2], options3);
+      var wrapper = makeSvgSpan([], [svg2], options2);
       wrapper.height = viewBoxHeight / 1e3;
       wrapper.style.width = width;
       wrapper.style.height = height;
@@ -12936,33 +12936,33 @@ ${content}</tr>
         elem: wrapper
       });
     } else {
-      stack.push(makeGlyphSpan(bottom, font, mode, options3));
+      stack.push(makeGlyphSpan(bottom, font, mode, options2));
       stack.push(lap);
       if (middle === null) {
         var innerHeight = realHeightTotal - topHeightTotal - bottomHeightTotal + 2 * lapInEms;
-        stack.push(makeInner(repeat, innerHeight, options3));
+        stack.push(makeInner(repeat, innerHeight, options2));
       } else {
         var _innerHeight = (realHeightTotal - topHeightTotal - bottomHeightTotal - middleHeightTotal) / 2 + 2 * lapInEms;
-        stack.push(makeInner(repeat, _innerHeight, options3));
+        stack.push(makeInner(repeat, _innerHeight, options2));
         stack.push(lap);
-        stack.push(makeGlyphSpan(middle, font, mode, options3));
+        stack.push(makeGlyphSpan(middle, font, mode, options2));
         stack.push(lap);
-        stack.push(makeInner(repeat, _innerHeight, options3));
+        stack.push(makeInner(repeat, _innerHeight, options2));
       }
       stack.push(lap);
-      stack.push(makeGlyphSpan(top, font, mode, options3));
+      stack.push(makeGlyphSpan(top, font, mode, options2));
     }
-    var newOptions = options3.havingBaseStyle(Style$1.TEXT);
+    var newOptions = options2.havingBaseStyle(Style$1.TEXT);
     var inner2 = makeVList({
       positionType: "bottom",
       positionData: depth,
       children: stack
     });
-    return styleWrap(makeSpan(["delimsizing", "mult"], [inner2], newOptions), Style$1.TEXT, options3, classes);
+    return styleWrap(makeSpan(["delimsizing", "mult"], [inner2], newOptions), Style$1.TEXT, options2, classes);
   };
   var vbPad = 80;
   var emPad = 0.08;
-  var sqrtSvg = function sqrtSvg2(sqrtName, height, viewBoxHeight, extraVinculum, options3) {
+  var sqrtSvg = function sqrtSvg2(sqrtName, height, viewBoxHeight, extraVinculum, options2) {
     var path2 = sqrtPath(sqrtName, extraVinculum, viewBoxHeight);
     var pathNode = new PathNode(sqrtName, path2);
     var svg2 = new SvgNode([pathNode], {
@@ -12972,13 +12972,13 @@ ${content}</tr>
       "viewBox": "0 0 400000 " + viewBoxHeight,
       "preserveAspectRatio": "xMinYMin slice"
     });
-    return makeSvgSpan(["hide-tail"], [svg2], options3);
+    return makeSvgSpan(["hide-tail"], [svg2], options2);
   };
-  var makeSqrtImage = function makeSqrtImage2(height, options3) {
-    var newOptions = options3.havingBaseSizing();
+  var makeSqrtImage = function makeSqrtImage2(height, options2) {
+    var newOptions = options2.havingBaseSizing();
     var delim = traverseSequence("\\surd", height * newOptions.sizeMultiplier, stackLargeDelimiterSequence, newOptions);
     var sizeMultiplier = newOptions.sizeMultiplier;
-    var extraVinculum = Math.max(0, options3.minRuleThickness - options3.fontMetrics().sqrtRuleThickness);
+    var extraVinculum = Math.max(0, options2.minRuleThickness - options2.fontMetrics().sqrtRuleThickness);
     var span;
     var spanHeight;
     var texHeight;
@@ -12993,21 +12993,21 @@ ${content}</tr>
       }
       spanHeight = (1 + extraVinculum + emPad) / sizeMultiplier;
       texHeight = (1 + extraVinculum) / sizeMultiplier;
-      span = sqrtSvg("sqrtMain", spanHeight, viewBoxHeight, extraVinculum, options3);
+      span = sqrtSvg("sqrtMain", spanHeight, viewBoxHeight, extraVinculum, options2);
       span.style.minWidth = "0.853em";
       advanceWidth = 0.833 / sizeMultiplier;
     } else if (delim.type === "large") {
       viewBoxHeight = (1e3 + vbPad) * sizeToMaxHeight[delim.size];
       texHeight = (sizeToMaxHeight[delim.size] + extraVinculum) / sizeMultiplier;
       spanHeight = (sizeToMaxHeight[delim.size] + extraVinculum + emPad) / sizeMultiplier;
-      span = sqrtSvg("sqrtSize" + delim.size, spanHeight, viewBoxHeight, extraVinculum, options3);
+      span = sqrtSvg("sqrtSize" + delim.size, spanHeight, viewBoxHeight, extraVinculum, options2);
       span.style.minWidth = "1.02em";
       advanceWidth = 1 / sizeMultiplier;
     } else {
       spanHeight = height + extraVinculum + emPad;
       texHeight = height + extraVinculum;
       viewBoxHeight = Math.floor(1e3 * height + extraVinculum) + vbPad;
-      span = sqrtSvg("sqrtTall", spanHeight, viewBoxHeight, extraVinculum, options3);
+      span = sqrtSvg("sqrtTall", spanHeight, viewBoxHeight, extraVinculum, options2);
       span.style.minWidth = "0.742em";
       advanceWidth = 1.056;
     }
@@ -13020,23 +13020,23 @@ ${content}</tr>
       // This actually should depend on the chosen font -- e.g. \boldmath
       // should use the thicker surd symbols from e.g. KaTeX_Main-Bold, and
       // have thicker rules.
-      ruleWidth: (options3.fontMetrics().sqrtRuleThickness + extraVinculum) * sizeMultiplier
+      ruleWidth: (options2.fontMetrics().sqrtRuleThickness + extraVinculum) * sizeMultiplier
     };
   };
   var stackLargeDelimiters = /* @__PURE__ */ new Set(["(", "\\lparen", ")", "\\rparen", "[", "\\lbrack", "]", "\\rbrack", "\\{", "\\lbrace", "\\}", "\\rbrace", "\\lfloor", "\\rfloor", "\u230A", "\u230B", "\\lceil", "\\rceil", "\u2308", "\u2309", "\\surd"]);
   var stackAlwaysDelimiters = /* @__PURE__ */ new Set(["\\uparrow", "\\downarrow", "\\updownarrow", "\\Uparrow", "\\Downarrow", "\\Updownarrow", "|", "\\|", "\\vert", "\\Vert", "\\lvert", "\\rvert", "\\lVert", "\\rVert", "\\lgroup", "\\rgroup", "\u27EE", "\u27EF", "\\lmoustache", "\\rmoustache", "\u23B0", "\u23B1"]);
   var stackNeverDelimiters = /* @__PURE__ */ new Set(["<", ">", "\\langle", "\\rangle", "/", "\\backslash", "\\lt", "\\gt"]);
   var sizeToMaxHeight = [0, 1.2, 1.8, 2.4, 3];
-  var makeSizedDelim = function makeSizedDelim2(delim, size, options3, mode, classes) {
+  var makeSizedDelim = function makeSizedDelim2(delim, size, options2, mode, classes) {
     if (delim === "<" || delim === "\\lt" || delim === "\u27E8") {
       delim = "\\langle";
     } else if (delim === ">" || delim === "\\gt" || delim === "\u27E9") {
       delim = "\\rangle";
     }
     if (stackLargeDelimiters.has(delim) || stackNeverDelimiters.has(delim)) {
-      return makeLargeDelim(delim, size, false, options3, mode, classes);
+      return makeLargeDelim(delim, size, false, options2, mode, classes);
     } else if (stackAlwaysDelimiters.has(delim)) {
-      return makeStackedDelim(delim, sizeToMaxHeight[size], false, options3, mode, classes);
+      return makeStackedDelim(delim, sizeToMaxHeight[size], false, options2, mode, classes);
     } else {
       throw new ParseError("Illegal delimiter: '" + delim + "'");
     }
@@ -13111,8 +13111,8 @@ ${content}</tr>
       throw new Error("Add support for delim type '" + delimKind + "' here.");
     }
   };
-  var traverseSequence = function traverseSequence2(delim, height, sequence, options3) {
-    var start = Math.min(2, 3 - options3.style.size);
+  var traverseSequence = function traverseSequence2(delim, height, sequence, options2) {
+    var start = Math.min(2, 3 - options2.style.size);
     for (var i = start; i < sequence.length; i++) {
       var delimType = sequence[i];
       if (delimType.type === "stack") {
@@ -13121,7 +13121,7 @@ ${content}</tr>
       var metrics = getMetrics(delim, delimTypeToFont(delimType), "math");
       var heightDepth = metrics.height + metrics.depth;
       if (delimType.type === "small") {
-        var newOptions = options3.havingBaseStyle(delimType.style);
+        var newOptions = options2.havingBaseStyle(delimType.style);
         heightDepth *= newOptions.sizeMultiplier;
       }
       if (heightDepth > height) {
@@ -13130,7 +13130,7 @@ ${content}</tr>
     }
     return sequence[sequence.length - 1];
   };
-  var makeCustomSizedDelim = function makeCustomSizedDelim2(delim, height, center, options3, mode, classes) {
+  var makeCustomSizedDelim = function makeCustomSizedDelim2(delim, height, center, options2, mode, classes) {
     if (delim === "<" || delim === "\\lt" || delim === "\u27E8") {
       delim = "\\langle";
     } else if (delim === ">" || delim === "\\gt" || delim === "\u27E9") {
@@ -13144,19 +13144,19 @@ ${content}</tr>
     } else {
       sequence = stackAlwaysDelimiterSequence;
     }
-    var delimType = traverseSequence(delim, height, sequence, options3);
+    var delimType = traverseSequence(delim, height, sequence, options2);
     if (delimType.type === "small") {
-      return makeSmallDelim(delim, delimType.style, center, options3, mode, classes);
+      return makeSmallDelim(delim, delimType.style, center, options2, mode, classes);
     } else if (delimType.type === "large") {
-      return makeLargeDelim(delim, delimType.size, center, options3, mode, classes);
+      return makeLargeDelim(delim, delimType.size, center, options2, mode, classes);
     } else {
-      return makeStackedDelim(delim, height, center, options3, mode, classes);
+      return makeStackedDelim(delim, height, center, options2, mode, classes);
     }
   };
-  var makeLeftRightDelim = function makeLeftRightDelim2(delim, height, depth, options3, mode, classes) {
-    var axisHeight = options3.fontMetrics().axisHeight * options3.sizeMultiplier;
+  var makeLeftRightDelim = function makeLeftRightDelim2(delim, height, depth, options2, mode, classes) {
+    var axisHeight = options2.fontMetrics().axisHeight * options2.sizeMultiplier;
     var delimiterFactor = 901;
-    var delimiterExtend = 5 / options3.fontMetrics().ptPerEm;
+    var delimiterExtend = 5 / options2.fontMetrics().ptPerEm;
     var maxDistFromAxis = Math.max(height - axisHeight, depth + axisHeight);
     var totalHeight = Math.max(
       // In real TeX, calculations are done using integral values which are
@@ -13171,7 +13171,7 @@ ${content}</tr>
       maxDistFromAxis / 500 * delimiterFactor,
       2 * maxDistFromAxis - delimiterExtend
     );
-    return makeCustomSizedDelim(delim, totalHeight, true, options3, mode, classes);
+    return makeCustomSizedDelim(delim, totalHeight, true, options2, mode, classes);
   };
   var delimiterSizes = {
     "\\bigl": {
@@ -13268,11 +13268,11 @@ ${content}</tr>
         delim: delim.text
       };
     },
-    htmlBuilder: (group, options3) => {
+    htmlBuilder: (group, options2) => {
       if (group.delim === ".") {
         return makeSpan([group.mclass]);
       }
-      return makeSizedDelim(group.delim, group.size, options3, group.mode, [group.mclass]);
+      return makeSizedDelim(group.delim, group.size, options2, group.mode, [group.mclass]);
     },
     mathmlBuilder: (group) => {
       var children = [];
@@ -13338,9 +13338,9 @@ ${content}</tr>
         rightColor: right.color
       };
     },
-    htmlBuilder: (group, options3) => {
+    htmlBuilder: (group, options2) => {
       assertParsed(group);
-      var inner2 = buildExpression$1(group.body, options3, true, ["mopen", "mclose"]);
+      var inner2 = buildExpression$1(group.body, options2, true, ["mopen", "mclose"]);
       var innerHeight = 0;
       var innerDepth = 0;
       var hadMiddle = false;
@@ -13353,13 +13353,13 @@ ${content}</tr>
           innerDepth = Math.max(inner2[i].depth, innerDepth);
         }
       }
-      innerHeight *= options3.sizeMultiplier;
-      innerDepth *= options3.sizeMultiplier;
+      innerHeight *= options2.sizeMultiplier;
+      innerDepth *= options2.sizeMultiplier;
       var leftDelim;
       if (group.left === ".") {
-        leftDelim = makeNullDelimiter(options3, ["mopen"]);
+        leftDelim = makeNullDelimiter(options2, ["mopen"]);
       } else {
-        leftDelim = makeLeftRightDelim(group.left, innerHeight, innerDepth, options3, group.mode, ["mopen"]);
+        leftDelim = makeLeftRightDelim(group.left, innerHeight, innerDepth, options2, group.mode, ["mopen"]);
       }
       inner2.unshift(leftDelim);
       if (hadMiddle) {
@@ -13373,17 +13373,17 @@ ${content}</tr>
       }
       var rightDelim;
       if (group.right === ".") {
-        rightDelim = makeNullDelimiter(options3, ["mclose"]);
+        rightDelim = makeNullDelimiter(options2, ["mclose"]);
       } else {
-        var colorOptions = group.rightColor ? options3.withColor(group.rightColor) : options3;
+        var colorOptions = group.rightColor ? options2.withColor(group.rightColor) : options2;
         rightDelim = makeLeftRightDelim(group.right, innerHeight, innerDepth, colorOptions, group.mode, ["mclose"]);
       }
       inner2.push(rightDelim);
-      return makeSpan(["minner"], inner2, options3);
+      return makeSpan(["minner"], inner2, options2);
     },
-    mathmlBuilder: (group, options3) => {
+    mathmlBuilder: (group, options2) => {
       assertParsed(group);
-      var inner2 = buildExpression2(group.body, options3);
+      var inner2 = buildExpression2(group.body, options2);
       if (group.left !== ".") {
         var leftNode = new MathNode("mo", [makeText(group.left, group.mode)]);
         leftNode.setAttribute("fence", "true");
@@ -13416,20 +13416,20 @@ ${content}</tr>
         delim: delim.text
       };
     },
-    htmlBuilder: (group, options3) => {
+    htmlBuilder: (group, options2) => {
       var middleDelim;
       if (group.delim === ".") {
-        middleDelim = makeNullDelimiter(options3, []);
+        middleDelim = makeNullDelimiter(options2, []);
       } else {
-        middleDelim = makeSizedDelim(group.delim, 1, options3, group.mode, []);
+        middleDelim = makeSizedDelim(group.delim, 1, options2, group.mode, []);
         middleDelim.isMiddle = {
           delim: group.delim,
-          options: options3
+          options: options2
         };
       }
       return middleDelim;
     },
-    mathmlBuilder: (group, options3) => {
+    mathmlBuilder: (group, options2) => {
       var textNode = group.delim === "\\vert" || group.delim === "|" ? makeText("|", "text") : makeText(group.delim, group.mode);
       var middleNode = new MathNode("mo", [textNode]);
       middleNode.setAttribute("fence", "true");
@@ -13438,27 +13438,27 @@ ${content}</tr>
       return middleNode;
     }
   });
-  var htmlBuilder$7 = (group, options3) => {
-    var inner2 = wrapFragment(buildGroup$1(group.body, options3), options3);
+  var htmlBuilder$7 = (group, options2) => {
+    var inner2 = wrapFragment(buildGroup$1(group.body, options2), options2);
     var label = group.label.slice(1);
-    var scale = options3.sizeMultiplier;
+    var scale = options2.sizeMultiplier;
     var img;
     var imgShift;
     var isSingleChar = isCharacterBox(group.body);
     if (label === "sout") {
       img = makeSpan(["katex-stretchy", "katex-sout"]);
-      img.height = options3.fontMetrics().defaultRuleThickness / scale;
-      imgShift = -0.5 * options3.fontMetrics().xHeight;
+      img.height = options2.fontMetrics().defaultRuleThickness / scale;
+      imgShift = -0.5 * options2.fontMetrics().xHeight;
     } else if (label === "phase") {
       var lineWeight = calculateSize({
         number: 0.6,
         unit: "pt"
-      }, options3);
+      }, options2);
       var clearance = calculateSize({
         number: 0.35,
         unit: "ex"
-      }, options3);
-      var newOptions = options3.havingBaseSizing();
+      }, options2);
+      var newOptions = options2.havingBaseSizing();
       scale = scale / newOptions.sizeMultiplier;
       var angleHeight = inner2.height + inner2.depth + lineWeight + clearance;
       inner2.style.paddingLeft = makeEm(angleHeight / 2 + lineWeight);
@@ -13470,7 +13470,7 @@ ${content}</tr>
         "viewBox": "0 0 400000 " + viewBoxHeight,
         "preserveAspectRatio": "xMinYMin slice"
       });
-      img = makeSvgSpan(["hide-tail"], [svgNode], options3);
+      img = makeSvgSpan(["hide-tail"], [svgNode], options2);
       img.style.height = makeEm(angleHeight);
       imgShift = inner2.depth + lineWeight + clearance;
     } else {
@@ -13488,21 +13488,21 @@ ${content}</tr>
       var ruleThickness = 0;
       if (/box/.test(label)) {
         ruleThickness = Math.max(
-          options3.fontMetrics().fboxrule,
+          options2.fontMetrics().fboxrule,
           // default
-          options3.minRuleThickness
+          options2.minRuleThickness
         );
-        topPad = options3.fontMetrics().fboxsep + (label === "colorbox" ? 0 : ruleThickness);
+        topPad = options2.fontMetrics().fboxsep + (label === "colorbox" ? 0 : ruleThickness);
         bottomPad = topPad;
       } else if (label === "angl") {
-        ruleThickness = Math.max(options3.fontMetrics().defaultRuleThickness, options3.minRuleThickness);
+        ruleThickness = Math.max(options2.fontMetrics().defaultRuleThickness, options2.minRuleThickness);
         topPad = 4 * ruleThickness;
         bottomPad = Math.max(0, 0.25 - inner2.depth);
       } else {
         topPad = isSingleChar ? 0.2 : 0;
         bottomPad = topPad;
       }
-      img = stretchyEnclose(inner2, label, topPad, bottomPad, options3);
+      img = stretchyEnclose(inner2, label, topPad, bottomPad, options2);
       if (/fbox|boxed|fcolorbox/.test(label)) {
         img.style.borderStyle = "solid";
         img.style.borderWidth = makeEm(ruleThickness);
@@ -13561,14 +13561,14 @@ ${content}</tr>
       vlist.depth = inner2.depth;
     }
     if (/cancel/.test(label) && !isSingleChar) {
-      return makeSpan(["mord", "cancel-lap"], [vlist], options3);
+      return makeSpan(["mord", "cancel-lap"], [vlist], options2);
     } else {
-      return makeSpan(["mord"], [vlist], options3);
+      return makeSpan(["mord"], [vlist], options2);
     }
   };
-  var mathmlBuilder$6 = (group, options3) => {
+  var mathmlBuilder$6 = (group, options2) => {
     var fboxsep;
-    var node = new MathNode(group.label.includes("colorbox") ? "mpadded" : "menclose", [buildGroup2(group.body, options3)]);
+    var node = new MathNode(group.label.includes("colorbox") ? "mpadded" : "menclose", [buildGroup2(group.body, options2)]);
     switch (group.label) {
       case "\\cancel":
         node.setAttribute("notation", "updiagonalstrike");
@@ -13590,16 +13590,16 @@ ${content}</tr>
         break;
       case "\\fcolorbox":
       case "\\colorbox":
-        fboxsep = options3.fontMetrics().fboxsep * options3.fontMetrics().ptPerEm;
+        fboxsep = options2.fontMetrics().fboxsep * options2.fontMetrics().ptPerEm;
         node.setAttribute("width", "+" + 2 * fboxsep + "pt");
         node.setAttribute("height", "+" + 2 * fboxsep + "pt");
         node.setAttribute("lspace", fboxsep + "pt");
         node.setAttribute("voffset", fboxsep + "pt");
         if (group.label === "\\fcolorbox") {
           var thk = Math.max(
-            options3.fontMetrics().fboxrule,
+            options2.fontMetrics().fboxrule,
             // default
-            options3.minRuleThickness
+            options2.minRuleThickness
           );
           node.setAttribute("style", "border: " + makeEm(thk) + " solid " + group.borderColor);
         }
@@ -13948,7 +13948,7 @@ ${content}</tr>
       return "text";
     }
   }
-  var htmlBuilder$6 = function htmlBuilder(group, options3) {
+  var htmlBuilder$6 = function htmlBuilder(group, options2) {
     var r2;
     var c;
     var nr = group.body.length;
@@ -13958,19 +13958,19 @@ ${content}</tr>
     var hlines = [];
     var ruleThickness = Math.max(
       // From LaTeX \showthe\arrayrulewidth. Equals 0.04 em.
-      options3.fontMetrics().arrayRuleWidth,
-      options3.minRuleThickness
+      options2.fontMetrics().arrayRuleWidth,
+      options2.minRuleThickness
     );
-    var pt = 1 / options3.fontMetrics().ptPerEm;
+    var pt = 1 / options2.fontMetrics().ptPerEm;
     var arraycolsep = 5 * pt;
     if (group.colSeparationType && group.colSeparationType === "small") {
-      var localMultiplier = options3.havingStyle(Style$1.SCRIPT).sizeMultiplier;
-      arraycolsep = 0.2778 * (localMultiplier / options3.sizeMultiplier);
+      var localMultiplier = options2.havingStyle(Style$1.SCRIPT).sizeMultiplier;
+      arraycolsep = 0.2778 * (localMultiplier / options2.sizeMultiplier);
     }
     var baselineskip = group.colSeparationType === "CD" ? calculateSize({
       number: 3,
       unit: "ex"
-    }, options3) : 12 * pt;
+    }, options2) : 12 * pt;
     var jot = 3 * pt;
     var arrayskip = group.arraystretch * baselineskip;
     var arstrutHeight = 0.7 * arrayskip;
@@ -14002,7 +14002,7 @@ ${content}</tr>
         pos: 0
       };
       for (c = 0; c < inrow.length; ++c) {
-        var elt = buildGroup$1(inrow[c], options3);
+        var elt = buildGroup$1(inrow[c], options2);
         if (depth < elt.depth) {
           depth = elt.depth;
         }
@@ -14014,7 +14014,7 @@ ${content}</tr>
       var rowGap = group.rowGaps[r2];
       var gap = 0;
       if (rowGap) {
-        gap = calculateSize(rowGap, options3);
+        gap = calculateSize(rowGap, options2);
         if (gap > 0) {
           gap += arstrutDepth;
           if (depth < gap) {
@@ -14034,7 +14034,7 @@ ${content}</tr>
       body[r2] = outrow;
       setHLinePos(hLinesBeforeRow[r2 + 1]);
     }
-    var offset = totalHeight / 2 + options3.fontMetrics().axisHeight;
+    var offset = totalHeight / 2 + options2.fontMetrics().axisHeight;
     var colDescriptions = group.cols || [];
     var cols = [];
     var colSep;
@@ -14047,11 +14047,11 @@ ${content}</tr>
         var tag = group.tags[r2];
         var tagSpan = void 0;
         if (tag === true) {
-          tagSpan = makeSpan(["eqn-num"], [], options3);
+          tagSpan = makeSpan(["eqn-num"], [], options2);
         } else if (tag === false) {
-          tagSpan = makeSpan([], [], options3);
+          tagSpan = makeSpan([], [], options2);
         } else {
-          tagSpan = makeSpan([], buildExpression$1(tag, options3, true), options3);
+          tagSpan = makeSpan([], buildExpression$1(tag, options2, true), options2);
         }
         tagSpan.depth = rw.depth;
         tagSpan.height = rw.height;
@@ -14076,12 +14076,12 @@ ${content}</tr>
         var _colDescr;
         if (!firstSeparator) {
           colSep = makeSpan(["arraycolsep"], []);
-          colSep.style.width = makeEm(options3.fontMetrics().doubleRuleSep);
+          colSep.style.width = makeEm(options2.fontMetrics().doubleRuleSep);
           cols.push(colSep);
         }
         if (colDescr.separator === "|" || colDescr.separator === ":") {
           var lineType = colDescr.separator === "|" ? "solid" : "dashed";
-          var separator = makeSpan(["vertical-separator"], [], options3);
+          var separator = makeSpan(["vertical-separator"], [], options2);
           separator.style.height = makeEm(totalHeight);
           separator.style.borderRightWidth = makeEm(ruleThickness);
           separator.style.borderRightStyle = lineType;
@@ -14145,8 +14145,8 @@ ${content}</tr>
     }
     var tableBody = makeSpan(["mtable"], cols);
     if (hlines.length > 0) {
-      var line = makeLineSpan("katex-hline", options3, ruleThickness);
-      var dashes = makeLineSpan("katex-hdashline", options3, ruleThickness);
+      var line = makeLineSpan("katex-hline", options2, ruleThickness);
+      var dashes = makeLineSpan("katex-hdashline", options2, ruleThickness);
       var vListElems = [{
         type: "elem",
         elem: tableBody,
@@ -14175,13 +14175,13 @@ ${content}</tr>
       });
     }
     if (tagSpans.length === 0) {
-      return makeSpan(["mord"], [tableBody], options3);
+      return makeSpan(["mord"], [tableBody], options2);
     } else {
       var eqnNumCol = makeVList({
         positionType: "individualShift",
         children: tagSpans
       });
-      var tagCol = makeSpan(["katex-tag"], [eqnNumCol], options3);
+      var tagCol = makeSpan(["katex-tag"], [eqnNumCol], options2);
       return makeFragment([tableBody, tagCol]);
     }
   };
@@ -14190,7 +14190,7 @@ ${content}</tr>
     l: "left ",
     r: "right "
   };
-  var mathmlBuilder$5 = function mathmlBuilder(group, options3) {
+  var mathmlBuilder$5 = function mathmlBuilder(group, options2) {
     var tbl = [];
     var glue = new MathNode("mtd", [], ["mtr-glue"]);
     var tag = new MathNode("mtd", [], ["mml-eqn-num"]);
@@ -14198,7 +14198,7 @@ ${content}</tr>
       var rw = group.body[i];
       var row = [];
       for (var j = 0; j < rw.length; j++) {
-        row.push(new MathNode("mtd", [buildGroup2(rw[j], options3)]));
+        row.push(new MathNode("mtd", [buildGroup2(rw[j], options2)]));
       }
       if (group.tags && group.tags[i]) {
         row.unshift(glue);
@@ -14680,14 +14680,14 @@ ${content}</tr>
       };
     }
   });
-  var htmlBuilder$5 = (group, options3) => {
+  var htmlBuilder$5 = (group, options2) => {
     var font = group.font;
-    var newOptions = options3.withFont(font);
+    var newOptions = options2.withFont(font);
     return buildGroup$1(group.body, newOptions);
   };
-  var mathmlBuilder$4 = (group, options3) => {
+  var mathmlBuilder$4 = (group, options2) => {
     var font = group.font;
-    var newOptions = options3.withFont(font);
+    var newOptions = options2.withFont(font);
     return buildGroup2(group.body, newOptions);
   };
   var fontAliases = {
@@ -14774,58 +14774,58 @@ ${content}</tr>
       };
     }
   });
-  var htmlBuilder$4 = (group, options3) => {
-    var style = options3.style;
+  var htmlBuilder$4 = (group, options2) => {
+    var style = options2.style;
     var nstyle = style.fracNum();
     var dstyle = style.fracDen();
     var newOptions;
-    newOptions = options3.havingStyle(nstyle);
-    var numerm = buildGroup$1(group.numer, newOptions, options3);
+    newOptions = options2.havingStyle(nstyle);
+    var numerm = buildGroup$1(group.numer, newOptions, options2);
     if (group.continued) {
-      var hStrut = 8.5 / options3.fontMetrics().ptPerEm;
-      var dStrut = 3.5 / options3.fontMetrics().ptPerEm;
+      var hStrut = 8.5 / options2.fontMetrics().ptPerEm;
+      var dStrut = 3.5 / options2.fontMetrics().ptPerEm;
       numerm.height = numerm.height < hStrut ? hStrut : numerm.height;
       numerm.depth = numerm.depth < dStrut ? dStrut : numerm.depth;
     }
-    newOptions = options3.havingStyle(dstyle);
-    var denomm = buildGroup$1(group.denom, newOptions, options3);
+    newOptions = options2.havingStyle(dstyle);
+    var denomm = buildGroup$1(group.denom, newOptions, options2);
     var rule;
     var ruleWidth;
     var ruleSpacing;
     if (group.hasBarLine) {
       if (group.barSize) {
-        ruleWidth = calculateSize(group.barSize, options3);
-        rule = makeLineSpan("frac-line", options3, ruleWidth);
+        ruleWidth = calculateSize(group.barSize, options2);
+        rule = makeLineSpan("frac-line", options2, ruleWidth);
       } else {
-        rule = makeLineSpan("frac-line", options3);
+        rule = makeLineSpan("frac-line", options2);
       }
       ruleWidth = rule.height;
       ruleSpacing = rule.height;
     } else {
       rule = null;
       ruleWidth = 0;
-      ruleSpacing = options3.fontMetrics().defaultRuleThickness;
+      ruleSpacing = options2.fontMetrics().defaultRuleThickness;
     }
     var numShift;
     var clearance;
     var denomShift;
     if (style.size === Style$1.DISPLAY.size) {
-      numShift = options3.fontMetrics().num1;
+      numShift = options2.fontMetrics().num1;
       if (ruleWidth > 0) {
         clearance = 3 * ruleSpacing;
       } else {
         clearance = 7 * ruleSpacing;
       }
-      denomShift = options3.fontMetrics().denom1;
+      denomShift = options2.fontMetrics().denom1;
     } else {
       if (ruleWidth > 0) {
-        numShift = options3.fontMetrics().num2;
+        numShift = options2.fontMetrics().num2;
         clearance = ruleSpacing;
       } else {
-        numShift = options3.fontMetrics().num3;
+        numShift = options2.fontMetrics().num3;
         clearance = 3 * ruleSpacing;
       }
-      denomShift = options3.fontMetrics().denom2;
+      denomShift = options2.fontMetrics().denom2;
     }
     var frac;
     if (!rule) {
@@ -14847,7 +14847,7 @@ ${content}</tr>
         }]
       });
     } else {
-      var axisHeight = options3.fontMetrics().axisHeight;
+      var axisHeight = options2.fontMetrics().axisHeight;
       if (numShift - numerm.depth - (axisHeight + 0.5 * ruleWidth) < clearance) {
         numShift += clearance - (numShift - numerm.depth - (axisHeight + 0.5 * ruleWidth));
       }
@@ -14872,39 +14872,39 @@ ${content}</tr>
         }]
       });
     }
-    newOptions = options3.havingStyle(style);
-    frac.height *= newOptions.sizeMultiplier / options3.sizeMultiplier;
-    frac.depth *= newOptions.sizeMultiplier / options3.sizeMultiplier;
+    newOptions = options2.havingStyle(style);
+    frac.height *= newOptions.sizeMultiplier / options2.sizeMultiplier;
+    frac.depth *= newOptions.sizeMultiplier / options2.sizeMultiplier;
     var delimSize;
     if (style.size === Style$1.DISPLAY.size) {
-      delimSize = options3.fontMetrics().delim1;
+      delimSize = options2.fontMetrics().delim1;
     } else if (style.size === Style$1.SCRIPTSCRIPT.size) {
-      delimSize = options3.havingStyle(Style$1.SCRIPT).fontMetrics().delim2;
+      delimSize = options2.havingStyle(Style$1.SCRIPT).fontMetrics().delim2;
     } else {
-      delimSize = options3.fontMetrics().delim2;
+      delimSize = options2.fontMetrics().delim2;
     }
     var leftDelim;
     var rightDelim;
     if (group.leftDelim == null) {
-      leftDelim = makeNullDelimiter(options3, ["mopen"]);
+      leftDelim = makeNullDelimiter(options2, ["mopen"]);
     } else {
-      leftDelim = makeCustomSizedDelim(group.leftDelim, delimSize, true, options3.havingStyle(style), group.mode, ["mopen"]);
+      leftDelim = makeCustomSizedDelim(group.leftDelim, delimSize, true, options2.havingStyle(style), group.mode, ["mopen"]);
     }
     if (group.continued) {
       rightDelim = makeSpan([]);
     } else if (group.rightDelim == null) {
-      rightDelim = makeNullDelimiter(options3, ["mclose"]);
+      rightDelim = makeNullDelimiter(options2, ["mclose"]);
     } else {
-      rightDelim = makeCustomSizedDelim(group.rightDelim, delimSize, true, options3.havingStyle(style), group.mode, ["mclose"]);
+      rightDelim = makeCustomSizedDelim(group.rightDelim, delimSize, true, options2.havingStyle(style), group.mode, ["mclose"]);
     }
-    return makeSpan(["mord"].concat(newOptions.sizingClasses(options3)), [leftDelim, makeSpan(["mfrac"], [frac]), rightDelim], options3);
+    return makeSpan(["mord"].concat(newOptions.sizingClasses(options2)), [leftDelim, makeSpan(["mfrac"], [frac]), rightDelim], options2);
   };
-  var mathmlBuilder$3 = (group, options3) => {
-    var node = new MathNode("mfrac", [buildGroup2(group.numer, options3), buildGroup2(group.denom, options3)]);
+  var mathmlBuilder$3 = (group, options2) => {
+    var node = new MathNode("mfrac", [buildGroup2(group.numer, options2), buildGroup2(group.denom, options2)]);
     if (!group.hasBarLine) {
       node.setAttribute("linethickness", "0px");
     } else if (group.barSize) {
-      var ruleWidth = calculateSize(group.barSize, options3);
+      var ruleWidth = calculateSize(group.barSize, options2);
       node.setAttribute("linethickness", makeEm(ruleWidth));
     }
     if (group.leftDelim != null || group.rightDelim != null) {
@@ -15151,18 +15151,18 @@ ${content}</tr>
       };
     }
   });
-  var htmlBuilder$3 = (grp, options3) => {
-    var style = options3.style;
+  var htmlBuilder$3 = (grp, options2) => {
+    var style = options2.style;
     var supSubGroup;
     var group;
     if (grp.type === "supsub") {
-      supSubGroup = grp.sup ? buildGroup$1(grp.sup, options3.havingStyle(style.sup()), options3) : buildGroup$1(grp.sub, options3.havingStyle(style.sub()), options3);
+      supSubGroup = grp.sup ? buildGroup$1(grp.sup, options2.havingStyle(style.sup()), options2) : buildGroup$1(grp.sub, options2.havingStyle(style.sub()), options2);
       group = assertNodeType(grp.base, "horizBrace");
     } else {
       group = assertNodeType(grp, "horizBrace");
     }
-    var body = buildGroup$1(group.base, options3.havingBaseStyle(Style$1.DISPLAY));
-    var braceBody = stretchySvg(group, options3);
+    var body = buildGroup$1(group.base, options2.havingBaseStyle(Style$1.DISPLAY));
+    var braceBody = stretchySvg(group, options2);
     var vlist;
     if (group.isOver) {
       vlist = makeVList({
@@ -15197,7 +15197,7 @@ ${content}</tr>
       });
     }
     if (supSubGroup) {
-      var vSpan = makeSpan(["minner", group.isOver ? "mover" : "munder"], [vlist], options3);
+      var vSpan = makeSpan(["minner", group.isOver ? "mover" : "munder"], [vlist], options2);
       if (group.isOver) {
         vlist = makeVList({
           positionType: "firstBaseline",
@@ -15229,11 +15229,11 @@ ${content}</tr>
         });
       }
     }
-    return makeSpan(["minner", group.isOver ? "mover" : "munder"], [vlist], options3);
+    return makeSpan(["minner", group.isOver ? "mover" : "munder"], [vlist], options2);
   };
-  var mathmlBuilder$2 = (group, options3) => {
+  var mathmlBuilder$2 = (group, options2) => {
     var accentNode = stretchyMathML(group.label);
-    return new MathNode(group.isOver ? "mover" : "munder", [buildGroup2(group.base, options3), accentNode]);
+    return new MathNode(group.isOver ? "mover" : "munder", [buildGroup2(group.base, options2), accentNode]);
   };
   defineFunction({
     type: "horizBrace",
@@ -15275,12 +15275,12 @@ ${content}</tr>
         body: ordargument(body)
       };
     },
-    htmlBuilder: (group, options3) => {
-      var elements = buildExpression$1(group.body, options3, false);
-      return makeAnchor(group.href, [], elements, options3);
+    htmlBuilder: (group, options2) => {
+      var elements = buildExpression$1(group.body, options2, false);
+      return makeAnchor(group.href, [], elements, options2);
     },
-    mathmlBuilder: (group, options3) => {
-      var math3 = buildExpressionRow(group.body, options3);
+    mathmlBuilder: (group, options2) => {
+      var math3 = buildExpressionRow(group.body, options2);
       if (!(math3 instanceof MathNode)) {
         math3 = new MathNode("mrow", [math3]);
       }
@@ -15344,12 +15344,12 @@ ${content}</tr>
         body: ordargument(args[0])
       };
     },
-    htmlBuilder(group, options3) {
-      var elements = buildExpression$1(group.body, options3.withFont(""), false);
+    htmlBuilder(group, options2) {
+      var elements = buildExpression$1(group.body, options2.withFont(""), false);
       return makeFragment(elements);
     },
-    mathmlBuilder(group, options3) {
-      return new MathNode("mrow", buildExpression2(group.body, options3.withFont("")));
+    mathmlBuilder(group, options2) {
+      return new MathNode("mrow", buildExpression2(group.body, options2.withFont("")));
     }
   });
   defineFunction({
@@ -15440,13 +15440,13 @@ ${content}</tr>
         body: ordargument(body)
       };
     },
-    htmlBuilder: (group, options3) => {
-      var elements = buildExpression$1(group.body, options3, false);
+    htmlBuilder: (group, options2) => {
+      var elements = buildExpression$1(group.body, options2, false);
       var classes = ["enclosing"];
       if (group.attributes.class) {
         classes.push(...group.attributes.class.trim().split(/\s+/));
       }
-      var span = makeSpan(classes, elements, options3);
+      var span = makeSpan(classes, elements, options2);
       for (var _ref3 of Object.entries(group.attributes)) {
         var attr = _ref3[0];
         var value = _ref3[1];
@@ -15456,8 +15456,8 @@ ${content}</tr>
       }
       return span;
     },
-    mathmlBuilder: (group, options3) => {
-      return buildExpressionRow(group.body, options3);
+    mathmlBuilder: (group, options2) => {
+      return buildExpressionRow(group.body, options2);
     }
   });
   defineFunction({
@@ -15475,12 +15475,12 @@ ${content}</tr>
         mathml: ordargument(args[1])
       };
     },
-    htmlBuilder: (group, options3) => {
-      var elements = buildExpression$1(group.html, options3, false);
+    htmlBuilder: (group, options2) => {
+      var elements = buildExpression$1(group.html, options2, false);
       return makeFragment(elements);
     },
-    mathmlBuilder: (group, options3) => {
-      return buildExpressionRow(group.mathml, options3);
+    mathmlBuilder: (group, options2) => {
+      return buildExpressionRow(group.mathml, options2);
     }
   });
   var sizeData = function sizeData2(str) {
@@ -15575,15 +15575,15 @@ ${content}</tr>
         src
       };
     },
-    htmlBuilder: (group, options3) => {
-      var height = calculateSize(group.height, options3);
+    htmlBuilder: (group, options2) => {
+      var height = calculateSize(group.height, options2);
       var depth = 0;
       if (group.totalheight.number > 0) {
-        depth = calculateSize(group.totalheight, options3) - height;
+        depth = calculateSize(group.totalheight, options2) - height;
       }
       var width = 0;
       if (group.width.number > 0) {
-        width = calculateSize(group.width, options3);
+        width = calculateSize(group.width, options2);
       }
       var style = {
         height: makeEm(height + depth)
@@ -15599,18 +15599,18 @@ ${content}</tr>
       node.depth = depth;
       return node;
     },
-    mathmlBuilder: (group, options3) => {
+    mathmlBuilder: (group, options2) => {
       var node = new MathNode("mglyph", []);
       node.setAttribute("alt", group.alt);
-      var height = calculateSize(group.height, options3);
+      var height = calculateSize(group.height, options2);
       var depth = 0;
       if (group.totalheight.number > 0) {
-        depth = calculateSize(group.totalheight, options3) - height;
+        depth = calculateSize(group.totalheight, options2) - height;
         node.setAttribute("valign", makeEm(-depth));
       }
       node.setAttribute("height", makeEm(height + depth));
       if (group.width.number > 0) {
-        var width = calculateSize(group.width, options3);
+        var width = calculateSize(group.width, options2);
         node.setAttribute("width", makeEm(width));
       }
       node.setAttribute("src", group.src);
@@ -15664,11 +15664,11 @@ ${content}</tr>
         dimension: size.value
       };
     },
-    htmlBuilder(group, options3) {
-      return makeGlue(group.dimension, options3);
+    htmlBuilder(group, options2) {
+      return makeGlue(group.dimension, options2);
     },
-    mathmlBuilder(group, options3) {
-      var dimension = calculateSize(group.dimension, options3);
+    mathmlBuilder(group, options2) {
+      var dimension = calculateSize(group.dimension, options2);
       return new SpaceNode(dimension);
     }
   });
@@ -15687,27 +15687,27 @@ ${content}</tr>
         body
       };
     },
-    htmlBuilder: (group, options3) => {
+    htmlBuilder: (group, options2) => {
       var inner2;
       if (group.alignment === "clap") {
-        inner2 = makeSpan([], [buildGroup$1(group.body, options3)]);
-        inner2 = makeSpan(["katex-inner"], [inner2], options3);
+        inner2 = makeSpan([], [buildGroup$1(group.body, options2)]);
+        inner2 = makeSpan(["katex-inner"], [inner2], options2);
       } else {
-        inner2 = makeSpan(["katex-inner"], [buildGroup$1(group.body, options3)]);
+        inner2 = makeSpan(["katex-inner"], [buildGroup$1(group.body, options2)]);
       }
       var fix = makeSpan(["katex-fix"], []);
-      var node = makeSpan([group.alignment], [inner2, fix], options3);
+      var node = makeSpan([group.alignment], [inner2, fix], options2);
       var strut = makeSpan(["katex-strut"]);
       strut.style.height = makeEm(node.height + node.depth);
       if (node.depth) {
         strut.style.verticalAlign = makeEm(-node.depth);
       }
       node.children.unshift(strut);
-      node = makeSpan(["katex-thinbox"], [node], options3);
-      return makeSpan(["mord", "katex-vbox"], [node], options3);
+      node = makeSpan(["katex-thinbox"], [node], options2);
+      return makeSpan(["mord", "katex-vbox"], [node], options2);
     },
-    mathmlBuilder: (group, options3) => {
-      var node = new MathNode("mpadded", [buildGroup2(group.body, options3)]);
+    mathmlBuilder: (group, options2) => {
+      var node = new MathNode("mpadded", [buildGroup2(group.body, options2)]);
       if (group.alignment !== "rlap") {
         var offset = group.alignment === "llap" ? "-1" : "-0.5";
         node.setAttribute("lspace", offset + "width");
@@ -15750,8 +15750,8 @@ ${content}</tr>
       throw new ParseError("Mismatched " + context.funcName);
     }
   });
-  var chooseMathStyle = (group, options3) => {
-    switch (options3.style.size) {
+  var chooseMathStyle = (group, options2) => {
+    switch (options2.style.size) {
       case Style$1.DISPLAY.size:
         return group.display;
       case Style$1.TEXT.size:
@@ -15780,44 +15780,44 @@ ${content}</tr>
         scriptscript: ordargument(args[3])
       };
     },
-    htmlBuilder: (group, options3) => {
-      var body = chooseMathStyle(group, options3);
-      var elements = buildExpression$1(body, options3, false);
+    htmlBuilder: (group, options2) => {
+      var body = chooseMathStyle(group, options2);
+      var elements = buildExpression$1(body, options2, false);
       return makeFragment(elements);
     },
-    mathmlBuilder: (group, options3) => {
-      var body = chooseMathStyle(group, options3);
-      return buildExpressionRow(body, options3);
+    mathmlBuilder: (group, options2) => {
+      var body = chooseMathStyle(group, options2);
+      return buildExpressionRow(body, options2);
     }
   });
-  var assembleSupSub = (base, supGroup, subGroup, options3, style, slant, baseShift) => {
+  var assembleSupSub = (base, supGroup, subGroup, options2, style, slant, baseShift) => {
     base = makeSpan([], [base]);
     var subIsSingleCharacter = subGroup && isCharacterBox(subGroup);
     var sub2;
     var sup2;
     if (supGroup) {
-      var elem = buildGroup$1(supGroup, options3.havingStyle(style.sup()), options3);
+      var elem = buildGroup$1(supGroup, options2.havingStyle(style.sup()), options2);
       sup2 = {
         elem,
-        kern: Math.max(options3.fontMetrics().bigOpSpacing1, options3.fontMetrics().bigOpSpacing3 - elem.depth)
+        kern: Math.max(options2.fontMetrics().bigOpSpacing1, options2.fontMetrics().bigOpSpacing3 - elem.depth)
       };
     }
     if (subGroup) {
-      var _elem = buildGroup$1(subGroup, options3.havingStyle(style.sub()), options3);
+      var _elem = buildGroup$1(subGroup, options2.havingStyle(style.sub()), options2);
       sub2 = {
         elem: _elem,
-        kern: Math.max(options3.fontMetrics().bigOpSpacing2, options3.fontMetrics().bigOpSpacing4 - _elem.height)
+        kern: Math.max(options2.fontMetrics().bigOpSpacing2, options2.fontMetrics().bigOpSpacing4 - _elem.height)
       };
     }
     var finalGroup;
     if (sup2 && sub2) {
-      var bottom = options3.fontMetrics().bigOpSpacing5 + sub2.elem.height + sub2.elem.depth + sub2.kern + base.depth + baseShift;
+      var bottom = options2.fontMetrics().bigOpSpacing5 + sub2.elem.height + sub2.elem.depth + sub2.kern + base.depth + baseShift;
       finalGroup = makeVList({
         positionType: "bottom",
         positionData: bottom,
         children: [{
           type: "kern",
-          size: options3.fontMetrics().bigOpSpacing5
+          size: options2.fontMetrics().bigOpSpacing5
         }, {
           type: "elem",
           elem: sub2.elem,
@@ -15837,7 +15837,7 @@ ${content}</tr>
           marginLeft: makeEm(slant)
         }, {
           type: "kern",
-          size: options3.fontMetrics().bigOpSpacing5
+          size: options2.fontMetrics().bigOpSpacing5
         }]
       });
     } else if (sub2) {
@@ -15847,7 +15847,7 @@ ${content}</tr>
         positionData: top,
         children: [{
           type: "kern",
-          size: options3.fontMetrics().bigOpSpacing5
+          size: options2.fontMetrics().bigOpSpacing5
         }, {
           type: "elem",
           elem: sub2.elem,
@@ -15877,7 +15877,7 @@ ${content}</tr>
           marginLeft: makeEm(slant)
         }, {
           type: "kern",
-          size: options3.fontMetrics().bigOpSpacing5
+          size: options2.fontMetrics().bigOpSpacing5
         }]
       });
     } else {
@@ -15885,14 +15885,14 @@ ${content}</tr>
     }
     var parts = [finalGroup];
     if (sub2 && slant !== 0 && !subIsSingleCharacter) {
-      var spacer = makeSpan(["mspace"], [], options3);
+      var spacer = makeSpan(["mspace"], [], options2);
       spacer.style.marginRight = makeEm(slant);
       parts.unshift(spacer);
     }
-    return makeSpan(["mop", "op-limits"], parts, options3);
+    return makeSpan(["mop", "op-limits"], parts, options2);
   };
   var noSuccessor = /* @__PURE__ */ new Set(["\\smallint"]);
-  var htmlBuilder$2 = (grp, options3) => {
+  var htmlBuilder$2 = (grp, options2) => {
     var supGroup;
     var subGroup;
     var hasLimits = false;
@@ -15905,7 +15905,7 @@ ${content}</tr>
     } else {
       group = assertNodeType(grp, "op");
     }
-    var style = options3.style;
+    var style = options2.style;
     var large = false;
     if (style.size === Style$1.DISPLAY.size && group.symbol && !noSuccessor.has(group.name)) {
       large = true;
@@ -15919,10 +15919,10 @@ ${content}</tr>
         stash = group.name.slice(1);
         group.name = stash === "oiint" ? "\\iint" : "\\iiint";
       }
-      base = makeSymbol(group.name, fontName, "math", options3, ["mop", "op-symbol", large ? "large-op" : "small-op"]);
+      base = makeSymbol(group.name, fontName, "math", options2, ["mop", "op-symbol", large ? "large-op" : "small-op"]);
       symbolItalic = base.italic;
       if (stash.length > 0) {
-        var oval = staticSvg(stash + "Size" + (large ? "2" : "1"), options3);
+        var oval = staticSvg(stash + "Size" + (large ? "2" : "1"), options2);
         base = makeVList({
           positionType: "individualShift",
           children: [{
@@ -15940,29 +15940,29 @@ ${content}</tr>
         base.italic = symbolItalic;
       }
     } else if (group.body) {
-      var inner2 = buildExpression$1(group.body, options3, true);
+      var inner2 = buildExpression$1(group.body, options2, true);
       if (inner2.length === 1 && inner2[0] instanceof SymbolNode) {
         base = inner2[0];
         base.classes[0] = "mop";
       } else {
-        base = makeSpan(["mop"], inner2, options3);
+        base = makeSpan(["mop"], inner2, options2);
       }
     } else {
       var output = [];
       for (var i = 1; i < group.name.length; i++) {
-        output.push(mathsym(group.name[i], group.mode, options3));
+        output.push(mathsym(group.name[i], group.mode, options2));
       }
-      base = makeSpan(["mop"], output, options3);
+      base = makeSpan(["mop"], output, options2);
     }
     var baseShift = 0;
     var slant = 0;
     if ((base instanceof SymbolNode || group.name === "\\oiint" || group.name === "\\oiiint") && !group.suppressBaseShift) {
       var _base$italic;
-      baseShift = (base.height - base.depth) / 2 - options3.fontMetrics().axisHeight;
+      baseShift = (base.height - base.depth) / 2 - options2.fontMetrics().axisHeight;
       slant = (_base$italic = base.italic) != null ? _base$italic : 0;
     }
     if (hasLimits) {
-      return assembleSupSub(base, supGroup, subGroup, options3, style, slant, baseShift);
+      return assembleSupSub(base, supGroup, subGroup, options2, style, slant, baseShift);
     } else {
       if (baseShift) {
         base.style.position = "relative";
@@ -15971,7 +15971,7 @@ ${content}</tr>
       return base;
     }
   };
-  var mathmlBuilder$1 = (group, options3) => {
+  var mathmlBuilder$1 = (group, options2) => {
     var node;
     if (group.symbol) {
       node = new MathNode("mo", [makeText(group.name, group.mode)]);
@@ -15979,7 +15979,7 @@ ${content}</tr>
         node.setAttribute("largeop", "false");
       }
     } else if (group.body) {
-      node = new MathNode("mo", buildExpression2(group.body, options3));
+      node = new MathNode("mo", buildExpression2(group.body, options2));
     } else {
       node = new MathNode("mi", [new TextNode(group.name.slice(1))]);
       var operator = new MathNode("mo", [makeText("\u2061", "text")]);
@@ -16106,7 +16106,7 @@ ${content}</tr>
       };
     }
   });
-  var htmlBuilder$1 = (grp, options3) => {
+  var htmlBuilder$1 = (grp, options2) => {
     var supGroup;
     var subGroup;
     var hasLimits = false;
@@ -16133,25 +16133,25 @@ ${content}</tr>
           return child2;
         }
       });
-      var expression = buildExpression$1(body, options3.withFont("mathrm"), true);
+      var expression = buildExpression$1(body, options2.withFont("mathrm"), true);
       for (var i = 0; i < expression.length; i++) {
         var child = expression[i];
         if (child instanceof SymbolNode) {
           child.text = child.text.replace(/\u2212/, "-").replace(/\u2217/, "*");
         }
       }
-      base = makeSpan(["mop"], expression, options3);
+      base = makeSpan(["mop"], expression, options2);
     } else {
-      base = makeSpan(["mop"], [], options3);
+      base = makeSpan(["mop"], [], options2);
     }
     if (hasLimits) {
-      return assembleSupSub(base, supGroup, subGroup, options3, options3.style, 0, 0);
+      return assembleSupSub(base, supGroup, subGroup, options2, options2.style, 0, 0);
     } else {
       return base;
     }
   };
-  var mathmlBuilder2 = (group, options3) => {
-    var expression = buildExpression2(group.body, options3.withFont("mathrm"));
+  var mathmlBuilder2 = (group, options2) => {
+    var expression = buildExpression2(group.body, options2.withFont("mathrm"));
     var isAllString = true;
     for (var i = 0; i < expression.length; i++) {
       var node = expression[i];
@@ -16215,14 +16215,14 @@ ${content}</tr>
   defineMacro("\\operatorname", "\\@ifstar\\operatornamewithlimits\\operatorname@");
   defineFunctionBuilders({
     type: "ordgroup",
-    htmlBuilder(group, options3) {
+    htmlBuilder(group, options2) {
       if (group.semisimple) {
-        return makeFragment(buildExpression$1(group.body, options3, false));
+        return makeFragment(buildExpression$1(group.body, options2, false));
       }
-      return makeSpan(["mord"], buildExpression$1(group.body, options3, true), options3);
+      return makeSpan(["mord"], buildExpression$1(group.body, options2, true), options2);
     },
-    mathmlBuilder(group, options3) {
-      return buildExpressionRow(group.body, options3, true);
+    mathmlBuilder(group, options2) {
+      return buildExpressionRow(group.body, options2, true);
     }
   });
   defineFunction({
@@ -16238,10 +16238,10 @@ ${content}</tr>
         body
       };
     },
-    htmlBuilder(group, options3) {
-      var innerGroup = buildGroup$1(group.body, options3.havingCrampedStyle());
-      var line = makeLineSpan("overline-line", options3);
-      var defaultRuleThickness = options3.fontMetrics().defaultRuleThickness;
+    htmlBuilder(group, options2) {
+      var innerGroup = buildGroup$1(group.body, options2.havingCrampedStyle());
+      var line = makeLineSpan("overline-line", options2);
+      var defaultRuleThickness = options2.fontMetrics().defaultRuleThickness;
       var vlist = makeVList({
         positionType: "firstBaseline",
         children: [{
@@ -16258,12 +16258,12 @@ ${content}</tr>
           size: defaultRuleThickness
         }]
       });
-      return makeSpan(["mord", "katex-overline"], [vlist], options3);
+      return makeSpan(["mord", "katex-overline"], [vlist], options2);
     },
-    mathmlBuilder(group, options3) {
+    mathmlBuilder(group, options2) {
       var operator = new MathNode("mo", [new TextNode("\u203E")]);
       operator.setAttribute("stretchy", "true");
-      var node = new MathNode("mover", [buildGroup2(group.body, options3), operator]);
+      var node = new MathNode("mover", [buildGroup2(group.body, options2), operator]);
       node.setAttribute("accent", "true");
       return node;
     }
@@ -16282,12 +16282,12 @@ ${content}</tr>
         body: ordargument(body)
       };
     },
-    htmlBuilder: (group, options3) => {
-      var elements = buildExpression$1(group.body, options3.withPhantom(), false);
+    htmlBuilder: (group, options2) => {
+      var elements = buildExpression$1(group.body, options2.withPhantom(), false);
       return makeFragment(elements);
     },
-    mathmlBuilder: (group, options3) => {
-      var inner2 = buildExpression2(group.body, options3);
+    mathmlBuilder: (group, options2) => {
+      var inner2 = buildExpression2(group.body, options2);
       return new MathNode("mphantom", inner2);
     }
   });
@@ -16306,13 +16306,13 @@ ${content}</tr>
         body
       };
     },
-    htmlBuilder: (group, options3) => {
-      var inner2 = makeSpan(["katex-inner"], [buildGroup$1(group.body, options3.withPhantom())]);
+    htmlBuilder: (group, options2) => {
+      var inner2 = makeSpan(["katex-inner"], [buildGroup$1(group.body, options2.withPhantom())]);
       var fix = makeSpan(["katex-fix"], []);
-      return makeSpan(["mord", "rlap"], [inner2, fix], options3);
+      return makeSpan(["mord", "rlap"], [inner2, fix], options2);
     },
-    mathmlBuilder: (group, options3) => {
-      var inner2 = buildExpression2(ordargument(group.body), options3);
+    mathmlBuilder: (group, options2) => {
+      var inner2 = buildExpression2(ordargument(group.body), options2);
       var phantom = new MathNode("mphantom", inner2);
       var node = new MathNode("mpadded", [phantom]);
       node.setAttribute("width", "0px");
@@ -16336,9 +16336,9 @@ ${content}</tr>
         body
       };
     },
-    htmlBuilder(group, options3) {
-      var body = buildGroup$1(group.body, options3);
-      var dy = calculateSize(group.dy, options3);
+    htmlBuilder(group, options2) {
+      var body = buildGroup$1(group.body, options2);
+      var dy = calculateSize(group.dy, options2);
       return makeVList({
         positionType: "shift",
         positionData: -dy,
@@ -16348,8 +16348,8 @@ ${content}</tr>
         }]
       });
     },
-    mathmlBuilder(group, options3) {
-      var node = new MathNode("mpadded", [buildGroup2(group.body, options3)]);
+    mathmlBuilder(group, options2) {
+      var node = new MathNode("mpadded", [buildGroup2(group.body, options2)]);
       var dy = group.dy.number + group.dy.unit;
       node.setAttribute("voffset", dy);
       return node;
@@ -16370,11 +16370,11 @@ ${content}</tr>
     argTypes: ["hbox"],
     allowedInText: true,
     handler,
-    htmlBuilder(group, options3) {
-      return makeSpan(["mord", "reflectbox"], [buildGroup$1(group.body, options3)], options3);
+    htmlBuilder(group, options2) {
+      return makeSpan(["mord", "reflectbox"], [buildGroup$1(group.body, options2)], options2);
     },
-    mathmlBuilder(group, options3) {
-      return buildGroup2(group.body, options3);
+    mathmlBuilder(group, options2) {
+      return buildGroup2(group.body, options2);
     }
   });
   defineFunction({
@@ -16419,25 +16419,25 @@ ${content}</tr>
         height: height.value
       };
     },
-    htmlBuilder(group, options3) {
-      var rule = makeSpan(["mord", "katex-rule"], [], options3);
-      var width = calculateSize(group.width, options3);
-      var height = calculateSize(group.height, options3);
-      var shift = group.shift ? calculateSize(group.shift, options3) : 0;
+    htmlBuilder(group, options2) {
+      var rule = makeSpan(["mord", "katex-rule"], [], options2);
+      var width = calculateSize(group.width, options2);
+      var height = calculateSize(group.height, options2);
+      var shift = group.shift ? calculateSize(group.shift, options2) : 0;
       rule.style.borderRightWidth = makeEm(width);
       rule.style.borderTopWidth = makeEm(height);
       rule.style.bottom = makeEm(shift);
       rule.width = width;
       rule.height = height + shift;
       rule.depth = -shift;
-      rule.maxFontSize = height * 1.125 * options3.sizeMultiplier;
+      rule.maxFontSize = height * 1.125 * options2.sizeMultiplier;
       return rule;
     },
-    mathmlBuilder(group, options3) {
-      var width = calculateSize(group.width, options3);
-      var height = calculateSize(group.height, options3);
-      var shift = group.shift ? calculateSize(group.shift, options3) : 0;
-      var color = options3.color && options3.getColor() || "black";
+    mathmlBuilder(group, options2) {
+      var width = calculateSize(group.width, options2);
+      var height = calculateSize(group.height, options2);
+      var shift = group.shift ? calculateSize(group.shift, options2) : 0;
+      var color = options2.color && options2.getColor() || "black";
       var rule = new MathNode("mspace");
       rule.setAttribute("mathbackground", color);
       rule.setAttribute("width", makeEm(width));
@@ -16453,14 +16453,14 @@ ${content}</tr>
       return wrapper;
     }
   });
-  function sizingGroup(value, options3, baseOptions) {
-    var inner2 = buildExpression$1(value, options3, false);
-    var multiplier = options3.sizeMultiplier / baseOptions.sizeMultiplier;
+  function sizingGroup(value, options2, baseOptions) {
+    var inner2 = buildExpression$1(value, options2, false);
+    var multiplier = options2.sizeMultiplier / baseOptions.sizeMultiplier;
     for (var i = 0; i < inner2.length; i++) {
       var pos = inner2[i].classes.indexOf("katex-sizing");
       if (pos < 0) {
-        Array.prototype.push.apply(inner2[i].classes, options3.sizingClasses(baseOptions));
-      } else if (inner2[i].classes[pos + 1] === "reset-size" + options3.size) {
+        Array.prototype.push.apply(inner2[i].classes, options2.sizingClasses(baseOptions));
+      } else if (inner2[i].classes[pos + 1] === "reset-size" + options2.size) {
         inner2[i].classes[pos + 1] = "reset-size" + baseOptions.size;
       }
       inner2[i].height *= multiplier;
@@ -16469,9 +16469,9 @@ ${content}</tr>
     return makeFragment(inner2);
   }
   var sizeFuncs = ["\\tiny", "\\sixptsize", "\\scriptsize", "\\footnotesize", "\\small", "\\normalsize", "\\large", "\\Large", "\\LARGE", "\\huge", "\\Huge"];
-  var htmlBuilder2 = (group, options3) => {
-    var newOptions = options3.havingSize(group.size);
-    return sizingGroup(group.body, newOptions, options3);
+  var htmlBuilder2 = (group, options2) => {
+    var newOptions = options2.havingSize(group.size);
+    return sizingGroup(group.body, newOptions, options2);
   };
   defineFunction({
     type: "sizing",
@@ -16490,8 +16490,8 @@ ${content}</tr>
       };
     },
     htmlBuilder: htmlBuilder2,
-    mathmlBuilder: (group, options3) => {
-      var newOptions = options3.havingSize(group.size);
+    mathmlBuilder: (group, options2) => {
+      var newOptions = options2.havingSize(group.size);
       var inner2 = buildExpression2(group.body, newOptions);
       var node = new MathNode("mstyle", inner2);
       node.setAttribute("mathsize", makeEm(newOptions.sizeMultiplier));
@@ -16537,8 +16537,8 @@ ${content}</tr>
         smashDepth
       };
     },
-    htmlBuilder: (group, options3) => {
-      var node = makeSpan([], [buildGroup$1(group.body, options3)]);
+    htmlBuilder: (group, options2) => {
+      var node = makeSpan([], [buildGroup$1(group.body, options2)]);
       if (!group.smashHeight && !group.smashDepth) {
         return node;
       }
@@ -16549,7 +16549,7 @@ ${content}</tr>
         node.depth = 0;
       }
       if (group.smashHeight && group.smashDepth) {
-        return makeSpan(["mord", "katex-smash"], [node], options3);
+        return makeSpan(["mord", "katex-smash"], [node], options2);
       }
       if (node.children) {
         for (var i = 0; i < node.children.length; i++) {
@@ -16568,10 +16568,10 @@ ${content}</tr>
           elem: node
         }]
       });
-      return makeSpan(["mord"], [smashedNode], options3);
+      return makeSpan(["mord"], [smashedNode], options2);
     },
-    mathmlBuilder: (group, options3) => {
-      var node = new MathNode("mpadded", [buildGroup2(group.body, options3)]);
+    mathmlBuilder: (group, options2) => {
+      var node = new MathNode("mpadded", [buildGroup2(group.body, options2)]);
       if (group.smashHeight) {
         node.setAttribute("height", "0px");
       }
@@ -16597,21 +16597,21 @@ ${content}</tr>
         index
       };
     },
-    htmlBuilder(group, options3) {
-      var inner2 = buildGroup$1(group.body, options3.havingCrampedStyle());
+    htmlBuilder(group, options2) {
+      var inner2 = buildGroup$1(group.body, options2.havingCrampedStyle());
       if (inner2.height === 0) {
-        inner2.height = options3.fontMetrics().xHeight;
+        inner2.height = options2.fontMetrics().xHeight;
       }
-      inner2 = wrapFragment(inner2, options3);
-      var metrics = options3.fontMetrics();
+      inner2 = wrapFragment(inner2, options2);
+      var metrics = options2.fontMetrics();
       var theta = metrics.defaultRuleThickness;
       var phi = theta;
-      if (options3.style.id < Style$1.TEXT.id) {
-        phi = options3.fontMetrics().xHeight;
+      if (options2.style.id < Style$1.TEXT.id) {
+        phi = options2.fontMetrics().xHeight;
       }
       var lineClearance = theta + phi / 4;
       var minDelimiterHeight = inner2.height + inner2.depth + lineClearance + theta;
-      var _makeSqrtImage = makeSqrtImage(minDelimiterHeight, options3), img = _makeSqrtImage.span, ruleWidth = _makeSqrtImage.ruleWidth, advanceWidth = _makeSqrtImage.advanceWidth;
+      var _makeSqrtImage = makeSqrtImage(minDelimiterHeight, options2), img = _makeSqrtImage.span, ruleWidth = _makeSqrtImage.ruleWidth, advanceWidth = _makeSqrtImage.advanceWidth;
       var delimDepth = img.height - ruleWidth;
       if (delimDepth > inner2.height + inner2.depth + lineClearance) {
         lineClearance = (lineClearance + delimDepth - inner2.height - inner2.depth) / 2;
@@ -16636,10 +16636,10 @@ ${content}</tr>
         }]
       });
       if (!group.index) {
-        return makeSpan(["mord", "sqrt"], [body], options3);
+        return makeSpan(["mord", "sqrt"], [body], options2);
       } else {
-        var newOptions = options3.havingStyle(Style$1.SCRIPTSCRIPT);
-        var rootm = buildGroup$1(group.index, newOptions, options3);
+        var newOptions = options2.havingStyle(Style$1.SCRIPTSCRIPT);
+        var rootm = buildGroup$1(group.index, newOptions, options2);
         var toShift = 0.6 * (body.height - body.depth);
         var rootVList = makeVList({
           positionType: "shift",
@@ -16650,12 +16650,12 @@ ${content}</tr>
           }]
         });
         var rootVListWrap = makeSpan(["katex-root"], [rootVList]);
-        return makeSpan(["mord", "sqrt"], [rootVListWrap, body], options3);
+        return makeSpan(["mord", "sqrt"], [rootVListWrap, body], options2);
       }
     },
-    mathmlBuilder(group, options3) {
+    mathmlBuilder(group, options2) {
       var body = group.body, index = group.index;
-      return index ? new MathNode("mroot", [buildGroup2(body, options3), buildGroup2(index, options3)]) : new MathNode("msqrt", [buildGroup2(body, options3)]);
+      return index ? new MathNode("mroot", [buildGroup2(body, options2), buildGroup2(index, options2)]) : new MathNode("msqrt", [buildGroup2(body, options2)]);
     }
   });
   var styleMap = {
@@ -16689,17 +16689,17 @@ ${content}</tr>
         body
       };
     },
-    htmlBuilder(group, options3) {
+    htmlBuilder(group, options2) {
       var newStyle = styleMap[group.style];
-      var newOptions = options3.havingStyle(newStyle);
+      var newOptions = options2.havingStyle(newStyle);
       if (group.resetFont) {
         newOptions = newOptions.withFont("");
       }
-      return sizingGroup(group.body, newOptions, options3);
+      return sizingGroup(group.body, newOptions, options2);
     },
-    mathmlBuilder(group, options3) {
+    mathmlBuilder(group, options2) {
       var newStyle = styleMap[group.style];
-      var newOptions = options3.havingStyle(newStyle);
+      var newOptions = options2.havingStyle(newStyle);
       if (group.resetFont) {
         newOptions = newOptions.withFont("");
       }
@@ -16717,15 +16717,15 @@ ${content}</tr>
       return node;
     }
   });
-  var htmlBuilderDelegate = function htmlBuilderDelegate2(group, options3) {
+  var htmlBuilderDelegate = function htmlBuilderDelegate2(group, options2) {
     var base = group.base;
     if (!base) {
       return null;
     } else if (base.type === "op") {
-      var delegate = base.limits && (options3.style.size === Style$1.DISPLAY.size || base.alwaysHandleSupSub);
+      var delegate = base.limits && (options2.style.size === Style$1.DISPLAY.size || base.alwaysHandleSupSub);
       return delegate ? htmlBuilder$2 : null;
     } else if (base.type === "operatorname") {
-      var _delegate = base.alwaysHandleSupSub && (options3.style.size === Style$1.DISPLAY.size || base.limits);
+      var _delegate = base.alwaysHandleSupSub && (options2.style.size === Style$1.DISPLAY.size || base.limits);
       return _delegate ? htmlBuilder$1 : null;
     } else if (base.type === "accent") {
       return isCharacterBox(base.base) ? htmlBuilder$a : null;
@@ -16738,42 +16738,42 @@ ${content}</tr>
   };
   defineFunctionBuilders({
     type: "supsub",
-    htmlBuilder(group, options3) {
-      var builderDelegate = htmlBuilderDelegate(group, options3);
+    htmlBuilder(group, options2) {
+      var builderDelegate = htmlBuilderDelegate(group, options2);
       if (builderDelegate) {
-        return builderDelegate(group, options3);
+        return builderDelegate(group, options2);
       }
       var valueBase = group.base, valueSup = group.sup, valueSub = group.sub;
-      var base = buildGroup$1(valueBase, options3);
+      var base = buildGroup$1(valueBase, options2);
       var supm;
       var subm;
-      var metrics = options3.fontMetrics();
+      var metrics = options2.fontMetrics();
       var supShift = 0;
       var subShift = 0;
       var isCharBox = valueBase && isCharacterBox(valueBase);
       if (valueSup) {
-        var newOptions = options3.havingStyle(options3.style.sup());
-        supm = buildGroup$1(valueSup, newOptions, options3);
+        var newOptions = options2.havingStyle(options2.style.sup());
+        supm = buildGroup$1(valueSup, newOptions, options2);
         if (!isCharBox) {
-          supShift = base.height - newOptions.fontMetrics().supDrop * newOptions.sizeMultiplier / options3.sizeMultiplier;
+          supShift = base.height - newOptions.fontMetrics().supDrop * newOptions.sizeMultiplier / options2.sizeMultiplier;
         }
       }
       if (valueSub) {
-        var _newOptions = options3.havingStyle(options3.style.sub());
-        subm = buildGroup$1(valueSub, _newOptions, options3);
+        var _newOptions = options2.havingStyle(options2.style.sub());
+        subm = buildGroup$1(valueSub, _newOptions, options2);
         if (!isCharBox) {
-          subShift = base.depth + _newOptions.fontMetrics().subDrop * _newOptions.sizeMultiplier / options3.sizeMultiplier;
+          subShift = base.depth + _newOptions.fontMetrics().subDrop * _newOptions.sizeMultiplier / options2.sizeMultiplier;
         }
       }
       var minSupShift;
-      if (options3.style === Style$1.DISPLAY) {
+      if (options2.style === Style$1.DISPLAY) {
         minSupShift = metrics.sup1;
-      } else if (options3.style.cramped) {
+      } else if (options2.style.cramped) {
         minSupShift = metrics.sup3;
       } else {
         minSupShift = metrics.sup2;
       }
-      var multiplier = options3.sizeMultiplier;
+      var multiplier = options2.sizeMultiplier;
       var marginRight = makeEm(0.5 / metrics.ptPerEm / multiplier);
       var marginLeft = null;
       if (subm) {
@@ -16841,9 +16841,9 @@ ${content}</tr>
         throw new Error("supsub must have either sup or sub.");
       }
       var mclass = getTypeOfDomTree(base, "right") || "mord";
-      return makeSpan([mclass], [base, makeSpan(["msupsub"], [supsub])], options3);
+      return makeSpan([mclass], [base, makeSpan(["msupsub"], [supsub])], options2);
     },
-    mathmlBuilder(group, options3) {
+    mathmlBuilder(group, options2) {
       var isBrace = false;
       var isOver;
       var isSup;
@@ -16857,39 +16857,39 @@ ${content}</tr>
       if (group.base && (group.base.type === "op" || group.base.type === "operatorname")) {
         group.base.parentIsSupSub = true;
       }
-      var children = [buildGroup2(group.base, options3)];
+      var children = [buildGroup2(group.base, options2)];
       if (group.sub) {
-        children.push(buildGroup2(group.sub, options3));
+        children.push(buildGroup2(group.sub, options2));
       }
       if (group.sup) {
-        children.push(buildGroup2(group.sup, options3));
+        children.push(buildGroup2(group.sup, options2));
       }
       var nodeType;
       if (isBrace) {
         nodeType = isOver ? "mover" : "munder";
       } else if (!group.sub) {
         var base = group.base;
-        if (base && base.type === "op" && base.limits && (options3.style === Style$1.DISPLAY || base.alwaysHandleSupSub)) {
+        if (base && base.type === "op" && base.limits && (options2.style === Style$1.DISPLAY || base.alwaysHandleSupSub)) {
           nodeType = "mover";
-        } else if (base && base.type === "operatorname" && base.alwaysHandleSupSub && (base.limits || options3.style === Style$1.DISPLAY)) {
+        } else if (base && base.type === "operatorname" && base.alwaysHandleSupSub && (base.limits || options2.style === Style$1.DISPLAY)) {
           nodeType = "mover";
         } else {
           nodeType = "msup";
         }
       } else if (!group.sup) {
         var _base = group.base;
-        if (_base && _base.type === "op" && _base.limits && (options3.style === Style$1.DISPLAY || _base.alwaysHandleSupSub)) {
+        if (_base && _base.type === "op" && _base.limits && (options2.style === Style$1.DISPLAY || _base.alwaysHandleSupSub)) {
           nodeType = "munder";
-        } else if (_base && _base.type === "operatorname" && _base.alwaysHandleSupSub && (_base.limits || options3.style === Style$1.DISPLAY)) {
+        } else if (_base && _base.type === "operatorname" && _base.alwaysHandleSupSub && (_base.limits || options2.style === Style$1.DISPLAY)) {
           nodeType = "munder";
         } else {
           nodeType = "msub";
         }
       } else {
         var _base2 = group.base;
-        if (_base2 && _base2.type === "op" && _base2.limits && options3.style === Style$1.DISPLAY) {
+        if (_base2 && _base2.type === "op" && _base2.limits && options2.style === Style$1.DISPLAY) {
           nodeType = "munderover";
-        } else if (_base2 && _base2.type === "operatorname" && _base2.alwaysHandleSupSub && (options3.style === Style$1.DISPLAY || _base2.limits)) {
+        } else if (_base2 && _base2.type === "operatorname" && _base2.alwaysHandleSupSub && (options2.style === Style$1.DISPLAY || _base2.limits)) {
           nodeType = "munderover";
         } else {
           nodeType = "msubsup";
@@ -16900,13 +16900,13 @@ ${content}</tr>
   });
   defineFunctionBuilders({
     type: "atom",
-    htmlBuilder(group, options3) {
-      return mathsym(group.text, group.mode, options3, ["m" + group.family]);
+    htmlBuilder(group, options2) {
+      return mathsym(group.text, group.mode, options2, ["m" + group.family]);
     },
-    mathmlBuilder(group, options3) {
+    mathmlBuilder(group, options2) {
       var node = new MathNode("mo", [makeText(group.text, group.mode)]);
       if (group.family === "bin") {
-        var variant = getVariant(group, options3);
+        var variant = getVariant(group, options2);
         if (variant === "bold-italic") {
           node.setAttribute("mathvariant", variant);
         }
@@ -16925,12 +16925,12 @@ ${content}</tr>
   };
   defineFunctionBuilders({
     type: "mathord",
-    htmlBuilder(group, options3) {
-      return makeOrd(group, options3);
+    htmlBuilder(group, options2) {
+      return makeOrd(group, options2);
     },
-    mathmlBuilder(group, options3) {
-      var node = new MathNode("mi", [makeText(group.text, group.mode, options3)]);
-      var variant = getVariant(group, options3) || "italic";
+    mathmlBuilder(group, options2) {
+      var node = new MathNode("mi", [makeText(group.text, group.mode, options2)]);
+      var variant = getVariant(group, options2) || "italic";
       if (variant !== defaultVariant[node.type]) {
         node.setAttribute("mathvariant", variant);
       }
@@ -16939,12 +16939,12 @@ ${content}</tr>
   });
   defineFunctionBuilders({
     type: "textord",
-    htmlBuilder(group, options3) {
-      return makeOrd(group, options3);
+    htmlBuilder(group, options2) {
+      return makeOrd(group, options2);
     },
-    mathmlBuilder(group, options3) {
-      var text3 = makeText(group.text, group.mode, options3);
-      var variant = getVariant(group, options3) || "normal";
+    mathmlBuilder(group, options2) {
+      var text3 = makeText(group.text, group.mode, options2);
+      var variant = getVariant(group, options2) || "normal";
       var node;
       if (group.mode === "text") {
         node = new MathNode("mtext", [text3]);
@@ -16969,25 +16969,25 @@ ${content}</tr>
   }]]);
   defineFunctionBuilders({
     type: "spacing",
-    htmlBuilder(group, options3) {
+    htmlBuilder(group, options2) {
       var regularSpaceItem = regularSpace.get(group.text);
       var cssSpaceClass = cssSpace.get(group.text);
       if (regularSpaceItem) {
         var className = regularSpaceItem.className || "";
         if (group.mode === "text") {
-          var ord = makeOrd(group, options3);
+          var ord = makeOrd(group, options2);
           ord.classes.push(className);
           return ord;
         } else {
-          return makeSpan(["mspace", className], [mathsym(group.text, group.mode, options3)], options3);
+          return makeSpan(["mspace", className], [mathsym(group.text, group.mode, options2)], options2);
         }
       } else if (cssSpaceClass) {
-        return makeSpan(["mspace", cssSpaceClass], [], options3);
+        return makeSpan(["mspace", cssSpaceClass], [], options2);
       } else {
         throw new ParseError('Unknown type of space "' + group.text + '"');
       }
     },
-    mathmlBuilder(group, options3) {
+    mathmlBuilder(group, options2) {
       var node;
       if (regularSpace.has(group.text)) {
         node = new MathNode("mtext", [new TextNode("\xA0")]);
@@ -17006,8 +17006,8 @@ ${content}</tr>
   };
   defineFunctionBuilders({
     type: "tag",
-    mathmlBuilder(group, options3) {
-      var table = new MathNode("mtable", [new MathNode("mtr", [pad(), new MathNode("mtd", [buildExpressionRow(group.body, options3)]), pad(), new MathNode("mtd", [buildExpressionRow(group.tag, options3)])])]);
+    mathmlBuilder(group, options2) {
+      var table = new MathNode("mtable", [new MathNode("mtr", [pad(), new MathNode("mtd", [buildExpressionRow(group.body, options2)]), pad(), new MathNode("mtd", [buildExpressionRow(group.tag, options2)])])]);
       table.setAttribute("width", "100%");
       return table;
     }
@@ -17027,18 +17027,18 @@ ${content}</tr>
     "\\textit": "textit",
     "\\textup": "textup"
   };
-  var optionsWithFont = (group, options3) => {
+  var optionsWithFont = (group, options2) => {
     var font = group.font;
     if (!font) {
-      return options3;
+      return options2;
     } else if (textFontFamilies[font]) {
-      return options3.withTextFontFamily(textFontFamilies[font]);
+      return options2.withTextFontFamily(textFontFamilies[font]);
     } else if (textFontWeights[font]) {
-      return options3.withTextFontWeight(textFontWeights[font]);
+      return options2.withTextFontWeight(textFontWeights[font]);
     } else if (font === "\\emph") {
-      return options3.fontShape === "textit" ? options3.withTextFontShape("textup") : options3.withTextFontShape("textit");
+      return options2.fontShape === "textit" ? options2.withTextFontShape("textup") : options2.withTextFontShape("textit");
     }
-    return options3.withTextFontShape(textFontShapes[font]);
+    return options2.withTextFontShape(textFontShapes[font]);
   };
   defineFunction({
     type: "text",
@@ -17071,13 +17071,13 @@ ${content}</tr>
         font: funcName
       };
     },
-    htmlBuilder(group, options3) {
-      var newOptions = optionsWithFont(group, options3);
+    htmlBuilder(group, options2) {
+      var newOptions = optionsWithFont(group, options2);
       var inner2 = buildExpression$1(group.body, newOptions, true);
       return makeSpan(["mord", "text"], inner2, newOptions);
     },
-    mathmlBuilder(group, options3) {
-      var newOptions = optionsWithFont(group, options3);
+    mathmlBuilder(group, options2) {
+      var newOptions = optionsWithFont(group, options2);
       return buildExpressionRow(group.body, newOptions);
     }
   });
@@ -17094,10 +17094,10 @@ ${content}</tr>
         body: args[0]
       };
     },
-    htmlBuilder(group, options3) {
-      var innerGroup = buildGroup$1(group.body, options3);
-      var line = makeLineSpan("underline-line", options3);
-      var defaultRuleThickness = options3.fontMetrics().defaultRuleThickness;
+    htmlBuilder(group, options2) {
+      var innerGroup = buildGroup$1(group.body, options2);
+      var line = makeLineSpan("underline-line", options2);
+      var defaultRuleThickness = options2.fontMetrics().defaultRuleThickness;
       var vlist = makeVList({
         positionType: "top",
         positionData: innerGroup.height,
@@ -17115,12 +17115,12 @@ ${content}</tr>
           elem: innerGroup
         }]
       });
-      return makeSpan(["mord", "katex-underline"], [vlist], options3);
+      return makeSpan(["mord", "katex-underline"], [vlist], options2);
     },
-    mathmlBuilder(group, options3) {
+    mathmlBuilder(group, options2) {
       var operator = new MathNode("mo", [new TextNode("\u203E")]);
       operator.setAttribute("stretchy", "true");
-      var node = new MathNode("munder", [buildGroup2(group.body, options3), operator]);
+      var node = new MathNode("munder", [buildGroup2(group.body, options2), operator]);
       node.setAttribute("accentunder", "true");
       return node;
     }
@@ -17140,9 +17140,9 @@ ${content}</tr>
         body: args[0]
       };
     },
-    htmlBuilder(group, options3) {
-      var body = buildGroup$1(group.body, options3);
-      var axisHeight = options3.fontMetrics().axisHeight;
+    htmlBuilder(group, options2) {
+      var body = buildGroup$1(group.body, options2);
+      var axisHeight = options2.fontMetrics().axisHeight;
       var dy = 0.5 * (body.height - axisHeight - (body.depth + axisHeight));
       return makeVList({
         positionType: "shift",
@@ -17153,8 +17153,8 @@ ${content}</tr>
         }]
       });
     },
-    mathmlBuilder(group, options3) {
-      var mpadded = new MathNode("mpadded", [buildGroup2(group.body, options3)], ["vcenter"]);
+    mathmlBuilder(group, options2) {
+      var mpadded = new MathNode("mpadded", [buildGroup2(group.body, options2)], ["vcenter"]);
       return new MathNode("mrow", [mpadded]);
     }
   });
@@ -17166,10 +17166,10 @@ ${content}</tr>
     handler(context, args, optArgs) {
       throw new ParseError("\\verb ended by end of line instead of matching delimiter");
     },
-    htmlBuilder(group, options3) {
+    htmlBuilder(group, options2) {
       var text3 = makeVerb(group);
       var body = [];
-      var newOptions = options3.havingStyle(options3.style.text());
+      var newOptions = options2.havingStyle(options2.style.text());
       for (var i = 0; i < text3.length; i++) {
         var c = text3[i];
         if (c === "~") {
@@ -17177,9 +17177,9 @@ ${content}</tr>
         }
         body.push(makeSymbol(c, "Typewriter-Regular", group.mode, newOptions, ["mord", "texttt"]));
       }
-      return makeSpan(["mord", "text"].concat(newOptions.sizingClasses(options3)), tryCombineChars(body), newOptions);
+      return makeSpan(["mord", "text"].concat(newOptions.sizingClasses(options2)), tryCombineChars(body), newOptions);
     },
-    mathmlBuilder(group, options3) {
+    mathmlBuilder(group, options2) {
       var text3 = new TextNode(makeVerb(group));
       var node = new MathNode("mtext", [text3]);
       node.setAttribute("mathvariant", "monospace");
@@ -19788,9 +19788,9 @@ ${content}</tr>
     }
     return tree;
   };
-  var render = function render2(expression, baseNode, options3) {
+  var render = function render2(expression, baseNode, options2) {
     baseNode.textContent = "";
-    var node = renderToDomTree(expression, options3).toNode();
+    var node = renderToDomTree(expression, options2).toNode();
     baseNode.appendChild(node);
   };
   if (typeof document !== "undefined") {
@@ -19801,25 +19801,25 @@ ${content}</tr>
       };
     }
   }
-  var renderToString = function renderToString2(expression, options3) {
-    var markup = renderToDomTree(expression, options3).toMarkup();
+  var renderToString = function renderToString2(expression, options2) {
+    var markup = renderToDomTree(expression, options2).toMarkup();
     return markup;
   };
-  var generateParseTree = function generateParseTree2(expression, options3) {
-    var settings2 = new Settings(options3);
+  var generateParseTree = function generateParseTree2(expression, options2) {
+    var settings2 = new Settings(options2);
     return parseTree(expression, settings2);
   };
-  var renderError = function renderError2(error, expression, options3) {
-    if (options3.throwOnError || !(error instanceof ParseError)) {
+  var renderError = function renderError2(error, expression, options2) {
+    if (options2.throwOnError || !(error instanceof ParseError)) {
       throw error;
     }
     var node = makeSpan(["katex-error"], [new SymbolNode(expression)]);
     node.setAttribute("title", error.toString());
-    node.setAttribute("style", "color:" + options3.errorColor);
+    node.setAttribute("style", "color:" + options2.errorColor);
     return node;
   };
-  var renderToDomTree = function renderToDomTree2(expression, options3) {
-    var settings2 = new Settings(options3);
+  var renderToDomTree = function renderToDomTree2(expression, options2) {
+    var settings2 = new Settings(options2);
     try {
       var tree = parseTree(expression, settings2);
       return buildTree(tree, expression, settings2);
@@ -19827,8 +19827,8 @@ ${content}</tr>
       return renderError(error, expression, settings2);
     }
   };
-  var renderToHTMLTree = function renderToHTMLTree2(expression, options3) {
-    var settings2 = new Settings(options3);
+  var renderToHTMLTree = function renderToHTMLTree2(expression, options2) {
+    var settings2 = new Settings(options2);
     try {
       var tree = parseTree(expression, settings2);
       return buildHTMLTree(tree, settings2);
@@ -20253,7 +20253,2158 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     } else container.scrollTop = container.scrollHeight;
   }
 
-  // Content/Learn/lessons.json with { type: 'json' }
+  // Learn/AuthoredTutor/questions.json
+  var questions_default = [
+    {
+      id: "UG-SENS-01",
+      version: 1,
+      track: "foundation",
+      topic: "Sensitivity",
+      objective: "Choose the denominator for sensitivity.",
+      stem: "In a fictional diagnostic study, 90 people have the condition and 810 do not. The test is positive in 72 of the 90 people with the condition and in 81 of the 810 without it. What is the sensitivity?",
+      options: [
+        {
+          id: "A",
+          text: "20%",
+          feedback: "This is the false-negative proportion: 18/90."
+        },
+        {
+          id: "B",
+          text: "47.1%",
+          feedback: "This is the positive predictive value: 72/(72+81)."
+        },
+        {
+          id: "C",
+          text: "80%",
+          feedback: "Use the people with the condition as the denominator: 72/90."
+        },
+        {
+          id: "D",
+          text: "90%",
+          feedback: "This is the specificity: 729/810."
+        },
+        {
+          id: "E",
+          text: "97.6%",
+          feedback: "This is the negative predictive value: 729/(729+18)."
+        }
+      ],
+      correct: "C",
+      hint: "Start with the people known to have the condition. How many did the test detect?",
+      lesson: "Sensitivity asks: among people with the condition, what proportion test positive? Positive predictive value reverses the question: among people with a positive result, what proportion have the condition?",
+      explanation: "Sensitivity = true positives / (true positives + false negatives) = 72/90 = 80%. The 81 false positives matter for specificity and predictive values, not for this denominator.",
+      calculation: {
+        kind: "sensitivity",
+        tp: 72,
+        fn: 18,
+        expected: 0.8
+      },
+      help: "clinical_epidemiology/diagnostic.htm",
+      operation: "MiscDiagnostic"
+    },
+    {
+      id: "UG-NNT-01",
+      version: 2,
+      track: "foundation",
+      topic: "Absolute benefit and NNT",
+      objective: "Calculate NNT and retain the follow-up period.",
+      stem: "With complete one-year follow-up, an individually randomised trial records at least one unplanned admission in 16 of 200 programme participants and 28 of 200 usual-care participants. Using these point estimates, what is the number needed to treat to prevent one additional person having an admission over one year, rounded up to a whole person?",
+      options: [
+        {
+          id: "A",
+          text: "6",
+          feedback: "Six percentage points is the absolute risk reduction, not its reciprocal."
+        },
+        {
+          id: "B",
+          text: "7",
+          feedback: "The absolute reduction is 0.06, so its reciprocal is larger than 7."
+        },
+        {
+          id: "C",
+          text: "12",
+          feedback: "Twelve is the difference in event counts, not NNT."
+        },
+        {
+          id: "D",
+          text: "17",
+          feedback: "1/(0.14\u22120.08) = 16.67, rounded up to 17."
+        },
+        {
+          id: "E",
+          text: "43",
+          feedback: "About 43% is the relative risk reduction; NNT uses absolute risk reduction."
+        }
+      ],
+      correct: "D",
+      hint: "Calculate the two event risks, subtract them, then take the reciprocal of that absolute difference.",
+      lesson: "NNT connects an absolute reduction in risk to the number of people treated. It depends on baseline risk, the outcome and the follow-up period. Count people with an outcome, not repeated events. A point estimate alone does not describe uncertainty or establish benefit.",
+      explanation: "Usual-care risk is 28/200 = 0.14. Programme risk is 16/200 = 0.08. The absolute reduction is 0.06, so NNT = 16.67, conventionally rounded up to 17, for this outcome over one year.",
+      calculation: {
+        kind: "nnt",
+        controlEvents: 28,
+        controlN: 200,
+        treatmentEvents: 16,
+        treatmentN: 200,
+        expected: 17
+      },
+      help: "clinical_epidemiology/nnt.htm",
+      operation: "MiscNumberNeededToTreat"
+    },
+    {
+      id: "UG-PVAL-01",
+      version: 1,
+      track: "foundation",
+      topic: "P values",
+      objective: "Interpret a P value conditional on a null model.",
+      stem: "A prespecified two-sided analysis gives P = 0.03. Which interpretation is most accurate?",
+      options: [
+        {
+          id: "A",
+          text: "The null hypothesis has a 3% probability of being true.",
+          feedback: "A P value is not a posterior probability for the null hypothesis."
+        },
+        {
+          id: "B",
+          text: "If the null model and its assumptions hold, a test statistic at least as extreme as this has probability 3%.",
+          feedback: "This is the repeated-sampling interpretation under the specified null model."
+        },
+        {
+          id: "C",
+          text: "The treatment has a 97% probability of working.",
+          feedback: "A P value does not give the probability that a treatment works."
+        },
+        {
+          id: "D",
+          text: "The estimated treatment effect is clinically important.",
+          feedback: "Clinical importance depends on the effect size, uncertainty, harms and context."
+        },
+        {
+          id: "E",
+          text: "There is a 3% probability that the study contains any bias.",
+          feedback: "P values do not measure the probability of bias."
+        }
+      ],
+      correct: "B",
+      hint: "Which statement starts by assuming the null model, rather than assigning a probability to it?",
+      lesson: "A P value measures compatibility with a specified null model using a chosen test statistic. It does not determine clinical importance or rule out bias. Read it alongside the effect estimate and confidence interval.",
+      explanation: "The probability refers to possible test statistics under the null model and its assumptions. It is not the probability that the null is true, that the finding is a chance accident, or that the effect matters clinically.",
+      help: "basics/p_values.htm",
+      operation: null
+    },
+    {
+      id: "UG-PAIR-01",
+      version: 1,
+      track: "foundation",
+      topic: "Choosing a paired analysis",
+      objective: "Match a comparison to its paired structure.",
+      stem: "Eighteen independently sampled adults each have a measurement before and after an intervention. Their within-person differences are approximately normally distributed, with no major outliers. Which test directly assesses whether the population mean change is zero?",
+      options: [
+        {
+          id: "A",
+          text: "Unpaired t test",
+          feedback: "Treating the observations as independent loses the within-person pairing."
+        },
+        {
+          id: "B",
+          text: "Pearson chi-square test",
+          feedback: "This is not a comparison of categorical counts."
+        },
+        {
+          id: "C",
+          text: "Mann\u2013Whitney test",
+          feedback: "This test is for independent groups, not paired observations."
+        },
+        {
+          id: "D",
+          text: "Paired t test",
+          feedback: "The paired t test is a one-sample t test of the within-person differences."
+        },
+        {
+          id: "E",
+          text: "Pearson correlation test",
+          feedback: "Correlation measures association, not whether the mean change is zero."
+        }
+      ],
+      correct: "D",
+      hint: "What single value could you compute for each participant?",
+      lesson: "Subtract each person\u2019s before value from their after value, using the same direction for everyone. The paired t test operates on those differences. The normality assumption concerns the differences.",
+      explanation: "Use a paired t test on the 18 within-person differences. A before\u2013after change alone does not establish that the intervention caused it; a causal claim needs an appropriate study design.",
+      help: "parametric_methods/paired_t.htm",
+      operation: "TPaired"
+    },
+    {
+      id: "PG-PPV-01",
+      version: 1,
+      track: "medicine",
+      topic: "Predictive value and prevalence",
+      objective: "Combine prevalence, sensitivity and specificity.",
+      stem: "A fictional screening test has sensitivity 90% and specificity 95%. Assume these apply in a population with prevalence 1%. Approximately what proportion of positive results would be true positives?",
+      options: [
+        {
+          id: "A",
+          text: "1%",
+          feedback: "Prevalence is the probability before seeing the test result."
+        },
+        {
+          id: "B",
+          text: "5%",
+          feedback: "This is the false-positive rate among people without the condition."
+        },
+        {
+          id: "C",
+          text: "15.4%",
+          feedback: "For 10,000 people, expect 90 true positives and 495 false positives: 90/585."
+        },
+        {
+          id: "D",
+          text: "90%",
+          feedback: "Sensitivity conditions on having the condition, not on a positive test."
+        },
+        {
+          id: "E",
+          text: "95%",
+          feedback: "Specificity conditions on not having the condition."
+        }
+      ],
+      correct: "C",
+      hint: "Imagine 10,000 people. Work out true positives and false positives separately.",
+      lesson: "At low prevalence, people without the condition greatly outnumber those with it. Even a modest false-positive rate can therefore produce many false positives. Keep sensitivity and predictive value separate.",
+      explanation: "Among 10,000 people, 100 have the condition, producing 90 true positives. The other 9,900 produce 495 false positives. PPV = 90/(90+495) = 15.38%.",
+      calculation: {
+        kind: "ppv",
+        prevalence: 0.01,
+        sensitivity: 0.9,
+        specificity: 0.95,
+        expected: 0.15384615384615385
+      },
+      help: "clinical_epidemiology/diagnostic.htm",
+      operation: "MiscDiagnostic"
+    },
+    {
+      id: "PG-CI-01",
+      version: 2,
+      track: "medicine",
+      topic: "Confidence intervals",
+      objective: "Distinguish inconclusive evidence from evidence of no effect.",
+      stem: "A trial estimates a treatment-to-control risk ratio for an adverse outcome of 0.76 with a 95% confidence interval from 0.58 to 1.03. Which conclusion best describes these results?",
+      options: [
+        {
+          id: "A",
+          text: "The trial proves that the intervention has no effect.",
+          feedback: "Including 1 does not prove the absence of an effect."
+        },
+        {
+          id: "B",
+          text: "The results are compatible with appreciable benefit and a small increase in risk; they do not exclude no effect.",
+          feedback: "The interval spans a 42% reduction through a 3% increase and includes a risk ratio of 1."
+        },
+        {
+          id: "C",
+          text: "There is a 95% probability that this particular interval contains the true effect.",
+          feedback: "That is not the frequentist repeated-sampling interpretation of a confidence interval."
+        },
+        {
+          id: "D",
+          text: "The intervention reduces risk by exactly 24% in every patient.",
+          feedback: "A group-level point estimate is uncertain and is not an individual guarantee."
+        },
+        {
+          id: "E",
+          text: "Increasing the sample size would guarantee a statistically significant benefit.",
+          feedback: "A larger sample can improve precision but cannot guarantee that conclusion."
+        }
+      ],
+      correct: "B",
+      hint: "For a ratio, what value represents no difference? What range of effects does the interval allow?",
+      lesson: "For risk ratios the null value is 1; for risk differences it is 0. An interval that includes the null can also include important benefit or harm. Its width tells you about precision.",
+      explanation: "The estimate favours benefit, but the interval includes no effect and a small increase in risk. Interpret the magnitude and precision together; clinical decisions also require harms, costs and other evidence.",
+      help: "basics/confidence_interval.htm",
+      operation: "PropUnPaired"
+    },
+    {
+      id: "PG-RROR-01",
+      version: 2,
+      track: "medicine",
+      topic: "Risk and odds",
+      objective: "Recognise that odds ratios and risk ratios differ for common outcomes.",
+      stem: "In a fictional cohort, an outcome occurs in 120 of 200 exposed people and 80 of 200 unexposed people. Which pair gives the exposed-to-unexposed risk ratio and odds ratio?",
+      options: [
+        {
+          id: "A",
+          text: "Risk ratio 1.50; odds ratio 2.25",
+          feedback: "Risks are 0.6 and 0.4; odds are 120/80 and 80/120."
+        },
+        {
+          id: "B",
+          text: "Risk ratio 2.25; odds ratio 1.50",
+          feedback: "These two statistics have been exchanged."
+        },
+        {
+          id: "C",
+          text: "Risk ratio 1.50; odds ratio 1.50",
+          feedback: "These outcomes are common: the odds ratio is 2.25, not 1.50. Rarity in both groups is a useful sufficient condition for the usual risk-ratio approximation."
+        },
+        {
+          id: "D",
+          text: "Risk ratio 0.67; odds ratio 0.44",
+          feedback: "These compare unexposed with exposed, reversing the requested direction."
+        },
+        {
+          id: "E",
+          text: "Risk ratio 0.20; odds ratio 0.20",
+          feedback: "0.20 is the absolute risk difference."
+        }
+      ],
+      correct: "A",
+      hint: "Risk divides events by everyone in the group. Odds divides events by non-events.",
+      lesson: "Always identify the reference group. Risks and odds are different quantities; with common outcomes, an odds ratio can be much further from 1 than the corresponding risk ratio.",
+      explanation: "RR = (120/200)/(80/200) = 1.5. OR = (120/80)/(80/120) = 2.25. These observational comparisons do not by themselves establish causation.",
+      calculation: {
+        kind: "riskOdds",
+        a: 120,
+        b: 80,
+        c: 80,
+        d: 120,
+        expected: [
+          1.5,
+          2.25
+        ]
+      },
+      help: "clinical_epidemiology/risk_prospective.htm",
+      operation: "MiscRelRisk"
+    },
+    {
+      id: "PG-SE-01",
+      version: 1,
+      track: "medicine",
+      topic: "Precision and sample size",
+      objective: "Apply the square-root relationship between sample size and standard error.",
+      stem: "For independent observations from the same population, assume the standard deviation stays fixed. If the sample size increases from 100 to 400, what happens to the standard error of the sample mean?",
+      options: [
+        {
+          id: "A",
+          text: "It is unchanged.",
+          feedback: "The standard error depends on sample size even when the population standard deviation is unchanged."
+        },
+        {
+          id: "B",
+          text: "It becomes one quarter as large.",
+          feedback: "Standard error falls with the square root of sample size, not sample size itself."
+        },
+        {
+          id: "C",
+          text: "It doubles.",
+          feedback: "A larger independent sample makes the mean more precise."
+        },
+        {
+          id: "D",
+          text: "It becomes half as large.",
+          feedback: "SE = SD/\u221An, so the ratio is \u221A(100/400) = 0.5."
+        },
+        {
+          id: "E",
+          text: "It becomes zero.",
+          feedback: "Finite samples retain sampling uncertainty."
+        }
+      ],
+      correct: "D",
+      hint: "Use SE = SD divided by the square root of n.",
+      lesson: "Standard deviation describes variation between observations; standard error describes sampling variation in an estimate. Quadrupling an independent sample halves the standard error when the standard deviation stays fixed.",
+      explanation: "SE(new)/SE(old) = \u221A100/\u221A400 = 0.5. Dependence or clustering changes the calculation, and systematic bias is not removed by increasing sample size.",
+      calculation: {
+        kind: "seRatio",
+        oldN: 100,
+        newN: 400,
+        expected: 0.5
+      },
+      help: "basics/precision.htm",
+      operation: "UnivariateSummary"
+    },
+    {
+      id: "PH-STAND-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Direct standardisation",
+      objective: "Apply common population weights to age-specific rates.",
+      stem: "A district has annual mortality rates of 200 per 100,000 in its younger age group and 1,000 per 100,000 in its older group. A standard population contains 75% younger and 25% older people. What is the directly age-standardised annual rate per 100,000?",
+      options: [
+        {
+          id: "A",
+          text: "200",
+          feedback: "This uses only the younger group."
+        },
+        {
+          id: "B",
+          text: "300",
+          feedback: "The weighted contribution of the older group alone is 250, in addition to 150 from the younger group."
+        },
+        {
+          id: "C",
+          text: "400",
+          feedback: "0.75 \xD7 200 + 0.25 \xD7 1,000 = 400."
+        },
+        {
+          id: "D",
+          text: "600",
+          feedback: "This would use equal weights rather than the supplied standard population."
+        },
+        {
+          id: "E",
+          text: "1,200",
+          feedback: "Adding the rates ignores the population weights."
+        }
+      ],
+      correct: "C",
+      hint: "Multiply each age-specific rate by its share of the standard population, then add.",
+      lesson: "Direct standardisation applies each population\u2019s stratum-specific rates to a common set of weights. The resulting rate is a comparison summary, not necessarily the population\u2019s observed crude rate.",
+      explanation: "The younger contribution is 150 and the older contribution is 250, giving 400 per 100,000 per year. Use the same standard weights when comparing districts.",
+      calculation: {
+        kind: "weightedRate",
+        rates: [
+          200,
+          1e3
+        ],
+        weights: [
+          0.75,
+          0.25
+        ],
+        expected: 400
+      },
+      help: "rates/direct_standardization.htm",
+      operation: "RateDirectScreen"
+    },
+    {
+      id: "PH-CONF-01",
+      version: 2,
+      track: "publicHealth",
+      topic: "Confounding",
+      objective: "Interpret a change between crude and stratified associations.",
+      stem: "An observational comparison gives a crude risk ratio of 2.0. Baseline age precedes exposure, influences exposure choice and predicts the outcome; the exposed group is older. In every age stratum the risk ratio is 1.0, with adequate data and accurate measurement. Which explanation is most consistent with this pattern?",
+      options: [
+        {
+          id: "A",
+          text: "The pattern is consistent with confounding by baseline age.",
+          feedback: "Different age distributions can create a crude association when no association remains within age strata."
+        },
+        {
+          id: "B",
+          text: "Age is certainly a mediator of the exposure effect.",
+          feedback: "Baseline age precedes exposure, so it cannot mediate the effect of that exposure."
+        },
+        {
+          id: "C",
+          text: "There must be strong effect modification by age.",
+          feedback: "The stated stratum-specific risk ratios do not vary with age; effect modification must be described on a specified scale."
+        },
+        {
+          id: "D",
+          text: "The exposure has been proved harmless in every setting.",
+          feedback: "Removing this observed association does not establish universal safety or remove other biases."
+        },
+        {
+          id: "E",
+          text: "The crude risk ratio is necessarily an arithmetic error.",
+          feedback: "A correctly computed crude ratio can differ from stratum-specific ratios."
+        }
+      ],
+      correct: "A",
+      hint: "Distinguish imbalance in a third variable from variation of the effect across strata.",
+      lesson: "Confounding can mix the effect of an exposure with differences in other determinants of the outcome. Effect modification describes variation across strata on a specified effect scale, such as a risk difference or risk ratio. A causal diagram and design knowledge help decide what to adjust for.",
+      explanation: "Given the stated causal role and imbalance of baseline age, this pattern supports age confounding. A change after adjustment alone cannot diagnose confounding or establish no causal effect; chance, other biases and the causal assumptions still matter.",
+      help: "basics/confounding.htm",
+      operation: "MantelHaenszelScreen"
+    },
+    {
+      id: "PH-CLUST-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Clustered observations",
+      objective: "Recognise the loss of precision from within-cluster correlation.",
+      stem: "A survey uses equal clusters of 20 people. For its outcome, the intracluster correlation is 0.04. Using the approximation DE = 1 + (m \u2212 1)\u03C1, what is the design effect relative to simple random sampling?",
+      options: [
+        {
+          id: "A",
+          text: "1.04",
+          feedback: "The correlation is multiplied by m\u22121, not added just once."
+        },
+        {
+          id: "B",
+          text: "1.20",
+          feedback: "Insert m = 20 and \u03C1 = 0.04 into the stated formula."
+        },
+        {
+          id: "C",
+          text: "1.76",
+          feedback: "1 + 19 \xD7 0.04 = 1.76."
+        },
+        {
+          id: "D",
+          text: "2.00",
+          feedback: "The supplied values give a smaller variance inflation."
+        },
+        {
+          id: "E",
+          text: "20.00",
+          feedback: "A design effect of 20 under this formula would require perfect within-cluster correlation."
+        }
+      ],
+      correct: "C",
+      hint: "Here m is the number of people in each cluster, not the number of clusters.",
+      lesson: "People in one cluster may provide partly overlapping information. This approximation multiplies the variance by the design effect; standard errors are multiplied by its square root. Unequal cluster sizes and few clusters need more careful planning.",
+      explanation: "DE = 1 + (20\u22121) \xD7 0.04 = 1.76. Under this approximation, nominal sample size divided by 1.76 gives an effective sample size; it is not a substitute for a full cluster-design calculation.",
+      calculation: {
+        kind: "designEffect",
+        m: 20,
+        rho: 0.04,
+        expected: 1.76
+      },
+      help: "basics/precision.htm",
+      operation: null
+    },
+    {
+      id: "PH-SMR-01",
+      version: 2,
+      track: "publicHealth",
+      topic: "Standardised mortality ratio",
+      objective: "Interpret observed relative to expected events.",
+      stem: "A population has 55 observed deaths over the study period. Applying reference age-specific mortality rates to its age-specific person-time gives 44 expected deaths. What is the standardised mortality ratio, expressed as a ratio rather than a percentage?",
+      options: [
+        {
+          id: "A",
+          text: "0.20",
+          feedback: "This is neither the observed-to-expected ratio nor its reciprocal."
+        },
+        {
+          id: "B",
+          text: "0.80",
+          feedback: "This reverses observed and expected."
+        },
+        {
+          id: "C",
+          text: "1.25",
+          feedback: "55/44 = 1.25."
+        },
+        {
+          id: "D",
+          text: "11",
+          feedback: "Eleven is the difference in counts."
+        },
+        {
+          id: "E",
+          text: "125",
+          feedback: "125 is the SMR expressed on a percentage scale, not the requested ratio scale."
+        }
+      ],
+      correct: "C",
+      hint: "Use observed deaths divided by expected deaths.",
+      lesson: "An SMR compares observed with expected events based on reference stratum-specific rates. Always state whether you use a ratio scale (null 1) or percentage scale (null 100), and include uncertainty. SMRs for different populations may use different implicit weights, so they are not automatically comparable with each other.",
+      explanation: "SMR = 55/44 = 1.25, or 25% more deaths than expected on this reference. The point estimate alone does not establish statistical significance or causation.",
+      calculation: {
+        kind: "smr",
+        observed: 55,
+        expectedDeaths: 44,
+        expected: 1.25
+      },
+      help: "rates/smr.htm",
+      operation: "RateSmrScreen"
+    },
+    {
+      id: "AN-MED-01",
+      version: 1,
+      track: "analyst",
+      topic: "Skewed service data",
+      objective: "Choose a resistant description of a typical waiting time.",
+      stem: "Most clinic waits are 10\u201325 minutes, but a few exceed two hours. Which summary is least affected by these unusually long waits when describing a typical patient\u2019s wait?",
+      options: [
+        {
+          id: "A",
+          text: "Mean and standard deviation",
+          feedback: "Both are influenced by unusually large values."
+        },
+        {
+          id: "B",
+          text: "Median and interquartile range",
+          feedback: "The median describes the middle observation and the IQR the middle half."
+        },
+        {
+          id: "C",
+          text: "Maximum only",
+          feedback: "The maximum describes an extreme, not a typical observation."
+        },
+        {
+          id: "D",
+          text: "Standard error only",
+          feedback: "This concerns precision of an estimate, not a typical wait."
+        },
+        {
+          id: "E",
+          text: "P value",
+          feedback: "This does not describe the distribution."
+        }
+      ],
+      correct: "B",
+      hint: "Consider a measure based on ordered positions rather than the sum.",
+      lesson: "Use a histogram with median and IQR for a resistant summary, while retaining the long waits as operationally important observations.",
+      explanation: "Median and IQR resist the influence of extreme waits. They do not make long waits irrelevant: report tail performance separately when it matters.",
+      help: "basic_descriptive_statistics/univariate_summary.htm",
+      operation: "UnivariateSummary"
+    },
+    {
+      id: "AN-PCT-01",
+      version: 1,
+      track: "analyst",
+      topic: "Percentage points",
+      objective: "Distinguish an absolute percentage-point change from a relative change.",
+      stem: "The non-attendance rate falls from 10% to 8%. Which statement correctly describes both the absolute and relative reduction?",
+      options: [
+        {
+          id: "A",
+          text: "2 percentage points; 20% relative reduction",
+          feedback: "(0.10\u22120.08)/0.10 = 0.20."
+        },
+        {
+          id: "B",
+          text: "2 percentage points; 2% relative reduction",
+          feedback: "The relative reduction divides by the starting risk."
+        },
+        {
+          id: "C",
+          text: "20 percentage points; 2% relative reduction",
+          feedback: "This reverses and mis-scales the changes."
+        },
+        {
+          id: "D",
+          text: "8 percentage points; 80% relative reduction",
+          feedback: "These describe the new rate or its ratio, not the reduction."
+        },
+        {
+          id: "E",
+          text: "No reduction",
+          feedback: "The rate decreased."
+        }
+      ],
+      correct: "A",
+      hint: "Subtract for the absolute change; divide that change by the starting value for the relative change.",
+      lesson: "State both absolute and relative changes, and include denominators and time periods.",
+      explanation: "The absolute fall is 0.02, or two percentage points. Relative to the original 0.10 it is a 20% reduction. These rates alone do not establish what caused the reduction.",
+      help: "clinical_epidemiology/risk_prospective.htm",
+      operation: "MiscRelRisk"
+    },
+    {
+      id: "AN-CAUS-01",
+      version: 1,
+      track: "analyst",
+      topic: "Association and causation",
+      objective: "Recognise confounding in service comparisons.",
+      stem: "Hospitals with more specialist staff also have higher mortality. They receive the most severely ill patients. What is the best first interpretation?",
+      options: [
+        {
+          id: "A",
+          text: "Specialists cause deaths",
+          feedback: "The observational comparison does not support this causal claim."
+        },
+        {
+          id: "B",
+          text: "Severity may confound the association",
+          feedback: "Severity can affect staffing needs and mortality."
+        },
+        {
+          id: "C",
+          text: "More staff must prevent every death",
+          feedback: "This is not supported either."
+        },
+        {
+          id: "D",
+          text: "Mortality cannot be compared statistically",
+          feedback: "Comparisons are possible, with careful design and adjustment."
+        },
+        {
+          id: "E",
+          text: "A small P value would eliminate confounding",
+          feedback: "Statistical significance does not remove systematic bias."
+        }
+      ],
+      correct: "B",
+      hint: "What differs between the patients cared for by these hospitals?",
+      lesson: "Case mix is essential to interpreting service comparisons. Adjustment needs design knowledge and measured relevant variables.",
+      explanation: "Severity is a plausible confounder. Compare like with like where possible and describe remaining limitations; an adjusted model alone does not prove causation.",
+      help: "basics/confounding.htm",
+      operation: null
+    },
+    {
+      id: "AN-PREC-01",
+      version: 2,
+      track: "analyst",
+      topic: "Precision of a rate",
+      objective: "Relate denominators to uncertainty.",
+      stem: "Two services both observe a 10% event rate. One records 10 events among 100 people, the other 100 among 1,000. Using the same confidence level and binomial interval method, and independent comparable observations, which usually has the narrower interval for the underlying proportion?",
+      options: [
+        {
+          id: "A",
+          text: "The service with 100 people",
+          feedback: "It has less information about the population proportion."
+        },
+        {
+          id: "B",
+          text: "The service with 1,000 people",
+          feedback: "A larger independent denominator improves precision at the same observed rate."
+        },
+        {
+          id: "C",
+          text: "Both must have identical intervals",
+          feedback: "Equal point estimates can have different uncertainty."
+        },
+        {
+          id: "D",
+          text: "Neither can have an interval",
+          feedback: "A confidence interval can be calculated for either proportion."
+        },
+        {
+          id: "E",
+          text: "The service with the smaller P value, regardless of denominator",
+          feedback: "The question concerns precision of an estimated rate."
+        }
+      ],
+      correct: "B",
+      hint: "Consider the standard error \u221A(p(1\u2212p)/n).",
+      lesson: "Show denominators and uncertainty alongside performance rates.",
+      explanation: "At the same rate, a larger independent sample generally gives a narrower interval. Clustering, bias and different case mix can complicate real comparisons.",
+      help: "basics/confidence_interval.htm",
+      operation: null
+    },
+    {
+      id: "RS-PAIR-01",
+      version: 1,
+      track: "researcher",
+      topic: "Paired assumptions",
+      objective: "Identify the relevant distributional assumption for a paired t test.",
+      stem: "Which distribution should be checked for major departures from normality when using a paired t test with a small sample of independent pairs?",
+      options: [
+        {
+          id: "A",
+          text: "The pooled before and after measurements",
+          feedback: "Pooling ignores pairing."
+        },
+        {
+          id: "B",
+          text: "The within-pair differences",
+          feedback: "The test is a one-sample t test of these differences."
+        },
+        {
+          id: "C",
+          text: "The participant identification numbers",
+          feedback: "Identifiers have no relevant distribution."
+        },
+        {
+          id: "D",
+          text: "The P values",
+          feedback: "These are outputs rather than the observations being modelled."
+        },
+        {
+          id: "E",
+          text: "Only the before measurements",
+          feedback: "The test operates on differences."
+        }
+      ],
+      correct: "B",
+      hint: "What single observation enters the test for each pair?",
+      lesson: "Check differences and the independence of pairs; investigate outliers and whether the study design supports the intended inference.",
+      explanation: "The paired t test models within-pair differences. It does not require the two original measurement distributions individually to be normal.",
+      help: "parametric_methods/paired_t.htm",
+      operation: "TPaired"
+    },
+    {
+      id: "RS-MULT-01",
+      version: 2,
+      track: "researcher",
+      topic: "Multiple testing",
+      objective: "Recognise false-positive risk across many tests.",
+      stem: "Twenty tests are independent under their null hypotheses, which are all true. Each test has an actual false-positive probability of 5%. What is the probability of at least one false positive, approximately?",
+      options: [
+        {
+          id: "A",
+          text: "5%",
+          feedback: "This is the level for one test, not the whole family."
+        },
+        {
+          id: "B",
+          text: "10%",
+          feedback: "Use the probability of no false positives across all tests."
+        },
+        {
+          id: "C",
+          text: "36%",
+          feedback: "This is approximately the probability of no false positives."
+        },
+        {
+          id: "D",
+          text: "64%",
+          feedback: "1\u22120.95^20 is approximately 0.642."
+        },
+        {
+          id: "E",
+          text: "100%",
+          feedback: "A false positive is not guaranteed."
+        }
+      ],
+      correct: "D",
+      hint: "The chance of no false positives is 0.95 multiplied by itself twenty times.",
+      lesson: "Prespecify analyses and distinguish confirmatory from exploratory work. Multiplicity affects interpretation.",
+      explanation: "Under the stated independence assumption, P(at least one) = 1\u22120.95^20 \u2248 64.2%. Dependence changes this calculation.",
+      help: "basics/p_values.htm",
+      operation: null
+    },
+    {
+      id: "RS-MISS-01",
+      version: 1,
+      track: "researcher",
+      topic: "Missing data",
+      objective: "Recognise bias from outcome-related missingness.",
+      stem: "Participants with the worst symptoms are more likely to miss their follow-up visit. What is the main concern with analysing only complete records?",
+      options: [
+        {
+          id: "A",
+          text: "It necessarily removes all bias",
+          feedback: "Removing missing records does not fix selective follow-up."
+        },
+        {
+          id: "B",
+          text: "It always gives the same result as full follow-up",
+          feedback: "Missingness can depend on outcomes."
+        },
+        {
+          id: "C",
+          text: "It may produce a biased estimate as well as lose precision",
+          feedback: "Complete cases may systematically differ from those missing."
+        },
+        {
+          id: "D",
+          text: "It proves the symptoms improved",
+          feedback: "Non-attendance is not an observed improvement."
+        },
+        {
+          id: "E",
+          text: "A larger sample guarantees no bias",
+          feedback: "More observations do not remove systematic selection."
+        }
+      ],
+      correct: "C",
+      hint: "Are the observed participants representative of everyone originally enrolled?",
+      lesson: "Describe missingness, investigate its causes and justify assumptions for sensitivity analyses or imputation.",
+      explanation: "Outcome-related missingness can make complete cases unrepresentative. The direction and size of bias depend on the setting and missingness process.",
+      help: "basics/bias.htm",
+      operation: null
+    },
+    {
+      id: "RS-CI-01",
+      version: 1,
+      track: "researcher",
+      topic: "Confidence interval interpretation",
+      objective: "Interpret repeated-sampling coverage.",
+      stem: "What does a 95% frequentist confidence procedure aim to achieve under its assumptions?",
+      options: [
+        {
+          id: "A",
+          text: "95% of individual observations lie in every interval",
+          feedback: "This confuses a parameter interval with a range of observations."
+        },
+        {
+          id: "B",
+          text: "95% of intervals from repeated samples contain the fixed population parameter",
+          feedback: "Coverage refers to the procedure across repeated samples."
+        },
+        {
+          id: "C",
+          text: "The null hypothesis is true with probability 95%",
+          feedback: "This is not a posterior probability."
+        },
+        {
+          id: "D",
+          text: "95% of future studies give exactly the same estimate",
+          feedback: "Estimates vary between samples."
+        },
+        {
+          id: "E",
+          text: "Bias is eliminated in 95% of studies",
+          feedback: "Coverage relies on model and design assumptions."
+        }
+      ],
+      correct: "B",
+      hint: "Imagine repeating the sampling and interval calculation many times.",
+      lesson: "A confidence interval reports precision under assumptions; it does not protect against every source of bias.",
+      explanation: "The 95% refers to long-run coverage of the fixed parameter by the interval procedure, provided the relevant assumptions hold.",
+      help: "basics/confidence_interval.htm",
+      operation: null
+    },
+    {
+      id: "PG-ROC-01",
+      version: 2,
+      track: "medicine",
+      topic: "Diagnostic thresholds",
+      objective: "Recognise the sensitivity\u2013specificity trade-off.",
+      stem: "In a fictional study, a blood marker is considered positive above a chosen cut-off. Researchers raise that cut-off while keeping the same participants and reference diagnoses. Which change in classification is possible?",
+      options: [
+        {
+          id: "A",
+          text: "Some previously negative results become positive",
+          feedback: "Raising the cut-off cannot do this on the same data."
+        },
+        {
+          id: "B",
+          text: "Some true positives and false positives become negative",
+          feedback: "A higher cut-off can reduce both true-positive and false-positive counts."
+        },
+        {
+          id: "C",
+          text: "Sensitivity must increase",
+          feedback: "A higher cut-off cannot capture additional positive cases on the same data."
+        },
+        {
+          id: "D",
+          text: "Specificity must decrease",
+          feedback: "With the same disease-negative denominator, fewer false positives mean higher specificity; with none changing, specificity is unchanged."
+        },
+        {
+          id: "E",
+          text: "Both denominators change automatically",
+          feedback: "Disease status is fixed by the reference diagnoses in this study."
+        }
+      ],
+      correct: "B",
+      hint: "Think about people whose marker lies between the old and new cut-offs.",
+      lesson: "Choosing a threshold changes the balance of missed cases and false alarms. Inspect sensitivity and specificity together; predictive values also depend on the setting.",
+      explanation: "Values between the two cut-offs change from positive to negative. This can lower sensitivity and raise specificity; if nobody falls between the cut-offs the classifications stay unchanged.",
+      help: "clinical_epidemiology/diagnostic.htm",
+      operation: "MiscDiagnostic",
+      inspiration: "Public MRCP-style diagnostic threshold examples; original scenario and options."
+    },
+    {
+      id: "PG-LR-01",
+      version: 1,
+      track: "medicine",
+      topic: "Pre-test and post-test probability",
+      objective: "Update odds with a likelihood ratio.",
+      stem: "For a fictional test, the positive likelihood ratio is 6. Before testing, the probability of the condition is 10%. What is the approximate probability after a positive result, assuming the likelihood ratio applies in this setting?",
+      options: [
+        {
+          id: "A",
+          text: "6%",
+          feedback: "The likelihood ratio is a multiplier of odds, not a probability."
+        },
+        {
+          id: "B",
+          text: "16%",
+          feedback: "Adding a likelihood ratio to a probability is not valid."
+        },
+        {
+          id: "C",
+          text: "40%",
+          feedback: "Prior odds 1/9 become 6/9; probability is (6/9)/(1+6/9) = 0.4."
+        },
+        {
+          id: "D",
+          text: "60%",
+          feedback: "Multiply odds, rather than multiplying the probability by 6."
+        },
+        {
+          id: "E",
+          text: "100%",
+          feedback: "A positive test does not guarantee the condition."
+        }
+      ],
+      correct: "C",
+      hint: "First convert the 10% probability to odds p/(1\u2212p).",
+      lesson: "Likelihood ratios update odds. Convert back to a probability after multiplication.",
+      explanation: "Pre-test odds = 0.1/0.9 = 1/9. Post-test odds = 6/9 = 2/3. Post-test probability = (2/3)/(1+2/3) = 0.4, or 40%.",
+      help: "clinical_epidemiology/diagnostic.htm",
+      operation: "MiscDiagnostic",
+      inspiration: "Public MRCP-style diagnostic evidence teaching; independently constructed numerical question."
+    },
+    {
+      id: "PG-FOREST-01",
+      version: 2,
+      track: "medicine",
+      topic: "Interpreting effect estimates",
+      objective: "Distinguish effect size from statistical evidence.",
+      stem: "Two fictional studies estimate treatment-to-control risk ratios for the same adverse outcome. Study A: 0.40 (95% CI 0.10\u20131.60). Study B: 0.85 (95% CI 0.80\u20130.91). Assuming valid corresponding two-sided tests, which interpretation is best?",
+      options: [
+        {
+          id: "A",
+          text: "Study A has stronger evidence solely because its ratio is further from 1",
+          feedback: "Effect magnitude alone does not measure statistical evidence."
+        },
+        {
+          id: "B",
+          text: "Only Study B rejects the null risk ratio of 1 at the 5% level",
+          feedback: "Study B\u2019s interval excludes 1; Study A\u2019s includes it."
+        },
+        {
+          id: "C",
+          text: "Study A proves there is no benefit",
+          feedback: "Its wide interval includes both substantial benefit and harm."
+        },
+        {
+          id: "D",
+          text: "Study B necessarily has the more important clinical benefit",
+          feedback: "Clinical importance needs context and absolute risks."
+        },
+        {
+          id: "E",
+          text: "Both intervals exclude no effect",
+          feedback: "Study A includes the null ratio of 1."
+        }
+      ],
+      correct: "B",
+      hint: "Inspect whether each confidence interval includes the null ratio of 1.",
+      lesson: "Read the point estimate and interval together. A large but imprecise estimate does not automatically provide stronger evidence than a smaller, precise one.",
+      explanation: "Only Study B\u2019s interval excludes 1. This does not settle clinical importance, bias, comparability or a direct difference between the two studies.",
+      help: "basics/confidence_interval.htm",
+      operation: null,
+      inspiration: "RCGP November 2025 data-interpretation samples, especially Q41; new example separating magnitude from evidence."
+    },
+    {
+      id: "AN-RATE-01",
+      version: 1,
+      track: "analyst",
+      topic: "Rates versus counts",
+      objective: "Avoid inferring absolute totals from a rate alone.",
+      stem: "A chart shows Clinic A with 24 referrals per 1,000 registered patients and Clinic B with 18 per 1,000 during the same quarter. Their registered populations are not supplied. Which conclusion is justified by these values alone?",
+      options: [
+        {
+          id: "A",
+          text: "Clinic A made more referrals in total",
+          feedback: "The population denominators are unknown."
+        },
+        {
+          id: "B",
+          text: "Clinic B has fewer registered patients",
+          feedback: "The rates do not reveal population sizes."
+        },
+        {
+          id: "C",
+          text: "Clinic A has the higher referral rate",
+          feedback: "24 per 1,000 exceeds 18 per 1,000."
+        },
+        {
+          id: "D",
+          text: "Clinic A\u2019s referrals were less appropriate",
+          feedback: "No appropriateness data are supplied."
+        },
+        {
+          id: "E",
+          text: "Clinic B provides better care",
+          feedback: "A rate alone does not establish quality."
+        }
+      ],
+      correct: "C",
+      hint: "What does \u201Cper 1,000\u201D tell you, and what does it leave unknown?",
+      lesson: "Read the axis units and distinguish counts from rates. Rates support comparison but do not by themselves explain quality or total workload.",
+      explanation: "Only the rate comparison follows. Total referrals also depend on population size; appropriateness and quality require additional evidence.",
+      help: "rates/incidence_and_prevalence.htm",
+      operation: null,
+      inspiration: "RCGP November 2025 Q3 and Q20: interpretation of plotted rates; original referral scenario."
+    },
+    {
+      id: "PH-CASEMIX-01",
+      version: 2,
+      track: "publicHealth",
+      topic: "Case mix and service comparisons",
+      objective: "Identify what is needed before attributing a difference to performance.",
+      stem: "A rehabilitation unit has a higher average length of stay than another unit. It also receives more people with complex disability and has longer waits for supported housing. Which is the most defensible next step?",
+      options: [
+        {
+          id: "A",
+          text: "Conclude that its clinical team is inefficient",
+          feedback: "The crude average mixes performance with patient needs and discharge circumstances."
+        },
+        {
+          id: "B",
+          text: "Delete every stay longer than the median",
+          feedback: "Arbitrary exclusion loses relevant information and may bias the comparison."
+        },
+        {
+          id: "C",
+          text: "Examine the distribution, case mix and discharge pathways before judging performance",
+          feedback: "All can explain differences in the crude mean."
+        },
+        {
+          id: "D",
+          text: "Compare only the two largest stays",
+          feedback: "Extremes alone cannot characterise the services."
+        },
+        {
+          id: "E",
+          text: "Ignore all service comparisons",
+          feedback: "Careful comparisons can be useful."
+        }
+      ],
+      correct: "C",
+      hint: "What factors beyond treatment quality influence how long someone stays?",
+      lesson: "Combine descriptive statistics with service context. Investigate skew, recording conventions, patient needs and discharge support.",
+      explanation: "Distribution, case mix and the wider care pathway matter. Adjusted comparisons still require appropriate data and assumptions; a crude mean alone cannot attribute causation. Define whether discharge support is part of the service effect being evaluated before deciding to adjust for it.",
+      help: "basic_descriptive_statistics/univariate_summary.htm",
+      operation: "UnivariateSummary",
+      inspiration: "FPH DFPH Specimen Paper B Q1: interpretation and case mix; new setting and single-best-answer format."
+    },
+    {
+      id: "RS-LEAD-01",
+      version: 1,
+      track: "researcher",
+      topic: "Screening and lead-time bias",
+      objective: "Distinguish earlier diagnosis from longer life.",
+      stem: "A fictional screening programme diagnoses a disease two years earlier, but people die at the same age they would have without screening. Measured survival from diagnosis rises. What explains this rise?",
+      options: [
+        {
+          id: "A",
+          text: "A demonstrated reduction in mortality",
+          feedback: "Death timing has not changed."
+        },
+        {
+          id: "B",
+          text: "Lead-time bias",
+          feedback: "Earlier diagnosis starts the survival clock sooner without postponing death."
+        },
+        {
+          id: "C",
+          text: "Randomisation",
+          feedback: "The scenario does not describe random allocation."
+        },
+        {
+          id: "D",
+          text: "A guaranteed treatment benefit",
+          feedback: "Longer measured survival alone does not establish benefit."
+        },
+        {
+          id: "E",
+          text: "A fall in disease incidence",
+          feedback: "No such change is stated."
+        }
+      ],
+      correct: "B",
+      hint: "Which event starts the survival clock?",
+      lesson: "Screening evaluation needs outcomes that distinguish earlier detection from improved health. Consider harms and appropriate comparisons.",
+      explanation: "Lead-time bias extends observed time from diagnosis to death when diagnosis happens earlier but death does not. Mortality and other patient-relevant outcomes are needed to assess benefit.",
+      help: "basics/bias.htm",
+      operation: null,
+      inspiration: "FPH critical-appraisal and screening specimens: original bias question."
+    },
+    {
+      id: "CORE-DESIGN-01",
+      version: 2,
+      track: "core",
+      topic: "Study design and denominators",
+      objective: "Recognise outcome-based sampling in a case-control study.",
+      stem: "Researchers select 120 people with a disease and 240 without it, then compare previous exposure. Which statement best describes what can be estimated directly from this sampling design?",
+      options: [
+        {
+          id: "A",
+          text: "The population incidence, using 120/360",
+          feedback: "The numbers with and without disease were selected by design."
+        },
+        {
+          id: "B",
+          text: "An exposure odds ratio, with suitable control selection and assumptions",
+          feedback: "Case-control sampling can estimate an odds ratio; it does not directly give population risk from these group sizes."
+        },
+        {
+          id: "C",
+          text: "The population prevalence, using 120/360",
+          feedback: "The investigator fixed the case-control ratio."
+        },
+        {
+          id: "D",
+          text: "The causal risk difference with no further assumptions",
+          feedback: "Causal interpretation needs design and confounding assumptions."
+        },
+        {
+          id: "E",
+          text: "The number needed to treat from case counts alone",
+          feedback: "Absolute treatment risks are not supplied."
+        }
+      ],
+      correct: "B",
+      hint: "Were participants sampled before or after their outcome status was known?",
+      lesson: "Study design determines which denominators and measures have meaning. Recognise case-control, cohort and experimental designs before choosing a statistic.",
+      explanation: "The investigator chooses cases and controls, so their proportion in the sample is not population incidence or prevalence. The meaning of the odds ratio depends on control sampling. Sampling controls from the risk sets can estimate an incidence rate ratio without a rare-disease assumption. Sampling non-cases at the end of a fixed period instead targets an odds ratio for cumulative risk. Causal interpretation needs additional assumptions.",
+      help: "clinical_epidemiology/risk_retrospective.htm",
+      operation: "MiscRetroRisk"
+    },
+    {
+      id: "CORE-RATE-01",
+      version: 2,
+      track: "core",
+      topic: "Incidence rate and person-time",
+      objective: "Distinguish an incidence rate from a cumulative risk.",
+      stem: "A fictional cohort contributes 600 person-years while participants are at risk, with 12 new events. What is the incidence rate?",
+      options: [
+        {
+          id: "A",
+          text: "2 events per 100 person-years",
+          feedback: "12/600 = 0.02 events per person-year."
+        },
+        {
+          id: "B",
+          text: "2% of participants, regardless of follow-up",
+          feedback: "Person-time is not a count of participants."
+        },
+        {
+          id: "C",
+          text: "12% per participant",
+          feedback: "The participant denominator is not given."
+        },
+        {
+          id: "D",
+          text: "50 events per person-year",
+          feedback: "This inverts the rate."
+        },
+        {
+          id: "E",
+          text: "600 events per year",
+          feedback: "600 is follow-up time, not event count."
+        }
+      ],
+      correct: "A",
+      hint: "Divide events by total time at risk, then state the units.",
+      lesson: "An incidence rate uses person-time at risk. A risk uses people initially at risk over a specified period, with appropriate treatment of incomplete follow-up.",
+      explanation: "12/600 = 0.02 events per person-year, or 2 per 100 person-years. This cannot automatically be read as a two-percent one-year risk.",
+      help: "rates/incidence_and_prevalence.htm",
+      operation: null
+    },
+    {
+      id: "CORE-MEDIATOR-01",
+      version: 2,
+      track: "core",
+      topic: "Confounders and mediators",
+      objective: "Match adjustment to the causal effect of interest.",
+      stem: "A randomised exercise intervention can affect blood pressure partly by changing body weight. To estimate the total intervention effect on blood pressure, why might routinely adjusting for weight measured after the intervention be inappropriate?",
+      options: [
+        {
+          id: "A",
+          text: "Post-intervention weight is necessarily a baseline confounder",
+          feedback: "It is measured after treatment and may be affected by it."
+        },
+        {
+          id: "B",
+          text: "It can block part of the pathway through which the intervention acts",
+          feedback: "That pathway contributes to the total effect."
+        },
+        {
+          id: "C",
+          text: "Adjustment always increases bias in every analysis",
+          feedback: "Appropriate adjustment depends on the target effect and causal structure."
+        },
+        {
+          id: "D",
+          text: "Randomisation proves that weight is irrelevant",
+          feedback: "Weight may still mediate treatment effects."
+        },
+        {
+          id: "E",
+          text: "A smaller P value decides which variables to adjust for",
+          feedback: "Variable choice should follow the causal question and assumptions."
+        }
+      ],
+      correct: "B",
+      hint: "Distinguish a variable that precedes treatment from one affected by treatment.",
+      lesson: "For a total effect, mediators are part of the causal pathway. Direct effects ask a different question and require additional identification assumptions; adding a mediator to a regression does not automatically estimate a causal direct effect.",
+      explanation: "Adjusting for a mediator can remove part of the total effect and may introduce other bias. Define the estimand and causal structure before deciding what to adjust for.",
+      help: "basics/confounding.htm",
+      operation: null
+    },
+    {
+      id: "CORE-SELECTION-01",
+      version: 2,
+      track: "core",
+      topic: "Selection and collider bias",
+      objective: "Recognise bias caused by conditioning on a common consequence.",
+      stem: "In a fictional population, exposure E and illness Y both influence whether someone attends a specialist clinic. A study includes only clinic attendees. Even if E and Y were otherwise unrelated, what problem could this selection create?",
+      options: [
+        {
+          id: "A",
+          text: "It guarantees a representative population sample",
+          feedback: "Attendance selects people through both variables."
+        },
+        {
+          id: "B",
+          text: "It may create an association by conditioning on a common consequence",
+          feedback: "Attendance can act as a collider between E and Y."
+        },
+        {
+          id: "C",
+          text: "It eliminates confounding automatically",
+          feedback: "Selection does not guarantee comparability."
+        },
+        {
+          id: "D",
+          text: "It proves E causes Y",
+          feedback: "The selection process can create a non-causal association."
+        },
+        {
+          id: "E",
+          text: "It can only reduce random error",
+          feedback: "It can introduce systematic bias."
+        }
+      ],
+      correct: "B",
+      hint: "Consider the arrows E \u2192 attendance \u2190 Y.",
+      lesson: "Conditioning on a common consequence can open a non-causal association. Eligibility, recruitment, follow-up and analysis restrictions can all matter.",
+      explanation: "Selecting on clinic attendance conditions on a potential collider and can create an association between its causes. The direction and magnitude depend on the data-generating process.",
+      help: "basics/bias.htm",
+      operation: null
+    },
+    {
+      id: "LIB-RATES-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Person-time and age standardisation",
+      objective: "Explain a crude rate difference using age-specific rates and a common standard population.",
+      stem: "Two fictional areas have rates of 200 and 1000 events per 100000 person-years in younger and older groups respectively. Both are directly standardised using 75% younger and 25% older weights. Which conclusion is justified?",
+      options: [
+        {
+          id: "A",
+          text: "Both adjusted rates are 400 per 100000 person-years.",
+          feedback: "Use 0.75\xD7200 + 0.25\xD71000 for each area."
+        },
+        {
+          id: "B",
+          text: "Both adjusted rates are 600 because the two rates are averaged equally.",
+          feedback: "The stated weights are 75% and 25%, not equal."
+        },
+        {
+          id: "C",
+          text: "The area with more older people must have a larger adjusted rate.",
+          feedback: "That affects its crude rate; the shared standard weights remove this age-composition difference."
+        },
+        {
+          id: "D",
+          text: "Both areas have an annual disease risk of exactly 0.4%.",
+          feedback: "A person-time rate is not automatically a one-year cumulative risk."
+        },
+        {
+          id: "E",
+          text: "Age adjustment proves that the two populations are causally identical.",
+          feedback: "Other differences, biases and uncertainty remain."
+        }
+      ],
+      correct: "A",
+      hint: "Apply the same stated weights to the age-specific rates in each area.",
+      lesson: "A rate divides events by time at risk. Different age structures can produce different crude rates even when age-specific rates are identical. Direct standardisation applies the same reference weights to each population. A standardised rate is a comparison measure; report its reference population, uncertainty and age-specific pattern.",
+      explanation: "The common weighted rate is 150 + 250 = 400 per 100000 person-years. Different actual age mixes can still produce different crude rates. Equal standardised point estimates do not prove equivalence.",
+      help: "rates/direct_standardization.htm",
+      operation: "RateDirect",
+      lessonId: "rates",
+      sourceIds: [
+        "ohid-rates",
+        "ohid-dsr",
+        "ohid-isr"
+      ]
+    },
+    {
+      id: "LIB-APPRAISAL-01",
+      version: 1,
+      track: "medicine",
+      topic: "Design, missing outcomes and applicability",
+      objective: "Explain what a numerical trial result can and cannot establish.",
+      stem: "In the fictional trial, 20/80 observed programme participants and 30/100 controls have an adverse outcome. Twenty other programme participants have unknown outcomes. Which statement is most defensible?",
+      options: [
+        {
+          id: "A",
+          text: "Treat all missing outcomes as non-events because allocation was randomised.",
+          feedback: "Randomisation does not reveal unmeasured outcomes."
+        },
+        {
+          id: "B",
+          text: "Use 20/80 and ignore the original allocation totals.",
+          feedback: "That describes responders and can give a biased treatment comparison."
+        },
+        {
+          id: "C",
+          text: "Programme risk among all 100 allocated participants could be 20% to 40% before further assumptions.",
+          feedback: "There are 20 known events and up to 20 additional unknown events."
+        },
+        {
+          id: "D",
+          text: "The programme definitely reduces risk by 5 percentage points.",
+          feedback: "That observed-data difference does not settle missing-outcome or sampling uncertainty."
+        },
+        {
+          id: "E",
+          text: "The 20%\u201340% range is a 95% confidence interval.",
+          feedback: "It is a logical bound, not a sampling interval."
+        }
+      ],
+      correct: "C",
+      hint: "Count how many events there could be if none, or all, of the missing participants had the outcome.",
+      lesson: "Read the research question, allocation, follow-up and outcome measurement before the P value. Risk of bias concerns a particular result; reporting completeness and a large sample do not guarantee validity. Missing outcomes can break the comparability intended by randomisation. Explain effect size, uncertainty and applicability separately.",
+      explanation: "Full-group programme risk ranges from 20/100 to 40/100. Against control risk 30%, this permits benefit or harm. Reasons for missingness, plausible sensitivity analyses and sampling uncertainty all need consideration.",
+      help: "basics/bias.htm",
+      operation: "MiscRelRisk",
+      lessonId: "appraisal",
+      sourceIds: [
+        "cochrane-8",
+        "rcgp-akt",
+        "catalogue-bias"
+      ]
+    },
+    {
+      id: "LIB-MISSING-01",
+      version: 1,
+      track: "researcher",
+      topic: "Patterns, assumptions and sensitivity analysis",
+      objective: "Describe missingness and avoid treating a filled-in value as observed information.",
+      stem: "A researcher replaces every missing symptom score with the mean of the observed scores, then analyses the filled values as if all were measured. What is the main problem?",
+      options: [
+        {
+          id: "A",
+          text: "The sample mean must necessarily change.",
+          feedback: "Mean filling preserves the observed mean in this simple setting."
+        },
+        {
+          id: "B",
+          text: "The missing values have become independently observed measurements.",
+          feedback: "No new measurements have been obtained."
+        },
+        {
+          id: "C",
+          text: "The method proves that the data are missing completely at random.",
+          feedback: "Imputation does not establish a missingness mechanism."
+        },
+        {
+          id: "D",
+          text: "It ignores uncertainty about missing values and distorts variability and relationships.",
+          feedback: "Ordinary analysis of the filled values does not account for uncertainty in their imputation."
+        },
+        {
+          id: "E",
+          text: "It is always identical to properly pooled multiple imputation.",
+          feedback: "Multiple imputation represents missing-value uncertainty across draws and needs valid models and pooling."
+        }
+      ],
+      correct: "D",
+      hint: "What information was actually added when the same mean was inserted repeatedly?",
+      lesson: "Document the amount, pattern and reasons for missingness before choosing an analysis. MCAR, MAR and MNAR describe assumptions about the missingness process. MAR allows dependence on observed information; it is not a synonym for a random-looking pattern. Replacing missing values with a mean does not restore information or valid uncertainty.",
+      explanation: "Mean filling does not recover the unobserved values. Treating these invented values as observed commonly understates uncertainty and distorts distributions and associations. Investigate missingness and choose a method appropriate to the estimand and assumptions.",
+      help: "basics/missing_data.htm",
+      operation: "UnivariateSummary",
+      lessonId: "missing",
+      sourceIds: [
+        "vanbuuren-mechanisms",
+        "vanbuuren-simple"
+      ]
+    },
+    {
+      id: "LIB-VALIDATION-01",
+      version: 1,
+      track: "analyst",
+      topic: "Calibration, prediction error and validation",
+      objective: "Assess predictions against outcomes not used to develop the model.",
+      stem: "Eight fictional fixed predictions have errors averaging zero. Ten points are added to every prediction, without changing the observed outcomes. Which statement must be true?",
+      options: [
+        {
+          id: "A",
+          text: "Correlation with observed outcomes falls by ten.",
+          feedback: "Correlation is invariant to adding a constant."
+        },
+        {
+          id: "B",
+          text: "Correlation is unchanged, but mean prediction error becomes +10 points.",
+          feedback: "Adding ten to every prediction adds ten to every prediction-minus-outcome error."
+        },
+        {
+          id: "C",
+          text: "RMSE is unchanged because the ordering is unchanged.",
+          feedback: "RMSE depends on error size, not just ordering."
+        },
+        {
+          id: "D",
+          text: "The new predictions are externally validated because correlation is high.",
+          feedback: "A metric alone cannot certify a validation design or usefulness."
+        },
+        {
+          id: "E",
+          text: "Every observed outcome also increases by ten.",
+          feedback: "Only predictions were changed."
+        }
+      ],
+      correct: "B",
+      hint: "Separate ranking from the numerical agreement between prediction and outcome.",
+      lesson: "A model can rank outcomes well yet predict systematically wrong values. Evaluate calibration and prediction error as well as association. Performance on the development data is usually optimistic. Internal validation must repeat the modelling process; evaluation in a new relevant setting addresses transportability. A tiny illustration cannot establish clinical usefulness.",
+      explanation: "Correlation is unchanged by an additive constant. With mean original error zero, shifting predictions by +10 gives mean error +10 and increases mean squared error by 100. Calibration and absolute prediction accuracy matter alongside association.",
+      help: "regression_and_correlation/simple_linear.htm",
+      operation: "SimpleLinearRegression",
+      lessonId: "validation",
+      sourceIds: [
+        "harrell-reg",
+        "tripod-ai"
+      ]
+    },
+    {
+      id: "LIB-META-01",
+      version: 1,
+      track: "researcher",
+      topic: "Meta-analysis, heterogeneity and interpretation",
+      objective: "Explain inverse-variance weighting and decide whether a pooled effect answers a coherent question.",
+      stem: "In a fixed-effect inverse-variance meta-analysis, Study A has SE 0.02 and Study B has SE 0.04 for estimates on the same scale. What is the ratio of A\u2019s weight to B\u2019s weight?",
+      options: [
+        {
+          id: "A",
+          text: "1:4",
+          feedback: "That reverses the inverse-variance weighting."
+        },
+        {
+          id: "B",
+          text: "1:2",
+          feedback: "The smaller SE receives more, not less, weight."
+        },
+        {
+          id: "C",
+          text: "1:1",
+          feedback: "Equal weighting ignores their different precisions."
+        },
+        {
+          id: "D",
+          text: "2:1",
+          feedback: "Weights use squared SE, not SE itself."
+        },
+        {
+          id: "E",
+          text: "4:1",
+          feedback: "(1/0.02\xB2)/(1/0.04\xB2) = 4."
+        }
+      ],
+      correct: "E",
+      hint: "Variance is the square of the standard error; then take its reciprocal.",
+      lesson: "Pooling requires comparable populations, contrasts, outcomes and follow-up, together with an assessment of bias and dependence. Inverse-variance weights favour more precise estimates. A fixed-effect illustration assumes a common underlying effect. Random-effects models allow between-study variation but cannot repair biased studies or justify combining incompatible questions.",
+      explanation: "The weights are 2500 and 625, so A receives four times B\u2019s weight. This does not make A four times as free from bias; inverse-variance weighting represents statistical precision under the model.",
+      help: "meta_analysis/summary.htm",
+      operation: "MetaSummary",
+      lessonId: "meta",
+      sourceIds: [
+        "cochrane-10",
+        "cochrane-8"
+      ]
+    }
+  ];
+
+  // Learn/AuthoredTutor/tracks.json
+  var tracks_default = {
+    foundation: {
+      title: "Medical undergraduate",
+      description: "Understand the question, choose the method, interpret the result."
+    },
+    medicine: {
+      title: "Postgraduate medicine",
+      description: "Interpret diagnostic evidence, treatment effects and uncertainty."
+    },
+    publicHealth: {
+      title: "Public health postgraduate",
+      description: "Work with population comparisons, bias and study design."
+    },
+    analyst: {
+      title: "Healthcare / business analyst",
+      description: "Describe services, compare performance and communicate uncertainty."
+    },
+    researcher: {
+      title: "Researcher / degree module",
+      description: "Choose methods, check assumptions and interpret research evidence."
+    }
+  };
+
+  // Learn/AuthoredTutor/manifest.json
+  var manifest_default = {
+    schemaVersion: 1,
+    format: "statsdirect-builtin-tutor",
+    publisher: "StatsDirectHelpEditor",
+    publishedAtUtc: "2026-11-04T21:09:58.4887006+00:00",
+    sourceCourseId: "statsdirect-health-foundations",
+    sourceCourseVersion: "2026-11-03-draft",
+    sourceCourseSha256: "7016e2f6c5e09fd7296bf116f6e059370249522686797f6f3b6b5fcde72e1f95",
+    sourceFileName: "starter-course.json",
+    sourceFileSha256: "618185dfe8d9ddcaa2ad7b25652d0ff54237b3050c8120d08f8bded33085f77e",
+    bankVersion: "learn-draft-2026-10-01",
+    lessonCount: 12,
+    questionCount: 35,
+    trackCount: 5,
+    files: [
+      {
+        path: "lessons.json",
+        sha256: "ceb513c78b6f7d04333625437a4c00bf3accdc75990981f639bbec702411dab5",
+        bytes: 104059
+      },
+      {
+        path: "questions.json",
+        sha256: "373df875b3095a508c1760e2e4bd5581723bb1f79349568880e8616def3bc10e",
+        bytes: 70161
+      },
+      {
+        path: "tracks.json",
+        sha256: "d70bb02953a05a6db5abf04ec40c1b766e943dfc54e4fa7ef10d411f474cc114",
+        bytes: 773
+      },
+      {
+        path: "bank.mjs",
+        sha256: "281a12ce9f963500f6680c5d7e73069a7993d03a940e82cf19273b4609d16250",
+        bytes: 71131
+      }
+    ],
+    readmeSha256: "d1882f2adea41402cb0e661534eb8b4be05752ec60b9f5e3fe6598d2532e87b4",
+    reviewIssues: [
+      {
+        severity: "Warning",
+        path: "lessons.epidemiology.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.causal.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.paired.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.precision.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.diagnostic.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.risk.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.regression.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.rates.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.appraisal.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.missing.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.validation.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "lessons.meta.review",
+        message: "Draft or edited lesson: review its statistical reasoning and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.UG-SENS-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.UG-NNT-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.UG-PVAL-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.UG-PAIR-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PG-PPV-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PG-CI-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PG-RROR-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PG-SE-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PH-STAND-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PH-CONF-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PH-CLUST-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PH-SMR-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.AN-MED-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.AN-PCT-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.AN-CAUS-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.AN-PREC-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.RS-PAIR-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.RS-MULT-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.RS-MISS-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.RS-CI-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PG-ROC-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PG-LR-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PG-FOREST-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.AN-RATE-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.PH-CASEMIX-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.RS-LEAD-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.CORE-DESIGN-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.CORE-RATE-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.CORE-MEDIATOR-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.CORE-SELECTION-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.LIB-RATES-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.LIB-APPRAISAL-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.LIB-MISSING-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.LIB-VALIDATION-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      },
+      {
+        severity: "Warning",
+        path: "questions.LIB-META-01.review",
+        message: "Draft or edited question: independently check the key, distractors, numerical results and sources before student use."
+      }
+    ],
+    reviewWarningCount: 47,
+    reviewGatePassed: true,
+    reviewedChangedItems: [],
+    unreviewedChangedItems: []
+  };
+
+  // Content/learning-manifest.json
+  var learning_manifest_default = {
+    schemaVersion: 1,
+    format: "statsdirect-builtin-tutor-import",
+    repository: "https://github.com/iain-buchan/statisticalhelp",
+    commit: "bfe33836ec8bd6b5a211a530c5b248d8ee6c9340",
+    source: "Published/Tutor",
+    publisher: "StatsDirectHelpEditor",
+    producerSchemaVersion: 1,
+    producerManifestSHA256: "e9b1aedaacf661e1413284153d41db6c2428cfaf6cfe569e82e1df728e639b12",
+    sourceCourseId: "statsdirect-health-foundations",
+    sourceCourseVersion: "2026-11-03-draft",
+    bankVersion: "learn-draft-2026-10-01",
+    reviewGatePassed: true,
+    reviewWarningCount: 47,
+    sha256: {
+      "Content/Learn/lessons.json": "ceb513c78b6f7d04333625437a4c00bf3accdc75990981f639bbec702411dab5",
+      "Content/learning-source-manifest.json": "22cd4d470560630a652db5a97ce4f358cc92f8000456e466b2836646f01f658a",
+      "Learn/AuthoredTutor/README.md": "d1882f2adea41402cb0e661534eb8b4be05752ec60b9f5e3fe6598d2532e87b4",
+      "Learn/AuthoredTutor/bank.mjs": "281a12ce9f963500f6680c5d7e73069a7993d03a940e82cf19273b4609d16250",
+      "Learn/AuthoredTutor/lessons.json": "ceb513c78b6f7d04333625437a4c00bf3accdc75990981f639bbec702411dab5",
+      "Learn/AuthoredTutor/manifest.json": "e9b1aedaacf661e1413284153d41db6c2428cfaf6cfe569e82e1df728e639b12",
+      "Learn/AuthoredTutor/questions.json": "373df875b3095a508c1760e2e4bd5581723bb1f79349568880e8616def3bc10e",
+      "Learn/AuthoredTutor/tracks.json": "d70bb02953a05a6db5abf04ec40c1b766e943dfc54e4fa7ef10d411f474cc114",
+      "Learn/lessons.json": "ceb513c78b6f7d04333625437a4c00bf3accdc75990981f639bbec702411dab5"
+    },
+    publicationManifestSHA256: "22cd4d470560630a652db5a97ce4f358cc92f8000456e466b2836646f01f658a",
+    publicationManifestPath: "Published/content-manifest.json",
+    publicationTutorReviewProofBinding: "authoring-source-before-generated-sync-v1"
+  };
+
+  // Learn/bank.mjs
+  var bankVersion = manifest_default.bankVersion;
+  var tracks = tracks_default;
+  var questions = questions_default;
+  var bankPublication = {
+    repository: learning_manifest_default.repository,
+    commit: learning_manifest_default.commit,
+    source: learning_manifest_default.source,
+    producerManifestSHA256: learning_manifest_default.producerManifestSHA256,
+    publicationManifestSHA256: learning_manifest_default.publicationManifestSHA256 ?? null,
+    reviewProofBinding: learning_manifest_default.publicationTutorReviewProofBinding ?? "authoring-source-before-generated-sync-v1",
+    publication: manifest_default
+  };
+
+  // Learn/quiz.mjs
+  function createSession(track, mode, id = crypto.randomUUID(), providerPack = null) {
+    if (!tracks[track] || !["learn", "test"].includes(mode)) throw new Error("Choose a valid learning path and mode.");
+    const selected = providerPack?.questions ?? questions.filter((q) => q.track === track || q.track === "core");
+    if (!selected.length) throw Error("This course has no practice questions.");
+    return {
+      id,
+      track,
+      mode,
+      bankVersion: providerPack?.version ?? bankVersion,
+      contentPublication: providerPack ? null : structuredClone(bankPublication),
+      course: providerPack?.course ?? null,
+      startedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      completedAt: null,
+      questionIds: selected.map((q) => q.id),
+      questionSnapshots: structuredClone(selected),
+      answers: [],
+      hints: [],
+      explanations: [],
+      reflection: ""
+    };
+  }
+  function recordAssistance(session, questionId, kind) {
+    if (session.mode !== "learn" || session.completedAt) throw new Error("Assistance is unavailable in this test.");
+    if (!session.questionIds.includes(questionId) || !["hints", "explanations"].includes(kind)) throw new Error("Invalid assistance request.");
+    if (!session[kind].includes(questionId)) session[kind].push(questionId);
+  }
+  function recordAnswer(session, questionId, choice, confidence, reasoning = "") {
+    const q = sessionQuestion(session, questionId);
+    if (session.completedAt || session.questionIds[session.answers.length] !== questionId) throw new Error("This question is not awaiting an answer.");
+    if (!q.options.some((o) => o.id === choice) || !["unsure", "fairly", "confident"].includes(confidence)) throw new Error("Choose an answer and your confidence.");
+    session.answers.push({
+      questionId,
+      questionVersion: q.version,
+      choice,
+      confidence,
+      reasoning: String(reasoning).slice(0, 1500),
+      correct: choice === q.correct,
+      answeredAt: (/* @__PURE__ */ new Date()).toISOString(),
+      assisted: session.hints.includes(questionId) || session.explanations.includes(questionId)
+    });
+    if (session.answers.length === session.questionIds.length) session.completedAt = (/* @__PURE__ */ new Date()).toISOString();
+  }
+  function learnerResult(session) {
+    if (!session.completedAt) throw new Error("Finish the session to see the result.");
+    const score = session.answers.filter((a) => a.correct).length;
+    const revisit = session.answers.filter((a) => !a.correct || a.confidence === "unsure" || a.assisted);
+    return {
+      score,
+      total: session.questionIds.length,
+      assisted: session.answers.filter((a) => a.assisted).length,
+      revisit: revisit.map((a) => {
+        const q = sessionQuestion(session, a.questionId);
+        return {
+          topic: q.topic,
+          objective: q.objective,
+          help: q.help,
+          reason: !a.correct ? a.confidence === "confident" ? "Confident but incorrect" : "Incorrect answer" : a.assisted ? "Answered with teaching support" : "Correct, but uncertain"
+        };
+      })
+    };
+  }
+  function sessionQuestion(session, id) {
+    return session.questionSnapshots?.find((q) => q.id === id) ?? questions.find((q) => q.id === id);
+  }
+
+  // Learn/provider-course.mjs
+  var statisticalSkills = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
+  var assessmentTypes = { none: "None", cpd: "Continued professional development credits", self: "AI supported self-assessment" };
+  var assessmentNotes = { none: "Learn at your own pace.", cpd: "Keep a learning record for your provider to review for credit.", self: "Use the tutor for practice questions and feedback on your reasoning." };
+  var trainingDefaults = () => ({ providerName: "", courseTitle: "", courseVersion: "", reviewEmail: "support@statisticalhelp.org", assessmentType: "none", requirements: "", cpdStatement: "" });
+  function currentTraining(value) {
+    const t = { ...trainingDefaults(), ...value };
+    if (value?.assessmentType === void 0 && t.reviewEmail === "support@statsdirect.com" && !t.providerName && !t.courseTitle && !t.courseVersion && !t.requirements && !t.cpdStatement) t.reviewEmail = "support@statisticalhelp.org";
+    return t;
+  }
+  var safeURL = (s) => {
+    try {
+      const u = new URL(s);
+      return u.protocol === "https:" && !u.username && !u.password && (!u.port || u.port === "443") ? u.href : "";
+    } catch {
+      return "";
+    }
+  };
+  var validEmail = (s) => typeof s === "string" && s.length <= 254 && !/\s/.test(s) && /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}$/.test(s);
+  var courseKey = (p) => p?.schemaVersion === 2 ? `${p.id}:${p.version}` : "";
+  function courseLessons(pack) {
+    return (pack?.lessons ?? []).map((l) => ({ ...l, id: `course:${courseKey(pack)}:${l.id}`, topic: l.topic || pack.title, steps: l.steps || "", challenge: l.challenge || "Explain what you have learned and how you would use it in your work.", providerCourse: true }));
+  }
+  function courseQuestions(pack) {
+    return (pack?.questions ?? []).map((q) => ({ ...q, id: `course:${courseKey(pack)}:${q.id}`, track: "core", version: pack.version, topic: q.topic || pack.title, objective: q.objective || "", hint: q.hint || "Explain the population, variables and comparison before choosing.", lesson: q.lesson || "Use the course notes and explain your reasoning.", help: q.help || "", options: q.options.map((o) => ({ ...o, feedback: o.feedback || q.explanation })) }));
+  }
+  function adoptCourse(state2, pack) {
+    const key = courseKey(pack);
+    if (!key || key === state2.courseKey) return;
+    state2.courseKey = key;
+    state2.training = { providerName: pack.provider.name, courseTitle: pack.title, courseVersion: pack.version, reviewEmail: pack.provider.reviewEmail, assessmentType: pack.provider.assessmentType ?? state2.training.assessmentType ?? "none", requirements: pack.provider.assessmentRequirements || "", cpdStatement: pack.provider.cpdStatement || "" };
+  }
+  function submitCourseWork(state2, lesson2, text3) {
+    if (!lesson2?.providerCourse || !text3.trim()) throw Error("Write your answer or practical findings before saving.");
+    const attempt = { id: crypto.randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), courseKey: state2.courseKey, training: structuredClone(state2.training), lessonID: lesson2.id, lessonTitle: lesson2.title, objective: lesson2.objective, task: lesson2.challenge, text: text3.trim().slice(0, 2e4), status: "Submitted locally for review; not marked" };
+    state2.courseWork.push(attempt);
+    return attempt;
+  }
+  function addProviderReview(state2, value) {
+    if (value?.schemaVersion !== 1 || value.portfolioID !== state2.id || !["provider", "reviewer", "reviewedAt", "decision", "feedback"].every((k) => typeof value[k] === "string" && value[k].trim() && value[k].length <= 2e4)) throw Error("This assessment response does not match the learning record or is incomplete.");
+    const review = { schemaVersion: 1, portfolioID: state2.id, provider: value.provider, reviewer: value.reviewer, reviewedAt: value.reviewedAt, decision: value.decision, feedback: value.feedback, courseKey: String(value.courseKey || ""), creditStatement: String(value.creditStatement || "").slice(0, 3e3), reference: String(value.reference || "").slice(0, 1e3), importedAt: (/* @__PURE__ */ new Date()).toISOString(), verification: "Imported provider response; authenticity not independently verified by StatsDirect." };
+    state2.providerReviews.push(review);
+    return review;
+  }
+
+  // Learn/portfolio.mjs
+  var stages = { menus: "Start with menus", bridge: "Connect menus to R", coding: "Practise R coding" };
+  function newPortfolio() {
+    return { schemaVersion: 2, id: crypto.randomUUID(), startedAt: (/* @__PURE__ */ new Date()).toISOString(), profile: "foundation", stage: "menus", lesson: "epidemiology", view: "study", identity: { name: "", email: "", goal: "" }, learning: { statisticalSkills: "beginner", needs: "", qualifications: "", priorKnowledge: "", targetDate: "", focus: ["epidemiology", "causal"], style: "Worked examples and questions" }, training: trainingDefaults(), courseKey: "", courseWork: [], workDrafts: {}, providerReviews: [], evidence: [], conversation: [], sharingConsents: [], activities: [], attempts: [], quiz: null, reflection: "", draft: "" };
+  }
+  function restorePortfolio(value) {
+    const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+    const strings = (v, keys) => object(v) && keys.every((k) => typeof v[k] === "string");
+    const validQuestion = (q) => strings(q, ["id", "topic", "stem", "correct", "explanation", "hint", "lesson", "help"]) && Array.isArray(q.options) && q.options.length >= 2 && q.options.length <= 8 && q.options.every((o) => strings(o, ["id", "text", "feedback"])) && q.options.filter((o) => o.id === q.correct).length === 1;
+    const validSession = (s) => {
+      if (!strings(s, ["id", "track", "mode", "startedAt"]) || !tracks[s.track] || !["learn", "test"].includes(s.mode) || !Array.isArray(s.questionIds) || !s.questionIds.length || new Set(s.questionIds).size !== s.questionIds.length || !Array.isArray(s.answers) || s.answers.length > s.questionIds.length || !["hints", "explanations"].every((k) => Array.isArray(s[k]) && s[k].every((id) => s.questionIds.includes(id)))) return false;
+      if (s.questionSnapshots !== void 0 && (!Array.isArray(s.questionSnapshots) || s.questionSnapshots.length !== s.questionIds.length || !s.questionSnapshots.every(validQuestion) || new Set(s.questionSnapshots.map((q) => q.id)).size !== s.questionIds.length)) return false;
+      if (!s.questionIds.every((id) => typeof id === "string" && validQuestion(sessionQuestion(s, id)))) return false;
+      if (!["completedAt", "endedAt"].every((k) => s[k] === void 0 || s[k] === null || typeof s[k] === "string") || Boolean(s.completedAt) !== (s.answers.length === s.questionIds.length)) return false;
+      return s.answers.every((a, i) => strings(a, ["questionId", "choice", "confidence", "reasoning", "answeredAt"]) && a.questionId === s.questionIds[i] && ["unsure", "fairly", "confident"].includes(a.confidence) && typeof a.assisted === "boolean" && typeof a.correct === "boolean" && sessionQuestion(s, a.questionId).options.some((o) => o.id === a.choice) && a.correct === (a.choice === sessionQuestion(s, a.questionId).correct));
+    };
+    const defaults2 = newPortfolio();
+    const learning = value?.learning === void 0 ? defaults2.learning : object(value.learning) ? { statisticalSkills: "beginner", ...value.learning } : value.learning;
+    if (value?.sharingConsents !== void 0 && (!Array.isArray(value.sharingConsents) || !value.sharingConsents.every((c) => strings(c, ["id", "at", "requestID", "policyVersion", "statement"]) && c.noPersonIdentifiers === true && Array.isArray(c.documents) && c.documents.every((d) => strings(d, ["id", "title", "kind"]) && Number.isInteger(d.version))))) throw Error("The saved sharing confirmations are incompatible. The record has not been overwritten.");
+    const validTraining = (v) => strings(v, Object.keys(trainingDefaults()).filter((k) => k !== "assessmentType")) && (v.assessmentType === void 0 || Object.hasOwn(assessmentTypes, v.assessmentType));
+    if (value?.training !== void 0 && !validTraining(value.training) || value?.courseKey !== void 0 && typeof value.courseKey !== "string" || value?.courseWork !== void 0 && (!Array.isArray(value.courseWork) || !value.courseWork.every((w) => strings(w, ["id", "at", "courseKey", "lessonID", "lessonTitle", "objective", "task", "text", "status"]) && validTraining(w.training))) || value?.workDrafts !== void 0 && (!object(value.workDrafts) || !Object.values(value.workDrafts).every((x) => typeof x === "string")) || value?.providerReviews !== void 0 && (!Array.isArray(value.providerReviews) || !value.providerReviews.every((r2) => strings(r2, ["portfolioID", "provider", "reviewer", "reviewedAt", "decision", "feedback", "verification"]))) || value?.evidence !== void 0 && (!Array.isArray(value.evidence) || !value.evidence.every((r2) => strings(r2, ["title", "at", "text"])))) throw Error("The saved course record is incompatible. It has not been overwritten.");
+    if (!strings(value, ["id", "startedAt", "profile", "stage", "lesson", "view", "reflection", "draft"]) || value.schemaVersion !== 2 || !tracks[value.profile] || !stages[value.stage] || !["study", "options", "sources", "practice", "record"].includes(value.view) || !strings(value.identity, ["name", "email", "goal"]) || !Object.hasOwn(statisticalSkills, learning?.statisticalSkills) || !strings(learning, ["needs", "qualifications", "priorKnowledge", "targetDate", "style"]) || !Array.isArray(learning.focus) || !learning.focus.every((x) => typeof x === "string") || !Array.isArray(value.conversation) || !value.conversation.every((c) => strings(c, ["id", "at", "role", "text", "source"]) && ["user", "assistant"].includes(c.role) && ["lessonId", "lessonTitle"].every((k) => c[k] === void 0 || typeof c[k] === "string") && (c.lessonPrompt === void 0 || typeof c.lessonPrompt === "boolean") && (!c.workspaceSources || Array.isArray(c.workspaceSources) && c.workspaceSources.every((s) => typeof s === "string")) && (!c.courseSources || Array.isArray(c.courseSources) && c.courseSources.every((s) => strings(s, ["id", "title"])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz !== null && !validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every((a) => strings(a, ["at", "text"]))) throw new Error("The saved learning record is incompatible. It has not been overwritten.");
+    return { ...defaults2, ...value, training: currentTraining(value.training), learning: { ...learning, focus: [.../* @__PURE__ */ new Set(["epidemiology", "causal", ...learning.focus])] } };
+  }
+  function transcriptEntry(state2, role, text3, source = "study guide", details = {}) {
+    const entry = { id: crypto.randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), role, text: text3, source, ...details };
+    state2.conversation.push(entry);
+    return entry;
+  }
+  function reviewRecord(state2) {
+    const attempts = [...state2.attempts, ...state2.quiz ? [state2.quiz] : []].map((session) => ({
+      ...structuredClone(session),
+      answers: session.answers.map((a) => {
+        const copy = structuredClone(a);
+        if (session.mode === "test" && !session.completedAt && !session.endedAt) delete copy.correct;
+        return copy;
+      }),
+      result: session.completedAt ? learnerResult(session) : null,
+      questionSnapshots: session.questionIds.map((id) => {
+        const q = structuredClone(sessionQuestion(session, id));
+        if (session.mode === "test" && !session.completedAt && !session.endedAt) {
+          delete q.correct;
+          delete q.explanation;
+          delete q.hint;
+          delete q.lesson;
+          q.options = q.options.map(({ id: id2, text: text3 }) => ({ id: id2, text: text3 }));
+        }
+        return q;
+      }),
+      status: session.completedAt ? "completed" : session.endedAt ? "ended early" : "in progress"
+    }));
+    return {
+      schemaVersion: 2,
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      portfolioID: state2.id,
+      startedAt: state2.startedAt,
+      learner: structuredClone(state2.identity),
+      learningOptions: structuredClone(state2.learning),
+      pathway: tracks[state2.profile].title,
+      rExperience: stages[state2.stage],
+      diagnostics: structuredClone(state2.diagnostics ?? {}),
+      bankVersion,
+      questionSource: "StatsDirect items are original teaching material. Provider items retain the course and version recorded with each attempt. These are not official examination questions.",
+      marking: "Provisional fixed-key MCQ scoring: 1 correct, 0 otherwise. First answers retained. Confidence and free-text reasoning are not graded. Independent practice is unsupervised and cannot certify exam readiness.",
+      reviewStatus: "No accreditation or CPD points awarded by StatsDirect. Imported provider responses are recorded separately and are not authenticated. Email preparation does not confirm delivery or acceptance.",
+      training: structuredClone(state2.training),
+      courseKey: state2.courseKey,
+      courseWork: structuredClone(state2.courseWork),
+      providerReviews: structuredClone(state2.providerReviews),
+      evidence: structuredClone(state2.evidence),
+      sharingConsents: structuredClone(state2.sharingConsents ?? []),
+      attempts,
+      conversation: structuredClone(state2.conversation),
+      activities: structuredClone(state2.activities),
+      reflection: state2.reflection
+    };
+  }
+  function reviewText(record) {
+    const lines = ["STATSDIRECT \u2014 LEARNING RECORD", "External review request", `Prepared: ${record.exportedAt}`, `Record: ${record.portfolioID}`, `Started: ${record.startedAt}`, "", `Learner: ${record.learner.name || "(not supplied)"}`, `Reply email: ${record.learner.email || "(not supplied)"}`, `Learning goal: ${record.learner.goal || "(not supplied)"}`, `Pathway: ${record.pathway}`, `Statistical skills: ${statisticalSkills[record.learningOptions?.statisticalSkills] || "Not recorded"}`, `R experience: ${record.rExperience}`, `Exams / qualifications: ${record.learningOptions?.qualifications || "(not supplied)"}`, `Learning needs: ${record.learningOptions?.needs || "(not supplied)"}`, `Prior knowledge: ${record.learningOptions?.priorKnowledge || "(not supplied)"}`, `Target date: ${record.learningOptions?.targetDate || "(not supplied)"}`, `Focus: ${(record.learningOptions?.focus || []).join(", ")}`, `Preferred teaching style: ${record.learningOptions?.style || ""}`, "", record.questionSource, record.marking, record.reviewStatus, "", "PRACTICE ATTEMPTS"];
+    for (const a of record.attempts) {
+      if (a.course) lines.push(`Provider assessment: ${a.course.title} \xB7 ${a.course.provider} \xB7 version ${a.course.version}`);
+      lines.push("", `${tracks[a.track].title} \u2014 ${a.mode === "test" ? "Independent practice (unsupervised)" : "Supported practice"} \u2014 ${a.status}`, `Started: ${a.startedAt} | Completed: ${a.completedAt || "not completed"}`, a.result ? `Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted` : `Answered: ${a.answers.length}/${a.questionIds.length}`);
+      for (const q of a.questionSnapshots) {
+        const answer = a.answers.find((x) => x.questionId === q.id);
+        lines.push("", `${q.id} v${q.version} \u2014 ${q.topic}`, q.stem, ...q.options.map((o) => `${o.id}. ${o.text}`), `First answer: ${answer?.choice || "not answered"} | Key: ${q.correct || "withheld until the attempt ends"}`, `Confidence: ${answer?.confidence || "not recorded"} | Assisted: ${answer?.assisted ?? false}`, `Reasoning before answer: ${answer?.reasoning || "(none)"}`, `Reflection after feedback: ${answer?.reflection || "(none)"}`, `Feedback: ${q.explanation || "withheld until the attempt ends"}`, q.help ? `Help: https://www.statsdirect.com/help/${q.help}` : "");
+      }
+    }
+    lines.push("", "DOCUMENT SHARING CONFIRMATIONS");
+    for (const c of record.sharingConsents ?? []) lines.push("", `${c.at} \xB7 question ${c.requestID} \xB7 ${c.policyVersion}`, c.statement, ...c.documents.map((d) => `${d.title} (${d.kind}) \xB7 revision ${d.version}`));
+    lines.push("", "COMPLETE LEARNING CONVERSATION");
+    for (const c of record.conversation) lines.push("", `[${c.at}] ${c.role === "user" ? "Learner" : "Tutor"} \u2014 ${c.source}${c.lessonTitle ? " \xB7 " + c.lessonTitle : ""}${c.model ? " / " + c.model : ""}`, c.text, ...(c.courseSources ?? []).map((s) => "Lesson context supplied: " + s.id + " \u2014 " + s.title + (s.url ? " \xB7 " + s.url : "") + (s.retrievedAt ? " \xB7 retrieved " + s.retrievedAt : "")), ...(c.workspaceSources ?? []).map((s) => "StatsDirect context: " + s));
+    lines.push("", "PROVIDER AND COURSE", ...Object.entries(record.training ?? {}).map(([k, v]) => `${k === "assessmentType" ? "Assessment type" : k}: ${k === "assessmentType" ? assessmentTypes[v] ?? v : v}`), "", "PRACTICAL SUBMISSIONS");
+    for (const w of record.courseWork ?? []) lines.push("", `${w.at} \xB7 ${w.training.courseTitle} v${w.training.courseVersion} \xB7 ${w.lessonTitle}`, `Objective: ${w.objective}`, `Task: ${w.task}`, w.text, w.status);
+    lines.push("", "ATTACHED ANALYSIS EVIDENCE");
+    for (const e2 of record.evidence ?? []) lines.push("", `${e2.at} \xB7 ${e2.title}`, e2.text);
+    lines.push("", "RETURNED PROVIDER ASSESSMENTS");
+    for (const r2 of record.providerReviews ?? []) lines.push("", `${r2.provider} \xB7 ${r2.reviewer} \xB7 ${r2.reviewedAt}`, `Decision: ${r2.decision}`, r2.feedback, `Credit statement supplied: ${r2.creditStatement || "(none)"}`, `Reference: ${r2.reference || "(none)"}`, r2.verification);
+    lines.push("", "LEARNING ACTIVITIES");
+    for (const a of record.activities) lines.push(`[${a.at}] ${a.text}`);
+    lines.push("", "DIAGNOSTICS", JSON.stringify(record.diagnostics ?? {}, null, 2));
+    lines.push("", "LEARNER REFLECTION", record.reflection || "(not supplied)");
+    return lines.join("\n");
+  }
+  function practiceContext(state2) {
+    const q = state2.quiz;
+    if (!q || q.mode === "test" && !q.completedAt) return "";
+    const item = sessionQuestion(q, q.questionIds[Math.min(q.answers.length, q.questionIds.length - 1)]);
+    return item ? `${item.stem}
+${item.options.map((x) => x.id + ". " + x.text).join("\n")}
+Teaching rationale: ${item.explanation}` : "";
+  }
+
+  // Learn/exam-sources.mjs
+  var examSources = [
+    { title: "MRCP(UK): official Part 1 sample examination", url: "https://www.thefederation.uk/examinations/part-1/part-1-sample-questions", note: "Official best-of-five practice access. Registration is required; the questions behind that step were not reviewed for this build." },
+    { title: "MRCP-style diagnostic questions: published practice examples", url: "https://www.pastpaperhero.com/resources/rcp-mrcp-statistics-epidemiology-and-evidence-based-medicine-sensitivity-specificity-and-predictive-values?content=article", note: "Independent publisher, not a Royal College source. Public questions cover diagnostic denominators, prevalence and threshold changes. Used for topic inspiration only." },
+    { title: "MRCGP AKT: official sample questions and answers", url: "https://www.rcgp.org.uk/getmedia/dca96621-2599-4e6e-9a99-7a1ab2affff9/AKT-Example-Questions-(with-answers)-November-2025.pdf", note: "November 2025 samples include chart interpretation, event risk and uncertainty (questions 3, 10, 20, 24 and 41). The app uses new fictional examples." },
+    { title: "DFPH: official specimen papers and marking schemes", url: "https://www.fph.org.uk/training-careers/the-diplomate-dfph-and-final-membership-examination-mfph/the-diplomate-examination-dfph/the-diplomate-examination-dfph-preparation/", note: "Written interpretation and critical appraisal are important. The published Paper B includes interpretation of length of stay and case mix. Preparation also needs written appraisal and interpretation; the examination is not solely MCQ-based." },
+    { title: "MFPH: final membership assessment", url: "https://www.fph.org.uk/training-careers/the-diplomate-dfph-and-final-membership-examination-mfph/the-faculty-of-public-health-final-membership-examination/marking-results-and-feedback/", note: "Final membership assesses practical competencies across six stations. Use the conversational explanation exercise below alongside MCQ practice." }
+  ];
+  var communicationPrompt = "Practise a short public-health communication scenario with me. You are a fictional service manager asking whether a clinic with longer average waiting times is performing poorly. Give me a small original data example, ask me to explain it in plain language, and wait for my reply. Then give formative feedback on interpretation, case mix, uncertainty and clarity. Do not assign an official examination grade.";
+
+  // Learn/lesson-context.mjs
+  function labelStudyGuides(state2, lessons) {
+    for (const entry of state2.conversation) {
+      if (entry.source !== "Study guide" || entry.role !== "assistant") continue;
+      const origin = lessons.find((l) => l.challenge === entry.text || (l.previousChallenges ?? []).includes(entry.text));
+      if (origin) {
+        entry.lessonId = origin.id;
+        entry.lessonTitle = origin.title;
+        entry.lessonPrompt = true;
+      }
+    }
+  }
+  function ensureLessonPrompt(state2, lessons) {
+    labelStudyGuides(state2, lessons);
+    const current = lessons.find((l) => l.id === state2.lesson);
+    if (!current || typeof current.challenge !== "string" || !current.challenge.trim()) return false;
+    const latest = state2.conversation.findLast((c) => c.lessonPrompt === true);
+    if (latest?.lessonId === current.id && latest.text === current.challenge) return false;
+    transcriptEntry(state2, "assistant", current.challenge, "Study guide", { lessonId: current.id, lessonTitle: current.title, lessonPrompt: true });
+    return true;
+  }
+  function guidePresentation(entry, currentLesson) {
+    if (entry.lessonPrompt !== true) return { label: entry.lessonTitle ? `${entry.source} \xB7 ${entry.lessonTitle}` : entry.source, earlier: false };
+    const earlier = entry.lessonId !== currentLesson.id || entry.text !== currentLesson.challenge;
+    return { label: `${earlier ? "Earlier study guide" : "Study guide"} \xB7 ${entry.lessonTitle}`, earlier };
+  }
+  function conversationForTutor(state2) {
+    return lessonConversation(state2).slice(-40).map((c) => ({ role: c.role, text: c.lessonTitle ? `[Lesson context: ${c.lessonTitle}]
+${c.text}` : c.text }));
+  }
+  function lessonConversation(state2) {
+    return state2.conversation.filter((c) => c.lessonId === state2.lesson || !c.lessonId && state2.lesson === "epidemiology");
+  }
+
+  // Content/Learn/lessons.json
   var lessons_default = [
     {
       id: "epidemiology",
@@ -21873,2123 +24024,21 @@ if (FALSE) {
     }
   ];
 
-  // Learn/bank.mjs
-  var bankVersion = "learn-draft-2026-10-01";
-  var tracks = {
-    foundation: { title: "Medical undergraduate", description: "Understand the question, choose the method, interpret the result." },
-    medicine: { title: "Postgraduate medicine", description: "Interpret diagnostic evidence, treatment effects and uncertainty." },
-    publicHealth: { title: "Public health postgraduate", description: "Work with population comparisons, bias and study design." }
-  };
-  var options2 = (...rows) => rows.map(([text3, feedback2], i) => ({ id: String.fromCharCode(65 + i), text: text3, feedback: feedback2 }));
-  var questions = [
-    {
-      id: "UG-SENS-01",
-      version: 1,
-      track: "foundation",
-      topic: "Sensitivity",
-      objective: "Choose the denominator for sensitivity.",
-      stem: "In a fictional diagnostic study, 90 people have the condition and 810 do not. The test is positive in 72 of the 90 people with the condition and in 81 of the 810 without it. What is the sensitivity?",
-      options: options2(["20%", "This is the false-negative proportion: 18/90."], ["47.1%", "This is the positive predictive value: 72/(72+81)."], ["80%", "Use the people with the condition as the denominator: 72/90."], ["90%", "This is the specificity: 729/810."], ["97.6%", "This is the negative predictive value: 729/(729+18)."]),
-      correct: "C",
-      hint: "Start with the people known to have the condition. How many did the test detect?",
-      lesson: "Sensitivity asks: among people with the condition, what proportion test positive? Positive predictive value reverses the question: among people with a positive result, what proportion have the condition?",
-      explanation: "Sensitivity = true positives / (true positives + false negatives) = 72/90 = 80%. The 81 false positives matter for specificity and predictive values, not for this denominator.",
-      calculation: { kind: "sensitivity", tp: 72, fn: 18, expected: 0.8 },
-      help: "clinical_epidemiology/diagnostic.htm",
-      operation: "MiscDiagnostic"
-    },
-    {
-      id: "UG-NNT-01",
-      version: 2,
-      track: "foundation",
-      topic: "Absolute benefit and NNT",
-      objective: "Calculate NNT and retain the follow-up period.",
-      stem: "With complete one-year follow-up, an individually randomised trial records at least one unplanned admission in 16 of 200 programme participants and 28 of 200 usual-care participants. Using these point estimates, what is the number needed to treat to prevent one additional person having an admission over one year, rounded up to a whole person?",
-      options: options2(["6", "Six percentage points is the absolute risk reduction, not its reciprocal."], ["7", "The absolute reduction is 0.06, so its reciprocal is larger than 7."], ["12", "Twelve is the difference in event counts, not NNT."], ["17", "1/(0.14\u22120.08) = 16.67, rounded up to 17."], ["43", "About 43% is the relative risk reduction; NNT uses absolute risk reduction."]),
-      correct: "D",
-      hint: "Calculate the two event risks, subtract them, then take the reciprocal of that absolute difference.",
-      lesson: "NNT connects an absolute reduction in risk to the number of people treated. It depends on baseline risk, the outcome and the follow-up period. Count people with an outcome, not repeated events. A point estimate alone does not describe uncertainty or establish benefit.",
-      explanation: "Usual-care risk is 28/200 = 0.14. Programme risk is 16/200 = 0.08. The absolute reduction is 0.06, so NNT = 16.67, conventionally rounded up to 17, for this outcome over one year.",
-      calculation: { kind: "nnt", controlEvents: 28, controlN: 200, treatmentEvents: 16, treatmentN: 200, expected: 17 },
-      help: "clinical_epidemiology/nnt.htm",
-      operation: "MiscNumberNeededToTreat"
-    },
-    {
-      id: "UG-PVAL-01",
-      version: 1,
-      track: "foundation",
-      topic: "P values",
-      objective: "Interpret a P value conditional on a null model.",
-      stem: "A prespecified two-sided analysis gives P = 0.03. Which interpretation is most accurate?",
-      options: options2(["The null hypothesis has a 3% probability of being true.", "A P value is not a posterior probability for the null hypothesis."], ["If the null model and its assumptions hold, a test statistic at least as extreme as this has probability 3%.", "This is the repeated-sampling interpretation under the specified null model."], ["The treatment has a 97% probability of working.", "A P value does not give the probability that a treatment works."], ["The estimated treatment effect is clinically important.", "Clinical importance depends on the effect size, uncertainty, harms and context."], ["There is a 3% probability that the study contains any bias.", "P values do not measure the probability of bias."]),
-      correct: "B",
-      hint: "Which statement starts by assuming the null model, rather than assigning a probability to it?",
-      lesson: "A P value measures compatibility with a specified null model using a chosen test statistic. It does not determine clinical importance or rule out bias. Read it alongside the effect estimate and confidence interval.",
-      explanation: "The probability refers to possible test statistics under the null model and its assumptions. It is not the probability that the null is true, that the finding is a chance accident, or that the effect matters clinically.",
-      help: "basics/p_values.htm",
-      operation: null
-    },
-    {
-      id: "UG-PAIR-01",
-      version: 1,
-      track: "foundation",
-      topic: "Choosing a paired analysis",
-      objective: "Match a comparison to its paired structure.",
-      stem: "Eighteen independently sampled adults each have a measurement before and after an intervention. Their within-person differences are approximately normally distributed, with no major outliers. Which test directly assesses whether the population mean change is zero?",
-      options: options2(["Unpaired t test", "Treating the observations as independent loses the within-person pairing."], ["Pearson chi-square test", "This is not a comparison of categorical counts."], ["Mann\u2013Whitney test", "This test is for independent groups, not paired observations."], ["Paired t test", "The paired t test is a one-sample t test of the within-person differences."], ["Pearson correlation test", "Correlation measures association, not whether the mean change is zero."]),
-      correct: "D",
-      hint: "What single value could you compute for each participant?",
-      lesson: "Subtract each person\u2019s before value from their after value, using the same direction for everyone. The paired t test operates on those differences. The normality assumption concerns the differences.",
-      explanation: "Use a paired t test on the 18 within-person differences. A before\u2013after change alone does not establish that the intervention caused it; a causal claim needs an appropriate study design.",
-      help: "parametric_methods/paired_t.htm",
-      operation: "TPaired"
-    },
-    {
-      id: "PG-PPV-01",
-      version: 1,
-      track: "medicine",
-      topic: "Predictive value and prevalence",
-      objective: "Combine prevalence, sensitivity and specificity.",
-      stem: "A fictional screening test has sensitivity 90% and specificity 95%. Assume these apply in a population with prevalence 1%. Approximately what proportion of positive results would be true positives?",
-      options: options2(["1%", "Prevalence is the probability before seeing the test result."], ["5%", "This is the false-positive rate among people without the condition."], ["15.4%", "For 10,000 people, expect 90 true positives and 495 false positives: 90/585."], ["90%", "Sensitivity conditions on having the condition, not on a positive test."], ["95%", "Specificity conditions on not having the condition."]),
-      correct: "C",
-      hint: "Imagine 10,000 people. Work out true positives and false positives separately.",
-      lesson: "At low prevalence, people without the condition greatly outnumber those with it. Even a modest false-positive rate can therefore produce many false positives. Keep sensitivity and predictive value separate.",
-      explanation: "Among 10,000 people, 100 have the condition, producing 90 true positives. The other 9,900 produce 495 false positives. PPV = 90/(90+495) = 15.38%.",
-      calculation: { kind: "ppv", prevalence: 0.01, sensitivity: 0.9, specificity: 0.95, expected: 0.15384615384615385 },
-      help: "clinical_epidemiology/diagnostic.htm",
-      operation: "MiscDiagnostic"
-    },
-    {
-      id: "PG-CI-01",
-      version: 2,
-      track: "medicine",
-      topic: "Confidence intervals",
-      objective: "Distinguish inconclusive evidence from evidence of no effect.",
-      stem: "A trial estimates a treatment-to-control risk ratio for an adverse outcome of 0.76 with a 95% confidence interval from 0.58 to 1.03. Which conclusion best describes these results?",
-      options: options2(["The trial proves that the intervention has no effect.", "Including 1 does not prove the absence of an effect."], ["The results are compatible with appreciable benefit and a small increase in risk; they do not exclude no effect.", "The interval spans a 42% reduction through a 3% increase and includes a risk ratio of 1."], ["There is a 95% probability that this particular interval contains the true effect.", "That is not the frequentist repeated-sampling interpretation of a confidence interval."], ["The intervention reduces risk by exactly 24% in every patient.", "A group-level point estimate is uncertain and is not an individual guarantee."], ["Increasing the sample size would guarantee a statistically significant benefit.", "A larger sample can improve precision but cannot guarantee that conclusion."]),
-      correct: "B",
-      hint: "For a ratio, what value represents no difference? What range of effects does the interval allow?",
-      lesson: "For risk ratios the null value is 1; for risk differences it is 0. An interval that includes the null can also include important benefit or harm. Its width tells you about precision.",
-      explanation: "The estimate favours benefit, but the interval includes no effect and a small increase in risk. Interpret the magnitude and precision together; clinical decisions also require harms, costs and other evidence.",
-      help: "basics/confidence_interval.htm",
-      operation: "PropUnPaired"
-    },
-    {
-      id: "PG-RROR-01",
-      version: 2,
-      track: "medicine",
-      topic: "Risk and odds",
-      objective: "Recognise that odds ratios and risk ratios differ for common outcomes.",
-      stem: "In a fictional cohort, an outcome occurs in 120 of 200 exposed people and 80 of 200 unexposed people. Which pair gives the exposed-to-unexposed risk ratio and odds ratio?",
-      options: options2(["Risk ratio 1.50; odds ratio 2.25", "Risks are 0.6 and 0.4; odds are 120/80 and 80/120."], ["Risk ratio 2.25; odds ratio 1.50", "These two statistics have been exchanged."], ["Risk ratio 1.50; odds ratio 1.50", "These outcomes are common: the odds ratio is 2.25, not 1.50. Rarity in both groups is a useful sufficient condition for the usual risk-ratio approximation."], ["Risk ratio 0.67; odds ratio 0.44", "These compare unexposed with exposed, reversing the requested direction."], ["Risk ratio 0.20; odds ratio 0.20", "0.20 is the absolute risk difference."]),
-      correct: "A",
-      hint: "Risk divides events by everyone in the group. Odds divides events by non-events.",
-      lesson: "Always identify the reference group. Risks and odds are different quantities; with common outcomes, an odds ratio can be much further from 1 than the corresponding risk ratio.",
-      explanation: "RR = (120/200)/(80/200) = 1.5. OR = (120/80)/(80/120) = 2.25. These observational comparisons do not by themselves establish causation.",
-      calculation: { kind: "riskOdds", a: 120, b: 80, c: 80, d: 120, expected: [1.5, 2.25] },
-      help: "clinical_epidemiology/risk_prospective.htm",
-      operation: "MiscRelRisk"
-    },
-    {
-      id: "PG-SE-01",
-      version: 1,
-      track: "medicine",
-      topic: "Precision and sample size",
-      objective: "Apply the square-root relationship between sample size and standard error.",
-      stem: "For independent observations from the same population, assume the standard deviation stays fixed. If the sample size increases from 100 to 400, what happens to the standard error of the sample mean?",
-      options: options2(["It is unchanged.", "The standard error depends on sample size even when the population standard deviation is unchanged."], ["It becomes one quarter as large.", "Standard error falls with the square root of sample size, not sample size itself."], ["It doubles.", "A larger independent sample makes the mean more precise."], ["It becomes half as large.", "SE = SD/\u221An, so the ratio is \u221A(100/400) = 0.5."], ["It becomes zero.", "Finite samples retain sampling uncertainty."]),
-      correct: "D",
-      hint: "Use SE = SD divided by the square root of n.",
-      lesson: "Standard deviation describes variation between observations; standard error describes sampling variation in an estimate. Quadrupling an independent sample halves the standard error when the standard deviation stays fixed.",
-      explanation: "SE(new)/SE(old) = \u221A100/\u221A400 = 0.5. Dependence or clustering changes the calculation, and systematic bias is not removed by increasing sample size.",
-      calculation: { kind: "seRatio", oldN: 100, newN: 400, expected: 0.5 },
-      help: "basics/precision.htm",
-      operation: "UnivariateSummary"
-    },
-    {
-      id: "PH-STAND-01",
-      version: 1,
-      track: "publicHealth",
-      topic: "Direct standardisation",
-      objective: "Apply common population weights to age-specific rates.",
-      stem: "A district has annual mortality rates of 200 per 100,000 in its younger age group and 1,000 per 100,000 in its older group. A standard population contains 75% younger and 25% older people. What is the directly age-standardised annual rate per 100,000?",
-      options: options2(["200", "This uses only the younger group."], ["300", "The weighted contribution of the older group alone is 250, in addition to 150 from the younger group."], ["400", "0.75 \xD7 200 + 0.25 \xD7 1,000 = 400."], ["600", "This would use equal weights rather than the supplied standard population."], ["1,200", "Adding the rates ignores the population weights."]),
-      correct: "C",
-      hint: "Multiply each age-specific rate by its share of the standard population, then add.",
-      lesson: "Direct standardisation applies each population\u2019s stratum-specific rates to a common set of weights. The resulting rate is a comparison summary, not necessarily the population\u2019s observed crude rate.",
-      explanation: "The younger contribution is 150 and the older contribution is 250, giving 400 per 100,000 per year. Use the same standard weights when comparing districts.",
-      calculation: { kind: "weightedRate", rates: [200, 1e3], weights: [0.75, 0.25], expected: 400 },
-      help: "rates/direct_standardization.htm",
-      operation: "RateDirectScreen"
-    },
-    {
-      id: "PH-CONF-01",
-      version: 2,
-      track: "publicHealth",
-      topic: "Confounding",
-      objective: "Interpret a change between crude and stratified associations.",
-      stem: "An observational comparison gives a crude risk ratio of 2.0. Baseline age precedes exposure, influences exposure choice and predicts the outcome; the exposed group is older. In every age stratum the risk ratio is 1.0, with adequate data and accurate measurement. Which explanation is most consistent with this pattern?",
-      options: options2(["The pattern is consistent with confounding by baseline age.", "Different age distributions can create a crude association when no association remains within age strata."], ["Age is certainly a mediator of the exposure effect.", "Baseline age precedes exposure, so it cannot mediate the effect of that exposure."], ["There must be strong effect modification by age.", "The stated stratum-specific risk ratios do not vary with age; effect modification must be described on a specified scale."], ["The exposure has been proved harmless in every setting.", "Removing this observed association does not establish universal safety or remove other biases."], ["The crude risk ratio is necessarily an arithmetic error.", "A correctly computed crude ratio can differ from stratum-specific ratios."]),
-      correct: "A",
-      hint: "Distinguish imbalance in a third variable from variation of the effect across strata.",
-      lesson: "Confounding can mix the effect of an exposure with differences in other determinants of the outcome. Effect modification describes variation across strata on a specified effect scale, such as a risk difference or risk ratio. A causal diagram and design knowledge help decide what to adjust for.",
-      explanation: "Given the stated causal role and imbalance of baseline age, this pattern supports age confounding. A change after adjustment alone cannot diagnose confounding or establish no causal effect; chance, other biases and the causal assumptions still matter.",
-      help: "basics/confounding.htm",
-      operation: "MantelHaenszelScreen"
-    },
-    {
-      id: "PH-CLUST-01",
-      version: 1,
-      track: "publicHealth",
-      topic: "Clustered observations",
-      objective: "Recognise the loss of precision from within-cluster correlation.",
-      stem: "A survey uses equal clusters of 20 people. For its outcome, the intracluster correlation is 0.04. Using the approximation DE = 1 + (m \u2212 1)\u03C1, what is the design effect relative to simple random sampling?",
-      options: options2(["1.04", "The correlation is multiplied by m\u22121, not added just once."], ["1.20", "Insert m = 20 and \u03C1 = 0.04 into the stated formula."], ["1.76", "1 + 19 \xD7 0.04 = 1.76."], ["2.00", "The supplied values give a smaller variance inflation."], ["20.00", "A design effect of 20 under this formula would require perfect within-cluster correlation."]),
-      correct: "C",
-      hint: "Here m is the number of people in each cluster, not the number of clusters.",
-      lesson: "People in one cluster may provide partly overlapping information. This approximation multiplies the variance by the design effect; standard errors are multiplied by its square root. Unequal cluster sizes and few clusters need more careful planning.",
-      explanation: "DE = 1 + (20\u22121) \xD7 0.04 = 1.76. Under this approximation, nominal sample size divided by 1.76 gives an effective sample size; it is not a substitute for a full cluster-design calculation.",
-      calculation: { kind: "designEffect", m: 20, rho: 0.04, expected: 1.76 },
-      help: "basics/precision.htm",
-      operation: null
-    },
-    {
-      id: "PH-SMR-01",
-      version: 2,
-      track: "publicHealth",
-      topic: "Standardised mortality ratio",
-      objective: "Interpret observed relative to expected events.",
-      stem: "A population has 55 observed deaths over the study period. Applying reference age-specific mortality rates to its age-specific person-time gives 44 expected deaths. What is the standardised mortality ratio, expressed as a ratio rather than a percentage?",
-      options: options2(["0.20", "This is neither the observed-to-expected ratio nor its reciprocal."], ["0.80", "This reverses observed and expected."], ["1.25", "55/44 = 1.25."], ["11", "Eleven is the difference in counts."], ["125", "125 is the SMR expressed on a percentage scale, not the requested ratio scale."]),
-      correct: "C",
-      hint: "Use observed deaths divided by expected deaths.",
-      lesson: "An SMR compares observed with expected events based on reference stratum-specific rates. Always state whether you use a ratio scale (null 1) or percentage scale (null 100), and include uncertainty. SMRs for different populations may use different implicit weights, so they are not automatically comparable with each other.",
-      explanation: "SMR = 55/44 = 1.25, or 25% more deaths than expected on this reference. The point estimate alone does not establish statistical significance or causation.",
-      calculation: { kind: "smr", observed: 55, expectedDeaths: 44, expected: 1.25 },
-      help: "rates/smr.htm",
-      operation: "RateSmrScreen"
-    }
-  ];
-  tracks.analyst = { title: "Healthcare / business analyst", description: "Describe services, compare performance and communicate uncertainty." };
-  tracks.researcher = { title: "Researcher / degree module", description: "Choose methods, check assumptions and interpret research evidence." };
-  questions.push(
-    { id: "AN-MED-01", version: 1, track: "analyst", topic: "Skewed service data", objective: "Choose a resistant description of a typical waiting time.", stem: "Most clinic waits are 10\u201325 minutes, but a few exceed two hours. Which summary is least affected by these unusually long waits when describing a typical patient\u2019s wait?", options: options2(["Mean and standard deviation", "Both are influenced by unusually large values."], ["Median and interquartile range", "The median describes the middle observation and the IQR the middle half."], ["Maximum only", "The maximum describes an extreme, not a typical observation."], ["Standard error only", "This concerns precision of an estimate, not a typical wait."], ["P value", "This does not describe the distribution."]), correct: "B", hint: "Consider a measure based on ordered positions rather than the sum.", lesson: "Use a histogram with median and IQR for a resistant summary, while retaining the long waits as operationally important observations.", explanation: "Median and IQR resist the influence of extreme waits. They do not make long waits irrelevant: report tail performance separately when it matters.", help: "basic_descriptive_statistics/univariate_summary.htm", operation: "UnivariateSummary" },
-    { id: "AN-PCT-01", version: 1, track: "analyst", topic: "Percentage points", objective: "Distinguish an absolute percentage-point change from a relative change.", stem: "The non-attendance rate falls from 10% to 8%. Which statement correctly describes both the absolute and relative reduction?", options: options2(["2 percentage points; 20% relative reduction", "(0.10\u22120.08)/0.10 = 0.20."], ["2 percentage points; 2% relative reduction", "The relative reduction divides by the starting risk."], ["20 percentage points; 2% relative reduction", "This reverses and mis-scales the changes."], ["8 percentage points; 80% relative reduction", "These describe the new rate or its ratio, not the reduction."], ["No reduction", "The rate decreased."]), correct: "A", hint: "Subtract for the absolute change; divide that change by the starting value for the relative change.", lesson: "State both absolute and relative changes, and include denominators and time periods.", explanation: "The absolute fall is 0.02, or two percentage points. Relative to the original 0.10 it is a 20% reduction. These rates alone do not establish what caused the reduction.", help: "clinical_epidemiology/risk_prospective.htm", operation: "MiscRelRisk" },
-    { id: "AN-CAUS-01", version: 1, track: "analyst", topic: "Association and causation", objective: "Recognise confounding in service comparisons.", stem: "Hospitals with more specialist staff also have higher mortality. They receive the most severely ill patients. What is the best first interpretation?", options: options2(["Specialists cause deaths", "The observational comparison does not support this causal claim."], ["Severity may confound the association", "Severity can affect staffing needs and mortality."], ["More staff must prevent every death", "This is not supported either."], ["Mortality cannot be compared statistically", "Comparisons are possible, with careful design and adjustment."], ["A small P value would eliminate confounding", "Statistical significance does not remove systematic bias."]), correct: "B", hint: "What differs between the patients cared for by these hospitals?", lesson: "Case mix is essential to interpreting service comparisons. Adjustment needs design knowledge and measured relevant variables.", explanation: "Severity is a plausible confounder. Compare like with like where possible and describe remaining limitations; an adjusted model alone does not prove causation.", help: "basics/confounding.htm", operation: null },
-    { id: "AN-PREC-01", version: 2, track: "analyst", topic: "Precision of a rate", objective: "Relate denominators to uncertainty.", stem: "Two services both observe a 10% event rate. One records 10 events among 100 people, the other 100 among 1,000. Using the same confidence level and binomial interval method, and independent comparable observations, which usually has the narrower interval for the underlying proportion?", options: options2(["The service with 100 people", "It has less information about the population proportion."], ["The service with 1,000 people", "A larger independent denominator improves precision at the same observed rate."], ["Both must have identical intervals", "Equal point estimates can have different uncertainty."], ["Neither can have an interval", "A confidence interval can be calculated for either proportion."], ["The service with the smaller P value, regardless of denominator", "The question concerns precision of an estimated rate."]), correct: "B", hint: "Consider the standard error \u221A(p(1\u2212p)/n).", lesson: "Show denominators and uncertainty alongside performance rates.", explanation: "At the same rate, a larger independent sample generally gives a narrower interval. Clustering, bias and different case mix can complicate real comparisons.", help: "basics/confidence_interval.htm", operation: null },
-    { id: "RS-PAIR-01", version: 1, track: "researcher", topic: "Paired assumptions", objective: "Identify the relevant distributional assumption for a paired t test.", stem: "Which distribution should be checked for major departures from normality when using a paired t test with a small sample of independent pairs?", options: options2(["The pooled before and after measurements", "Pooling ignores pairing."], ["The within-pair differences", "The test is a one-sample t test of these differences."], ["The participant identification numbers", "Identifiers have no relevant distribution."], ["The P values", "These are outputs rather than the observations being modelled."], ["Only the before measurements", "The test operates on differences."]), correct: "B", hint: "What single observation enters the test for each pair?", lesson: "Check differences and the independence of pairs; investigate outliers and whether the study design supports the intended inference.", explanation: "The paired t test models within-pair differences. It does not require the two original measurement distributions individually to be normal.", help: "parametric_methods/paired_t.htm", operation: "TPaired" },
-    { id: "RS-MULT-01", version: 2, track: "researcher", topic: "Multiple testing", objective: "Recognise false-positive risk across many tests.", stem: "Twenty tests are independent under their null hypotheses, which are all true. Each test has an actual false-positive probability of 5%. What is the probability of at least one false positive, approximately?", options: options2(["5%", "This is the level for one test, not the whole family."], ["10%", "Use the probability of no false positives across all tests."], ["36%", "This is approximately the probability of no false positives."], ["64%", "1\u22120.95^20 is approximately 0.642."], ["100%", "A false positive is not guaranteed."]), correct: "D", hint: "The chance of no false positives is 0.95 multiplied by itself twenty times.", lesson: "Prespecify analyses and distinguish confirmatory from exploratory work. Multiplicity affects interpretation.", explanation: "Under the stated independence assumption, P(at least one) = 1\u22120.95^20 \u2248 64.2%. Dependence changes this calculation.", help: "basics/p_values.htm", operation: null },
-    { id: "RS-MISS-01", version: 1, track: "researcher", topic: "Missing data", objective: "Recognise bias from outcome-related missingness.", stem: "Participants with the worst symptoms are more likely to miss their follow-up visit. What is the main concern with analysing only complete records?", options: options2(["It necessarily removes all bias", "Removing missing records does not fix selective follow-up."], ["It always gives the same result as full follow-up", "Missingness can depend on outcomes."], ["It may produce a biased estimate as well as lose precision", "Complete cases may systematically differ from those missing."], ["It proves the symptoms improved", "Non-attendance is not an observed improvement."], ["A larger sample guarantees no bias", "More observations do not remove systematic selection."]), correct: "C", hint: "Are the observed participants representative of everyone originally enrolled?", lesson: "Describe missingness, investigate its causes and justify assumptions for sensitivity analyses or imputation.", explanation: "Outcome-related missingness can make complete cases unrepresentative. The direction and size of bias depend on the setting and missingness process.", help: "basics/bias.htm", operation: null },
-    { id: "RS-CI-01", version: 1, track: "researcher", topic: "Confidence interval interpretation", objective: "Interpret repeated-sampling coverage.", stem: "What does a 95% frequentist confidence procedure aim to achieve under its assumptions?", options: options2(["95% of individual observations lie in every interval", "This confuses a parameter interval with a range of observations."], ["95% of intervals from repeated samples contain the fixed population parameter", "Coverage refers to the procedure across repeated samples."], ["The null hypothesis is true with probability 95%", "This is not a posterior probability."], ["95% of future studies give exactly the same estimate", "Estimates vary between samples."], ["Bias is eliminated in 95% of studies", "Coverage relies on model and design assumptions."]), correct: "B", hint: "Imagine repeating the sampling and interval calculation many times.", lesson: "A confidence interval reports precision under assumptions; it does not protect against every source of bias.", explanation: "The 95% refers to long-run coverage of the fixed parameter by the interval procedure, provided the relevant assumptions hold.", help: "basics/confidence_interval.htm", operation: null }
-  );
-  questions.push(
-    { id: "PG-ROC-01", version: 2, track: "medicine", topic: "Diagnostic thresholds", objective: "Recognise the sensitivity\u2013specificity trade-off.", stem: "In a fictional study, a blood marker is considered positive above a chosen cut-off. Researchers raise that cut-off while keeping the same participants and reference diagnoses. Which change in classification is possible?", options: options2(["Some previously negative results become positive", "Raising the cut-off cannot do this on the same data."], ["Some true positives and false positives become negative", "A higher cut-off can reduce both true-positive and false-positive counts."], ["Sensitivity must increase", "A higher cut-off cannot capture additional positive cases on the same data."], ["Specificity must decrease", "With the same disease-negative denominator, fewer false positives mean higher specificity; with none changing, specificity is unchanged."], ["Both denominators change automatically", "Disease status is fixed by the reference diagnoses in this study."]), correct: "B", hint: "Think about people whose marker lies between the old and new cut-offs.", lesson: "Choosing a threshold changes the balance of missed cases and false alarms. Inspect sensitivity and specificity together; predictive values also depend on the setting.", explanation: "Values between the two cut-offs change from positive to negative. This can lower sensitivity and raise specificity; if nobody falls between the cut-offs the classifications stay unchanged.", help: "clinical_epidemiology/diagnostic.htm", operation: "MiscDiagnostic", inspiration: "Public MRCP-style diagnostic threshold examples; original scenario and options." },
-    { id: "PG-LR-01", version: 1, track: "medicine", topic: "Pre-test and post-test probability", objective: "Update odds with a likelihood ratio.", stem: "For a fictional test, the positive likelihood ratio is 6. Before testing, the probability of the condition is 10%. What is the approximate probability after a positive result, assuming the likelihood ratio applies in this setting?", options: options2(["6%", "The likelihood ratio is a multiplier of odds, not a probability."], ["16%", "Adding a likelihood ratio to a probability is not valid."], ["40%", "Prior odds 1/9 become 6/9; probability is (6/9)/(1+6/9) = 0.4."], ["60%", "Multiply odds, rather than multiplying the probability by 6."], ["100%", "A positive test does not guarantee the condition."]), correct: "C", hint: "First convert the 10% probability to odds p/(1\u2212p).", lesson: "Likelihood ratios update odds. Convert back to a probability after multiplication.", explanation: "Pre-test odds = 0.1/0.9 = 1/9. Post-test odds = 6/9 = 2/3. Post-test probability = (2/3)/(1+2/3) = 0.4, or 40%.", help: "clinical_epidemiology/diagnostic.htm", operation: "MiscDiagnostic", inspiration: "Public MRCP-style diagnostic evidence teaching; independently constructed numerical question." },
-    { id: "PG-FOREST-01", version: 2, track: "medicine", topic: "Interpreting effect estimates", objective: "Distinguish effect size from statistical evidence.", stem: "Two fictional studies estimate treatment-to-control risk ratios for the same adverse outcome. Study A: 0.40 (95% CI 0.10\u20131.60). Study B: 0.85 (95% CI 0.80\u20130.91). Assuming valid corresponding two-sided tests, which interpretation is best?", options: options2(["Study A has stronger evidence solely because its ratio is further from 1", "Effect magnitude alone does not measure statistical evidence."], ["Only Study B rejects the null risk ratio of 1 at the 5% level", "Study B\u2019s interval excludes 1; Study A\u2019s includes it."], ["Study A proves there is no benefit", "Its wide interval includes both substantial benefit and harm."], ["Study B necessarily has the more important clinical benefit", "Clinical importance needs context and absolute risks."], ["Both intervals exclude no effect", "Study A includes the null ratio of 1."]), correct: "B", hint: "Inspect whether each confidence interval includes the null ratio of 1.", lesson: "Read the point estimate and interval together. A large but imprecise estimate does not automatically provide stronger evidence than a smaller, precise one.", explanation: "Only Study B\u2019s interval excludes 1. This does not settle clinical importance, bias, comparability or a direct difference between the two studies.", help: "basics/confidence_interval.htm", operation: null, inspiration: "RCGP November 2025 data-interpretation samples, especially Q41; new example separating magnitude from evidence." },
-    { id: "AN-RATE-01", version: 1, track: "analyst", topic: "Rates versus counts", objective: "Avoid inferring absolute totals from a rate alone.", stem: "A chart shows Clinic A with 24 referrals per 1,000 registered patients and Clinic B with 18 per 1,000 during the same quarter. Their registered populations are not supplied. Which conclusion is justified by these values alone?", options: options2(["Clinic A made more referrals in total", "The population denominators are unknown."], ["Clinic B has fewer registered patients", "The rates do not reveal population sizes."], ["Clinic A has the higher referral rate", "24 per 1,000 exceeds 18 per 1,000."], ["Clinic A\u2019s referrals were less appropriate", "No appropriateness data are supplied."], ["Clinic B provides better care", "A rate alone does not establish quality."]), correct: "C", hint: "What does \u201Cper 1,000\u201D tell you, and what does it leave unknown?", lesson: "Read the axis units and distinguish counts from rates. Rates support comparison but do not by themselves explain quality or total workload.", explanation: "Only the rate comparison follows. Total referrals also depend on population size; appropriateness and quality require additional evidence.", help: "rates/incidence_and_prevalence.htm", operation: null, inspiration: "RCGP November 2025 Q3 and Q20: interpretation of plotted rates; original referral scenario." },
-    { id: "PH-CASEMIX-01", version: 2, track: "publicHealth", topic: "Case mix and service comparisons", objective: "Identify what is needed before attributing a difference to performance.", stem: "A rehabilitation unit has a higher average length of stay than another unit. It also receives more people with complex disability and has longer waits for supported housing. Which is the most defensible next step?", options: options2(["Conclude that its clinical team is inefficient", "The crude average mixes performance with patient needs and discharge circumstances."], ["Delete every stay longer than the median", "Arbitrary exclusion loses relevant information and may bias the comparison."], ["Examine the distribution, case mix and discharge pathways before judging performance", "All can explain differences in the crude mean."], ["Compare only the two largest stays", "Extremes alone cannot characterise the services."], ["Ignore all service comparisons", "Careful comparisons can be useful."]), correct: "C", hint: "What factors beyond treatment quality influence how long someone stays?", lesson: "Combine descriptive statistics with service context. Investigate skew, recording conventions, patient needs and discharge support.", explanation: "Distribution, case mix and the wider care pathway matter. Adjusted comparisons still require appropriate data and assumptions; a crude mean alone cannot attribute causation. Define whether discharge support is part of the service effect being evaluated before deciding to adjust for it.", help: "basic_descriptive_statistics/univariate_summary.htm", operation: "UnivariateSummary", inspiration: "FPH DFPH Specimen Paper B Q1: interpretation and case mix; new setting and single-best-answer format." },
-    { id: "RS-LEAD-01", version: 1, track: "researcher", topic: "Screening and lead-time bias", objective: "Distinguish earlier diagnosis from longer life.", stem: "A fictional screening programme diagnoses a disease two years earlier, but people die at the same age they would have without screening. Measured survival from diagnosis rises. What explains this rise?", options: options2(["A demonstrated reduction in mortality", "Death timing has not changed."], ["Lead-time bias", "Earlier diagnosis starts the survival clock sooner without postponing death."], ["Randomisation", "The scenario does not describe random allocation."], ["A guaranteed treatment benefit", "Longer measured survival alone does not establish benefit."], ["A fall in disease incidence", "No such change is stated."]), correct: "B", hint: "Which event starts the survival clock?", lesson: "Screening evaluation needs outcomes that distinguish earlier detection from improved health. Consider harms and appropriate comparisons.", explanation: "Lead-time bias extends observed time from diagnosis to death when diagnosis happens earlier but death does not. Mortality and other patient-relevant outcomes are needed to assess benefit.", help: "basics/bias.htm", operation: null, inspiration: "FPH critical-appraisal and screening specimens: original bias question." }
-  );
-  questions.push(
-    { id: "CORE-DESIGN-01", version: 2, track: "core", topic: "Study design and denominators", objective: "Recognise outcome-based sampling in a case-control study.", stem: "Researchers select 120 people with a disease and 240 without it, then compare previous exposure. Which statement best describes what can be estimated directly from this sampling design?", options: options2(["The population incidence, using 120/360", "The numbers with and without disease were selected by design."], ["An exposure odds ratio, with suitable control selection and assumptions", "Case-control sampling can estimate an odds ratio; it does not directly give population risk from these group sizes."], ["The population prevalence, using 120/360", "The investigator fixed the case-control ratio."], ["The causal risk difference with no further assumptions", "Causal interpretation needs design and confounding assumptions."], ["The number needed to treat from case counts alone", "Absolute treatment risks are not supplied."]), correct: "B", hint: "Were participants sampled before or after their outcome status was known?", lesson: "Study design determines which denominators and measures have meaning. Recognise case-control, cohort and experimental designs before choosing a statistic.", explanation: "The investigator chooses cases and controls, so their proportion in the sample is not population incidence or prevalence. The meaning of the odds ratio depends on control sampling. Sampling controls from the risk sets can estimate an incidence rate ratio without a rare-disease assumption. Sampling non-cases at the end of a fixed period instead targets an odds ratio for cumulative risk. Causal interpretation needs additional assumptions.", help: "clinical_epidemiology/risk_retrospective.htm", operation: "MiscRetroRisk" },
-    { id: "CORE-RATE-01", version: 2, track: "core", topic: "Incidence rate and person-time", objective: "Distinguish an incidence rate from a cumulative risk.", stem: "A fictional cohort contributes 600 person-years while participants are at risk, with 12 new events. What is the incidence rate?", options: options2(["2 events per 100 person-years", "12/600 = 0.02 events per person-year."], ["2% of participants, regardless of follow-up", "Person-time is not a count of participants."], ["12% per participant", "The participant denominator is not given."], ["50 events per person-year", "This inverts the rate."], ["600 events per year", "600 is follow-up time, not event count."]), correct: "A", hint: "Divide events by total time at risk, then state the units.", lesson: "An incidence rate uses person-time at risk. A risk uses people initially at risk over a specified period, with appropriate treatment of incomplete follow-up.", explanation: "12/600 = 0.02 events per person-year, or 2 per 100 person-years. This cannot automatically be read as a two-percent one-year risk.", help: "rates/incidence_and_prevalence.htm", operation: null },
-    { id: "CORE-MEDIATOR-01", version: 2, track: "core", topic: "Confounders and mediators", objective: "Match adjustment to the causal effect of interest.", stem: "A randomised exercise intervention can affect blood pressure partly by changing body weight. To estimate the total intervention effect on blood pressure, why might routinely adjusting for weight measured after the intervention be inappropriate?", options: options2(["Post-intervention weight is necessarily a baseline confounder", "It is measured after treatment and may be affected by it."], ["It can block part of the pathway through which the intervention acts", "That pathway contributes to the total effect."], ["Adjustment always increases bias in every analysis", "Appropriate adjustment depends on the target effect and causal structure."], ["Randomisation proves that weight is irrelevant", "Weight may still mediate treatment effects."], ["A smaller P value decides which variables to adjust for", "Variable choice should follow the causal question and assumptions."]), correct: "B", hint: "Distinguish a variable that precedes treatment from one affected by treatment.", lesson: "For a total effect, mediators are part of the causal pathway. Direct effects ask a different question and require additional identification assumptions; adding a mediator to a regression does not automatically estimate a causal direct effect.", explanation: "Adjusting for a mediator can remove part of the total effect and may introduce other bias. Define the estimand and causal structure before deciding what to adjust for.", help: "basics/confounding.htm", operation: null },
-    { id: "CORE-SELECTION-01", version: 2, track: "core", topic: "Selection and collider bias", objective: "Recognise bias caused by conditioning on a common consequence.", stem: "In a fictional population, exposure E and illness Y both influence whether someone attends a specialist clinic. A study includes only clinic attendees. Even if E and Y were otherwise unrelated, what problem could this selection create?", options: options2(["It guarantees a representative population sample", "Attendance selects people through both variables."], ["It may create an association by conditioning on a common consequence", "Attendance can act as a collider between E and Y."], ["It eliminates confounding automatically", "Selection does not guarantee comparability."], ["It proves E causes Y", "The selection process can create a non-causal association."], ["It can only reduce random error", "It can introduce systematic bias."]), correct: "B", hint: "Consider the arrows E \u2192 attendance \u2190 Y.", lesson: "Conditioning on a common consequence can open a non-causal association. Eligibility, recruitment, follow-up and analysis restrictions can all matter.", explanation: "Selecting on clinic attendance conditions on a potential collider and can create an association between its causes. The direction and magnitude depend on the data-generating process.", help: "basics/bias.htm", operation: null }
-  );
-  questions.push(...lessons_default.flatMap((lesson2) => lesson2.practiceQuestions ?? []));
-
-  // Learn/quiz.mjs
-  function createSession(track, mode, id = crypto.randomUUID(), providerPack = null) {
-    if (!tracks[track] || !["learn", "test"].includes(mode)) throw new Error("Choose a valid learning path and mode.");
-    const selected = providerPack?.questions ?? questions.filter((q) => q.track === track || q.track === "core");
-    if (!selected.length) throw Error("This course has no practice questions.");
-    return {
-      id,
-      track,
-      mode,
-      bankVersion: providerPack?.version ?? bankVersion,
-      course: providerPack?.course ?? null,
-      startedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      completedAt: null,
-      questionIds: selected.map((q) => q.id),
-      questionSnapshots: structuredClone(selected),
-      answers: [],
-      hints: [],
-      explanations: [],
-      reflection: ""
-    };
-  }
-  function recordAssistance(session, questionId, kind) {
-    if (session.mode !== "learn" || session.completedAt) throw new Error("Assistance is unavailable in this test.");
-    if (!session.questionIds.includes(questionId) || !["hints", "explanations"].includes(kind)) throw new Error("Invalid assistance request.");
-    if (!session[kind].includes(questionId)) session[kind].push(questionId);
-  }
-  function recordAnswer(session, questionId, choice, confidence, reasoning = "") {
-    const q = sessionQuestion(session, questionId);
-    if (session.completedAt || session.questionIds[session.answers.length] !== questionId) throw new Error("This question is not awaiting an answer.");
-    if (!q.options.some((o) => o.id === choice) || !["unsure", "fairly", "confident"].includes(confidence)) throw new Error("Choose an answer and your confidence.");
-    session.answers.push({
-      questionId,
-      questionVersion: q.version,
-      choice,
-      confidence,
-      reasoning: String(reasoning).slice(0, 1500),
-      correct: choice === q.correct,
-      answeredAt: (/* @__PURE__ */ new Date()).toISOString(),
-      assisted: session.hints.includes(questionId) || session.explanations.includes(questionId)
-    });
-    if (session.answers.length === session.questionIds.length) session.completedAt = (/* @__PURE__ */ new Date()).toISOString();
-  }
-  function learnerResult(session) {
-    if (!session.completedAt) throw new Error("Finish the session to see the result.");
-    const score = session.answers.filter((a) => a.correct).length;
-    const revisit = session.answers.filter((a) => !a.correct || a.confidence === "unsure" || a.assisted);
-    return {
-      score,
-      total: session.questionIds.length,
-      assisted: session.answers.filter((a) => a.assisted).length,
-      revisit: revisit.map((a) => {
-        const q = sessionQuestion(session, a.questionId);
-        return {
-          topic: q.topic,
-          objective: q.objective,
-          help: q.help,
-          reason: !a.correct ? a.confidence === "confident" ? "Confident but incorrect" : "Incorrect answer" : a.assisted ? "Answered with teaching support" : "Correct, but uncertain"
-        };
-      })
-    };
-  }
-  function sessionQuestion(session, id) {
-    return session.questionSnapshots?.find((q) => q.id === id) ?? questions.find((q) => q.id === id);
-  }
-
-  // Learn/provider-course.mjs
-  var statisticalSkills = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
-  var assessmentTypes = { none: "None", cpd: "Continued professional development credits", self: "AI supported self-assessment" };
-  var assessmentNotes = { none: "Learn at your own pace.", cpd: "Keep a learning record for your provider to review for credit.", self: "Use the tutor for practice questions and feedback on your reasoning." };
-  var trainingDefaults = () => ({ providerName: "", courseTitle: "", courseVersion: "", reviewEmail: "support@statisticalhelp.org", assessmentType: "none", requirements: "", cpdStatement: "" });
-  function currentTraining(value) {
-    const t = { ...trainingDefaults(), ...value };
-    if (value?.assessmentType === void 0 && t.reviewEmail === "support@statsdirect.com" && !t.providerName && !t.courseTitle && !t.courseVersion && !t.requirements && !t.cpdStatement) t.reviewEmail = "support@statisticalhelp.org";
-    return t;
-  }
-  var safeURL = (s) => {
-    try {
-      const u = new URL(s);
-      return u.protocol === "https:" && !u.username && !u.password && (!u.port || u.port === "443") ? u.href : "";
-    } catch {
-      return "";
-    }
-  };
-  var validEmail = (s) => typeof s === "string" && s.length <= 254 && !/\s/.test(s) && /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}$/.test(s);
-  var courseKey = (p) => p?.schemaVersion === 2 ? `${p.id}:${p.version}` : "";
-  function courseLessons(pack) {
-    return (pack?.lessons ?? []).map((l) => ({ ...l, id: `course:${courseKey(pack)}:${l.id}`, topic: l.topic || pack.title, steps: l.steps || "", challenge: l.challenge || "Explain what you have learned and how you would use it in your work.", providerCourse: true }));
-  }
-  function courseQuestions(pack) {
-    return (pack?.questions ?? []).map((q) => ({ ...q, id: `course:${courseKey(pack)}:${q.id}`, track: "core", version: pack.version, topic: q.topic || pack.title, objective: q.objective || "", hint: q.hint || "Explain the population, variables and comparison before choosing.", lesson: q.lesson || "Use the course notes and explain your reasoning.", help: q.help || "", options: q.options.map((o) => ({ ...o, feedback: o.feedback || q.explanation })) }));
-  }
-  function adoptCourse(state2, pack) {
-    const key = courseKey(pack);
-    if (!key || key === state2.courseKey) return;
-    state2.courseKey = key;
-    state2.training = { providerName: pack.provider.name, courseTitle: pack.title, courseVersion: pack.version, reviewEmail: pack.provider.reviewEmail, assessmentType: pack.provider.assessmentType ?? state2.training.assessmentType ?? "none", requirements: pack.provider.assessmentRequirements || "", cpdStatement: pack.provider.cpdStatement || "" };
-  }
-  function submitCourseWork(state2, lesson2, text3) {
-    if (!lesson2?.providerCourse || !text3.trim()) throw Error("Write your answer or practical findings before saving.");
-    const attempt = { id: crypto.randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), courseKey: state2.courseKey, training: structuredClone(state2.training), lessonID: lesson2.id, lessonTitle: lesson2.title, objective: lesson2.objective, task: lesson2.challenge, text: text3.trim().slice(0, 2e4), status: "Submitted locally for review; not marked" };
-    state2.courseWork.push(attempt);
-    return attempt;
-  }
-  function addProviderReview(state2, value) {
-    if (value?.schemaVersion !== 1 || value.portfolioID !== state2.id || !["provider", "reviewer", "reviewedAt", "decision", "feedback"].every((k) => typeof value[k] === "string" && value[k].trim() && value[k].length <= 2e4)) throw Error("This assessment response does not match the learning record or is incomplete.");
-    const review = { schemaVersion: 1, portfolioID: state2.id, provider: value.provider, reviewer: value.reviewer, reviewedAt: value.reviewedAt, decision: value.decision, feedback: value.feedback, courseKey: String(value.courseKey || ""), creditStatement: String(value.creditStatement || "").slice(0, 3e3), reference: String(value.reference || "").slice(0, 1e3), importedAt: (/* @__PURE__ */ new Date()).toISOString(), verification: "Imported provider response; authenticity not independently verified by StatsDirect." };
-    state2.providerReviews.push(review);
-    return review;
-  }
-
-  // Learn/portfolio.mjs
-  var stages = { menus: "Start with menus", bridge: "Connect menus to R", coding: "Practise R coding" };
-  function newPortfolio() {
-    return { schemaVersion: 2, id: crypto.randomUUID(), startedAt: (/* @__PURE__ */ new Date()).toISOString(), profile: "foundation", stage: "menus", lesson: "epidemiology", view: "study", identity: { name: "", email: "", goal: "" }, learning: { statisticalSkills: "beginner", needs: "", qualifications: "", priorKnowledge: "", targetDate: "", focus: ["epidemiology", "causal"], style: "Worked examples and questions" }, training: trainingDefaults(), courseKey: "", courseWork: [], workDrafts: {}, providerReviews: [], evidence: [], conversation: [], sharingConsents: [], activities: [], attempts: [], quiz: null, reflection: "", draft: "" };
-  }
-  function restorePortfolio(value) {
-    const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-    const strings = (v, keys) => object(v) && keys.every((k) => typeof v[k] === "string");
-    const validQuestion = (q) => strings(q, ["id", "topic", "stem", "correct", "explanation", "hint", "lesson", "help"]) && Array.isArray(q.options) && q.options.length >= 2 && q.options.length <= 8 && q.options.every((o) => strings(o, ["id", "text", "feedback"])) && q.options.filter((o) => o.id === q.correct).length === 1;
-    const validSession = (s) => {
-      if (!strings(s, ["id", "track", "mode", "startedAt"]) || !tracks[s.track] || !["learn", "test"].includes(s.mode) || !Array.isArray(s.questionIds) || !s.questionIds.length || new Set(s.questionIds).size !== s.questionIds.length || !Array.isArray(s.answers) || s.answers.length > s.questionIds.length || !["hints", "explanations"].every((k) => Array.isArray(s[k]) && s[k].every((id) => s.questionIds.includes(id)))) return false;
-      if (s.questionSnapshots !== void 0 && (!Array.isArray(s.questionSnapshots) || s.questionSnapshots.length !== s.questionIds.length || !s.questionSnapshots.every(validQuestion) || new Set(s.questionSnapshots.map((q) => q.id)).size !== s.questionIds.length)) return false;
-      if (!s.questionIds.every((id) => typeof id === "string" && validQuestion(sessionQuestion(s, id)))) return false;
-      if (!["completedAt", "endedAt"].every((k) => s[k] === void 0 || s[k] === null || typeof s[k] === "string") || Boolean(s.completedAt) !== (s.answers.length === s.questionIds.length)) return false;
-      return s.answers.every((a, i) => strings(a, ["questionId", "choice", "confidence", "reasoning", "answeredAt"]) && a.questionId === s.questionIds[i] && ["unsure", "fairly", "confident"].includes(a.confidence) && typeof a.assisted === "boolean" && typeof a.correct === "boolean" && sessionQuestion(s, a.questionId).options.some((o) => o.id === a.choice) && a.correct === (a.choice === sessionQuestion(s, a.questionId).correct));
-    };
-    const defaults2 = newPortfolio();
-    const learning = value?.learning === void 0 ? defaults2.learning : object(value.learning) ? { statisticalSkills: "beginner", ...value.learning } : value.learning;
-    if (value?.sharingConsents !== void 0 && (!Array.isArray(value.sharingConsents) || !value.sharingConsents.every((c) => strings(c, ["id", "at", "requestID", "policyVersion", "statement"]) && c.noPersonIdentifiers === true && Array.isArray(c.documents) && c.documents.every((d) => strings(d, ["id", "title", "kind"]) && Number.isInteger(d.version))))) throw Error("The saved sharing confirmations are incompatible. The record has not been overwritten.");
-    const validTraining = (v) => strings(v, Object.keys(trainingDefaults()).filter((k) => k !== "assessmentType")) && (v.assessmentType === void 0 || Object.hasOwn(assessmentTypes, v.assessmentType));
-    if (value?.training !== void 0 && !validTraining(value.training) || value?.courseKey !== void 0 && typeof value.courseKey !== "string" || value?.courseWork !== void 0 && (!Array.isArray(value.courseWork) || !value.courseWork.every((w) => strings(w, ["id", "at", "courseKey", "lessonID", "lessonTitle", "objective", "task", "text", "status"]) && validTraining(w.training))) || value?.workDrafts !== void 0 && (!object(value.workDrafts) || !Object.values(value.workDrafts).every((x) => typeof x === "string")) || value?.providerReviews !== void 0 && (!Array.isArray(value.providerReviews) || !value.providerReviews.every((r2) => strings(r2, ["portfolioID", "provider", "reviewer", "reviewedAt", "decision", "feedback", "verification"]))) || value?.evidence !== void 0 && (!Array.isArray(value.evidence) || !value.evidence.every((r2) => strings(r2, ["title", "at", "text"])))) throw Error("The saved course record is incompatible. It has not been overwritten.");
-    if (!strings(value, ["id", "startedAt", "profile", "stage", "lesson", "view", "reflection", "draft"]) || value.schemaVersion !== 2 || !tracks[value.profile] || !stages[value.stage] || !["study", "options", "sources", "practice", "record"].includes(value.view) || !strings(value.identity, ["name", "email", "goal"]) || !Object.hasOwn(statisticalSkills, learning?.statisticalSkills) || !strings(learning, ["needs", "qualifications", "priorKnowledge", "targetDate", "style"]) || !Array.isArray(learning.focus) || !learning.focus.every((x) => typeof x === "string") || !Array.isArray(value.conversation) || !value.conversation.every((c) => strings(c, ["id", "at", "role", "text", "source"]) && ["user", "assistant"].includes(c.role) && ["lessonId", "lessonTitle"].every((k) => c[k] === void 0 || typeof c[k] === "string") && (c.lessonPrompt === void 0 || typeof c.lessonPrompt === "boolean") && (!c.workspaceSources || Array.isArray(c.workspaceSources) && c.workspaceSources.every((s) => typeof s === "string")) && (!c.courseSources || Array.isArray(c.courseSources) && c.courseSources.every((s) => strings(s, ["id", "title"])))) || !Array.isArray(value.attempts) || !value.attempts.every(validSession) || value.quiz !== null && !validSession(value.quiz) || !Array.isArray(value.activities) || !value.activities.every((a) => strings(a, ["at", "text"]))) throw new Error("The saved learning record is incompatible. It has not been overwritten.");
-    return { ...defaults2, ...value, training: currentTraining(value.training), learning: { ...learning, focus: [.../* @__PURE__ */ new Set(["epidemiology", "causal", ...learning.focus])] } };
-  }
-  function transcriptEntry(state2, role, text3, source = "study guide", details = {}) {
-    const entry = { id: crypto.randomUUID(), at: (/* @__PURE__ */ new Date()).toISOString(), role, text: text3, source, ...details };
-    state2.conversation.push(entry);
-    return entry;
-  }
-  function reviewRecord(state2) {
-    const attempts = [...state2.attempts, ...state2.quiz ? [state2.quiz] : []].map((session) => ({
-      ...structuredClone(session),
-      answers: session.answers.map((a) => {
-        const copy = structuredClone(a);
-        if (session.mode === "test" && !session.completedAt && !session.endedAt) delete copy.correct;
-        return copy;
-      }),
-      result: session.completedAt ? learnerResult(session) : null,
-      questionSnapshots: session.questionIds.map((id) => {
-        const q = structuredClone(sessionQuestion(session, id));
-        if (session.mode === "test" && !session.completedAt && !session.endedAt) {
-          delete q.correct;
-          delete q.explanation;
-          delete q.hint;
-          delete q.lesson;
-          q.options = q.options.map(({ id: id2, text: text3 }) => ({ id: id2, text: text3 }));
-        }
-        return q;
-      }),
-      status: session.completedAt ? "completed" : session.endedAt ? "ended early" : "in progress"
-    }));
-    return {
-      schemaVersion: 2,
-      exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      portfolioID: state2.id,
-      startedAt: state2.startedAt,
-      learner: structuredClone(state2.identity),
-      learningOptions: structuredClone(state2.learning),
-      pathway: tracks[state2.profile].title,
-      rExperience: stages[state2.stage],
-      diagnostics: structuredClone(state2.diagnostics ?? {}),
-      bankVersion,
-      questionSource: "StatsDirect items are original teaching material. Provider items retain the course and version recorded with each attempt. These are not official examination questions.",
-      marking: "Provisional fixed-key MCQ scoring: 1 correct, 0 otherwise. First answers retained. Confidence and free-text reasoning are not graded. Independent practice is unsupervised and cannot certify exam readiness.",
-      reviewStatus: "No accreditation or CPD points awarded by StatsDirect. Imported provider responses are recorded separately and are not authenticated. Email preparation does not confirm delivery or acceptance.",
-      training: structuredClone(state2.training),
-      courseKey: state2.courseKey,
-      courseWork: structuredClone(state2.courseWork),
-      providerReviews: structuredClone(state2.providerReviews),
-      evidence: structuredClone(state2.evidence),
-      sharingConsents: structuredClone(state2.sharingConsents ?? []),
-      attempts,
-      conversation: structuredClone(state2.conversation),
-      activities: structuredClone(state2.activities),
-      reflection: state2.reflection
-    };
-  }
-  function reviewText(record) {
-    const lines = ["STATSDIRECT \u2014 LEARNING RECORD", "External review request", `Prepared: ${record.exportedAt}`, `Record: ${record.portfolioID}`, `Started: ${record.startedAt}`, "", `Learner: ${record.learner.name || "(not supplied)"}`, `Reply email: ${record.learner.email || "(not supplied)"}`, `Learning goal: ${record.learner.goal || "(not supplied)"}`, `Pathway: ${record.pathway}`, `Statistical skills: ${statisticalSkills[record.learningOptions?.statisticalSkills] || "Not recorded"}`, `R experience: ${record.rExperience}`, `Exams / qualifications: ${record.learningOptions?.qualifications || "(not supplied)"}`, `Learning needs: ${record.learningOptions?.needs || "(not supplied)"}`, `Prior knowledge: ${record.learningOptions?.priorKnowledge || "(not supplied)"}`, `Target date: ${record.learningOptions?.targetDate || "(not supplied)"}`, `Focus: ${(record.learningOptions?.focus || []).join(", ")}`, `Preferred teaching style: ${record.learningOptions?.style || ""}`, "", record.questionSource, record.marking, record.reviewStatus, "", "PRACTICE ATTEMPTS"];
-    for (const a of record.attempts) {
-      if (a.course) lines.push(`Provider assessment: ${a.course.title} \xB7 ${a.course.provider} \xB7 version ${a.course.version}`);
-      lines.push("", `${tracks[a.track].title} \u2014 ${a.mode === "test" ? "Independent practice (unsupervised)" : "Supported practice"} \u2014 ${a.status}`, `Started: ${a.startedAt} | Completed: ${a.completedAt || "not completed"}`, a.result ? `Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted` : `Answered: ${a.answers.length}/${a.questionIds.length}`);
-      for (const q of a.questionSnapshots) {
-        const answer = a.answers.find((x) => x.questionId === q.id);
-        lines.push("", `${q.id} v${q.version} \u2014 ${q.topic}`, q.stem, ...q.options.map((o) => `${o.id}. ${o.text}`), `First answer: ${answer?.choice || "not answered"} | Key: ${q.correct || "withheld until the attempt ends"}`, `Confidence: ${answer?.confidence || "not recorded"} | Assisted: ${answer?.assisted ?? false}`, `Reasoning before answer: ${answer?.reasoning || "(none)"}`, `Reflection after feedback: ${answer?.reflection || "(none)"}`, `Feedback: ${q.explanation || "withheld until the attempt ends"}`, q.help ? `Help: https://www.statsdirect.com/help/${q.help}` : "");
-      }
-    }
-    lines.push("", "DOCUMENT SHARING CONFIRMATIONS");
-    for (const c of record.sharingConsents ?? []) lines.push("", `${c.at} \xB7 question ${c.requestID} \xB7 ${c.policyVersion}`, c.statement, ...c.documents.map((d) => `${d.title} (${d.kind}) \xB7 revision ${d.version}`));
-    lines.push("", "COMPLETE LEARNING CONVERSATION");
-    for (const c of record.conversation) lines.push("", `[${c.at}] ${c.role === "user" ? "Learner" : "Tutor"} \u2014 ${c.source}${c.lessonTitle ? " \xB7 " + c.lessonTitle : ""}${c.model ? " / " + c.model : ""}`, c.text, ...(c.courseSources ?? []).map((s) => "Lesson context supplied: " + s.id + " \u2014 " + s.title + (s.url ? " \xB7 " + s.url : "") + (s.retrievedAt ? " \xB7 retrieved " + s.retrievedAt : "")), ...(c.workspaceSources ?? []).map((s) => "StatsDirect context: " + s));
-    lines.push("", "PROVIDER AND COURSE", ...Object.entries(record.training ?? {}).map(([k, v]) => `${k === "assessmentType" ? "Assessment type" : k}: ${k === "assessmentType" ? assessmentTypes[v] ?? v : v}`), "", "PRACTICAL SUBMISSIONS");
-    for (const w of record.courseWork ?? []) lines.push("", `${w.at} \xB7 ${w.training.courseTitle} v${w.training.courseVersion} \xB7 ${w.lessonTitle}`, `Objective: ${w.objective}`, `Task: ${w.task}`, w.text, w.status);
-    lines.push("", "ATTACHED ANALYSIS EVIDENCE");
-    for (const e2 of record.evidence ?? []) lines.push("", `${e2.at} \xB7 ${e2.title}`, e2.text);
-    lines.push("", "RETURNED PROVIDER ASSESSMENTS");
-    for (const r2 of record.providerReviews ?? []) lines.push("", `${r2.provider} \xB7 ${r2.reviewer} \xB7 ${r2.reviewedAt}`, `Decision: ${r2.decision}`, r2.feedback, `Credit statement supplied: ${r2.creditStatement || "(none)"}`, `Reference: ${r2.reference || "(none)"}`, r2.verification);
-    lines.push("", "LEARNING ACTIVITIES");
-    for (const a of record.activities) lines.push(`[${a.at}] ${a.text}`);
-    lines.push("", "DIAGNOSTICS", JSON.stringify(record.diagnostics ?? {}, null, 2));
-    lines.push("", "LEARNER REFLECTION", record.reflection || "(not supplied)");
-    return lines.join("\n");
-  }
-  function practiceContext(state2) {
-    const q = state2.quiz;
-    if (!q || q.mode === "test" && !q.completedAt) return "";
-    const item = sessionQuestion(q, q.questionIds[Math.min(q.answers.length, q.questionIds.length - 1)]);
-    return item ? `${item.stem}
-${item.options.map((x) => x.id + ". " + x.text).join("\n")}
-Teaching rationale: ${item.explanation}` : "";
-  }
-
-  // Learn/exam-sources.mjs
-  var examSources = [
-    { title: "MRCP(UK): official Part 1 sample examination", url: "https://www.thefederation.uk/examinations/part-1/part-1-sample-questions", note: "Official best-of-five practice access. Registration is required; the questions behind that step were not reviewed for this build." },
-    { title: "MRCP-style diagnostic questions: published practice examples", url: "https://www.pastpaperhero.com/resources/rcp-mrcp-statistics-epidemiology-and-evidence-based-medicine-sensitivity-specificity-and-predictive-values?content=article", note: "Independent publisher, not a Royal College source. Public questions cover diagnostic denominators, prevalence and threshold changes. Used for topic inspiration only." },
-    { title: "MRCGP AKT: official sample questions and answers", url: "https://www.rcgp.org.uk/getmedia/dca96621-2599-4e6e-9a99-7a1ab2affff9/AKT-Example-Questions-(with-answers)-November-2025.pdf", note: "November 2025 samples include chart interpretation, event risk and uncertainty (questions 3, 10, 20, 24 and 41). The app uses new fictional examples." },
-    { title: "DFPH: official specimen papers and marking schemes", url: "https://www.fph.org.uk/training-careers/the-diplomate-dfph-and-final-membership-examination-mfph/the-diplomate-examination-dfph/the-diplomate-examination-dfph-preparation/", note: "Written interpretation and critical appraisal are important. The published Paper B includes interpretation of length of stay and case mix. Preparation also needs written appraisal and interpretation; the examination is not solely MCQ-based." },
-    { title: "MFPH: final membership assessment", url: "https://www.fph.org.uk/training-careers/the-diplomate-dfph-and-final-membership-examination-mfph/the-faculty-of-public-health-final-membership-examination/marking-results-and-feedback/", note: "Final membership assesses practical competencies across six stations. Use the conversational explanation exercise below alongside MCQ practice." }
-  ];
-  var communicationPrompt = "Practise a short public-health communication scenario with me. You are a fictional service manager asking whether a clinic with longer average waiting times is performing poorly. Give me a small original data example, ask me to explain it in plain language, and wait for my reply. Then give formative feedback on interpretation, case mix, uncertainty and clarity. Do not assign an official examination grade.";
-
-  // Learn/lesson-context.mjs
-  function labelStudyGuides(state2, lessons) {
-    for (const entry of state2.conversation) {
-      if (entry.source !== "Study guide" || entry.role !== "assistant") continue;
-      const origin = lessons.find((l) => l.challenge === entry.text || (l.previousChallenges ?? []).includes(entry.text));
-      if (origin) {
-        entry.lessonId = origin.id;
-        entry.lessonTitle = origin.title;
-        entry.lessonPrompt = true;
-      }
-    }
-  }
-  function ensureLessonPrompt(state2, lessons) {
-    labelStudyGuides(state2, lessons);
-    const current = lessons.find((l) => l.id === state2.lesson);
-    if (!current) return false;
-    const latest = state2.conversation.findLast((c) => c.lessonPrompt === true);
-    if (latest?.lessonId === current.id && latest.text === current.challenge) return false;
-    transcriptEntry(state2, "assistant", current.challenge, "Study guide", { lessonId: current.id, lessonTitle: current.title, lessonPrompt: true });
-    return true;
-  }
-  function guidePresentation(entry, currentLesson) {
-    if (entry.lessonPrompt !== true) return { label: entry.lessonTitle ? `${entry.source} \xB7 ${entry.lessonTitle}` : entry.source, earlier: false };
-    const earlier = entry.lessonId !== currentLesson.id || entry.text !== currentLesson.challenge;
-    return { label: `${earlier ? "Earlier study guide" : "Study guide"} \xB7 ${entry.lessonTitle}`, earlier };
-  }
-  function conversationForTutor(state2) {
-    return lessonConversation(state2).slice(-40).map((c) => ({ role: c.role, text: c.lessonTitle ? `[Lesson context: ${c.lessonTitle}]
-${c.text}` : c.text }));
-  }
-  function lessonConversation(state2) {
-    return state2.conversation.filter((c) => c.lessonId === state2.lesson || !c.lessonId && state2.lesson === "epidemiology");
-  }
-
-  // Content/Learn/lessons.json
-  var lessons_default2 = [
-    {
-      id: "epidemiology",
-      title: "Epidemiological foundations",
-      topic: "People, populations and study design",
-      objective: "Define the population, outcome, denominator and time period before choosing an analysis.",
-      summary: "Define the population, selection process, outcome and time horizon first. Prevalence counts existing cases in a population at a specified time or period. Incidence concerns new cases: cumulative risk concerns initially disease-free people over a fixed period, whereas an incidence rate uses their time at risk. Changing diagnosis counts can reflect population size, testing or case definitions, not just disease occurrence. Study design and ascertainment determine what comparisons mean.",
-      challenge: "A clinic sees twice as many new diagnoses this year. Which population, testing and time-period information would you need before concluding that disease risk has doubled?",
-      steps: "This fictional one-year cohort starts with 300 disease-free exposed and 300 disease-free unexposed people, with complete follow-up and comparable case ascertainment. There are 30 and 15 first cases respectively. The risk form takes four cell counts, not group totals: columns are exposed/unexposed and rows are outcome present/absent. Enter top row 30, 15 and bottom row 270, 285. Then one-year risks are 10% and 5%, RR = 2 and exposed-minus-unexposed risk difference = 5 percentage points. These are observational associations; they do not by themselves establish an exposure effect.",
-      operation: "MiscRelRisk",
-      help: "clinical_epidemiology/risk_prospective.htm",
-      columns: [],
-      r: '# Fictional cohort: initially disease-free people, complete one-year follow-up,\n# comparable case ascertainment; events are first cases in distinct people.\nevents <- c(30,15); at_risk <- c(300,300)\nprint(data.frame(Group=c("Exposed","Unexposed"),Events=events,At_risk=at_risk,Risk=events/at_risk))\nprint(c(risk_ratio=(30/300)/(15/300),risk_difference=30/300-15/300))\nbarplot(events/at_risk,names.arg=c("Exposed","Unexposed"),ylim=c(0,0.15),ylab="One-year risk",main="Observed association, not a causal estimate")\n# If follow-up durations differ, examine person-time and censoring; do not label these risks incidence rates.\n',
-      contentVersion: "2026-10-01",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-01",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [],
-      learningObjectives: [
-        "Distinguish prevalence, cumulative risk and incidence rate.",
-        "Identify who could become a case and how follow-up was measured.",
-        "Separate a descriptive comparison from a causal claim."
-      ],
-      keyConcepts: [
-        {
-          term: "Denominator",
-          explanation: "For first-event risk, start with people free of the outcome and specify a follow-up period. For a rate, count the time people actually spend at risk."
-        },
-        {
-          term: "Ascertainment",
-          explanation: "More diagnoses can reflect more testing, a changed definition or a larger population. Compare recruitment and measurement before interpreting a trend."
-        },
-        {
-          term: "Sampling",
-          explanation: "A sample selected by disease status cannot supply population prevalence from its case fraction. A cohort comparison still needs attention to selection and confounding."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "Twice as many diagnoses means twice the disease risk.",
-          correction: "Check the denominator, time horizon, case definition and testing coverage."
-        },
-        {
-          claim: "A large sample removes systematic bias.",
-          correction: "It can improve precision while leaving selection or measurement bias intact."
-        }
-      ],
-      workedExample: {
-        design: "Two fictional observational groups, initially disease-free, with complete one-year follow-up; each person contributes at most one first case.",
-        interpretation: "30/300 versus 15/300 gives a risk ratio of 2 and a 5 percentage-point risk difference. Neither measure identifies an exposure effect without additional causal assumptions."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "What belongs in the denominator of the one-year risk?",
-          expectedReasoning: "Initially disease-free people followed for that year; distinguish event counts from people with an event."
-        },
-        {
-          level: "advanced",
-          prompt: "If exposed people receive more frequent testing, which part of this comparison becomes questionable?",
-          expectedReasoning: "Comparable ascertainment is threatened; the observed ratio can combine disease occurrence with differential detection."
-        }
-      ],
-      rProgression: {
-        menus: "Enter the four event/non-event counts and explain their orientation.",
-        bridge: "Match the R divisions to the two StatsDirect risks.",
-        coding: "Change a group denominator while keeping cases fixed; explain what changes and why."
-      },
-      sources: [
-        {
-          id: "ohid-rates",
-          title: "OHID: Rates",
-          url: "https://fingertips.phe.org.uk/static-reports/public-health-technical-guidance/Basic_statistics/Rates.html",
-          scope: "Events, population denominators and person-time units.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "catalogue-bias",
-          title: "Catalogue of Bias",
-          url: "https://catalogofbias.org/",
-          scope: "Terminology and examples for confounding, selection and measurement bias.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "CORE-DESIGN-01",
-        "CORE-RATE-01"
-      ],
-      practiceQuestions: []
-    },
-    {
-      id: "causal",
-      title: "From association to causal questions",
-      topic: "Causal inference basics",
-      objective: "Recognise confounding and define the assumptions behind a causal comparison.",
-      summary: "A causal question compares well-defined alternatives in the same target population. Baseline age can influence exposure and outcome, making the exposed groups incomparable. Adjustment needs a justified causal structure and assumptions, not just a change in an estimate. Conditioning on a mediator can remove part of a total effect and does not automatically identify a direct effect; conditioning on a common consequence can induce selection bias.",
-      challenge: "Age can affect both treatment choice and outcome. Why might adjusting for age help, while adjusting for a consequence of treatment change the effect we are trying to estimate?",
-      steps: "Assume initially disease-free people, complete one-year follow-up and age measured before exposure. Constructed counts are 44/200 exposed versus 26/200 unexposed. For the crude risk grid, columns are exposed/unexposed and rows are outcome present/absent: enter top row 44, 26 and bottom row 156, 174. Younger risks are 4/40 and 16/160; older risks are 40/160 and 10/40. Crude RR is about 1.69, but each within-age RR is 1. Standardising both groups to a 50% younger, 50% older population gives risk 17.5% in each. This illustrates age imbalance; neither equality after adjustment nor a crude association proves a causal conclusion.",
-      operation: "MiscRelRisk",
-      help: "basics/confounding.htm",
-      columns: [],
-      r: '# Constructed baseline-age example: initially disease-free people,\n# first cases over one year with complete follow-up. Age precedes exposure.\ndata <- data.frame(Age=c("Younger","Older"),Exposed_events=c(4,40),Exposed_total=c(40,160),Unexposed_events=c(16,10),Unexposed_total=c(160,40))\ndata$Exposed_risk <- data$Exposed_events/data$Exposed_total\ndata$Unexposed_risk <- data$Unexposed_events/data$Unexposed_total\nprint(data)\nprint(c(crude_RR=(44/200)/(26/200)))\nprint(data.frame(Age=data$Age,Within_age_RR=data$Exposed_risk/data$Unexposed_risk))\n# Apply the SAME target-population weights to both groups.\nweights <- c(0.5,0.5)\nstandardised <- c(Exposed=sum(weights*data$Exposed_risk),Unexposed=sum(weights*data$Unexposed_risk))\nprint(standardised)\nprint(c(standardised_RR=unname(standardised[1]/standardised[2])))\nbarplot(rbind(data$Exposed_risk,data$Unexposed_risk),beside=TRUE,names.arg=data$Age,legend.text=c("Exposed","Unexposed"),ylab="Observed risk",main="Same within-age risks; different age mix")\n# Within-stratum agreement is not proof that every source of bias has been removed.\n',
-      contentVersion: "2026-10-01",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-01",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [
-        "epidemiology"
-      ],
-      learningObjectives: [
-        "Define the target population, exposure alternatives, outcome and time horizon.",
-        "Distinguish confounders, mediators and colliders.",
-        "State the assumptions required to interpret an adjusted association causally."
-      ],
-      keyConcepts: [
-        {
-          term: "Target comparison",
-          explanation: "Ask what would happen under each well-defined exposure strategy in the same target population. Specify follow-up and the effect scale before analysing."
-        },
-        {
-          term: "Causal assumptions",
-          explanation: "Exchangeability means the compared groups are comparable for their potential outcomes after justified adjustment. Positivity requires both alternatives to be possible in relevant strata; consistency links observed outcomes to the specified exposure."
-        },
-        {
-          term: "Adjustment",
-          explanation: "Use temporal ordering and subject knowledge to choose covariates. A confounder precedes exposure; a mediator carries part of its effect; selecting on a common consequence can induce association."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "Include every recorded variable to remove confounding.",
-          correction: "Some variables are mediators or colliders; adjustment can change the question or introduce bias."
-        },
-        {
-          claim: "Equal age-adjusted risks prove there is no causal effect.",
-          correction: "Other biases, effect modification, measurement error and uncertainty still need consideration."
-        }
-      ],
-      workedExample: {
-        design: "Constructed cohort with baseline age imbalance. No real treatment is being evaluated.",
-        interpretation: "The crude RR is 22/13, while both age-specific RRs and the equally weighted standardised RR are 1. This illustrates how group composition can change a marginal comparison."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "Draw age \u2192 exposure and age \u2192 outcome. Why compare within age groups?",
-          expectedReasoning: "Age can make the exposed groups incomparable; within-age comparisons address this measured difference."
-        },
-        {
-          level: "advanced",
-          prompt: "What if almost nobody in one age stratum receives the alternative exposure?",
-          expectedReasoning: "Positivity may fail; regression cannot create a well-supported comparison where there are no data."
-        }
-      ],
-      rProgression: {
-        menus: "Compare crude risks and identify the age imbalance.",
-        bridge: "Trace the common weights in the R standardisation calculation.",
-        coding: "Try different common weights and explain why both groups must use the same target population."
-      },
-      sources: [
-        {
-          id: "hernan-robins",
-          title: "Hern\xE1n and Robins: Causal Inference: What If",
-          url: "https://miguelhernan.org/whatifbook",
-          scope: "Part I learning route: causal questions, exchangeability, positivity and consistency. Author landing page checked; not a claim of a full-book review.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "catalogue-bias",
-          title: "Catalogue of Bias",
-          url: "https://catalogofbias.org/",
-          scope: "Terminology and examples for confounding, selection and measurement bias.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "CORE-MEDIATOR-01",
-        "CORE-SELECTION-01"
-      ],
-      practiceQuestions: []
-    },
-    {
-      id: "paired",
-      title: "Comparing paired measurements",
-      topic: "Change within a person",
-      objective: "Recognise pairing, analyse differences and interpret a confidence interval.",
-      summary: "Pairing means repeated measurements on the same people or explicitly matched units. A paired t test analyses within-pair differences, with independence between pairs. For exact small-sample inference the differences are normally distributed; inspect their distribution and unusual values. Two sets of patients attending the same clinic at different times are not automatically paired, and different patients may still be clustered.",
-      challenge: "The example has a before and an after measurement on each of the same eight people. Why is a paired analysis appropriate, and what design questions would you ask if the two periods instead contained different, unmatched people?",
-      steps: "Use Try in StatsDirect to open the paired t test with Before and After. The worksheet contains eight fictional, independently sampled participants. The comparison is Before minus After, so a positive difference means a fall. Use a 95% confidence level to compare with the R example. Inspect the differences and interpret the estimated mean difference and interval before the P value; an uncontrolled before\u2013after change alone does not establish causation.",
-      operation: "TPaired",
-      help: "parametric_methods/paired_t.htm",
-      columns: [
-        {
-          title: "Before",
-          values: [
-            142,
-            136,
-            151,
-            145,
-            139,
-            148,
-            132,
-            155
-          ]
-        },
-        {
-          title: "After",
-          values: [
-            135,
-            134,
-            143,
-            141,
-            136,
-            140,
-            130,
-            147
-          ]
-        }
-      ],
-      r: '# Fictional paired measurements: same eight people, same row order.\nbefore <- c(142,136,151,145,139,148,132,155)\nafter <- c(135,134,143,141,136,140,130,147)\ndata <- data.frame(Before=before, After=after)\nprint(data)\n# StatsDirect uses first minus second for this selection.\n# Assume independent people; small-sample t inference models normal differences.\nchange <- before - after\nprint(t.test(before, after, paired=TRUE, conf.level=0.95))\nplot(before, after, pch=19, xlab="Before", ylab="After", main="Fictional paired measurements")\nabline(0,1,lty=2)\n# The diagonal shows equal before/after values; this is not an agreement analysis.\n# Try: inspect change, change one after value, rerun, and explain the interval.\n# A change without a suitable control comparison does not establish causation.\n',
-      previousChallenges: [
-        "If the average measurement falls after an intervention, what else would you need before claiming the intervention caused the change?",
-        "The same eight people have a measurement taken before and after an intervention, with each person's two values on the same row. Why are these paired observations? How would the analysis change if different people were measured in the two periods?"
-      ],
-      contentVersion: "2026-10-01",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-01",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [
-        "precision"
-      ],
-      learningObjectives: [
-        "Identify the independent unit and preserve pair alignment.",
-        "Interpret a mean difference and its confidence interval in a stated direction.",
-        "Distinguish change, association and agreement."
-      ],
-      keyConcepts: [
-        {
-          term: "Pair alignment",
-          explanation: "Each row must contain measurements from the same person or explicitly matched units. Reordering only one column destroys the design."
-        },
-        {
-          term: "Analysis scale",
-          explanation: "The paired t test is a one-sample t test of the differences. Small-sample exact inference concerns normally distributed differences and independent pairs."
-        },
-        {
-          term: "Agreement and causation",
-          explanation: "A high correlation does not establish agreement between methods. An uncontrolled before\u2013after change also permits time trends, regression to the mean and other explanations."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "Before and after labels automatically imply pairing.",
-          correction: "Different unmatched people need a design-appropriate independent or clustered analysis."
-        },
-        {
-          claim: "A normality test with P > 0.05 proves the differences are normal.",
-          correction: "Small samples provide weak evidence about shape; inspect the differences and unusual observations."
-        }
-      ],
-      workedExample: {
-        design: "Same eight fictional people, independently sampled; Before minus After is the chosen contrast.",
-        interpretation: "The mean reduction is 5.25 units. Interpret the interval for the population mean difference, not as the spread of individual changes or proof of an intervention effect."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "What does a positive Before minus After difference mean here?",
-          expectedReasoning: "The measurement fell; reversing the columns reverses the sign but preserves the paired structure."
-        },
-        {
-          level: "advanced",
-          prompt: "Would a small mean difference between two measurement methods establish interchangeability?",
-          expectedReasoning: "No. Inspect limits of agreement and whether their width is acceptable for the intended use."
-        }
-      ],
-      rProgression: {
-        menus: "Run the paired analysis and inspect the differences.",
-        bridge: "Find paired=TRUE and conf.level=0.95 in the R script.",
-        coding: "Reverse both the contrast and its interpretation, then inspect a deliberately unusual difference."
-      },
-      sources: [
-        {
-          id: "harrell-change",
-          title: "Harrell: Measuring change and regression to the mean",
-          url: "https://hbiostat.org/bbr/change",
-          scope: "Change scores, baseline measurements and regression to the mean.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "harrell-bbr",
-          title: "Harrell: Biostatistics for Biomedical Research",
-          url: "https://hbiostat.org/bbr/",
-          scope: "Research question, measurement, design, description, interpretation and validation.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "UG-PAIR-01",
-        "UG-PVAL-01"
-      ],
-      practiceQuestions: []
-    },
-    {
-      id: "precision",
-      title: "Variation, precision and uncertainty",
-      topic: "Describing data",
-      objective: "Separate standard deviation from standard error and confidence intervals.",
-      summary: "Standard deviation describes variation between observations. Standard error describes sampling variation of an estimator. For independent observations from the same population, the mean has SE = population SD / sqrt(n), estimated using the sample SD. A nominal 95% confidence procedure targets 95% repeated-sampling coverage under its assumptions. These 12 waits are skewed: a small-sample t interval is an illustration to scrutinise, not an assurance of reliable coverage.",
-      challenge: "For independent observations from the same population with a fixed, finite variance, why does quadrupling sample size halve the theoretical standard error of the mean? Why might the sample SD and estimated SE still vary between samples?",
-      steps: "Open the descriptive summary for the fictional waiting times. Compare mean, median, SD and the 95% confidence interval. Inspect the long wait and the distribution before interpreting the small-sample t interval. Do not delete an observation merely because it is large. The appropriate summary depends on whether the question concerns an average, a typical wait or the long-wait tail. For these 12 values, StatsDirect and R t.test() both use a Student t interval for the mean with 11 degrees of freedom: approximately 13.8 to 24.8 minutes. Agreement between programs checks the calculation, not whether the model assumptions fit these skewed data.",
-      operation: "UnivariateSummary",
-      help: "basic_descriptive_statistics/univariate_summary.htm",
-      columns: [
-        {
-          title: "Waiting time (minutes)",
-          values: [
-            12,
-            15,
-            14,
-            18,
-            21,
-            16,
-            19,
-            13,
-            45,
-            17,
-            20,
-            22
-          ]
-        }
-      ],
-      r: '# Fictional clinic waits; no patient data.\nwait <- c(12,15,14,18,21,16,19,13,45,17,20,22)\nprint(data.frame(Waiting_minutes=wait))\nprint(c(mean=mean(wait), median=median(wait), SD=sd(wait), SE=sd(wait)/sqrt(length(wait))))\n# An illustrative Student t mean CI with 11 df, as in StatsDirect: only 12 skewed observations.\n# Exact t coverage assumes independent normal observations; that is questionable here.\n# A non-significant normality test would not establish the assumption.\nmean_ci <- t.test(wait, conf.level=0.95)$conf.int\ncat("Illustrative 95% t interval for the mean; check assumptions:\\n")\nprint(mean_ci)\n# Describe this as about 13.8 to 24.8 minutes; keep full values for calculations.\n# Extra displayed decimals do not make the assumptions more credible.\nhist(wait, breaks=8, main="Fictional clinic waiting times", xlab="Minutes")\n# Try: explain why mean and median differ; inspect the outlier without silently deleting it.\n',
-      previousChallenges: [
-        "Why would collecting four times as many independent observations halve the standard error but not necessarily change the standard deviation?"
-      ],
-      contentVersion: "2026-10-12",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-12",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [],
-      learningObjectives: [
-        "Choose summaries that answer the substantive question.",
-        "Distinguish variability of observations from precision of estimates.",
-        "Interpret confidence intervals conditional on assumptions."
-      ],
-      keyConcepts: [
-        {
-          term: "Spread versus precision",
-          explanation: "SD describes variability between observations. SE describes variability of an estimator over repeated samples; they answer different questions."
-        },
-        {
-          term: "Confidence coverage",
-          explanation: "A 95% procedure aims to cover the fixed population parameter in 95% of repetitions under its assumptions. It is not an interval containing 95% of individual observations."
-        },
-        {
-          term: "Distribution and design",
-          explanation: "Skew, unusual observations, clustering and selection affect interpretation. Increasing sample size alone does not correct biased recruitment or recording."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "The confidence interval describes where most individual waits lie.",
-          correction: "It describes uncertainty about a parameter; use the distribution or a suitable prediction interval for individuals."
-        },
-        {
-          claim: "Delete the longest wait to make the data normal.",
-          correction: "First check its provenance; a genuine long wait is relevant to service experience."
-        }
-      ],
-      workedExample: {
-        design: "Twelve fictional independent clinic waits, including a long wait of 45 minutes.",
-        interpretation: "The mean is about 19.3 minutes and the median 17.5. The illustrative 95% Student t interval for the population mean is about 13.8 to 24.8 minutes in both StatsDirect and R (11 degrees of freedom). With only 12 skewed observations, its coverage assumptions need scrutiny. One decimal place is enough for this explanation; extra software digits do not imply reliable precision, and a narrow interval would not rule out selection bias."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "Which would you report for a typical wait, and which for total workload?",
-          expectedReasoning: "The median can describe a typical wait; the mean relates to the total. Report context and distribution rather than declaring one always superior."
-        },
-        {
-          level: "advanced",
-          prompt: "Why does quadrupling independent sample size halve the theoretical SE but not guarantee a narrower realised interval?",
-          expectedReasoning: "SE scales with 1/sqrt(n) at fixed population variance; estimated SD and critical values vary between samples."
-        }
-      ],
-      rProgression: {
-        menus: "Compare mean, median, SD and SE in the summary.",
-        bridge: "Identify sd(wait)/sqrt(length(wait)) in R.",
-        coding: "Simulate repeated independent samples and compare variation of sample means with variation of individual values."
-      },
-      sources: [
-        {
-          id: "harrell-bbr",
-          title: "Harrell: Biostatistics for Biomedical Research",
-          url: "https://hbiostat.org/bbr/",
-          scope: "Research question, measurement, design, description, interpretation and validation.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "rcgp-akt",
-          title: "RCGP: Preparing for the AKT",
-          url: "https://www.rcgp.org.uk/mrcgp-exams/applied-knowledge-test/akt-preparing",
-          scope: "Data interpretation and critical appraisal in examination preparation; original StatsDirect questions only.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "r-t",
-          title: "R: Student t test",
-          url: "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html",
-          scope: "The one-sample t interval for the population mean.",
-          checkedAt: "2026-10-12",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "PG-SE-01",
-        "UG-PVAL-01"
-      ],
-      practiceQuestions: []
-    },
-    {
-      id: "diagnostic",
-      title: "Interpreting a diagnostic test",
-      topic: "Sensitivity and predictive value",
-      objective: "Choose the right denominator for sensitivity, specificity and predictive value.",
-      summary: "Sensitivity is the proportion positive among people with the condition; specificity is the proportion negative among those without it. Predictive values condition on the test result instead. The fictional sample represents a population with 10% prevalence and a reliable reference diagnosis. Predictive values depend on prevalence; sensitivity and specificity also need to be applicable to the intended case mix, threshold and reference standard.",
-      challenge: "If the condition becomes rarer while sensitivity and specificity stay the same, what happens to the proportion of positive results that are false positives?",
-      steps: "In the diagnostic grid, columns represent disease present/absent and rows test positive/negative: enter top row 72, 81 and bottom row 18, 729. These are true positives, false positives, false negatives and true negatives respectively. These fictional independent observations give sensitivity 80%, specificity 90%, PPV about 47.1% and NPV about 97.6%. For sensitivity, StatsDirect and R binom.test() both use the Clopper\u2013Pearson exact binomial method: the 95% interval is about 70.2% to 87.7%. This interval concerns sensitivity, not PPV; matching inputs, confidence level and method should give matching limits apart from rounding.",
-      operation: "MiscDiagnostic",
-      help: "clinical_epidemiology/diagnostic.htm",
-      columns: [],
-      r: '# Fictional diagnostic study. Rows: test result; columns: disease status.\ntp <- 72; fn <- 18; fp <- 81; tn <- 729\ncounts <- matrix(c(tp,fp,fn,tn),nrow=2,byrow=TRUE,dimnames=list(Test=c("Positive","Negative"),Disease=c("Present","Absent")))\nprint(counts)\nprint(c(sensitivity=tp/(tp+fn), specificity=tn/(tn+fp), PPV=tp/(tp+fp), NPV=tn/(tn+fn)))\n# Treat diagnoses as reliable and observations as independent.\n# StatsDirect and binom.test use the same Clopper-Pearson exact binomial method.\n# This is a sensitivity interval, not an interval for all four measures.\nsensitivity_ci <- binom.test(tp,tp+fn,conf.level=0.95)$conf.int\ncat("95% Clopper-Pearson exact CI for sensitivity (may be conservative):\\n")\nprint(sensitivity_ci)\nbarplot(counts, beside=TRUE, legend.text=TRUE, main="Fictional diagnostic counts", ylab="People")\n',
-      contentVersion: "2026-10-12",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-12",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [
-        "epidemiology"
-      ],
-      learningObjectives: [
-        "Use the correct conditional denominator for each accuracy measure.",
-        "Relate predictive value to prevalence and applicability.",
-        "Convert pre-test probability to odds before applying a likelihood ratio."
-      ],
-      keyConcepts: [
-        {
-          term: "Conditioning",
-          explanation: "Sensitivity and specificity condition on reference disease status. Predictive values condition on the observed test result."
-        },
-        {
-          term: "Transfer to practice",
-          explanation: "Prevalence changes predictive values when sensitivity and specificity are held fixed. Case mix, threshold and verification procedures may also change apparent accuracy."
-        },
-        {
-          term: "Likelihood ratios",
-          explanation: "LR+ = sensitivity/(1\u2212specificity). Multiply pre-test odds by LR+, then convert post-test odds to probability. Multiplying probability by LR+ is incorrect."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "An 80% sensitive test means a positive result has an 80% probability of disease.",
-          correction: "That confuses sensitivity with positive predictive value."
-        },
-        {
-          claim: "Accuracy measured in severe cases and healthy controls transfers unchanged to screening.",
-          correction: "The intended population may have a different spectrum of disease and alternative diagnoses."
-        }
-      ],
-      workedExample: {
-        design: "Fictional representative sample with a reliable reference diagnosis, 90 cases and 810 non-cases; a fixed test threshold.",
-        interpretation: "72 true positives and 81 false positives give PPV 72/153, about 47.1%, despite 80% sensitivity and 90% specificity. A positive result is not a certain diagnosis. Sensitivity is 80%, with the same 95% Clopper\u2013Pearson interval of about 70.2% to 87.7% in StatsDirect and this R example."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "Which 153 people form the denominator of PPV?",
-          expectedReasoning: "All people who tested positive: 72 true positives plus 81 false positives."
-        },
-        {
-          level: "advanced",
-          prompt: "What happens with incomplete reference testing concentrated among test-negative people?",
-          expectedReasoning: "Verification bias may distort measured accuracy; consider how disease status is obtained for every test-result group."
-        }
-      ],
-      rProgression: {
-        menus: "Label all four cells before running the diagnostic form.",
-        bridge: "Match each denominator in R to its clinical question.",
-        coding: "Hold sensitivity and specificity fixed while changing prevalence; label this as an assumption-based illustration."
-      },
-      sources: [
-        {
-          id: "harrell-dx",
-          title: "Harrell: Diagnosis",
-          url: "https://hbiostat.org/bbr/dx",
-          scope: "Diagnostic evidence and interpretation in the intended population.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "rcgp-akt",
-          title: "RCGP: Preparing for the AKT",
-          url: "https://www.rcgp.org.uk/mrcgp-exams/applied-knowledge-test/akt-preparing",
-          scope: "Data interpretation and critical appraisal in examination preparation; original StatsDirect questions only.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "r-binom",
-          title: "R: Exact binomial test",
-          url: "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/binom.test.html",
-          scope: "Clopper\u2013Pearson intervals returned by binom.test().",
-          checkedAt: "2026-10-12",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "UG-SENS-01",
-        "PG-PPV-01",
-        "PG-LR-01"
-      ],
-      practiceQuestions: []
-    },
-    {
-      id: "risk",
-      title: "Absolute and relative benefit",
-      topic: "Risk, treatment effects and NNT",
-      objective: "Interpret absolute risk reduction, relative risk and the follow-up period.",
-      summary: "Over one year, 28/200 controls and 16/200 programme participants have at least one unplanned admission. The estimated absolute risk reduction (control minus programme) is 6 percentage points; programme-to-control RR is about 0.57 and NNT for benefit rounds up to 17. These are uncertain point estimates. The illustrated risk-difference interval includes zero and possible harm, so it does not establish benefit. This example was chosen to lie near the conventional 5% significance boundary: interpret the effect size and uncertainty, and do not choose a method just to obtain significance.",
-      challenge: "Would the same relative risk imply the same absolute benefit in a population with a much lower baseline risk?",
-      steps: "Assume individual randomisation, independent participants and complete one-year follow-up. In the NNT form enter 16 people with at least one admission among 200 programme participants and 28 among 200 controls. Count people, not repeated admissions. Interpret NNT 17 as the point estimate for preventing one additional person having an admission over one year. A risk-difference interval spanning zero gives NNT uncertainty extending through infinity into both benefit and harm; do not present a single ordinary finite NNT interval. The R script explicitly computes the same Miettinen\u2013Nurminen score interval as StatsDirect, including its finite-sample variance correction; it does not use the simpler Wald interval from two-sample prop.test().",
-      operation: "MiscNumberNeededToTreat",
-      help: "clinical_epidemiology/nnt.htm",
-      columns: [],
-      r: '# Fictional individually randomised programme; complete one-year follow-up.\n# Events count people with at least one admission, not repeated admissions.\nevents <- c(16,28); totals <- c(200,200)\nrisk <- events/totals\nprint(data.frame(Group=c("Programme","Usual care"),Events=events,Total=totals,Risk=risk))\narr <- risk[2]-risk[1]\nprint(c(absolute_reduction=arr,relative_risk=risk[1]/risk[2],NNT=if(arr==0) Inf else ceiling(1/abs(arr))))\ncat("NNT point-estimate direction:",if(arr>0) "benefit" else if(arr<0) "harm" else "no difference", "\\n")\n\n# Explicit Miettinen-Nurminen score interval, as used by StatsDirect.\n# This base-R helper inverts the constrained-binomial score with the N/(N-1)\n# variance correction. It also handles zero-event and all-event groups.\n# Its direction is the first risk minus the second. No extra R package is needed.\nmn_interval <- function(x1,n1,x0,n0,conf.level=0.95) {\n  args <- c(x1,n1,x0,n0,conf.level)\n  stopifnot(all(lengths(list(x1,n1,x0,n0,conf.level))==1), all(is.finite(args)),\n            n1>=1,n0>=1,x1>=0,x1<=n1,x0>=0,x0<=n0,\n            all(args[1:4]==floor(args[1:4])), conf.level>0,conf.level<1)\n  estimate <- x1/n1-x0/n0\n  critical <- qchisq(conf.level,df=1)\n  score <- function(d) {\n    lo <- max(0,-d); hi <- min(1,1-d)\n    derivative <- function(p0) {\n      term <- function(x,n,p) {\n        (if(x==0) 0 else x/p) - (if(x==n) 0 else (n-x)/(1-p))\n      }\n      term(x1,n1,p0+d)+term(x0,n0,p0)\n    }\n    if(lo==hi) p0 <- lo else {\n      rises <- (lo+d<=0 && x1>0) || (lo<=0 && x0>0) || derivative(lo)>0\n      falls <- (hi+d>=1 && x1<n1) || (hi>=1 && x0<n0) || derivative(hi)<0\n      p0 <- if(!rises) lo else if(!falls) hi else\n        uniroot(derivative,c(lo,hi),tol=1e-14,check.conv=TRUE)$root\n    }\n    p1 <- min(1,max(0,p0+d))\n    variance <- (p1*(1-p1)/n1+p0*(1-p0)/n0)*(n1+n0)/(n1+n0-1)\n    if(variance<=0) return(if(estimate==d) -critical else Inf)\n    (estimate-d)^2/variance-critical\n  }\n  limits <- c(lower=if(estimate<= -1) -1 else uniroot(score,c(-1,estimate),tol=1e-13,check.conv=TRUE)$root,\n              upper=if(estimate>= 1) 1 else uniroot(score,c(estimate,1),tol=1e-13,check.conv=TRUE)$root)\n  attr(limits,"conf.level") <- conf.level\n  limits\n}\n# Keep the interval direction consistent with arr: usual care minus programme.\narr_ci <- mn_interval(events[2],totals[2],events[1],totals[1])\ncat("95% Miettinen-Nurminen interval for risk reduction, usual care minus programme:\\n")\nprint(arr_ci,digits=10)\n# For the supplied counts this agrees with StatsDirect: about -0.001445 to 0.123548.\n# Recalculate when changing the counts; these reference limits are not new data.\n# This deliberately borderline example includes zero and possible harm.\n# Do not change the method to seek a smaller P value. No single method is best\n# for every design: these are independent binary outcomes, not paired/clustered data.\n# Inverting an interval across zero needs separate benefit/harm branches via infinity.\n# Do not report its reciprocals as one ordinary finite NNT interval.\nbarplot(risk,names.arg=c("Programme","Usual care"),ylim=c(0,0.2),ylab="One-year event risk")\n',
-      contentVersion: "2026-10-12",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-12",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [
-        "epidemiology",
-        "precision"
-      ],
-      learningObjectives: [
-        "Report absolute and relative effects with the same outcome and time horizon.",
-        "Keep subtraction direction consistent across estimates and intervals.",
-        "Explain NNT uncertainty when an interval includes no effect."
-      ],
-      keyConcepts: [
-        {
-          term: "Absolute benefit",
-          explanation: "For this adverse outcome, control risk minus programme risk is the absolute risk reduction. Six percentage points is a difference of 0.06, not a 6% relative reduction."
-        },
-        {
-          term: "Baseline risk",
-          explanation: "An identical relative risk can imply different absolute differences in populations with different baseline risks, provided the relative effect is applicable."
-        },
-        {
-          term: "NNT uncertainty",
-          explanation: "NNT is a reciprocal of an absolute risk difference at a stated time horizon. If the difference interval crosses zero, its reciprocal has separate benefit and harm branches through infinity."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "An NNT point estimate of 17 establishes benefit.",
-          correction: "The interval for the underlying risk difference includes no effect and possible harm."
-        },
-        {
-          claim: "NNT counts admissions prevented, including repeated admissions in the same person.",
-          correction: "This example counts people with at least one admission. Recurrent-event questions require a different analysis."
-        }
-      ],
-      workedExample: {
-        design: "Fictional individually randomised study with complete one-year follow-up and an adverse binary outcome.",
-        interpretation: "Programme risk is 8% versus 14% in controls: ARR 6 percentage points, RR about 0.57 and NNT point estimate 17 over one year. For these counts, StatsDirect and the R script both give a Miettinen\u2013Nurminen 95% interval of about \u22120.14 to 12.35 percentage points (\u22120.001445 to 0.123548 on the proportion scale). Extra digits here identify the calculation, not clinical certainty. The interval includes no effect and possible harm; crossing a conventional significance threshold does not create a sharp change in evidence."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "Why is the absolute reduction 6 percentage points rather than 43 percentage points?",
-          expectedReasoning: "43% is the approximate relative reduction, using control risk as a denominator."
-        },
-        {
-          level: "advanced",
-          prompt: "If control risk were 7% with the same RR, what would happen to ARR and NNT?",
-          expectedReasoning: "Programme risk would be 4%, ARR 3 percentage points and the rounded-up NNT 34; this assumes the RR transports to that population."
-        }
-      ],
-      rProgression: {
-        menus: "Enter people with an event and total participants, keeping group labels clear.",
-        bridge: "Match the Miettinen\u2013Nurminen risk-difference interval in R to StatsDirect; the helper makes the method explicit.",
-        coding: "Change baseline risk and examine absolute benefit without claiming a new trial result."
-      },
-      sources: [
-        {
-          id: "cochrane-8",
-          title: "Cochrane Handbook, chapter 8: Risk of bias in a randomised trial",
-          url: "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-08",
-          scope: "Bias in specific trial results, missing outcomes and effects of assignment versus adherence.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "rcgp-akt",
-          title: "RCGP: Preparing for the AKT",
-          url: "https://www.rcgp.org.uk/mrcgp-exams/applied-knowledge-test/akt-preparing",
-          scope: "Data interpretation and critical appraisal in examination preparation; original StatsDirect questions only.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "statsdirect-nnt",
-          title: "StatsDirect: Number needed to treat",
-          url: "https://www.statsdirect.com/help/clinical_epidemiology/nnt.htm",
-          scope: "Miettinen\u2013Nurminen score intervals for independent risk differences and their inversion for NNT.",
-          checkedAt: "2026-10-12",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "UG-NNT-01",
-        "AN-PCT-01"
-      ],
-      practiceQuestions: []
-    },
-    {
-      id: "regression",
-      title: "Association is not causation",
-      topic: "Regression and study design",
-      objective: "Interpret a regression slope without confusing prediction with causation.",
-      summary: "Each row is a different fictional service, with appointment duration and a mean satisfaction score on a 0\u2013100 scale. The line describes a service-level association; it does not establish an individual-level or causal effect. Conventional small-sample regression inference assumes a linear conditional mean, independent errors with constant variance and normal errors. Inspect residuals and study design; the predictor need not be normally distributed.",
-      challenge: "A service with longer appointment slots has higher satisfaction. What alternative explanations could produce this association?",
-      steps: "Use Satisfaction as the dependent variable and Appointment minutes as the predictor in simple linear regression. The eight services are treated as independent for this illustration. Inspect the scatterplot and residuals; consider service case mix and measurement. The R intervals are 95% intervals for model coefficients, not prediction intervals for a future service. Do not extrapolate beyond 10\u201324 minutes without justification.",
-      operation: "SimpleLinearRegression",
-      help: "regression_and_correlation/simple_linear.htm",
-      columns: [
-        {
-          title: "Satisfaction",
-          values: [
-            58,
-            61,
-            60,
-            67,
-            65,
-            73,
-            71,
-            78
-          ]
-        },
-        {
-          title: "Appointment minutes",
-          values: [
-            10,
-            12,
-            14,
-            16,
-            18,
-            20,
-            22,
-            24
-          ]
-        }
-      ],
-      r: '# Eight fictional services: each row is a separate service, not a patient.\n# Satisfaction is the service mean on a 0-100 scale.\n# For conventional small-sample inference assume linear mean, independent,\n# constant-variance normal errors. Predictor normality is not required.\ndata <- data.frame(Satisfaction=c(58,61,60,67,65,73,71,78),Minutes=c(10,12,14,16,18,20,22,24))\nprint(data)\nfit <- lm(Satisfaction ~ Minutes, data=data)\nprint(summary(fit))\ncat("95% confidence intervals for regression coefficients (not predictions):\\n")\nprint(confint(fit,level=0.95))\nplot(data$Minutes,data$Satisfaction,pch=19,xlab="Appointment minutes",ylab="Satisfaction",main="Association in fictional service data")\nabline(fit)\nplot(fitted(fit),residuals(fit),pch=19,xlab="Fitted satisfaction",ylab="Residual",main="Check the model, not just the slope")\nabline(h=0,lty=2)\n# Explain a potential service-level confounder; do not infer individual causation.\n',
-      contentVersion: "2026-10-01",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-01",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [
-        "precision",
-        "causal"
-      ],
-      learningObjectives: [
-        "Interpret a slope at the level of the observed units.",
-        "Check the conditional mean and residual assumptions.",
-        "Separate coefficient confidence intervals from prediction intervals."
-      ],
-      keyConcepts: [
-        {
-          term: "Unit of inference",
-          explanation: "A relationship between service means is a service-level association. It need not describe the relationship between individual patients."
-        },
-        {
-          term: "Residual assumptions",
-          explanation: "Exact conventional small-sample t inference assumes normal independent errors with constant variance around the specified linear mean. Predictors themselves need not be normally distributed."
-        },
-        {
-          term: "Prediction",
-          explanation: "A confidence interval for a mean response differs from a prediction interval for a new observation. Extrapolation adds assumptions not checked by a good fit within the observed range."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "A statistically significant slope proves longer appointments cause satisfaction.",
-          correction: "Service case mix, staffing and other factors can explain association."
-        },
-        {
-          claim: "A high R-squared demonstrates accurate predictions for a new hospital.",
-          correction: "Performance in new data requires validation and assessment of calibration and prediction error."
-        }
-      ],
-      workedExample: {
-        design: "Eight fictional independent services; satisfaction is a service mean on a 0\u2013100 scale.",
-        interpretation: "The fitted association is descriptive within 10\u201324 appointment minutes. Residual checks assess the model; neither the fitted line nor its P value establishes an individual causal effect."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "What does one row represent, and why does that matter?",
-          expectedReasoning: "One service, not one patient. The slope describes differences between services."
-        },
-        {
-          level: "advanced",
-          prompt: "What extra uncertainty belongs in a prediction interval for a new service?",
-          expectedReasoning: "It includes residual variation of a new outcome as well as uncertainty about the fitted mean, under the model assumptions."
-        }
-      ],
-      rProgression: {
-        menus: "Select satisfaction as outcome and minutes as predictor.",
-        bridge: "Connect the fitted line and residual plot with lm() output.",
-        coding: 'Use predict(..., interval="prediction") and compare with interval="confidence" at an in-range value.'
-      },
-      sources: [
-        {
-          id: "harrell-reg",
-          title: "Harrell: Regression models and model validation",
-          url: "https://hbiostat.org/bbr/reg",
-          scope: "Calibration, prediction accuracy, optimism and validation of the modelling process.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "hernan-robins",
-          title: "Hern\xE1n and Robins: Causal Inference: What If",
-          url: "https://miguelhernan.org/whatifbook",
-          scope: "Part I learning route: causal questions, exchangeability, positivity and consistency. Author landing page checked; not a claim of a full-book review.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "RS-MULT-01",
-        "PH-CASEMIX-01"
-      ],
-      practiceQuestions: []
-    },
-    {
-      id: "rates",
-      title: "Comparing population rates",
-      topic: "Person-time and age standardisation",
-      objective: "Explain a crude rate difference using age-specific rates and a common standard population.",
-      summary: "A rate divides events by time at risk. Different age structures can produce different crude rates even when age-specific rates are identical. Direct standardisation applies the same reference weights to each population. A standardised rate is a comparison measure; report its reference population, uncertainty and age-specific pattern.",
-      challenge: "Two areas have identical younger and older age-specific rates but different crude rates. How could this happen, and what would a fair age-standardised comparison require?",
-      steps: "The worksheet has two rows: younger, then older. For Area A select Events (40, 800), Person-years (20000, 80000), then Reference population (75000, 25000) in Direct standardization. Use default row labels and multiplier 100000. The crude rate is 840 per 100000 person-years; the directly standardised rate is 400. Area B has 160 and 200 events in 80000 and 20000 person-years: its crude rate is 360 but the same standardised rate is 400. R displays both areas. Compare point estimates with matching units; StatsDirect also supplies intervals.",
-      operation: "RateDirect",
-      help: "rates/direct_standardization.htm",
-      columns: [
-        {
-          title: "Events",
-          values: [
-            40,
-            800
-          ]
-        },
-        {
-          title: "Person-years",
-          values: [
-            2e4,
-            8e4
-          ]
-        },
-        {
-          title: "Reference population",
-          values: [
-            75e3,
-            25e3
-          ]
-        }
-      ],
-      r: '# Fictional independent event counts; rows are younger, older.\n# Person-time is time actually at risk, not the number of people enrolled.\narea_a <- data.frame(Events=c(40,800),Person_years=c(20000,80000))\narea_b <- data.frame(Events=c(160,200),Person_years=c(80000,20000))\nreference <- c(75000,25000); weights <- reference/sum(reference)\nrate_a <- area_a$Events/area_a$Person_years\nrate_b <- area_b$Events/area_b$Person_years\ncrude <- c(A=sum(area_a$Events)/sum(area_a$Person_years),B=sum(area_b$Events)/sum(area_b$Person_years))*100000\nstandardised <- c(A=sum(weights*rate_a),B=sum(weights*rate_b))*100000\nprint(data.frame(Age=c("Younger","Older"),A_per_100000=rate_a*100000,B_per_100000=rate_b*100000,Weight=weights))\nprint(rbind(Crude=crude,Standardised=standardised))\nbarplot(rbind(Crude=crude,Standardised=standardised),beside=TRUE,legend.text=TRUE,ylab="Events per 100000 person-years",main="Fictional areas, common age-specific rates")\n# Point-estimate illustration. Do not give this weighted rate the CI for a single crude count.\n# Equal standardised rates do not prove equality or remove all sources of bias.\n',
-      contentVersion: "2026-10-01",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-01",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [
-        "epidemiology",
-        "precision"
-      ],
-      learningObjectives: [
-        "Retain person-time units when scaling rates.",
-        "Apply identical age weights to the populations compared.",
-        "Distinguish direct standardisation from observed/expected ratios."
-      ],
-      keyConcepts: [
-        {
-          term: "Direct standardisation",
-          explanation: "Multiply each stratum-specific rate by its reference weight and sum. Use common age bands, definitions, units and reference weights."
-        },
-        {
-          term: "Indirect standardisation",
-          explanation: "Apply reference rates to the study person-time to obtain expected events. Observed/expected is a ratio; an SMR of 1.25 means 25% more than expected under that reference, not a 25% population risk."
-        },
-        {
-          term: "Uncertainty",
-          explanation: "Age adjustment addresses measured age composition. Small counts, different case ascertainment and residual confounding still matter; inspect stratum-specific rates."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "A rate of 400 per 100000 person-years is necessarily a 0.4% annual risk.",
-          correction: "A risk needs a specified event process and follow-up; person-time is not a count of people."
-        },
-        {
-          claim: "Use each area\u2019s own age distribution as its standard for comparison.",
-          correction: "That reproduces the crude rates. Both areas need the same standard weights."
-        }
-      ],
-      workedExample: {
-        design: "Fictional two-age-group populations with different person-time distributions but identical age-specific event rates.",
-        interpretation: "Common weights of 0.75 and 0.25 give 0.75\xD7200 + 0.25\xD71000 = 400 per 100000 person-years in both areas, despite crude rates of 840 and 360."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "Why is Area A\u2019s crude rate higher?",
-          expectedReasoning: "More of its person-time is in the older group, which has the higher rate."
-        },
-        {
-          level: "advanced",
-          prompt: "Would two SMRs based on differently weighted study populations always be directly comparable?",
-          expectedReasoning: "No. Their implicit weights can differ; compare age-specific patterns and the conditions under which a common summary comparison is meaningful."
-        }
-      ],
-      rProgression: {
-        menus: "Run direct standardisation for Area A using the named columns.",
-        bridge: "Match sum(weights*rate_a) to the adjusted rate.",
-        coding: "Change the shared reference weights, then explain why the summary changes even with unchanged age-specific rates."
-      },
-      sources: [
-        {
-          id: "ohid-rates",
-          title: "OHID: Rates",
-          url: "https://fingertips.phe.org.uk/static-reports/public-health-technical-guidance/Basic_statistics/Rates.html",
-          scope: "Events, population denominators and person-time units.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "ohid-dsr",
-          title: "OHID: Directly standardised rates",
-          url: "https://fingertips.phe.org.uk/static-reports/public-health-technical-guidance/Standardisation/DSRs.html",
-          scope: "Common reference weights and uncertainty in directly standardised rates.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "ohid-isr",
-          title: "OHID: Indirectly standardised ratios",
-          url: "https://fingertips.phe.org.uk/static-reports/public-health-technical-guidance/Standardisation/ISRatios.html",
-          scope: "Observed versus expected events; indirect standardisation.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "PH-STAND-01",
-        "PH-SMR-01",
-        "LIB-RATES-01"
-      ],
-      practiceQuestions: [
-        {
-          id: "LIB-RATES-01",
-          version: 1,
-          track: "publicHealth",
-          topic: "Person-time and age standardisation",
-          objective: "Explain a crude rate difference using age-specific rates and a common standard population.",
-          stem: "Two fictional areas have rates of 200 and 1000 events per 100000 person-years in younger and older groups respectively. Both are directly standardised using 75% younger and 25% older weights. Which conclusion is justified?",
-          options: [
-            {
-              id: "A",
-              text: "Both adjusted rates are 400 per 100000 person-years.",
-              feedback: "Use 0.75\xD7200 + 0.25\xD71000 for each area."
-            },
-            {
-              id: "B",
-              text: "Both adjusted rates are 600 because the two rates are averaged equally.",
-              feedback: "The stated weights are 75% and 25%, not equal."
-            },
-            {
-              id: "C",
-              text: "The area with more older people must have a larger adjusted rate.",
-              feedback: "That affects its crude rate; the shared standard weights remove this age-composition difference."
-            },
-            {
-              id: "D",
-              text: "Both areas have an annual disease risk of exactly 0.4%.",
-              feedback: "A person-time rate is not automatically a one-year cumulative risk."
-            },
-            {
-              id: "E",
-              text: "Age adjustment proves that the two populations are causally identical.",
-              feedback: "Other differences, biases and uncertainty remain."
-            }
-          ],
-          correct: "A",
-          hint: "Apply the same stated weights to the age-specific rates in each area.",
-          lesson: "A rate divides events by time at risk. Different age structures can produce different crude rates even when age-specific rates are identical. Direct standardisation applies the same reference weights to each population. A standardised rate is a comparison measure; report its reference population, uncertainty and age-specific pattern.",
-          explanation: "The common weighted rate is 150 + 250 = 400 per 100000 person-years. Different actual age mixes can still produce different crude rates. Equal standardised point estimates do not prove equivalence.",
-          help: "rates/direct_standardization.htm",
-          operation: "RateDirect",
-          lessonId: "rates",
-          sourceIds: [
-            "ohid-rates",
-            "ohid-dsr",
-            "ohid-isr"
-          ]
-        }
-      ]
-    },
-    {
-      id: "appraisal",
-      title: "Appraising a trial result",
-      topic: "Design, missing outcomes and applicability",
-      objective: "Explain what a numerical trial result can and cannot establish.",
-      summary: "Read the research question, allocation, follow-up and outcome measurement before the P value. Risk of bias concerns a particular result; reporting completeness and a large sample do not guarantee validity. Missing outcomes can break the comparability intended by randomisation. Explain effect size, uncertainty and applicability separately.",
-      challenge: "A randomised trial reports outcomes for 80 of 100 programme participants and all 100 controls. Before accepting its claim of benefit, what would you ask about the 20 missing outcomes?",
-      steps: "Fictional one-year adverse outcomes are observed in 20/80 programme participants and 30/100 controls. Try in StatsDirect opens the risk comparison: columns programme/control, top row events 20, 30; bottom row observed non-events 60, 70. The observed-data RR is 5/6. This omits 20 programme participants. R shows how their unknown outcomes permit full-group programme risks from 20% to 40%, against 30% in controls. These bounds describe missing-outcome uncertainty, not a 95% confidence interval.",
-      operation: "MiscRelRisk",
-      help: "basics/bias.htm",
-      columns: [],
-      r: '# Fictional individually randomised trial, one-year binary adverse outcome.\nrandomised <- c(Programme=100,Control=100)\nobserved <- c(Programme=80,Control=100)\nevents <- c(Programme=20,Control=30)\nmissing <- randomised-observed\nprint(data.frame(Randomised=randomised,Observed=observed,Events=events,Missing=missing))\nobserved_rr <- (events[1]/observed[1])/(events[2]/observed[2]); print(observed_rr)\nprogramme_bounds <- c(Lower=20/100,Upper=(20+20)/100)\ncontrol_risk <- 30/100\narr_bounds <- c(Lower=control_risk-programme_bounds[2],Upper=control_risk-programme_bounds[1])\nprint(programme_bounds); print(arr_bounds)\nplot(c(1,1),programme_bounds,type="b",pch=19,xlim=c(0.5,1.5),ylim=c(0,0.5),xaxt="n",xlab="Programme: possible one-year risk",ylab="Risk",main="Missing-outcome bounds, not a confidence interval")\nabline(h=control_risk,lty=2)\nlegend("topleft", "Control risk: 30%", lty=2, bty="n")\n# Bounds assume all 20 unknown outcomes are either non-events or events.\n# They do not include sampling uncertainty or assert that either extreme is plausible.\n',
-      contentVersion: "2026-10-01",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-01",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [
-        "epidemiology",
-        "risk"
-      ],
-      learningObjectives: [
-        "Identify the intended effect and how the reported analysis targets it.",
-        "Separate precision, risk of bias and relevance to the learner\u2019s setting.",
-        "Write a short balanced interpretation for a non-specialist."
-      ],
-      keyConcepts: [
-        {
-          term: "Effect of assignment",
-          explanation: "An intention-to-treat question compares groups as randomised. Keeping treatment labels is insufficient if relevant outcomes are missing."
-        },
-        {
-          term: "Appraisal",
-          explanation: "Check recruitment, allocation concealment, deviations, ascertainment, follow-up and selective reporting. Seek the protocol and reasons for exclusions."
-        },
-        {
-          term: "Applicability",
-          explanation: "Ask whether participants, comparator, outcome, care setting and follow-up match the practical decision. A precise result can still be biased or inapplicable."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "Randomisation makes an analysis immune to missing-outcome bias.",
-          correction: "Loss to follow-up after randomisation can depend on prognosis or treatment."
-        },
-        {
-          claim: "A checklist score is proof that the result is trustworthy.",
-          correction: "Explain specific concerns and their likely implications; a total score can conceal a serious problem."
-        }
-      ],
-      workedExample: {
-        design: "Fictional randomised trial; all controls but only 80% of the programme group have measured outcomes.",
-        interpretation: "The observed risks are 25% and 30%. Depending on missing outcomes, the full-group absolute reduction can range from \u221210 to +10 percentage points before allowing for sampling uncertainty."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "Give a two-sentence explanation for a patient representative.",
-          expectedReasoning: "The observed participants suggest lower programme risk, but missing outcomes could change the conclusion; explain what additional follow-up is needed."
-        },
-        {
-          level: "advanced",
-          prompt: "Would an analysis restricted to adherent participants recover the causal effect of adherence?",
-          expectedReasoning: "Not automatically. Adherence may depend on prognosis; a per-protocol causal effect needs appropriate methods and assumptions."
-        }
-      ],
-      rProgression: {
-        menus: "Compare the observed counts while retaining the attrition caveat.",
-        bridge: "Identify the difference between observed and randomised denominators in R.",
-        coding: "Replace extreme bounds with explicitly justified missing-event scenarios and report their assumptions."
-      },
-      sources: [
-        {
-          id: "cochrane-8",
-          title: "Cochrane Handbook, chapter 8: Risk of bias in a randomised trial",
-          url: "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-08",
-          scope: "Bias in specific trial results, missing outcomes and effects of assignment versus adherence.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "rcgp-akt",
-          title: "RCGP: Preparing for the AKT",
-          url: "https://www.rcgp.org.uk/mrcgp-exams/applied-knowledge-test/akt-preparing",
-          scope: "Data interpretation and critical appraisal in examination preparation; original StatsDirect questions only.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "catalogue-bias",
-          title: "Catalogue of Bias",
-          url: "https://catalogofbias.org/",
-          scope: "Terminology and examples for confounding, selection and measurement bias.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "LIB-APPRAISAL-01"
-      ],
-      practiceQuestions: [
-        {
-          id: "LIB-APPRAISAL-01",
-          version: 1,
-          track: "medicine",
-          topic: "Design, missing outcomes and applicability",
-          objective: "Explain what a numerical trial result can and cannot establish.",
-          stem: "In the fictional trial, 20/80 observed programme participants and 30/100 controls have an adverse outcome. Twenty other programme participants have unknown outcomes. Which statement is most defensible?",
-          options: [
-            {
-              id: "A",
-              text: "Treat all missing outcomes as non-events because allocation was randomised.",
-              feedback: "Randomisation does not reveal unmeasured outcomes."
-            },
-            {
-              id: "B",
-              text: "Use 20/80 and ignore the original allocation totals.",
-              feedback: "That describes responders and can give a biased treatment comparison."
-            },
-            {
-              id: "C",
-              text: "Programme risk among all 100 allocated participants could be 20% to 40% before further assumptions.",
-              feedback: "There are 20 known events and up to 20 additional unknown events."
-            },
-            {
-              id: "D",
-              text: "The programme definitely reduces risk by 5 percentage points.",
-              feedback: "That observed-data difference does not settle missing-outcome or sampling uncertainty."
-            },
-            {
-              id: "E",
-              text: "The 20%\u201340% range is a 95% confidence interval.",
-              feedback: "It is a logical bound, not a sampling interval."
-            }
-          ],
-          correct: "C",
-          hint: "Count how many events there could be if none, or all, of the missing participants had the outcome.",
-          lesson: "Read the research question, allocation, follow-up and outcome measurement before the P value. Risk of bias concerns a particular result; reporting completeness and a large sample do not guarantee validity. Missing outcomes can break the comparability intended by randomisation. Explain effect size, uncertainty and applicability separately.",
-          explanation: "Full-group programme risk ranges from 20/100 to 40/100. Against control risk 30%, this permits benefit or harm. Reasons for missingness, plausible sensitivity analyses and sampling uncertainty all need consideration.",
-          help: "basics/bias.htm",
-          operation: "MiscRelRisk",
-          lessonId: "appraisal",
-          sourceIds: [
-            "cochrane-8",
-            "rcgp-akt",
-            "catalogue-bias"
-          ]
-        }
-      ]
-    },
-    {
-      id: "missing",
-      title: "Understanding missing data",
-      topic: "Patterns, assumptions and sensitivity analysis",
-      objective: "Describe missingness and avoid treating a filled-in value as observed information.",
-      summary: "Document the amount, pattern and reasons for missingness before choosing an analysis. MCAR, MAR and MNAR describe assumptions about the missingness process. MAR allows dependence on observed information; it is not a synonym for a random-looking pattern. Replacing missing values with a mean does not restore information or valid uncertainty.",
-      challenge: "Six of eight people return a symptom score. How might the interpretation change if the two missing people felt much worse, rather than simply forgetting an appointment?",
-      steps: "Scores range from 0 to 40, with higher scores worse. The StatsDirect worksheet contains only the six observed scores: 20, 22, 18, 26, 24, 30. Its mean is 23.33 for responders, not necessarily all eight people. R retains two explicit NA positions and shows full-group mean bounds of 17.5 to 27.5 if each missing score can lie anywhere from 0 to 40. This is an illustration of assumptions, not a confidence interval or a recommended imputation method.",
-      operation: "UnivariateSummary",
-      help: "basics/missing_data.htm",
-      columns: [
-        {
-          title: "Observed symptom score",
-          values: [
-            20,
-            22,
-            18,
-            26,
-            24,
-            30
-          ]
-        }
-      ],
-      r: '# Fictional scores, allowable range 0\u201340; higher is worse.\nscore <- c(20,22,18,26,24,30,NA,NA)\nprint(data.frame(Person=seq_along(score),Score=score,Missing=is.na(score)))\nobserved_mean <- mean(score,na.rm=TRUE)\nmean_bounds <- (sum(score,na.rm=TRUE)+sum(is.na(score))*c(0,40))/length(score)\nprint(c(Observed_mean=observed_mean,Missing=sum(is.na(score))))\nprint(mean_bounds)\nfilled <- replace(score,is.na(score),observed_mean)\nprint(c(Observed_SD=sd(score,na.rm=TRUE),Mean_filled_SD=sd(filled)))\nbarplot(c(Observed_mean=observed_mean,Lower_bound=mean_bounds[1],Upper_bound=mean_bounds[2]),ylim=c(0,40),ylab="Symptom score",main="Missing values: bounds are not confidence limits")\n# Mean filling is shown as a pitfall: it understates uncertainty if treated as real data.\n# No method can identify the missing outcomes from these observed values alone.\n',
-      contentVersion: "2026-10-01",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-01",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [
-        "precision",
-        "epidemiology"
-      ],
-      learningObjectives: [
-        "Distinguish MCAR, MAR and MNAR assumptions.",
-        "Explain why complete-case analysis and single imputation need justification.",
-        "Describe sensitivity analysis without confusing bounds with confidence intervals."
-      ],
-      keyConcepts: [
-        {
-          term: "Mechanisms",
-          explanation: "MCAR means missingness does not depend on observed or unobserved values. Under MAR, after conditioning on observed information it does not additionally depend on the missing values. Under MNAR that dependence remains."
-        },
-        {
-          term: "Method choice",
-          explanation: "Complete-case validity depends on the estimand, model and missingness process; MCAR is sufficient in many simple settings but is not always necessary. Multiple imputation needs a suitable model and appropriate pooling of uncertainty."
-        },
-        {
-          term: "Sensitivity",
-          explanation: "Observed data alone cannot generally distinguish MAR from MNAR. Use reasons for absence, auxiliary measurements and scientifically defensible sensitivity scenarios."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "MAR can be proved from an observed-data test.",
-          correction: "Patterns can inform modelling but cannot reveal the unobserved values or establish MAR."
-        },
-        {
-          claim: "Mean imputation increases sample size with no downside.",
-          correction: "It adds no observed information and distorts variability and relationships; ordinary complete-data standard errors ignore imputation uncertainty."
-        }
-      ],
-      workedExample: {
-        design: "Eight fictional independent people were due to provide a 0\u201340 score; six scores were recorded. No cause of missingness is stipulated.",
-        interpretation: "Responder mean 140/6 = 23.33. The full-eight mean can range from 140/8 = 17.5 to 220/8 = 27.5. These are logical bounds within the permitted score scale, not confidence limits."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "Why must a blank not silently become zero?",
-          expectedReasoning: "Zero is a real possible score. Replacing unknown scores with zero asserts a specific outcome."
-        },
-        {
-          level: "advanced",
-          prompt: "What should be inside each resampling fold when imputation and predictor selection are used?",
-          expectedReasoning: "Learn preprocessing and selection from that fold\u2019s training data; carrying information from held-out outcomes into preprocessing leaks information."
-        }
-      ],
-      rProgression: {
-        menus: "Summarise the observed scores and state that only six responders are represented.",
-        bridge: "Use is.na() and na.rm=TRUE, explaining that removing NAs does not justify ignoring missingness.",
-        coding: "Vary assumptions for the missing scores and explain the resulting sensitivity; progress to properly pooled multiple imputation with guidance."
-      },
-      sources: [
-        {
-          id: "vanbuuren-mechanisms",
-          title: "Van Buuren: MCAR, MAR and MNAR",
-          url: "https://stefvanbuuren.name/fimd/sec-MCAR.html",
-          scope: "Missingness mechanisms and sensitivity to assumptions.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "vanbuuren-simple",
-          title: "Van Buuren: Simple solutions for missing data",
-          url: "https://stefvanbuuren.name/fimd/sec-simplesolutions.html",
-          scope: "Limitations of deletion and single-value imputation.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "LIB-MISSING-01"
-      ],
-      practiceQuestions: [
-        {
-          id: "LIB-MISSING-01",
-          version: 1,
-          track: "researcher",
-          topic: "Patterns, assumptions and sensitivity analysis",
-          objective: "Describe missingness and avoid treating a filled-in value as observed information.",
-          stem: "A researcher replaces every missing symptom score with the mean of the observed scores, then analyses the filled values as if all were measured. What is the main problem?",
-          options: [
-            {
-              id: "A",
-              text: "The sample mean must necessarily change.",
-              feedback: "Mean filling preserves the observed mean in this simple setting."
-            },
-            {
-              id: "B",
-              text: "The missing values have become independently observed measurements.",
-              feedback: "No new measurements have been obtained."
-            },
-            {
-              id: "C",
-              text: "The method proves that the data are missing completely at random.",
-              feedback: "Imputation does not establish a missingness mechanism."
-            },
-            {
-              id: "D",
-              text: "It ignores uncertainty about missing values and distorts variability and relationships.",
-              feedback: "Ordinary analysis of the filled values does not account for uncertainty in their imputation."
-            },
-            {
-              id: "E",
-              text: "It is always identical to properly pooled multiple imputation.",
-              feedback: "Multiple imputation represents missing-value uncertainty across draws and needs valid models and pooling."
-            }
-          ],
-          correct: "D",
-          hint: "What information was actually added when the same mean was inserted repeatedly?",
-          lesson: "Document the amount, pattern and reasons for missingness before choosing an analysis. MCAR, MAR and MNAR describe assumptions about the missingness process. MAR allows dependence on observed information; it is not a synonym for a random-looking pattern. Replacing missing values with a mean does not restore information or valid uncertainty.",
-          explanation: "Mean filling does not recover the unobserved values. Treating these invented values as observed commonly understates uncertainty and distorts distributions and associations. Investigate missingness and choose a method appropriate to the estimand and assumptions.",
-          help: "basics/missing_data.htm",
-          operation: "UnivariateSummary",
-          lessonId: "missing",
-          sourceIds: [
-            "vanbuuren-mechanisms",
-            "vanbuuren-simple"
-          ]
-        }
-      ]
-    },
-    {
-      id: "validation",
-      title: "Checking prediction performance",
-      topic: "Calibration, prediction error and validation",
-      objective: "Assess predictions against outcomes not used to develop the model.",
-      summary: "A model can rank outcomes well yet predict systematically wrong values. Evaluate calibration and prediction error as well as association. Performance on the development data is usually optimistic. Internal validation must repeat the modelling process; evaluation in a new relevant setting addresses transportability. A tiny illustration cannot establish clinical usefulness.",
-      challenge: "If we add ten points to every predicted score, can its correlation with observed scores stay unchanged while its prediction error gets worse?",
-      steps: "The fictional predictions were fixed before these eight outcomes were observed. Select Observed score as outcome and Predicted score as predictor in simple regression to inspect calibration; a descriptive calibration line is not a newly validated prediction model. R compares the original predictions with the same predictions shifted upward by ten. Correlation is unchanged; RMSE rises from about 1.58 to 10.12 points. Compare with the identity line, not just the fitted slope.",
-      operation: "SimpleLinearRegression",
-      help: "regression_and_correlation/simple_linear.htm",
-      columns: [
-        {
-          title: "Observed score",
-          values: [
-            12,
-            18,
-            31,
-            39,
-            51,
-            59,
-            72,
-            78
-          ]
-        },
-        {
-          title: "Predicted score",
-          values: [
-            10,
-            20,
-            30,
-            40,
-            50,
-            60,
-            70,
-            80
-          ]
-        }
-      ],
-      r: '# Fictional independent evaluation sample. Predictions were fixed in advance.\npredicted <- seq(10,80,by=10)\nobserved <- c(12,18,31,39,51,59,72,78)\nshifted <- predicted+10\nrmse <- function(p) sqrt(mean((observed-p)^2))\nprint(data.frame(Observed=observed,Predicted=predicted,Shifted=shifted))\nmetrics <- rbind(Original=c(Correlation=cor(observed,predicted),RMSE=rmse(predicted),Mean_error=mean(predicted-observed)),Shifted=c(Correlation=cor(observed,shifted),RMSE=rmse(shifted),Mean_error=mean(shifted-observed)))\nprint(metrics)\ncalibration <- lm(observed~predicted); print(coef(calibration))\nplot(predicted,observed,pch=19,xlim=c(0,100),ylim=c(0,100),xlab="Predicted score",ylab="Observed score",main="Correlation does not establish calibration")\npoints(shifted,observed,pch=1,col="blue"); abline(0,1,lty=2)\nlegend("topleft",c("Original","Shifted +10","Ideal agreement"),pch=c(19,1,NA),lty=c(NA,NA,2),col=c("black","blue","black"))\n# This eight-person example demonstrates metrics; it does not validate clinical use.\n# Do not retune the model on these outcomes and then call the same data an untouched test set.\n',
-      contentVersion: "2026-10-01",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-01",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [
-        "regression",
-        "precision"
-      ],
-      learningObjectives: [
-        "Distinguish ranking, calibration and prediction error.",
-        "Recognise optimism and data leakage.",
-        "Explain the role of reporting standards without treating them as validation."
-      ],
-      keyConcepts: [
-        {
-          term: "Calibration",
-          explanation: "Predictions should agree with observed outcomes at the relevant scale. For continuous outcomes inspect observed versus predicted values against the identity line, not just correlation."
-        },
-        {
-          term: "Validation design",
-          explanation: "Repeat preprocessing, variable selection and tuning within resampling. Preserve grouping and temporal order when the intended use requires them; related observations must not leak across training and evaluation."
-        },
-        {
-          term: "Reporting",
-          explanation: "TRIPOD+AI helps make model development and evaluation assessable. Reporting compliance cannot by itself establish low bias, transportability or usefulness."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "A high correlation means predictions are accurate in absolute terms.",
-          correction: "A constant offset leaves correlation unchanged but alters calibration and prediction error."
-        },
-        {
-          claim: "One favourable random train/test split proves the model will work in every setting.",
-          correction: "Performance varies with sample and setting; assess uncertainty, the development process and relevant external data."
-        }
-      ],
-      workedExample: {
-        design: "Eight fictional held-out continuous outcomes and predictions fixed before observing them; no model is developed or selected on these eight rows.",
-        interpretation: "Mean prediction error changes from 0 to +10 after shifting; RMSE increases while correlation is identical. The sample only demonstrates these distinctions."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "Which plot feature reveals the upward shift?",
-          expectedReasoning: "Predictions systematically exceed outcomes, so points fall below the observed=predicted line."
-        },
-        {
-          level: "advanced",
-          prompt: "Why should selecting predictors once before cross-validation be avoided?",
-          expectedReasoning: "It uses held-out outcomes during selection and can make reported performance optimistic; repeat all relevant choices within training folds."
-        }
-      ],
-      rProgression: {
-        menus: "Inspect the observed-versus-predicted comparison.",
-        bridge: "Calculate squared errors and their mean before taking the square root.",
-        coding: "Add a constant to predictions and compare correlation, mean error and RMSE; then plan an appropriate resampling design."
-      },
-      sources: [
-        {
-          id: "harrell-reg",
-          title: "Harrell: Regression models and model validation",
-          url: "https://hbiostat.org/bbr/reg",
-          scope: "Calibration, prediction accuracy, optimism and validation of the modelling process.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "tripod-ai",
-          title: "TRIPOD+AI: Scope",
-          url: "https://www.tripod-statement.org/scope/",
-          scope: "Reporting prediction-model development and evaluation; reporting completeness is not a guarantee of validity.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "LIB-VALIDATION-01"
-      ],
-      practiceQuestions: [
-        {
-          id: "LIB-VALIDATION-01",
-          version: 1,
-          track: "analyst",
-          topic: "Calibration, prediction error and validation",
-          objective: "Assess predictions against outcomes not used to develop the model.",
-          stem: "Eight fictional fixed predictions have errors averaging zero. Ten points are added to every prediction, without changing the observed outcomes. Which statement must be true?",
-          options: [
-            {
-              id: "A",
-              text: "Correlation with observed outcomes falls by ten.",
-              feedback: "Correlation is invariant to adding a constant."
-            },
-            {
-              id: "B",
-              text: "Correlation is unchanged, but mean prediction error becomes +10 points.",
-              feedback: "Adding ten to every prediction adds ten to every prediction-minus-outcome error."
-            },
-            {
-              id: "C",
-              text: "RMSE is unchanged because the ordering is unchanged.",
-              feedback: "RMSE depends on error size, not just ordering."
-            },
-            {
-              id: "D",
-              text: "The new predictions are externally validated because correlation is high.",
-              feedback: "A metric alone cannot certify a validation design or usefulness."
-            },
-            {
-              id: "E",
-              text: "Every observed outcome also increases by ten.",
-              feedback: "Only predictions were changed."
-            }
-          ],
-          correct: "B",
-          hint: "Separate ranking from the numerical agreement between prediction and outcome.",
-          lesson: "A model can rank outcomes well yet predict systematically wrong values. Evaluate calibration and prediction error as well as association. Performance on the development data is usually optimistic. Internal validation must repeat the modelling process; evaluation in a new relevant setting addresses transportability. A tiny illustration cannot establish clinical usefulness.",
-          explanation: "Correlation is unchanged by an additive constant. With mean original error zero, shifting predictions by +10 gives mean error +10 and increases mean squared error by 100. Calibration and absolute prediction accuracy matter alongside association.",
-          help: "regression_and_correlation/simple_linear.htm",
-          operation: "SimpleLinearRegression",
-          lessonId: "validation",
-          sourceIds: [
-            "harrell-reg",
-            "tripod-ai"
-          ]
-        }
-      ]
-    },
-    {
-      id: "meta",
-      title: "Combining study results",
-      topic: "Meta-analysis, heterogeneity and interpretation",
-      objective: "Explain inverse-variance weighting and decide whether a pooled effect answers a coherent question.",
-      summary: "Pooling requires comparable populations, contrasts, outcomes and follow-up, together with an assessment of bias and dependence. Inverse-variance weights favour more precise estimates. A fixed-effect illustration assumes a common underlying effect. Random-effects models allow between-study variation but cannot repair biased studies or justify combining incompatible questions.",
-      challenge: "Three studies estimate the same risk difference, but one has twice the standard error of the others. Should it receive twice the weight, half the weight or a quarter of the weight?",
-      steps: "The fictional independent studies report one-year adverse-outcome risk differences (programme minus control) of \u22120.04, \u22120.08 and \u22120.03, with SEs 0.02, 0.04 and 0.02. In Summary meta-analysis choose Risk Difference, then Standard Error, and select the two named columns; use default study labels and 95% confidence. Compare the fixed-effect estimate with R: \u22124 percentage points, with a 95% normal interval of about \u22126.6 to \u22121.4 percentage points. Both use the inverse-variance common-effect estimate and a normal critical value. The R output retains unrounded values. This exercise assumes approximately normal estimates and a common underlying effect; it is not a complete systematic review.",
-      operation: "MetaSummary",
-      help: "meta_analysis/summary.htm",
-      columns: [
-        {
-          title: "Risk difference",
-          values: [
-            -0.04,
-            -0.08,
-            -0.03
-          ]
-        },
-        {
-          title: "Standard error",
-          values: [
-            0.02,
-            0.04,
-            0.02
-          ]
-        }
-      ],
-      r: `# Three fictional independent trials: same adverse outcome and one-year horizon.
-# Risk difference = programme minus control. SE, not SD, is supplied.
-effect <- c(-0.04,-0.08,-0.03); se <- c(0.02,0.04,0.02)
-weight <- 1/se^2
-pooled <- sum(weight*effect)/sum(weight)
-pooled_se <- sqrt(1/sum(weight))
-pooled_ci <- pooled+c(-1,1)*qnorm(0.975)*pooled_se
-q <- sum(weight*(effect-pooled)^2)
-print(data.frame(Study=1:3,Risk_difference=effect,SE=se,Percent_weight=100*weight/sum(weight)))
-print(c(Pooled=pooled,SE=pooled_se,Lower=pooled_ci[1],Upper=pooled_ci[2],Q=q))
-lower <- effect-qnorm(0.975)*se; upper <- effect+qnorm(0.975)*se
-plot(effect,1:3,pch=19,xlim=range(c(lower,upper,0)),ylim=c(0,3.5),yaxt="n",xlab="Risk difference: programme minus control",ylab="",main="Fictional fixed-effect illustration")
-segments(lower,1:3,upper,1:3); abline(v=0,lty=2)
-points(pooled,0,pch=18); segments(pooled_ci[1],0,pooled_ci[2],0)
-axis(2,at=0:3,labels=c("Pooled","Study 1","Study 2","Study 3"),las=1)
-# The interval estimates a common effect under the model; not a prediction interval.
-# Few studies give weak information about heterogeneity and publication bias.
-
-# Optional further learning: conventional Q-based I-squared.
-# Change FALSE to TRUE to run this extension after the main lesson.
-if (FALSE) {
-  study_df <- length(effect)-1
-  i_squared <- if(q>0) 100*max(0,(q-study_df)/q) else 0
-  print(c(Q=q,df=study_df,I_squared_percent=i_squared))
-  # Here I-squared is 0%, after truncating a negative untruncated estimate.
-  # Three studies give little information: 0% does not establish homogeneity.
-  # Do not select fixed versus random effects just from Q's P value or I-squared.
-}
-`,
-      contentVersion: "2026-10-12",
-      knowledgeSchemaVersion: 1,
-      review: {
-        date: "2026-10-12",
-        status: "AI-assisted editorial and numerical checks",
-        authorship: "Original StatsDirect teaching material with fictional examples; not official examination content."
-      },
-      prerequisites: [
-        "risk",
-        "precision",
-        "appraisal"
-      ],
-      learningObjectives: [
-        "Calculate and interpret inverse-variance weights.",
-        "Keep effect directions, scales and time horizons consistent.",
-        "Distinguish a pooled-effect interval from between-setting variation."
-      ],
-      keyConcepts: [
-        {
-          term: "Weights",
-          explanation: "For independent approximately normal estimates with known or adequately estimated SEs, fixed-effect weights are 1/SE\xB2. Doubling SE gives one quarter of the weight."
-        },
-        {
-          term: "Heterogeneity",
-          explanation: "A pooled-effect interval does not show the spread of true effects across settings. Examine clinical differences and heterogeneity uncertainty; a non-significant heterogeneity test with few studies proves little. Optional extension: conventional Q-based I\xB2 estimates the percentage of variation in study estimates attributable to heterogeneity. Here Q = 1.25 and df = 2, so max(0, (Q \u2212 df)/Q) \xD7 100 = 0%. This truncated estimate is very uncertain with three studies and is not evidence of identical underlying effects."
-        },
-        {
-          term: "Evidence selection",
-          explanation: "Overlapping participants, selective reporting and unpublished results can undermine a synthesis. Choose eligible comparisons before looking at their P values."
-        }
-      ],
-      misconceptions: [
-        {
-          claim: "Meta-analysis always removes the biases of its component studies.",
-          correction: "Pooling may increase precision around a biased answer."
-        },
-        {
-          claim: "Pick fixed or random effects solely from the heterogeneity P value.",
-          correction: "Choose the model to match the question and assumptions; examine variation and the uncertainty in estimating it."
-        }
-      ],
-      workedExample: {
-        design: "Three fictional independent trial estimates of the same one-year adverse-outcome risk difference, on an untransformed difference scale.",
-        interpretation: "Weights are in the ratio 4:1:4, yielding a pooled difference of \u22120.04. Its model-based interval excludes zero, but this does not establish the quality, applicability or completeness of the underlying evidence."
-      },
-      teachingPrompts: [
-        {
-          level: "beginner",
-          prompt: "What does the negative pooled risk difference mean?",
-          expectedReasoning: "With programme minus control for an adverse outcome it favours the programme; specify the one-year horizon."
-        },
-        {
-          level: "advanced",
-          prompt: "Can two estimates from overlapping participant groups be entered as independent studies?",
-          expectedReasoning: "No. Their covariance must be addressed or a suitable non-overlapping set chosen; otherwise uncertainty can be understated."
-        }
-      ],
-      rProgression: {
-        menus: "Select risk difference and standard error in the summary form.",
-        bridge: "Trace the weighted mean and pooled SE in R.",
-        coding: "Increase one SE and predict the weight change before rerunning; discuss when pooling would be inappropriate. Optional further learning: run the I-squared block at the end and explain why an estimate of zero from three studies does not prove homogeneity."
-      },
-      sources: [
-        {
-          id: "cochrane-10",
-          title: "Cochrane Handbook, chapter 10: Meta-analysis",
-          url: "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-10",
-          scope: "Inverse-variance pooling, heterogeneity and interpretation of fixed-effect and random-effects analyses.",
-          checkedAt: "2026-10-12",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        },
-        {
-          id: "cochrane-8",
-          title: "Cochrane Handbook, chapter 8: Risk of bias in a randomised trial",
-          url: "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-08",
-          scope: "Bias in specific trial results, missing outcomes and effects of assignment versus adherence.",
-          checkedAt: "2026-10-01",
-          use: "Editorial reference and further reading; no source text or examination items reproduced."
-        }
-      ],
-      assessmentIds: [
-        "LIB-META-01"
-      ],
-      practiceQuestions: [
-        {
-          id: "LIB-META-01",
-          version: 1,
-          track: "researcher",
-          topic: "Meta-analysis, heterogeneity and interpretation",
-          objective: "Explain inverse-variance weighting and decide whether a pooled effect answers a coherent question.",
-          stem: "In a fixed-effect inverse-variance meta-analysis, Study A has SE 0.02 and Study B has SE 0.04 for estimates on the same scale. What is the ratio of A\u2019s weight to B\u2019s weight?",
-          options: [
-            {
-              id: "A",
-              text: "1:4",
-              feedback: "That reverses the inverse-variance weighting."
-            },
-            {
-              id: "B",
-              text: "1:2",
-              feedback: "The smaller SE receives more, not less, weight."
-            },
-            {
-              id: "C",
-              text: "1:1",
-              feedback: "Equal weighting ignores their different precisions."
-            },
-            {
-              id: "D",
-              text: "2:1",
-              feedback: "Weights use squared SE, not SE itself."
-            },
-            {
-              id: "E",
-              text: "4:1",
-              feedback: "(1/0.02\xB2)/(1/0.04\xB2) = 4."
-            }
-          ],
-          correct: "E",
-          hint: "Variance is the square of the standard error; then take its reciprocal.",
-          lesson: "Pooling requires comparable populations, contrasts, outcomes and follow-up, together with an assessment of bias and dependence. Inverse-variance weights favour more precise estimates. A fixed-effect illustration assumes a common underlying effect. Random-effects models allow between-study variation but cannot repair biased studies or justify combining incompatible questions.",
-          explanation: "The weights are 2500 and 625, so A receives four times B\u2019s weight. This does not make A four times as free from bias; inverse-variance weighting represents statistical precision under the model.",
-          help: "meta_analysis/summary.htm",
-          operation: "MetaSummary",
-          lessonId: "meta",
-          sourceIds: [
-            "cochrane-10",
-            "cochrane-8"
-          ]
-        }
-      ]
-    }
-  ];
-
   // Learn/lesson-guide.mjs
+  var difficulties = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
+  var learnerGoals = { undergraduateMedicine: "Undergraduate medicine", undergraduateHealthScience: "Undergraduate health sciences", postgraduateMedicine: "Postgraduate medicine", postgraduateAlliedHealth: "Postgraduate allied health", publicHealth: "Public health", healthcareBusinessAnalyst: "Healthcare business analyst", mastersStatistics: "Master's-level statistics", usMedicalBoards: "US medical board examinations" };
+  function learningTargetHTML(item, esc4) {
+    const parts = [];
+    if (typeof item.difficulty === "string" && item.difficulty) parts.push(difficulties[item.difficulty] ?? item.difficulty);
+    const goals = Array.isArray(item.learnerGoals) ? item.learnerGoals.filter((id) => typeof id === "string" && id.trim()) : [];
+    if (goals.length) parts.push(goals.map((id) => learnerGoals[id] ?? id).join("; "));
+    if (typeof item.learnerGoalNotes === "string" && item.learnerGoalNotes) parts.push(item.learnerGoalNotes);
+    return parts.length ? `<p class="small learning-targets">${parts.map(esc4).join(" \xB7 ")}</p>` : "";
+  }
   function lessonGuideHTML(lesson2, catalogue, esc4, safeURL2) {
     const list = (values) => `<ul>${values.map((value) => `<li>${esc4(value)}</li>`).join("")}</ul>`;
     const section = (title, html3) => html3 ? `<h3>${esc4(title)}</h3>${html3}` : "";
-    let html2 = `<p>${esc4(lesson2.summary)}</p><p>${esc4(lesson2.steps)}</p>`;
+    let html2 = learningTargetHTML(lesson2, esc4) + `<p>${esc4(lesson2.summary)}</p><p>${esc4(lesson2.steps)}</p>`;
     if (lesson2.learningObjectives?.length) html2 += section("What you will learn", list(lesson2.learningObjectives));
     if (lesson2.prerequisites?.length) html2 += `<p><strong>Useful preparation:</strong> ${lesson2.prerequisites.map((id) => esc4(catalogue.find((l) => l.id === id)?.title ?? id)).join("; ")}.</p>`;
     if (lesson2.keyConcepts?.length) html2 += section("Key ideas", lesson2.keyConcepts.map((c) => `<p><strong>${esc4(c.term)}.</strong> ${esc4(c.explanation)}</p>`).join(""));
@@ -23997,7 +24046,8 @@ if (FALSE) {
     if (lesson2.misconceptions?.length) html2 += section("Common mistakes", lesson2.misconceptions.map((m) => `<p><strong>${esc4(m.claim)}</strong><br>${esc4(m.correction)}</p>`).join(""));
     if (lesson2.teachingPrompts?.length) html2 += section("Think it through", list(lesson2.teachingPrompts.map((p) => p.prompt)));
     if (lesson2.rProgression) html2 += section("From menus to R", list([lesson2.rProgression.menus, lesson2.rProgression.bridge, lesson2.rProgression.coding]));
-    if (lesson2.sources?.length) html2 += section("References and further reading", `<ul>${lesson2.sources.map((s) => `<li>${safeURL2(s.url) ? `<a href="${esc4(safeURL2(s.url))}" target="_blank" rel="noopener">${esc4(s.title)}</a>` : esc4(s.title)} \u2014 ${esc4(s.scope)}${s.checkedAt ? ` <span class="small">Checked ${esc4(s.checkedAt)}.</span>` : ""}</li>`).join("")}</ul><p class="small">Original StatsDirect teaching material. AI-assisted editorial review ${esc4(lesson2.review?.date)}.</p>`);
+    if (lesson2.sources?.length) html2 += section("References and further reading", `<ul>${lesson2.sources.map((s) => `<li>${safeURL2(s.url) ? `<a href="${esc4(safeURL2(s.url))}" target="_blank" rel="noopener">${esc4(s.title)}</a>` : esc4(s.title)} \u2014 ${esc4(s.scope)}${s.checkedAt ? ` <span class="small">Checked ${esc4(s.checkedAt)}.</span>` : ""}</li>`).join("")}</ul>`);
+    if (lesson2.review?.status) html2 += `<p class="small">Original StatsDirect teaching material. ${esc4(lesson2.review.status)}${lesson2.review.reviewer ? " \xB7 " + esc4(lesson2.review.reviewer) : ""}${lesson2.review.date ? " \xB7 " + esc4(lesson2.review.date) : ""}.</p>`;
     return html2;
   }
 
@@ -24062,8 +24112,8 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   var workspace = { choice: "__none__", choices: [], label: "Lessons only \xB7 open documents are not shared" };
   var native = Boolean(window.webkit?.messageHandlers?.statsDirectLearn);
   var post = (body) => window.webkit?.messageHandlers?.statsDirectLearn?.postMessage(body);
-  var allLessons = () => [...lessons_default2, ...courseLessons(coursePack)];
-  var lesson = () => allLessons().find((x) => x.id === state.lesson) ?? lessons_default2[0];
+  var allLessons = () => [...lessons_default, ...courseLessons(coursePack)];
+  var lesson = () => allLessons().find((x) => x.id === state.lesson) ?? lessons_default[0];
   var privacyText = () => settings.disabled ? "The online tutor is disabled by this Mac\u2019s learning policy. Local lessons, practice, help and R examples remain available." : settings.configured ? "Send shares learning context and up to 40 recent messages with OpenAI. Document sharing requires confirmation for each question. Earlier shared content can remain in the conversation. Do not include person identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply.";
   var sendLabel = () => settings.disabled ? "Online tutor disabled" : settings.configured ? "Send" : settings.signingIn ? "Finish sign-in" : "Use my ChatGPT";
   var independent = () => state.quiz?.mode === "test" && !state.quiz.completedAt;
@@ -24310,7 +24360,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
       return;
     }
     const q = sessionQuestion(qz, qz.questionIds[qz.answers.length]);
-    $("main").insertAdjacentHTML("beforeend", `<section class="card"><div class="eyebrow">${qz.mode === "test" ? "INDEPENDENT" : "SUPPORTED"} \xB7 QUESTION ${qz.answers.length + 1} OF ${qz.questionIds.length}</div>${qz.course ? `<p class="small">${esc3(qz.course.title)} \xB7 version ${esc3(qz.course.version)}</p>` : ""}<p class="question">${esc3(q.stem)}</p><form id="answerForm"><div class="options">${q.options.map((o) => `<label class="option"><input type="radio" name="answer" value="${o.id}" required><span><b>${o.id}.</b> ${esc3(o.text)}</span></label>`).join("")}</div><div class="form-row"><div><label for="confidence">How confident are you?</label><select id="confidence" required><option value="">Choose confidence</option><option value="unsure">Unsure</option><option value="fairly">Fairly confident</option><option value="confident">Confident</option></select></div><div><label for="reasoning">Your reasoning (optional)</label><textarea id="reasoning" rows="2" maxlength="1500" placeholder="What led you to this answer?"></textarea></div></div><div class="actions"><button class="primary" type="submit">Submit first answer</button>${qz.mode === "learn" ? '<button id="hint" type="button">Give me a hint</button><button id="teach" type="button">Explain the principle</button>' : ""}</div></form><div id="hintText" class="small"></div><button id="endPractice" class="link-button">End this attempt early</button></section><div id="feedback"></div>`);
+    $("main").insertAdjacentHTML("beforeend", `<section class="card"><div class="eyebrow">${qz.mode === "test" ? "INDEPENDENT" : "SUPPORTED"} \xB7 QUESTION ${qz.answers.length + 1} OF ${qz.questionIds.length}</div>${qz.course ? `<p class="small">${esc3(qz.course.title)} \xB7 version ${esc3(qz.course.version)}</p>` : ""}<p class="question">${esc3(q.stem)}</p>${learningTargetHTML(q, esc3)}<form id="answerForm"><div class="options">${q.options.map((o) => `<label class="option"><input type="radio" name="answer" value="${o.id}" required><span><b>${o.id}.</b> ${esc3(o.text)}</span></label>`).join("")}</div><div class="form-row"><div><label for="confidence">How confident are you?</label><select id="confidence" required><option value="">Choose confidence</option><option value="unsure">Unsure</option><option value="fairly">Fairly confident</option><option value="confident">Confident</option></select></div><div><label for="reasoning">Your reasoning (optional)</label><textarea id="reasoning" rows="2" maxlength="1500" placeholder="What led you to this answer?"></textarea></div></div><div class="actions"><button class="primary" type="submit">Submit first answer</button>${qz.mode === "learn" ? '<button id="hint" type="button">Give me a hint</button><button id="teach" type="button">Explain the principle</button>' : ""}</div></form><div id="hintText" class="small"></div><button id="endPractice" class="link-button">End this attempt early</button></section><div id="feedback"></div>`);
     $("answerForm").onsubmit = (e2) => {
       e2.preventDefault();
       const choice = new FormData(e2.target).get("answer");
@@ -24535,8 +24585,8 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
         streamedText = "";
         renderedStudy = null;
         state = value ? restorePortfolio(value) : newPortfolio();
-        if (!state.lesson.startsWith("course:") && !lessons_default2.some((l) => l.id === state.lesson)) state.lesson = "epidemiology";
-        labelStudyGuides(state, lessons_default2);
+        if (!state.lesson.startsWith("course:") && !lessons_default.some((l) => l.id === state.lesson)) state.lesson = "epidemiology";
+        labelStudyGuides(state, lessons_default);
         if (independent()) state.view = "practice";
         welcome();
         render3();

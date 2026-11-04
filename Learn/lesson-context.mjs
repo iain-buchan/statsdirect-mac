@@ -12,7 +12,7 @@ export function labelStudyGuides(state,lessons){
 export function ensureLessonPrompt(state,lessons){
   labelStudyGuides(state,lessons);
   const current=lessons.find(l=>l.id===state.lesson);
-  if(!current)return false;
+  if(!current||typeof current.challenge!=='string'||!current.challenge.trim())return false;
   const latest=state.conversation.findLast(c=>c.lessonPrompt===true);
   if(latest?.lessonId===current.id&&latest.text===current.challenge)return false;
   transcriptEntry(state,'assistant',current.challenge,'Study guide',{lessonId:current.id,lessonTitle:current.title,lessonPrompt:true});

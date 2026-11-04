@@ -25,6 +25,7 @@ jobs:
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: 1
+      STATSDIRECT_CONTENT_MODE: offline
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -53,12 +54,20 @@ jobs:
         run: for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
       - name: Install document test dependencies
         run: python3 -m pip install openpyxl xlrd nbformat==5.10.4
+      - name: Published help and tutor imports
+        run: |
+          python3 Tests/test_desktop_help_import.py
+          python3 Tests/test_authored_tutor_import.py
+          python3 Tests/test_content_publication.py
+          python3 Tests/test_content_build.py
+          python3 Scripts/check-content-imports.py
       - name: Build the application
         run: DOTNET="$(command -v dotnet)" ./build.sh
       - name: Committed bundles match their sources
         run: |
           node Grid/build.mjs && node Report/build.mjs && node Learn/build.mjs
           git diff --exit-code --stat -- Content/Grid Content/Report Content/Learn Content/AI
+          python3 Tests/test_packaged_content.py "$PWD/StatsDirect.app"
       - name: AppKit R quit lifecycle
         run: bash Scripts/test-r-console-termination.sh "$PWD/StatsDirect.app/Contents/MacOS/RConsoleWorker"
       - name: Update discovery

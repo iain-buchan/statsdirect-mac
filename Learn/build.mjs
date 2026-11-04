@@ -1,4 +1,6 @@
 import { fileURLToPath } from 'node:url';
+import {execFileSync} from 'node:child_process';
+execFileSync(process.env.PYTHON || 'python3', [fileURLToPath(new URL('../Scripts/import-authored-tutor.py', import.meta.url)), '--verify'], {stdio:'inherit'});
 import {build} from '../Grid/node_modules/esbuild/lib/main.js';
 await build({entryPoints:[fileURLToPath(new URL('./app.mjs',import.meta.url))],bundle:true,format:'iife',target:'safari17',outfile:fileURLToPath(new URL('../Content/Learn/app.js',import.meta.url))});
 const {cp,readFile,writeFile,mkdir}=await import('node:fs/promises');

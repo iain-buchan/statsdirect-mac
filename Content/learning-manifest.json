@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "format": "statsdirect-builtin-tutor-import",
+  "repository": "https://github.com/iain-buchan/statisticalhelp",
+  "commit": "bfe33836ec8bd6b5a211a530c5b248d8ee6c9340",
+  "source": "Published/Tutor",
+  "publisher": "StatsDirectHelpEditor",
+  "producerSchemaVersion": 1,
+  "producerManifestSHA256": "e9b1aedaacf661e1413284153d41db6c2428cfaf6cfe569e82e1df728e639b12",
+  "sourceCourseId": "statsdirect-health-foundations",
+  "sourceCourseVersion": "2026-11-03-draft",
+  "bankVersion": "learn-draft-2026-10-01",
+  "reviewGatePassed": true,
+  "reviewWarningCount": 47,
+  "sha256": {
+    "Content/Learn/lessons.json": "ceb513c78b6f7d04333625437a4c00bf3accdc75990981f639bbec702411dab5",
+    "Content/learning-source-manifest.json": "22cd4d470560630a652db5a97ce4f358cc92f8000456e466b2836646f01f658a",
+    "Learn/AuthoredTutor/README.md": "d1882f2adea41402cb0e661534eb8b4be05752ec60b9f5e3fe6598d2532e87b4",
+    "Learn/AuthoredTutor/bank.mjs": "281a12ce9f963500f6680c5d7e73069a7993d03a940e82cf19273b4609d16250",
+    "Learn/AuthoredTutor/lessons.json": "ceb513c78b6f7d04333625437a4c00bf3accdc75990981f639bbec702411dab5",
+    "Learn/AuthoredTutor/manifest.json": "e9b1aedaacf661e1413284153d41db6c2428cfaf6cfe569e82e1df728e639b12",
+    "Learn/AuthoredTutor/questions.json": "373df875b3095a508c1760e2e4bd5581723bb1f79349568880e8616def3bc10e",
+    "Learn/AuthoredTutor/tracks.json": "d70bb02953a05a6db5abf04ec40c1b766e943dfc54e4fa7ef10d411f474cc114",
+    "Learn/lessons.json": "ceb513c78b6f7d04333625437a4c00bf3accdc75990981f639bbec702411dab5"
+  },
+  "publicationManifestSHA256": "22cd4d470560630a652db5a97ce4f358cc92f8000456e466b2836646f01f658a",
+  "publicationManifestPath": "Published/content-manifest.json",
+  "publicationTutorReviewProofBinding": "authoring-source-before-generated-sync-v1"
+}

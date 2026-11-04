@@ -2288,3 +2288,35 @@ Iain's ruling on the platform difference raised at the v5.3.0 pin: Windows 61de3
 - The Mac's in-worksheet placements already behaved as Windows now does (the first frame at the chosen placement whatever its keep-selection, later frames after it): unchanged.
 - Checks: the beta driver's derived-worksheet block gains the merge (three frames with one empty: columns 3, rows 3, lengths [2,1,1], cells in place; the combined frame still takes the source columns beside it; no frames gives nil). The follow-on driver expects one new document for any number of frames, and the residuals follow-on fixture now saves two values (fitted and studentised), so the suite runs an operation with several frames. A reviewer tried to refute the change first; it found the follow-on driver's one-per-frame count (fixed), the note counting empty frames (fixed), the header flag from a skipped empty frame (fixed) and the alignment caveat for frames of unequal rows (guarded).
 - Suites on the final build: follow-on-workflow 104, paired-workflow 37, analysis-workflow 47, mac-parity 20, beta driver 96, test.sh 618, all green; the earlier run's analysis-workflow failure was the window-focus kind, while Iain was typing in Terminal, and passed on the rerun. Not part of the 1.1.0 candidate (b7b1b9a), which keeps one document per frame.
+
+## Unified Help Editor publication — 4 November 2026
+
+Normal Mac builds now fetch the latest complete Help Editor publication from
+`iain-buchan/statisticalhelp`, resolve one immutable revision and validate the
+website, offline help and tutor inventories before activation. Both app readers
+use that revision. Offline/pinned rebuild modes do not fetch; errors stop the
+build without silently retaining stale content. Installed apps continue to read
+their bundled content. The calculation-engine pin is unchanged.
+
+The committed publication is `bfe33836ec8bd6b5a211a530c5b248d8ee6c9340`
+(root SHA-256 `22cd4d470560630a652db5a97ce4f358cc92f8000456e466b2836646f01f658a`).
+It includes 876 offline help files, 12 lessons, 35 questions and five pathways.
+Original IDs, complete review/targeting metadata and existing learner progress
+are preserved. The producer's 47 legacy editorial warnings remain recorded;
+publication is not represented as human review or accreditation.
+
+Local coverage: 42 focused Python import/transaction/publication tests, 34
+Learning JavaScript tests, the Swift lesson-context checks and native help and
+Learning integration pass. An ordinary default-latest Release build fetched and
+validated the first complete publication, passed its existing 1,552 distribution
+checks, and packaged matching content, publication record and generated Learning
+bundle. Native help covered the new reader's search, R dropdowns, dock/pop-out,
+context aliases and printing; native Learning covered guides, course import,
+practice, R handoff, bounded tutor context and assessment exports.
+
+The final publication corrects website path casing and publication metadata
+only: the help/topic assets and all lesson/question/track payloads match the
+tested publication. That functional native coverage is reused. Final source
+verification and the focused `content` CI suite check the final committed pin,
+ordinary application packaging and both native readers. No installer, release,
+notarisation or distribution-signing work is part of this change.

@@ -74,17 +74,20 @@ import WebKit
         try check(h.url(for:"PTT") == h.url(for:"1239"),"named aliases can be resolved")
         try check(h.resources.localURL(URL(string:"app://statsdirect-help/../../Info.plist")!) == nil || !FileManager.default.fileExists(atPath:h.resources.localURL(URL(string:"app://statsdirect-help/../../Info.plist")!)!.path),"path traversal cannot read outside the help bundle")
         try check(h.resources.localURL(URL(string:"app://elsewhere/contents.htm")!) == nil,"foreign help origin rejected")
-        try check(h.resources.localURL(URL(string:"app://statsdirect-help/resources/Scripts/jquery.min.js")!)?.path == h.resources.root.appendingPathComponent("resources/scripts/jquery.min.js").path,"mixed-case Windows links resolve to the bundle’s exact filename")
+        try check(h.resources.localURL(URL(string:"app://statsdirect-help/dAtA/aLiAs.XmL")!)?.path == h.resources.root.appendingPathComponent("Data/Alias.xml").path,"mixed-case links resolve to the bundle’s exact filename in both readers")
         v.openHelp(v.root.appendingPathComponent("Help/parametric_methods/paired_t.htm"),title:"Paired t")
-        try await until(web,"document.querySelector('.MCDropDownHotSpot') !== null && typeof MadCap !== 'undefined'")
+        let exampleToggle = "details.rcode > summary, .MCDropDownHotSpot"
+        let exampleOpen = "(()=>{const details=document.querySelector('details.rcode');return details ? details.open : document.querySelector('.MCDropDownHotSpot')?.getAttribute('aria-expanded')==='true'})()"
+        try await until(web,"document.querySelector('" + exampleToggle + "') !== null")
         try await settle()
         try check(h.visible && h.view.superview === v.workspaceSplit && v.workspaceSplit.subviews.count == 2,"help docks alongside the workspace")
         try check(v.active === worksheet && v.documents.count == startingDocuments,"opening help preserves the active worksheet and document tabs")
         try check((try await js(web,"document.querySelector('h1').textContent.includes('Paired')")) as? Bool == true,"paired t topic rendered offline")
-        try check((try await js(web,"[...document.images].filter(i=>i.offsetWidth>0).every(i=>i.complete&&i.naturalWidth>0)")) as? Bool == true,"topic images and equations load")
+        try await until(web,"[...document.images].filter(i=>i.offsetWidth>0).every(i=>i.complete&&i.naturalWidth>0)")
+        try check(true,"topic images and equations load")
         try check((try await js(web,"window.helpErrors")) as? [String] == [],"topic scripts have no runtime errors")
-        _ = try await js(web,"(()=>{document.querySelector('.MCDropDownHotSpot').click();return true})()")
-        try await until(web,"document.querySelector('.MCDropDownHotSpot').getAttribute('aria-expanded')==='true'")
+        _ = try await js(web,"(()=>{document.querySelector('" + exampleToggle + "').click();return true})()")
+        try await until(web,exampleOpen)
         try check(true,"R example expands offline")
         _ = try await js(web,"(()=>{let elements=[document.scrollingElement,...document.querySelectorAll('*')];for(let e of elements){e.scrollTop=700;if(e.scrollTop>0){window.readingElement=e;return e.scrollTop}}return 0})()")
         let position=(try await js(web,"window.readingElement.scrollTop")) as? Double ?? 0
@@ -92,7 +95,7 @@ import WebKit
         h.toggleMode();try await settle()
         try check(h.web === web && h.view.window === h.floatingWindow && h.floatingWindow?.isVisible == true,"Pop out moves the same browser into a companion window")
         try check(v.workspaceSplit.subviews.count == 1 && v.active === worksheet,"Pop out restores workspace width and selection")
-        try check((try await js(web,"document.querySelector('.MCDropDownHotSpot').getAttribute('aria-expanded')==='true'")) as? Bool == true,"expanded R example survives Pop out")
+        try check((try await js(web,exampleOpen)) as? Bool == true,"expanded R example survives Pop out")
         h.toggleMode();try await settle()
         try check(h.view.superview === v.workspaceSplit && h.floatingWindow?.isVisible == false,"Dock returns the same browser")
         let returned=(try await js(web,"window.readingElement.scrollTop")) as? Double ?? 0
@@ -103,7 +106,7 @@ import WebKit
         try check(!h.visible && v.workspaceSplit.subviews.count == 1,"Close hides help and restores workspace width")
         h.open(web.url!);try await settle()
         try check(abs(h.view.frame.width-width)<3,"docked width is remembered on reopen")
-        try check((try await js(web,"document.querySelector('.MCDropDownHotSpot').getAttribute('aria-expanded')==='true'")) as? Bool == true,"Close/reopen retains the same page state")
+        try check((try await js(web,exampleOpen)) as? Bool == true,"Close/reopen retains the same page state")
         // Native sheet and input focus stand in for modal parameter dialogs.
         let sheet=NSWindow(contentRect:NSRect(x:0,y:0,width:300,height:150),styleMask:[.titled],backing:.buffered,defer:false)
         let input=NSTextField(frame:NSRect(x:20,y:60,width:240,height:25));sheet.contentView!.addSubview(input)
@@ -123,13 +126,17 @@ import WebKit
         try check(web.canGoForward,"history survives presentation changes")
         h.forward();try await until(web,"location.pathname.endsWith('/contents.htm') && document.readyState==='complete'")
         h.searchField.stringValue="paired t test";h.search()
-        try await until(web,"document.querySelectorAll('#resultList a').length > 0")
-        try check((try await js(web,"document.querySelector('#search-results').textContent.toLowerCase().includes('paired')")) as? Bool == true,"full-text search returns offline results")
+        let searchLinks = "#resultList a, #results a.result"
+        try await until(web,"document.querySelectorAll('" + searchLinks + "').length > 0")
+        try check((try await js(web,"document.querySelector('#search-results, #results').textContent.toLowerCase().includes('paired')")) as? Bool == true,"full-text search returns offline results")
         print("SEARCH URL: \(web.url!.absoluteString)")
         h.toggleMode();try await settle();h.toggleMode();try await settle()
-        try check((try await js(web,"document.querySelectorAll('#resultList a').length>0")) as? Bool == true,"search results survive Pop out and Dock")
-        _ = try await js(web,"(()=>{document.querySelector('#resultList a').click();return true})()")
-        try await until(web,"!location.pathname.endsWith('/search.htm') && document.querySelector('h1')!==null")
+        try check((try await js(web,"document.querySelectorAll('" + searchLinks + "').length>0")) as? Bool == true,"search results survive Pop out and Dock")
+        let resultHref = try await js(web,"document.querySelector('" + searchLinks + "').href") as! String
+        let resultPath = URLComponents(string:resultHref)!.percentEncodedPath
+        let resultPathJSON = String(data:try JSONSerialization.data(withJSONObject:resultPath,options:[.fragmentsAllowed]),encoding:.utf8)!
+        _ = try await js(web,"(()=>{document.querySelector('" + searchLinks + "').click();return true})()")
+        try await until(web,"location.pathname===" + resultPathJSON + " && document.readyState==='complete' && document.querySelector('h1')!==null")
         try check(web.url?.scheme == "app","search result opens inside the offline help session")
         var external:[URL]=[];h.externalLink={external.append($0)}
         _ = try await js(web,"(()=>{let a=document.createElement('a');a.href='https://www.statsdirect.com/';a.target='_blank';document.body.append(a);a.click();return true})()")

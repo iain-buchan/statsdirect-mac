@@ -50,7 +50,7 @@ test('the expandable guide shows curated content and safe references without exp
     assert.ok(html.includes(esc(l.keyConcepts[0].explanation)));assert.ok(html.includes(esc(l.workedExample.interpretation)));
     assert.ok(html.includes(l.sources[0].url));assert.ok(html.includes(esc(l.teachingPrompts[0].prompt)));
     for(const s of l.sources)assert.ok(html.includes(`Checked ${s.checkedAt}.`));
-    assert.ok(html.includes(`AI-assisted editorial review ${l.review.date}`));
+    assert.ok(html.includes(l.review.status));assert.ok(html.includes(l.review.date));
     assert.ok(!html.includes('subject-expert review pending'));
     for(const q of l.practiceQuestions)assert.ok(!html.includes(q.explanation));
   }

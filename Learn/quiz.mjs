@@ -1,10 +1,10 @@
-import {bankVersion, questions, tracks} from './bank.mjs';
+import {bankVersion, bankPublication, questions, tracks} from './bank.mjs';
 
 export function createSession(track, mode, id = crypto.randomUUID(), providerPack = null) {
   if (!tracks[track] || !['learn','test'].includes(mode)) throw new Error('Choose a valid learning path and mode.');
   const selected=providerPack?.questions ?? questions.filter(q=>q.track===track || q.track==='core');
   if(!selected.length)throw Error('This course has no practice questions.');
-  return {id, track, mode, bankVersion:providerPack?.version??bankVersion, course:providerPack?.course??null, startedAt:new Date().toISOString(), completedAt:null,
+  return {id, track, mode, bankVersion:providerPack?.version??bankVersion, contentPublication:providerPack?null:structuredClone(bankPublication), course:providerPack?.course??null, startedAt:new Date().toISOString(), completedAt:null,
     questionIds:selected.map(q=>q.id),
     questionSnapshots:structuredClone(selected), answers:[], hints:[], explanations:[], reflection:''};
 }
@@ -44,9 +44,9 @@ export function reviewBundle(session) {
     learner:{id:null,replyEmail:null},
     session:{...session,reflection:session.reflection.slice(0,1500)},
     provisionalResult:result,
-    markingMethod:'Fixed draft answer keys; 1 for correct and 0 otherwise. Reasoning retained but not graded.',
+    markingMethod:'Published answer keys; 1 for correct and 0 otherwise. Reasoning retained but not graded.',
     questionSnapshots:session.questionIds.map(id=>structuredClone(sessionQuestion(session,id))),
-    teachingSource:'Original unreviewed StatsDirect teaching drafts, not official examination items.',
+    teachingSource:'Original StatsDirect teaching material with per-record review metadata retained; not official examination items.',
     accreditation:'No CPD credit or University approval is claimed.'};
 }
 

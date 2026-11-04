@@ -2,7 +2,7 @@ import Foundation
 
 /// The selected bundled lesson is small enough to supply whole; no search database is needed.
 enum LearningLibrary {
-    static let fields = ["id", "contentVersion", "review", "prerequisites", "learningObjectives",
+    static let fields = ["id", "contentVersion", "review", "contentSha256", "difficulty", "learnerGoals", "learnerGoalNotes", "prerequisites", "learningObjectives",
                          "keyConcepts", "misconceptions", "workedExample", "teachingPrompts",
                          "rProgression", "sources", "assessmentIds", "practiceQuestions"]
 

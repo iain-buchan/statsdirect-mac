@@ -22386,7 +22386,7 @@ Teaching rationale: ${item.explanation}` : "";
     labelStudyGuides(state2, lessons);
     const current = lessons.find((l) => l.id === state2.lesson);
     if (!current || typeof current.challenge !== "string" || !current.challenge.trim()) return false;
-    const latest = state2.conversation.findLast((c) => c.lessonPrompt === true);
+    const latest = lessonConversation(state2).findLast((c) => c.lessonPrompt === true);
     if (latest?.lessonId === current.id && latest.text === current.challenge) return false;
     transcriptEntry(state2, "assistant", current.challenge, "Study guide", { lessonId: current.id, lessonTitle: current.title, lessonPrompt: true });
     return true;
@@ -22402,6 +22402,25 @@ ${c.text}` : c.text }));
   }
   function lessonConversation(state2) {
     return state2.conversation.filter((c) => c.lessonId === state2.lesson || !c.lessonId && state2.lesson === "epidemiology");
+  }
+  function visibleLessonConversation(state2) {
+    const shown = /* @__PURE__ */ new Set();
+    return lessonConversation(state2).filter((c) => {
+      if (c.lessonPrompt !== true) return true;
+      const key = c.lessonId + "\n" + c.text;
+      if (shown.has(key)) return false;
+      shown.add(key);
+      return true;
+    });
+  }
+  function optionLetters(text3) {
+    const found = /* @__PURE__ */ new Set();
+    for (const m of String(text3 ?? "").matchAll(/^[ \t]*(?:[-*][ \t]+)?(?:\*\*)?([A-H])(?:\*\*)?[.)](?:\*\*)?[ \t]+\S/gm)) found.add(m[1]);
+    return [...found].sort();
+  }
+  function awaitingAnswer(entry) {
+    if (!entry || entry.role !== "assistant") return false;
+    return optionLetters(entry.text).length >= 3 || /\?[\s*_]*$/.test(String(entry.text ?? "").trim());
   }
 
   // Content/Learn/lessons.json
@@ -24171,17 +24190,32 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     else renderStudy();
   }
   var bodyHTML = richText;
+  var furtherReadingHTML = (entry) => {
+    const links = (entry.courseSources ?? []).filter((s) => safeURL(s.url));
+    return links.length ? `<div class="small context-used">Further reading: ${links.map((s) => `<a href="${esc3(safeURL(s.url))}" target="_blank" rel="noopener">${esc3(s.title)}</a>`).join("; ")}</div>` : "";
+  };
+  var composerLabel = () => awaitingAnswer(visibleLessonConversation(state).at(-1)) ? "Answer the question above, or ask your own" : "Ask a question, explain your thinking, or paste a small R example";
+  var composerPlaceholder = () => {
+    const last = visibleLessonConversation(state).at(-1);
+    if (!awaitingAnswer(last)) return "For example: why do we analyse the differences?";
+    return optionLetters(last.text).length >= 3 ? "For example: C, because \u2026" : "Type your answer, then press Send";
+  };
+  var quickAnswersHTML = (entry) => {
+    const letters2 = optionLetters(entry.text);
+    return letters2.length >= 3 ? `<div class="quick-answers" role="group" aria-label="Choose an answer">${letters2.map((x) => `<button type="button" data-answer="${x}">Answer ${x}</button>`).join("")}</div>` : "";
+  };
   function renderStudy() {
     const l = lesson();
     if (ensureLessonPrompt(state, allLessons())) save();
     const key = state.id + ":" + l.id, reading = renderedStudy === key ? conversationReading($("messages")) : null;
     renderedStudy = key;
-    $("main").innerHTML = `<section class="intro"><div class="eyebrow">${esc3(l.topic)}</div><h1>${esc3(l.title)}</h1></section><div class="actions">${l.operation ? '<button class="primary" data-action="example">Try in StatsDirect</button>' : ""}${l.r ? '<button data-action="r">Explore in R</button>' : ""}${l.help ? '<button class="link-button" data-action="help">Read help \u2197</button>' : ""}</div><details class="lesson-guide"><summary>Lesson guide and worked example</summary>${lessonGuideHTML(l, allLessons(), esc3, safeURL)}</details>${courseWorkHTML(state, l)}<section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><button id="focusConversation" class="link-button">${state.conversationFocus ? "Show lesson controls" : "Expand conversation"}</button><span id="tutorBadge" class="badge">${esc3(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">Ask a question, explain your thinking, or paste a small R example</label><textarea id="question" rows="2" maxlength="4000" placeholder="For example: why do we analyse the differences?" ${pending ? "disabled" : ""}>${esc3(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${esc3(privacyText())}</small><button id="send" class="primary" ${pending || settings.disabled ? "disabled" : ""}>${esc3(sendLabel())}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
-    $("messages").innerHTML = lessonConversation(state).map((c) => {
+    $("main").innerHTML = `<section class="intro"><div class="eyebrow">${esc3(l.topic)}</div><h1>${esc3(l.title)}</h1></section><div class="actions">${l.operation ? '<button class="primary" data-action="example">Try in StatsDirect</button>' : ""}${l.r ? '<button data-action="r">Explore in R</button>' : ""}${l.help ? '<button class="link-button" data-action="help">Read help \u2197</button>' : ""}</div><details class="lesson-guide"><summary>Lesson guide and worked example</summary>${lessonGuideHTML(l, allLessons(), esc3, safeURL)}</details>${courseWorkHTML(state, l)}<section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><button id="focusConversation" class="link-button">${state.conversationFocus ? "Show lesson controls" : "Expand conversation"}</button><span id="tutorBadge" class="badge">${esc3(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">${esc3(composerLabel())}</label><textarea id="question" rows="2" maxlength="4000" placeholder="${esc3(composerPlaceholder())}" ${pending ? "disabled" : ""}>${esc3(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${esc3(privacyText())}</small><button id="send" class="primary" ${pending || settings.disabled ? "disabled" : ""}>${esc3(sendLabel())}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
+    const thread = visibleLessonConversation(state), last = thread.at(-1);
+    $("messages").innerHTML = thread.map((c) => {
       const guide = guidePresentation(c, l);
-      const content = `<div class="message-body">${bodyHTML(c.text)}</div>${c.courseSources?.length ? `<div class="small context-used">Lesson context supplied: ${c.courseSources.map((s) => safeURL(s.url) ? `<a href="${esc3(safeURL(s.url))}" target="_blank" rel="noopener">${esc3(s.title)}</a>` : esc3(s.title)).join("; ")}</div>` : ""}${c.workspaceSources?.length ? `<div class="small context-used">Used: ${c.workspaceSources.map(esc3).join("; ")}</div>` : ""}`;
+      const content = `<div class="message-body">${bodyHTML(c.text)}</div>${furtherReadingHTML(c)}${c.workspaceSources?.length ? `<div class="small context-used">Used: ${c.workspaceSources.map(esc3).join("; ")}</div>` : ""}`;
       if (guide.earlier) return `<details class="earlier-guide" data-message-id="${esc3(c.id)}"><summary>${esc3(guide.label)}</summary>${content}</details>`;
-      return `<article data-message-id="${esc3(c.id)}" class="message ${c.role === "user" ? "user" : ""}"><div class="message-label">${c.role === "user" ? "YOU" : esc3(guide.label.toUpperCase())}${c.model ? " \xB7 " + esc3(c.model) : ""}</div>${content}</article>`;
+      return `<article data-message-id="${esc3(c.id)}" class="message ${c.role === "user" ? "user" : ""}"><div class="message-label">${c.role === "user" ? "YOU" : esc3(guide.label.toUpperCase())}${c.model ? " \xB7 " + esc3(c.model) : ""}</div>${content}${c === last && c.role === "assistant" ? quickAnswersHTML(c) : ""}</article>`;
     }).join("");
     if ($("courseAnswer")) {
       $("courseAnswer").oninput = () => {
@@ -24232,6 +24266,17 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
         save();
         renderStudy();
         $("question").focus();
+      };
+    });
+    document.querySelectorAll("[data-answer]").forEach((b) => {
+      b.disabled = Boolean(pending);
+      b.onclick = () => {
+        state.draft = "My answer: " + b.dataset.answer + ", because ";
+        save();
+        renderStudy();
+        const q = $("question");
+        q.focus();
+        q.setSelectionRange(q.value.length, q.value.length);
       };
     });
   }

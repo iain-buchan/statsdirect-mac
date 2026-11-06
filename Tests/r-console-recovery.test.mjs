@@ -157,6 +157,25 @@ test('optional file notice metadata survives live output and renderer recovery',
   assert.equal(recovered.entries.at(-1).filePath, undefined);
 });
 
+test('executed startup batches enter recall intact without duplicating Script or executing recalled code', () => {
+  const source = '# Startup example\nvalues <- c(\n  1, 2, 3\n)\nmean(values)\n';
+  const model = new ConsoleModel();
+  assert.equal(model.receive(event('session', 0, {script: source})), true);
+  assert.deepEqual(model.history, [], 'opening source without running it does not create executed history');
+  const submitted = event('inputEcho', 1, {origin: 'script', text: source, prompt: '> '});
+  assert.equal(model.receive(submitted), true);
+  assert.equal(model.script, source);
+  assert.deepEqual(model.history, [source]);
+  assert.equal(model.navigateHistory(-1, 'unfinished <- 7'), source);
+  assert.equal(model.navigateHistory(1, ''), 'unfinished <- 7');
+  assert.equal(model.script, source, 'recall is an edit, not a new execution or Script append');
+  assert.equal(model.receive(submitted), false, 'repeated event is not another history entry');
+  const recovered = new ConsoleModel();
+  assert.equal(recovered.receive(event('session', 0, {script: source, events: [submitted]})), true);
+  assert.deepEqual(recovered.history, [source]);
+  assert.equal(recovered.script, source);
+});
+
 test('renderer recovery retains unanswered questions after Stop or error without inventing replies or code', () => {
   for (const status of ['interrupted','error']) {
     const events = [

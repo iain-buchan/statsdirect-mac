@@ -164,6 +164,9 @@ jobs:
             # Retry only the observed hosted-WebKit wait timeout, never assertions,
             # compilation errors or statistical failures. Preserve both logs.
             if [[ "$attempt" == 2 ]] || ! grep -Fq 'FAIL: Failure(message: "Timed out waiting for the native interface at ' "$log"; then
+              # The failing check becomes an annotation, which the public API shows without the job log.
+              grep -c '^PASS' "$log" | sed 's/^/::error title=WebKit integration driver::checks passed before the failure: /'
+              grep -n -E '^(FAIL|Traceback|.*Error:|error:)' "$log" | tail -n 6 | cut -c1-900 | sed 's/^/::error title=WebKit integration driver::/'
               exit "$result"
             fi
             echo '::warning::WebKit wait timed out; retrying once with a fresh test app.'

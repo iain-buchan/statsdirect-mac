@@ -126,7 +126,15 @@ jobs:
           swiftc -target arm64-apple-macosx14.0 Sources/RInstallation.swift Tests/r-runtime-architecture-checks.swift -o .build/r-runtime-architecture-checks -framework CryptoKit
           .build/r-runtime-architecture-checks
       - name: Interactive R console and vector charts
-        run: R_BIN="$(command -v R)" R_SCRIPT="$(command -v Rscript)" bash Scripts/test-r-console-integration.sh "$PWD/StatsDirect.app"
+        # The failing check and the runner's environment become annotations, which the public API shows without the job log.
+        run: |
+          echo "::notice title=Environment::image ${ImageOS:-unknown} ${ImageVersion:-unknown}; macOS $(sw_vers -productVersion); $(xcodebuild -version | tr '\n' ' '); $(R --version | head -1)"
+          set -o pipefail
+          if ! R_BIN="$(command -v R)" R_SCRIPT="$(command -v Rscript)" bash Scripts/test-r-console-integration.sh "$PWD/StatsDirect.app" 2>&1 | tee .build/r-console-integration.log; then
+            grep -c '^PASS' .build/r-console-integration.log | sed 's/^/::error title=R console integration::checks passed before the failure: /'
+            grep -n -E '^(FAIL|INFO)' .build/r-console-integration.log | tail -n 6 | sed 's/^/::error title=R console integration::/'
+            exit 1
+          fi
       - name: Startup, recent documents and guided R setup
         run: bash Scripts/test-startup-r-setup.sh
       - name: Script and report AI docks and sharing

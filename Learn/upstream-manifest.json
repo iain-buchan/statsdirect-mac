@@ -1,14 +1,14 @@
 {
   "repository": "https://github.com/iain-buchan/statisticalhelp",
-  "commit": "893c4e5826a6dd3ce4561758f26a1471e40d8a92",
-  "tag": "learning-v1.0.0",
+  "commit": "c07aa76c8987c418de917dc8b8bf706f9e40c606",
+  "tag": "learning-v1.0.1",
   "hostContract": 1,
   "files": {
     ".gitattributes": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9",
     "HOST-CONTRACT.md": "158152d4e68fef253180a08470445d7b0def2cfd0d65dc62bd195397d0f7105c",
-    "README.md": "f70f048b11e57c43adcc39c313b3d3990cbfe6fd658f2410d8e6ea4a3e505a1b",
+    "README.md": "2fd4f2f83d9f36f9bf4bcbfd26ef49458f69c7a4635e302583caf8d87ff05c0c",
     "app.mjs": "60b2b2a31bb752b7a28a35e2e60cf2811bd3f33f814d6570e6c98d3de4ae05e5",
-    "content-audit.test.mjs": "f8babae358c67a818c0c0f406cfe14e210de542f3060871430b35828cecee55b",
+    "content-audit.test.mjs": "00c4ed2ecb5262b6d0bdb1e5afc28e8fcdda5354cd061036a0734e0d0db37017",
     "conversation-view.mjs": "6abd6fb911b717ae8b9fe07ed48ff819d52a26ee3b15a6a091b0118c176bc1ea",
     "course-ui.mjs": "480ff5cfc2240fd4f6be0c223cad1a6f31f07fa828866d001a99ea39a27a8a9f",
     "exam-sources.mjs": "b00c5c474665179300c39cd9c9b50f856475029dd69c9090d6a1ccb0f4fd411b",
@@ -23,15 +23,15 @@
     "lesson-context.test.mjs": "4e1096ea2846848ade6985528677e85835894d791435106a945add28a57c8bfe",
     "lesson-guide.mjs": "43c3a81351ddb2852cb5b98b033c21d75c37c22cf44c2484cf8749041b66e45c",
     "library.test.mjs": "b62c17384a6ff5dc553310448e7ce11664d05ae9183a37721159898117d97dcb",
-    "package.json": "d91789d8a0ecbf8477f5cbc085a932fd6bf9a843d348d3a8b3a5186fbf730b17",
+    "package.json": "f2b2f712744835563f28aafdb3dcbe1be82d29989fdc37b4b73a3de22803b9c1",
     "pnpm-lock.yaml": "1d035a93f1a40979a7bff91e7e4c34950f0d65a00b286ef9f48d8e0400ca5db9",
     "portfolio.mjs": "935af9530205d50a957815ec130217704472ee0079f7a26edccd2433b7ce9649",
     "provider-course.mjs": "5ce61d8407df64b3263c5b854925345f3a71c6d6995d80fd1da35fc67d44c467",
     "provider-course.test.mjs": "a845fecc8fe30649893164d6cfdb52ffa3d7b0e7a07fbb92ecc70a931d945641",
-    "quiz.mjs": "b414a7111e7febc17dfbdc7315bf3ac402973947375172268e0a212e51f2b6d1",
+    "quiz.mjs": "650bd5e1c181920ebd5fe3d2b2fea1d84ec8f50b0106318dbc0efa9620637d70",
     "record-html.mjs": "96fe8fa75d5855b2ce28db1ba1ff0a6df022c2b143b3fda8bab2215e0db72e63",
     "rich-text.mjs": "be951c69b6cccb33f66e5fff720635bf1232379883244378619523685c9f5a20",
     "rich-text.test.mjs": "7fe4e0c69c028d64086c32f83c29c8cd0fe9688c69a8951886c6b9935f41234a",
-    "test-config.mjs": "95c2c9e86e38f8d7c8bf45e8c3e6b5ce5027bb4dbd83a4de9a0e19c42cf18b16"
+    "test-config.mjs": "15cfbfa87380fde82d74d9af4bedc8e7dd1ae746a20ab3bc53693a4959c5440b"
   }
 }

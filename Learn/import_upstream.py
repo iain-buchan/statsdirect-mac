@@ -7,8 +7,8 @@ commit (a learning-v* tag) in Learn/Upstream, run this with --write, review, and
 the manifest and the two copied files together.
 
 --write  records the pin, the tag when the commit carries one, the host-contract number and the SHA-256
-         of every file under Learning/ in Learn/upstream-manifest.json, and copies index.html and
-         learn.css into Content/Learn, where the app loads the page.
+         of every file under Learning/ in Learn/upstream-manifest.json, copies index.html and learn.css
+         into Content/Learn, where the app loads the page, and stages the submodule entry.
 --verify (the build) checks the submodule is at the recorded commit and clean, every file's hash, the
          two copies, that the package's host-contract.json, the manifest and Sources/LearningHostContract.swift
          agree, and that Learn/package.json pins the package's dependencies.
@@ -89,6 +89,8 @@ def write(allow_untagged=False):
     manifest_path.write_text(json.dumps(current, indent=2) + '\n')
     for name, target in copies.items():
         target.write_bytes((package / name).read_bytes())
+    # Recording the pin stages the submodule entry too, so the repository, the manifest and the checkout agree at once.
+    subprocess.check_call(['git', '-C', str(root), 'add', '--', 'Learn/Upstream'])
     print(f"Recorded Learning package {current['commit'][:8]}" + (f" ({current['tag']})" if current['tag'] else '')
           + f", {len(current['files'])} files, host contract {current['hostContract']}; copied {', '.join(copies)} into Content/Learn.")
     verify()

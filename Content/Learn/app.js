@@ -22234,7 +22234,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
 
   // Learn/Upstream/Learning/quiz.mjs
   var { bankVersion: bankVersion2, questions: questions2, tracks: tracks2 } = bank_exports;
-  var bankPublication2 = bankPublication ?? null;
+  var bankPublication2 = Reflect.get(bank_exports, "bankPublication") ?? null;
   function createSession(track, mode, id = crypto.randomUUID(), providerPack = null) {
     if (!tracks2[track] || !["learn", "test"].includes(mode)) throw new Error("Choose a valid learning path and mode.");
     const selected = providerPack?.questions ?? questions2.filter((q) => q.track === track || q.track === "core");

@@ -1,4 +1,4 @@
-dompurify 3.4.16
+dompurify 3.4.17
 
                                  Apache License
                            Version 2.0, January 2004
@@ -203,7 +203,7 @@ dompurify 3.4.16
    limitations under the License.
 
 
-dompurify 3.4.16
+dompurify 3.4.17
 Mozilla Public License Version 2.0
 ==================================
 

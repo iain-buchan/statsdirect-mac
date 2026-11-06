@@ -6,8 +6,9 @@ import {createSession,recordAnswer,learnerResult,sessionQuestion} from './quiz.m
 import {restorePortfolio,newPortfolio} from './portfolio.mjs';
 import {lessonGuideHTML} from './lesson-guide.mjs';
 import {safeURL} from './provider-course.mjs';
-import {lessonChecks} from './content-audit.test.mjs';
-const lessons=JSON.parse(readFileSync(new URL('./lessons.json',import.meta.url)));
+import {lessonChecks} from './lesson-checks.mjs';
+import {contentFile} from './test-config.mjs';
+const lessons=JSON.parse(readFileSync(contentFile('Learn/lessons.json')));
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 test('every curated lesson has reviewed teaching fields, resolvable prerequisites, sources and numerical checks',()=>{
@@ -50,7 +51,7 @@ test('the expandable guide shows curated content and safe references without exp
     assert.ok(html.includes(esc(l.keyConcepts[0].explanation)));assert.ok(html.includes(esc(l.workedExample.interpretation)));
     assert.ok(html.includes(l.sources[0].url));assert.ok(html.includes(esc(l.teachingPrompts[0].prompt)));
     for(const s of l.sources)assert.ok(html.includes(`Checked ${s.checkedAt}.`));
-    assert.ok(html.includes(l.review.status));assert.ok(html.includes(l.review.date));
+    assert.ok(!html.includes('Original StatsDirect teaching material'));assert.ok(!html.includes(l.review.status));
     assert.ok(!html.includes('subject-expert review pending'));
     for(const q of l.practiceQuestions)assert.ok(!html.includes(q.explanation));
   }

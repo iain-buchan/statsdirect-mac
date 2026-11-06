@@ -22,7 +22,12 @@ body.study-mode{height:100vh;height:100dvh;display:flex;flex-direction:column;ov
 .study-mode .chat-heading,.study-mode .composer{flex:none}
 /* Size containment keeps long replies inside their own scroller. The chat's
    minimum includes its controls and a readable viewport, even on short screens. */
-.study-mode .messages{flex:1;min-height:130px;contain:size;max-height:none;overflow-y:auto}
+.study-mode .messages{flex:1;min-height:130px;max-height:none;overflow-y:auto}
+/* Host variants, by the host-<platform> class the page sets on the document element: the Mac keeps size containment
+   for the scroller; the Windows host keeps its taller chat with no minimum for the scroller. */
+.host-mac .study-mode .messages{contain:size}
+.host-windows .study-mode .chat{min-height:230px}
+.host-windows .study-mode .messages{min-height:0}
 .study-mode .composer{padding:9px 14px}
 .study-mode .composer textarea{max-height:140px}
 .study-mode #chatStatus:empty{display:none}

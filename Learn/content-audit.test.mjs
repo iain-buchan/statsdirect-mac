@@ -1,13 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
+import {existsSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
 import {questions} from './bank.mjs';
-import {questions as archived} from '../Docs/Learn/bank.mjs';
+import {runR,archivedBank,archiveRequested} from './test-config.mjs';
+// The archive comparison runs where an archived bank exists; a host that names one with STATSDIRECT_LEARN_ARCHIVE must supply it.
+let archived=null,archiveError=null;
+if(archiveRequested||existsSync(fileURLToPath(archivedBank))){
+  try{const module=await import(archivedBank);archived=module.questions;if(!Array.isArray(archived))throw Error('the archive exports no questions array');}
+  catch(error){archiveError=`${fileURLToPath(archivedBank)}: ${error.message}`;}
+}
 
-test('published lessons and archived questions use the maintained content',()=>{
-  assert.deepEqual(JSON.parse(readFileSync(new URL('./lessons.json',import.meta.url))),
-    JSON.parse(readFileSync(new URL('../Content/Learn/lessons.json',import.meta.url))));
+test('archived questions use the maintained content',{skip:!archived&&!archiveError?'no archived question bank on this host':false},()=>{
+  assert.equal(archiveError,null,archiveError);
   for(const q of archived) assert.deepEqual(q,questions.find(current=>current.id===q.id));
 });
 
@@ -35,8 +40,8 @@ test('reviewed numerical choices agree with independently expressed R calculatio
     ['LIB-VALIDATION-01','B','Correlation is unchanged, but mean prediction error becomes +10 points.',0,'cor(c(12,18,31,39,51,59,72,78),seq(10,80,10)+10)-cor(c(12,18,31,39,51,59,72,78),seq(10,80,10))'],
     ['LIB-META-01','E','4:1',4,'(1/0.02^2)/(1/0.04^2)'],
   ];
-  const output=execFileSync('/Library/Frameworks/R.framework/Resources/bin/Rscript',
-    ['--vanilla','-e',`cat(sprintf('%.17g',c(${fixtures.map(f=>f[4]).join(',')})),sep='\n')`],{encoding:'utf8'});
+  const output=runR(
+    ['--vanilla','-e',`cat(sprintf('%.17g',c(${fixtures.map(f=>f[4]).join(',')})),sep='\n')`]);
   const results=output.trim().split(/\s+/).map(Number);
   fixtures.forEach(([id,key,choice,expected],i)=>{
     const q=questions.find(q=>q.id===id);
@@ -52,44 +57,3 @@ test('reviewed numerical choices agree with independently expressed R calculatio
 });
 
 // Run after each actual bundled R script, in that script's environment.
-export const lessonChecks={
-  paired:`stopifnot(length(change)==8, mean(change)==5.25,
-    identical(change,c(7,2,8,4,3,8,2,8)), t.test(change)$parameter==7)`,
-  precision:`stopifnot(length(wait)==12, sum(wait)==232, median(wait)==17.5,
-    isTRUE(all.equal(sd(wait)^2,sum((wait-232/12)^2)/11)),
-    max(abs(mean_ci-(mean(wait)+c(-1,1)*qt(0.975,11)*sd(wait)/sqrt(12))))<1e-12,
-    attr(mean_ci,'conf.level')==0.95)`,
-  diagnostic:`stopifnot(counts['Positive','Present']==72,counts['Positive','Absent']==81,
-    counts['Negative','Present']==18,counts['Negative','Absent']==729,
-    tp/(tp+fn)==0.8,tn/(tn+fp)==0.9,abs(tp/(tp+fp)-8/17)<1e-12,
-    abs(tn/(tn+fn)-81/83)<1e-12,
-    abs(pbinom(71,90,sensitivity_ci[1],lower.tail=FALSE)-0.025)<1e-12,
-    abs(pbinom(72,90,sensitivity_ci[2])-0.025)<1e-12)`,
-  risk:`stopifnot(identical(events,c(16,28)),identical(totals,c(200,200)),
-    abs(arr-0.06)<1e-12,abs(risk[1]/risk[2]-4/7)<1e-12,ceiling(1/arr)==17,
-    arr_ci[1]<0,arr_ci[2]>0,attr(arr_ci,'conf.level')==0.95,
-    abs(arr_ci[1]-(-0.00144505772741457))<1e-12,
-    abs(arr_ci[2]-0.123548112373396)<1e-12)`,
-  regression:`stopifnot(nrow(data)==8,range(data$Minutes)==c(10,24),df.residual(fit)==6,
-    abs(unname(coef(fit)[2])-sum((data$Minutes-17)*(data$Satisfaction-66.625))/168)<1e-12)`,
-  epidemiology:`stopifnot(identical(events,c(30,15)),identical(at_risk,c(300,300)),
-    (events[1]/at_risk[1])/(events[2]/at_risk[2])==2,
-    abs(diff(rev(events/at_risk))-0.05)<1e-12)`,
-  causal:`stopifnot(sum(data$Exposed_events)==44,sum(data$Unexposed_events)==26,
-    all(data$Exposed_risk==data$Unexposed_risk),all(abs(standardised-0.175)<1e-12),
-    sum(weights)==1,standardised[1]/standardised[2]==1)`,
-  rates:`stopifnot(identical(unname(crude),c(840,360)),all(abs(standardised-400)<1e-10),
-    all(rate_a==rate_b),identical(weights,c(0.75,0.25)),sum(area_a$Events)==840)`,
-  appraisal:`stopifnot(abs(observed_rr-5/6)<1e-12,all(abs(programme_bounds-c(0.2,0.4))<1e-12),
-    all(abs(arr_bounds-c(-0.1,0.1))<1e-12),identical(unname(missing),c(20,0)))`,
-  missing:`stopifnot(sum(is.na(score))==2,length(score)==8,sum(score,na.rm=TRUE)==140,
-    abs(observed_mean-70/3)<1e-12,identical(mean_bounds,c(17.5,27.5)),
-    sd(filled)<sd(score,na.rm=TRUE),abs(mean(filled)-observed_mean)<1e-12)`,
-  validation:`stopifnot(length(observed)==8,identical(observed-predicted,c(2,-2,1,-1,1,-1,2,-2)),
-    abs(metrics[1,'Correlation']-metrics[2,'Correlation'])<1e-12,
-    abs(metrics[1,'RMSE']-sqrt(2.5))<1e-12,abs(metrics[2,'RMSE']-sqrt(102.5))<1e-12,
-    metrics[1,'Mean_error']==0,metrics[2,'Mean_error']==10)`,
-  meta:`stopifnot(identical(weight,c(2500,625,2500)),abs(pooled+0.04)<1e-12,
-    abs(pooled_se-1/75)<1e-12,abs(q-1.25)<1e-12,
-    max(abs(pooled_ci-c(-0.0661328531272007,-0.0138671468727993)))<1e-12)`
-};

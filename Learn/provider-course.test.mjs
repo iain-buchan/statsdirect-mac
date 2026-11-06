@@ -4,7 +4,8 @@ import {readFileSync} from 'node:fs';
 import {courseLessons,courseQuestions,adoptCourse,submitCourseWork,addProviderReview,validEmail,safeURL} from './provider-course.mjs';
 import {newPortfolio,restorePortfolio,reviewRecord,reviewText,transcriptEntry} from './portfolio.mjs';
 import {createSession,recordAnswer,recordAssistance} from './quiz.mjs';
-const fixture=()=>JSON.parse(readFileSync(new URL('../Content/Learn/provider-course-example.json',import.meta.url)));
+import {contentFile} from './test-config.mjs';
+const fixture=()=>JSON.parse(readFileSync(contentFile('Learn/provider-course-example.json')));
 test('provider lessons, submissions, keys and metadata survive changes to the active pack',()=>{
  const p=newPortfolio(),pack=fixture();adoptCourse(p,pack);const l=courseLessons(pack)[1];
  submitCourseWork(p,l,'Paired differences use the same staff. The design cannot isolate a causal effect.');

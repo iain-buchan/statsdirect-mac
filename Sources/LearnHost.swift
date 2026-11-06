@@ -2,6 +2,9 @@ import Cocoa
 import WebKit
 import UniformTypeIdentifiers
 
+// The Learning page talks to its host through window.statsDirectHost (Learn/HOST-CONTRACT.md); on the Mac it forwards to the WebKit message handler.
+let learningHostScript = WKUserScript(source: "window.statsDirectHost={platform:'mac',postMessage:body=>window.webkit?.messageHandlers?.statsDirectLearn?.postMessage(body)};", injectionTime: .atDocumentStart, forMainFrameOnly: true)
+
 extension Viewer {
     var learningFolder: URL {
         if let learningStorageOverride { return learningStorageOverride }

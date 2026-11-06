@@ -479,7 +479,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if kind == "report" && url == nil { doc.web.configuration.userContentController.add(self, name: "statsDirectReport") }
         if kind == "grid" { doc.web.configuration.userContentController.add(self, name: "statsDirectGrid") }
         if kind == "operation" { doc.web.configuration.userContentController.add(self, name: "statsDirectOperation") }
-        if kind == "learn" { doc.web.configuration.userContentController.add(self, name: "statsDirectLearn") }
+        if kind == "learn" { doc.web.configuration.userContentController.add(self, name: "statsDirectLearn"); doc.web.configuration.userContentController.addUserScript(learningHostScript) }
         if kind == "analysis" { doc.web.configuration.userContentController.add(self, name: "statsDirectAnalysis") }
         doc.hasSVG = html?.contains("<svg") == true
         doc.initialURL = url; doc.web.navigationDelegate = self; doc.web.uiDelegate = self

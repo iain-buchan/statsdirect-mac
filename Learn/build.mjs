@@ -7,8 +7,7 @@ const {cp,readFile,writeFile,mkdir}=await import('node:fs/promises');
 await mkdir(new URL('../Content/Learn/katex/',import.meta.url),{recursive:true});
 for(const file of ['katex.min.css','fonts'])await cp(new URL('./node_modules/katex/dist/'+file,import.meta.url),new URL('../Content/Learn/katex/'+file,import.meta.url),{recursive:true});
 const licenses=[];
-// marked comes from the Grid package's modules (rich-text.mjs imports it from there), so its notice is read from there too
-for(const [name,folder] of [['dompurify','./node_modules/dompurify/'],['katex','./node_modules/katex/'],['highlight.js','./node_modules/highlight.js/'],['marked','../Grid/node_modules/marked/']]){
+for(const [name,folder] of [['dompurify','./node_modules/dompurify/'],['katex','./node_modules/katex/'],['highlight.js','./node_modules/highlight.js/'],['marked','./node_modules/marked/']]){
  const pkg=JSON.parse(await readFile(new URL(`${folder}package.json`,import.meta.url),'utf8'));
  const {readdir}=await import('node:fs/promises');
  const root=new URL(folder,import.meta.url);

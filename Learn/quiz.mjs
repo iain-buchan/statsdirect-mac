@@ -1,4 +1,7 @@
-import {bankVersion, bankPublication, questions, tracks} from './bank.mjs';
+import * as bank from './bank.mjs';
+// The host build supplies bank.mjs: bankVersion, tracks and questions are required; bankPublication, the record of where the content came from, is optional and null when the host keeps none.
+const {bankVersion, questions, tracks} = bank;
+const bankPublication = bank.bankPublication ?? null;
 
 export function createSession(track, mode, id = crypto.randomUUID(), providerPack = null) {
   if (!tracks[track] || !['learn','test'].includes(mode)) throw new Error('Choose a valid learning path and mode.');

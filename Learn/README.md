@@ -90,3 +90,7 @@ The pinned runtime requires `features.code_mode_host = true` to deliver register
 `python3 Tests/run_beta_feedback.py` exercises the native UI and exports after a build. Add `--live` to use this Mac's existing StatsDirect ChatGPT sign-in with bundled example data. Other checks use a local protocol fixture.
 
 Routine native tests inject a mock tutor before loading Learning; they never initialise the real Keychain-backed runtime. Only an explicit `--live` check uses the saved StatsDirect sign-in.
+
+## Shared with the Windows version
+
+The modules in this folder (app.mjs and the files it imports, host.mjs, lesson-checks.mjs, test-config.mjs, host-contract.json, the tests) and the page shell `Content/Learn/index.html` and stylesheet `Content/Learn/learn.css` are platform-neutral and are the source the Windows version builds from; the host contract they rely on is in `HOST-CONTRACT.md`. Host-side files stay in this repository: `build.mjs`, `bank.mjs` (the provenance shim the shared code imports as `./bank.mjs`), `ai-conversation.mjs` (the report pane's conversation page), `authored-content.test.mjs`, `create-lessons.py` and the tutor content landings `AuthoredTutor/` and `lessons.json` (the Mac's managed copy for its own checks; the page imports `Content/Learn/lessons.json`). The tests read `STATSDIRECT_CONTENT_ROOT`, `STATSDIRECT_LEARN_ARCHIVE` and `STATSDIRECT_RSCRIPT` (see `test-config.mjs`); `test.sh` sets the content root.

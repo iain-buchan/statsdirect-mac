@@ -26,6 +26,7 @@ extension Viewer {
         web.document = doc; doc.web = web; doc.item.view = web
         web.navigationDelegate = self; web.uiDelegate = self
         web.configuration.userContentController.add(self,name:"statsDirectLearn")
+        web.configuration.userContentController.addUserScript(learningHostScript)
         doc.learningRendererReady = false; doc.learningNeedsRecovery = false
         let url = root.appendingPathComponent("Learn/index.html")
         doc.initialURL = url

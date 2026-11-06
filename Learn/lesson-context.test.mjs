@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {newPortfolio,transcriptEntry,restorePortfolio,reviewRecord,reviewText} from './portfolio.mjs';
 import {labelStudyGuides,ensureLessonPrompt,guidePresentation,conversationForTutor,lessonConversation,visibleLessonConversation,optionLetters,awaitingAnswer} from './lesson-context.mjs';
-const lessons=JSON.parse(readFileSync(new URL('../Content/Learn/lessons.json',import.meta.url)));
+import {contentFile} from './test-config.mjs';
+const lessons=JSON.parse(readFileSync(contentFile('Learn/lessons.json')));
 const epi=lessons.find(l=>l.id==='epidemiology'),paired=lessons.find(l=>l.id==='paired');
 test('reopening paired lesson labels and collapses a legacy epidemiology prompt without deleting history',()=>{
   const s=newPortfolio();s.lesson='paired';s.draft='My unfinished answer';

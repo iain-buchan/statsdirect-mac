@@ -1,4 +1,4 @@
-import {marked} from '../Grid/node_modules/marked/lib/marked.esm.js';
+import {marked} from 'marked';
 import DOMPurify from 'dompurify';
 import katex from 'katex';
 import hljs from 'highlight.js/lib/core';

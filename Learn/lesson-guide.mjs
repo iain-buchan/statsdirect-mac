@@ -21,6 +21,6 @@ export function lessonGuideHTML(lesson, catalogue, esc, safeURL) {
   if(lesson.teachingPrompts?.length)html+=section('Think it through',list(lesson.teachingPrompts.map(p=>p.prompt)));
   if(lesson.rProgression)html+=section('From menus to R',list([lesson.rProgression.menus,lesson.rProgression.bridge,lesson.rProgression.coding]));
   if(lesson.sources?.length)html+=section('References and further reading',`<ul>${lesson.sources.map(s=>`<li>${safeURL(s.url)?`<a href="${esc(safeURL(s.url))}" target="_blank" rel="noopener">${esc(s.title)}</a>`:esc(s.title)} — ${esc(s.scope)}${s.checkedAt?` <span class="small">Checked ${esc(s.checkedAt)}.</span>`:''}</li>`).join('')}</ul>`);
-  if(lesson.review?.status)html+=`<p class="small">Original StatsDirect teaching material. ${esc(lesson.review.status)}${lesson.review.reviewer?' · '+esc(lesson.review.reviewer):''}${lesson.review.date?' · '+esc(lesson.review.date):''}.</p>`;
+  // Learners see no provenance of the teaching material here; the review record stays in the lesson data and the exports.
   return html;
 }

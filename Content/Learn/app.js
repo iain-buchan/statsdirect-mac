@@ -8,6 +8,10 @@
   var __commonJS = (cb, mod) => function __require() {
     return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
   };
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
   var __copyProps = (to, from, except, desc) => {
     if (from && typeof from === "object" || typeof from === "function") {
       for (let key of __getOwnPropNames(from))
@@ -1579,7 +1583,7 @@
     }
   });
 
-  // Grid/node_modules/.pnpm/marked@4.3.0/node_modules/marked/lib/marked.esm.js
+  // Learn/node_modules/.pnpm/marked@4.3.0/node_modules/marked/lib/marked.esm.js
   function getDefaults() {
     return {
       async: false,
@@ -3741,7 +3745,7 @@ ${content}</tr>
   var parser = Parser.parse;
   var lexer = Lexer.lex;
 
-  // Learn/node_modules/.pnpm/dompurify@3.4.16/node_modules/dompurify/dist/purify.es.mjs
+  // Learn/node_modules/.pnpm/dompurify@3.4.17/node_modules/dompurify/dist/purify.es.mjs
   function _OverloadYield(e2, d) {
     this.v = e2, this.k = d;
   }
@@ -3864,9 +3868,12 @@ ${content}</tr>
   var arrayLastIndexOf = unapply(Array.prototype.lastIndexOf);
   var arrayPop = unapply(Array.prototype.pop);
   var arrayPush = unapply(Array.prototype.push);
-  Array.prototype.slice;
+  var arraySlice = unapply(Array.prototype.slice);
   var arraySplice = unapply(Array.prototype.splice);
   var arrayIsArray = Array.isArray;
+  var setCreate = unconstruct(Set);
+  var setAdd = unapply(Set.prototype.add);
+  var setHas = unapply(Set.prototype.has);
   var stringToLowerCase = unapply(String.prototype.toLowerCase);
   var stringToString = unapply(String.prototype.toString);
   var stringMatch = unapply(String.prototype.match);
@@ -3972,6 +3979,14 @@ ${content}</tr>
       return null;
     }
     return fallbackValue;
+  }
+  function lookupAccessor(object, prop) {
+    while (object !== null) {
+      const desc = getOwnPropertyDescriptor(object, prop);
+      if (desc) return desc.get ? unapply(desc.get) : null;
+      object = getPrototypeOf(object);
+    }
+    return null;
   }
   function isRegex(value) {
     try {
@@ -4657,7 +4672,7 @@ ${content}</tr>
     documentFragment: 11,
     notation: 12
   };
-  var LITERAL_TEXT_ELEMENT_NAMES = [
+  var LITERAL_TEXT_ELEMENTS = freeze(addToSet({}, [
     "style",
     "script",
     "xmp",
@@ -4666,15 +4681,7 @@ ${content}</tr>
     "noframes",
     "plaintext",
     "noscript"
-  ];
-  var LITERAL_TEXT_ELEMENTS = freeze(addToSet({}, LITERAL_TEXT_ELEMENT_NAMES));
-  var LITERAL_TEXT_CLOSE = (function() {
-    const map = {};
-    arrayForEach(LITERAL_TEXT_ELEMENT_NAMES, (name) => {
-      map[name] = seal(new RegExp("</" + name + "(?=[\\t\\n\\f\\r />])", "i"));
-    });
-    return freeze(map);
-  })();
+  ]));
   var getGlobal = function getGlobal2() {
     return typeof window === "undefined" ? null : window;
   };
@@ -4721,7 +4728,7 @@ ${content}</tr>
   function createDOMPurify() {
     let window2 = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
     const DOMPurify = (root) => createDOMPurify(root);
-    DOMPurify.version = "3.4.16";
+    DOMPurify.version = "3.4.17";
     DOMPurify.removed = [];
     if (!window2 || !window2.document || window2.document.nodeType !== NODE_TYPE.document || !window2.Element) {
       DOMPurify.isSupported = false;
@@ -4752,6 +4759,10 @@ ${content}</tr>
     };
     const _readNodeName = function _readNodeName2(node) {
       return getNodeName ? getNodeName(node) : node.nodeName;
+    };
+    const getNamespaceURI = lookupAccessor(ElementPrototype, "namespaceURI");
+    const _readNamespaceURI = function _readNamespaceURI2(element) {
+      return getNamespaceURI ? getNamespaceURI(element) : element.namespaceURI;
     };
     if (typeof HTMLTemplateElement === "function") {
       const template = document2.createElement("template");
@@ -4866,6 +4877,7 @@ ${content}</tr>
     const SANITIZE_NAMED_PROPS_PREFIX = "user-content-";
     let KEEP_CONTENT = true;
     let IN_PLACE = false;
+    let IN_PLACE_VISITED = null;
     let USE_PROFILES = {};
     let FORBID_CONTENTS = null;
     const DEFAULT_FORBID_CONTENTS = addToSet({}, [
@@ -5104,18 +5116,23 @@ ${content}</tr>
       return !ALL_MATHML_TAGS[tagName] && (COMMON_SVG_AND_HTML_ELEMENTS[tagName] || !ALL_SVG_TAGS[tagName]);
     };
     const _checkValidNamespace = function _checkValidNamespace2(element) {
-      let parent = getParentNode(element);
-      if (!parent || !parent.tagName) parent = {
-        namespaceURI: NAMESPACE,
-        tagName: "template"
-      };
-      const tagName = stringToLowerCase(element.tagName);
-      const parentTagName = stringToLowerCase(parent.tagName);
-      if (!ALLOWED_NAMESPACES[element.namespaceURI]) return false;
-      if (element.namespaceURI === SVG_NAMESPACE) return _checkSvgNamespace(tagName, parent, parentTagName);
-      if (element.namespaceURI === MATHML_NAMESPACE) return _checkMathMlNamespace(tagName, parent, parentTagName);
-      if (element.namespaceURI === HTML_NAMESPACE) return _checkHtmlNamespace(tagName, parent, parentTagName);
-      if (PARSER_MEDIA_TYPE === "application/xhtml+xml" && ALLOWED_NAMESPACES[element.namespaceURI]) return true;
+      const elementNamespace = _readNamespaceURI(element);
+      const tagName = stringToLowerCase(_readNodeName(element));
+      const parentNode = getParentNode(element);
+      let parent;
+      let parentTagName;
+      if (parentNode && _readNodeType(parentNode) === NODE_TYPE.element) {
+        parent = { namespaceURI: _readNamespaceURI(parentNode) };
+        parentTagName = stringToLowerCase(_readNodeName(parentNode));
+      } else {
+        parent = { namespaceURI: NAMESPACE };
+        parentTagName = "template";
+      }
+      if (!ALLOWED_NAMESPACES[elementNamespace]) return false;
+      if (elementNamespace === SVG_NAMESPACE) return _checkSvgNamespace(tagName, parent, parentTagName);
+      if (elementNamespace === MATHML_NAMESPACE) return _checkMathMlNamespace(tagName, parent, parentTagName);
+      if (elementNamespace === HTML_NAMESPACE) return _checkHtmlNamespace(tagName, parent, parentTagName);
+      if (PARSER_MEDIA_TYPE === "application/xhtml+xml" && ALLOWED_NAMESPACES[elementNamespace]) return true;
       return false;
     };
     const _forceRemove = function _forceRemove2(node) {
@@ -5140,19 +5157,13 @@ ${content}</tr>
     const _neutralizeRoot = function _neutralizeRoot2(root) {
       _neutralizeSubtree(root);
       const childNodes = getChildNodes(root);
-      if (childNodes) {
-        const snapshot = [];
-        arrayForEach(childNodes, (child) => {
-          arrayPush(snapshot, child);
-        });
-        arrayForEach(snapshot, (child) => {
-          try {
-            remove(child);
-          } catch (_) {
-          }
-        });
-      }
-      const attributes = getAttributes(root);
+      if (childNodes) arrayForEach(arraySlice(childNodes), (child) => {
+        try {
+          remove(child);
+        } catch (_) {
+        }
+      });
+      const attributes = _readNodeType(root) === NODE_TYPE.element ? getAttributes(root) : null;
       if (attributes) for (let i = attributes.length - 1; i >= 0; --i) {
         const attribute = attributes[i];
         const name = attribute && attribute.name;
@@ -5199,14 +5210,93 @@ ${content}</tr>
         _stripAttributeNode(element, attribute, name);
       }
     };
-    const _neutralizeSubtree = function _neutralizeSubtree2(root) {
+    const _walkTree = function _walkTree2(root, visit) {
+      let intoShadow = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : false;
       const stack = [root];
       while (stack.length > 0) {
         const node = stack.pop();
-        if (_readNodeType(node) === NODE_TYPE.element) _stripDisallowedAttributes(node);
+        if (visit(node) === false) continue;
+        if (intoShadow && _readNodeType(node) === NODE_TYPE.element) {
+          const shadowRoot = getShadowRoot(node);
+          if (_isDocumentFragment(shadowRoot)) stack.push(shadowRoot);
+        }
         const childNodes = getChildNodes(node);
         if (childNodes) for (let i = childNodes.length - 1; i >= 0; --i) stack.push(childNodes[i]);
       }
+    };
+    const _neutralizeSubtree = function _neutralizeSubtree2(root) {
+      _walkTree(root, (node) => {
+        if (_readNodeType(node) === NODE_TYPE.element) _stripDisallowedAttributes(node);
+      });
+    };
+    const _collectLiveNodes = function _collectLiveNodes2(root) {
+      const nodes = [];
+      _walkTree(root, (node) => {
+        nodes.push(node);
+      }, true);
+      return nodes;
+    };
+    const _neutralizeEscapedElements = function _neutralizeEscapedElements2(root, before) {
+      const reachable = setCreate();
+      arrayForEach(_collectLiveNodes(root), (node) => {
+        if (_readNodeType(node) === NODE_TYPE.element) setAdd(reachable, node);
+      });
+      arrayForEach(before, (node) => {
+        if (_readNodeType(node) === NODE_TYPE.element && !setHas(reachable, node)) _stripDisallowedAttributes(node);
+      });
+    };
+    const _neutralizeDiscarded = function _neutralizeDiscarded2(root, before) {
+      let rootRemoved = false;
+      arrayForEach(DOMPurify.removed, (entry) => {
+        if (entry.element) {
+          rootRemoved = rootRemoved || entry.element === root;
+          _neutralizeSubtree(entry.element);
+        }
+      });
+      _neutralizeEscapedElements(root, before);
+      return rootRemoved;
+    };
+    const MAX_UNVISITED_ROUNDS = 8;
+    const _sanitizeUnvisitedNodes = function _sanitizeUnvisitedNodes2(root, before) {
+      const visited = IN_PLACE_VISITED;
+      let original = null;
+      const getOriginal = () => {
+        if (!original) {
+          original = setCreate();
+          arrayForEach(before, (beforeNode) => {
+            setAdd(original, beforeNode);
+          });
+        }
+        return original;
+      };
+      for (let round = 0; ; round++) {
+        const live = _collectLiveNodes(root);
+        const containers = [root];
+        let pending2 = false;
+        arrayForEach(live, (node) => {
+          if (_readNodeType(node) === NODE_TYPE.documentFragment) arrayPush(containers, node);
+          else if (!pending2 && !setHas(visited, node)) pending2 = setHas(getOriginal(), node);
+        });
+        if (!pending2) return;
+        if (round >= MAX_UNVISITED_ROUNDS) throw typeErrorCreate("the tree kept changing during in-place sanitization; refusing to return it");
+        arrayForEach(containers, (container, index) => {
+          _sanitizeUnvisitedIn(container, index > 0, root, getOriginal());
+        });
+      }
+    };
+    const _sanitizeUnvisitedIn = function _sanitizeUnvisitedIn2(container, inShadow, root, original) {
+      const iterator = _createNodeIterator(container);
+      let node;
+      while (node = iterator.nextNode()) {
+        if (!setHas(original, node) || setHas(IN_PLACE_VISITED, node)) continue;
+        if (inShadow) _executeHooks(hooks.uponSanitizeShadowNode, node, null);
+        _sanitizeElements(node, root);
+        _sanitizeAttributes(node, root);
+        if (_isDocumentFragment(node.content)) _sanitizeShadowDOM2(node.content);
+      }
+    };
+    const _markVisited = function _markVisited2(node) {
+      if (IN_PLACE_VISITED) setAdd(IN_PLACE_VISITED, node);
     };
     const _isPatchLinkageAttribute = function _isPatchLinkageAttribute2(lcName, lcTag) {
       if (!SAFE_FOR_XML) return false;
@@ -5215,16 +5305,14 @@ ${content}</tr>
     };
     const _neutralizePatchLinkage = function _neutralizePatchLinkage2(root) {
       if (!SAFE_FOR_XML) return;
-      const stack = [root];
-      while (stack.length > 0) {
-        const node = stack.pop();
+      _walkTree(root, (node) => {
         const nodeType = _readNodeType(node);
         if (nodeType === NODE_TYPE.processingInstruction || nodeType === NODE_TYPE.comment && regExpTest(COMMENT_MARKUP_PROBE, node.data)) {
           try {
             remove(node);
           } catch (_) {
           }
-          continue;
+          return false;
         }
         if (nodeType === NODE_TYPE.element) {
           const element = node;
@@ -5235,9 +5323,8 @@ ${content}</tr>
           } catch (_) {
           }
         }
-        const childNodes = getChildNodes(node);
-        if (childNodes) for (let i = childNodes.length - 1; i >= 0; --i) stack.push(childNodes[i]);
-      }
+        return true;
+      });
     };
     const _initDocument = function _initDocument2(dirty) {
       let doc = null;
@@ -5277,6 +5364,13 @@ ${content}</tr>
     };
     const _scrubTemplateExpressions2 = function _scrubTemplateExpressions(node) {
       var _node$querySelectorAl;
+      _scrubOwnCharacterData(node);
+      const templates = (_node$querySelectorAl = node.querySelectorAll) === null || _node$querySelectorAl === void 0 ? void 0 : _node$querySelectorAl.call(node, "template");
+      if (templates) arrayForEach(templates, (tmpl) => {
+        if (_isDocumentFragment(tmpl.content)) _scrubTemplateExpressions2(tmpl.content);
+      });
+    };
+    const _scrubOwnCharacterData = function _scrubOwnCharacterData2(node) {
       node.normalize();
       const doc = getOwnerDocument ? getOwnerDocument(node) : node.ownerDocument;
       const walker = createNodeIterator.call(doc || node, node, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_CDATA_SECTION | NodeFilter.SHOW_PROCESSING_INSTRUCTION, null);
@@ -5285,10 +5379,6 @@ ${content}</tr>
         currentNode.data = _stripTemplateExpressions(currentNode.data);
         currentNode = walker.nextNode();
       }
-      const templates = (_node$querySelectorAl = node.querySelectorAll) === null || _node$querySelectorAl === void 0 ? void 0 : _node$querySelectorAl.call(node, "template");
-      if (templates) arrayForEach(templates, (tmpl) => {
-        if (_isDocumentFragment(tmpl.content)) _scrubTemplateExpressions2(tmpl.content);
-      });
     };
     const _isClobbered = function _isClobbered2(element) {
       const realTagName = getNodeName ? getNodeName(element) : null;
@@ -5320,7 +5410,7 @@ ${content}</tr>
     }
     const _isUnsafeNode = function _isUnsafeNode2(currentNode, tagName) {
       if (SAFE_FOR_XML && currentNode.hasChildNodes() && !_isNode(currentNode.firstElementChild) && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.textContent) && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.innerHTML)) return true;
-      if (SAFE_FOR_XML && currentNode.namespaceURI === HTML_NAMESPACE && LITERAL_TEXT_ELEMENTS[tagName] && (_isNode(currentNode.firstElementChild) || typeof currentNode.textContent === "string" && regExpTest(LITERAL_TEXT_CLOSE[tagName], currentNode.textContent))) return true;
+      if (SAFE_FOR_XML && LITERAL_TEXT_ELEMENTS[tagName] && _readNodeType(currentNode) === NODE_TYPE.element && _readNamespaceURI(currentNode) === HTML_NAMESPACE && (_isNode(currentNode.firstElementChild) || typeof currentNode.textContent === "string" && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.textContent))) return true;
       if (currentNode.nodeType === NODE_TYPE.processingInstruction) return true;
       if (SAFE_FOR_XML && currentNode.nodeType === NODE_TYPE.comment && regExpTest(COMMENT_MARKUP_PROBE, currentNode.data)) return true;
       return false;
@@ -5335,7 +5425,7 @@ ${content}</tr>
     };
     const _sanitizeDisallowedNode = function _sanitizeDisallowedNode2(currentNode, tagName, root) {
       if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName) && _matchesNameCheck(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) return false;
-      if (KEEP_CONTENT && !FORBID_CONTENTS[tagName]) {
+      if (KEEP_CONTENT && !FORBID_CONTENTS[tagName] && !FORBID_CONTENTS[stringToLowerCase(tagName)]) {
         const parentNode = getParentNode(currentNode);
         const childNodes = getChildNodes(currentNode);
         if (childNodes && parentNode) {
@@ -5359,6 +5449,7 @@ ${content}</tr>
       return true;
     };
     const _sanitizeElements = function _sanitizeElements2(currentNode, root) {
+      _markVisited(currentNode);
       _executeHooks(hooks.beforeSanitizeElements, currentNode, null);
       if (_handleHookDetachedNode(currentNode, root)) return true;
       if (_isClobbered(currentNode)) {
@@ -5452,6 +5543,10 @@ ${content}</tr>
         return false;
       }
     };
+    const _isUnsafeAttributeValue = function _isUnsafeAttributeValue2(name, value) {
+      if (SAFE_FOR_XML && regExpTest(/((--!?|])>)|<\/(style|script|title|xmp|textarea|noscript|iframe|noembed|noframes)/i, value)) return true;
+      return stringToLowerCase(name) === "attributename" && stringMatch(value, "href") !== null;
+    };
     const _sanitizeAttributes = function _sanitizeAttributes2(currentNode, root) {
       _executeHooks(hooks.beforeSanitizeAttributes, currentNode, null);
       if (_handleHookDetachedNode(currentNode, root)) return;
@@ -5485,11 +5580,7 @@ ${content}</tr>
           value = SANITIZE_NAMED_PROPS_PREFIX + value;
           recreatedNamedProp = true;
         }
-        if (SAFE_FOR_XML && regExpTest(/((--!?|])>)|<\/(style|script|title|xmp|textarea|noscript|iframe|noembed|noframes)/i, value)) {
-          _removeAttribute(name, currentNode, attr);
-          continue;
-        }
-        if (lcName === "attributename" && stringMatch(value, "href")) {
+        if (_isUnsafeAttributeValue(name, value)) {
           _removeAttribute(name, currentNode, attr);
           continue;
         }
@@ -5532,6 +5623,7 @@ ${content}</tr>
           }
         }
       }
+      if (SAFE_FOR_TEMPLATES) _scrubOwnCharacterData(fragment);
       _executeHooks(hooks.afterSanitizeShadowDOM, fragment, null);
     };
     const _sanitizeAttachedShadowRoots = function _sanitizeAttachedShadowRoots2(root) {
@@ -5595,6 +5687,8 @@ ${content}</tr>
       if (hooks.uponSanitizeAttribute.length > 0) ALLOWED_ATTR = clone(ALLOWED_ATTR);
       DOMPurify.removed = [];
       const inPlace = IN_PLACE && typeof dirty !== "string" && _isNode(dirty);
+      let inPlaceNodes = [];
+      const outerVisited = IN_PLACE_VISITED;
       if (inPlace) {
         _neutralizePatchLinkage(dirty);
         const nn = _readNodeName(dirty);
@@ -5609,12 +5703,8 @@ ${content}</tr>
           _neutralizeRoot(dirty);
           throw typeErrorCreate("root node is clobbered and cannot be sanitized in-place");
         }
-        try {
-          _sanitizeAttachedShadowRoots(dirty);
-        } catch (error) {
-          _neutralizeRoot(dirty);
-          throw error;
-        }
+        inPlaceNodes = _collectLiveNodes(dirty);
+        IN_PLACE_VISITED = setCreate();
       } else if (_isNode(dirty)) {
         body = _initDocument("<!---->");
         importedNode = body.ownerDocument.importNode(dirty, true);
@@ -5630,30 +5720,25 @@ ${content}</tr>
       if (body && FORCE_BODY) _forceRemove(body.firstChild);
       const walkRoot = inPlace ? dirty : body;
       try {
+        if (inPlace) _sanitizeAttachedShadowRoots(dirty);
         const nodeIterator = _createNodeIterator(walkRoot);
         while (currentNode = nodeIterator.nextNode()) {
           _sanitizeElements(currentNode, walkRoot);
           _sanitizeAttributes(currentNode, walkRoot);
           if (_isDocumentFragment(currentNode.content)) _sanitizeShadowDOM2(currentNode.content);
         }
+        if (inPlace) _sanitizeUnvisitedNodes(dirty, inPlaceNodes);
       } catch (error) {
         if (inPlace) {
           _neutralizeRoot(dirty);
-          arrayForEach(DOMPurify.removed, (entry) => {
-            if (entry.element) _neutralizeSubtree(entry.element);
-          });
+          _neutralizeDiscarded(dirty, inPlaceNodes);
         }
         throw error;
+      } finally {
+        IN_PLACE_VISITED = outerVisited;
       }
       if (inPlace) {
-        let rootWasRemoved = false;
-        arrayForEach(DOMPurify.removed, (entry) => {
-          if (entry.element) {
-            if (entry.element === dirty) rootWasRemoved = true;
-            _neutralizeSubtree(entry.element);
-          }
-        });
-        if (rootWasRemoved) throw typeErrorCreate("a node selected for removal could not be safely returned; refusing to sanitize in place");
+        if (_neutralizeDiscarded(dirty, inPlaceNodes)) throw typeErrorCreate("a node selected for removal could not be safely returned; refusing to sanitize in place");
         if (SAFE_FOR_TEMPLATES) _scrubTemplateExpressions2(dirty);
         return dirty;
       }
@@ -5690,6 +5775,7 @@ ${content}</tr>
       if (!CONFIG) _parseConfig({});
       const lcTag = transformCaseFunc(tag);
       const lcName = transformCaseFunc(attr);
+      if (typeof value === "string" && (_isUnsafeAttributeValue(attr, value) || !ALLOW_SELF_CLOSE_IN_ATTR && regExpTest(SELF_CLOSING_TAG, value))) return false;
       return _isValidAttribute(lcTag, lcName, value);
     };
     DOMPurify.addHook = function(entryPoint, hookFunction) {
@@ -20253,6 +20339,15 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     } else container.scrollTop = container.scrollHeight;
   }
 
+  // Learn/bank.mjs
+  var bank_exports = {};
+  __export(bank_exports, {
+    bankPublication: () => bankPublication,
+    bankVersion: () => bankVersion,
+    questions: () => questions,
+    tracks: () => tracks
+  });
+
   // Learn/AuthoredTutor/questions.json
   var questions_default = [
     {
@@ -22138,16 +22233,18 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
   };
 
   // Learn/quiz.mjs
+  var { bankVersion: bankVersion2, questions: questions2, tracks: tracks2 } = bank_exports;
+  var bankPublication2 = bankPublication ?? null;
   function createSession(track, mode, id = crypto.randomUUID(), providerPack = null) {
-    if (!tracks[track] || !["learn", "test"].includes(mode)) throw new Error("Choose a valid learning path and mode.");
-    const selected = providerPack?.questions ?? questions.filter((q) => q.track === track || q.track === "core");
+    if (!tracks2[track] || !["learn", "test"].includes(mode)) throw new Error("Choose a valid learning path and mode.");
+    const selected = providerPack?.questions ?? questions2.filter((q) => q.track === track || q.track === "core");
     if (!selected.length) throw Error("This course has no practice questions.");
     return {
       id,
       track,
       mode,
-      bankVersion: providerPack?.version ?? bankVersion,
-      contentPublication: providerPack ? null : structuredClone(bankPublication),
+      bankVersion: providerPack?.version ?? bankVersion2,
+      contentPublication: providerPack ? null : structuredClone(bankPublication2),
       course: providerPack?.course ?? null,
       startedAt: (/* @__PURE__ */ new Date()).toISOString(),
       completedAt: null,
@@ -22200,7 +22297,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     };
   }
   function sessionQuestion(session, id) {
-    return session.questionSnapshots?.find((q) => q.id === id) ?? questions.find((q) => q.id === id);
+    return session.questionSnapshots?.find((q) => q.id === id) ?? questions2.find((q) => q.id === id);
   }
 
   // Learn/provider-course.mjs
@@ -24043,6 +24140,9 @@ if (FALSE) {
     }
   ];
 
+  // Learn/host-contract.json
+  var host_contract_default = { hostContract: 1 };
+
   // Learn/lesson-guide.mjs
   var difficulties = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
   var learnerGoals = { undergraduateMedicine: "Undergraduate medicine", undergraduateHealthScience: "Undergraduate health sciences", postgraduateMedicine: "Postgraduate medicine", postgraduateAlliedHealth: "Postgraduate allied health", publicHealth: "Public health", healthcareBusinessAnalyst: "Healthcare business analyst", mastersStatistics: "Master's-level statistics", usMedicalBoards: "US medical board examinations" };
@@ -24066,7 +24166,6 @@ if (FALSE) {
     if (lesson2.teachingPrompts?.length) html2 += section("Think it through", list(lesson2.teachingPrompts.map((p) => p.prompt)));
     if (lesson2.rProgression) html2 += section("From menus to R", list([lesson2.rProgression.menus, lesson2.rProgression.bridge, lesson2.rProgression.coding]));
     if (lesson2.sources?.length) html2 += section("References and further reading", `<ul>${lesson2.sources.map((s) => `<li>${safeURL2(s.url) ? `<a href="${esc4(safeURL2(s.url))}" target="_blank" rel="noopener">${esc4(s.title)}</a>` : esc4(s.title)} \u2014 ${esc4(s.scope)}${s.checkedAt ? ` <span class="small">Checked ${esc4(s.checkedAt)}.</span>` : ""}</li>`).join("")}</ul>`);
-    if (lesson2.review?.status) html2 += `<p class="small">Original StatsDirect teaching material. ${esc4(lesson2.review.status)}${lesson2.review.reviewer ? " \xB7 " + esc4(lesson2.review.reviewer) : ""}${lesson2.review.date ? " \xB7 " + esc4(lesson2.review.date) : ""}.</p>`;
     return html2;
   }
 
@@ -24113,6 +24212,23 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
 <section class="card"><h2>Returned assessments</h2><button id="importProviderReview">Import provider response\u2026</button><p class="small">Import a response file returned by your provider for this learning record. StatsDirect records the supplied decision and feedback; it does not authenticate certificates or award credit.</p>${state2.providerReviews.map((r2) => `<article class="review-line"><strong>${esc2(r2.provider)} \u2014 ${esc2(r2.decision)}</strong><p>${esc2(r2.feedback)}</p><p>${esc2(r2.creditStatement)}</p><p class="small">${esc2(r2.reviewer)} \xB7 ${esc2(r2.reviewedAt)} \xB7 ${esc2(r2.verification)}</p></article>`).join("")}</section>`;
   }
 
+  // Learn/host.mjs
+  function bridge(win) {
+    if (win.statsDirectHost) return win.statsDirectHost;
+    return win.webkit?.messageHandlers?.statsDirectLearn ? { postMessage: (body) => win.webkit?.messageHandlers?.statsDirectLearn?.postMessage(body) } : null;
+  }
+  function platformOf(win, host2, settings2) {
+    return settings2?.platform ?? host2?.platform ?? (win.chrome?.webview ? "windows" : win.webkit?.messageHandlers?.statsDirectLearn ? "mac" : "web");
+  }
+  var wording = { mac: { computer: "this Mac", app: "the Mac app", application: "the Mac application" }, windows: { computer: "this PC", app: "the StatsDirect app", application: "the StatsDirect application" } };
+  var neutral = { computer: "this computer", app: "the StatsDirect app", application: "the StatsDirect application" };
+  function wordsFor(platform2) {
+    return wording[platform2] ?? neutral;
+  }
+  function hostClassName(platform2) {
+    return "host-" + (typeof platform2 === "string" && /^[a-z]+$/.test(platform2) ? platform2 : "web");
+  }
+
   // Learn/app.mjs
   var $ = (id) => document.getElementById(id);
   var esc3 = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -24129,11 +24245,18 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   var streamTimer = null;
   var renderedStudy = null;
   var workspace = { choice: "__none__", choices: [], label: "Lessons only \xB7 open documents are not shared" };
-  var native = Boolean(window.webkit?.messageHandlers?.statsDirectLearn);
-  var post = (body) => window.webkit?.messageHandlers?.statsDirectLearn?.postMessage(body);
+  var host = bridge(window);
+  var native = Boolean(host);
+  var post = (body) => host?.postMessage(body);
+  var platform = () => platformOf(window, host, settings);
+  var words = () => wordsFor(platform());
+  var hostClass = () => {
+    for (const c of [...document.documentElement.classList]) if (c.startsWith("host-")) document.documentElement.classList.remove(c);
+    document.documentElement.classList.add(hostClassName(platform()));
+  };
   var allLessons = () => [...lessons_default, ...courseLessons(coursePack)];
   var lesson = () => allLessons().find((x) => x.id === state.lesson) ?? lessons_default[0];
-  var privacyText = () => settings.disabled ? "The online tutor is disabled by this Mac\u2019s learning policy. Local lessons, practice, help and R examples remain available." : settings.configured ? "Send shares learning context and up to 40 recent messages with OpenAI. Document sharing requires confirmation for each question. Earlier shared content can remain in the conversation. Do not include person identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply.";
+  var privacyText = () => settings.disabled ? `The online tutor is disabled by ${words().computer}\u2019s learning policy. Local lessons, practice, help and R examples remain available.` : settings.configured ? "Send shares learning context and up to 40 recent messages with OpenAI. Document sharing requires confirmation for each question. Earlier shared content can remain in the conversation. Do not include person identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply.";
   var sendLabel = () => settings.disabled ? "Online tutor disabled" : settings.configured ? "Send" : settings.signingIn ? "Finish sign-in" : "Use my ChatGPT";
   var independent = () => state.quiz?.mode === "test" && !state.quiz.completedAt;
   var notice = (text3) => {
@@ -24289,7 +24412,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
       },
       openR: (code, position) => {
         if (native) post({ action: "openRCode", generation, lessonID, ...position });
-        else notice("Open the Mac app to review and run this code in an R session.");
+        else notice(`Open ${words().app} to review and run this code in an R session.`);
       }
     });
   }
@@ -24331,7 +24454,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
       return;
     }
     if (native) post({ action: "settings" });
-    else notice("Choose Use my ChatGPT in the Mac application to sign in through your browser. No API key is needed.");
+    else notice(`Choose Use my ChatGPT in ${words().application} to sign in through your browser. No API key is needed.`);
   }
   function openActivity(action) {
     if (independent()) return;
@@ -24340,7 +24463,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     activity(`${action === "r" ? "Opened bundled R example" : action === "help" ? "Opened help" : "Opened StatsDirect analysis"}: ${l.title}`);
     if (native) post({ action, lesson: l.id });
     else if (action === "help") window.open("../Help/" + l.help, "_blank");
-    else notice("Open this learning window in the Mac application to start the " + (action === "r" ? "R session" : "StatsDirect analysis") + ".");
+    else notice(`Open this learning window in ${words().application} to start the ` + (action === "r" ? "R session" : "StatsDirect analysis") + ".");
   }
   function send() {
     if (pending || independent() || settings.disabled) return;
@@ -24475,11 +24598,11 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     };
     $("captureEvidence").onclick = () => {
       if (native) post({ action: "captureLearningEvidence", documentID: $("evidenceDocument").value });
-      else notice("Open the Mac app to attach analysis evidence.");
+      else notice(`Open ${words().app} to attach analysis evidence.`);
     };
     $("importProviderReview").onclick = () => {
       if (native) post({ action: "importProviderReview" });
-      else notice("Provider response import is available in the Mac app.");
+      else notice(`Provider response import is available in ${words().app}.`);
     };
     $("exportRecord").onclick = exportRecord;
     $("consent").onchange = () => {
@@ -24506,7 +24629,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
         return;
       }
       if (native) post({ action: "email", recipient, ...exportPayload() });
-      else notice("Email drafts with attachments are available in the Mac application. Export the record here and attach it yourself.");
+      else notice(`Email drafts with attachments are available in ${words().application}. Export the record here and attach it yourself.`);
     };
   }
   function renderOptions() {
@@ -24544,11 +24667,11 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     });
     $("exampleCourse").onclick = () => {
       if (native) post({ action: "exampleCourse" });
-      else notice("Open the Mac app to load the example provider course.");
+      else notice(`Open ${words().app} to load the example provider course.`);
     };
     $("importCourse").onclick = () => {
       if (native) post({ action: "importCoursePack" });
-      else notice("Course pack import is available in the Mac application.");
+      else notice(`Course pack import is available in ${words().application}.`);
     };
     bindTraining(state, { save });
     $("applyOptions").onclick = () => {
@@ -24620,6 +24743,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   $("practiceNav").onclick = () => navigate("practice");
   $("recordNav").onclick = () => navigate("record");
   window.statsDirectLearn = {
+    hostContract: host_contract_default.hostContract,
     bridgeGeneration(value) {
       bridgeGeneration = value;
     },
@@ -24652,6 +24776,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     settings(value) {
       const wasSigningIn = settings.signingIn;
       settings = value;
+      hostClass();
       $("settings").disabled = Boolean(pending) || Boolean(value.disabled);
       $("settings").textContent = value.disabled ? "Online tutor disabled" : value.configured ? "Tutor connection" : value.signingIn ? "Finish ChatGPT sign-in" : "Use my ChatGPT";
       if ($("tutorBadge")) $("tutorBadge").textContent = value.label;
@@ -24699,8 +24824,8 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     },
     saved(value) {
       if (value === revision) {
-        $("saveStatus").textContent = "Saved on this Mac";
-        if ($("optionSaved")) $("optionSaved").textContent = "Saved on this Mac";
+        $("saveStatus").textContent = `Saved on ${words().computer}`;
+        if ($("optionSaved")) $("optionSaved").textContent = `Saved on ${words().computer}`;
       }
     },
     notice,
@@ -24755,7 +24880,8 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
       if (loaded) navigate("options");
     }
   };
-  if (native) post({ action: "ready" });
+  hostClass();
+  if (native) post({ action: "ready", hostContract: host_contract_default.hostContract });
   else {
     try {
       const stored = localStorage.getItem("statsdirect-learning-preview");
@@ -24763,12 +24889,12 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     } catch (error) {
       window.statsDirectLearn.loadError(error.message);
     }
-    notice("Browser preview. Use the Mac app to sign in with ChatGPT, analyses, R sessions and email drafts.");
+    notice(`Browser preview. Use ${words().app} to sign in with ChatGPT, analyses, R sessions and email drafts.`);
   }
 })();
 /*! Bundled license information:
 
 dompurify/dist/purify.es.mjs:
-  (*! @license DOMPurify 3.4.16 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.16/LICENSE *)
+  (*! @license DOMPurify 3.4.17 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.17/LICENSE *)
   (*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE *)
 */

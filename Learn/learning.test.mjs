@@ -2,19 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync,mkdtempSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {execFileSync} from 'node:child_process';
 import {questions,tracks} from './bank.mjs';
-import {lessonChecks} from './content-audit.test.mjs';
+import {lessonChecks} from './lesson-checks.mjs';
 import {createSession,recordAnswer,recordAssistance,learnerResult,sessionQuestion,reviewBundle} from './quiz.mjs';
 import {newPortfolio,restorePortfolio,reviewRecord,reviewText,transcriptEntry,practiceContext} from './portfolio.mjs';
-const root=new URL('../',import.meta.url);
-const lessons=JSON.parse(readFileSync(new URL('Content/Learn/lessons.json',root)));
+import {contentFile,runR} from './test-config.mjs';
+const lessons=JSON.parse(readFileSync(contentFile('Learn/lessons.json')));
 test('35 original draft questions map to five pathways, valid choices, real help and engine operations',()=>{
- const operations=JSON.parse(readFileSync(new URL('Content/analysis-menu.json',root))).operations;
+ const operations=JSON.parse(readFileSync(contentFile('analysis-menu.json'))).operations;
  assert.equal(questions.length,35);assert.equal(new Set(questions.map(q=>q.id)).size,35);
  for(const t of Object.keys(tracks))assert.ok(questions.filter(q=>q.track===t).length>=4);
- for(const q of questions){assert.equal(q.options.length,5);assert.equal(q.options.filter(o=>o.id===q.correct).length,1);assert.ok(existsSync(new URL('Content/Help/'+q.help,root)),q.help);if(q.operation)assert.ok(operations[q.operation]);}
- for(const l of lessons){assert.ok(existsSync(new URL('Content/Help/'+l.help,root)),l.help);assert.ok(operations[l.operation]);}
+ for(const q of questions){assert.equal(q.options.length,5);assert.equal(q.options.filter(o=>o.id===q.correct).length,1);assert.ok(existsSync(contentFile('Help/'+q.help)),q.help);if(q.operation)assert.ok(operations[q.operation]);}
+ for(const l of lessons){assert.ok(existsSync(contentFile('Help/'+l.help)),l.help);assert.ok(operations[l.operation]);}
 });
 test('independent practice hides answer keys and feedback from record previews until ended',()=>{
  const p=newPortfolio();p.quiz=createSession('foundation','test');const q=questions.find(q=>q.id===p.quiz.questionIds[0]);
@@ -39,7 +38,7 @@ test('provisional scores, support, first answers and full conversation survive r
 });
 test('bundled R examples run without packages, use exact fictional rows, and produce plots',()=>{
  const dir=mkdtempSync(tmpdir()+'/statsdirect-learn-');
- try{for(const l of lessons){const script=dir+'/'+l.id+'.R';writeFileSync(script,`pdf(${JSON.stringify(dir+'/'+l.id+'.pdf')})\n${l.r}\n${lessonChecks[l.id]}\ndev.off()\n`);const output=execFileSync('/Library/Frameworks/R.framework/Resources/bin/Rscript',['--vanilla',script],{encoding:'utf8'});assert.ok(existsSync(dir+'/'+l.id+'.pdf'));if(l.id==='paired'){assert.match(output,/Paired t-test/);assert.match(output,/5.25/);}}}finally{rmSync(dir,{recursive:true});}
+ try{for(const l of lessons){const script=dir+'/'+l.id+'.R';writeFileSync(script,`pdf(${JSON.stringify(dir+'/'+l.id+'.pdf')})\n${l.r}\n${lessonChecks[l.id]}\ndev.off()\n`);const output=runR(['--vanilla',script]);assert.ok(existsSync(dir+'/'+l.id+'.pdf'));if(l.id==='paired'){assert.match(output,/Paired t-test/);assert.match(output,/5.25/);}}}finally{rmSync(dir,{recursive:true});}
 });
 test('optional I-squared extension truncates below zero and responds to greater heterogeneity',()=>{
  const dir=mkdtempSync(tmpdir()+'/statsdirect-meta-');
@@ -50,7 +49,7 @@ test('optional I-squared extension truncates below zero and responds to greater 
    if(effect)code=code.replace(/effect <- c\([^)]*\)/,`effect <- ${effect}`);
    const check=effect?'stopifnot(q>study_df,i_squared>0,i_squared<100,abs(i_squared-100*(q-2)/q)<1e-12)':'stopifnot(abs(q-1.25)<1e-12,study_df==2,i_squared==0)';
    const script=dir+'/meta.R';writeFileSync(script,`pdf(${JSON.stringify(dir+'/meta.pdf')})\n${code}\n${check}\ndev.off()\n`);
-   execFileSync('/Library/Frameworks/R.framework/Resources/bin/Rscript',['--vanilla',script],{encoding:'utf8'});
+   runR(['--vanilla',script]);
   }
  }finally{rmSync(dir,{recursive:true});}
 });

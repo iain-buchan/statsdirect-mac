@@ -7,20 +7,27 @@ import {newPortfolio,restorePortfolio,transcriptEntry,reviewRecord,reviewText,pr
 import {examSources,communicationPrompt} from './exam-sources.mjs';
 import {labelStudyGuides,ensureLessonPrompt,guidePresentation,conversationForTutor,lessonConversation,visibleLessonConversation,optionLetters,awaitingAnswer} from './lesson-context.mjs';
 import lessons from '../Content/Learn/lessons.json';
+import contract from './host-contract.json' with {type:'json'};
 import {lessonGuideHTML,learningTargetHTML} from './lesson-guide.mjs';
 import {courseKey,courseLessons,courseQuestions,adoptCourse,submitCourseWork,addProviderReview,safeURL,validEmail,statisticalSkills} from './provider-course.mjs';
 import {trainingHTML,bindTraining,courseWorkHTML,providerRecordHTML} from './course-ui.mjs';
+import {bridge,platformOf,wordsFor,hostClassName} from './host.mjs';
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let state=newPortfolio(),loaded=false,settings={configured:false,service:'',label:'Not connected'},pending=null,revision=0,feedback=null,reviewApproved=false,coursePack=null;
 let bridgeGeneration='';
 let streamedText='',streamTimer=null,renderedStudy=null;
 let workspace={choice:"__none__",choices:[],label:"Lessons only · open documents are not shared"};
-const native=Boolean(window.webkit?.messageHandlers?.statsDirectLearn);
-const post=body=>window.webkit?.messageHandlers?.statsDirectLearn?.postMessage(body);
+// The host registers window.statsDirectHost before the page runs (HOST-CONTRACT.md); host.mjs holds the fallback, the platform rule and the wording.
+const host=bridge(window);
+const native=Boolean(host);
+const post=body=>host?.postMessage(body);
+const platform=()=>platformOf(window,host,settings);
+const words=()=>wordsFor(platform());
+const hostClass=()=>{for(const c of [...document.documentElement.classList])if(c.startsWith('host-'))document.documentElement.classList.remove(c);document.documentElement.classList.add(hostClassName(platform()));};
 const allLessons=()=>[...lessons,...courseLessons(coursePack)];
 const lesson=()=>allLessons().find(x=>x.id===state.lesson)??lessons[0];
-const privacyText=()=>settings.disabled?'The online tutor is disabled by this Mac’s learning policy. Local lessons, practice, help and R examples remain available.':settings.configured?'Send shares learning context and up to 40 recent messages with OpenAI. Document sharing requires confirmation for each question. Earlier shared content can remain in the conversation. Do not include person identifiers.':'Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account’s Codex access and usage allowance apply.';
+const privacyText=()=>settings.disabled?`The online tutor is disabled by ${words().computer}’s learning policy. Local lessons, practice, help and R examples remain available.`:settings.configured?'Send shares learning context and up to 40 recent messages with OpenAI. Document sharing requires confirmation for each question. Earlier shared content can remain in the conversation. Do not include person identifiers.':'Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account’s Codex access and usage allowance apply.';
 const sendLabel=()=>settings.disabled?'Online tutor disabled':settings.configured?'Send':settings.signingIn?'Finish sign-in':'Use my ChatGPT';
 const independent=()=>state.quiz?.mode==='test'&&!state.quiz.completedAt;
 const notice=text=>{ $('notice').textContent=text;$('notice').hidden=!text; };
@@ -75,7 +82,7 @@ function renderStudy(){const l=lesson();if(ensureLessonPrompt(state,allLessons()
 }
 function bindConversation(){const generation=bridgeGeneration,lessonID=lesson().id;bindRichText($('messages'),{
   copy:code=>{if(native)post({action:'copyCode',code});else navigator.clipboard.writeText(code).catch(()=>notice('Select the code and copy it.'));},
-  openR:(code,position)=>{if(native)post({action:'openRCode',generation,lessonID,...position});else notice('Open the Mac app to review and run this code in an R session.');}
+  openR:(code,position)=>{if(native)post({action:'openRCode',generation,lessonID,...position});else notice(`Open ${words().app} to review and run this code in an R session.`);}
 });}
 function renderStream(preserve=true){
   if(!$('messages')||!pending)return;
@@ -99,8 +106,8 @@ function renderWorkspace(){
   $('workspaceChoice').onchange=()=>post({action:'workspace',choice:$('workspaceChoice').value});
   $('refreshWorkspace').onclick=()=>post({action:'workspace'});
 }
-function configure(){if(settings.disabled){notice(privacyText());return;}if(native)post({action:'settings'});else notice('Choose Use my ChatGPT in the Mac application to sign in through your browser. No API key is needed.');}
-function openActivity(action){if(independent())return;teachingSupport();const l=lesson();activity(`${action==='r'?'Opened bundled R example':action==='help'?'Opened help':'Opened StatsDirect analysis'}: ${l.title}`);if(native)post({action,lesson:l.id});else if(action==='help')window.open('../Help/'+l.help,'_blank');else notice('Open this learning window in the Mac application to start the '+(action==='r'?'R session':'StatsDirect analysis')+'.');}
+function configure(){if(settings.disabled){notice(privacyText());return;}if(native)post({action:'settings'});else notice(`Choose Use my ChatGPT in ${words().application} to sign in through your browser. No API key is needed.`);}
+function openActivity(action){if(independent())return;teachingSupport();const l=lesson();activity(`${action==='r'?'Opened bundled R example':action==='help'?'Opened help':'Opened StatsDirect analysis'}: ${l.title}`);if(native)post({action,lesson:l.id});else if(action==='help')window.open('../Help/'+l.help,'_blank');else notice(`Open this learning window in ${words().application} to start the `+(action==='r'?'R session':'StatsDirect analysis')+'.');}
 function send(){
   if(pending||independent()||settings.disabled)return;
   const text=$('question')?.value.trim()||state.draft.trim();if(!text)return;
@@ -126,12 +133,12 @@ function renderRecord(){const record=reviewRecord(state),text=reviewText(record)
   $('main').innerHTML=`<div class="eyebrow">YOUR LEARNING PORTFOLIO</div><h1>A record you can reflect on and share</h1><p class="subtle">Your answers, explanations, confidence, learning conversation and practical activities stay together. Prepare a review request when you are ready.</p><section class="card"><h2>About you and your learning</h2><div class="form-row"><div><label for="learnerName">Name for the reviewer</label><input id="learnerName" maxlength="120" value="${esc(state.identity.name)}" autocomplete="name"></div><div><label for="learnerEmail">Reply email</label><input id="learnerEmail" type="email" maxlength="180" value="${esc(state.identity.email)}" autocomplete="email"></div></div><label for="goal">Course, professional role or learning goal</label><input id="goal" maxlength="500" value="${esc(state.identity.goal)}"><label for="reflection">Reflection and next learning step</label><textarea id="reflection" rows="3" maxlength="3000" placeholder="What did you learn, and what will you practise next?">${esc(state.reflection)}</textarea><p class="small">Identity fields are kept locally and included in your review record. They are not automatically sent to the AI tutor.</p></section>${providerRecordHTML(state,workspace)}<section class="card"><h2>Review before sharing</h2><p>${record.attempts.filter(a=>a.completedAt).length} completed practice attempt(s) · ${state.conversation.length} conversation entries · ${state.activities.length} practical activities</p><p class="small">These are unsupervised learning records, not certificates. Any assessment decision or CPD recognition comes from your provider under their stated conditions.</p><details><summary>Preview the complete record to be attached</summary><pre id="recordPreview" class="record-preview">${esc(text)}</pre></details><div class="actions"><select id="recordFormat" aria-label="Export format"><option value="pdf">PDF document</option><option value="docx">Word document</option><option value="html">HTML document</option><option value="json">JSON record and diagnostics</option><option value="txt">Plain text</option></select><button id="exportRecord">Export learning record…</button></div><label for="recipient">Ask for external review</label><input id="recipient" type="email" maxlength="254" value="${esc(state.training.reviewEmail)}" list="reviewRecipients"><datalist id="reviewRecipients"><option value="support@statisticalhelp.org"><option value="chil@liverpool.ac.uk"></datalist><label id="mailConsent"><input id="consent" type="checkbox"><span>I have reviewed the record and want to include the full conversation and practice answers in an email to this recipient.</span></label><div class="actions"><button id="emailRecord" class="primary" disabled>Prepare email draft…</button></div><p class="small">Opens Mail with the record attached. You review and send the message. Your chosen tutor or training provider reviews the record. StatsDirect does not award credits or arrange a reviewer.</p></section>`;
   for(const [id,key] of [['learnerName','name'],['learnerEmail','email'],['goal','goal']])$(id).oninput=()=>{state.identity[key]=$(id).value;save();updatePreview();};
   $('reflection').oninput=()=>{state.reflection=$('reflection').value;save();updatePreview();};
-  $('captureEvidence').onclick=()=>{if(native)post({action:'captureLearningEvidence',documentID:$('evidenceDocument').value});else notice('Open the Mac app to attach analysis evidence.');};
-  $('importProviderReview').onclick=()=>{if(native)post({action:'importProviderReview'});else notice('Provider response import is available in the Mac app.');};
+  $('captureEvidence').onclick=()=>{if(native)post({action:'captureLearningEvidence',documentID:$('evidenceDocument').value});else notice(`Open ${words().app} to attach analysis evidence.`);};
+  $('importProviderReview').onclick=()=>{if(native)post({action:'importProviderReview'});else notice(`Provider response import is available in ${words().app}.`);};
   $('exportRecord').onclick=exportRecord;
   $('consent').onchange=()=>{reviewApproved=$('consent').checked;$('emailRecord').disabled=!reviewApproved;};
   $('recipient').oninput=()=>{state.training.reviewEmail=$('recipient').value;save();updatePreview();reviewApproved=false;$('consent').checked=false;$('emailRecord').disabled=true;};
-  $('emailRecord').onclick=()=>{if(!reviewApproved)return;if(!$('learnerEmail').checkValidity()){$('learnerEmail').reportValidity();return;}const recipient=$('recipient').value.trim();if(!validEmail(recipient)){notice('Enter a single valid assessment email address.');return;}if(native)post({action:'email',recipient,...exportPayload()});else notice('Email drafts with attachments are available in the Mac application. Export the record here and attach it yourself.');};
+  $('emailRecord').onclick=()=>{if(!reviewApproved)return;if(!$('learnerEmail').checkValidity()){$('learnerEmail').reportValidity();return;}const recipient=$('recipient').value.trim();if(!validEmail(recipient)){notice('Enter a single valid assessment email address.');return;}if(native)post({action:'email',recipient,...exportPayload()});else notice(`Email drafts with attachments are available in ${words().application}. Export the record here and attach it yourself.`);};
 }
 function renderOptions(){
   const o=state.learning;
@@ -152,8 +159,8 @@ function renderOptions(){
   $('optionProfile').onchange=()=>{state.profile=$('optionProfile').value;$('profile').value=state.profile;save();};
   $('optionStage').onchange=()=>{state.stage=$('optionStage').value;$('stage').value=state.stage;save();};
   document.querySelectorAll('[name=focus]').forEach(el=>el.onchange=()=>{o.focus=Array.from(document.querySelectorAll('[name=focus]:checked')).map(x=>x.value);save();});
-  $('exampleCourse').onclick=()=>{if(native)post({action:'exampleCourse'});else notice('Open the Mac app to load the example provider course.');};
-  $('importCourse').onclick=()=>{if(native)post({action:'importCoursePack'});else notice('Course pack import is available in the Mac application.');};
+  $('exampleCourse').onclick=()=>{if(native)post({action:'exampleCourse'});else notice(`Open ${words().app} to load the example provider course.`);};
+  $('importCourse').onclick=()=>{if(native)post({action:'importCoursePack'});else notice(`Course pack import is available in ${words().application}.`);};
   bindTraining(state,{save});
   $('applyOptions').onclick=()=>{activity('Updated learning options');navigate('study');};
 }
@@ -173,11 +180,12 @@ $('lessons').onclick=e=>{const button=e.target.closest('[data-lesson]');if(!butt
 $('sourcesNav').onclick=()=>navigate('sources');
 $('practiceNav').onclick=()=>navigate('practice');$('recordNav').onclick=()=>navigate('record');
 window.statsDirectLearn={
+  hostContract:contract.hostContract,
   bridgeGeneration(value){bridgeGeneration=value;},
   restore(value){try{loaded=false;pending=null;streamedText='';renderedStudy=null;state=value?restorePortfolio(value):newPortfolio();if(!state.lesson.startsWith('course:')&&!lessons.some(l=>l.id===state.lesson))state.lesson='epidemiology';labelStudyGuides(state,lessons);if(independent())state.view='practice';welcome();render();loaded=true;save();}catch(error){this.loadError(error.message);}},
   loadError(message){loaded=false;document.body.classList.remove('study-mode');$('workspaceContext').hidden=true;$('main').innerHTML='<h1>The learning record needs attention</h1><p id="loadError"></p>';$('loadError').textContent=message;notice('The existing record has not been overwritten.');},
   settings(value){
-    const wasSigningIn=settings.signingIn;settings=value;
+    const wasSigningIn=settings.signingIn;settings=value;hostClass();
     $('settings').disabled=Boolean(pending)||Boolean(value.disabled);
     $('settings').textContent=value.disabled?'Online tutor disabled':value.configured?'Tutor connection':value.signingIn?'Finish ChatGPT sign-in':'Use my ChatGPT';
     // Account events must not replace a textarea or a partly answered practice form.
@@ -196,7 +204,7 @@ window.statsDirectLearn={
   resumeReply(event){if(!loaded||!event?.value?.id)return;pending=event.value.id;streamedText=event.partial??'';if(event.action==='reply')this.reply(event.value);else if(event.action==='tutorError')this.tutorError(event.value);else render();},
   diagnostics(value){state.diagnostics=value;save();},
   toolActivity(value){if(value.id===pending&&$('chatStatus'))$('chatStatus').textContent=value.text;},
-  saved(value){if(value===revision){$('saveStatus').textContent='Saved on this Mac';if($('optionSaved'))$('optionSaved').textContent='Saved on this Mac';}},
+  saved(value){if(value===revision){$('saveStatus').textContent=`Saved on ${words().computer}`;if($('optionSaved'))$('optionSaved').textContent=`Saved on ${words().computer}`;}},
   notice,
   reply(value){if(value.id!==pending)return;pending=null;state.conversation=state.conversation.filter(c=>c.id!==value.id);if(value.workspaceSources?.length)activity('Tutor used: '+value.workspaceSources.join('; '));transcriptEntry(state,'assistant',value.text,'StatsDirect AI tutor',{id:value.id,lessonId:lesson().id,lessonTitle:lesson().title,model:value.model,responseID:value.responseID,promptVersion:value.promptVersion,diagnostics:value.diagnostics??[],learningOptions:structuredClone(state.learning),rExperience:state.stage,courseSources:value.courseSources??[],workspaceSources:value.workspaceSources??[]});save();render();},
   tutorError(value){if(value.id&&value.id!==pending)return;const id=pending;pending=null;if(streamedText&&id){state.conversation=state.conversation.filter(c=>c.id!==id);transcriptEntry(state,'assistant',streamedText+'\n\n[Reply stopped before completion.]','StatsDirect AI tutor',{id,lessonId:lesson().id,lessonTitle:lesson().title});}streamedText='';state.diagnostics={...state.diagnostics,requestID:value.id,lastError:'Tutor reply stopped or failed',events:value.diagnostics??[]};save();notice(value.message);render();},
@@ -206,4 +214,5 @@ window.statsDirectLearn={
   evidence(value){state.evidence.push(value);activity('Attached analysis evidence: '+value.title);renderRecord();},
   showOptions(){if(loaded)navigate('options');}
 };
-if(native)post({action:'ready'});else{try{const stored=localStorage.getItem('statsdirect-learning-preview');window.statsDirectLearn.restore(stored?JSON.parse(stored):null);}catch(error){window.statsDirectLearn.loadError(error.message);}notice('Browser preview. Use the Mac app to sign in with ChatGPT, analyses, R sessions and email drafts.');}
+hostClass();
+if(native)post({action:'ready',hostContract:contract.hostContract});else{try{const stored=localStorage.getItem('statsdirect-learning-preview');window.statsDirectLearn.restore(stored?JSON.parse(stored):null);}catch(error){window.statsDirectLearn.loadError(error.message);}notice(`Browser preview. Use ${words().app} to sign in with ChatGPT, analyses, R sessions and email drafts.`);}

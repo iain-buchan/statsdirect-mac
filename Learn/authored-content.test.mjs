@@ -11,6 +11,9 @@ import {ensureLessonPrompt} from './lesson-context.mjs';
 const json=path=>JSON.parse(readFileSync(new URL(path,import.meta.url),'utf8'));
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+test('the Mac keeps its two copies of lessons.json in step',()=>{
+  assert.deepEqual(json('./lessons.json'),json('../Content/Learn/lessons.json'));
+});
 test('published JSON is the question bank and retains every earlier question/pathway ID',()=>{
   assert.deepEqual(questions,json('./AuthoredTutor/questions.json'));
   assert.deepEqual(tracks,json('./AuthoredTutor/tracks.json'));
@@ -49,10 +52,10 @@ test('older saved portfolios without publication metadata still restore with the
   assert.equal(restored.quiz.answers[0].correct,true);assert.equal(restored.quiz.contentPublication,undefined);
 });
 
-test('lesson and question presentation uses actual review and optional learning targets, with escaped text',()=>{
+test('lesson presentation shows the learning targets, escaped, and no review provenance',()=>{
   const lesson={id:'new-topic',title:'New topic',summary:'Summary',steps:'',difficulty:'advanced',learnerGoals:['publicHealth','mastersStatistics'],learnerGoalNotes:'<script>not executable</script>',review:{status:'Reviewed by course author',reviewer:'Tutor <A>',date:'2026-11-04'}};
   const html=lessonGuideHTML(lesson,[lesson],esc,()=>false);
-  assert.match(html,/Reviewed by course author/);assert.match(html,/Tutor &lt;A&gt;/);
+  assert.ok(!html.includes('Reviewed by course author'));assert.ok(!html.includes('Tutor'));
   assert.match(html,/Advanced/);assert.match(html,/Public health/);assert.match(html,/Master&#39;s-level statistics/);
   assert.ok(!html.includes('AI-assisted editorial'));assert.ok(!html.includes('<script>'));
   assert.equal(learningTargetHTML({},esc),'');

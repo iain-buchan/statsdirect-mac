@@ -79,9 +79,9 @@ import Cocoa
             try check((guide["text"] as! String).contains("Key ideas") && (guide["text"] as! String).contains("Common mistakes"))
             let worked = lesson["workedExample"] as! [String:Any]
             try check((guide["text"] as! String).contains(worked["interpretation"] as! String))
+            // Learners see no review line in the guide (Iain, 6 November 2026): the review record stays in the lesson data and the exports.
             let review = lesson["review"] as! [String:Any]
-            try check((guide["text"] as! String).contains(review["status"] as! String)
-                      && (guide["text"] as! String).contains(review["date"] as! String))
+            try check(!(guide["text"] as! String).contains(review["status"] as! String))
             try check(guide["links"] as? Int == (lesson["sources"] as! [Any]).count && guide["open"] as? Bool == false)
         }
         _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-lesson=\"risk\"]').click()===undefined})")

@@ -18,6 +18,9 @@ CONTENT_ARGS=(--mode "$CONTENT_MODE" --record "$CONTENT_RECORD")
 if [[ -n "${STATSDIRECT_CONTENT_REVISION:-}" ]]; then CONTENT_ARGS+=(--revision "$STATSDIRECT_CONTENT_REVISION"); fi
 if [[ -n "${STATSDIRECT_CONTENT_REPOSITORY:-}" ]]; then CONTENT_ARGS+=(--repository "$STATSDIRECT_CONTENT_REPOSITORY"); fi
 python3 Scripts/prepare-content-build.py "${CONTENT_ARGS[@]}"
+# The shared Learning code is the pinned statisticalhelp submodule; every build checks the pin, the copies and the host contract.
+[[ -f Learn/Upstream/Learning/host-contract.json ]] || git submodule update --init Learn/Upstream
+python3 Learn/import_upstream.py --verify
 if [[ "$CONTENT_MODE" != offline ]]; then
   "${NODE:-node}" Learn/build.mjs
 fi

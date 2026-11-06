@@ -15,4 +15,4 @@ python3 Tests/test_form_coverage.py
 python3 Tests/test_combined_forms.py
 # The engine's record of a run and the R scripts its writer makes from it (the statsdirect_r_script entry), run in R against the engine's results.
 python3 Tests/test_run_record.py Tests/operation-driver Tests/engine-driver
-if command -v node >/dev/null 2>&1; then STATSDIRECT_CONTENT_ROOT="$PWD/Content" node --test Grid/*.test.mjs Learn/*.test.mjs Report/*.test.mjs Tests/r-console-ui.test.mjs Tests/r-console-recovery.test.mjs; fi
+if command -v node >/dev/null 2>&1; then STATSDIRECT_CONTENT_ROOT="$PWD/Content" STATSDIRECT_LEARN_ARCHIVE="$PWD/Docs/Learn/bank.mjs" node --import ./Learn/test-register.mjs --test Grid/*.test.mjs Learn/Upstream/Learning/*.test.mjs Learn/*.test.mjs Report/*.test.mjs Tests/r-console-ui.test.mjs Tests/r-console-recovery.test.mjs; fi

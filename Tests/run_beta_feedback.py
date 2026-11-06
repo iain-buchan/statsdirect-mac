@@ -1,6 +1,6 @@
 """Native macOS integration checks. Add --live to test the signed-in ChatGPT account with bundled example data."""
 from pathlib import Path
-import argparse,subprocess,plistlib,uuid,shutil
+import argparse,os,subprocess,plistlib,uuid,shutil
 root=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--app',type=Path,default=root/'StatsDirect.app',help='Use resources and engine from this app, including an extracted release ZIP')
@@ -28,7 +28,7 @@ sheet['I3']=ArrayFormula(ref='I3:J3',text='=A2:B2*2')
 sheet.column_dimensions['A'].width=27; sheet['A2'].number_format='0.00'
 fixture.defined_names.add(DefinedName('Dose',attr_text='Data!$A$2'))
 fixture.save(out/'column-insert.xlsx')
-subprocess.run([str(root/'Grid/node_modules/esbuild/bin/esbuild'),'Tests/feedback-renderer.mjs','--bundle','--format=iife','--outfile=.build/feedback-renderer.js'],cwd=root,check=True)
+subprocess.run([os.environ.get('NODE') or shutil.which('node') or 'node','Learn/bundle.mjs','Tests/feedback-renderer.mjs','.build/feedback-renderer.js'],cwd=root,check=True)
 (out/'Viewer.swift').write_text((root/'Sources/main.swift').read_text().split('MainActor.assumeIsolated {')[0])
 helpers=[]
 for name in ['learning-workspace','provider-learning','report-export','group-identifier','write-back','excel-import','form-contract','form-controls']:

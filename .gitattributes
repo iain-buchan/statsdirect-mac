@@ -8,3 +8,6 @@ Learn/AuthoredTutor/** -text -whitespace
 Learn/lessons.json -text -whitespace
 Content/Learn/lessons.json -text -whitespace
 Content/learning-source-manifest.json -text -whitespace
+# The Learning page shell and stylesheet are copies of the pinned package (Learn/import_upstream.py); keep their bytes.
+Content/Learn/index.html -text -whitespace
+Content/Learn/learn.css -text -whitespace

@@ -2,3 +2,8 @@
 	path = FullEngine/Upstream
 	url = https://github.com/iain-buchan/statsdirect.git
 	branch = main
+[submodule "Learn/Upstream"]
+	path = Learn/Upstream
+	url = https://github.com/iain-buchan/statisticalhelp.git
+	branch = master
+	shallow = true

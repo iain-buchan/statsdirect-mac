@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {bankVersion,bankPublication,questions,tracks} from './bank.mjs';
 import {questions as earlierQuestions} from '../Docs/Learn/bank.mjs';
-import {createSession,recordAnswer,sessionQuestion} from './quiz.mjs';
-import {newPortfolio,restorePortfolio,reviewRecord} from './portfolio.mjs';
-import {lessonGuideHTML,learningTargetHTML} from './lesson-guide.mjs';
-import {ensureLessonPrompt} from './lesson-context.mjs';
+import {createSession,recordAnswer,sessionQuestion} from './Upstream/Learning/quiz.mjs';
+import {newPortfolio,restorePortfolio,reviewRecord} from './Upstream/Learning/portfolio.mjs';
+import {lessonGuideHTML,learningTargetHTML} from './Upstream/Learning/lesson-guide.mjs';
+import {ensureLessonPrompt} from './Upstream/Learning/lesson-context.mjs';
 
 const json=path=>JSON.parse(readFileSync(new URL(path,import.meta.url),'utf8'));
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

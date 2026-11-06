@@ -1,6 +1,6 @@
 // Mac AI dock: reuse Learning's sanitized rich output and streaming selection logic.
-import {richText,bindRichText} from './rich-text.mjs';
-import {conversationReading,restoreConversationReading} from './conversation-view.mjs';
+import {richText,bindRichText} from './Upstream/Learning/rich-text.mjs';
+import {conversationReading,restoreConversationReading} from './Upstream/Learning/conversation-view.mjs';
 const messages=document.getElementById('messages');
 let generation=null;
 const post=value=>window.webkit?.messageHandlers.statsDirectAI.postMessage(value);

@@ -6,7 +6,7 @@ ROOT="$PWD"
 source Scripts/native-build-flags.sh
 BASE="${1:-$ROOT/StatsDirect.app}"
 mkdir -p .build
-Grid/node_modules/esbuild/bin/esbuild Tests/feedback-renderer.mjs --bundle --format=iife --outfile=.build/feedback-renderer.js
+"${NODE:-node}" Learn/bundle.mjs Tests/feedback-renderer.mjs .build/feedback-renderer.js
 TEST_WORK="$(mktemp -d "$ROOT/.build/learning-context.XXXXXX")"
 trap 'rm -rf "$TEST_WORK"' EXIT   # the driver, its copy of the app and its module cache are not kept after the run
 TEST_APP="$TEST_WORK/StatsDirect Context Test.app"

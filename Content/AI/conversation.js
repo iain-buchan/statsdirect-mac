@@ -20220,7 +20220,7 @@ ${content}</tr>
     };
   }
 
-  // Learn/rich-text.mjs
+  // Learn/Upstream/Learning/rich-text.mjs
   core_default.registerLanguage("r", r);
   var esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   var math2 = (text3, displayMode) => katex.renderToString(text3, { displayMode, throwOnError: false, trust: false, strict: "ignore", maxExpand: 500, maxSize: 20 });
@@ -20264,7 +20264,7 @@ ${content}</tr>
     });
   }
 
-  // Learn/conversation-view.mjs
+  // Learn/Upstream/Learning/conversation-view.mjs
   function endpoint(container, node, offset) {
     const element = node?.nodeType === 1 ? node : node?.parentElement;
     const body = element?.closest(".message-body"), message = body?.closest("[data-message-id]");

@@ -76,8 +76,6 @@ jobs:
           .build/update-service-test --app "$PWD/StatsDirect.app"
       - name: Engine and R comparison tests
         run: ./test.sh
-      - name: JavaScript tests
-        run: STATSDIRECT_CONTENT_ROOT="$PWD/Content" node --test Grid/*.test.mjs Report/*.test.mjs Learn/*.test.mjs Tests/r-console-ui.test.mjs Tests/r-console-recovery.test.mjs
       - name: Worksheet column selection gestures
         run: Scripts/test-grid-selection.sh
       - name: Mac parity workflows

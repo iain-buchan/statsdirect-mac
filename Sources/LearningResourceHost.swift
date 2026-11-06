@@ -29,7 +29,7 @@ extension Viewer {
             // Persist seed IDs once: subsequent toggle/import requests refer to these same entries.
             if !FileManager.default.fileExists(atPath:learningResourceURL.path) { try saveLearningResources(entries) }
             let info: [[String:Any]] = entries.map { ["id":$0.id,"url":$0.url,"title":$0.title,"note":$0.note,"enabled":$0.enabled,"status":$0.status,"fetchedAt":$0.fetchedAt ?? "","pages":$0.documents.count,"linkedPDFs":$0.linkedPDFs] }
-            learningScript(doc,"resources",["entries":info,"busy":doc.learningResourceTask != nil])
+            _ = info // The page defines no resources callback (Learn/HOST-CONTRACT.md); the retired resource host keeps its records only.
         } catch { learningScript(doc,"notice","Resources could not be opened: " + error.localizedDescription) }
     }
     func addLearningResourceURLs(_ urls: [String], doc: Document) {

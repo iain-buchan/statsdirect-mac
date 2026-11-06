@@ -1,8 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import {execFileSync} from 'node:child_process';
 execFileSync(process.env.PYTHON || 'python3', [fileURLToPath(new URL('../Scripts/import-authored-tutor.py', import.meta.url)), '--verify'], {stdio:'inherit'});
+execFileSync(process.env.PYTHON || 'python3', [fileURLToPath(new URL('./import_upstream.py', import.meta.url)), '--verify'], {stdio:'inherit'});
 import {build} from '../Grid/node_modules/esbuild/lib/main.js';
-await build({entryPoints:[fileURLToPath(new URL('./app.mjs',import.meta.url))],bundle:true,format:'iife',target:'safari17',outfile:fileURLToPath(new URL('../Content/Learn/app.js',import.meta.url))});
+// The shared Learning code is the pinned package in Learn/Upstream/Learning (statisticalhelp); host-imports.mjs remaps its two host imports.
+import {hostImports} from './host-imports.mjs';
+const shared=fileURLToPath(new URL('./Upstream/Learning/',import.meta.url));
+const repo=fileURLToPath(new URL('../',import.meta.url));
+await build({entryPoints:[shared+'app.mjs'],bundle:true,format:'iife',target:'safari17',absWorkingDir:repo,outfile:fileURLToPath(new URL('../Content/Learn/app.js',import.meta.url)),plugins:[hostImports]});
 const {cp,readFile,writeFile,mkdir}=await import('node:fs/promises');
 await mkdir(new URL('../Content/Learn/katex/',import.meta.url),{recursive:true});
 for(const file of ['katex.min.css','fonts'])await cp(new URL('./node_modules/katex/dist/'+file,import.meta.url),new URL('../Content/Learn/katex/'+file,import.meta.url),{recursive:true});
@@ -15,4 +20,4 @@ for(const [name,folder] of [['dompurify','./node_modules/dompurify/'],['katex','
 }
 await writeFile(new URL('../Content/Learn/THIRD-PARTY-LICENSES.txt',import.meta.url),licenses.join('\n\n'));
 
-await build({entryPoints:[fileURLToPath(new URL("./ai-conversation.mjs",import.meta.url))],bundle:true,format:"iife",target:"safari17",outfile:fileURLToPath(new URL("../Content/AI/conversation.js",import.meta.url))});
+await build({entryPoints:[fileURLToPath(new URL("./ai-conversation.mjs",import.meta.url))],bundle:true,format:"iife",target:"safari17",absWorkingDir:repo,outfile:fileURLToPath(new URL("../Content/AI/conversation.js",import.meta.url))});

@@ -43,10 +43,10 @@ See [the tutor pack guide](../Docs/Learn/CoursePack/README.md), working provider
 
 ## Build and check
 
-The generated `Content/Learn/app.js` is committed, like the existing grid assets. After editing Learn sources, run `node Learn/build.mjs` with the Grid esbuild dependency installed. Then run:
+The generated `Content/Learn/app.js` is committed, like the existing grid assets. After moving the Learning pin or editing a host-side file (`bank.mjs`, `ai-conversation.mjs`), run `node Learn/build.mjs` with the Grid esbuild dependency installed. Then run:
 
 ```
-node --test Learn/learning.test.mjs Learn/lesson-context.test.mjs Learn/provider-course.test.mjs Learn/library.test.mjs Grid/tutor-data.test.mjs
+STATSDIRECT_CONTENT_ROOT="$PWD/Content" STATSDIRECT_LEARN_ARCHIVE="$PWD/Docs/Learn/bank.mjs" node --import ./Learn/test-register.mjs --test Learn/Upstream/Learning/*.test.mjs Learn/*.test.mjs Grid/tutor-data.test.mjs
 swiftc Sources/LearningLibrary.swift Tests/learning-library-test.swift -o .build/learning-library-test
 .build/learning-library-test Content/Learn/lessons.json
 Scripts/test-tutor-runtime.sh
@@ -69,7 +69,7 @@ The build creates `StatsDirect.app` with its original calculation engine unchang
 
 ## Teaching content maintenance
 
-`lessons.json` in this directory is the canonical catalogue. Run `python3 Learn/create-lessons.py` to publish it to `Content/Learn/lessons.json`, then rebuild with `node Learn/build.mjs`. Preserve old challenge text in `previousChallenges` so saved conversations retain their original topic. Increment changed question versions and the bank version; saved attempts retain their original wording and marking. The archived concept imports its original twelve questions from the maintained bank.
+`lessons.json` in this directory and `Content/Learn/lessons.json` are managed copies of the Help Editor publication imported by `Scripts/prepare-content-build.py` (see `Docs/help-editor-content.md`); `create-lessons.py` is the retired generator. After a content import, rebuild with `node Learn/build.mjs`. Preserve old challenge text in `previousChallenges` so saved conversations retain their original topic. Increment changed question versions and the bank version; saved attempts retain their original wording and marking. The archived concept imports its original twelve questions from the maintained bank.
 
 The [26 September 2026 content audit](../Docs/Learn/CONTENT-AUDIT-2026-09-26.md) records the scope, corrections, independent numerical checks and sources. It is an AI-assisted audit, not external expert approval.
 
@@ -91,6 +91,8 @@ The pinned runtime requires `features.code_mode_host = true` to deliver register
 
 Routine native tests inject a mock tutor before loading Learning; they never initialise the real Keychain-backed runtime. Only an explicit `--live` check uses the saved StatsDirect sign-in.
 
-## Shared with the Windows version
+## The shared Learning code
 
-The modules in this folder (app.mjs and the files it imports, host.mjs, lesson-checks.mjs, test-config.mjs, host-contract.json, the tests) and the page shell `Content/Learn/index.html` and stylesheet `Content/Learn/learn.css` are platform-neutral and are the source the Windows version builds from; the host contract they rely on is in `HOST-CONTRACT.md`. Host-side files stay in this repository: `build.mjs`, `bank.mjs` (the provenance shim the shared code imports as `./bank.mjs`), `ai-conversation.mjs` (the report pane's conversation page), `authored-content.test.mjs`, `create-lessons.py` and the tutor content landings `AuthoredTutor/` and `lessons.json` (the Mac's managed copy for its own checks; the page imports `Content/Learn/lessons.json`). The tests read `STATSDIRECT_CONTENT_ROOT`, `STATSDIRECT_LEARN_ARCHIVE` and `STATSDIRECT_RSCRIPT` (see `test-config.mjs`); `test.sh` sets the content root.
+The platform-neutral Learning code (the page's modules, its tests, `index.html`, `learn.css`, `host-contract.json` and `HOST-CONTRACT.md`) lives in the statisticalhelp repository's `Learning/` folder and is taken here as the git submodule `Learn/Upstream`, pinned by commit in `Learn/upstream-manifest.json`; the Windows version takes the same package. `Learn/import_upstream.py --verify` runs in every build and checks the pin, every file's hash, the copies of `index.html` and `learn.css` in `Content/Learn` (where the app loads the page), the host-contract number against `Sources/LearningHostContract.swift`, and that `package.json` here pins the package's dependencies. To move the pin, once the statisticalhelp commit and its `learning-vX.Y.Z` tag are pushed: `git submodule update --init Learn/Upstream` if the folder is empty; `git -C Learn/Upstream fetch --tags && git -C Learn/Upstream checkout learning-vX.Y.Z`; when the package's `package.json` or `pnpm-lock.yaml` changed, copy both into `Learn/` and run `pnpm install --frozen-lockfile` there; `python3 Learn/import_upstream.py --write`; `node Learn/build.mjs`; then commit the submodule, `Learn/upstream-manifest.json`, the two copies in `Content/Learn`, `Learn/package.json` and `Learn/pnpm-lock.yaml` if they changed, and the rebuilt `Content/Learn/app.js`, `Content/AI/conversation.js` and `Content/Learn/THIRD-PARTY-LICENSES.txt` together. The package's code is edited in statisticalhelp, never here; the Learning pin and the help-content pin (`Content/learning-manifest.json`) are independent and move separately.
+
+Host-side files stay in this folder: `build.mjs` (bundles `Upstream/Learning/app.mjs`, remapping its `../Content/Learn/lessons.json` and `./bank.mjs` imports to this folder, as the Windows build does), `bank.mjs` (the provenance shim), `ai-conversation.mjs` (the report pane's conversation page), `authored-content.test.mjs`, `create-lessons.py`, the tutor content landings `AuthoredTutor/` and `lessons.json`, and `test-register.mjs` with `test-resolver.mjs`, which give the shared tests their `bank.mjs` under node. Run the tests as `test.sh` does: `STATSDIRECT_CONTENT_ROOT="$PWD/Content" STATSDIRECT_LEARN_ARCHIVE="$PWD/Docs/Learn/bank.mjs" node --import ./Learn/test-register.mjs --test Learn/Upstream/Learning/*.test.mjs Learn/*.test.mjs`.

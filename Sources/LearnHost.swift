@@ -52,6 +52,13 @@ extension Viewer {
         switch action {
         case "ready":
             guard !doc.learningRendererReady else { return }
+            // The page declares the host contract it was built for (Learn/HOST-CONTRACT.md); a page built for another number is refused before any state reaches it.
+            guard let contract = body["hostContract"] as? Int, contract == LearningHostContract.version else {
+                doc.learningRendererReady = true
+                let declared = (body["hostContract"] as? Int).map(String.init) ?? "none"
+                learningScript(doc,"loadError","This Learning page declares host contract \(declared), but this StatsDirect implements contract \(LearningHostContract.version). Update StatsDirect or the Learning package.")
+                return
+            }
             doc.learningRendererReady = true
             doc.learningBridgeGeneration = UUID().uuidString
             learningScript(doc,"bridgeGeneration",doc.learningBridgeGeneration)
@@ -123,7 +130,7 @@ extension Viewer {
             } catch { learningScript(doc,"notice",error.localizedDescription) }
         case "export": exportLearningRecord(doc,body:body,email:false)
         case "email": exportLearningRecord(doc,body:body,email:true)
-        default: break
+        default: learningScript(doc,"notice","StatsDirect does not understand the Learning page's request \"\(action)\". The Learning package and this StatsDirect may be out of step.")
         }
     }
     func learningRScript(_ doc: Document,messageID: String,lessonID: String,blockIndex: Int) throws -> String {

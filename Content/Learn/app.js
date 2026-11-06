@@ -20224,7 +20224,7 @@ ${content}</tr>
     };
   }
 
-  // Learn/rich-text.mjs
+  // Learn/Upstream/Learning/rich-text.mjs
   core_default.registerLanguage("r", r);
   var esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   var math2 = (text3, displayMode) => katex.renderToString(text3, { displayMode, throwOnError: false, trust: false, strict: "ignore", maxExpand: 500, maxSize: 20 });
@@ -20268,7 +20268,7 @@ ${content}</tr>
     });
   }
 
-  // Learn/record-html.mjs
+  // Learn/Upstream/Learning/record-html.mjs
   var e = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   function exportRichText(text3) {
     const content = document.createElement("div");
@@ -20290,7 +20290,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     return '<!doctype html><html><head><meta charset="utf-8"><title>StatsDirect learning record</title><style>body{font:14px/1.5 -apple-system,Arial,sans-serif;color:#213b48;max-width:900px;margin:auto;padding:32px}h1,h2,h3{break-after:avoid}h2{border-bottom:1px solid #ccc;margin-top:28px}article{margin:20px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}table{border-collapse:collapse}th,td{border:1px solid #bbb;padding:6px}.code-actions{display:none}.katex-html{display:none}</style></head><body>' + body + "</body></html>";
   }
 
-  // Learn/conversation-view.mjs
+  // Learn/Upstream/Learning/conversation-view.mjs
   function endpoint(container, node, offset) {
     const element = node?.nodeType === 1 ? node : node?.parentElement;
     const body = element?.closest(".message-body"), message = body?.closest("[data-message-id]");
@@ -22232,7 +22232,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     publication: manifest_default
   };
 
-  // Learn/quiz.mjs
+  // Learn/Upstream/Learning/quiz.mjs
   var { bankVersion: bankVersion2, questions: questions2, tracks: tracks2 } = bank_exports;
   var bankPublication2 = bankPublication ?? null;
   function createSession(track, mode, id = crypto.randomUUID(), providerPack = null) {
@@ -22300,7 +22300,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     return session.questionSnapshots?.find((q) => q.id === id) ?? questions2.find((q) => q.id === id);
   }
 
-  // Learn/provider-course.mjs
+  // Learn/Upstream/Learning/provider-course.mjs
   var statisticalSkills = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
   var assessmentTypes = { none: "None", cpd: "Continued professional development credits", self: "AI supported self-assessment" };
   var assessmentNotes = { none: "Learn at your own pace.", cpd: "Keep a learning record for your provider to review for credit.", self: "Use the tutor for practice questions and feedback on your reasoning." };
@@ -22345,7 +22345,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     return review;
   }
 
-  // Learn/portfolio.mjs
+  // Learn/Upstream/Learning/portfolio.mjs
   var stages = { menus: "Start with menus", bridge: "Connect menus to R", coding: "Practise R coding" };
   function newPortfolio() {
     return { schemaVersion: 2, id: crypto.randomUUID(), startedAt: (/* @__PURE__ */ new Date()).toISOString(), profile: "foundation", stage: "menus", lesson: "epidemiology", view: "study", identity: { name: "", email: "", goal: "" }, learning: { statisticalSkills: "beginner", needs: "", qualifications: "", priorKnowledge: "", targetDate: "", focus: ["epidemiology", "causal"], style: "Worked examples and questions" }, training: trainingDefaults(), courseKey: "", courseWork: [], workDrafts: {}, providerReviews: [], evidence: [], conversation: [], sharingConsents: [], activities: [], attempts: [], quiz: null, reflection: "", draft: "" };
@@ -22457,7 +22457,7 @@ ${item.options.map((x) => x.id + ". " + x.text).join("\n")}
 Teaching rationale: ${item.explanation}` : "";
   }
 
-  // Learn/exam-sources.mjs
+  // Learn/Upstream/Learning/exam-sources.mjs
   var examSources = [
     { title: "MRCP(UK): official Part 1 sample examination", url: "https://www.thefederation.uk/examinations/part-1/part-1-sample-questions", note: "Official best-of-five practice access. Registration is required; the questions behind that step were not reviewed for this build." },
     { title: "MRCP-style diagnostic questions: published practice examples", url: "https://www.pastpaperhero.com/resources/rcp-mrcp-statistics-epidemiology-and-evidence-based-medicine-sensitivity-specificity-and-predictive-values?content=article", note: "Independent publisher, not a Royal College source. Public questions cover diagnostic denominators, prevalence and threshold changes. Used for topic inspiration only." },
@@ -22467,7 +22467,7 @@ Teaching rationale: ${item.explanation}` : "";
   ];
   var communicationPrompt = "Practise a short public-health communication scenario with me. You are a fictional service manager asking whether a clinic with longer average waiting times is performing poorly. Give me a small original data example, ask me to explain it in plain language, and wait for my reply. Then give formative feedback on interpretation, case mix, uncertainty and clarity. Do not assign an official examination grade.";
 
-  // Learn/lesson-context.mjs
+  // Learn/Upstream/Learning/lesson-context.mjs
   function labelStudyGuides(state2, lessons) {
     for (const entry of state2.conversation) {
       if (entry.source !== "Study guide" || entry.role !== "assistant") continue;
@@ -24140,10 +24140,10 @@ if (FALSE) {
     }
   ];
 
-  // Learn/host-contract.json
+  // Learn/Upstream/Learning/host-contract.json
   var host_contract_default = { hostContract: 1 };
 
-  // Learn/lesson-guide.mjs
+  // Learn/Upstream/Learning/lesson-guide.mjs
   var difficulties = { beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
   var learnerGoals = { undergraduateMedicine: "Undergraduate medicine", undergraduateHealthScience: "Undergraduate health sciences", postgraduateMedicine: "Postgraduate medicine", postgraduateAlliedHealth: "Postgraduate allied health", publicHealth: "Public health", healthcareBusinessAnalyst: "Healthcare business analyst", mastersStatistics: "Master's-level statistics", usMedicalBoards: "US medical board examinations" };
   function learningTargetHTML(item, esc4) {
@@ -24169,7 +24169,7 @@ if (FALSE) {
     return html2;
   }
 
-  // Learn/course-ui.mjs
+  // Learn/Upstream/Learning/course-ui.mjs
   var esc2 = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   function trainingHTML(state2, pack) {
     const t = state2.training;
@@ -24212,7 +24212,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
 <section class="card"><h2>Returned assessments</h2><button id="importProviderReview">Import provider response\u2026</button><p class="small">Import a response file returned by your provider for this learning record. StatsDirect records the supplied decision and feedback; it does not authenticate certificates or award credit.</p>${state2.providerReviews.map((r2) => `<article class="review-line"><strong>${esc2(r2.provider)} \u2014 ${esc2(r2.decision)}</strong><p>${esc2(r2.feedback)}</p><p>${esc2(r2.creditStatement)}</p><p class="small">${esc2(r2.reviewer)} \xB7 ${esc2(r2.reviewedAt)} \xB7 ${esc2(r2.verification)}</p></article>`).join("")}</section>`;
   }
 
-  // Learn/host.mjs
+  // Learn/Upstream/Learning/host.mjs
   function bridge(win) {
     if (win.statsDirectHost) return win.statsDirectHost;
     return win.webkit?.messageHandlers?.statsDirectLearn ? { postMessage: (body) => win.webkit?.messageHandlers?.statsDirectLearn?.postMessage(body) } : null;
@@ -24229,7 +24229,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     return "host-" + (typeof platform2 === "string" && /^[a-z]+$/.test(platform2) ? platform2 : "web");
   }
 
-  // Learn/app.mjs
+  // Learn/Upstream/Learning/app.mjs
   var $ = (id) => document.getElementById(id);
   var esc3 = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   var state = newPortfolio();

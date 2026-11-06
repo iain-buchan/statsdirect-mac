@@ -100,7 +100,7 @@ jobs:
               python3 Scripts/check-content-imports.py
               python3 Tests/test_packaged_content.py "$PWD/StatsDirect.app"
               python3 Tests/test_desktop_help.py
-              node --test Learn/*.test.mjs
+              STATSDIRECT_CONTENT_ROOT="$PWD/Content" STATSDIRECT_LEARN_ARCHIVE="$PWD/Docs/Learn/bank.mjs" node --import ./Learn/test-register.mjs --test Learn/Upstream/Learning/*.test.mjs Learn/*.test.mjs
               node Learn/build.mjs
               git diff --exit-code -- Content/Learn Content/AI
               swiftc -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache Sources/LearningLibrary.swift Tests/learning-library-test.swift -o .build/learning-library-test

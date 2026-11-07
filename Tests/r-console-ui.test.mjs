@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
+import {readFileSync} from 'node:fs';
 const require = createRequire(import.meta.url);
 const {ConsoleModel, safePreview} = require('../Content/RConsole/console.js');
 
@@ -27,6 +28,78 @@ test('session generations and event ordering reject stale output and stale input
   assert.equal(model.sessionId, 'session-b');
   assert.equal(model.receive({type: 'state', protocolVersion: 2, sessionId: 'session-b', generation: 1, seq: 200, state: 'busy'}), false);
 });
+
+function toolbarHeightFixture() {
+  // Exercise the private browser helper from the shipped source, without exporting a test API.
+  const source = readFileSync(new URL('../Content/RConsole/console.js', import.meta.url), 'utf8');
+  const begin = source.indexOf('  function maintainToolbarHeight(');
+  const end = source.indexOf('\n  maintainToolbarHeight(', begin);
+  assert.ok(begin >= 0 && end > begin, 'the production toolbar helper is present');
+  const maintain = new Function(source.slice(begin, end) + '\nreturn maintainToolbarHeight;')();
+  const frames = new Map(), listeners = new Map(), writes = [];
+  let nextFrame = 1, actualHeight = 42, gutter = 0, inlineHeight = '', observer;
+  const style = {};
+  Object.defineProperty(style, 'height', {
+    get: () => inlineHeight,
+    set: value => { inlineHeight = value; actualHeight = Number.parseFloat(value); writes.push(value); }
+  });
+  const view = {
+    ResizeObserver: class {
+      constructor(callback) { this.callback = callback; this.disconnected = false; observer = this; }
+      observe() {}
+      disconnect() { this.disconnected = true; }
+    },
+    getComputedStyle: () => ({minHeight:'42px', paddingTop:'5px', paddingBottom:'5px', borderTopWidth:'1px', borderBottomWidth:'1px'}),
+    requestAnimationFrame: callback => { const id = nextFrame++; frames.set(id, callback); return id; },
+    cancelAnimationFrame: id => frames.delete(id),
+    addEventListener: (type, callback) => listeners.set(type, callback),
+    removeEventListener: type => listeners.delete(type)
+  };
+  const toolbar = {
+    ownerDocument: {defaultView:view},
+    children:[{getClientRects:()=>[{}], getBoundingClientRect:()=>({height:30})}],
+    style,
+    get offsetHeight() { return actualHeight; },
+    get clientHeight() { return actualHeight - 2 - gutter; },
+    getBoundingClientRect: () => ({height:actualHeight})
+  };
+  const flush = () => { const ready = Array.from(frames.values()); frames.clear(); for (const callback of ready) callback(); };
+  const stop = maintain(toolbar);
+  return {toolbar, writes, flush, stop, frames, listeners,
+    notify: () => observer.callback(),
+    setGutter: value => { gutter = value; listeners.get('resize')?.(); },
+    disconnected: () => observer.disconnected};
+}
+
+test('toolbar establishes definite initial 42px height even when its visible rectangle already equals 42px, then is idempotent', () => {
+  const fixture = toolbarHeightFixture();
+  assert.equal(fixture.toolbar.getBoundingClientRect().height, 42);
+  assert.equal(fixture.toolbar.style.height, '');
+  fixture.flush();
+  assert.equal(fixture.toolbar.style.height, '42px', 'clear stale parent flex sizing, rather than trusting the visible rectangle');
+  assert.deepEqual(fixture.writes, ['42px']);
+  fixture.notify(); fixture.notify(); fixture.flush();
+  assert.deepEqual(fixture.writes, ['42px'], 'unchanged observer notifications do not write the same height again');
+  fixture.stop();
+});
+
+test('toolbar measures the scrollbar gutter and returns to definite 42px without observer loops', () => {
+  const fixture = toolbarHeightFixture();
+  fixture.flush();
+  fixture.setGutter(15); fixture.flush();
+  assert.equal(fixture.toolbar.style.height, '57px');
+  fixture.notify(); fixture.flush();
+  assert.deepEqual(fixture.writes, ['42px', '57px']);
+  fixture.setGutter(0); fixture.flush();
+  assert.equal(fixture.toolbar.style.height, '42px');
+  fixture.notify(); fixture.flush();
+  assert.deepEqual(fixture.writes, ['42px', '57px', '42px']);
+  fixture.notify(); fixture.stop();
+  assert.equal(fixture.frames.size, 0, 'cleanup cancels its scheduled animation frame');
+  assert.equal(fixture.disconnected(), true);
+  assert.equal(fixture.listeners.has('resize'), false);
+});
+
 
 test('an explicit empty readline answer is distinct from Stop, and scripts cannot answer prompts', () => {
   const model = new ConsoleModel(), emit = session(model, 0, 's', 'answer <- readline("Name? ")\n');
@@ -236,3 +309,4 @@ test('parser continuation is not a question, and active questions survive bounde
   assert.equal(model.entries[1].text, 'x'.repeat(64 - 'Keep this question? '.length));
   assert.equal(model.entries.reduce((size,entry) => size + (entry.text?.length || 0), 0), 64);
 });
+

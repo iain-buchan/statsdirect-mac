@@ -2,6 +2,20 @@ import Cocoa
 import WebKit
 import UniformTypeIdentifiers
 
+@MainActor
+private final class HelpNavigationButton: NSButton {
+    override var acceptsFirstResponder: Bool { true }
+    override var canBecomeKeyView: Bool { isEnabled && !isHiddenOrHasHiddenAncestor && window != nil }
+    override func keyDown(with event: NSEvent) {
+        if [36,76].contains(event.keyCode), event.modifierFlags.intersection([.command,.control,.option]).isEmpty {
+            performClick(nil)
+        } else if event.keyCode == 48, event.modifierFlags.intersection([.command,.control,.option]).isEmpty {
+            if event.modifierFlags.contains(.shift) { window?.selectPreviousKeyView(self) }
+            else { window?.selectNextKeyView(self) }
+        } else { super.keyDown(with:event) }
+    }
+}
+
 // Flare recognises app: as a desktop protocol (its XML loader ignores unknown schemes).
 // A private origin serves only the bundled help. No worksheet/report bridges are
 // registered here; CSP also prevents help scripts fetching remote content.
@@ -63,9 +77,12 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     let resources: HelpResources
     let searchField = NSSearchField()
     let modeButton = NSButton(title:"Pop out",target:nil,action:nil)
-    let backButton = NSButton(title:"‹",target:nil,action:nil)
-    let forwardButton = NSButton(title:"›",target:nil,action:nil)
-    let browseButton = NSButton(title:"Browse topics",target:nil,action:nil)
+    let backButton: NSButton = HelpNavigationButton(title:"‹",target:nil,action:nil)
+    let forwardButton: NSButton = HelpNavigationButton(title:"›",target:nil,action:nil)
+    let homeButton: NSButton = HelpNavigationButton(title:"Home",target:nil,action:nil)
+    let contentsButton: NSButton = HelpNavigationButton(title:"Contents",target:nil,action:nil)
+    let indexButton: NSButton = HelpNavigationButton(title:"Index",target:nil,action:nil)
+    let indexPicker = HelpIndexPicker()
     let heading = NSTextField(labelWithString:"Help")
     let notice = NSTextField(labelWithString:"")
     weak var owner: NSWindow?
@@ -81,13 +98,18 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     private var observations: [NSKeyValueObservation] = []
     private var aliases: [String:String] = [:]
     private var hasDocument = false
-    private var browseRequests = 0
-    private var pendingBrowse: (id: Int, completion: ((Bool) -> Void)?)?
+    private var commandGeneration = 0
+    private var pendingContents: (id: Int, completion: ((Bool) -> Void)?)?
+    private var pendingIndex: (id: Int, completion: ((Bool) -> Void)?)?
+    private var notifications: [NSObjectProtocol] = []
+    private var toolbarKeyMonitor: Any?
+    private var stopped = false
+    private lazy var keywordIndex: Result<HelpKeywordIndex?,Error> = Result { try HelpKeywordIndex.load(root:resources.root) }
     // Injectable only for native verification; normal clicks use the system browser.
     var willShow: (() -> Void)?
     var externalLink: (URL) -> Void = { NSWorkspace.shared.open($0) }
     // The help pages are the web reader. Inside this pane its banner, search box and menu button repeat the native
-    // Home, Browse topics and search controls, so they are hidden here only, as in the Windows help window (5.3.4).
+    // Home, Contents, Index and search controls, so they are hidden here only, as in the Windows help window (5.3.4).
     static let nativeToolbarStyle = """
     (() => {
         if (window !== window.top || location.protocol !== 'app:' || location.host !== 'statsdirect-help') return;
@@ -108,19 +130,38 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         }
     })();
     """
-    // Opens the reader's own contents tree at the current topic, as the Windows Browse topics command does.
-    static let browseTopicsScript = """
+    // The native hosts execute the same reader commands.
+    static let contentsScript = """
     (() => {
         const contents = document.getElementById('contents');
-        if (!contents) return false;
+        if (!contents) return 'no-contents';
         const navigation = document.getElementById('help-navigation');
         const toggle = document.getElementById('navigation-toggle');
         if (toggle && navigation && getComputedStyle(navigation).display === 'none') toggle.click();
-        if (contents.hidden) document.getElementById('contents-tab')?.click();
-        const link = contents.querySelector('a[aria-current="page"]') ?? contents.querySelector('a');
-        if (!link?.getClientRects().length) return false;
-        link.focus({preventScroll:true});
-        return true;
+        if (contents.hidden || document.getElementById('results')?.hidden === false)
+            document.getElementById('contents-tab')?.click();
+        const path = location.pathname.slice(1);
+        const folder = path.slice(0, path.lastIndexOf('/') + 1);
+        const overview = folder ? [...contents.querySelectorAll('details > ul > li:first-child > a')]
+            .find(a => a.dataset.link?.startsWith(folder)) : null;
+        const link = contents.querySelector('a[aria-current="page"]') ?? overview ?? contents.querySelector('a');
+        if (!link) return 'not-focused';
+        for (let p = link.parentElement; p && p !== contents; p = p.parentElement)
+            if (p.tagName === 'DETAILS') p.open = true;
+        if (!link.getClientRects().length) return 'not-focused';
+        (link.closest('li') ?? link).scrollIntoView({block: 'nearest', inline: 'nearest'});
+        link.focus({preventScroll: true});
+        return document.activeElement === link ? 'focused' : 'not-focused';
+    })()
+    """
+    static let closeContentsScript = """
+    (() => {
+        if (document.body.classList.contains('navigation-open')) {
+            const toggle = document.getElementById('navigation-toggle');
+            if (!toggle) return false;
+            toggle.click();
+        }
+        return !document.body.classList.contains('navigation-open');
     })()
     """
 
@@ -142,7 +183,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         heading.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
         modeButton.target = self; modeButton.action = #selector(toggleMode)
         let close = NSButton(title:"×",target:self,action:#selector(hide)); close.setAccessibilityLabel("Close help"); close.toolTip = "Close help"
-        // Print sits beside Pop out so the navigation row keeps Home, Browse topics and search at the narrowest dock.
+        // Print sits beside Pop out so the navigation row keeps Home, Contents, Index and search at the narrowest dock.
         let print = NSButton(title:"Print",target:self,action:#selector(printHelp)); print.toolTip = "Print this help topic"
         for button in [print,modeButton,close] { button.refusesFirstResponder = true; button.controlSize = .small }
         // The title takes the leading side and the buttons stay at the trailing edge whatever the page title.
@@ -150,14 +191,22 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         let navigation = NSStackView(); navigation.spacing = 4
         backButton.target = self; backButton.action = #selector(back); backButton.setAccessibilityLabel("Help back")
         forwardButton.target = self; forwardButton.action = #selector(forward); forwardButton.setAccessibilityLabel("Help forward")
-        let home = NSButton(title:"Home",target:self,action:#selector(contents)); home.toolTip = "Open the help home page"
-        browseButton.target = self; browseButton.action = #selector(browseTopicsAction); browseButton.isEnabled = false
-        browseButton.toolTip = "Show the help contents"
-        // With the page's own Browse topics button hidden, these keep a keyboard route: Tab reaches them when Keyboard navigation is on.
-        for button in [backButton,forwardButton,home,browseButton] { button.controlSize = .small; navigation.addArrangedSubview(button) }
+        homeButton.target = self; homeButton.action = #selector(contents); homeButton.toolTip = "Open the help home page"
+        contentsButton.target = self; contentsButton.action = #selector(browseTopicsAction); contentsButton.isEnabled = false
+        contentsButton.toolTip = "Show the help contents"
+        indexButton.target = self; indexButton.action = #selector(indexAction); indexButton.isEnabled = false
+        indexButton.toolTip = "Find a topic by an index keyword"
+        indexPicker.onChoose = { [weak self] entry in
+            guard let self, let url = URL(string:entry.path,relativeTo:HelpResources.origin)?.absoluteURL else { return }
+            self.open(url)
+            self.web.window?.makeFirstResponder(self.web)
+        }
+        // With the page's own Contents button hidden, these keep a keyboard route: Tab reaches them when Keyboard navigation is on.
+        for button in [backButton,forwardButton,homeButton,contentsButton,indexButton] { button.controlSize = .small; navigation.addArrangedSubview(button) }
         searchField.placeholderString = "Search help"; searchField.setAccessibilityLabel("Search all help topics")
         searchField.target = self; searchField.action = #selector(search); searchField.sendsSearchStringImmediately = false; searchField.sendsWholeSearchString = true
         navigation.addArrangedSubview(searchField)
+        linkNavigationKeyViews()
         searchField.widthAnchor.constraint(greaterThanOrEqualToConstant:80).isActive = true
         notice.font = .systemFont(ofSize:10); notice.textColor = .secondaryLabelColor; notice.lineBreakMode = .byTruncatingTail
         for child in [top,navigation,web,notice] { child.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(child) }
@@ -168,13 +217,51 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
             notice.topAnchor.constraint(equalTo:web.bottomAnchor,constant:2),notice.leadingAnchor.constraint(equalTo:top.leadingAnchor),notice.trailingAnchor.constraint(equalTo:top.trailingAnchor),notice.bottomAnchor.constraint(equalTo:view.bottomAnchor,constant:-2),notice.heightAnchor.constraint(equalToConstant:13)
         ])
         observations = [web.observe(\.canGoBack,options:[.initial,.new]) { [weak self] _,_ in MainActor.assumeIsolated { self?.backButton.isEnabled = self?.web.canGoBack == true } },
-                        web.observe(\.canGoForward,options:[.initial,.new]) { [weak self] _,_ in MainActor.assumeIsolated { self?.forwardButton.isEnabled = self?.web.canGoForward == true } }]
+                        web.observe(\.canGoForward,options:[.initial,.new]) { [weak self] _,_ in MainActor.assumeIsolated { self?.forwardButton.isEnabled = self?.web.canGoForward == true } },
+                        web.observe(\.url,options:[.new]) { [weak self] _,_ in MainActor.assumeIsolated { self?.cancelHelpCommands() } }]
+        notifications = [
+            NotificationCenter.default.addObserver(forName:NSApplication.didResignActiveNotification,object:NSApp,queue:.main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.cancelHelpCommands() }
+            },
+            NotificationCenter.default.addObserver(forName:NSWindow.didResignKeyNotification,object:nil,queue:.main) { [weak self] notification in
+                MainActor.assumeIsolated {
+                    guard let self, let window = notification.object as? NSWindow,
+                          window === self.web.window, !self.indexPicker.isVisible else { return }
+                    self.cancelHelpCommands()
+                }
+            }
+        ]
+        // The search field editor does not reliably follow this toolbar's reverse key loop.
+        toolbarKeyMonitor = NSEvent.addLocalMonitorForEvents(matching:.keyDown) { [weak self] event in
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let self, self.visible, event.window === self.searchField.window,
+                      event.keyCode == 48, event.modifierFlags.contains(.shift), self.indexButton.canBecomeKeyView,
+                      event.modifierFlags.intersection([.command,.control,.option]).isEmpty,
+                      let editor = self.searchField.currentEditor(),
+                      self.searchField.window?.firstResponder === editor else { return false }
+                return self.searchField.window?.makeFirstResponder(self.indexButton) == true
+            }
+            return handled ? nil : event
+        }
+    }
+    private func linkNavigationKeyViews() {
+        let controls: [NSView] = [backButton,forwardButton,homeButton,contentsButton,indexButton,searchField,web]
+        for (previous,next) in zip(controls,controls.dropFirst()) { previous.nextKeyView = next }
     }
     func attach(to split: NSSplitView, owner: NSWindow) {
         self.split = split; self.owner = owner; split.delegate = self
         timer = Timer.scheduledTimer(withTimeInterval:0.15,repeats:true) { [weak self] _ in MainActor.assumeIsolated { self?.refreshModalPresentation() } }
     }
-    func shutdown() { timer?.invalidate(); timer = nil; floatingWindow?.orderOut(nil) }
+    func shutdown() {
+        stopped = true
+        cancelHelpCommands()
+        timer?.invalidate(); timer = nil
+        for observer in notifications { NotificationCenter.default.removeObserver(observer) }
+        notifications.removeAll()
+        if let toolbarKeyMonitor { NSEvent.removeMonitor(toolbarKeyMonitor) }
+        toolbarKeyMonitor = nil
+        floatingWindow?.orderOut(nil)
+    }
     var isFocused: Bool {
         guard visible else { return false }
         if let panel = floatingWindow, NSApp.keyWindow === panel { return true }
@@ -186,6 +273,8 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         return URL(string:relative,relativeTo:HelpResources.origin)?.absoluteURL
     }
     func open(_ file: URL? = nil) {
+        guard !stopped else { return }
+        cancelHelpCommands()
         willShow?()
         var target = url(for:"1000") ?? HelpResources.origin.appendingPathComponent("index.html")
         if let file {
@@ -203,46 +292,124 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         if web.url != target || needsReload { needsReload = false; web.load(URLRequest(url:target)) }
     }
     @objc func contents() { open() }
-    @objc func browseTopicsAction() { browseTopics() }
-    /// Shows the reader's contents tree with the current topic focused. A page without a tree opens the reader at the
-    /// same topic. The completion receives true when the tree opened in place.
-    func browseTopics(_ completion: ((Bool) -> Void)? = nil) {
-        guard let source = web.url, resources.localURL(source) != nil else { completion?(false); return }
-        finishBrowse(pendingBrowse?.id ?? -1, false)
-        browseRequests += 1; let id = browseRequests
-        pendingBrowse = (id, completion)
+    @objc func browseTopicsAction() { showContents() }
+    @objc func indexAction() {
+        if indexPicker.isVisible { cancelHelpCommands() }
+        else { showIndex() }
+    }
+
+    func showContents(_ completion: ((Bool) -> Void)? = nil) {
+        cancelHelpCommands()
+        guard !stopped, visible, !moving, let source = web.url, resources.localURL(source) != nil else { completion?(false); return }
+        let id = commandGeneration
+        let window = web.window
+        pendingContents = (id,completion)
         web.window?.makeFirstResponder(web)
-        // The Windows help window gives the page five seconds.
         DispatchQueue.main.asyncAfter(deadline:.now() + 5) { [weak self] in
             MainActor.assumeIsolated {
-                guard let self, self.pendingBrowse?.id == id else { return }
+                guard let self, self.pendingContents?.id == id else { return }
                 self.notice.stringValue = "Could not open the help topics: the help page did not respond."
-                self.finishBrowse(id, false)
+                self.finishContents(id,false)
             }
         }
-        web.evaluateJavaScript(HelpPane.browseTopicsScript) { [weak self] result, error in
+        web.evaluateJavaScript(HelpPane.contentsScript) { [weak self] result,error in
             MainActor.assumeIsolated {
-                guard let self, self.pendingBrowse?.id == id else { return }
-                if let error { self.notice.stringValue = "Could not open the help topics: " + error.localizedDescription; self.finishBrowse(id, false); return }
-                let opened = result as? Bool == true
-                // Standalone topics in the alternative layouts have no tree: open the reader with the same topic selected, as on
-                // Windows. The page's percent-encoded path is encoded again, as Windows's Uri.EscapeDataString does.
-                if !opened, self.visible, self.web.url == source, source.path != "/index.html",
+                guard let self, self.pendingContents?.id == id else { return }
+                guard self.commandIsCurrent(id,source:source,window:window) else { self.finishContents(id,false); return }
+                if let error {
+                    self.notice.stringValue = "Could not open the help topics: " + error.localizedDescription
+                    self.finishContents(id,false)
+                    return
+                }
+                if result as? String == "focused" {
+                    if self.notice.stringValue.hasPrefix("Could not open the help topics") { self.notice.stringValue = "" }
+                    self.finishContents(id,true)
+                    return
+                }
+                if result as? String == "no-contents", source.path != "/index.html",
                    let parts = URLComponents(url:source,resolvingAgainstBaseURL:false) {
                     var topic = String(parts.percentEncodedPath.drop(while:{ $0 == "/" }))
                     if let fragment = parts.percentEncodedFragment { topic += "#" + fragment }
                     let unreserved = CharacterSet(charactersIn:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
                     if let encoded = topic.addingPercentEncoding(withAllowedCharacters:unreserved),
-                       let reader = URL(string:"index.html#topic=" + encoded, relativeTo:HelpResources.origin)?.absoluteURL { self.web.load(URLRequest(url:reader)) }
+                       let reader = URL(string:"index.html#topic=" + encoded,relativeTo:HelpResources.origin)?.absoluteURL {
+                        self.finishContents(id,false)
+                        self.web.load(URLRequest(url:reader))
+                        return
+                    }
                 }
-                self.finishBrowse(id, opened)
+                self.notice.stringValue = "Could not open the help topics. Use Home or search to find a topic."
+                self.finishContents(id,false)
             }
         }
     }
-    private func finishBrowse(_ id: Int, _ opened: Bool) {
-        guard let pending = pendingBrowse, pending.id == id else { return }
-        pendingBrowse = nil
+
+    func showIndex(_ completion: ((Bool) -> Void)? = nil) {
+        cancelHelpCommands()
+        guard !stopped, visible, !moving, let source = web.url, resources.localURL(source) != nil else { completion?(false); return }
+        let catalog: HelpKeywordIndex
+        switch keywordIndex {
+        case .success(.some(let value)): catalog = value
+        case .success(.none):
+            notice.stringValue = "This help bundle does not yet include a keyword index."
+            completion?(false)
+            return
+        case .failure(let error):
+            notice.stringValue = "Could not open the help index: " + error.localizedDescription
+            completion?(false)
+            return
+        }
+        let id = commandGeneration
+        let window = web.window
+        pendingIndex = (id,completion)
+        DispatchQueue.main.asyncAfter(deadline:.now() + 5) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.pendingIndex?.id == id else { return }
+                self.notice.stringValue = "Could not open the help index: the help page did not respond."
+                self.finishIndex(id,false)
+            }
+        }
+        web.evaluateJavaScript(HelpPane.closeContentsScript) { [weak self] result,error in
+            MainActor.assumeIsolated {
+                guard let self, self.pendingIndex?.id == id else { return }
+                guard self.commandIsCurrent(id,source:source,window:window) else { self.finishIndex(id,false); return }
+                if let error {
+                    self.notice.stringValue = "Could not open the help index: " + error.localizedDescription
+                    self.finishIndex(id,false)
+                    return
+                }
+                guard result as? Bool == true else {
+                    self.notice.stringValue = "Could not close Contents to open the help index."
+                    self.finishIndex(id,false)
+                    return
+                }
+                self.indexPicker.show(catalog,relativeTo:self.indexButton)
+                if self.indexPicker.isVisible { self.notice.stringValue = "" }
+                self.finishIndex(id,self.indexPicker.isVisible)
+            }
+        }
+    }
+
+    private func commandIsCurrent(_ id: Int, source: URL, window: NSWindow?) -> Bool {
+        !stopped && visible && !moving && commandGeneration == id && web.url == source && web.window === window
+    }
+    private func finishContents(_ id: Int, _ opened: Bool) {
+        guard let pending = pendingContents, pending.id == id else { return }
+        pendingContents = nil
         pending.completion?(opened)
+    }
+    private func finishIndex(_ id: Int, _ opened: Bool) {
+        guard let pending = pendingIndex, pending.id == id else { return }
+        pendingIndex = nil
+        pending.completion?(opened)
+    }
+    private func cancelHelpCommands() {
+        commandGeneration += 1
+        let contents = pendingContents, index = pendingIndex
+        pendingContents = nil; pendingIndex = nil
+        indexPicker.close()
+        contents?.completion?(false)
+        index?.completion?(false)
     }
     @objc func search() {
         let query = searchField.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)
@@ -250,8 +417,8 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         let encoded = query.addingPercentEncoding(withAllowedCharacters:.alphanumerics) ?? ""
         open(URL(string:"index.html#searchQuery=" + encoded,relativeTo:HelpResources.origin)!.absoluteURL)
     }
-    @objc func back() { web.goBack() }
-    @objc func forward() { web.goForward() }
+    @objc func back() { cancelHelpCommands(); web.goBack() }
+    @objc func forward() { cancelHelpCommands(); web.goForward() }
     @objc func printHelp() {
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
         web.printOperation(with:info).runModal(for:floatingWindow?.isVisible == true ? floatingWindow! : owner!,delegate:nil,didRun:nil,contextInfo:nil)
@@ -269,6 +436,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         floatingWindow?.level = modal ? .modalPanel : .normal
     }
     private func move(floating: Bool, activate: Bool) {
+        cancelHelpCommands()
         moving = true
         web.evaluateJavaScript("window.__sdHelpPosition ??= [...document.querySelectorAll('*')].filter(e=>e.scrollTop || e.scrollLeft).map(e=>({e,x:e.scrollLeft,y:e.scrollTop})); void 0;") { [weak self] _,_ in
             guard let self else { return }
@@ -283,6 +451,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         web.evaluateJavaScript("requestAnimationFrame(()=>requestAnimationFrame(()=>{for(const p of window.__sdHelpPosition || []) if(p.e.isConnected) p.e.scrollTo(p.x,p.y);})); void 0;")
     }
     private func place(floating: Bool, activate: Bool) {
+        cancelHelpCommands()
         guard let split, let owner else { return }
         let restoreOwner = !floating && floatingWindow?.isKeyWindow == true
         if view.superview === split { dockWidth = view.frame.width }
@@ -306,9 +475,11 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
             modeButton.title = "Pop out"
         }
         split.adjustSubviews(); modeButton.isEnabled = !hasModal
+        linkNavigationKeyViews()
         if restoreOwner { (owner.attachedSheet ?? owner).makeKeyAndOrderFront(nil) }
     }
     @objc func hide() {
+        cancelHelpCommands()
         guard visible else { return }
         if view.superview === split { dockWidth = view.frame.width }
         // Keep the view attached to its hidden companion or offscreen, never reload it.
@@ -323,7 +494,10 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     func splitView(_ splitView:NSSplitView,shouldAdjustSizeOfSubview view:NSView) -> Bool { view !== self.view }
     func webView(_ webView:WKWebView,decidePolicyFor action:WKNavigationAction,decisionHandler:@escaping(WKNavigationActionPolicy)->Void) {
         guard let url = action.request.url else { decisionHandler(.cancel); return }
-        if resources.localURL(url) != nil { decisionHandler(.allow); return }
+        if resources.localURL(url) != nil {
+            if action.targetFrame?.isMainFrame != false { cancelHelpCommands() }
+            decisionHandler(.allow); return
+        }
         if action.navigationType == .linkActivated, action.targetFrame?.isMainFrame != false, ["https","http","mailto"].contains(url.scheme ?? "") { externalLink(url) }
         decisionHandler(.cancel)
     }
@@ -334,19 +508,23 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         }
         return nil
     }
-    func webView(_ webView:WKWebView,didStartProvisionalNavigation navigation:WKNavigation!) { browseButton.isEnabled = false }
+    func webView(_ webView:WKWebView,didStartProvisionalNavigation navigation:WKNavigation!) {
+        cancelHelpCommands()
+        contentsButton.isEnabled = false; indexButton.isEnabled = false
+    }
     func webView(_ webView:WKWebView,didCommit navigation:WKNavigation!) { hasDocument = false }
     func webView(_ webView:WKWebView,didFinish navigation:WKNavigation!) {
-        hasDocument = true; browseButton.isEnabled = true
+        hasDocument = true; contentsButton.isEnabled = true; indexButton.isEnabled = true
+        linkNavigationKeyViews()
         heading.stringValue = web.title ?? "Help"; floatingWindow?.title = (web.title ?? "Help") + " · StatsDirect"
         notice.stringValue = ""
         restorePosition()
     }
-    // A load that fails before it commits leaves the previous page on screen, so Browse topics follows that page.
-    func webView(_ webView:WKWebView,didFailProvisionalNavigation navigation:WKNavigation!,withError error:Error) { browseButton.isEnabled = hasDocument; failed(error) }
-    func webView(_ webView:WKWebView,didFail navigation:WKNavigation!,withError error:Error) { browseButton.isEnabled = (error as NSError).code == NSURLErrorCancelled; failed(error) }
+    // A load that fails before it commits leaves the previous page on screen, so Contents follows that page.
+    func webView(_ webView:WKWebView,didFailProvisionalNavigation navigation:WKNavigation!,withError error:Error) { contentsButton.isEnabled = hasDocument; indexButton.isEnabled = hasDocument; failed(error) }
+    func webView(_ webView:WKWebView,didFail navigation:WKNavigation!,withError error:Error) { contentsButton.isEnabled = (error as NSError).code == NSURLErrorCancelled; indexButton.isEnabled = contentsButton.isEnabled; failed(error) }
     private func failed(_ error:Error) { if (error as NSError).code != NSURLErrorCancelled { notice.stringValue = "Help could not load: " + error.localizedDescription } }
-    func webViewWebContentProcessDidTerminate(_ webView:WKWebView) { needsReload = true; hasDocument = false; browseButton.isEnabled = false; notice.stringValue = "Help stopped. Choose a help topic to reopen it." }
+    func webViewWebContentProcessDidTerminate(_ webView:WKWebView) { cancelHelpCommands(); needsReload = true; hasDocument = false; contentsButton.isEnabled = false; indexButton.isEnabled = false; notice.stringValue = "Help stopped. Choose a help topic to reopen it." }
 }
 
 private final class HelpAliasParser: NSObject, XMLParserDelegate {

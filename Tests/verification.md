@@ -2379,3 +2379,39 @@ Evidence is retained in `.build/content-adoption-2026-11-07.noindex`.
 - An adversarial review (three readers, a verifier each, probes in a WKWebView) also found an older Mac bug: `HelpResources` keyed its catalogue by absolute paths, and when the bundle is under /private (App Translocation runs a downloaded app opened where it was unzipped) resolving symlinks dropped /private from the root but not from the enumerated files, so every key shifted and no topic could be found. The catalogue now keys files by the enumerator's relative paths. The review's findings on the shared script and help files (170 pages not in the contents tree, where Browse topics focuses "Contents"; focus after Escape; a keyboard route on Windows; scrolling and collapsed branches; the fallback) went to the Windows session as proposals for both platforms; the Mac script stays identical to Windows's until they are agreed.
 - Checks: help-pane (new: the web reader's header hidden on a topic, on the home page and on the search results; Home and Browse topics clicked as buttons, the tree opening in place with the current topic focused and staying open on a second press; the two rows against the narrowest dock computed from the split view; the catalogue finding topics from every form of a /private path), 56 checks; on the same build analysis-workflow 47, learning-workspace 6, provider-learning 6, tutor-setup 15, tutor-runtime 37, mac-parity 20, follow-on-workflow 104, R console integration 137, beta driver 96 and test.sh 618; all green. The catalogue check fails on the old code, which a probe of the old logic confirmed for both the /private and the alias form of a path.
 - The R console suite's 320-point check now prints, before its R round trips, an INFO line naming the condition that failed. CI's annotations showed the intermittent failure is that check, on runner image macos15 20261104.0514.1 only.
+
+## Contents and keyword Index parity — 7 November 2026
+
+The native Help toolbar now places Home, Contents and Index together. Contents
+restores the current reader in place, expands and scrolls its current topic (or
+its folder Overview, then the first entry) and confirms keyboard focus. Only a
+missing Contents tree permits reader navigation; script errors, missing links
+and failed focus leave the page and history intact. The two portable reader
+commands match Windows `9e1124a9` exactly.
+
+Index is a transient native keyword picker, with English case/diacritic-insensitive
+filtering, retained query, explicit keyboard/mouse activation and disambiguated
+term/target rows. It closes on navigation, hiding, reparenting and deactivation;
+Escape returns toolbar focus. Contents and Index cancel one another's pending
+commands and cannot leave both transient views open. Invalid supplied maps
+produce visible errors, matching the Windows `5e877405` handling; older help
+without a map shows an availability notice without navigating.
+
+Private generated Desktop/Public fixtures use StatisticalHelp `2aff542d`, with
+the same keyword-index SHA-256 as Windows:
+`a820de2418a6b9db31fb674c210e6323131b1213c1a1c15cf842735e4aab46a9`.
+They have 719 terms, 726 term/targets, 255 indexed pages, 404 topics and 403 search
+documents, with no builder warnings. The standalone model passes 62 checks.
+These fixtures are used only in disposable test-app copies. Production help and
+tutor pins remain `b01045b7` with root manifest SHA-256 `33804dd2…`; no generated
+content, calculation-engine pin, installer or release is changed.
+
+The complete native HelpPane regression passes against the private fixture
+(152 native checks plus 62 model checks) and the currently shipped legacy help
+(94 native checks plus 56 model checks). Coverage includes real queued toolbar
+Tab/Shift+Tab, Enter after Index use, pending-command cancellation, filter/row
+activation, five corrupt-map toolbar failures, wide/docked Contents and Escape,
+worksheet selection, modal/dock/pop-out behavior, offline search and PDF printing.
+Logs and fixture provenance are retained in
+`.build/help-parity-2026-11-07.noindex`. The existing live v1.1.0 release and all
+15 asset records remain unchanged. No full CI or installer build was run.

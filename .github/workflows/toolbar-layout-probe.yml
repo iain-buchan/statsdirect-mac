@@ -27,7 +27,7 @@ jobs:
             defaults write -g AppleShowScrollBars -string "$setting"
             swift Tests/ToolbarLayoutProbe.swift "$PWD/Content/RConsole" "$setting" > ".build/toolbar-layout-probe/$setting.log" 2>&1
             cat ".build/toolbar-layout-probe/$setting.log"
-            grep -q "LAYOUT_PROBE_COMPLETED setting=$setting rows=40" ".build/toolbar-layout-probe/$setting.log"
+            grep -q "LAYOUT_PROBE_COMPLETED setting=$setting rows=45" ".build/toolbar-layout-probe/$setting.log"
           done
       - name: Upload measured layout rows
         if: always()

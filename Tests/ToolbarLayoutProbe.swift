@@ -81,11 +81,51 @@ final class ToolbarLayoutProbe: NSObject, NSApplicationDelegate, WKNavigationDel
         """, arguments: [:], in: nil, contentWorld: .page)
         let variants = ["original-flex", "v2", "body-grid", "block-scrollport-in-flex-shell",
                         "flex-basis-max-content", "flex-basis-content", "height-fit-content",
-                        "forced-horizontal-scroll-diagnostic"]
+                        "forced-horizontal-scroll-diagnostic", "dynamic-measured"]
         var rows = 0
         var classicOverflowMeasured = false
         for variant in variants {
             _ = try await web.callAsyncJavaScript("""
+              function maintainToolbarHeight(toolbar) {
+                const document = toolbar?.ownerDocument, view = document?.defaultView;
+                if (!toolbar || !view || typeof view.ResizeObserver !== 'function') return () => {};
+                let pending = 0, stopped = false;
+                const fit = () => {
+                  pending = 0;
+                  if (stopped) return;
+                  const style = view.getComputedStyle(toolbar);
+                  const number = value => Number.parseFloat(value) || 0;
+                  const border = number(style.borderTopWidth) + number(style.borderBottomWidth);
+                  const padding = number(style.paddingTop) + number(style.paddingBottom);
+                  const gutter = Math.max(0, toolbar.offsetHeight - toolbar.clientHeight - border);
+                  const controls = Array.from(toolbar.children).filter(child => child.getClientRects().length);
+                  const controlHeight = Math.max(0, ...controls.map(child => child.getBoundingClientRect().height));
+                  if (!controlHeight) return;
+                  // WebKit can omit a classic scrollbar from this flex item's automatic height.
+                  // A definite measured height also restores the normal row after widening.
+                  const required = Math.max(number(style.minHeight), Math.ceil(controlHeight + padding + border + gutter));
+                  if (Math.abs(toolbar.getBoundingClientRect().height - required) > 0.5) toolbar.style.height = required + 'px';
+                };
+                const schedule = () => {
+                  if (!stopped && !pending) pending = view.requestAnimationFrame(fit);
+                };
+                const observer = new view.ResizeObserver(schedule);
+                observer.observe(toolbar);
+                for (const child of toolbar.children) observer.observe(child);
+                view.addEventListener('resize', schedule);
+                document.fonts?.ready?.then(schedule);
+                document.fonts?.addEventListener?.('loadingdone', schedule);
+                schedule();
+                return () => {
+                  stopped = true;
+                  if (pending) view.cancelAnimationFrame(pending);
+                  observer.disconnect();
+                  view.removeEventListener('resize', schedule);
+                  document.fonts?.removeEventListener?.('loadingdone', schedule);
+                };
+              }
+            
+            window.__toolbarHeightStop?.(); delete window.__toolbarHeightStop;
             const toolbar = document.querySelector('.toolbar'), base = window.__toolbarLayoutBase;
             const shell = toolbar.parentElement;
             if (shell !== document.body) { document.body.insertBefore(toolbar, shell); shell.remove(); }
@@ -118,6 +158,16 @@ final class ToolbarLayoutProbe: NSObject, NSApplicationDelegate, WKNavigationDel
               case 'flex-basis-content': toolbar.style.flexBasis = 'content'; break;
               case 'height-fit-content': toolbar.style.height = 'fit-content'; break;
               case 'forced-horizontal-scroll-diagnostic': toolbar.style.overflowX = 'scroll'; break;
+              case 'dynamic-measured': {
+                const row = toolbar.querySelector('.toolbar-controls');
+                while (row.firstChild) toolbar.insertBefore(row.firstChild, row);
+                row.remove();
+                toolbar.style.display = 'flex';
+                toolbar.style.alignItems = 'center';
+                toolbar.style.gap = matchMedia('(max-width:570px)').matches ? '1px' : '4px';
+                window.__toolbarHeightStop = maintainToolbarHeight(toolbar);
+                break;
+              }
             }
             return true;
             """, arguments: ["variant": variant], in: nil, contentWorld: .page)
@@ -140,7 +190,7 @@ final class ToolbarLayoutProbe: NSObject, NSApplicationDelegate, WKNavigationDel
                 var row = try await web.callAsyncJavaScript("""
                 const toolbar = document.querySelector('.toolbar');
                 // The original-layout gap responds to every resize, as its original media query did.
-                if (variant==='original-flex') toolbar.style.gap=matchMedia('(max-width:570px)').matches?'1px':'4px';
+                if (variant==='original-flex'||variant==='dynamic-measured') toolbar.style.gap=matchMedia('(max-width:570px)').matches?'1px':'4px';
                 const frame=()=>new Promise(resolve=>{
                   const timeout=setTimeout(resolve,100);
                   requestAnimationFrame(()=>{clearTimeout(timeout);resolve();});
@@ -153,7 +203,7 @@ final class ToolbarLayoutProbe: NSObject, NSApplicationDelegate, WKNavigationDel
                     clientWidth:toolbar.clientWidth,clientHeight:toolbar.clientHeight,
                     scrollWidth:toolbar.scrollWidth,scrollHeight:toolbar.scrollHeight,
                     scrollLeft:toolbar.scrollLeft,scrollTop:toolbar.scrollTop,
-                    display:s.display,flexBasis:s.flexBasis,height:s.height,
+                    display:s.display,flexBasis:s.flexBasis,height:s.height,inlineHeight:toolbar.style.height,minHeight:s.minHeight,
                     horizontalScrollbar:Math.max(0,toolbar.offsetHeight-toolbar.clientHeight-parseFloat(s.borderTopWidth)-parseFloat(s.borderBottomWidth)),
                     verticalScrollbar:Math.max(0,toolbar.offsetWidth-toolbar.clientWidth-parseFloat(s.borderLeftWidth)-parseFloat(s.borderRightWidth))};
                 };
@@ -179,9 +229,11 @@ final class ToolbarLayoutProbe: NSObject, NSApplicationDelegate, WKNavigationDel
                 const noVerticalOverflow=toolbar.scrollHeight<=toolbar.clientHeight+1;
                 const noBodyOverflow=document.documentElement.scrollWidth<=document.documentElement.clientWidth+1&&document.body.scrollWidth<=document.documentElement.clientWidth+1;
                 const nativeScroll=['auto','scroll'].includes(getComputedStyle(toolbar).overflowX);
-                const paneLayout=main.height>0&&main.top>=v.outer.bottom-1&&footer.top>=main.bottom-1&&footer.bottom<=innerHeight+1;
+                const expectedMainGap=parseFloat(getComputedStyle(document.querySelector('main')).marginTop)||0;
+                const mainGap=main.top-v.outer.bottom,footerGap=footer.top-main.bottom;
+                const paneLayout=main.height>0&&Math.abs(mainGap-expectedMainGap)<=1&&Math.abs(footerGap)<=1&&footer.bottom<=innerHeight+1;
                 return {variant,...v,viewportWidth:innerWidth,viewportHeight:innerHeight,
-                  main:rect(main),footer:rect(footer),buttonCount:buttons.length,failures,
+                  main:rect(main),footer:rect(footer),expectedMainGap,mainGap,footerGap,buttonCount:buttons.length,failures,
                   needsScroll,didScroll,noVerticalOverflow,noBodyOverflow,nativeScroll,paneLayout,
                   fitsWithoutExtraBar:needsScroll||v.horizontalScrollbar===0,
                   wideHeightWhenFits:needsScroll||Math.abs(v.outer.height-42)<=1,

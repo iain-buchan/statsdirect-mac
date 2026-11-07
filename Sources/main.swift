@@ -490,8 +490,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         else if let html { doc.web.loadHTMLString(html, baseURL: root) }
         updateWindowMenu(); return doc
     }
+    // Every caller's page goes through ShowTopic, as Windows's HelpService.Show sends it there, so a missing page shows the
+    // help contents with Windows's status line.
     func openHelp(_ url: URL, title: String) {
-        helpPane.open(url)
+        helpPane.showTopic(file: url)
     }
     @objc func helpLibrary() { helpPane.contents() }
     @objc func methodSelectionHelp() { helpPane.showTopic("1213") }

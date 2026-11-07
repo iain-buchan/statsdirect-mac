@@ -1,0 +1,39 @@
+name: R console toolbar CSS layout probe
+on:
+  push:
+    branches: [codex/r-console-css-layout-probe]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  toolbar-layout:
+    runs-on: macos-15
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Probe classic and overlay scrollbars without R or app build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .build/toolbar-layout-probe
+          original="$(defaults read -g AppleShowScrollBars 2>/dev/null || true)"
+          restore() {
+            if [[ -n "$original" ]]; then defaults write -g AppleShowScrollBars -string "$original"
+            else defaults delete -g AppleShowScrollBars >/dev/null 2>&1 || true
+            fi
+          }
+          trap restore EXIT
+          for setting in Always WhenScrolling; do
+            defaults write -g AppleShowScrollBars -string "$setting"
+            swift Tests/ToolbarLayoutProbe.swift "$PWD/Content/RConsole" "$setting" > ".build/toolbar-layout-probe/$setting.log" 2>&1
+            cat ".build/toolbar-layout-probe/$setting.log"
+            grep -q "LAYOUT_PROBE_COMPLETED setting=$setting rows=40" ".build/toolbar-layout-probe/$setting.log"
+          done
+      - name: Upload measured layout rows
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: toolbar-layout-probe
+          path: .build/toolbar-layout-probe/*.log
+          include-hidden-files: true
+

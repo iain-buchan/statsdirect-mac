@@ -53,6 +53,54 @@ import WebKit
     @MainActor static func checkPageUnchanged(_ web: WKWebView,_ message: String) async throws {
         try check((try await js(web,"location.href===window.__contentsPage.url && history.length===window.__contentsPage.history && window.__contentsToken==='retained'")) as? Bool == true,message)
     }
+    @MainActor static func webHasFocus(_ web: WKWebView) -> Bool { (web.window?.firstResponder as? NSView)?.isDescendant(of:web) == true }
+    /// A real key press, delivered through the application's event queue as a person's would be.
+    @MainActor static func press(_ window: NSWindow,_ characters: String,_ code: UInt16,_ modifiers: NSEvent.ModifierFlags = []) async throws {
+        for type in [NSEvent.EventType.keyDown,.keyUp] {
+            let event=NSEvent.keyEvent(with:type,location:.zero,modifierFlags:modifiers,timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,characters:characters,charactersIgnoringModifiers:characters,isARepeat:false,keyCode:code)!
+            NSApp.postEvent(event,atStart:false)
+        }
+        try await Task.sleep(nanoseconds:150_000_000)
+    }
+    @MainActor static var clickNumber = 1000
+    enum MouseButton { case left, right, middle }
+    /// A real click in the middle of a view. As the system's do, the press and its release share one event number.
+    @MainActor static func click(_ view: NSView,_ button: MouseButton = .left) async throws {
+        guard let window=view.window else { return }
+        let location=view.convert(NSPoint(x:view.bounds.midX,y:view.bounds.midY),to:nil)
+        clickNumber += 1
+        let types: [NSEvent.EventType] = switch button {
+        case .left: [.leftMouseDown,.leftMouseUp]
+        case .right: [.rightMouseDown,.rightMouseUp]
+        case .middle: [.otherMouseDown,.otherMouseUp]
+        }
+        for type in types {
+            let pressed = [.leftMouseDown,.rightMouseDown,.otherMouseDown].contains(type)
+            var event=NSEvent.mouseEvent(with:type,location:location,modifierFlags:[],timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,eventNumber:clickNumber,clickCount:1,pressure:pressed ? 1 : 0)!
+            // AppKit's constructor gives every mouse event button 0, so the middle button's number, 2, is set on its CGEvent.
+            if button == .middle, let cg = event.cgEvent { cg.setIntegerValueField(.mouseEventButtonNumber,value:2); event = NSEvent(cgEvent:cg) ?? event }
+            NSApp.postEvent(event,atStart:false)
+        }
+        try await Task.sleep(nanoseconds:300_000_000)
+    }
+    /// A left press on a view, dragged away and released there, so the view's button sends no action.
+    @MainActor static func pressAway(_ view: NSView) async throws {
+        guard let window=view.window else { return }
+        let inside=view.convert(NSPoint(x:view.bounds.midX,y:view.bounds.midY),to:nil)
+        let away=NSPoint(x:inside.x,y:inside.y - 120)
+        clickNumber += 1
+        for (type,location) in [(NSEvent.EventType.leftMouseDown,inside),(.leftMouseDragged,away),(.leftMouseUp,away)] {
+            let event=NSEvent.mouseEvent(with:type,location:location,modifierFlags:[],timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,eventNumber:clickNumber,clickCount:1,pressure:type == .leftMouseUp ? 0 : 1)!
+            NSApp.postEvent(event,atStart:false)
+        }
+        try await Task.sleep(nanoseconds:300_000_000)
+    }
+    @MainActor static func keyboardNavigation(_ on: Bool) { HelpPane.keyboardNavigation = { on } }
+    static let topicFailure = "Could not open the help topics. Use Home or search to find a topic."
+    static let drawerFailure = "Could not close Contents to open the help index."
+    // The page's next getElementById call, or the next class-list test, keeps it busy for the given time and then answers normally.
+    static func busyPage(_ milliseconds: Int) -> String { "(()=>{const original=Document.prototype.getElementById;document.getElementById=function(id){delete document.getElementById;const end=Date.now()+\(milliseconds);while(Date.now()<end){}return original.call(this,id)};return true})()" }
+    static func busyClassList(_ milliseconds: Int) -> String { "(()=>{const original=DOMTokenList.prototype.contains;DOMTokenList.prototype.contains=function(token){DOMTokenList.prototype.contains=original;const end=Date.now()+\(milliseconds);while(Date.now()<end){}return original.call(this,token)};return true})()" }
     @MainActor static func contents(_ h: HelpPane,_ focusedPath: String) async throws {
         let opened = await withCheckedContinuation { (done: CheckedContinuation<Bool,Never>) in h.showContents { done.resume(returning:$0) } }
         try check(opened,"Contents command completes in place")
@@ -62,6 +110,10 @@ import WebKit
         let web=h.web, paired="parametric_methods/paired_t.htm"
         h.open(h.url(for:"1239")!)
         try await until(web,"location.pathname==='/"+paired+"' && document.readyState==='complete'")
+        try await contents(h,paired)
+        try await press(web.window!,"\t",48)
+        try await until(web,"(()=>{const c=document.getElementById('contents'),links=[...c.querySelectorAll('a')],current=c.querySelector('a[aria-current=\"page\"]');return !!current&&document.activeElement===links[links.indexOf(current)+1]})()")
+        try check(true,"Tab from the entry Contents focused moves to the next topic link, as in the Windows help window")
         try await contents(h,paired)
         try await rememberPage(web)
         _ = try await js(web,"(()=>{for(let p=document.querySelector('#contents a[aria-current=\"page\"]').parentElement;p&&p.id!=='contents';p=p.parentElement)if(p.tagName==='DETAILS')p.open=false;return true})()")
@@ -89,8 +141,9 @@ import WebKit
         try await contents(h,paired)
         try await rememberPage(web)
         _ = try await js(web,"(()=>{window.__contentsTarget=document.querySelector('#contents a[aria-current=\"page\"]');document.activeElement.blur();document.getElementById('topic').tabIndex=-1;document.getElementById('topic').focus();window.__contentsTarget.focus=()=>{};return true})()")
+        h.view.window?.makeFirstResponder(h.searchField)
         let focused = await withCheckedContinuation { (done: CheckedContinuation<Bool,Never>) in h.showContents { done.resume(returning:$0) } }
-        try check(!focused && h.notice.stringValue.hasPrefix("Could not open the help topics"),"A failed Contents focus confirmation reports a visible failure")
+        try check(!focused && h.notice.stringValue == topicFailure && webHasFocus(web),"A failed Contents focus confirmation reports Windows's failure text, with keyboard focus in the page as Windows's Browser.Focus() leaves it")
         try await checkPageUnchanged(web,"Failed Contents focus does not replace the page or add history")
         _ = try await js(web,"(()=>{delete window.__contentsTarget.focus;return true})()")
         try await contents(h,paired)
@@ -98,31 +151,39 @@ import WebKit
         try await rememberPage(web)
         _ = try await js(web,"(()=>{window.__originalGetElementById=document.getElementById;document.getElementById=function(id){if(id==='contents')throw new Error('deliberate Contents failure');return window.__originalGetElementById.call(this,id)};return true})()")
         let failed = await withCheckedContinuation { (done: CheckedContinuation<Bool,Never>) in h.showContents { done.resume(returning:$0) } }
-        try check(!failed && h.notice.stringValue.hasPrefix("Could not open the help topics"),"A Contents script error reports status")
+        try check(!failed && h.notice.stringValue == topicFailure,"A Contents script error reports Windows's failure text, as its script call answers null for one")
         try await checkPageUnchanged(web,"A Contents script error preserves the live page and history")
         _ = try await js(web,"(()=>{document.getElementById=window.__originalGetElementById;return true})()")
         try await contents(h,paired)
         try await rememberPage(web)
         _ = try await js(web,"(()=>{document.querySelectorAll('#contents a').forEach(a=>a.remove());return true})()")
         let empty = await withCheckedContinuation { (done: CheckedContinuation<Bool,Never>) in h.showContents { done.resume(returning:$0) } }
-        try check(!empty && h.notice.stringValue.hasPrefix("Could not open the help topics"),"An existing Contents tree with no links reports failure")
+        try check(!empty && h.notice.stringValue == topicFailure,"An existing Contents tree with no links reports failure")
         try await checkPageUnchanged(web,"An empty Contents tree does not trigger a reader fallback")
 
         _ = try await js(web,"(()=>{document.getElementById('contents').remove();history.replaceState(null,'','/index.html');return true})()")
         try await nativeUntil { web.url?.path=="/index.html" }
         try await rememberPage(web)
         let missingAtHome = await withCheckedContinuation { (done: CheckedContinuation<Bool,Never>) in h.showContents { done.resume(returning:$0) } }
-        try check(!missingAtHome && h.notice.stringValue.hasPrefix("Could not open the help topics"),"Missing Contents on index.html reports failure instead of entering a reload loop")
+        try check(!missingAtHome && h.notice.stringValue == topicFailure,"Missing Contents on index.html reports failure instead of entering a reload loop")
         try await checkPageUnchanged(web,"A missing tree on the reader preserves its URL and history")
 
         h.contents()
         try await until(web,"location.pathname==='/contents.htm' && document.readyState==='complete'")
+        try await rememberPage(web)
+        h.notice.stringValue = topicFailure
+        h.contents();try await settle()
+        try check(h.notice.stringValue.isEmpty,"Home on the page already shown clears the status line, as Windows's ShowTopic does")
+        try await checkPageUnchanged(web,"Home on the page already shown keeps the page and its history")
         h.open(h.url(for:"1239")!)
         try await until(web,"location.pathname==='/"+paired+"' && document.readyState==='complete'")
+        var readerAddresses:[String] = []
+        let readerWatch = web.observe(\.url,options:[.new]) { view,_ in MainActor.assumeIsolated { if let address=view.url?.absoluteString, address.contains("index.html#topic=") { readerAddresses.append(address) } } }
         _ = try await js(web,"(()=>{document.getElementById('contents').remove();window.__missingContentsToken='removed';return true})()")
         _ = await withCheckedContinuation { (done: CheckedContinuation<Bool,Never>) in h.showContents { done.resume(returning:$0) } }
         try await until(web,"location.pathname==='/"+paired+"' && document.readyState==='complete' && window.__missingContentsToken===undefined")
-        try check(true,"Only a missing Contents tree opens the reader at the current topic")
+        readerWatch.invalidate()
+        try check(readerAddresses == ["app://statsdirect-help/index.html#topic=parametric_methods%2Fpaired_t.htm"],"Only a missing Contents tree opens the reader at the current topic, at the address Windows's Uri.EscapeDataString gives: \(readerAddresses)")
         h.searchField.stringValue="paired t";h.search()
         try await until(web,"document.querySelector('#results')?.hidden===false && document.querySelectorAll('a.result').length>0")
         _ = try await js(web,"(()=>{document.getElementById('contents').hidden=false;return true})()")
@@ -132,7 +193,48 @@ import WebKit
         h.open(h.url(for:"1239")!)
         try await until(web,"location.pathname==='/"+paired+"' && document.readyState==='complete'")
         try check(h.contentsButton.keyEquivalent.isEmpty && h.indexButton.keyEquivalent.isEmpty,"Contents and Index introduce no permanent shortcut")
+        try await rememberPage(web)
+        _ = try await js(web,busyPage(6500))
+        let started=Date()
+        let late = await withCheckedContinuation { (done: CheckedContinuation<Bool,Never>) in h.showContents { done.resume(returning:$0) } }
+        let waited=Date().timeIntervalSince(started)
+        try check(!late && h.notice.stringValue == "Could not open the help topics: the help page did not respond." && waited > 4.9 && waited < 6.5,"A page that gives Contents no answer within five seconds is reported (\(String(format:"%.1f",waited)) s)")
+        try await Task.sleep(nanoseconds:2_000_000_000)
+        try check(h.notice.stringValue == "Could not open the help topics: the help page did not respond.","The Contents answer that arrives after the time limit changes nothing")
+        try await checkPageUnchanged(web,"A Contents time-out preserves the page and history")
+        let system = HelpPane.keyboardNavigation
+        keyboardNavigation(true)
         try await checkToolbarTraversal(h)
+        try await checkDisabledButtonClick(h)
+        keyboardNavigation(false)
+        try await checkToolbarWithoutKeyboardNavigation(h)
+        HelpPane.keyboardNavigation = system
+    }
+    @MainActor static func checkToolbarWithoutKeyboardNavigation(_ h: HelpPane) async throws {
+        guard let window=h.view.window, let home=paneButton(h,"Home") else {
+            throw NSError(domain:"HelpPaneTests",code:6,userInfo:[NSLocalizedDescriptionKey:"The Help toolbar is not attached"])
+        }
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(h.web)
+        try check(!home.acceptsFirstResponder && !home.canBecomeKeyView && !h.indexButton.acceptsFirstResponder && !h.indexButton.canBecomeKeyView,"With Keyboard navigation off neither a click nor Tab gives the help buttons keyboard focus, like other Mac buttons")
+        try await click(home)
+        try await until(h.web,"location.pathname==='/contents.htm' && document.readyState==='complete'")
+        try check(webHasFocus(h.web),"A click on Home with Keyboard navigation off leaves keyboard focus in the page")
+        h.open(h.url(for:"1239")!)
+        try await until(h.web,"location.pathname==='/parametric_methods/paired_t.htm' && document.readyState==='complete'")
+    }
+    @MainActor static func checkDisabledButtonClick(_ h: HelpPane) async throws {
+        guard let window=h.view.window else { return }
+        h.open(HelpResources.origin.appendingPathComponent("graphics/markers.htm"))
+        try await until(h.web,"location.pathname==='/graphics/markers.htm' && document.readyState==='complete'")
+        try await nativeUntil { !h.forwardButton.isEnabled }
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(h.web)
+        try check(!h.forwardButton.acceptsFirstResponder,"A disabled help button refuses keyboard focus, even with Keyboard navigation on")
+        try await click(h.forwardButton)
+        try check(webHasFocus(h.web),"A click on the disabled Forward button leaves keyboard focus in the page, as AppKit's own buttons do")
+        h.open(h.url(for:"1239")!)
+        try await until(h.web,"location.pathname==='/parametric_methods/paired_t.htm' && document.readyState==='complete'")
     }
     @MainActor static func checkToolbarTraversal(_ h: HelpPane) async throws {
         guard let window=h.view.window, let home=paneButton(h,"Home") else {
@@ -210,7 +312,8 @@ import WebKit
         try await nativeUntil { h.indexPicker.isVisible && pickerFocused(h,true) }
         try check((try await js(web,"!document.body.classList.contains('navigation-open')")) as? Bool == true,"The Index picker and temporary Contents drawer are mutually exclusive")
         try await checkPageUnchanged(web,"Switching from Contents to Index retains the live topic, URL and history")
-        try check(h.indexPicker.table.numberOfRows==726,"Index lists all 726 authored term-target records")
+        let expectedRows = ((try? HelpKeywordIndex.load(root:h.resources.root)) ?? nil)?.rows.count ?? -1
+        try check(expectedRows > 0 && h.indexPicker.table.numberOfRows == expectedRows,"Index lists every authored term-target record of the bundle's map (\(expectedRows))")
         if let screen=h.indexPicker.panel.screen { try check(screen.visibleFrame.contains(h.indexPicker.panel.frame),"The native Index picker fits its monitor") }
         try await contents(h,"parametric_methods/paired_t.htm")
         try check(!h.indexPicker.isVisible,"Opening Contents closes Index first")
@@ -244,19 +347,21 @@ import WebKit
         h.open(h.url(for:"1239")!)
         try await until(web,"location.pathname==='/parametric_methods/paired_t.htm' && document.readyState==='complete'")
 
+        try await checkIndexFailures(h)
         try check(try await index(h),"Index reopens after cancellation")
         filter(h,"Cohen's kappa")
         try check(h.indexPicker.table.numberOfRows>0 && (0..<h.indexPicker.table.numberOfRows).allSatisfy { rowText(h,$0).localizedCaseInsensitiveContains("Cohen") },"Typing filters authored keywords and target titles")
         try await rememberPage(web)
-        _ = h.indexPicker.handleKey(key(h,"\u{f701}",125))
+        let panel = h.indexPicker.panel
+        try await press(panel,"\u{f701}",125)
         try await nativeUntil { pickerFocused(h,false) }
         try await checkPageUnchanged(web,"Moving through Index rows does not navigate")
-        _ = h.indexPicker.handleKey(key(h,"\t",48))
+        try await press(panel,"\t",48)
         try await nativeUntil { pickerFocused(h,true) }
-        _ = h.indexPicker.handleKey(key(h,"\t",48,.shift))
+        try await press(panel,"\u{19}",48,.shift)
         try await nativeUntil { pickerFocused(h,false) }
         try check(true,"Tab and Shift+Tab reach both the Index filter and results")
-        _ = h.indexPicker.handleKey(key(h,"\r",36))
+        try await press(panel,"\r",36)
         try await until(web,"location.pathname==='/agreement/kappa.htm' && document.readyState==='complete'")
         try check(!h.indexPicker.isVisible,"Enter opens the chosen Index topic in the same Help browser")
         try check(try await index(h),"Index reopens for another query")
@@ -265,9 +370,11 @@ import WebKit
         clickRow(h,0,true)
         try await settle()
         try await checkPageUnchanged(web,"Right-clicking an Index row does not navigate")
+        let selectedBefore = h.indexPicker.table.selectedRow, titleBefore = h.indexPicker.selectedTopicText
         clickRow(h,-1)
         try await settle()
         try await checkPageUnchanged(web,"Clicking blank Index list space does not open its prior selection")
+        try check(selectedBefore >= 0 && h.indexPicker.table.selectedRow == selectedBefore && h.indexPicker.selectedTopicText == titleBefore && !titleBefore.isEmpty,"Clicking blank Index list space keeps the selected entry and its title")
         filter(h,"Gaussian distribution")
         try check(h.indexPicker.table.numberOfRows==1,"Gaussian distribution has one authored Index target")
         clickRow(h,0)
@@ -277,12 +384,22 @@ import WebKit
         filter(h,"__no_such_keyword__")
         try check(h.indexPicker.table.numberOfRows==0,"A no-match filter leaves no selectable target")
         try await rememberPage(web)
-        _ = h.indexPicker.handleKey(key(h,"\r",36))
+        try await press(panel,"\r",36)
         try check(h.indexPicker.isVisible,"Enter with no Index match leaves the picker open")
         try await checkPageUnchanged(web,"Enter with no Index match preserves the page and history")
-        _ = h.indexPicker.handleKey(key(h,"\u{1b}",53))
+        let system = HelpPane.keyboardNavigation
+        keyboardNavigation(false)
+        h.view.window?.makeFirstResponder(h.searchField)
+        try check(!webHasFocus(web),"Help's search field holds the help window's focus behind the open Index picker")
+        try await press(panel,"\u{1b}",53)
         try await nativeUntil { !h.indexPicker.isVisible }
-        try check(h.view.window?.firstResponder === h.indexButton,"Escape closes Index and restores its toolbar focus")
+        try check(webHasFocus(web),"With Keyboard navigation off, Escape closes Index and moves focus to the page, wherever it was before")
+        keyboardNavigation(true)
+        try check(try await index(h),"Index reopens with Keyboard navigation on")
+        try await press(panel,"\u{1b}",53)
+        try await nativeUntil { !h.indexPicker.isVisible }
+        try check(h.view.window?.firstResponder === h.indexButton,"With Keyboard navigation on, Escape closes Index and restores its toolbar focus")
+        HelpPane.keyboardNavigation = system
         try check(!h.indexPicker.handleKey(key(h,"\r",36)),"A hidden Index picker does not handle reader or toolbar Enter keys")
 
         try check(try await index(h),"Index reopens for accent-insensitive matching")
@@ -298,10 +415,62 @@ import WebKit
         try check((0..<h.indexPicker.table.numberOfRows).contains { rowText(h,$0).contains("Shannon-Wiener") }
                   && (0..<h.indexPicker.table.numberOfRows).allSatisfy { !rowText(h,$0).contains("Weiner") },"The corrected Shannon-Wiener keyword reaches the native Index without the old spelling")
         filter(h,"ANOVA")
-        try check(h.indexPicker.table.numberOfRows>1,"Index retains authored ANOVA subentries")
+        try check(h.indexPicker.table.numberOfRows>1 && (0..<h.indexPicker.table.numberOfRows).contains { rowText(h,$0) == "ANOVA: One way" },"Index retains authored ANOVA subentries with their colon text")
+        h.indexPicker.panel.makeFirstResponder(h.indexPicker.filter)
+        try await rememberPage(web)
+        for (characters,code) in [("\u{f701}",UInt16(125)),("\u{f701}",125),("\u{f701}",125),("\u{f700}",126)] { try await press(panel,characters,code) }
+        try check(pickerFocused(h,false) && h.indexPicker.table.selectedRow == 1,"Down moves from the filter into the list, then the arrow keys move the selection a row at a time: \(h.indexPicker.table.selectedRow)")
+        try await checkPageUnchanged(web,"Moving the Index selection with the arrow keys does not navigate")
+        filter(h,"I2")
+        try check((0..<h.indexPicker.table.numberOfRows).contains { rowText(h,$0).hasPrefix("I²") },"Typing I2 finds I², as Windows's ICU match does")
+        filter(h,"Cohen\u{2019}s kappa")
+        try check(h.indexPicker.table.numberOfRows == 1 && rowText(h,0) == "Cohen's kappa","A typographic apostrophe finds the straight one, as on Windows")
+        filter(h,"æ"); let ligature = h.indexPicker.table.numberOfRows
+        filter(h,"ae")
+        try check(ligature > 0 && ligature == h.indexPicker.table.numberOfRows,"æ and ae find the same entries, as on Windows")
+        filter(h,"t-test")
+        try check(h.indexPicker.table.numberOfRows == 0 && h.indexPicker.countText == "No matching index entries","Hyphens are not folded away, as on Windows")
+        filter(h,"ANOVA")
         h.indexPicker.close()
         try check(try await index(h),"The same Index picker can be opened repeatedly")
         try check(h.indexPicker.filter.stringValue=="ANOVA","Repeated Index use keeps its last query")
+        func ground(_ name: NSAppearance.Name) -> CGColor? { var color: CGColor?; NSAppearance(named:name)!.performAsCurrentDrawingAppearance { color = NSColor.windowBackgroundColor.cgColor }; return color }
+        h.indexPicker.panel.appearance = NSAppearance(named:.darkAqua); h.indexPicker.panel.contentView?.needsDisplay = true; h.indexPicker.panel.displayIfNeeded(); try await settle()
+        let dark = h.indexPicker.backgroundColor
+        h.indexPicker.panel.appearance = NSAppearance(named:.aqua); h.indexPicker.panel.contentView?.needsDisplay = true; h.indexPicker.panel.displayIfNeeded(); try await settle()
+        let light = h.indexPicker.backgroundColor
+        h.indexPicker.panel.appearance = nil
+        try check(dark != nil && light != nil && dark == ground(.darkAqua) && light == ground(.aqua) && dark != light,"The Index picker's ground follows Light and Dark")
+        h.indexPicker.panel.makeFirstResponder(h.indexPicker.filter)
+        let editor = h.indexPicker.filter.currentEditor() as? NSTextView
+        editor?.setMarkedText("k",selectedRange:NSRange(location:1,length:0),replacementRange:NSRange(location:NSNotFound,length:0))
+        try await rememberPage(web)
+        try await press(panel,"\r",36)
+        try check(editor != nil && h.indexPicker.isVisible,"Return while an input method composes in the filter stays with the input method and opens nothing")
+        try await checkPageUnchanged(web,"Return during an input method's composition preserves the page and history")
+        editor?.unmarkText()
+        try await click(h.indexButton)
+        try await settle()
+        try check(!h.indexPicker.isVisible,"A click on Index while the picker shows closes it, as a Windows drop-down button does")
+        try await click(h.indexButton)
+        try await nativeUntil { h.indexPicker.isVisible && pickerFocused(h,true) }
+        try check(true,"The next click on Index opens the picker again")
+        try await click(h.indexButton,.right)
+        try await settle()
+        try check(h.indexPicker.isVisible && pickerFocused(h,true),"A right-click on Index leaves the picker open, as Windows's drop-down button acts on the left button only")
+        try await click(h.indexButton,.middle)
+        try await settle()
+        try check(h.indexPicker.isVisible && pickerFocused(h,true),"A middle click on Index leaves the picker open too")
+        try await pressAway(h.indexButton)
+        try await settle()
+        try check(!h.indexPicker.isVisible,"A press on Index closes the picker even when released away from the button")
+        try await click(h.indexButton)
+        try await nativeUntil { h.indexPicker.isVisible }
+        try check(true,"After a press on Index released away from it, the next click opens the picker at once")
+        try await click(h.contentsButton)
+        try await until(web,visibleFocus("distributions/normal.htm"))
+        try check(!h.indexPicker.isVisible,"A click on Contents while the picker shows closes Index and opens Contents at once")
+        try check(try await index(h),"Index reopens after Contents")
         h.toggleMode();try await settle()
         try check(!h.indexPicker.isVisible,"Reparenting Help closes its Index picker")
         h.toggleMode();try await settle()
@@ -318,13 +487,125 @@ import WebKit
         try await nativeUntil { h.contentsButton.isEnabled }
         try await rememberPage(web)
         let window=h.view.window!
+        let systemNavigation = HelpPane.keyboardNavigation
+        keyboardNavigation(true)
         try check(window.makeFirstResponder(h.contentsButton),"Contents accepts keyboard focus after Index has closed")
-        let enter=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,characters:"\r",charactersIgnoringModifiers:"\r",isARepeat:false,keyCode:36)!
-        h.contentsButton.keyDown(with:enter)
+        try await press(window,"\r",36)
         try await until(web,visibleFocus("parametric_methods/paired_t.htm"))
+        HelpPane.keyboardNavigation = systemNavigation
         try check(!h.indexPicker.isVisible,"A previously used hidden Index does not intercept native Enter on Contents")
         try await checkPageUnchanged(web,"Native Contents Enter after Index use preserves the same topic, URL and history")
     }
+    @MainActor static func checkIndexFailures(_ h: HelpPane) async throws {
+        let web=h.web, paired="parametric_methods/paired_t.htm"
+        try await contents(h,paired)
+        _ = try await js(web,"(()=>{document.getElementById('navigation-toggle').remove();return true})()")
+        try await rememberPage(web)
+        try check(!(try await index(h)) && !h.indexPicker.isVisible && h.notice.stringValue == drawerFailure,"A Contents drawer that cannot close cancels Index with Windows's message")
+        try await checkPageUnchanged(web,"A drawer that cannot close leaves the page and history alone")
+        h.open(HelpResources.origin.appendingPathComponent("graphics/markers.htm"))
+        try await until(web,"location.pathname==='/graphics/markers.htm' && document.readyState==='complete'")
+        h.open(h.url(for:"1239")!)
+        try await until(web,"location.pathname==='/"+paired+"' && document.readyState==='complete'")
+        _ = try await js(web,"(()=>{window.__classContains=DOMTokenList.prototype.contains;DOMTokenList.prototype.contains=function(){throw new Error('deliberate drawer failure')};return true})()")
+        let thrown = try await index(h)
+        _ = try await js(web,"(()=>{DOMTokenList.prototype.contains=window.__classContains;return true})()")
+        try check(!thrown && !h.indexPicker.isVisible && h.notice.stringValue == drawerFailure,"A drawer script error reads as a drawer that did not close, as Windows's null answer does")
+        h.notice.stringValue = "Help could not load: probe"
+        try check(try await index(h),"Index opens with an earlier message on the status line")
+        try check(h.notice.stringValue == "Help could not load: probe","Opening Index leaves the status line as it was, as on Windows")
+        h.indexPicker.close()
+        h.notice.stringValue = ""
+        try await rememberPage(web)
+        _ = try await js(web,busyClassList(6500))
+        let started=Date()
+        let late = try await index(h)
+        let waited=Date().timeIntervalSince(started)
+        try check(!late && !h.indexPicker.isVisible && h.notice.stringValue == "Could not open the help index: the help page did not respond." && waited > 4.9 && waited < 6.5,"A page that gives Index no answer within five seconds is reported (\(String(format:"%.1f",waited)) s)")
+        try await Task.sleep(nanoseconds:2_000_000_000)
+        try check(!h.indexPicker.isVisible,"The drawer answer that arrives after the time limit opens no picker")
+        try await checkPageUnchanged(web,"An Index time-out preserves the page and history")
+        h.notice.stringValue = ""
+    }
+    #if !HELP_NAVIGATION_ONLY
+    /// Edit and Close shortcuts typed in the picker act on it, never on the worksheet behind it.
+    @MainActor static func checkIndexRouting(_ h: HelpPane,_ v: Viewer,_ suiteWorksheet: Document) async throws {
+        guard HelpKeywordIndex.exists(root:h.resources.root) else { return }
+        // A worksheet of its own takes the edits: an edit and its undo still mark a sheet's formulas stale, which the
+        // suite's worksheet must not show when it is compared with its starting state.
+        let worksheet = v.newDocument(kind:"grid",title:"Index routing",url:v.root.appendingPathComponent("Grid/index.html"))
+        defer { v.remove(worksheet); v.tabs.selectTabViewItem(suiteWorksheet.item) }
+        try await until(worksheet.web,"!!window.statsDirectGrid")
+        _ = try await js(worksheet.web,"statsDirectGrid.loadCSV('Before,After\\n1,2\\n3,4','Index routing.csv')")
+        try await settle()
+        try check(v.active === worksheet,"A worksheet is the active document beside help")
+        // The clipboard the person had is put back afterwards, as the other suites do.
+        let general = NSPasteboard.general
+        let saved = (general.pasteboardItems ?? []).map { item -> NSPasteboardItem in
+            let copy = NSPasteboardItem()
+            for type in item.types { if let data = item.data(forType:type) { copy.setData(data,forType:type) } }
+            return copy
+        }
+        defer { general.clearContents(); if !saved.isEmpty { general.writeObjects(saved) } }
+        // An undoable edit and no selection, so that Undo or Select All reaching the worksheet would show.
+        _ = try await js(worksheet.web,"(()=>{statsDirectGrid.setCellText({col:0,row:1,text:'4242'});statsDirectGrid.clearSelection();return true})()")
+        try await settle()
+        let state = "JSON.stringify({cells:statsDirectGrid.csvData(),source:statsDirectGrid.analysisSource()})"
+        let before = try await js(worksheet.web,state) as? String
+        try check(before?.contains("4242") == true,"The worksheet holds an undoable edit before Index opens")
+        general.clearContents(); general.setString("Gaussian",forType:.string)
+        try check(try await index(h),"Index opens beside the active worksheet")
+        let panel = h.indexPicker.panel
+        try check(h.isFocused,"The open Index picker counts as focused help")
+        let query = h.indexPicker.filter.stringValue
+        try await press(panel,"v",9,.command)
+        try await nativeUntil { h.indexPicker.filter.stringValue == "Gaussian" }
+        try await press(panel,"a",0,.command)
+        let editor = h.indexPicker.filter.currentEditor() as? NSTextView
+        try check(editor?.selectedRange() == NSRange(location:0,length:8),"Select All in the Index filter selects the filter's text")
+        try await press(panel,"z",6,.command)
+        try await nativeUntil { h.indexPicker.filter.stringValue == query }
+        try check(true,"Undo in the Index filter takes back the paste")
+        try check((try await js(worksheet.web,state)) as? String == before,"Paste, Select All and Undo typed in the Index filter edit the filter, not the worksheet behind it")
+        // In the list nothing takes Cut, Copy or Paste, as in Windows's list box; none may reach the worksheet or the clipboard.
+        filter(h,"Gaussian")
+        try await press(panel,"\u{f701}",125)
+        try await nativeUntil { pickerFocused(h,false) }
+        general.clearContents(); general.setString("1\t2\n3\t4",forType:.string)
+        for (characters,code) in [("v",UInt16(9)),("x",7),("c",8),("a",0),("z",6)] { try await press(panel,characters,code,.command) }
+        try check(h.indexPicker.isVisible && pickerFocused(h,false),"Edit shortcuts in the Index list leave the picker open with the list focused")
+        try check((try await js(worksheet.web,state)) as? String == before,"Cut, Copy, Paste, Select All and Undo in the Index list leave the worksheet behind it unchanged")
+        try check(general.string(forType:.string) == "1\t2\n3\t4","Copy and Cut in the Index list leave the clipboard as it was")
+        let documents = v.documents.count
+        try await press(panel,"w",13,.command)
+        try await nativeUntil { !h.indexPicker.isVisible }
+        try check(h.visible && v.documents.count == documents && v.active === worksheet,"Close with the Index picker focused closes the picker, not the document or help")
+    }
+    /// Close in the Index picker over popped-out help closes the picker, not an AI pane whose composer keeps the main
+    /// window's focus behind it.
+    @MainActor static func checkIndexCloseBesideAI(_ h: HelpPane,_ v: Viewer,_ worksheet: Document) async throws {
+        guard HelpKeywordIndex.exists(root:h.resources.root) else { return }
+        let policy = UserDefaults.standard.object(forKey:"DisableOnlineTutor")
+        UserDefaults.standard.set(true,forKey:"DisableOnlineTutor")
+        let script = v.newDocument(kind:"r",title:"Help close fixture")
+        let pane = RPane(script:"1 + 1"); script.rPane = pane; script.item.view = pane.view
+        defer {
+            v.scriptAI.hide()
+            v.remove(script)
+            v.tabs.selectTabViewItem(worksheet.item)
+            if let policy { UserDefaults.standard.set(policy,forKey:"DisableOnlineTutor") } else { UserDefaults.standard.removeObject(forKey:"DisableOnlineTutor") }
+        }
+        if !h.prefersFloating { h.toggleMode(); try await settle() }
+        defer { if h.prefersFloating { h.toggleMode() } }
+        v.scriptAI.open(script)
+        try await settle()
+        try check(v.scriptAI.visible && v.scriptAI.isFocused && h.view.window === h.floatingWindow,"The AI pane's composer has the main window's focus beside popped-out help")
+        try check(try await index(h),"Index opens in popped-out help beside the AI pane")
+        try await press(h.indexPicker.panel,"w",13,.command)
+        try await nativeUntil { !h.indexPicker.isVisible }
+        try check(v.scriptAI.visible && h.visible,"Close with the Index picker focused closes only the picker, leaving the AI pane and help open")
+    }
+    #endif
     @MainActor static func checkWideContents(_ h: HelpPane) async throws {
         h.toggleMode();try await settle()
         guard let panel=h.floatingWindow else { throw NSError(domain:"HelpPaneTests",code:5,userInfo:[NSLocalizedDescriptionKey:"Help did not pop out for its wide-reader check"]) }
@@ -336,14 +617,18 @@ import WebKit
         try await rememberPage(h.web)
         try await contents(h,"references/support.htm")
         try await checkPageUnchanged(h.web,"Wide Contents scrolls and focuses its current entry without replacing the topic")
-        try check(try await index(h),"Index opens beside the wide reader")
-        try check((try await js(h.web,"!document.body.classList.contains('navigation-open') && document.getElementById('help-navigation').getClientRects().length>0")) as? Bool == true,"Index preserves the wide reader's permanent sidebar")
-        try await contents(h,"references/support.htm")
-        try check(!h.indexPicker.isVisible,"Wide Contents closes Index")
-        try await checkPageUnchanged(h.web,"Wide Contents and Index switching retains the topic and history")
-        _ = try await js(h.web,"(()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true})()")
-        try await until(h.web,"document.activeElement===document.getElementById('topic') && !document.body.classList.contains('navigation-open')")
-        try check(true,"Escape from the wide Contents tree returns focus to the topic")
+        if HelpKeywordIndex.exists(root:h.resources.root) {
+            try check(try await index(h),"Index opens beside the wide reader")
+            try check((try await js(h.web,"!document.body.classList.contains('navigation-open') && document.getElementById('help-navigation').getClientRects().length>0")) as? Bool == true,"Index preserves the wide reader's permanent sidebar")
+            try await contents(h,"references/support.htm")
+            try check(!h.indexPicker.isVisible,"Wide Contents closes Index")
+            try await checkPageUnchanged(h.web,"Wide Contents and Index switching retains the topic and history")
+        }
+        if CommandLine.arguments.contains("--check-reader-escape") {
+            _ = try await js(h.web,"(()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true})()")
+            try await until(h.web,"document.activeElement===document.getElementById('topic') && !document.body.classList.contains('navigation-open')")
+            try check(true,"Escape from the wide Contents tree returns focus to the topic")
+        }
         h.toggleMode();try await settle()
     }
     @MainActor static func checkInvalidIndex(_ original: HelpPane) async throws {
@@ -359,6 +644,7 @@ import WebKit
             try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true)
             defer { try? FileManager.default.removeItem(at:folder) }
             try Data("<!doctype html><html><head><title>Invalid keyword fixture</title></head><body><p id='topic'>A retained help page.</p></body></html>".utf8).write(to:folder.appendingPathComponent("index.html"))
+            try Data("<!doctype html><html><head><title>Repaired target</title></head><body><p>A keyword target.</p></body></html>".utf8).write(to:folder.appendingPathComponent("topic.htm"))
             try Data(source.utf8).write(to:folder.appendingPathComponent("keyword-index.json"))
             let pane=HelpPane(root:folder)
             let window=NSWindow(contentRect:NSRect(x:0,y:0,width:900,height:500),styleMask:[.titled,.closable],backing:.buffered,defer:false)
@@ -371,11 +657,22 @@ import WebKit
             pane.open()
             try await until(pane.web,"document.readyState==='complete' && document.getElementById('topic')!==null")
             try await nativeUntil { pane.indexButton.isEnabled }
+            // A compact reader's open Contents drawer, which Index closes before it reads the map.
+            _ = try await js(pane.web,"(()=>{document.body.classList.add('navigation-open');const toggle=document.createElement('button');toggle.id='navigation-toggle';toggle.addEventListener('click',()=>document.body.classList.remove('navigation-open'));document.body.append(toggle);return true})()")
             try await rememberPage(pane.web)
             pane.indexButton.performClick(nil)
             try await nativeUntil { pane.notice.stringValue.hasPrefix("Could not open the help index") }
             try check(!pane.indexPicker.isVisible && pane.notice.window?.isVisible == true,"Index toolbar reports \(name) visibly without opening a picker")
+            try check((try await js(pane.web,"!document.body.classList.contains('navigation-open')")) as? Bool == true,"Index reads the map with \(name) only after closing the Contents drawer, as on Windows")
             try await checkPageUnchanged(pane.web,"Index toolbar rejects \(name) without replacing the page or history")
+            if name == "missing target" {
+                // Windows keeps no failed load, so the next Index reads a repaired map.
+                try Data(#"{"schemaVersion":1,"entries":[{"term":"Repaired","title":"Repaired target","path":"topic.htm"}]}"#.utf8).write(to:folder.appendingPathComponent("keyword-index.json"))
+                pane.indexButton.performClick(nil)
+                try await nativeUntil { pane.indexPicker.isVisible }
+                try check(pane.indexPicker.rows.map(\.entry.term) == ["Repaired"],"Index reads a repaired map on the next request after a failed one")
+                pane.indexPicker.close()
+            }
             pane.hide()
         }
     }
@@ -410,7 +707,7 @@ import WebKit
                     try await checkContents(pane)
                     try await checkIndex(pane)
                     try await checkInvalidIndex(pane)
-                    if CommandLine.arguments.contains("--check-reader-escape") { try await checkWideContents(pane) }
+                    try await checkWideContents(pane)
                     print("PASS: native help navigation checks");fflush(stdout)
                 } catch {
                     print("FAIL: \(error.localizedDescription) \((error as NSError).userInfo)")
@@ -519,6 +816,10 @@ import WebKit
         try check(h.temporarilyFloating && h.view.window === h.floatingWindow,"help floats automatically during a modal sheet")
         try check(sheet.firstResponder === responder && NSApp.keyWindow === originalKey,"automatic floating preserves parameter input focus")
         try check(!h.modeButton.isEnabled && h.floatingWindow?.worksWhenModal == true,"help remains interactive and Dock is disabled during the modal sheet")
+        if HelpKeywordIndex.exists(root:h.resources.root) {
+            try check(try await index(h) && h.indexPicker.isVisible && pickerFocused(h,true),"The keyword Index remains usable in Help beside a modal parameter dialog")
+            h.indexPicker.close()
+        }
         v.window.endSheet(sheet);sheet.orderOut(nil);h.refreshModalPresentation();try await settle()
         try check(h.view.superview === v.workspaceSplit && !h.temporarilyFloating,"help returns to the chosen presentation after the sheet")
         h.toggleMode();try await settle();h.hide();h.open(web.url!);try await settle()
@@ -580,8 +881,10 @@ import WebKit
         try await until(web,"!document.body.classList.contains('navigation-open')")
         try await checkContents(h)
         try await checkIndex(h)
+        try await checkIndexRouting(h,v,worksheet)
+        try await checkIndexCloseBesideAI(h,v,worksheet)
         try await checkInvalidIndex(h)
-        if CommandLine.arguments.contains("--check-reader-escape") { try await checkWideContents(h) }
+        try await checkWideContents(h)
         h.open(h.url(for:"1239")!)
         try await until(web,"location.pathname.endsWith('/paired_t.htm') && document.readyState==='complete'")
         // App Translocation runs a downloaded app opened in place from /private/var/folders/...; the catalogue must still find every topic.

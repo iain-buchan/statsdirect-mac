@@ -34,6 +34,23 @@ struct HelpKeywordIndexTests {
             do { _ = try HelpKeywordIndex.load(root:root); throw Failure(errorDescription:message) }
             catch is HelpKeywordIndex.IndexError { checks += 1 }
         }
+        /// Windows's message for the rule, word for word (HelpCatalog.LoadIndexEntries at Windows d783a494).
+        func refusal(_ text: String, aliases: HelpKeywordIndex.Aliases = [:]) -> String? {
+            do { try Data(text.utf8).write(to:map); _ = try HelpKeywordIndex.load(root:root,aliases:aliases); return nil }
+            catch { return error.localizedDescription }
+        }
+        func refused(_ text: String, _ expected: String, _ label: String, aliases: HelpKeywordIndex.Aliases = [:]) throws {
+            let actual = refusal(text,aliases:aliases)
+            try check(actual == expected,"\(label): \(actual ?? "accepted")")
+        }
+        /// The stored path of a one-entry map whose target is `path`, or the refusal.
+        func stored(_ path: String, aliases: HelpKeywordIndex.Aliases = [:]) -> String {
+            do {
+                try write(["schemaVersion":1,"entries":[entry("Keyword","Topic",path)]])
+                return try HelpKeywordIndex.load(root:root,aliases:aliases)?.entries.map(\.path).joined(separator:" ;; ") ?? "no index"
+            } catch { return error.localizedDescription }
+        }
+        func json(_ value: Any) -> String { String(data:try! JSONSerialization.data(withJSONObject:value,options:[.sortedKeys,.fragmentsAllowed]),encoding:.utf8)! }
 
         try check(try HelpKeywordIndex.load(root:root) == nil,"A legacy bundle has no invented index")
         for path in ["basics/one.htm","basics/two.htm","basics/space name.htm","basics/unindexed.htm","index.html","resources/unsafe.htm","Data/unsafe.htm"] {
@@ -41,7 +58,7 @@ struct HelpKeywordIndexTests {
         }
         try index([
             entry("Gaussian distribution","Normal distribution"),
-            entry("gaussian distribution","Ignored duplicate","BASICS/ONE.HTM"),
+            entry("gaussian distribution","Ignored duplicate","BASICS/one.htm"),
             entry("AI assistance","Report window"), entry("AI assistance","Script window","basics/two.htm"),
             entry("Duplicate","Same title"), entry("Duplicate","Same title","basics/two.htm"),
             entry("Scheffé","Accented method"), entry("A title match","Université"),
@@ -83,11 +100,28 @@ struct HelpKeywordIndexTests {
         for value: Any in [NSNull(),"entry",["term":"Keyword","title":"Topic"],entry(" "),entry("Keyword","\n"),["term":42,"title":"Topic","path":"basics/one.htm"]] {
             try rejected(["schemaVersion":1,"entries":[value]],"A malformed entry was accepted")
         }
-        for path in ["https://example.org/topic.htm","//example.org/topic.htm","/basics/one.htm","../one.htm","basics/../one.htm",
-                     "%2e%2e/one.htm","basics\\one.htm","basics%5cone.htm","file:basics/one.htm","basics/one.htm?x=1",
-                     "index.html","resources/unsafe.htm","Data/unsafe.htm","basics/one.txt","missing.htm","basics//one.htm",
-                     "basics/one.htm\0","basics/%ZZ.htm","basics/one.htm#bad%ZZ","#anchor"] {
+        for path in ["https://example.org/topic.htm","//example.org/topic.htm","../one.htm","basics/../one.htm",
+                     "%2e%2e/one.htm","basics\\one.htm","basics%5cone.htm","file:basics/one.htm",
+                     "index.html","resources/unsafe.htm","Data/unsafe.htm","basics/one.txt","missing.htm",
+                     "basics/one.htm\0","basics/%ZZ.htm","#anchor","basics/one.HTM","BASICS/ONE.HTM"] {
             try rejected(["schemaVersion":1,"entries":[entry("Keyword","Topic",path)]],"An unsafe/missing topic was accepted: " + path)
+        }
+        let resolved: [(String,String)] = [("/basics/one.htm","basics/one.htm"),("Content/basics/one.htm","basics/one.htm"),
+                                           ("basics/one.htm?x=1","basics/one.htm"),("basics/one.htm?x=1#part","basics/one.htm#part"),
+                                           ("basics//one.htm","basics//one.htm"),("basics/one.htm#bad%ZZ","basics/one.htm#bad%25ZZ"),
+                                           ("BASICS/one.htm","BASICS/one.htm"),("one_alias","basics/one.htm"),("1001","basics/one.htm")]
+        for (path,stored) in resolved {
+            try write(["schemaVersion":1,"entries":[entry("Keyword","Topic",path)]])
+            let loaded = try HelpKeywordIndex.load(root:root,aliases:["ONE_ALIAS":"basics/one.htm","1001":"basics/one.htm"])
+            try check(loaded?.entries.map(\.path) == [stored],"Windows's Resolve accepts \(path) as \(stored): \(loaded?.entries.map(\.path) ?? [])")
+        }
+        let unsafeTarget = "Help keyword index entry 1 refers to a missing or unsafe topic."
+        let notPackaged = "Help keyword index entry 1 does not name a packaged topic."
+        for (path,message) in [("https://example.org/topic.htm",notPackaged),("file:///C:/test.htm",notPackaged),("C:/test.htm",notPackaged),
+                               ("//example.org/topic.htm",notPackaged),("basics\\one.htm",notPackaged),("basics/one.htm\u{0}",notPackaged),
+                               ("../one.htm",unsafeTarget),("%2e%2e/one.htm",unsafeTarget),("missing.htm",unsafeTarget),
+                               ("index.html",unsafeTarget),("resources/unsafe.htm",unsafeTarget),("basics/one.HTM",unsafeTarget)] {
+            try refused(json(["schemaVersion":1,"entries":[entry("Keyword","Topic",path)]]),message,"Windows's message for " + path)
         }
         try Data("{broken".utf8).write(to:map)
         do { _ = try HelpKeywordIndex.load(root:root); throw Failure(errorDescription:"Malformed JSON was accepted") }
@@ -105,8 +139,142 @@ struct HelpKeywordIndexTests {
         catch is HelpKeywordIndex.IndexError { checks += 1 }
         try manager.removeItem(at:map)
         try manager.createDirectory(at:map,withIntermediateDirectories:false)
-        do { _ = try HelpKeywordIndex.load(root:root); throw Failure(errorDescription:"A directory keyword map was accepted") }
-        catch is HelpKeywordIndex.IndexError { checks += 1 }
+        try check(!HelpKeywordIndex.exists(root:root) && (try HelpKeywordIndex.load(root:root)) == nil,"A folder named keyword-index.json is no index, as Windows's File.Exists finds")
+        try manager.removeItem(at:map)
+
+        // System.Text.Json's JsonDocument, as Windows reads the map.
+        let schema = "The help keyword index has an unsupported or missing schema. Rebuild the desktop help."
+        let invalid = "The help keyword index contains invalid JSON. Rebuild the desktop help."
+        let valid = #"{"term":"Keyword","title":"Topic","path":"basics/one.htm"}"#
+        try refused(#"{"schemaVersion":1,"entries":[\#(valid),]}"#,invalid,"A trailing comma in the entries is invalid JSON")
+        try refused(#"{"schemaVersion":1,"entries":[],}"#,invalid,"A trailing comma in the object is invalid JSON")
+        try refused("{\"schemaVersion\":1,/* note */\"entries\":[]}",invalid,"A comment is invalid JSON")
+        try refused(String(repeating:"[",count:65) + String(repeating:"]",count:65),invalid,"Nesting deeper than 64 levels is invalid JSON")
+        try refused(#"{"schemaVersion":1,"schemaVersion":2,"entries":[]}"#,schema,"The last of repeated member names wins, so a repeated version 2 is refused")
+        try check(refusal(#"{"schemaVersion":2,"schemaVersion":1,"entries":[]}"#) == nil,"The last of repeated member names wins, so a repeated version 1 is read")
+        for root in ["5","\"text\"","null","[]","{\"schemaVersion\":1.0,\"entries\":[]}","{\"schemaVersion\":1e0,\"entries\":[]}","{\"schemaVersion\":true,\"entries\":[]}"] {
+            try refused(root,schema,"Windows's schema message for " + root)
+        }
+        try refused(#"{"schemaVersion":1,"entries":[{"term":"\ud800","title":"Title","path":"basics/one.htm"}]}"#,"Help keyword index entry 1 has invalid term text.","An unpaired surrogate is invalid text")
+        try refused(#"{"schemaVersion":1,"entries":[{"term":" ","title":"Title","path":"basics/one.htm"}]}"#,"Help keyword index entry 1 has no valid term.","A blank term is refused")
+        try refused(#"{"schemaVersion":1,"entries":[{"term":"Term","title":5,"path":"basics/one.htm"}]}"#,"Help keyword index entry 1 has no valid title.","A number title is refused")
+        try refused(#"{"schemaVersion":1,"entries":[{"term":"Term","title":"Title","path":null}]}"#,"Help keyword index entry 1 has no valid path.","A null path is refused")
+        try refused(#"{"schemaVersion":1,"entries":[null]}"#,"Help keyword index entry 1 has no valid term.","A null entry is refused")
+        for (mark,encoding) in [([0xEF,0xBB,0xBF] as [UInt8],String.Encoding.utf8),([0xFF,0xFE],.utf16LittleEndian),([0xFE,0xFF],.utf16BigEndian)] {
+            try (Data(mark) + #"{"schemaVersion":1,"entries":[\#(valid)]}"#.data(using:encoding)!).write(to:map)
+            try check((try HelpKeywordIndex.load(root:root))?.entries.count == 1,"A byte-order mark selects the text encoding, as File.ReadAllText does")
+        }
+
+        // Windows's own fixture (KeywordIndexChecks.cs at Windows 5e877405): aliases collapse, English order, text kept.
+        try file("alpha.htm"); try file("beta.htm")
+        try write(["schemaVersion":1,"entries":[["term":"beta keyword","title":"Beta topic","path":"beta.htm"],
+                                                ["term":"Alpha keyword","title":"Beta topic","path":"beta.htm"],
+                                                ["term":"Alpha keyword","title":"Alpha topic","path":"alpha.htm"],
+                                                ["term":"ALPHA KEYWORD","title":"Duplicate alias","path":"ALPHA_ALIAS"],
+                                                ["term":"Numbers & symbols < 5","title":"Title \"quoted\" & plain","path":"alpha.htm#section"]]])
+        let windows = try HelpKeywordIndex.load(root:root,aliases:["ALPHA":"alpha.htm","ALPHA_ALIAS":"alpha.htm","BETA":"beta.htm","1001":"alpha.htm","1002":"alpha.htm","1003":"beta.htm"])
+        try check(windows?.entries.count == 4,"Index metadata is available and duplicate term-target aliases collapse")
+        try check(windows?.entries.map(\.term) == ["Alpha keyword","Alpha keyword","beta keyword","Numbers & symbols < 5"] && windows?.entries.first?.title == "Alpha topic" && windows?.entries[1].title == "Beta topic","Index sorts English keywords and target titles without changing displayed case")
+        try check(windows?.entries.last.map { $0.title == "Title \"quoted\" & plain" && $0.path == "alpha.htm#section" } == true,"Index retains JSON text and authored target fragments without interpreting HTML")
+
+        try write(["schemaVersion":1,"entries":[entry("Zeta","1"),entry("alpha","2"),entry("Beta","3")]])
+        try check((try HelpKeywordIndex.load(root:root))?.entries.map(\.term) == ["alpha","Beta","Zeta"],"Keywords sort in English order whatever their case")
+
+        // Windows's ICU search at primary strength equates compatibility forms, typographic apostrophes and æ, œ and ß.
+        try write(["schemaVersion":1,"entries":[entry("I² (meta-analysis)"),entry("Cohen's kappa"),entry("Haenszel"),entry("ﬁnite","Topic"),entry("Paired t test")]])
+        let folding = try HelpKeywordIndex.load(root:root)!
+        #if KEYWORD_INDEX_WITHOUT_ICU
+        // Without the system's ICU library the filter still ignores case and accents but folds nothing more.
+        try check(folding.filteredRows("PAIRED T").count == 1 && folding.filteredRows("cohen's").count == 1 && folding.filteredRows("I2").isEmpty,
+                  "Without ICU the filter ignores case and accents only")
+        #else
+        try check(folding.filteredRows("I2").map(\.entry.term) == ["I² (meta-analysis)"],"I2 finds I², as on Windows")
+        try check(folding.filteredRows("Cohen\u{2019}s").map(\.entry.term) == ["Cohen's kappa"],"A typographic apostrophe finds the straight one, as on Windows")
+        try check(folding.filteredRows("hæn").map(\.entry.term) == ["Haenszel"] && folding.filteredRows("fin").map(\.entry.term) == ["ﬁnite"],"æ matches ae and ﬁ matches fi, as on Windows")
+        try check(folding.filteredRows("t-test").isEmpty && folding.filteredRows("paired t").count == 1,"Hyphens and spaces stay distinct, as on Windows")
+        #endif
+
+
+        #if !KEYWORD_INDEX_WITHOUT_ICU
+        // The rest of Windows's ICU search, as .NET 10 answers it here: full-width forms, the prime and the modifier
+        // apostrophe stay apart, a spacing accent alone finds nothing, letters with strokes find their base letters,
+        // ignorable characters are skipped, and a combining mark alone, like an empty search, finds everything.
+        try write(["schemaVersion":1,"entries":[entry("ANOVA"),entry("Cohen's kappa"),entry("Bjørn test"),entry("co\u{AD}operation"),entry("t test"),entry("Łódź")]])
+        let icu = try HelpKeywordIndex.load(root:root)!
+        try check(icu.filteredRows("ａｎｏｖａ").isEmpty && icu.filteredRows("ＡＮＯＶＡ").isEmpty,"Full-width letters find nothing, as Windows matches without ignoring width")
+        try check(icu.filteredRows("Cohen\u{2032}s").isEmpty && icu.filteredRows("Cohen\u{2BC}s").isEmpty,"The prime and the modifier apostrophe are not apostrophes, as on Windows")
+        try check(icu.filteredRows("Cohen\u{201A}s").map(\.entry.term) == ["Cohen's kappa"],"U+201A matches the apostrophe, as on Windows")
+        try check(icu.filteredRows("\u{B4}").isEmpty && icu.filteredRows("t\u{B4}test").isEmpty,"A spacing accent alone finds nothing, as on Windows")
+        try check(icu.filteredRows("Bjorn").count == 1 && icu.filteredRows("Lodz").count == 1,"Letters with strokes match their base letters, as on Windows")
+        try check(icu.filteredRows("cooperation").count == 1,"A soft hyphen in a keyword is skipped, as on Windows")
+        try check(icu.filteredRows("\u{301}").count == icu.rows.count && icu.filteredRows("\u{200B}").count == icu.rows.count,"An ignorable query matches every entry, as Windows's empty match does")
+        try check(HelpKeywordIndex.trimmedQuery(" \u{3000}kappa\u{A0}\u{2028}") == "kappa" && HelpKeywordIndex.trimmedQuery("\u{200B}") == "\u{200B}","The filter trims .NET's white space, which does not include U+200B")
+
+        // HelpCatalog's order: en-GB ignoring case, ß after ss and full-width forms after their letters, then path.
+        try write(["schemaVersion":1,"entries":[entry("Gauß","a"),entry("Gauss","b"),entry("Gaust","c"),entry("Straße","d"),entry("Strasse","e"),entry("Strassf","f"),
+                                                entry("Ａ","g"),entry("ＡＮＯＶＡ","h"),entry("apriori","i"),entry("A","j"),entry("ANOVA","k"),entry("b","l")]])
+        try check((try HelpKeywordIndex.load(root:root))?.entries.map(\.term) == ["A","ANOVA","apriori","Ａ","ＡＮＯＶＡ","b","Gauss","Gauß","Gaust","Strasse","Straße","Strassf"],
+                  "Keywords sort as Windows's en-GB comparer orders them")
+        #endif
+        // Ordinal case-insensitive keys: canonical equivalents, ẞ and ß stay apart; σ and ς, µ and μ are one key.
+        for (pair,count) in [(["Té","Te\u{301}"],2),(["Tẞ","Tß"],2),(["Tσ","Tς"],1),(["Tµ","Tμ"],1),(["ı","I"],2),(["ſ","S"],2)] {
+            try write(["schemaVersion":1,"entries":pair.map { entry($0,"T","basics/one.htm") }])
+            try check((try HelpKeywordIndex.load(root:root))?.entries.count == count,"\(pair) are \(count) keywords for one page, as Windows's OrdinalIgnoreCase finds")
+        }
+        try write(["schemaVersion":1,"entries":[entry("Gσ","Other","basics/one.htm"),entry("Gς","Topic","basics/two.htm")]])
+        try check(Set((try HelpKeywordIndex.load(root:root))?.rows.map(\.text) ?? []) == ["Gσ — Other","Gς — Topic"],"σ and ς group as one keyword, as on Windows")
+
+        // HelpCatalog.Resolve's messages and System.Uri's forms, as .NET 10 gives them.
+        try file("sym/a[b].htm"); try file("co\u{AD}op.htm"); try file("zw\u{200C}nj.htm")
+        let invalidPath = "Help keyword index entry 1 has an invalid topic path."
+        for (path,message) in [("Content//basics/one.htm",unsafeTarget),("Content//index.html",unsafeTarget),("Content/%2Fresources%2Funsafe.htm",unsafeTarget),
+                               ("Content///basics/one.htm",unsafeTarget),("basics/one.htm%00",invalidPath),("%00basics/one.htm",invalidPath),
+                               ("C:basics/one.htm",unsafeTarget),("https:basics/one.htm",unsafeTarget),("http:",unsafeTarget),("file:/basics/one.htm",unsafeTarget),("a:b",unsafeTarget),
+                               ("mailto:",notPackaged),("urn:x",notPackaged),("x:/",notPackaged),("javascript:x",notPackaged),("\u{200B}https://x/one.htm",unsafeTarget),
+                               ("//\u{301}x",notPackaged),("basics/one\u{1}.htm",unsafeTarget),("basics/one|.htm",unsafeTarget),
+                               ("http://[:]/one.htm",unsafeTarget),("http://[::::]/one.htm",unsafeTarget),("http://[1::2::3]/one.htm",unsafeTarget),
+                               ("http://[1:2:3:4:5:6:7:8:9]/one.htm",unsafeTarget),("http://[::1.2.3.256]/one.htm",unsafeTarget),("ab://[:]/x",unsafeTarget),
+                               ("http://[::1]/one.htm",notPackaged),("http://[1:2:3:4:5:6:1.2.3.4]/one.htm",notPackaged),("http://[fe80::1%25en0]/one.htm",notPackaged),
+                               ("http://[::1]x/one.htm",notPackaged),("http://[::1]:0080/one.htm",notPackaged),("http://[::1]:65536/one.htm",unsafeTarget)] {
+            try refused(json(["schemaVersion":1,"entries":[entry("Keyword","Topic",path)]]),message,"Windows's message for " + path)
+        }
+        for (path,expected) in [("basics//one.htm","basics//one.htm"),("Content/basics//one.htm","basics//one.htm"),("basics/one.htm#\u{301}x","basics/one.htm#%CC%81x"),
+                                ("basics/one.htm#\u{200D}x","basics/one.htm#%E2%80%8Dx"),("basics/one.htm?\u{301}x#y","basics/one.htm#y"),("basics/one.htm#a#\u{301}b","basics/one.htm#a#%CC%81b"),
+                                ("sym/a[b].htm","sym/a[b].htm"),("sym/a%5Bb%5D.htm","sym/a[b].htm"),("basics/one.htm#a[b]","basics/one.htm#a[b]"),("basics/one.htm#frag#more","basics/one.htm#frag#more"),
+                                ("basics/one.htm#%41","basics/one.htm#A"),("basics/one.htm#%7e","basics/one.htm#~"),("basics/one.htm#%c3%a9","basics/one.htm#%C3%A9"),("basics/one.htm#%e9","basics/one.htm#%e9"),
+                                ("basics/one.htm#x%3ey","basics/one.htm#x%3ey"),("basics/one.htm#x%3e\u{E9}y","basics/one.htm#x%3E%C3%A9y"),("basics/one.htm#\u{200B}","basics/one.htm#%E2%80%8B"),
+                                ("co%C2%ADop.htm","co%C2%ADop.htm"),("co\u{AD}op.htm","co%C2%ADop.htm"),("zw\u{200C}nj.htm","zw%E2%80%8Cnj.htm")] {
+            let actual = stored(path)
+            try check(actual == expected,"Windows stores \(path) as \(expected): \(actual)")
+        }
+        // White space is .NET's: a keyword of U+200B alone is not blank.
+        try write(["schemaVersion":1,"entries":[entry("\u{200B}"),entry("Keyword\u{200B}","Topic","basics/two.htm")]])
+        try check((try HelpKeywordIndex.load(root:root))?.entries.count == 2,"U+200B is no white space to Windows, so such keywords are kept")
+
+        // File.ReadAllText removes one byte-order mark and replaces malformed text with U+FFFD.
+        let body = #"{"schemaVersion":1,"entries":[\#(valid)]}"#
+        try (Data([0xEF,0xBB,0xBF,0xEF,0xBB,0xBF]) + Data(body.utf8)).write(to:map)
+        try check(refusal(String(decoding:try Data(contentsOf:map),as:UTF8.self)) == invalid,"A second byte-order mark is invalid JSON, as on Windows")
+        try (Data([0xFF,0xFE]) + body.data(using:.utf16LittleEndian)! + Data([0x00])).write(to:map)
+        do { _ = try HelpKeywordIndex.load(root:root); throw Failure(errorDescription:"UTF-16 text with a dangling byte was accepted") }
+        catch let error as HelpKeywordIndex.IndexError { try check(error.localizedDescription == invalid,"UTF-16 text ending in half a character is invalid JSON, as on Windows") }
+        var surrogate = Array(body.replacingOccurrences(of:"Keyword",with:"Key#word").utf16)
+        surrogate[surrogate.firstIndex(of:0x23)!] = 0xD800
+        try (Data([0xFF,0xFE]) + Data(surrogate.flatMap { [UInt8($0 & 0xFF),UInt8($0 >> 8)] })).write(to:map)
+        try check((try HelpKeywordIndex.load(root:root))?.entries.first?.term == "Key\u{FFFD}word","An unpaired surrogate in UTF-16 text reads as U+FFFD, as File.ReadAllText reads it")
+
+        // Aliases: Windows's web addresses for a page, and of names that differ only in case the last in Alias.xml.
+        try file("alpha.htm"); try file("beta.htm")
+        let web: HelpKeywordIndex.Aliases = ["WEB_ALIAS":"https://www.statsdirect.com/help/alpha.htm","BARE_ALIAS":"https://statsdirect.com/help/alpha.htm#sec",
+                                             "GH_ALIAS":"https://iain-buchan.github.io/statisticalhelp/beta.htm","LOCAL_ALIAS":"https://help.statsdirect.invalid/alpha.htm?x#y",
+                                             "OTHER_ALIAS":"https://example.org/alpha.htm","HELPLESS_ALIAS":"https://www.statsdirect.com/alpha.htm"]
+        for (alias,expected) in [("WEB_ALIAS","alpha.htm"),("bare_alias","alpha.htm#sec"),("GH_ALIAS","beta.htm"),("LOCAL_ALIAS","alpha.htm#y"),
+                                 ("OTHER_ALIAS",unsafeTarget),("HELPLESS_ALIAS",unsafeTarget)] {
+            let actual = stored(alias,aliases:web)
+            try check(actual == expected,"Windows resolves \(alias) to \(expected): \(actual)")
+        }
+        let repeated = HelpKeywordIndex.Aliases([(key:"Kappa",link:"alpha.htm"),(key:"KAPPA",link:"beta.htm"),(key:" ",link:"alpha.htm")])
+        try check(stored("kappa",aliases:repeated) == "beta.htm" && stored(" ",aliases:repeated) == "Help keyword index entry 1 has no valid path.","Of alias names that differ only in case the last wins, and a blank name is no alias")
 
         if CommandLine.arguments.count > 1 {
             let actualRoot = URL(fileURLWithPath:CommandLine.arguments[1])

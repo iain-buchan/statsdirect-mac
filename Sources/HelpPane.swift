@@ -4,8 +4,10 @@ import UniformTypeIdentifiers
 
 @MainActor
 private final class HelpNavigationButton: NSButton {
-    override var acceptsFirstResponder: Bool { true }
-    override var canBecomeKeyView: Bool { isEnabled && !isHiddenOrHasHiddenAncestor && window != nil }
+    // Like AppKit's own buttons, these take keyboard focus only when enabled and Keyboard navigation is on, so with it off
+    // a click leaves focus in the page and Escape from Index returns there.
+    override var acceptsFirstResponder: Bool { HelpPane.keyboardNavigation() && isEnabled }
+    override var canBecomeKeyView: Bool { HelpPane.keyboardNavigation() && isEnabled && !isHiddenOrHasHiddenAncestor && window != nil }
     override func keyDown(with event: NSEvent) {
         if [36,76].contains(event.keyCode), event.modifierFlags.intersection([.command,.control,.option]).isEmpty {
             performClick(nil)
@@ -97,6 +99,8 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     private var timer: Timer?
     private var observations: [NSKeyValueObservation] = []
     private var aliases: [String:String] = [:]
+    // The same maps in Windows's order, for the keyword index, which compares names without regard to case.
+    private var aliasMaps: [(key: String, link: String)] = []
     private var hasDocument = false
     private var commandGeneration = 0
     private var pendingContents: (id: Int, completion: ((Bool) -> Void)?)?
@@ -104,7 +108,10 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     private var notifications: [NSObjectProtocol] = []
     private var toolbarKeyMonitor: Any?
     private var stopped = false
-    private lazy var keywordIndex: Result<HelpKeywordIndex?,Error> = Result { try HelpKeywordIndex.load(root:resources.root) }
+    // Loaded once it succeeds; a missing or failed index is looked at again on the next Index, as on Windows.
+    private var keywordIndex: HelpKeywordIndex?
+    /// The system's Keyboard navigation setting; the native driver replaces it to check both behaviours.
+    static var keyboardNavigation: () -> Bool = { NSApp.isFullKeyboardAccessEnabled }
     // Injectable only for native verification; normal clicks use the system browser.
     var willShow: (() -> Void)?
     var externalLink: (URL) -> Void = { NSWorkspace.shared.open($0) }
@@ -170,6 +177,9 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.setURLSchemeHandler(resources, forURLScheme:"app")
+        // Tab moves link by link through the help, as in the Windows help window, so the entry Contents focuses starts a
+        // keyboard route through the tree.
+        config.preferences.tabFocusesLinks = true
         config.userContentController.addUserScript(WKUserScript(source:HelpPane.nativeToolbarStyle,injectionTime:.atDocumentStart,forMainFrameOnly:true))
         config.userContentController.addUserScript(WKUserScript(source:"for(const type of ['wheel','pointerdown','keydown']) addEventListener(type,()=>{window.__sdHelpPosition=null;},{capture:true,passive:true});",injectionTime:.atDocumentStart,forMainFrameOnly:true))
         web = WKWebView(frame:.zero,configuration:config)
@@ -177,7 +187,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         web.navigationDelegate = self; web.uiDelegate = self
         // XMLParser handles attribute order and XML escaping in Flare's alias file.
         let catalog = HelpAliasParser()
-        if let parser = XMLParser(contentsOf:root.appendingPathComponent("Data/Alias.xml")) { parser.delegate = catalog; if parser.parse() { aliases = catalog.aliases } }
+        if let parser = XMLParser(contentsOf:root.appendingPathComponent("Data/Alias.xml")) { parser.delegate = catalog; if parser.parse() { aliases = catalog.aliases; aliasMaps = catalog.maps } }
         let top = NSStackView(); top.spacing = 6
         heading.font = .systemFont(ofSize:12,weight:.semibold); heading.lineBreakMode = .byTruncatingTail
         heading.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
@@ -196,6 +206,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         contentsButton.toolTip = "Show the help contents"
         indexButton.target = self; indexButton.action = #selector(indexAction); indexButton.isEnabled = false
         indexButton.toolTip = "Find a topic by an index keyword"
+        indexPicker.fallbackFocus = web
         indexPicker.onChoose = { [weak self] entry in
             guard let self, let url = URL(string:entry.path,relativeTo:HelpResources.origin)?.absoluteURL else { return }
             self.open(url)
@@ -265,7 +276,12 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     var isFocused: Bool {
         guard visible else { return false }
         if let panel = floatingWindow, NSApp.keyWindow === panel { return true }
+        if indexPicker.isVisible, NSApp.keyWindow === indexPicker.panel { return true }
         return NSApp.keyWindow === owner && (owner?.firstResponder as? NSView)?.isDescendant(of:view) == true
+    }
+    /// Close (Cmd-W) with help focused: the Index picker when it has the keyboard, otherwise the pane.
+    func closeFocused() {
+        if indexPicker.isVisible, NSApp.keyWindow === indexPicker.panel { indexPicker.close(returnFocus:true) } else { hide() }
     }
     var hasModal: Bool { owner?.attachedSheet != nil || (NSApp.modalWindow != nil && NSApp.modalWindow !== floatingWindow) }
     func url(for topic: String) -> URL? {
@@ -287,6 +303,8 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
                 target = parts.url!
             } else if resources.localURL(file) != nil { target = file } else { return }
         }
+        // Each topic request clears the status line, even for the page already shown, as the Windows help window's ShowTopic does.
+        notice.stringValue = ""
         if !visible { visible = true; place(floating:prefersFloating || hasModal,activate:false); temporarilyFloating = hasModal && !prefersFloating; restorePosition() }
         refreshModalPresentation()
         if web.url != target || needsReload { needsReload = false; web.load(URLRequest(url:target)) }
@@ -295,6 +313,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     @objc func browseTopicsAction() { showContents() }
     @objc func indexAction() {
         if indexPicker.isVisible { cancelHelpCommands() }
+        else if indexPicker.takeAnchorClick() { cancelHelpCommands() }
         else { showIndex() }
     }
 
@@ -316,17 +335,23 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
             MainActor.assumeIsolated {
                 guard let self, self.pendingContents?.id == id else { return }
                 guard self.commandIsCurrent(id,source:source,window:window) else { self.finishContents(id,false); return }
+                // Windows's script call answers null for a script error or a value it cannot return, so those read as a
+                // failure to focus; any other error is reported with its message.
                 if let error {
-                    self.notice.stringValue = "Could not open the help topics: " + error.localizedDescription
-                    self.finishContents(id,false)
-                    return
+                    let code = (error as? WKError)?.code
+                    if code != .javaScriptExceptionOccurred && code != .javaScriptResultTypeIsUnsupported {
+                        self.notice.stringValue = "Could not open the help topics: " + error.localizedDescription
+                        self.finishContents(id,false)
+                        return
+                    }
                 }
-                if result as? String == "focused" {
+                let answer = error == nil ? result as? String : nil
+                if answer == "focused" {
                     if self.notice.stringValue.hasPrefix("Could not open the help topics") { self.notice.stringValue = "" }
                     self.finishContents(id,true)
                     return
                 }
-                if result as? String == "no-contents", source.path != "/index.html",
+                if answer == "no-contents", source.path != "/index.html",
                    let parts = URLComponents(url:source,resolvingAgainstBaseURL:false) {
                     var topic = String(parts.percentEncodedPath.drop(while:{ $0 == "/" }))
                     if let fragment = parts.percentEncodedFragment { topic += "#" + fragment }
@@ -347,15 +372,8 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     func showIndex(_ completion: ((Bool) -> Void)? = nil) {
         cancelHelpCommands()
         guard !stopped, visible, !moving, let source = web.url, resources.localURL(source) != nil else { completion?(false); return }
-        let catalog: HelpKeywordIndex
-        switch keywordIndex {
-        case .success(.some(let value)): catalog = value
-        case .success(.none):
-            notice.stringValue = "This help bundle does not yet include a keyword index."
-            completion?(false)
-            return
-        case .failure(let error):
-            notice.stringValue = "Could not open the help index: " + error.localizedDescription
+        guard keywordIndex != nil || HelpKeywordIndex.exists(root:resources.root) else {
+            notice.stringValue = HelpKeywordIndex.unavailableMessage
             completion?(false)
             return
         }
@@ -373,18 +391,35 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
             MainActor.assumeIsolated {
                 guard let self, self.pendingIndex?.id == id else { return }
                 guard self.commandIsCurrent(id,source:source,window:window) else { self.finishIndex(id,false); return }
+                // A script error answers null on Windows, so it reads as a drawer that did not close.
                 if let error {
-                    self.notice.stringValue = "Could not open the help index: " + error.localizedDescription
-                    self.finishIndex(id,false)
-                    return
+                    let code = (error as? WKError)?.code
+                    if code != .javaScriptExceptionOccurred && code != .javaScriptResultTypeIsUnsupported {
+                        self.notice.stringValue = "Could not open the help index: " + error.localizedDescription
+                        self.finishIndex(id,false)
+                        return
+                    }
                 }
-                guard result as? Bool == true else {
+                guard error == nil, result as? Bool == true else {
                     self.notice.stringValue = "Could not close Contents to open the help index."
                     self.finishIndex(id,false)
                     return
                 }
+                let catalog: HelpKeywordIndex
+                do {
+                    guard let loaded = try self.keywordIndex ?? HelpKeywordIndex.load(root:self.resources.root,aliases:HelpKeywordIndex.Aliases(self.aliasMaps)) else {
+                        self.notice.stringValue = HelpKeywordIndex.unavailableMessage
+                        self.finishIndex(id,false)
+                        return
+                    }
+                    catalog = loaded
+                } catch {
+                    self.notice.stringValue = "Could not open the help index: " + error.localizedDescription
+                    self.finishIndex(id,false)
+                    return
+                }
+                self.keywordIndex = catalog
                 self.indexPicker.show(catalog,relativeTo:self.indexButton)
-                if self.indexPicker.isVisible { self.notice.stringValue = "" }
                 self.finishIndex(id,self.indexPicker.isVisible)
             }
         }
@@ -529,9 +564,14 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
 
 private final class HelpAliasParser: NSObject, XMLParserDelegate {
     var aliases:[String:String] = [:]
+    /// Each Map's Name and then its ResolvedId, skipping blank keys, in document order, as HelpCatalog's constructor reads them.
+    var maps: [(key: String, link: String)] = []
     func parser(_ parser:XMLParser,didStartElement elementName:String,namespaceURI:String?,qualifiedName qName:String?,attributes:[String:String]) {
         guard elementName == "Map", let link = attributes["Link"] else { return }
         if let id = attributes["ResolvedId"] { aliases[id] = link }
         if let name = attributes["Name"] { aliases[name] = link }
+        for key in [attributes["Name"], attributes["ResolvedId"]] {
+            if let key, !key.unicodeScalars.allSatisfy({ $0.properties.isWhitespace }) { maps.append((key, link)) }
+        }
     }
 }

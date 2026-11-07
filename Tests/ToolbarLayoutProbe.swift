@@ -102,9 +102,9 @@ final class ToolbarLayoutProbe: NSObject, NSApplicationDelegate, WKNavigationDel
                   const controlHeight = Math.max(0, ...controls.map(child => child.getBoundingClientRect().height));
                   if (!controlHeight) return;
                   // WebKit can omit a classic scrollbar from this flex item's automatic height.
-                  // A definite measured height also restores the normal row after widening.
+                  // A definite height also clears stale parent flex sizing, even when the row already looks correct.
                   const required = Math.max(number(style.minHeight), Math.ceil(controlHeight + padding + border + gutter));
-                  if (Math.abs(toolbar.getBoundingClientRect().height - required) > 0.5) toolbar.style.height = required + 'px';
+                  if (toolbar.style.height !== required + 'px') toolbar.style.height = required + 'px';
                 };
                 const schedule = () => {
                   if (!stopped && !pending) pending = view.requestAnimationFrame(fit);
@@ -125,7 +125,7 @@ final class ToolbarLayoutProbe: NSObject, NSApplicationDelegate, WKNavigationDel
                 };
               }
             
-            window.__toolbarHeightStop?.(); delete window.__toolbarHeightStop;
+            window.__toolbarHeightStop?.(); delete window.__toolbarHeightStop; delete window.__toolbarHeightStart;
             const toolbar = document.querySelector('.toolbar'), base = window.__toolbarLayoutBase;
             const shell = toolbar.parentElement;
             if (shell !== document.body) { document.body.insertBefore(toolbar, shell); shell.remove(); }
@@ -165,12 +165,57 @@ final class ToolbarLayoutProbe: NSObject, NSApplicationDelegate, WKNavigationDel
                 toolbar.style.display = 'flex';
                 toolbar.style.alignItems = 'center';
                 toolbar.style.gap = matchMedia('(max-width:570px)').matches ? '1px' : '4px';
-                window.__toolbarHeightStop = maintainToolbarHeight(toolbar);
+                window.__toolbarHeightStart = () => { window.__toolbarHeightStop = maintainToolbarHeight(toolbar); };
                 break;
               }
             }
             return true;
             """, arguments: ["variant": variant], in: nil, contentWorld: .page)
+            if variant == "dynamic-measured" {
+                // Prime a real 57px classic-scrollbar flex basis, then test a fresh helper at wide42.
+                window.setContentSize(NSSize(width: 320, height: 700))
+                window.contentView?.layoutSubtreeIfNeeded()
+                try await wait("narrow startup priming viewport") {
+                    self.window.contentView?.layoutSubtreeIfNeeded()
+                    let native = Double(self.web.bounds.width)
+                    let rendered = try await self.web.evaluateJavaScript("window.innerWidth") as? Double ?? 0
+                    return abs(native-304)<=1 && abs(native-rendered)<=1
+                }
+                let primed = try await web.callAsyncJavaScript("""
+                const toolbar=document.querySelector('.toolbar');toolbar.style.height='57px';
+                await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+                const style=getComputedStyle(toolbar),outer=toolbar.getBoundingClientRect();
+                return {stage:'primed-57',height:outer.height,inlineHeight:toolbar.style.height,
+                  horizontalScrollbar:toolbar.offsetHeight-toolbar.clientHeight-parseFloat(style.borderTopWidth)-parseFloat(style.borderBottomWidth)};
+                """, arguments: [:], in: nil, contentWorld: .page) as? [String:Any] ?? [:]
+                guard abs((primed["height"] as? Double ?? 0)-57)<=1,
+                      expectedStyle != "Always" || (primed["horizontalScrollbar"] as? Double ?? 0)>0 else {
+                    throw NSError(domain:"ToolbarLayoutProbe",code:4,userInfo:[NSLocalizedDescriptionKey:"Startup priming did not establish57px with the requested scrollbar style"])
+                }
+                let primedData = try JSONSerialization.data(withJSONObject: primed, options: [.sortedKeys])
+                print("LAYOUT_PROBE_STARTUP " + String(decoding: primedData, as: UTF8.self))
+                window.setContentSize(NSSize(width: 420, height: 700))
+                window.contentView?.layoutSubtreeIfNeeded()
+                try await wait("wide startup after gutter removal") {
+                    self.window.contentView?.layoutSubtreeIfNeeded()
+                    let native = Double(self.web.bounds.width)
+                    let rendered = try await self.web.evaluateJavaScript("window.innerWidth") as? Double ?? 0
+                    return abs(native-404)<=1 && abs(native-rendered)<=1
+                }
+                let cleared = try await web.callAsyncJavaScript("""
+                const toolbar=document.querySelector('.toolbar');toolbar.style.height='';
+                await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+                const outer=toolbar.getBoundingClientRect(),main=document.querySelector('main').getBoundingClientRect();
+                const before={stage:'cleared-before-fresh-helper',height:outer.height,inlineHeight:toolbar.style.height,mainGap:main.top-outer.bottom};
+                window.__toolbarHeightStart();
+                return before;
+                """, arguments: [:], in: nil, contentWorld: .page) as? [String:Any] ?? [:]
+                guard abs((cleared["height"] as? Double ?? 0)-42)<=1, cleared["inlineHeight"] as? String == "" else {
+                    throw NSError(domain:"ToolbarLayoutProbe",code:5,userInfo:[NSLocalizedDescriptionKey:"Startup transition did not clear to automatic42px before the fresh helper"])
+                }
+                let clearedData = try JSONSerialization.data(withJSONObject: cleared, options: [.sortedKeys])
+                print("LAYOUT_PROBE_STARTUP " + String(decoding: clearedData, as: UTF8.self))
+            }
             for (pass, width) in [420, 320, 420, 320, 900].enumerated() {
                 window.setContentSize(NSSize(width: CGFloat(width), height: 700))
                 window.contentView?.layoutSubtreeIfNeeded()
@@ -273,4 +318,3 @@ MainActor.assumeIsolated {
     app.setActivationPolicy(.regular)
     withExtendedLifetime(delegate) { app.run() }
 }
-

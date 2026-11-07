@@ -2415,3 +2415,39 @@ worksheet selection, modal/dock/pop-out behavior, offline search and PDF printin
 Logs and fixture provenance are retained in
 `.build/help-parity-2026-11-07.noindex`. The existing live v1.1.0 release and all
 15 asset records remain unchanged. No full CI or installer build was run.
+
+## Coordinated help and tutor publication update — 7 November 2026
+
+Adopted exactly StatisticalHelp `7101cea6398785276196e7ce2b7aebf005738361`
+for both help and authored tutor content, using the staged paired importer in
+pinned mode. Its raw root manifest SHA-256 is
+`31a2300ab62e83558c009d1774fbf3a3087667f142132be2d1bda20af24cf40b`.
+The publisher was built from `12ce0c3d`; its actual Core assembly version is
+`1.0.0+12ce…`, separate from the installed Help Editor release number.
+
+The importer verifies all 1,763 website/desktop/tutor artifact files before
+activation. The Mac has the exact 878-file DesktopHelp inventory, including
+keyword JSON and JavaScript, 404 topics and 403 searchable documents. The keyword
+map remains `a820de24…`, with 719 terms and 726 term/targets. Corrected
+Shannon-Wiener and distinct Poisson titles, the welcome page's method-selection
+link, reader Escape, web Index and stable topic navigation are present.
+
+Tutor lessons, questions, tracks, bank and README remain byte-identical to the
+previous publication: 12 lessons, 35 questions and five pathways, with the same
+47 producer review warnings. Only its publication timestamp changed. Regenerated
+`Content/Learn/app.js` carries the new shared publication identity. The six
+focused authored-content tests and offline help/tutor and Learning-package
+verification pass. Engine `95082f3b` and Learning framework `c07aa76c` are unchanged.
+
+Evidence is retained in `.build/content-update-2026-11-07.noindex`.
+
+The new publication passes 152 native HelpPane checks plus 62 keyword-model
+checks, and all six native provider/Learning integration groups, including the
+complete R risk-interval example, selected lesson context, exports and restore.
+The first provider attempt used the old installed app as its test base, which
+has neither interactive-console flags nor an RConsoleWorker; its R-console
+assertion was therefore inapplicable. The successful run uses a disposable copy
+with the current flags and worker, matching the existing console-test setup.
+No application or test-script source was changed. The installed app, engine and
+Learning framework pins, signing handover and live v1.1.0 release with all 15
+asset records remain unchanged. No full CI or installer build was run.

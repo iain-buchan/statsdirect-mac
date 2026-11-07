@@ -1,0 +1,71 @@
+name: Help reference native probe
+on:
+  push:
+    branches: [codex/help-reference-native-probe]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: help-reference-native-probe
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: e6efa5f06e22af55efd94da6639de147a6423af2
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: iain-buchan/statsdirect
+          ref: d783a494ca72741976c4f9d186679dc608ab4be0
+          path: .build/windows-reference
+          sparse-checkout: StatsDirectUI/UI/HtmlHelp/HelpCatalog.cs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: 10.0.x
+      - name: Record exact source and host
+        run: |
+          set -euo pipefail
+          mkdir -p .build/help-reference
+          test "$(git rev-parse HEAD)" = e6efa5f06e22af55efd94da6639de147a6423af2
+          test "$(git -C .build/windows-reference rev-parse HEAD)" = d783a494ca72741976c4f9d186679dc608ab4be0
+          { git rev-parse HEAD; sw_vers; xcodebuild -version; swift --version; dotnet --info; } > .build/help-reference/host.txt
+          shasum -a 256 Sources/HelpKeywordIndex.swift Tests/help-keyword-index-test.swift Tests/help-keyword-index-dotnet10.json Tests/HelpKeywordIndexDotNet/Program.cs Tests/HelpKeywordIndexDotNet/HelpKeywordIndexDotNet.csproj .build/windows-reference/StatsDirectUI/UI/HtmlHelp/HelpCatalog.cs > .build/help-reference/inputs.sha256
+      - name: Reproduce actual Windows reference answers
+        run: |
+          set -euo pipefail
+          dotnet run --project Tests/HelpKeywordIndexDotNet -c Release "-p:WindowsHelpCatalog=$PWD/.build/windows-reference/StatsDirectUI/UI/HtmlHelp/HelpCatalog.cs" -- Tests/help-keyword-index-dotnet10.json 2>&1 | tee .build/help-reference/dotnet.log
+          grep -Fxq 'Every recorded answer agrees with this run.' .build/help-reference/dotnet.log
+      - name: Check Swift against reference with hosted ICU
+        if: always()
+        run: |
+          set -euo pipefail
+          source Scripts/native-build-flags.sh
+          swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -target arm64-apple-macosx14.0 -module-cache-path .build/help-reference/swift-cache Sources/HelpKeywordIndex.swift Tests/help-keyword-index-test.swift -o .build/help-reference/model-icu
+          .build/help-reference/model-icu 2>&1 | tee .build/help-reference/model-icu.log
+          grep -Fxq 'PASS: 190 help keyword index model checks' .build/help-reference/model-icu.log
+      - name: Check deliberate ICU fallback
+        if: always()
+        run: |
+          set -euo pipefail
+          source Scripts/native-build-flags.sh
+          swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -D KEYWORD_INDEX_WITHOUT_ICU -target arm64-apple-macosx14.0 -module-cache-path .build/help-reference/swift-cache Sources/HelpKeywordIndex.swift Tests/help-keyword-index-test.swift -o .build/help-reference/model-fallback
+          .build/help-reference/model-fallback 2>&1 | tee .build/help-reference/model-fallback.log
+          grep -Fxq 'PASS: 175 help keyword index model checks' .build/help-reference/model-fallback.log
+      - name: Confirm reference inputs were unchanged
+        if: always()
+        run: shasum -a 256 -c .build/help-reference/inputs.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: help-reference-native-probe
+          path: |
+            .build/help-reference/*.log
+            .build/help-reference/*.txt
+            .build/help-reference/*.sha256
+          include-hidden-files: true

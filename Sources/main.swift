@@ -515,9 +515,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func editCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
-        // In the Index picker or popped-out help the command stays in that window, as Windows's drop-down and help window
-        // pass no shortcut to the main window: what nothing there takes must not reach the worksheet or script behind.
-        if helpPane.isFocused, let key = NSApp.keyWindow, key !== window {
+        // Floating tools keep Edit in their own responder chain. An unsupported command must not reach a worksheet,
+        // script or AI composer whose main window retains its first responder behind the key tool window.
+        if helpPane.isFocused || calculatorPane.isFocused, let key = NSApp.keyWindow, key !== window {
             _ = key.firstResponder?.tryToPerform(NSSelectorFromString(command + ":"), with: self)
             return
         }
@@ -587,9 +587,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func closeTab() {
         if let svg = NSApp.keyWindow?.windowController as? RConsoleSVGWindow { svg.close(); return }
         if let pdf = NSApp.keyWindow?.windowController as? RConsolePDFWindow { pdf.close(); return }
-        // Close acts in the window that has the keyboard, so the Index picker or popped-out help closes before a pane that
-        // keeps focus in the main window behind it.
+        // Close acts in the window that has the keyboard, so the Index picker, popped-out Help or floating Calculator
+        // closes before a pane that keeps focus in the main window behind it.
         if helpPane.isFocused, NSApp.keyWindow !== window { helpPane.closeFocused(); return }
+        if calculatorPane.isFocused, NSApp.keyWindow !== window { calculatorPane.hide(); return }
         if scriptAI.isFocused { scriptAI.hide(); return }
         if calculatorPane.isFocused { calculatorPane.hide(); return }
         if helpPane.isFocused { helpPane.closeFocused(); return }

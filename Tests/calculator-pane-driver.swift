@@ -1,6 +1,11 @@
 import Cocoa
 import WebKit
 
+// A non-editing calculator control whose focus does not depend on the system's Keyboard navigation preference.
+private final class CalculatorRoutingControl: NSControl {
+    override var acceptsFirstResponder: Bool { true }
+}
+
 @main struct CalculatorPaneTests {
     @MainActor static func check(_ ok:Bool,_ message:String) throws {
         guard ok else { throw NSError(domain:"CalculatorTests",code:1,userInfo:[NSLocalizedDescriptionKey:message]) }
@@ -28,8 +33,61 @@ import WebKit
         viewer.editCommand(command)
         try await settle()
     }
+    @MainActor static func press(_ window:NSWindow,_ text:String,_ code:UInt16) async throws {
+        for type in [NSEvent.EventType.keyDown,.keyUp] {
+            let event=NSEvent.keyEvent(with:type,location:.zero,modifierFlags:.command,timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,characters:text,charactersIgnoringModifiers:text,isARepeat:false,keyCode:code)!
+            NSApp.postEvent(event,atStart:false)
+        }
+        try await settle()
+    }
+    @MainActor static func floatingCommandRouting(_ v:Viewer,_ worksheet:Document) async throws {
+        let c=v.calculatorPane, originallyFloating=c.prefersFloating
+        let policy=UserDefaults.standard.object(forKey:"DisableOnlineTutor")
+        UserDefaults.standard.set(true,forKey:"DisableOnlineTutor")
+        let script=v.makeRScript(script:"1 + 1",title:"Calculator routing fixture",saved:true,language:"CSharp")
+        let nonEditing=CalculatorRoutingControl(frame:NSRect(x:0,y:0,width:1,height:1))
+        defer {
+            nonEditing.removeFromSuperview()
+            c.hide()
+            if c.prefersFloating != originallyFloating { c.open(); c.toggleMode(); c.hide() }
+            v.scriptAI.hide(); v.remove(script); v.tabs.selectTabViewItem(worksheet.item)
+            if let policy { UserDefaults.standard.set(policy,forKey:"DisableOnlineTutor") }
+            else { UserDefaults.standard.removeObject(forKey:"DisableOnlineTutor") }
+        }
+        c.open(); if !c.prefersFloating { c.toggleMode() }
+        guard let floating=c.floatingWindow else { throw NSError(domain:"CalculatorTests",code:2,userInfo:[NSLocalizedDescriptionKey:"Calculator did not float for command routing"])}
+        v.scriptAI.open(script)
+        v.scriptAI.input.string="Background AI draft"
+        v.scriptAI.input.undoManager?.removeAllActions()
+        v.scriptAI.input.insertText(" continued",replacementRange:NSRange(location:19,length:0))
+        v.scriptAI.input.breakUndoCoalescing()
+        v.scriptAI.input.setSelectedRange(NSRange(location:0,length:10))
+        let draft=v.scriptAI.input.string, selection=v.scriptAI.input.selectedRange(), documents=v.documents.count
+        floating.makeKeyAndOrderFront(nil); floating.makeFirstResponder(c.input)
+        try await settle()
+        try check(c.isFocused && v.scriptAI.isFocused && NSApp.keyWindow === floating,"The floating calculator is key while the AI composer retains the main window's focus")
+        try await press(floating,"w",13)
+        try check(!c.visible && v.scriptAI.visible && v.documents.count==documents,"Close typed in the floating calculator hides only the calculator, leaving AI and documents open")
+        c.open()
+        c.input.breakUndoCoalescing(); c.input.string="2+"; c.input.undoManager?.removeAllActions()
+        c.input.setSelectedRange(NSRange(location:2,length:0))
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString("3",forType:.string)
+        try await press(floating,"v",9)
+        try check(c.input.string=="2+3","Paste typed in the floating calculator edits its expression")
+        try await press(floating,"z",6)
+        try check(c.input.string=="2+" && v.scriptAI.input.string==draft,"Undo typed in the floating calculator undoes its paste without editing the background AI draft")
+        c.view.addSubview(nonEditing)
+        try check(floating.makeFirstResponder(nonEditing),"A non-editing calculator control can own the floating window's focus")
+        try check((NSApp.target(forAction:NSSelectorFromString("paste:"),to:nil,from:v) as AnyObject?) === v.scriptAI.input,"AppKit's unrestricted Paste search would reach the background AI composer")
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setString("keep the background unchanged",forType:.string)
+        for (text,code) in [("v",UInt16(9)),("x",7),("c",8),("a",0),("z",6)] { try await press(floating,text,code) }
+        try check(v.scriptAI.input.string==draft && v.scriptAI.input.selectedRange()==selection,"Unsupported Edit shortcuts in a floating calculator control preserve the background AI text and selection")
+        try check(NSPasteboard.general.string(forType:.string)=="keep the background unchanged","Unsupported Copy and Cut in the calculator leave the clipboard unchanged")
+        try check(c.visible && v.scriptAI.visible && v.documents.count==documents,"Unsupported calculator Edit shortcuts leave both tools and documents open")
+    }
     @MainActor static func main() {
         guard CommandLine.arguments.contains("--run-tests") else { print("Use Scripts/test-calculator-pane.sh"); exit(2) }
+        print("INFO: starting native calculator checks"); fflush(stdout)
         let app=NSApplication.shared; app.setActivationPolicy(.regular)
         UserDefaults.standard.set(false,forKey:"automaticUpdateChecks")
         let v=Viewer(); app.delegate=v
@@ -53,6 +111,14 @@ import WebKit
         app.run()
     }
     @MainActor static func run(_ v:Viewer) async throws {
+        print("INFO: native calculator assertions started"); fflush(stdout)
+        let general=NSPasteboard.general
+        let clipboard=(general.pasteboardItems ?? []).map { item -> NSPasteboardItem in
+            let copy=NSPasteboardItem()
+            for type in item.types { if let data=item.data(forType:type) { copy.setData(data,forType:type) } }
+            return copy
+        }
+        defer { general.clearContents(); if !clipboard.isEmpty { general.writeObjects(clipboard) } }
         let c=v.calculatorPane, worksheet=v.active!, count=v.documents.count
         let deadline=Date().addingTimeInterval(20)
         while Date()<deadline, (try? await js(worksheet.web,"!!window.statsDirectGrid")) as? Bool != true { try await settle() }
@@ -155,6 +221,7 @@ import WebKit
         try check(!c.modeButton.isEnabled && c.floatingWindow?.worksWhenModal==true,"floating calculator works during modal dialogs with Dock disabled")
         v.window.endSheet(sheet); sheet.orderOut(nil); c.refreshModalPresentation(); v.helpPane.refreshModalPresentation(); try await settle()
         try check(c.view.superview === v.documentSplit && !c.temporarilyFloating,"calculator returns to its chosen mode after the dialog")
+        try await floatingCommandRouting(v,worksheet)
         let after=try await js(worksheet.web,"JSON.stringify(statsDirectGrid.analysisSource())") as? String
         try check(before==after && v.active === worksheet,"calculation, docking and Help preserve worksheet data and selection")
         c.open(); c.deleteSaved(); try check(c.saved.isEmpty,"saved entry can be deleted")

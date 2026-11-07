@@ -26,4 +26,8 @@ rsync -a --delete Content/ "$TEST_APP/Contents/Resources/Content/"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Calculator Pane Test' "$TEST_APP/Contents/Info.plist"
 codesign --force --sign - "$TEST_APP"
 printf 'Test app: %s\n' "$TEST_APP"
-"$TEST_APP/Contents/MacOS/$EXECUTABLE" --run-tests "${@:2}"
+"$TEST_APP/Contents/MacOS/$EXECUTABLE" --run-tests "${@:2}" | tee "$TEST_WORK/checks.log"
+if ! /usr/bin/grep -Fxq 'PASS: native calculator checks' "$TEST_WORK/checks.log"; then
+  printf 'Calculator checks did not reach their final success marker.\n' >&2
+  exit 1
+fi

@@ -254,5 +254,5 @@ final class CalculatorPane: NSObject, NSSplitViewDelegate, NSWindowDelegate, NST
 
 extension Viewer {
     @objc func showCalculator() { calculatorPane.open() }
-    func calculatorHelp() { if let url = helpPane.url(for:"1020") { helpPane.open(url) } }
+    func calculatorHelp() { helpPane.showTopic("1020") }
 }

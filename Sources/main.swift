@@ -494,7 +494,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         helpPane.open(url)
     }
     @objc func helpLibrary() { helpPane.contents() }
-    @objc func methodSelectionHelp() { helpPane.open(helpPane.url(for: "1213")) }
+    @objc func methodSelectionHelp() { helpPane.showTopic("1213") }
     @objc func currentMethodHelp() {
         if calculatorPane.isFocused { calculatorHelp(); return }
         if let doc = active, let path = methodHelpPath(doc) {

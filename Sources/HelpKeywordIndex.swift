@@ -33,6 +33,35 @@ struct HelpKeywordIndex: Sendable {
         init(dictionaryLiteral elements: (String, String)...) { maps = elements.map { (key: $0.0, link: $0.1) } }
     }
 
+    /// Windows's HelpCatalog as HelpView.ShowTopic uses it: one help folder's aliases and packaged pages. The pages are
+    /// listed once, as the help folder is part of the signed app, and each topic then resolves as HelpCatalog.Resolve does.
+    struct Topics: Sendable {
+        private let root: URL
+        private let aliases: [[UInt16]: String]
+        private let files: [[UInt16]: [String]]
+
+        init(root requestedRoot: URL, aliases: Aliases) {
+            let root = requestedRoot.resolvingSymlinksInPath().standardizedFileURL
+            self.root = root
+            self.aliases = HelpKeywordIndex.aliasLookup(aliases)
+            // A folder that cannot be read lists no pages, so every topic is unavailable.
+            files = (try? HelpKeywordIndex.topicFiles(root: root)) ?? [:]
+        }
+
+        /// HelpCatalog.Resolve: the page's path, without its leading slash, and any fragment with its '#', in the forms
+        /// System.Uri gives them, or nil. An embedded NUL, for which Windows's Path.GetFullPath throws, is unavailable too.
+        func resolve(_ topic: String) -> String? {
+            guard let page = try? HelpKeywordIndex.resolve(topic, aliases: aliases, root: root, files: files) else { return nil }
+            return page.path + page.fragment
+        }
+    }
+
+    /// HelpCatalog.IsExternal: an absolute http, https or mailto address outside the Windows help origin.
+    static func isExternal(_ text: String) -> Bool {
+        guard let address = DotNetUri.absolute(text) else { return false }
+        return ["https", "http", "mailto"].contains(address.scheme) && address.authority != "https://help.statsdirect.invalid"
+    }
+
     static let unavailableMessage = "This help bundle does not yet include a keyword index."
     private static let english = Locale(identifier: "en_GB")
     let entries: [Entry]
@@ -74,8 +103,7 @@ struct HelpKeywordIndex: Sendable {
             throw IndexError.invalid("The help keyword index has an unsupported or missing schema. Rebuild the desktop help.")
         }
         let files = try topicFiles(root: root)
-        var lookup: [[UInt16]: String] = [:]
-        for map in aliases.maps where !DotNetText.isBlank(map.key) { lookup[OrdinalCase.key(map.key)] = map.link }
+        let lookup = aliasLookup(aliases)
         var entries: [Entry] = []
         var seen: [[UInt16]: Set<[UInt16]>] = [:]
         for (offset, rawEntry) in rawEntries.enumerated() {
@@ -210,6 +238,13 @@ struct HelpKeywordIndex: Sendable {
         return DotNetText.trimmed(text)
     }
 
+    /// HelpCatalog's dictionary of aliases, which compares keys ordinally, ignoring case; a later mapping replaces an earlier.
+    private static func aliasLookup(_ aliases: Aliases) -> [[UInt16]: String] {
+        var lookup: [[UInt16]: String] = [:]
+        for map in aliases.maps where !DotNetText.isBlank(map.key) { lookup[OrdinalCase.key(map.key)] = map.link }
+        return lookup
+    }
+
     /// The packaged regular files, keyed as Windows's file system compares names: ordinally, ignoring case.
     private static func topicFiles(root: URL) throws -> [[UInt16]: [String]] {
         guard let enumerator = FileManager.default.enumerator(atPath: root.path) else {
@@ -223,12 +258,13 @@ struct HelpKeywordIndex: Sendable {
         return files
     }
 
-    /// HelpCatalog.Resolve for a keyword target. An alias, or a packaged .htm or .html page named in the text's own case,
-    /// with any leading slashes and a Content/ prefix, and any query dropped; an alias may also give the page's address on
-    /// the StatsDirect web site, the help's GitHub pages or the Windows help origin. Traversal, helper folders, missing
-    /// pages and names Windows cannot hold are refused, and so, on the Mac, are a page reached through a linked file or
-    /// folder and a name that matches more than one file when case is ignored. The result is the path and the fragment,
-    /// with its '#', in the forms System.Uri gives them. An embedded NUL is the one invalid path that throws.
+    /// HelpCatalog.Resolve, for a keyword target and for a topic the help pane shows. An alias, or a packaged .htm or .html
+    /// page named in the text's own case, with any leading slashes and a Content/ prefix, and any query dropped; an alias may
+    /// also give the page's address on the StatsDirect web site, the help's GitHub pages or the Windows help origin.
+    /// Traversal, helper folders, missing pages and names Windows cannot hold are refused, and so, on the Mac, are a page
+    /// reached through a linked file or folder and a name that matches more than one file when case is ignored. The result is
+    /// the path and the fragment, with its '#', in the forms System.Uri gives them. An embedded NUL is the one invalid path
+    /// that throws.
     private static func resolve(_ requested: String, aliases: [[UInt16]: String], root: URL, files: [[UInt16]: [String]]) throws -> (path: String, fragment: String)? {
         var topic = DotNetText.isBlank(requested) || requested == "0" ? "1000" : requested
         if let mapped = aliases[OrdinalCase.key(topic)] { topic = mapped }
@@ -347,6 +383,8 @@ private enum OrdinalCase {
 /// what Uri.UnescapeDataString makes of a path, and the forms Uri.AbsolutePath and Uri.Fragment give.
 private enum DotNetUri {
     struct Address {
+        /// Uri.Scheme, in lower case.
+        let scheme: String
         let host: String
         let path: String
         let fragment: String
@@ -574,10 +612,10 @@ private enum DotNetUri {
         guard let first = units.first, end > 0 else { return nil }
         // Scheme and authority are read from the address without its trailing white space.
         let address = Array(units[..<end])
-        let none = Address(host: "", path: "", fragment: "", pathAndQuery: "", authority: "")
+        func none(_ scheme: String) -> Address { Address(scheme: scheme, host: "", path: "", fragment: "", pathAndQuery: "", authority: "") }
         func isSlash(_ index: Int) -> Bool { index < address.count && (address[index] == 0x2F || address[index] == 0x5C) }
         // A drive letter followed by a separator, or a UNC share, whose server follows any number of separators.
-        if isLetter(first), address.count >= 3, address[1] == 0x3A, isSlash(2) { return none }
+        if isLetter(first), address.count >= 3, address[1] == 0x3A, isSlash(2) { return none("file") }
         if isSlash(0) && isSlash(1) {
             var start = 2
             while isSlash(start) { start += 1 }
@@ -596,14 +634,14 @@ private enum DotNetUri {
                 if isSlash(start) && isSlash(start + 1) { while isSlash(start) { start += 1 } }
                 return authorityAddress(scheme: scheme, units, from: start)
             }
-            if rest + 2 < address.count, isLetter(address[rest]), address[rest + 1] == 0x3A, isSlash(rest + 2) { return none }
+            if rest + 2 < address.count, isLetter(address[rest]), address[rest + 1] == 0x3A, isSlash(rest + 2) { return none(scheme) }
             return nil
         }
         if authoritySchemes.contains(scheme) {
             guard slashes else { return nil }
             return authorityAddress(scheme: scheme, units, from: rest + 2)
         }
-        return slashes ? authorityAddress(scheme: scheme, units, from: rest + 2) : none
+        return slashes ? authorityAddress(scheme: scheme, units, from: rest + 2) : none(scheme)
     }
 
     /// The server part of an address and what follows it. Uri accepts a server named by letters, digits, '-', '_', '.' and
@@ -676,7 +714,7 @@ private enum DotNetUri {
         let shownPort = portText.isEmpty || defaultPorts[scheme].map({ Int($0) == Int(portText) }) == true ? "" : ":" + String(Int(portText) ?? 0)
         let rest = Array(units[end...]).map { $0 == 0x5C ? 0x2F : $0 }
         let address = parts(rest, compress: !["ldap", "gopher", "nntp", "telnet"].contains(scheme))
-        return Address(host: hostText, path: address.path, fragment: address.fragment, pathAndQuery: address.path + address.query,
+        return Address(scheme: scheme, host: hostText, path: address.path, fragment: address.fragment, pathAndQuery: address.path + address.query,
                        authority: scheme + "://" + userInfo + hostText + shownPort)
     }
 }

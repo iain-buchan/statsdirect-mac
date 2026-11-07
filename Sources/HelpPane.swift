@@ -98,9 +98,10 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     private var needsReload = false
     private var timer: Timer?
     private var observations: [NSKeyValueObservation] = []
-    private var aliases: [String:String] = [:]
-    // The same maps in Windows's order, for the keyword index, which compares names without regard to case.
+    // Data/Alias.xml's maps in Windows's order, for topics and the keyword index, which ignore the case of names and IDs.
     private var aliasMaps: [(key: String, link: String)] = []
+    // HelpCatalog's aliases and packaged pages, listed on the first topic request.
+    private lazy var topics = HelpKeywordIndex.Topics(root:resources.root,aliases:HelpKeywordIndex.Aliases(aliasMaps))
     private var hasDocument = false
     private var commandGeneration = 0
     private var pendingContents: (id: Int, completion: ((Bool) -> Void)?)?
@@ -187,7 +188,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         web.navigationDelegate = self; web.uiDelegate = self
         // XMLParser handles attribute order and XML escaping in Flare's alias file.
         let catalog = HelpAliasParser()
-        if let parser = XMLParser(contentsOf:root.appendingPathComponent("Data/Alias.xml")) { parser.delegate = catalog; if parser.parse() { aliases = catalog.aliases; aliasMaps = catalog.maps } }
+        if let parser = XMLParser(contentsOf:root.appendingPathComponent("Data/Alias.xml")) { parser.delegate = catalog; if parser.parse() { aliasMaps = catalog.maps } }
         let top = NSStackView(); top.spacing = 6
         heading.font = .systemFont(ofSize:12,weight:.semibold); heading.lineBreakMode = .byTruncatingTail
         heading.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
@@ -284,9 +285,30 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         if indexPicker.isVisible, NSApp.keyWindow === indexPicker.panel { indexPicker.close(returnFocus:true) } else { hide() }
     }
     var hasModal: Bool { owner?.attachedSheet != nil || (NSApp.modalWindow != nil && NSApp.modalWindow !== floatingWindow) }
+    /// HelpCatalog.Resolve: the packaged page named by a help ID or alias name, compared without regard to case, by a page's
+    /// path, or by its address under statsdirect.com/help/, on the help's GitHub pages or at the Windows help origin; else nil.
     func url(for topic: String) -> URL? {
-        guard let relative = aliases[topic] else { return nil }
-        return URL(string:relative,relativeTo:HelpResources.origin)?.absoluteURL
+        topics.resolve(topic).flatMap { URL(string:$0,relativeTo:HelpResources.origin)?.absoluteURL }
+    }
+    static let unavailableTopicMessage = "This topic is unavailable; showing the help contents."
+    /// HelpView.ShowTopic: opens the page a topic names. An http, https or mailto address that names no packaged page, and is
+    /// not at the Windows help origin, opens in the system browser instead and leaves the pane and its status line alone; any
+    /// other topic that names no page shows the help contents with Windows's status line.
+    func showTopic(_ topic: String) {
+        guard !stopped else { return }
+        cancelHelpCommands()
+        let page = url(for:topic)
+        if page == nil, HelpKeywordIndex.isExternal(topic) { openExternal(topic); return }
+        open(page)
+        if page == nil { notice.stringValue = HelpPane.unavailableTopicMessage }
+    }
+    /// HelpView.OpenExternal for an address given as a topic, which Uri reads without its surrounding white space.
+    private func openExternal(_ address: String) {
+        guard let url = URL(string:address.trimmingCharacters(in:CharacterSet(charactersIn:" \t\r\n"))) else {
+            notice.stringValue = "Could not open the link: the address is not valid."
+            return
+        }
+        externalLink(url)
     }
     func open(_ file: URL? = nil) {
         guard !stopped else { return }
@@ -309,7 +331,8 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         refreshModalPresentation()
         if web.url != target || needsReload { needsReload = false; web.load(URLRequest(url:target)) }
     }
-    @objc func contents() { open() }
+    // Home, as Windows's ShowTopic("1000").
+    @objc func contents() { showTopic("1000") }
     @objc func browseTopicsAction() { showContents() }
     @objc func indexAction() {
         if indexPicker.isVisible { cancelHelpCommands() }
@@ -552,7 +575,9 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         hasDocument = true; contentsButton.isEnabled = true; indexButton.isEnabled = true
         linkNavigationKeyViews()
         heading.stringValue = web.title ?? "Help"; floatingWindow?.title = (web.title ?? "Help") + " · StatsDirect"
-        notice.stringValue = ""
+        // Windows's NavigationCompleted leaves the status line alone, so the line ShowTopic gives an unavailable topic stays
+        // beside the contents it opened. Other lines, such as an earlier failure to load, clear once a page loads.
+        if notice.stringValue != HelpPane.unavailableTopicMessage { notice.stringValue = "" }
         restorePosition()
     }
     // A load that fails before it commits leaves the previous page on screen, so Contents follows that page.
@@ -563,13 +588,10 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
 }
 
 private final class HelpAliasParser: NSObject, XMLParserDelegate {
-    var aliases:[String:String] = [:]
     /// Each Map's Name and then its ResolvedId, skipping blank keys, in document order, as HelpCatalog's constructor reads them.
     var maps: [(key: String, link: String)] = []
     func parser(_ parser:XMLParser,didStartElement elementName:String,namespaceURI:String?,qualifiedName qName:String?,attributes:[String:String]) {
         guard elementName == "Map", let link = attributes["Link"] else { return }
-        if let id = attributes["ResolvedId"] { aliases[id] = link }
-        if let name = attributes["Name"] { aliases[name] = link }
         for key in [attributes["Name"], attributes["ResolvedId"]] {
             if let key, !key.unicodeScalars.allSatisfy({ $0.properties.isWhitespace }) { maps.append((key, link)) }
         }

@@ -420,9 +420,9 @@
       const controlHeight = Math.max(0, ...controls.map(child => child.getBoundingClientRect().height));
       if (!controlHeight) return;
       // WebKit can omit a classic scrollbar from this flex item's automatic height.
-      // A definite measured height also restores the normal row after widening.
+      // A definite height also clears stale parent flex sizing, even when the row already looks correct.
       const required = Math.max(number(style.minHeight), Math.ceil(controlHeight + padding + border + gutter));
-      if (Math.abs(toolbar.getBoundingClientRect().height - required) > 0.5) toolbar.style.height = required + 'px';
+      if (toolbar.style.height !== required + 'px') toolbar.style.height = required + 'px';
     };
     const schedule = () => {
       if (!stopped && !pending) pending = view.requestAnimationFrame(fit);

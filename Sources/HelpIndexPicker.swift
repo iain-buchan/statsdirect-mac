@@ -5,6 +5,19 @@ private final class HelpIndexPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+/// The picker's ground, resolved again whenever the appearance changes between Light and Dark.
+private final class HelpIndexBackground: NSView {
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        layer?.cornerRadius = 8
+    }
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+}
+
 /// A temporary native keyword picker. Selection alone never navigates.
 @MainActor
 final class HelpIndexPicker: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSWindowDelegate {
@@ -19,8 +32,15 @@ final class HelpIndexPicker: NSObject, NSTableViewDataSource, NSTableViewDelegat
     private var shown = false
     private var monitors: [Any] = []
     private weak var anchor: NSButton?
+    /// The event number of the left press on Index that closed the picker; that press's mouse-up carries the same number.
+    private var anchorClick: Int?
+    /// Where Escape leaves keyboard focus when the Index button cannot take it (Keyboard navigation off).
+    weak var fallbackFocus: NSView?
     var onChoose: ((HelpKeywordIndex.Entry) -> Void)?
     var isVisible: Bool { shown && panel.isVisible }
+    var countText: String { count.stringValue }
+    var selectedTopicText: String { target.stringValue }
+    var backgroundColor: CGColor? { panel.contentView?.layer?.backgroundColor }
 
     override init() {
         super.init()
@@ -33,10 +53,8 @@ final class HelpIndexPicker: NSObject, NSTableViewDataSource, NSTableViewDelegat
         panel.delegate = self
         panel.title = "Help index"
         panel.setAccessibilityLabel("Help index")
-        let content = NSView()
+        let content = HelpIndexBackground()
         content.wantsLayer = true
-        content.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
-        content.layer?.cornerRadius = 8
         panel.contentView = content
         filter.placeholderString = "Type a keyword"
         filter.setAccessibilityLabel("Filter index keywords")
@@ -55,6 +73,8 @@ final class HelpIndexPicker: NSObject, NSTableViewDataSource, NSTableViewDelegat
         table.rowHeight = 23
         table.columnAutoresizingStyle = .noColumnAutoresizing
         table.allowsMultipleSelection = false
+        // A click on blank list space keeps the selected entry and its title, as Windows's list box does.
+        table.allowsEmptySelection = false
         table.dataSource = self
         table.delegate = self
         table.target = self
@@ -88,6 +108,7 @@ final class HelpIndexPicker: NSObject, NSTableViewDataSource, NSTableViewDelegat
 
     func show(_ catalog: HelpKeywordIndex, relativeTo button: NSButton) {
         close()
+        anchorClick = nil
         self.catalog = catalog
         anchor = button
         applyFilter()
@@ -107,13 +128,18 @@ final class HelpIndexPicker: NSObject, NSTableViewDataSource, NSTableViewDelegat
                 return handled ? nil : event
             },
             NSEvent.addLocalMonitorForEvents(matching:[.leftMouseDown,.rightMouseDown,.otherMouseDown]) { [weak self] event in
-                MainActor.assumeIsolated {
-                    guard let self, self.isVisible, event.window !== self.panel else { return }
-                    if let anchor = self.anchor, event.window === anchor.window,
-                       anchor.bounds.contains(anchor.convert(event.locationInWindow,from:nil)) { return }
+                let ignored = MainActor.assumeIsolated { () -> Bool in
+                    guard let self, self.isVisible, event.window !== self.panel else { return false }
+                    let onAnchor = self.anchor.map { $0.window === event.window && $0.bounds.contains($0.convert(event.locationInWindow,from:nil)) } ?? false
+                    // Windows leaves a press on the drop-down button to the button, which acts on the left button only, so
+                    // a right or middle click there is consumed and the picker stays open. A left press on Index closes it,
+                    // and the button's action for that same click must not open it again.
+                    if onAnchor && event.type != .leftMouseDown { return true }
+                    self.anchorClick = onAnchor ? event.eventNumber : nil
                     self.close()
+                    return false
                 }
-                return event
+                return ignored ? nil : event
             }
         ].compactMap { $0 }
         panel.makeKeyAndOrderFront(nil)
@@ -130,13 +156,26 @@ final class HelpIndexPicker: NSObject, NSTableViewDataSource, NSTableViewDelegat
         panel.orderOut(nil)
         if returnFocus, wasVisible, NSApp.isActive, let anchor, let window = anchor.window {
             window.makeKeyAndOrderFront(nil)
-            window.makeFirstResponder(anchor)
+            // Escape returns to the Index button when Keyboard navigation lets buttons take focus, and otherwise to the page.
+            if !(anchor.canBecomeKeyView && window.makeFirstResponder(anchor)), let page = fallbackFocus, page.window === window {
+                window.makeFirstResponder(page)
+            }
         }
+    }
+
+    /// True once, for the button action of the click on Index that closed the picker. A press released off the button
+    /// sends no action, and the next click, with its own event number, opens the picker again.
+    func takeAnchorClick() -> Bool {
+        defer { anchorClick = nil }
+        guard let number = anchorClick, let event = NSApp.currentEvent, [.leftMouseDown,.leftMouseUp].contains(event.type) else { return false }
+        return event.eventNumber == number
     }
 
     func handleKey(_ event: NSEvent) -> Bool {
         guard isVisible, event.window === panel || panel.isKeyWindow,
               event.modifierFlags.intersection([.command,.control,.option]).isEmpty else { return false }
+        // An input method composing text in the filter takes Return, the arrows, Tab and Escape first.
+        if let editor = filter.currentEditor() as? NSTextView, editor.hasMarkedText() { return false }
         switch event.keyCode {
         case 53: close(returnFocus:true); return true
         case 36,76: choose(); return true
@@ -173,7 +212,7 @@ final class HelpIndexPicker: NSObject, NSTableViewDataSource, NSTableViewDelegat
         }
         let total = catalog?.rows.count ?? 0
         if rows.isEmpty { count.stringValue = "No matching index entries" }
-        else if filter.stringValue.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty { count.stringValue = "\(total) index entries" }
+        else if HelpKeywordIndex.trimmedQuery(filter.stringValue).isEmpty { count.stringValue = "\(total) index entries" }
         else { count.stringValue = "\(rows.count) of \(total) entries" }
         table.tableColumns.first?.width = max(410,rows.map { ($0.text as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:12)]).width + 16 }.max() ?? 0)
         updateTarget()

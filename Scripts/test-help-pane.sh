@@ -26,11 +26,15 @@ TEST_WORK="$(mktemp -d "$ROOT/.build/help-pane.XXXXXX")"
 trap 'rm -rf "$TEST_WORK"' EXIT   # the driver, its copy of the app and its module cache are not kept after the run
 TEST_APP="$TEST_WORK/StatsDirect Help Pane Test.app"
 swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache Sources/HelpKeywordIndex.swift Tests/help-keyword-index-test.swift -o "$TEST_WORK/keyword-index-test"
-if [[ -n "$PRIVATE_HELP" ]]; then
-  "$TEST_WORK/keyword-index-test" "$PRIVATE_HELP"
-else
-  "$TEST_WORK/keyword-index-test"
-fi
+# Also built without ICU, which covers the fallback used if the system's ICU library cannot be loaded.
+swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -D KEYWORD_INDEX_WITHOUT_ICU -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache Sources/HelpKeywordIndex.swift Tests/help-keyword-index-test.swift -o "$TEST_WORK/keyword-index-test-without-icu"
+for test in keyword-index-test keyword-index-test-without-icu; do
+  if [[ -n "$PRIVATE_HELP" ]]; then
+    "$TEST_WORK/$test" "$PRIVATE_HELP"
+  else
+    "$TEST_WORK/$test"
+  fi
+done
 if [[ "$NAVIGATION_ONLY" == true ]]; then
   SOURCES=(Sources/HelpPane.swift Sources/HelpKeywordIndex.swift Sources/HelpIndexPicker.swift)
   EXTRA_FLAGS=(-D HELP_NAVIGATION_ONLY)
@@ -55,8 +59,9 @@ cp "$TEST_WORK/driver" "$TEST_APP/Contents/MacOS/$EXECUTABLE"
 rsync -a --delete Content/ "$TEST_APP/Contents/Resources/Content/"
 if [[ -n "$PRIVATE_HELP" ]]; then
   rsync -a --delete "$PRIVATE_HELP/" "$TEST_APP/Contents/Resources/Content/Help/"
-  TEST_ARGUMENTS+=(--check-reader-escape)
 fi
+# The pinned publication (7101cea6) carries the reader's Escape fix, so its Escape checks run on every run, CI included.
+TEST_ARGUMENTS+=(--check-reader-escape)
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.statsdirect.viewer.helptest.${TEST_WORK##*.}" "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Help Pane Test' "$TEST_APP/Contents/Info.plist"
 codesign --force --sign - "$TEST_APP"

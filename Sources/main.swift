@@ -515,6 +515,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func editCommand(_ sender: NSMenuItem) {
         guard let command = sender.representedObject as? String else { return }
         let fallback = { NSApp.sendAction(NSSelectorFromString(command + ":"), to: nil, from: self) }
+        // In the Index picker or popped-out help the command stays in that window, as Windows's drop-down and help window
+        // pass no shortcut to the main window: what nothing there takes must not reach the worksheet or script behind.
+        if helpPane.isFocused, let key = NSApp.keyWindow, key !== window {
+            _ = key.firstResponder?.tryToPerform(NSSelectorFromString(command + ":"), with: self)
+            return
+        }
         if calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused || active?.findBar?.isFocused == true { _ = fallback(); return }
         if let doc=active, doc.kind=="report", ["copy","cut","paste"].contains(command), window.attachedSheet==nil { reportClipboardCommand(doc, command: command); return }
         if let doc=active, doc.kind=="report", doc.reportEditing, ["undo","redo","selectAll"].contains(command), window.attachedSheet==nil {
@@ -581,9 +587,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     @objc func closeTab() {
         if let svg = NSApp.keyWindow?.windowController as? RConsoleSVGWindow { svg.close(); return }
         if let pdf = NSApp.keyWindow?.windowController as? RConsolePDFWindow { pdf.close(); return }
+        // Close acts in the window that has the keyboard, so the Index picker or popped-out help closes before a pane that
+        // keeps focus in the main window behind it.
+        if helpPane.isFocused, NSApp.keyWindow !== window { helpPane.closeFocused(); return }
         if scriptAI.isFocused { scriptAI.hide(); return }
         if calculatorPane.isFocused { calculatorPane.hide(); return }
-        if helpPane.isFocused { helpPane.hide(); return }
+        if helpPane.isFocused { helpPane.closeFocused(); return }
         guard let doc = active else { return }
         closeDocument(doc)
     }

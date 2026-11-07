@@ -4,7 +4,8 @@ html, body { height: 100%; margin: 0; overflow: hidden; }
 body { display: flex; flex-direction: column; padding: 10px 14px 8px; }
 button, textarea { font: inherit; color: inherit; }
 button { cursor: default; }
-.toolbar { overflow-x: auto; display: flex; align-items: center; flex-shrink: 0; gap: 4px; min-height: 42px; padding: 5px; border: 1px solid #cdd5d9; border-radius: 6px; background: #fff; }
+.toolbar { overflow-x: auto; display: block; flex-shrink: 0; min-height: 42px; padding: 5px; border: 1px solid #cdd5d9; border-radius: 6px; background: #fff; }
+.toolbar-controls { display: flex; align-items: center; gap: 4px; min-height: 30px; width: max-content; min-width: 100%; }
 .toolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0; height: 30px; min-width: 30px; padding: 3px 7px; border: 1px solid transparent; border-radius: 4px; background: transparent; white-space: nowrap; font-size: 12px; }
 .toolbar button:hover:not(:disabled), .plot-actions button:hover { background: #edf4f1; border-color: #c9d5d2; }
 button:disabled { opacity: .4; }
@@ -46,5 +47,6 @@ pre { margin: 0; font: 13px/1.45 ui-monospace, "SFMono-Regular", Menlo, Consolas
 footer { display: flex; flex-shrink: 0; justify-content: space-between; gap: 12px; padding: 7px 2px 0; color: var(--r-notice); font-size: 11px; }
 #state { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #input-hint { white-space: nowrap; }
-@media(max-width: 570px) { body { padding: 6px; } .toolbar { gap: 1px; } .toolbar button { padding: 3px 5px; } #restart span, #input-hint { display: none; } .group-start { margin-left: 1px; } }
+@media(max-width: 570px) { body { padding: 6px; } .toolbar-controls { gap: 1px; } .toolbar button { padding: 3px 5px; } #restart span, #input-hint { display: none; } .group-start { margin-left: 1px; } }
 @media print { html, body { height: auto; overflow: visible; } body { padding: 0; } .toolbar, .input-row, footer, #script-panel { display: none !important; } main { border: 0; overflow: visible; } #console-panel, .transcript { display: block; overflow: visible; height: auto; } .plot { break-inside: avoid; } .plot-actions { display: none; } }
+

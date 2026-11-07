@@ -1231,6 +1231,7 @@ import WebKit
                 previousViewport = (nativeWidth, webWidth)
                 return stableViewportSamples >= 3
             }
+            let nativeScrollerStyle = NSScroller.preferredScrollerStyle == .legacy ? "legacy" : "overlay"
             let layout = try await doc.web.callAsyncJavaScript("""
             // callAsyncJavaScript awaits this asynchronous body; evaluateJavaScript does not await a returned Promise.
             const frame = () => new Promise(resolve => {
@@ -1243,12 +1244,23 @@ import WebKit
             const buttons = Array.from(toolbar.querySelectorAll('button'));
             const rect = bounds => ({left:bounds.left, right:bounds.right, top:bounds.top, bottom:bounds.bottom,
               width:bounds.width, height:bounds.height});
+            const viewport = () => {
+              const outer = toolbar.getBoundingClientRect(), style = getComputedStyle(toolbar);
+              const left = outer.left+toolbar.clientLeft, top = outer.top+toolbar.clientTop;
+              return {outer:rect(outer),
+                clip:{left, top, right:left+toolbar.clientWidth, bottom:top+toolbar.clientHeight,
+                  width:toolbar.clientWidth, height:toolbar.clientHeight},
+                clientWidth:toolbar.clientWidth, clientHeight:toolbar.clientHeight,
+                scrollWidth:toolbar.scrollWidth, scrollHeight:toolbar.scrollHeight,
+                scrollLeft:toolbar.scrollLeft, scrollTop:toolbar.scrollTop,
+                horizontalScrollbar:Math.max(0,toolbar.offsetHeight-toolbar.clientHeight-parseFloat(style.borderTopWidth)-parseFloat(style.borderBottomWidth)),
+                verticalScrollbar:Math.max(0,toolbar.offsetWidth-toolbar.clientWidth-parseFloat(style.borderLeftWidth)-parseFloat(style.borderRightWidth))};
+            };
             const measure = (button, index) => {
-              const bounds = button.getBoundingClientRect(), clip = toolbar.getBoundingClientRect();
+              const bounds = button.getBoundingClientRect(), view = viewport(), clip = view.clip;
               const hit = document.elementFromPoint((bounds.left+bounds.right)/2, (bounds.top+bounds.bottom)/2);
-              return {index, id:button.id, button:rect(bounds), clip:rect(clip),
+              return {index, id:button.id, button:rect(bounds), ...view,
                 hit:hit ? hit.tagName+(hit.id ? '#'+hit.id : '') : null,
-                scrollLeft:toolbar.scrollLeft, scrollWidth:toolbar.scrollWidth, clientWidth:toolbar.clientWidth,
                 display:getComputedStyle(button).display, hidden:button.hidden,
                 reachable:bounds.width>0 && bounds.height>0 && bounds.left>=clip.left-1 && bounds.right<=clip.right+1
                   && bounds.top>=clip.top && bounds.bottom<=clip.bottom && button.contains(hit)};
@@ -1268,8 +1280,10 @@ import WebKit
               } while (performance.now()<deadline);
               if (!sample.reachable) { reachable=false; failedButtons.push(sample); break; }
             }
+            const viewportAfterScroll = viewport();
             const didScroll = toolbar.scrollLeft > 0;
             const needsScroll = toolbar.scrollWidth > toolbar.clientWidth;
+            const noVerticalOverflow = toolbar.scrollHeight <= toolbar.clientHeight+1;
             const noBodyOverflow = document.documentElement.scrollWidth <= document.documentElement.clientWidth+1 && document.body.scrollWidth <= document.documentElement.clientWidth+1;
             const nativeScroll = ['auto','scroll'].includes(getComputedStyle(toolbar).overflowX);
             const scriptTab = document.getElementById('script-tab');
@@ -1278,18 +1292,16 @@ import WebKit
             const consoleTab = document.getElementById('console-tab');
             consoleTab.scrollIntoView({block:'nearest', inline:'nearest'}); await frame(); consoleTab.click();
             StatsDirectRConsole.focusInput();
-            return {reachable, noBodyOverflow, nativeScroll, didScroll, needsScroll, failedButtons,
-              viewportWidth:window.innerWidth, buttonCount:buttons.length,
-              finalScrollLeft:toolbar.scrollLeft, scrollWidth:toolbar.scrollWidth, clientWidth:toolbar.clientWidth,
+            return {reachable, noBodyOverflow, nativeScroll, didScroll, needsScroll, noVerticalOverflow, failedButtons,
+              requestedWidth, resizePass, nativeViewportWidth, nativeScrollerStyle,
+              viewportWidth:window.innerWidth, buttonCount:buttons.length, ...viewportAfterScroll,
+              finalScrollLeft:toolbar.scrollLeft, finalScrollTop:toolbar.scrollTop,
               scriptWorks, consoleWorks:StatsDirectRConsole.snapshot().mode === 'console' && document.activeElement === document.getElementById('console-input')};
-            """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any] ?? [:]
-            let narrowWorks = ["reachable", "noBodyOverflow", "nativeScroll", "scriptWorks", "consoleWorks"].allSatisfy { layout[$0] as? Bool == true }
+            """, arguments: ["requestedWidth": width, "resizePass": pass + 1, "nativeViewportWidth": Double(doc.web.bounds.width), "nativeScrollerStyle": nativeScrollerStyle], in: nil, contentWorld: .page) as? [String: Any] ?? [:]
+            let narrowWorks = ["reachable", "noBodyOverflow", "nativeScroll", "scriptWorks", "consoleWorks", "noVerticalOverflow"].allSatisfy { layout[$0] as? Bool == true }
                 && (layout["needsScroll"] as? Bool != true || layout["didScroll"] as? Bool == true)
-            // Name the condition and first failed button before the R round trips that follow.
-            if !narrowWorks {
-                let described = try literal(layout)
-                print("INFO: narrow console layout at \(width) points, pass \(pass + 1), native width \(doc.web.bounds.width): \(described)"); fflush(stdout)
-            }
+            // Keep one machine-readable viewport record per pass, including successful classic-scrollbar checks.
+            print("INFO: narrow toolbar viewport: \(try literal(layout))"); fflush(stdout)
             // Each resize pass has a unique marker, so previous output cannot satisfy a repeated-width check.
             let marker = "\(width)_\(pass + 1)"
             try await console(doc, "cat('NARROW_CONSOLE_\(marker)=', narrowValue+1, '\\n', sep='')")
@@ -1315,4 +1327,5 @@ import WebKit
         return doc.rConsolePane?.session.state == "ready" && current["state"] as? String == "ready"
     }
 }
+
 

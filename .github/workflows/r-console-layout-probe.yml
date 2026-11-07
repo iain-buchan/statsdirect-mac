@@ -3,6 +3,7 @@ on:
   push:
     branches: [codex/r-console-toolbar-native-probe]
     paths:
+      - Content/RConsole/**
       - Tests/r-console-integration-driver.swift
       - .github/workflows/r-console-layout-probe.yml
 permissions:
@@ -40,14 +41,33 @@ jobs:
           for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
       - name: Build the test application
         run: DOTNET="$(command -v dotnet)" ./build.sh
-      - name: Repeated native R console checks
+      - name: Native R console with classic and overlay scrollbars
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .build
-          for attempt in 1 2; do
-            R_BIN="$(command -v R)" R_SCRIPT="$(command -v Rscript)" bash Scripts/test-r-console-integration.sh "$PWD/StatsDirect.app" 2>&1 | tee ".build/r-console-layout-probe-${attempt}.log"
-            grep -Fq 'PASS: live WebKit interactive R console integration completed' ".build/r-console-layout-probe-${attempt}.log"
+          for style in Always WhenScrolling; do
+            defaults write -g AppleShowScrollBars -string "$style"
+            log=".build/r-console-layout-probe-${style}.log"
+            R_BIN="$(command -v R)" R_SCRIPT="$(command -v Rscript)" bash Scripts/test-r-console-integration.sh "$PWD/StatsDirect.app" 2>&1 | tee "$log"
+            grep -Fq 'PASS: live WebKit interactive R console integration completed' "$log"
+            python3 - "$style" "$log" <<'PY'
+          import json, pathlib, sys
+          style, path = sys.argv[1:]
+          prefix = 'INFO: narrow toolbar viewport: '
+          rows = [json.loads(line.split(prefix, 1)[1]) for line in pathlib.Path(path).read_text().splitlines() if prefix in line]
+          assert len(rows) == 4, ('missing resize evidence', len(rows))
+          assert all(row['reachable'] and row['noVerticalOverflow'] and row['noBodyOverflow'] for row in rows)
+          required = 'legacy' if style == 'Always' else 'overlay'
+          assert all(row['nativeScrollerStyle'] == required for row in rows), ('scrollbar preference not applied', style, rows)
+          narrow = [row for row in rows if row['needsScroll']]
+          assert narrow, 'probe did not exercise horizontal overflow'
+          if style == 'Always':
+              assert all(row['horizontalScrollbar'] > 0 and row['verticalScrollbar'] == 0 for row in narrow), ('classic scrollbar not measured', narrow)
+          else:
+              assert all(row['horizontalScrollbar'] == 0 and row['verticalScrollbar'] == 0 for row in narrow), ('overlay scrollbar not measured', narrow)
+          print('PASS: measured', style, 'scrollbars with all controls fully reachable across repeated resize cycles')
+          PY
           done
       - name: Retain native test evidence
         if: always()
@@ -55,5 +75,6 @@ jobs:
         with:
           name: r-console-layout-probe
           path: .build/r-console-layout-probe-*.log
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7

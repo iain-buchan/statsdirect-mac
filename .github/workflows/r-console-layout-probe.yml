@@ -1,0 +1,90 @@
+name: R console layout probe
+on:
+  push:
+    branches: [codex/r-console-toolbar-final-probe]
+    paths:
+      - Content/RConsole/**
+      - Tests/r-console-integration-driver.swift
+      - .github/workflows/r-console-layout-probe.yml
+permissions:
+  contents: read
+concurrency:
+  group: r-console-layout-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+      STATSDIRECT_CONTENT_MODE: offline
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05
+        with:
+          r-version: release
+      - name: Install JavaScript dependencies
+        run: |
+          corepack enable
+          for dir in Grid Report Learn; do (cd "$dir" && pnpm install --frozen-lockfile); done
+      - name: Build the test application
+        run: DOTNET="$(command -v dotnet)" ./build.sh
+      - name: Native R console with classic and overlay scrollbars
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .build
+          original="$(defaults read -g AppleShowScrollBars 2>/dev/null || true)"
+          restore() {
+            if [[ -n "$original" ]]; then defaults write -g AppleShowScrollBars -string "$original"
+            else defaults delete -g AppleShowScrollBars >/dev/null 2>&1 || true
+            fi
+          }
+          trap restore EXIT
+          for style in Always WhenScrolling; do
+            defaults write -g AppleShowScrollBars -string "$style"
+            log=".build/r-console-layout-probe-${style}.log"
+            R_BIN="$(command -v R)" R_SCRIPT="$(command -v Rscript)" bash Scripts/test-r-console-integration.sh "$PWD/StatsDirect.app" 2>&1 | tee "$log"
+            grep -Fq 'PASS: live WebKit interactive R console integration completed' "$log"
+            python3 - "$style" "$log" <<'PY'
+          import json, pathlib, sys
+          style, path = sys.argv[1:]
+          prefix = 'INFO: narrow toolbar viewport: '
+          rows = [json.loads(line.split(prefix, 1)[1]) for line in pathlib.Path(path).read_text().splitlines() if prefix in line]
+          assert len(rows) == 5, ('missing resize evidence', len(rows))
+          assert [row['requestedWidth'] for row in rows] == [420,320,420,320,900]
+          assert all(row['reachable'] and row['noVerticalOverflow'] and row['noBodyOverflow'] and row['paneLayout'] and row['wideHeightWhenFits'] and row['wideRecovery'] for row in rows)
+          wide = rows[-1]
+          assert not wide['needsScroll'] and wide['horizontalScrollbar'] == 0 and wide['outer']['height'] == 42
+          required = 'legacy' if style == 'Always' else 'overlay'
+          assert all(row['nativeScrollerStyle'] == required for row in rows), ('scrollbar preference not applied', style, rows)
+          narrow = [row for row in rows if row['needsScroll']]
+          assert narrow, 'probe did not exercise horizontal overflow'
+          if style == 'Always':
+              assert all(row['horizontalScrollbar'] > 0 and row['verticalScrollbar'] == 0 for row in narrow), ('classic scrollbar not measured', narrow)
+          else:
+              assert all(row['horizontalScrollbar'] == 0 and row['verticalScrollbar'] == 0 for row in narrow), ('overlay scrollbar not measured', narrow)
+          print('PASS: measured', style, 'scrollbars with all controls fully reachable across repeated resize cycles')
+          PY
+          done
+      - name: Retain native test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: r-console-layout-probe
+          path: .build/r-console-layout-probe-*.log
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7

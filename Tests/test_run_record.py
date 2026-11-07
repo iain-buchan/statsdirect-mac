@@ -161,7 +161,7 @@ inputs = r['inputs']
 check([i['name'] for i in inputs] == ['data', 'gamma', 'doAgreement'] and [i['kind'] for i in inputs] == ['frame', 'confidence', 'boolean'], 'the inputs are listed in the order they were asked, with their kinds')
 check(inputs[0]['prompt'] == 'Select 2 matched columns (or 1 of differences)', 'an input carries the prompt the user saw')
 frame = inputs[0]; columns = frame['columns']
-check(frame['mode'] == 'NumericReplaceMissing' and frame['file'] == 'test.xlsx' and frame['path'] == str(WORKBOOK) and frame['sheet'] == 'Agreement' and len(columns) == 2,
+check(frame['mode'] == 'NumericPreserveRows' and frame['file'] == 'test.xlsx' and frame['path'] == str(WORKBOOK) and frame['sheet'] == 'Agreement' and len(columns) == 2,
       'a frame read from a sheet is recorded as pointers: the mode, the file, the sheet and its columns')
 check(columns[0]['title'] == '1st' and columns[0]['column'] == 1 and columns[1]['column'] == 2 and columns[0]['rows'] == [1, 21] and columns[1]['rows'] == [1, 21] and columns[0]['hasTitle'] is True and 'sheet' not in columns[0],
       'a pointer column gives its title, 1-based column, rows [1, 21] with the title row counted in, hasTitle')

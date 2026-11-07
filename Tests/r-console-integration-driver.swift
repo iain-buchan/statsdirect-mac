@@ -1236,6 +1236,13 @@ import WebKit
             return {reachable, noBodyOverflow, nativeScroll, didScroll, needsScroll:toolbar.scrollWidth > toolbar.clientWidth,
               scriptWorks, consoleWorks:StatsDirectRConsole.snapshot().mode === 'console' && document.activeElement === document.getElementById('console-input')};
             """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any] ?? [:]
+            let narrowWorks = ["reachable", "noBodyOverflow", "nativeScroll", "scriptWorks", "consoleWorks"].allSatisfy { layout[$0] as? Bool == true }
+                && (layout["needsScroll"] as? Bool != true || layout["didScroll"] as? Bool == true)
+            // Name the condition that failed at once, before the R round trips that follow, so a CI failure explains itself.
+            if !narrowWorks {
+                let described = layout.isEmpty ? "layout unavailable" : layout.sorted { $0.key < $1.key }.map { "\($0.key)=\(($0.value as? Bool).map(String.init) ?? "\($0.value)")" }.joined(separator: ", ")
+                print("INFO: narrow console layout at \(width) points: \(described)"); fflush(stdout)
+            }
             try await console(doc, "cat('NARROW_CONSOLE_\(width)=', narrowValue+1, '\\n', sep='')")
             try await expectOutput(doc, "NARROW_CONSOLE_\(width)=42\n")
             let narrowScript = "cat('NARROW_SCRIPT_\(width)=', narrowValue+2, '\\n', sep='')"
@@ -1249,8 +1256,7 @@ import WebKit
             })()
             """)
             try await expectOutput(doc, "NARROW_SCRIPT_\(width)=43\n")
-            try check(["reachable", "noBodyOverflow", "nativeScroll", "scriptWorks", "consoleWorks"].allSatisfy { layout[$0] as? Bool == true }
-                      && (layout["needsScroll"] as? Bool != true || layout["didScroll"] as? Bool == true),
+            try check(narrowWorks,
                       "at \(width) points every toolbar control remains reachable by horizontal scroll while Console, Script and the persistent R workspace work without body overflow")
         }
     }

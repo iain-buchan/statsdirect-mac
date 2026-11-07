@@ -16,11 +16,13 @@ final class HelpResources: NSObject, WKURLSchemeHandler {
         super.init()
         // Flare's Windows output contains mixed-case links (Scripts vs scripts).
         // Resolve using a catalogue so help also works on case-sensitive Mac volumes.
-        if let entries = FileManager.default.enumerator(at:self.root,includingPropertiesForKeys:[.isRegularFileKey]) {
-            for case let file as URL in entries {
-                if (try? file.resourceValues(forKeys:[.isRegularFileKey]).isRegularFile) == true {
-                    files[String(file.path.dropFirst(self.root.path.count)).lowercased()] = file
-                }
+        // Key files by the path the enumerator reports relative to the root. Absolute paths fail when the bundle is under
+        // /private, as App Translocation runs a downloaded app opened in place: resolving symlinks drops /private from the
+        // root but not from the enumerated files, which shifted every key and left the help empty.
+        if let entries = FileManager.default.enumerator(atPath:self.root.path) {
+            while let relative = entries.nextObject() as? String {
+                guard entries.fileAttributes?[.type] as? FileAttributeType == .typeRegular else { continue }
+                files["/" + relative.lowercased()] = self.root.appendingPathComponent(relative)
             }
         }
     }
@@ -63,6 +65,7 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     let modeButton = NSButton(title:"Pop out",target:nil,action:nil)
     let backButton = NSButton(title:"‹",target:nil,action:nil)
     let forwardButton = NSButton(title:"›",target:nil,action:nil)
+    let browseButton = NSButton(title:"Browse topics",target:nil,action:nil)
     let heading = NSTextField(labelWithString:"Help")
     let notice = NSTextField(labelWithString:"")
     weak var owner: NSWindow?
@@ -77,15 +80,56 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     private var timer: Timer?
     private var observations: [NSKeyValueObservation] = []
     private var aliases: [String:String] = [:]
+    private var hasDocument = false
+    private var browseRequests = 0
+    private var pendingBrowse: (id: Int, completion: ((Bool) -> Void)?)?
     // Injectable only for native verification; normal clicks use the system browser.
     var willShow: (() -> Void)?
     var externalLink: (URL) -> Void = { NSWorkspace.shared.open($0) }
+    // The help pages are the web reader. Inside this pane its banner, search box and menu button repeat the native
+    // Home, Browse topics and search controls, so they are hidden here only, as in the Windows help window (5.3.4).
+    static let nativeToolbarStyle = """
+    (() => {
+        if (window !== window.top || location.protocol !== 'app:' || location.host !== 'statsdirect-help') return;
+        const style = document.createElement('style');
+        style.textContent = `
+            :root[data-help-skin]:has(> body > header > .help-identity){--help-height:0px !important}
+            html[data-help-skin] > body > header:has(> .help-identity),
+            html[data-help-skin] > body > main > aside > #search-form{display:none !important}
+        `;
+        if (document.head) document.head.append(style);
+        else {
+            const observer = new MutationObserver(() => {
+                if (!document.head) return;
+                document.head.append(style);
+                observer.disconnect();
+            });
+            observer.observe(document,{childList:true,subtree:true});
+        }
+    })();
+    """
+    // Opens the reader's own contents tree at the current topic, as the Windows Browse topics command does.
+    static let browseTopicsScript = """
+    (() => {
+        const contents = document.getElementById('contents');
+        if (!contents) return false;
+        const navigation = document.getElementById('help-navigation');
+        const toggle = document.getElementById('navigation-toggle');
+        if (toggle && navigation && getComputedStyle(navigation).display === 'none') toggle.click();
+        if (contents.hidden) document.getElementById('contents-tab')?.click();
+        const link = contents.querySelector('a[aria-current="page"]') ?? contents.querySelector('a');
+        if (!link?.getClientRects().length) return false;
+        link.focus({preventScroll:true});
+        return true;
+    })()
+    """
 
     init(root: URL) {
         resources = HelpResources(root:root)
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.setURLSchemeHandler(resources, forURLScheme:"app")
+        config.userContentController.addUserScript(WKUserScript(source:HelpPane.nativeToolbarStyle,injectionTime:.atDocumentStart,forMainFrameOnly:true))
         config.userContentController.addUserScript(WKUserScript(source:"for(const type of ['wheel','pointerdown','keydown']) addEventListener(type,()=>{window.__sdHelpPosition=null;},{capture:true,passive:true});",injectionTime:.atDocumentStart,forMainFrameOnly:true))
         web = WKWebView(frame:.zero,configuration:config)
         super.init()
@@ -98,14 +142,19 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         heading.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
         modeButton.target = self; modeButton.action = #selector(toggleMode)
         let close = NSButton(title:"×",target:self,action:#selector(hide)); close.setAccessibilityLabel("Close help"); close.toolTip = "Close help"
-        for button in [modeButton,close] { button.refusesFirstResponder = true; button.controlSize = .small }
-        top.addArrangedSubview(heading); top.addArrangedSubview(modeButton); top.addArrangedSubview(close)
+        // Print sits beside Pop out so the navigation row keeps Home, Browse topics and search at the narrowest dock.
+        let print = NSButton(title:"Print",target:self,action:#selector(printHelp)); print.toolTip = "Print this help topic"
+        for button in [print,modeButton,close] { button.refusesFirstResponder = true; button.controlSize = .small }
+        // The title takes the leading side and the buttons stay at the trailing edge whatever the page title.
+        top.addView(heading,in:.leading); for button in [print,modeButton,close] { top.addView(button,in:.trailing) }
         let navigation = NSStackView(); navigation.spacing = 4
         backButton.target = self; backButton.action = #selector(back); backButton.setAccessibilityLabel("Help back")
         forwardButton.target = self; forwardButton.action = #selector(forward); forwardButton.setAccessibilityLabel("Help forward")
-        let home = NSButton(title:"Contents",target:self,action:#selector(contents))
-        let print = NSButton(title:"Print",target:self,action:#selector(printHelp))
-        for button in [backButton,forwardButton,home,print] { button.refusesFirstResponder = true; button.controlSize = .small; navigation.addArrangedSubview(button) }
+        let home = NSButton(title:"Home",target:self,action:#selector(contents)); home.toolTip = "Open the help home page"
+        browseButton.target = self; browseButton.action = #selector(browseTopicsAction); browseButton.isEnabled = false
+        browseButton.toolTip = "Show the help contents"
+        // With the page's own Browse topics button hidden, these keep a keyboard route: Tab reaches them when Keyboard navigation is on.
+        for button in [backButton,forwardButton,home,browseButton] { button.controlSize = .small; navigation.addArrangedSubview(button) }
         searchField.placeholderString = "Search help"; searchField.setAccessibilityLabel("Search all help topics")
         searchField.target = self; searchField.action = #selector(search); searchField.sendsSearchStringImmediately = false; searchField.sendsWholeSearchString = true
         navigation.addArrangedSubview(searchField)
@@ -154,6 +203,47 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         if web.url != target || needsReload { needsReload = false; web.load(URLRequest(url:target)) }
     }
     @objc func contents() { open() }
+    @objc func browseTopicsAction() { browseTopics() }
+    /// Shows the reader's contents tree with the current topic focused. A page without a tree opens the reader at the
+    /// same topic. The completion receives true when the tree opened in place.
+    func browseTopics(_ completion: ((Bool) -> Void)? = nil) {
+        guard let source = web.url, resources.localURL(source) != nil else { completion?(false); return }
+        finishBrowse(pendingBrowse?.id ?? -1, false)
+        browseRequests += 1; let id = browseRequests
+        pendingBrowse = (id, completion)
+        web.window?.makeFirstResponder(web)
+        // The Windows help window gives the page five seconds.
+        DispatchQueue.main.asyncAfter(deadline:.now() + 5) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.pendingBrowse?.id == id else { return }
+                self.notice.stringValue = "Could not open the help topics: the help page did not respond."
+                self.finishBrowse(id, false)
+            }
+        }
+        web.evaluateJavaScript(HelpPane.browseTopicsScript) { [weak self] result, error in
+            MainActor.assumeIsolated {
+                guard let self, self.pendingBrowse?.id == id else { return }
+                if let error { self.notice.stringValue = "Could not open the help topics: " + error.localizedDescription; self.finishBrowse(id, false); return }
+                let opened = result as? Bool == true
+                // Standalone topics in the alternative layouts have no tree: open the reader with the same topic selected, as on
+                // Windows. The page's percent-encoded path is encoded again, as Windows's Uri.EscapeDataString does.
+                if !opened, self.visible, self.web.url == source, source.path != "/index.html",
+                   let parts = URLComponents(url:source,resolvingAgainstBaseURL:false) {
+                    var topic = String(parts.percentEncodedPath.drop(while:{ $0 == "/" }))
+                    if let fragment = parts.percentEncodedFragment { topic += "#" + fragment }
+                    let unreserved = CharacterSet(charactersIn:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+                    if let encoded = topic.addingPercentEncoding(withAllowedCharacters:unreserved),
+                       let reader = URL(string:"index.html#topic=" + encoded, relativeTo:HelpResources.origin)?.absoluteURL { self.web.load(URLRequest(url:reader)) }
+                }
+                self.finishBrowse(id, opened)
+            }
+        }
+    }
+    private func finishBrowse(_ id: Int, _ opened: Bool) {
+        guard let pending = pendingBrowse, pending.id == id else { return }
+        pendingBrowse = nil
+        pending.completion?(opened)
+    }
     @objc func search() {
         let query = searchField.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)
         guard !query.isEmpty else { return }
@@ -244,15 +334,19 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         }
         return nil
     }
+    func webView(_ webView:WKWebView,didStartProvisionalNavigation navigation:WKNavigation!) { browseButton.isEnabled = false }
+    func webView(_ webView:WKWebView,didCommit navigation:WKNavigation!) { hasDocument = false }
     func webView(_ webView:WKWebView,didFinish navigation:WKNavigation!) {
+        hasDocument = true; browseButton.isEnabled = true
         heading.stringValue = web.title ?? "Help"; floatingWindow?.title = (web.title ?? "Help") + " · StatsDirect"
         notice.stringValue = ""
         restorePosition()
     }
-    func webView(_ webView:WKWebView,didFailProvisionalNavigation navigation:WKNavigation!,withError error:Error) { failed(error) }
-    func webView(_ webView:WKWebView,didFail navigation:WKNavigation!,withError error:Error) { failed(error) }
+    // A load that fails before it commits leaves the previous page on screen, so Browse topics follows that page.
+    func webView(_ webView:WKWebView,didFailProvisionalNavigation navigation:WKNavigation!,withError error:Error) { browseButton.isEnabled = hasDocument; failed(error) }
+    func webView(_ webView:WKWebView,didFail navigation:WKNavigation!,withError error:Error) { browseButton.isEnabled = (error as NSError).code == NSURLErrorCancelled; failed(error) }
     private func failed(_ error:Error) { if (error as NSError).code != NSURLErrorCancelled { notice.stringValue = "Help could not load: " + error.localizedDescription } }
-    func webViewWebContentProcessDidTerminate(_ webView:WKWebView) { needsReload = true; notice.stringValue = "Help stopped. Choose a help topic to reopen it." }
+    func webViewWebContentProcessDidTerminate(_ webView:WKWebView) { needsReload = true; hasDocument = false; browseButton.isEnabled = false; notice.stringValue = "Help stopped. Choose a help topic to reopen it." }
 }
 
 private final class HelpAliasParser: NSObject, XMLParserDelegate {

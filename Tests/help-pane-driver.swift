@@ -20,6 +20,12 @@ import WebKit
         throw NSError(domain:"HelpPaneTests",code:2,userInfo:[NSLocalizedDescriptionKey:"Timed out: \(expression), URL: \(web.url?.absoluteString ?? "nil")"])
     }
     @MainActor static func settle() async throws { try await Task.sleep(nanoseconds:600_000_000) }
+    // The web reader's header (banner, search box, its own Browse topics button), as the native pane presents it.
+    static let chrome = "JSON.stringify({identity:!!document.querySelector('body > header > .help-identity'),header:getComputedStyle(document.querySelector('body > header')).display,height:getComputedStyle(document.documentElement).getPropertyValue('--help-height').trim(),injected:[...document.querySelectorAll('style')].some(s=>s.textContent.includes('header:has(> .help-identity)')),toggle:document.getElementById('navigation-toggle').getClientRects().length,narrow:matchMedia('(max-width:1279px)').matches})"
+    static let hiddenChrome = #"{"identity":true,"header":"none","height":"0px","injected":true,"toggle":0,"narrow":true}"#
+    @MainActor static func paneButton(_ h:HelpPane,_ title:String) -> NSButton? {
+        h.view.subviews.compactMap { $0 as? NSStackView }.flatMap(\.arrangedSubviews).compactMap { $0 as? NSButton }.first { $0.title == title }
+    }
     @MainActor static func main() {
         guard CommandLine.arguments.contains("--run-tests") else { print("Use Scripts/test-help-pane.sh"); exit(2) }
         let app=NSApplication.shared;app.setActivationPolicy(.regular)
@@ -120,7 +126,9 @@ import WebKit
         h.toggleMode();try await settle();h.hide();h.open(web.url!);try await settle()
         try check(h.prefersFloating && h.view.window === h.floatingWindow,"floating preference survives Close/reopen")
         h.toggleMode();try await settle()
-        h.contents();try await until(web,"location.pathname.endsWith('/contents.htm') && document.readyState==='complete'")
+        guard let homeButton = paneButton(h,"Home") else { throw NSError(domain:"HelpPaneTests",code:3,userInfo:[NSLocalizedDescriptionKey:"the help pane has no Home button"]) }
+        homeButton.performClick(nil);try await until(web,"location.pathname.endsWith('/contents.htm') && document.readyState==='complete'")
+        try check((try await js(web,chrome)) as? String == hiddenChrome,"Home opens the help home page (topic 1000), where the web reader's header is hidden too")
         try await settle()
         h.back();try await until(web,"location.pathname.endsWith('/paired_t.htm') && document.readyState==='complete'")
         try check(web.canGoForward,"history survives presentation changes")
@@ -129,6 +137,7 @@ import WebKit
         let searchLinks = "#resultList a, #results a.result"
         try await until(web,"document.querySelectorAll('" + searchLinks + "').length > 0")
         try check((try await js(web,"document.querySelector('#search-results, #results').textContent.toLowerCase().includes('paired')")) as? Bool == true,"full-text search returns offline results")
+        try check((try await js(web,chrome)) as? String == hiddenChrome,"the native search box's results page also hides the web reader's own header and search box")
         print("SEARCH URL: \(web.url!.absoluteString)")
         h.toggleMode();try await settle();h.toggleMode();try await settle()
         try check((try await js(web,"document.querySelectorAll('" + searchLinks + "').length>0")) as? Bool == true,"search results survive Pop out and Dock")
@@ -149,6 +158,43 @@ import WebKit
         worksheet.operationName="TPaired"
         v.currentMethodHelp();try await until(web,"location.pathname.endsWith('/paired_t.htm') && document.readyState==='complete'")
         try check(v.active === worksheet && v.documents.count==startingDocuments,"context help retains the active data document")
+        // As in the Windows help window (5.3.4), the web reader's banner, search box and Browse topics button are hidden inside
+        // the native pane, where Home, Browse topics and the native search replace them; the banner stays in the page.
+        let topicChrome = try await js(web,chrome) as? String ?? ""
+        try check(topicChrome == hiddenChrome,"the web reader's banner, search box and menu button are hidden in the native help pane: \(topicChrome)")
+        let rows = h.view.subviews.compactMap { $0 as? NSStackView }
+        let titles = rows.map { $0.arrangedSubviews.compactMap { ($0 as? NSButton)?.title } }
+        let navigationRow = rows.first { $0.arrangedSubviews.contains(h.searchField) }
+        let narrowest = v.workspaceSplit.bounds.width - h.splitView(v.workspaceSplit,constrainMaxCoordinate:0,ofSubviewAt:0) - v.workspaceSplit.dividerThickness
+        try check(navigationRow.map { $0.arrangedSubviews.compactMap { ($0 as? NSButton)?.title } } == ["‹","›","Home","Browse topics"]
+                  && titles.contains(["Print",h.modeButton.title,"×"]) && (navigationRow?.fittingSize.width ?? .infinity) + 16 <= narrowest,
+                  "Back, Forward, Home, Browse topics and the search box fit one row of the narrowest dock (\(narrowest) points), with Print beside \(h.modeButton.title): \(titles)")
+        guard let browse = paneButton(h,"Browse topics") else { throw NSError(domain:"HelpPaneTests",code:3,userInfo:[NSLocalizedDescriptionKey:"the help pane has no Browse topics button"]) }
+        try check(browse.isEnabled,"Browse topics is available once the topic has loaded")
+        _ = try await js(web,"(()=>{window.__browseToken='kept';return true})()")
+        browse.performClick(nil)
+        try await until(web,"window.__browseToken==='kept' && location.pathname.endsWith('/paired_t.htm') && getComputedStyle(document.getElementById('help-navigation')).display!=='none' && document.activeElement?.getAttribute('aria-current')==='page' && document.activeElement.closest('#contents')!==null")
+        try check(true,"Browse topics opens the reader's contents tree in place, with the current topic focused")
+        let again = await withCheckedContinuation { (done:CheckedContinuation<Bool,Never>) in h.browseTopics { done.resume(returning:$0) } }
+        let stillOpen = try await js(web,"window.__browseToken==='kept' && getComputedStyle(document.getElementById('help-navigation')).display!=='none' && document.activeElement?.getAttribute('aria-current')==='page'") as? Bool == true
+        try check(again && stillOpen,"a second Browse topics keeps the contents open at the current topic")
+        _ = try await js(web,"(()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));return true})()")
+        try await until(web,"!document.body.classList.contains('navigation-open')")
+        // App Translocation runs a downloaded app opened in place from /private/var/folders/...; the catalogue must still find every topic.
+        do {
+            let temporary = URL(fileURLWithPath:NSTemporaryDirectory()).appendingPathComponent("help-catalogue-" + UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at:temporary) }
+            try FileManager.default.createDirectory(at:temporary.appendingPathComponent("basics"),withIntermediateDirectories:true)
+            for page in ["contents.htm","basics/r_script_window.htm"] { try Data("<!doctype html><title>t</title>".utf8).write(to:temporary.appendingPathComponent(page)) }
+            let real = temporary.resolvingSymlinksInPath().path
+            let forms = Set([temporary.path, real, real.hasPrefix("/private/") ? String(real.dropFirst(8)) : "/private" + real]).sorted()
+            let resolved = forms.map { form -> Bool in
+                let catalogue = HelpResources(root:URL(fileURLWithPath:form))
+                return catalogue.localURL(URL(string:"app://statsdirect-help/contents.htm")!) != nil
+                    && catalogue.localURL(URL(string:"app://statsdirect-help/Basics/R_Script_Window.htm")!) != nil
+            }
+            try check(resolved.allSatisfy { $0 },"the help catalogue finds topics from every form of a /private path, as App Translocation runs a downloaded app: \(zip(forms,resolved).map { "\($0.0)=\($0.1)" })")
+        }
         try check((try await js(worksheet.web,"JSON.stringify(statsDirectGrid.analysisSource())")) as? String == selectionBefore,"selected worksheet cells and values survive docking and context help")
         worksheet.operationName=nil
         try await until(web,"document.querySelector('a[href*=\"ref-armitage-1994\"]')!==null")

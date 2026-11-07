@@ -2473,3 +2473,31 @@ asset records remain unchanged. No full CI or installer build was run.
 - The custom code is deliberately narrow. It reproduces only what HelpCatalog and HelpIndexMenu rely on, for the input a keyword map can carry, and it was measured against .NET 10 on this Mac, with Windows's HelpCatalog.cs compiled unchanged apart from the review's shim for a single leading slash (an address only on Unix). It does not claim to be System.Uri or JsonDocument. Results: the filter agrees on all 6,949 queries over the 726 entries, with the same order, and on 60,029 random text and query pairs; the order, on 40,000 random comparisons; OrdinalIgnoreCase, on 40,000 pairs; Uri's path and fragment forms, on 84,120 cases including 80,000 random ones; UnescapeDataString, on 20,043; the parts of 12,600 realistic alias addresses; whether text is an address, on 231 forms, all but `/x` (an address only on Unix) and the `04` octet noted below; and the whole loader on the reviewers' 637 fixtures and 176 of my own (messages, stored paths, order, row text, decoding), all but the cases below. The probes are in the session scratchpad; the summary is in .build/rel-logs/help-index-review-fixes/differential-dotnet10.txt.
 - Left as they are, all from corrupt or unusual input and none able to open an unsafe topic: an entry member whose name is an escaped lone surrogate (JsonDocument throws for some lookups; the builder never writes one); a target spelt in another Unicode normalization than its file, which NTFS, like the Mac here, treats as another name (.NET on APFS finds the file); Windows's own trimming of trailing dots and spaces in a path; unusual addresses, such as unknown schemes with backslashes, ftp-like schemes without queries, and an IPv6 literal ending in an octet like `04`, which can get the other of the two refusal messages; supplementary letters newer than .NET 10's case tables; and the wording of operating-system read errors. Noticed but outside this change: the calculator's floating panel routes Edit and Close the way the picker used to.
 - Results on this Mac (macOS 27.2) for the final tree: the model test passes 182 checks with ICU and 170 without (188 and 176 with the shipped help); the help-pane suite passes 216 checks, the worksheet-preservation check included, and 147 with `--navigation-only`; the adjacent suites pass unified-toolbar 24, mac-parity 20, calculator-pane 55, script-ai 65 and report-ai 56. Mutation: each of nine loader fixes, undone in a copy before the IPv6 and no-ICU changes, fails the model test, and so does a loose IPv6 check after them; in the first round 14 of 15 picker and pane mutants failed the suite (the 15th showed an override was unneeded, and it was removed). This round's picker and pane mutants were deferred at Codex's request, except two: passing a right or middle click on to the button instead of consuming it still passes, so consuming it is a safeguard no check depends on; and a mutant restoring the closing right-click did not apply, as its text predated the consuming monitor, so it was neither run nor counted. The no-ICU build tests the fallback on this Mac; it is not a run on macOS 14. CI has not run on the branch, the full suite chain was not rerun, and no installer or app bundle was rebuilt.
+
+## Independent integration review — 7 November 2026
+
+Claude handed over `help-index-review-fixes` at `dcaec99d`, authored and committed
+as Iain Buchan. The primary checkout reviews it on the separate
+`codex/help-index-integration` branch. Two independent source reviews found no
+blocking defect after the IPv6, middle-click, compiler-warning and throwaway-sheet
+fixes. The JSON/URI/ICU code covers the Help catalogue's documented behaviours;
+the corrupt-input and platform differences above remain explicit limitations.
+
+The independent full Help replay against the actual pinned help passes 214 native
+checks, 188 keyword-model checks and 176 forced-fallback model checks (216 PASS
+lines, including the two model summaries). It retains the original worksheet
+preservation assertion and verifies Edit/Close routing, both keyboard-navigation
+settings, real queued clicks/keys, IME handling, repaired maps and PDF printing.
+Trailing spaces were removed from the copied ICU rule literals before this run;
+the rule tokens and behaviour are unchanged. No compiler warnings were emitted.
+
+Apple's [macOS 14.0 source manifest](https://github.com/apple-oss-distributions/distribution-macOS/blob/macos-140/release.json)
+selects ICU-72122, whose [upstream receipt](https://github.com/apple-oss-distributions/ICU/blob/ICU-72122/ICU.plist)
+records ICU 72.1. This verifies the dependency version claim, and does not replace
+an actual macOS 14 runtime test. Local runs use macOS 27.2; final-main CI is checked
+after integration on its macOS 15 runner.
+
+Versions, publication `7101cea6` / root manifest `31a2300a…`, engine and Learning
+pins are unchanged. The installed app, installers, signing handover and live
+release are untouched. Evidence and the owning session's handover are retained
+under `.build/help-review-2026-11-07.noindex`.

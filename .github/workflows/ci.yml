@@ -98,6 +98,7 @@ jobs:
       - name: Offline HTML5 help
         run: |
           python3 Tests/test_desktop_help.py
+          dotnet run --project Tests/HelpKeywordIndexDotNet -c Release -- Tests/help-keyword-index-dotnet10.json
           Scripts/test-help-pane.sh
       - name: Calculator
         run: |

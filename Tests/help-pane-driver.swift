@@ -676,6 +676,122 @@ import WebKit
             pane.hide()
         }
     }
+    static let topicUnavailable = "This topic is unavailable; showing the help contents."
+    /// HelpView.ShowTopic and HelpCatalog.Resolve at Windows d783a494, on the bundled help.
+    @MainActor static func checkTopics(_ h: HelpPane) async throws {
+        let web=h.web, paired="parametric_methods/paired_t.htm"
+        h.open(h.url(for:"1239")!)
+        try await until(web,"location.pathname==='/"+paired+"' && document.readyState==='complete'")
+        try check(h.url(for:"sms")?.path == "/methods/method_selection.htm" && h.url(for:"Calc")?.path == "/basics/calculator.htm" && h.url(for:"ptt")?.path == "/"+paired,"Help names resolve in any case, as Windows's catalogue compares names and IDs ordinally, ignoring case")
+        h.notice.stringValue="probe"
+        h.showTopic("Sms")
+        try await until(web,"location.pathname==='/methods/method_selection.htm' && document.readyState==='complete'")
+        try check(h.notice.stringValue.isEmpty,"A mapped help name in another case opens its topic and clears the status line")
+        h.showTopic("9999")
+        try await until(web,"location.pathname==='/contents.htm' && document.readyState==='complete'")
+        try await settle()
+        try check(h.notice.stringValue == topicUnavailable,"An unmapped help ID shows the help contents with Windows's status line, which stays once the page has loaded")
+        try await rememberPage(web)
+        h.notice.stringValue=""
+        h.showTopic("NO_SUCH_TOPIC");try await settle()
+        try check(h.notice.stringValue == topicUnavailable,"An unmapped help name with the contents already shown gives the status line")
+        try await checkPageUnchanged(web,"An unmapped help name with the contents already shown keeps the page and its history")
+        h.showTopic("https://www.statsdirect.com/help/basics/calculator.htm")
+        try await until(web,"location.pathname==='/basics/calculator.htm' && document.readyState==='complete'")
+        try check(web.url?.scheme == "app" && h.notice.stringValue.isEmpty,"A statsdirect.com/help address opens the packaged topic offline and clears the status line")
+        var external:[URL]=[]
+        let browser=h.externalLink
+        h.externalLink={external.append($0)}
+        defer { h.externalLink=browser }
+        try await rememberPage(web)
+        h.notice.stringValue="probe"
+        for address in ["https://www.r-project.org/","https://www.statsdirect.com/"] { h.showTopic(address) }
+        try await settle()
+        try check(external.map(\.absoluteString) == ["https://www.r-project.org/","https://www.statsdirect.com/"] && h.notice.stringValue == "probe","An address outside the help, the StatsDirect home page included, opens in the browser and leaves the status line, as Windows's ShowTopic returns first")
+        try await checkPageUnchanged(web,"An address outside the help leaves the help page and its history")
+        h.notice.stringValue=""
+    }
+    /// A help folder of its own, docked in a window of its own. Its Alias.xml maps a statsdirect.com/help address, another
+    /// site's address and one name twice in different cases, and has no Method Selection (1213) or Calculator (1020) topic.
+    @MainActor static func topicFixture() throws -> (folder: URL, pane: HelpPane, window: NSWindow) {
+        let folder=URL(fileURLWithPath:NSTemporaryDirectory()).appendingPathComponent("help-topics-"+UUID().uuidString)
+        for directory in ["basics","Data"] { try FileManager.default.createDirectory(at:folder.appendingPathComponent(directory),withIntermediateDirectories:true) }
+        for (page,body) in [("index.html","The reader"),("contents.htm","Help contents"),("basics/calculator.htm","<p id='keys'>Calculator keys</p>"),("first.htm","First mapping"),("second.htm","Second mapping")] {
+            try Data("<!doctype html><html><head><title>\(page)</title></head><body>\(body)</body></html>".utf8).write(to:folder.appendingPathComponent(page))
+        }
+        try Data("""
+            <CatapultAliasFile Version="1">
+              <Map Name="CONTENTS" Link="contents.htm" ResolvedId="1000" />
+              <Map Name="WEB_CALC" Link="https://www.statsdirect.com/help/basics/calculator.htm#keys" ResolvedId="5001" />
+              <Map Name="R_PROJECT" Link="https://www.r-project.org/" ResolvedId="5002" />
+              <Map Name="Twice" Link="first.htm" ResolvedId="5003" />
+              <Map Name="TWICE" Link="second.htm" ResolvedId="5004" />
+            </CatapultAliasFile>
+            """.utf8).write(to:folder.appendingPathComponent("Data/Alias.xml"))
+        let pane=HelpPane(root:folder)
+        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:900,height:500),styleMask:[.titled,.closable],backing:.buffered,defer:false)
+        let split=NSSplitView(frame:NSRect(x:0,y:0,width:900,height:500));split.isVertical=true
+        split.addArrangedSubview(NSView())
+        window.contentView=split
+        pane.attach(to:split,owner:window)
+        window.makeKeyAndOrderFront(nil)
+        return (folder,pane,window)
+    }
+    /// HelpCatalog.Resolve on the aliases of the fixture's own Alias.xml.
+    @MainActor static func checkTopicAliases(_ original: HelpPane) async throws {
+        let (folder,pane,window)=try topicFixture()
+        defer { pane.shutdown();window.orderOut(nil);try? FileManager.default.removeItem(at:folder);original.view.window?.makeKeyAndOrderFront(nil) }
+        var external:[URL]=[];pane.externalLink={external.append($0)}
+        pane.showTopic("1000")
+        try await until(pane.web,"location.pathname==='/contents.htm' && document.readyState==='complete'")
+        pane.notice.stringValue="probe"
+        pane.showTopic("web_calc")
+        try await until(pane.web,"location.pathname==='/basics/calculator.htm' && location.hash==='#keys' && document.getElementById('keys')!==null")
+        try check(pane.web.url?.scheme == "app" && pane.notice.stringValue.isEmpty && external.isEmpty,"An alias whose Link is a statsdirect.com/help address, named in another case, opens the packaged page at its anchor, as Windows's Resolve maps it")
+        pane.showTopic("R_PROJECT")
+        try await until(pane.web,"location.pathname==='/contents.htm' && document.readyState==='complete'")
+        try await settle()
+        try check(pane.notice.stringValue == topicUnavailable && external.isEmpty,"An alias whose Link is another site's address shows the help contents and Windows's status line without opening the browser, as ShowTopic tests only the topic as given")
+        pane.showTopic("twice")
+        try await until(pane.web,"location.pathname==='/second.htm' && document.readyState==='complete'")
+        try check(pane.notice.stringValue.isEmpty,"Of two mappings of a name in different cases, the later wins, as in Windows's catalogue")
+        // A page given as a file, as Viewer.openHelp gives every caller's page: Windows's callers give ShowTopic its path.
+        var anchored=URLComponents(url:folder.appendingPathComponent("basics/calculator.htm"),resolvingAgainstBaseURL:false)!
+        anchored.fragment="keys"
+        pane.notice.stringValue="probe"
+        pane.showTopic(file:anchored.url!)
+        try await until(pane.web,"location.pathname==='/basics/calculator.htm' && location.hash==='#keys' && document.getElementById('keys')!==null")
+        try check(pane.notice.stringValue.isEmpty,"A page given as a file in the help folder opens at its anchor and clears the status line")
+        // Both forms of a temporary path, as App Translocation runs a downloaded app from /private/var/folders/...
+        let real=folder.resolvingSymlinksInPath().path, privateForm=real.hasPrefix("/private/") ? real : "/private"+real
+        try check(FileManager.default.fileExists(atPath:privateForm),"The fixture is reachable through its /private form")
+        for (form,base) in [("plain",folder.path),("/private",privateForm)] {
+            pane.showTopic("5003")
+            try await until(pane.web,"location.pathname==='/first.htm' && document.readyState==='complete'")
+            pane.showTopic(file:URL(fileURLWithPath:base).appendingPathComponent("basics/missing.htm"))
+            try await until(pane.web,"location.pathname==='/contents.htm' && document.readyState==='complete'")
+            try await settle()
+            try check(pane.notice.stringValue == topicUnavailable && external.isEmpty,"A missing page given as a file in its \(form) form shows the help contents with Windows's status line")
+        }
+        // A page in a sibling folder whose name is as long as the help folder's, so that its path beyond that folder names a
+        // page the help has: it is refused all the same.
+        let sibling=folder.deletingLastPathComponent().appendingPathComponent(String(("elsewhere-"+UUID().uuidString+UUID().uuidString).prefix(folder.lastPathComponent.count)))
+        try FileManager.default.createDirectory(at:sibling.appendingPathComponent("basics"),withIntermediateDirectories:true)
+        defer { try? FileManager.default.removeItem(at:sibling) }
+        try Data("<!doctype html><html><head><title>Outside</title></head><body>Outside the help</body></html>".utf8).write(to:sibling.appendingPathComponent("basics/calculator.htm"))
+        try await rememberPage(pane.web)
+        pane.notice.stringValue="probe"
+        pane.showTopic(file:sibling.appendingPathComponent("basics/calculator.htm"))
+        try await settle()
+        try check(pane.notice.stringValue == "probe","A page outside the help folder is refused and leaves the status line, though its path beyond the folder names a page the help has")
+        try await checkPageUnchanged(pane.web,"A page outside the help folder leaves the page and its history")
+        try FileManager.default.removeItem(at:folder.appendingPathComponent("contents.htm"))
+        pane.contents()
+        try await until(pane.web,"location.pathname==='/index.html' && document.readyState==='complete'")
+        try await settle()
+        try check(pane.notice.stringValue == topicUnavailable,"Home without its topic (1000) shows the reader with Windows's status line, as ShowTopic(\"1000\") falls back to index.html")
+        pane.hide()
+    }
     #if HELP_NAVIGATION_ONLY
     @MainActor static var navigationWindow: NSWindow?
     @MainActor static var navigationSplit: NSSplitView?
@@ -708,6 +824,8 @@ import WebKit
                     try await checkIndex(pane)
                     try await checkInvalidIndex(pane)
                     try await checkWideContents(pane)
+                    try await checkTopics(pane)
+                    try await checkTopicAliases(pane)
                     print("PASS: native help navigation checks");fflush(stdout)
                 } catch {
                     print("FAIL: \(error.localizedDescription) \((error as NSError).userInfo)")
@@ -908,6 +1026,10 @@ import WebKit
         _ = try await js(web,"(()=>{document.querySelector('a[href*=\"ref-armitage-1994\"]').click();return true})()")
         try await until(web,"location.hash==='#ref-armitage-1994' && document.getElementById('ref-armitage-1994')!==null")
         try check(true,"reference link opens the correct offline anchor")
+        try await checkTopics(h)
+        try await checkTopicAliases(h)
+        try await checkMissingPageHelp(v)
+        try await checkTopicCallers(v)
 
         let pdf=try await web.pdf(configuration:WKPDFConfiguration())
         try check(pdf.count>1000,"help can be printed to PDF")
@@ -920,6 +1042,43 @@ import WebKit
         try check(v.validateMenuItem(NSMenuItem(title:"Close",action:#selector(Viewer.closeTab),keyEquivalent:"w")),"Close remains available for help without workspace documents")
         v.closeTab()
         try check(!h.visible,"Close Document hides focused help without closing the application")
+    }
+    /// F1 on an analysis whose catalogue page is missing: Viewer.openHelp passes the page to ShowTopic, as Windows's HelpService.Show does.
+    @MainActor static func checkMissingPageHelp(_ v: Viewer) async throws {
+        guard let doc=v.active else { throw NSError(domain:"HelpPaneTests",code:7,userInfo:[NSLocalizedDescriptionKey:"No active document for context help"]) }
+        let h=v.helpPane, operation=doc.operationName, entry=v.analysisCatalog["TPaired"]
+        try check(entry?["help"] as? String == "Help/parametric_methods/paired_t.htm","The paired t entry gives its catalogue page")
+        defer { v.analysisCatalog["TPaired"]=entry; doc.operationName=operation }
+        h.showTopic("1213")
+        try await until(h.web,"location.pathname==='/methods/method_selection.htm' && document.readyState==='complete'")
+        v.analysisCatalog["TPaired"]?["help"]="Help/parametric_methods/no_such_page.htm"
+        doc.operationName="TPaired"
+        v.currentMethodHelp()
+        try await until(h.web,"location.pathname==='/contents.htm' && document.readyState==='complete'")
+        try await settle()
+        try check(h.notice.stringValue == topicUnavailable,"F1 on an analysis whose help page is missing shows the help contents with Windows's status line")
+    }
+    /// The callers of HelpPane.showTopic, given the fixture's help, which has none of their topics, in place of the bundled help.
+    @MainActor static func checkTopicCallers(_ v: Viewer) async throws {
+        let original=v.helpPane
+        let (folder,pane,window)=try topicFixture()
+        v.helpPane=pane
+        defer { v.helpPane=original;pane.shutdown();window.orderOut(nil);try? FileManager.default.removeItem(at:folder);v.window.makeKeyAndOrderFront(nil) }
+        let help=NSApp.mainMenu!.items.first { $0.submenu?.title == "Help" }!.submenu!
+        let callers:[(String,() async throws -> Void)]=[
+            ("Method Selection",{ help.performActionForItem(at:help.indexOfItem(withTitle:"Method Selection…")) }),
+            ("The calculator's Help",{ v.calculatorPane.help() }),
+            ("F1 in the calculator",{ v.calculatorPane.open();try await press(v.window,String(UnicodeScalar(0xF704)!),122) })
+        ]
+        for (name,request) in callers {
+            pane.showTopic("5003")
+            try await until(pane.web,"location.pathname==='/first.htm' && document.readyState==='complete'")
+            try await request()
+            try await until(pane.web,"location.pathname==='/contents.htm' && document.readyState==='complete'")
+            try await settle()
+            try check(pane.notice.stringValue == topicUnavailable,"\(name), with a help ID the help does not map, shows the help contents and Windows's status line")
+        }
+        v.calculatorPane.hide()
     }
     #endif
 }

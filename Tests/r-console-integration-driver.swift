@@ -1210,42 +1210,144 @@ import WebKit
         viewer.window.minSize = NSSize(width: 300, height: 500)
         try await console(doc, "narrowValue <- 41; cat('NARROW_READY\\n')")
         try await expectOutput(doc, "NARROW_READY\n")
-        for width in [420, 320] {
+        let nativeHorizontalInset = Double((viewer.window.contentView?.bounds.width ?? 0) - doc.web.bounds.width)
+        for (pass, width) in [420, 320, 420, 320, 900].enumerated() {
             viewer.window.setContentSize(NSSize(width: CGFloat(width), height: 700))
-            try await wait("narrow console width \(width)") {
-                let actual = try await evaluate(doc, "window.innerWidth") as? Int ?? 0
-                return actual > 200 && actual <= width
+            viewer.window.contentView?.layoutSubtreeIfNeeded()
+            var previousViewport: (native: Double, web: Double)?
+            var stableViewportSamples = 0
+            try await wait("settled native/WebKit console width \(width), pass \(pass + 1)") {
+                viewer.window.contentView?.layoutSubtreeIfNeeded()
+                let nativeWidth = Double(doc.web.bounds.width)
+                let webWidth = try await evaluate(doc, "window.innerWidth") as? Double ?? 0
+                let contentWidth = Double(viewer.window.contentView?.bounds.width ?? 0)
+                let matches = abs(contentWidth-Double(width)) <= 1
+                    && abs(nativeWidth-(Double(width)-nativeHorizontalInset)) <= 1
+                    && nativeWidth > 200 && webWidth > 200 && abs(nativeWidth-webWidth) <= 1
+                if matches {
+                    if let previousViewport,
+                       abs(previousViewport.native - nativeWidth) <= 0.5,
+                       abs(previousViewport.web - webWidth) <= 0.5 {
+                        stableViewportSamples += 1
+                    } else { stableViewportSamples = 1 }
+                } else { stableViewportSamples = 0 }
+                previousViewport = (nativeWidth, webWidth)
+                return stableViewportSamples >= 3
             }
+            let nativeScrollerStyle = NSScroller.preferredScrollerStyle == .legacy ? "legacy" : "overlay"
             let layout = try await doc.web.callAsyncJavaScript("""
-            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            const toolbar = document.querySelector('.toolbar'); toolbar.scrollLeft = 0;
-            const buttons = Array.from(toolbar.querySelectorAll('button'));
-            const reachable = buttons.every(button => {
-              button.scrollIntoView({block:'nearest', inline:'nearest'});
-              const bounds = button.getBoundingClientRect(), clip = toolbar.getBoundingClientRect();
-              const hit = document.elementFromPoint((bounds.left+bounds.right)/2, (bounds.top+bounds.bottom)/2);
-              return bounds.left >= clip.left-1 && bounds.right <= clip.right+1 && bounds.top >= clip.top && bounds.bottom <= clip.bottom && button.contains(hit);
+            // callAsyncJavaScript awaits this asynchronous body; evaluateJavaScript does not await a returned Promise.
+            const frame = () => new Promise(resolve => {
+              const timeout = setTimeout(resolve, 100);
+              requestAnimationFrame(() => { clearTimeout(timeout); resolve(); });
             });
-            const didScroll = toolbar.scrollLeft > 0;
-            const noBodyOverflow = document.documentElement.scrollWidth <= document.documentElement.clientWidth+1 && document.body.scrollWidth <= document.documentElement.clientWidth+1;
-            const nativeScroll = ['auto','scroll'].includes(getComputedStyle(toolbar).overflowX);
-            const scriptTab = document.getElementById('script-tab'); scriptTab.scrollIntoView({block:'nearest', inline:'nearest'}); scriptTab.click();
-            const scriptWorks = StatsDirectRConsole.snapshot().mode === 'script' && !document.getElementById('script-panel').hidden && !document.getElementById('script-source').disabled;
-            const consoleTab = document.getElementById('console-tab'); consoleTab.scrollIntoView({block:'nearest', inline:'nearest'}); consoleTab.click();
+            const toolbar = document.querySelector('.toolbar');
+            const rect = bounds => ({left:bounds.left, right:bounds.right, top:bounds.top, bottom:bounds.bottom,
+              width:bounds.width, height:bounds.height});
+            const viewport = () => {
+              const outer = toolbar.getBoundingClientRect(), style = getComputedStyle(toolbar);
+              const left = outer.left+toolbar.clientLeft, top = outer.top+toolbar.clientTop;
+              return {outer:rect(outer),
+                clip:{left, top, right:left+toolbar.clientWidth, bottom:top+toolbar.clientHeight,
+                  width:toolbar.clientWidth, height:toolbar.clientHeight},
+                outerDisplay:style.display, inlineHeight:toolbar.style.height, cssHeight:style.height, minHeight:style.minHeight,
+                clientWidth:toolbar.clientWidth, clientHeight:toolbar.clientHeight,
+                scrollWidth:toolbar.scrollWidth, scrollHeight:toolbar.scrollHeight,
+                scrollLeft:toolbar.scrollLeft, scrollTop:toolbar.scrollTop,
+                horizontalScrollbar:Math.max(0,toolbar.offsetHeight-toolbar.clientHeight-parseFloat(style.borderTopWidth)-parseFloat(style.borderBottomWidth)),
+                verticalScrollbar:Math.max(0,toolbar.offsetWidth-toolbar.clientWidth-parseFloat(style.borderLeftWidth)-parseFloat(style.borderRightWidth))};
+            };
+            const geometry = () => {
+              // Capture the header, main and footer together, before any mode or Run-label change.
+              const view = viewport(), mainElement = document.querySelector('main');
+              const main = mainElement.getBoundingClientRect(), footer = document.querySelector('footer').getBoundingClientRect();
+              const expectedMainGap = Number.parseFloat(getComputedStyle(mainElement).marginTop) || 0;
+              const mainGap = main.top-view.outer.bottom, footerGap = footer.top-main.bottom;
+              const needsScroll = toolbar.scrollWidth>toolbar.clientWidth;
+              return {...view, main:rect(main), footer:rect(footer), expectedMainGap, mainGap, footerGap,
+                needsScroll, didScroll:toolbar.scrollLeft>0,
+                noVerticalOverflow:toolbar.scrollHeight<=toolbar.clientHeight+1,
+                noVerticalScrollbar:view.verticalScrollbar<=1,
+                noBodyOverflow:document.documentElement.scrollWidth<=document.documentElement.clientWidth+1 && document.body.scrollWidth<=document.documentElement.clientWidth+1,
+                nativeScroll:['auto','scroll'].includes(getComputedStyle(toolbar).overflowX),
+                nativeScrollbarWhenNeeded:!needsScroll || nativeScrollerStyle!=='legacy' || view.horizontalScrollbar>0,
+                paneLayout:main.height>0 && Math.abs(mainGap-expectedMainGap)<=1 && Math.abs(footerGap)<=1 && footer.bottom<=window.innerHeight+1,
+                wideHeightWhenFits:needsScroll || Math.abs(view.outer.height-42)<=1,
+                wideRecovery:requestedWidth!==900 || (!needsScroll && view.horizontalScrollbar<=1 && Math.abs(view.outer.height-42)<=1)};
+            };
+            const settle = async () => {
+              const deadline = performance.now()+2000;
+              let previous = '', stable = 0;
+              do {
+                await frame();
+                const sample = geometry();
+                const key = JSON.stringify([sample.outer, sample.clip, sample.main, sample.footer,
+                  sample.scrollWidth, sample.scrollHeight, sample.inlineHeight]);
+                stable = key===previous ? stable+1 : 1;
+                previous = key;
+                if (stable>=3) return true;
+              } while (performance.now()<deadline);
+              return false;
+            };
+            const inspectMode = async mode => {
+              toolbar.scrollLeft=0; toolbar.scrollTop=0;
+              const settledGeometry = await settle();
+              const buttons = Array.from(toolbar.querySelectorAll('button')), failedButtons = [];
+              let reachable = buttons.length>0;
+              for (let index=0; index<buttons.length; index++) {
+                const button=buttons[index];
+                button.scrollIntoView({block:'nearest',inline:'nearest'});
+                const deadline=performance.now()+2000;
+                let sample;
+                do {
+                  await frame();
+                  const bounds=button.getBoundingClientRect(), view=viewport(), clip=view.clip;
+                  const hit=document.elementFromPoint((bounds.left+bounds.right)/2,(bounds.top+bounds.bottom)/2);
+                  sample={index,id:button.id,button:rect(bounds),...view,
+                    hit:hit ? hit.tagName+(hit.id ? '#'+hit.id : '') : null,
+                    display:getComputedStyle(button).display,hidden:button.hidden,
+                    reachable:bounds.width>0 && bounds.height>0 && bounds.left>=clip.left-1 && bounds.right<=clip.right+1
+                      && bounds.top>=clip.top && bounds.bottom<=clip.bottom && button.contains(hit)};
+                  if (sample.reachable) break;
+                } while (performance.now()<deadline);
+                if (!sample.reachable) { reachable=false; failedButtons.push(sample); break; }
+              }
+              const sample=geometry();
+              const actualMode=StatsDirectRConsole.snapshot().mode;
+              const modeWorks=actualMode===mode && (mode==='script'
+                ? !document.getElementById('script-panel').hidden && !document.getElementById('script-source').disabled
+                : document.activeElement===document.getElementById('console-input'));
+              return {...sample,mode,actualMode,runLabel:document.getElementById('run').textContent,
+                settledGeometry,reachable,failedButtons,buttonCount:buttons.length,modeWorks};
+            };
             StatsDirectRConsole.focusInput();
-            return {reachable, noBodyOverflow, nativeScroll, didScroll, needsScroll:toolbar.scrollWidth > toolbar.clientWidth,
-              scriptWorks, consoleWorks:StatsDirectRConsole.snapshot().mode === 'console' && document.activeElement === document.getElementById('console-input')};
-            """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any] ?? [:]
-            let narrowWorks = ["reachable", "noBodyOverflow", "nativeScroll", "scriptWorks", "consoleWorks"].allSatisfy { layout[$0] as? Bool == true }
+            const initialConsole=await inspectMode('console');
+            const scriptTab=document.getElementById('script-tab');
+            scriptTab.scrollIntoView({block:'nearest',inline:'nearest'}); await frame(); scriptTab.click();
+            const script=await inspectMode('script');
+            const consoleTab=document.getElementById('console-tab');
+            consoleTab.scrollIntoView({block:'nearest',inline:'nearest'}); await frame(); consoleTab.click();
+            StatsDirectRConsole.focusInput();
+            const restoredConsole=await inspectMode('console');
+            const modeLayouts={initialConsole,script,restoredConsole}, modes=Object.values(modeLayouts);
+            const flags=['reachable','settledGeometry','noBodyOverflow','nativeScroll','noVerticalOverflow',
+              'noVerticalScrollbar','nativeScrollbarWhenNeeded','paneLayout','wideHeightWhenFits','wideRecovery'];
+            const aggregate=Object.fromEntries(flags.map(name=>[name,modes.every(sample=>sample[name])]));
+            return {...restoredConsole,...aggregate,modeLayouts,
+              everyRequiredScrollWorked:modes.every(sample=>!sample.needsScroll || sample.didScroll),
+              requestedWidth,resizePass,nativeViewportWidth,nativeHorizontalInset,nativeScrollerStyle,
+              viewportWidth:window.innerWidth,finalScrollLeft:toolbar.scrollLeft,finalScrollTop:toolbar.scrollTop,
+              scriptWorks:script.modeWorks,consoleWorks:initialConsole.modeWorks && restoredConsole.modeWorks};
+            """, arguments: ["requestedWidth": width, "resizePass": pass + 1, "nativeViewportWidth": Double(doc.web.bounds.width), "nativeHorizontalInset": nativeHorizontalInset, "nativeScrollerStyle": nativeScrollerStyle], in: nil, contentWorld: .page) as? [String: Any] ?? [:]
+            let narrowWorks = ["reachable", "settledGeometry", "everyRequiredScrollWorked", "noBodyOverflow", "nativeScroll", "scriptWorks", "consoleWorks", "noVerticalOverflow", "noVerticalScrollbar", "nativeScrollbarWhenNeeded", "paneLayout", "wideHeightWhenFits", "wideRecovery"].allSatisfy { layout[$0] as? Bool == true }
                 && (layout["needsScroll"] as? Bool != true || layout["didScroll"] as? Bool == true)
-            // Name the condition that failed at once, before the R round trips that follow, so a CI failure explains itself.
-            if !narrowWorks {
-                let described = layout.isEmpty ? "layout unavailable" : layout.sorted { $0.key < $1.key }.map { "\($0.key)=\(($0.value as? Bool).map(String.init) ?? "\($0.value)")" }.joined(separator: ", ")
-                print("INFO: narrow console layout at \(width) points: \(described)"); fflush(stdout)
-            }
-            try await console(doc, "cat('NARROW_CONSOLE_\(width)=', narrowValue+1, '\\n', sep='')")
-            try await expectOutput(doc, "NARROW_CONSOLE_\(width)=42\n")
-            let narrowScript = "cat('NARROW_SCRIPT_\(width)=', narrowValue+2, '\\n', sep='')"
+            // Keep one machine-readable viewport record per pass, including successful classic-scrollbar checks.
+            print("INFO: narrow toolbar viewport: \(try literal(layout))"); fflush(stdout)
+            // Each resize pass has a unique marker, so previous output cannot satisfy a repeated-width check.
+            let marker = "\(width)_\(pass + 1)"
+            try await console(doc, "cat('NARROW_CONSOLE_\(marker)=', narrowValue+1, '\\n', sep='')")
+            try await expectOutput(doc, "NARROW_CONSOLE_\(marker)=42\n")
+            let narrowScript = "cat('NARROW_SCRIPT_\(marker)=', narrowValue+2, '\\n', sep='')"
             _ = try await evaluate(doc, """
             (() => {
               document.getElementById('script-tab').click();
@@ -1255,9 +1357,9 @@ import WebKit
               document.getElementById('run').scrollIntoView({block:'nearest', inline:'nearest'}); document.getElementById('run').click(); return true;
             })()
             """)
-            try await expectOutput(doc, "NARROW_SCRIPT_\(width)=43\n")
+            try await expectOutput(doc, "NARROW_SCRIPT_\(marker)=43\n")
             try check(narrowWorks,
-                      "at \(width) points every toolbar control remains reachable by horizontal scroll while Console, Script and the persistent R workspace work without body overflow")
+                      "at \(width) points (resize pass \(pass + 1)) every toolbar control remains reachable by horizontal scroll while Console, Script and the persistent R workspace work without body overflow")
         }
     }
 

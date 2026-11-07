@@ -404,5 +404,44 @@
       target.setRangeText(value, target.selectionStart, target.selectionEnd, 'end'); target.dispatchEvent(new Event('input', {bubbles: true})); return true;
     },
   };
+  function maintainToolbarHeight(toolbar) {
+    const document = toolbar?.ownerDocument, view = document?.defaultView;
+    if (!toolbar || !view || typeof view.ResizeObserver !== 'function') return () => {};
+    let pending = 0, stopped = false;
+    const fit = () => {
+      pending = 0;
+      if (stopped) return;
+      const style = view.getComputedStyle(toolbar);
+      const number = value => Number.parseFloat(value) || 0;
+      const border = number(style.borderTopWidth) + number(style.borderBottomWidth);
+      const padding = number(style.paddingTop) + number(style.paddingBottom);
+      const gutter = Math.max(0, toolbar.offsetHeight - toolbar.clientHeight - border);
+      const controls = Array.from(toolbar.children).filter(child => child.getClientRects().length);
+      const controlHeight = Math.max(0, ...controls.map(child => child.getBoundingClientRect().height));
+      if (!controlHeight) return;
+      // WebKit can omit a classic scrollbar from this flex item's automatic height.
+      // A definite height also clears stale parent flex sizing, even when the row already looks correct.
+      const required = Math.max(number(style.minHeight), Math.ceil(controlHeight + padding + border + gutter));
+      if (toolbar.style.height !== required + 'px') toolbar.style.height = required + 'px';
+    };
+    const schedule = () => {
+      if (!stopped && !pending) pending = view.requestAnimationFrame(fit);
+    };
+    const observer = new view.ResizeObserver(schedule);
+    observer.observe(toolbar);
+    for (const child of toolbar.children) observer.observe(child);
+    view.addEventListener('resize', schedule);
+    document.fonts?.ready?.then(schedule);
+    document.fonts?.addEventListener?.('loadingdone', schedule);
+    schedule();
+    return () => {
+      stopped = true;
+      if (pending) view.cancelAnimationFrame(pending);
+      observer.disconnect();
+      view.removeEventListener('resize', schedule);
+      document.fonts?.removeEventListener?.('loadingdone', schedule);
+    };
+  }
+  maintainToolbarHeight(typeof doc.querySelector === 'function' ? doc.querySelector('.toolbar') : null);
   render(); post(model.envelope('ready'));
 })(typeof window !== 'undefined' ? window : globalThis);

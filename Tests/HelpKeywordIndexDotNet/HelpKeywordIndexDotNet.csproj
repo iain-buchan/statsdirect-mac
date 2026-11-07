@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Recomputes the .NET answers in Tests/help-keyword-index-dotnet10.json (see Tests/verification.md). With
+       -p:WindowsHelpCatalog=<Windows checkout>/StatsDirectUI/UI/HtmlHelp/HelpCatalog.cs the map's order comes from
+       Windows's own HelpCatalog. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefineConstants Condition="'$(WindowsHelpCatalog)' != ''">$(DefineConstants);WINDOWS_HELP_CATALOG</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="$(WindowsHelpCatalog)" Condition="'$(WindowsHelpCatalog)' != ''" />
+  </ItemGroup>
+</Project>

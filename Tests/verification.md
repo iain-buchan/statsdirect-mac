@@ -2351,3 +2351,23 @@ notarisation or distribution-signing work is part of this change.
 
 - Iain merged the Windows switch (Windows main a2f5ce2d, submodule Learning/Shared) and the Windows session tagged learning-v1.0.1 = c07aa76c on statisticalhelp: `test-config.mjs` requires `STATSDIRECT_CONTENT_ROOT` and compares the archive only when `STATSDIRECT_LEARN_ARCHIVE` names one (a named missing one fails); `package.json` has no scripts; the README says how a host runs the tests; `quiz.mjs` reads the optional `bankPublication` with `Reflect.get`, so a host whose bank exports none no longer trips esbuild's warning. Host contract stays 1. The Mac pin moved by the routine in `Learn/README.md`; `import_upstream.py --write` now also stages the submodule entry, so the gitlink check cannot see the manifest ahead of the repository. The rebuilt `Content/Learn/app.js` changes by the one line of that read.
 - Checks at the new pin (offline content mode): Learn unit tests 37 of 37 with the Mac's archive, the archive comparison skipped without the variable as Windows runs it, and a run without the content root failing loudly; build; tutor-protocol 2, tutor-runtime 37, learning-recovery 5, learning-workspace 6, provider-learning 6, tutor-setup 15, beta driver 96; all green.
+
+## Help Editor 1.0.4 publication — 7 November 2026
+
+Adopted the coordinated `statisticalhelp` publication
+`b01045b7fce2dba2f9e2d54351621b649d6ea215`, whose root manifest SHA-256 is
+`33804dd2a4575c7e80059ad4e28dead6f8c8e07f6c4cff809f18c888fe58f526`.
+The pinned importer verified all website, desktop-help and tutor inventories
+before activating the pair. It retains 404 help topics, 403 search documents,
+404 context mappings, 12 lessons, 35 questions and five pathways. The existing
+Learning code pin remains `learning-v1.0.1` (`c07aa76c`).
+
+Joint/offline content checks pass, including 876 file hashes, 808 aliases and
+all 167 engine contexts. A normal pinned Release app build passes its 1,552
+distribution checks, 20 native deployment targets and four matching dSYMs.
+The packaged-content check confirms that help, tutor, generated Learning bundle
+and immutable build record carry the exact publication revision and manifest
+hash. Focused browser checks pass for Browse topics, separate parent Overview
+links, Contents navigation and Escape, with no unhandled browser errors.
+
+Evidence is retained in `.build/content-adoption-2026-11-07.noindex`.

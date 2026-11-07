@@ -25,7 +25,10 @@ jobs:
           trap restore EXIT
           for setting in Always WhenScrolling; do
             defaults write -g AppleShowScrollBars -string "$setting"
-            swift Tests/ToolbarLayoutProbe.swift "$PWD/Content/RConsole" "$setting" > ".build/toolbar-layout-probe/$setting.log" 2>&1
+            if ! swift Tests/ToolbarLayoutProbe.swift "$PWD/Content/RConsole" "$setting" > ".build/toolbar-layout-probe/$setting.log" 2>&1; then
+              cat ".build/toolbar-layout-probe/$setting.log"
+              exit 1
+            fi
             cat ".build/toolbar-layout-probe/$setting.log"
             grep -q "LAYOUT_PROBE_COMPLETED setting=$setting rows=45" ".build/toolbar-layout-probe/$setting.log"
           done

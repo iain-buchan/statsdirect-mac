@@ -178,6 +178,8 @@ internal static class HostParameters {
         if (!input.TryGetProperty("columns", out var cols) || cols.ValueKind != JsonValueKind.Array || cols.GetArrayLength() == 0) throw new ArgumentException("Choose worksheet columns or enter data in the table.");
         var originMode = mode == DataAcquisitionMode.NumericCodingTextToDummiesPreserveRows ? DataAcquisitionMode.NumericPreserveRows : mode;
         bool alignedMixed = mode == DataAcquisitionMode.NumericCodingTextToDummiesPreserveRows;
+        // Numeric mixed selections record mode 108 after their coding decision; rereads must retain its missing markers.
+        bool acceptMissingMarkers = alignedMixed || reread && mode == DataAcquisitionMode.NumericPreserveRows;
         bool preserveAlignment = mode is DataAcquisitionMode.NumericPreserveRows or DataAcquisitionMode.NumericCodingTextToDummiesPreserveRows;
         if (mode == DataAcquisitionMode.NumericPreserveRows) mode = DataAcquisitionMode.NumericReplaceMissing;
         if (alignedMixed) mode = DataAcquisitionMode.NumericCodingTextToDummies;
@@ -209,7 +211,13 @@ internal static class HostParameters {
             bool preserveRows = preserveAlignment || input.TryGetProperty("preserveRows", out var preserve) && preserve.ValueKind == JsonValueKind.True;
             if (!preserveRows) while (length > 0 && texts[length - 1] == "") length--;
             texts = texts.Take(length).ToArray();
-            bool missing(string s) => s == "" || s == "*";
+            bool missing(string s) => s == "" || s == "*" || acceptMissingMarkers && (s == "."
+                || s.Equals("MISSING", StringComparison.OrdinalIgnoreCase)
+                || s.Equals(Formatting.MISSINGLABEL, StringComparison.OrdinalIgnoreCase)
+                || s.Equals("NA", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("N/A", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("NaN", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("NULL", StringComparison.OrdinalIgnoreCase));
             bool numeric(string s) => missing(s) || double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double n) && double.IsFinite(n);
             bool coded = mode == DataAcquisitionMode.NumericCodingTextToCategories || mode == DataAcquisitionMode.NumericCodingTextToDummies;
             if (mode == DataAcquisitionMode.DateReplaceMissing) {frame.Variables.Add(new DateVariable(texts.Select(s=>missing(s)?DateTime.MinValue:ParseDate(s)).ToArray(),title));continue;}
@@ -224,7 +232,8 @@ internal static class HostParameters {
                 for (int r = 0; r < length; r++) {
                     string text = texts[r]; if (missing(text)) continue;
                     if (!groups.TryGetValue(text, out var group)) { group = new Group(text, groups.Count); groups.Add(text, group); }
-                    group.NBin++; cv.Data[r] = text.Contains(Formatting.MISSINGLABEL) ? Constant.MISSING : group.Id;
+                    bool missingLabel = alignedMixed ? text.Equals(Formatting.MISSINGLABEL, StringComparison.OrdinalIgnoreCase) : text.Contains(Formatting.MISSINGLABEL);
+                    group.NBin++; cv.Data[r] = missingLabel ? Constant.MISSING : group.Id;
                 }
                 cv.Groups = groups.Values.ToList();
                 if (mode == DataAcquisitionMode.NumericCodingTextToDummies) {
@@ -245,10 +254,11 @@ internal static class HostParameters {
             }
             double[] data = texts.Select(number).ToArray();
             if (mode == DataAcquisitionMode.NumericSkipMissing) data = data.Where(n => n != Constant.MISSING).ToArray();
-            if(mode==DataAcquisitionMode.NumericCodingTextToDummies && data.All(n=>n>=int.MinValue && n<=int.MaxValue && n==Math.Truncate(n))) {
-                var categories=data.Distinct().ToArray();
-                if(categories.Length>2 && categories.Length<Math.Min(data.Length,12)) {
-                    var classifier=new ClassifierVariable {Title=title,Data=data.Select(n=>(double)Array.IndexOf(categories,n)).ToArray(),Groups=categories.Select((n,i)=>new Group(n.ToString(CultureInfo.InvariantCulture),i){NBin=data.Count(v=>v==n)}).ToList()};
+            var observed = alignedMixed ? data.Where(n=>n!=Constant.MISSING).ToArray() : data;
+            if(mode==DataAcquisitionMode.NumericCodingTextToDummies && observed.All(n=>n>=int.MinValue && n<=int.MaxValue && n==Math.Truncate(n))) {
+                var categories=observed.Distinct().ToArray();
+                if(categories.Length>2 && categories.Length<Math.Min(observed.Length,12)) {
+                    var classifier=new ClassifierVariable {Title=title,Data=data.Select(n=>alignedMixed && n==Constant.MISSING?Constant.MISSING:(double)Array.IndexOf(categories,n)).ToArray(),Groups=categories.Select((n,i)=>new Group(n.ToString(CultureInfo.InvariantCulture),i){NBin=observed.Count(v=>v==n)}).ToList()};
                     var dummy=reread?null:StatsDirect.Builtins.Sheet.ToDummyVariables(host,classifier,true);
                     if(dummy!=null){directOrigins=false;foreach(var v in dummy.Variables)frame.Variables.Add(v);continue;}
                 }

@@ -249,6 +249,87 @@ def categorical_checks(session, reference):
     print('PASS: categorical dummy retains its missing row and the actual regression uses four cases with intercept/slope 1, matching R', flush=True)
 
 
+def mixed_predictor_case(session, label, x, y, normalized, expected_dummies,
+                         expected_coefficients, coding_prompt, reread=False):
+    source = recorded_worksheet(['X'], [x])
+    model = session.run('MultipleLinearRegression', {
+        'outcome': recorded_worksheet(['Y'], [y]), 'predictors': source,
+        'calculateIntercept': True, 'useWeights': False,
+        'Choose the reference category for X': '0' if expected_dummies is not None else '-2',
+    }, PREFERENCES, keep=True)
+    try:
+        asked = any(h['title'] == 'Reference category for X' for h in model['history'])
+        assert asked == coding_prompt, (label, 'coding prompt', asked, coding_prompt, model['history'])
+        record = json.loads(model['record'])
+        predictors = next(item for item in record['inputs'] if item['name'] == 'predictors')
+        if expected_dummies is not None:
+            assert predictors['kind'] == 'entered' and 'mode' not in predictors, (label, predictors)
+            assert [c['values'] for c in predictors['columns']] == expected_dummies, (label, predictors)
+        else:
+            assert predictors['kind'] == 'frame' and predictors['mode'] == 'NumericPreserveRows', (label, predictors)
+            assert predictors['columns'][0]['hash'] == value_hash(normalized), (label, predictors)
+        coefficients = [(int(index), float(value)) for index, value in re.findall(
+            r'\bb(\d+)\s*=\s*(' + NUMBER + ')', ReportText(model['html']).text)]
+        assert [index for index, _ in coefficients] == list(range(len(expected_coefficients))), (label, coefficients)
+        compare([value for _, value in coefficients], expected_coefficients, label)
+        anova = session.run('MultipleLinearRegressionAnova', {}, PREFERENCES, parent=model['id'])
+        assert anova['values']['tot_df'] + 1 == sum(v is not None for v in normalized), (label, anova['values'])
+        if reread:
+            # Force the actual unheld pointer reader, with the SAME worksheet
+            # marker text that mode 109 accepted before persisting mode 108.
+            record.pop('data', None)
+            frames = [{'name': 'outcome', 'columns': [{'title': 'Y', 'values': y}]},
+                      {'name': 'predictors', 'columns': source['columns']}]
+            output = subprocess.check_output([
+                str(ROOT / 'Tests/engine-driver'),
+                os.environ.get('STATSDIRECT_TEST_ENGINE', str(ROOT / 'FullEngine/publish/StatsDirectEngine.dylib')),
+                'statsdirect_r_script'], input=json.dumps({'record': record, 'frames': frames}) + '\n', text=True)
+            script = json.loads(output)
+            assert script.get('hasRecipe') and not script.get('dataUnavailable'), (label, script)
+            assert script['asked'] == ['outcome', 'predictors'] and not script['relocate'], (label, script)
+            assert 'has changed in the workbook' not in script['text'], (label, script)
+            verify = '\nstopifnot(identical(as.numeric(predictors[[1]]), c(1,2,3,NA,1,2,3,NA)))\n'
+            result = subprocess.run([rscript(), '--vanilla', '-e', script['text'] + verify],
+                                    text=True, capture_output=True, timeout=30)
+            assert result.returncode == 0, (label, result.stdout, result.stderr)
+    finally:
+        session.close(model['id'])
+
+
+def mixed_predictor_checks(session):
+    markers = [None, '.', ' MISSING ', ' nA ', ' N/a ', 'nAn', ' nUlL ', ' * (MiSsInG) ', ' * ', ' ']
+    label = 'label * (missing) note'
+    repeated = [1, 2, 3, None, 1, 2, 3, None]
+    cases = [
+        ('mixed text missing markers',
+         ['A', 'B'] + markers + ['B', 'A'], [1, 2] + [20] * len(markers) + [2, 1],
+         ['A', 'B'] + [None] * len(markers) + ['B', 'A'],
+         [[0, 1] + [None] * len(markers) + [1, 0]], [1, 1], True, False),
+        ('legitimate missing-label substring',
+         ['A', 'B', label, 'A', 'B', label], [1, 2, 3, 1, 2, 3],
+         ['A', 'B', label, 'A', 'B', label],
+         [[0, 1, 0, 0, 1, 0], [0, 0, 1, 0, 0, 1]], [1, 1, 2], True, False),
+        ('repeated numeric categories with missing rows',
+         repeated, [2, 4, 6, 100, 2, 4, 6, 200], repeated,
+         [[0, 1, 0, None, 0, 1, 0, None], [0, 0, 1, None, 0, 0, 1, None]], [2, 2, 4], True, False),
+        ('distinct numeric values use observed-count threshold',
+         [None, 1, 2, 3, None], [10, 2, 4, 6, 20], [None, 1, 2, 3, None],
+         None, [0, 2], False, False),
+        ('continuous marked numeric predictor mode-108 pointer reread',
+         [1, 2, 3, ' NA ', 1, 2, 3, ' nUlL '], [2, 4, 6, 100, 2, 4, 6, 200], repeated,
+         None, [0, 2], True, True),
+    ]
+    failures = []
+    for case in cases:
+        try:
+            mixed_predictor_case(session, *case)
+            print('PASS:', case[0], flush=True)
+        except AssertionError as error:
+            failures.append((case[0], str(error)))
+            print('FAIL:', case[0], str(error), flush=True)
+    assert not failures, failures
+
+
 def alignment_record_checks(session):
     # The original regression lost a leading blank independently in one column,
     # then padded at the tail: it silently changed the mean from -52 to -50.
@@ -376,6 +457,7 @@ if __name__ == '__main__':
     try:
         pairwise_checks(session, reference)
         categorical_checks(session, reference)
+        mixed_predictor_checks(session)
         alignment_record_checks(session)
         logistic_checks(session, reference)
     finally:

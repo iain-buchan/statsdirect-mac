@@ -123,7 +123,7 @@ internal static class HostParameters {
             case OptionsParameter o: foreach (var option in o.Options) bag.AddInput(option.Name, input.TryGetProperty(option.Name, out var flag) && flag.GetBoolean()); return bag;
             case FrameParameter f:
                 bool longLayout = IsLongLayout(input);
-                var frame = longLayout ? PivotLongFrame(input, f, processor, context, host) : ReadFrame(input, f.DataAcquisitionMode, host, f.Operation?.Name == "ControlPlot" && f.Name == "X");
+                var frame = longLayout ? PivotLongFrame(input, f, processor, context, host) : ReadFrame(input, f.SelectionMode, host, f.Operation?.Name == "ControlPlot" && f.Name == "X");
                 var count = longLayout ? frame.VariableCount : input.GetProperty("columns").GetArrayLength();
                 // Windows pads pivoted groups of unequal size with missing values once the user accepts.
                 if (longLayout && f.ColumnsAreSameLength && frame.MinRows != frame.MaxRows) {
@@ -176,12 +176,31 @@ internal static class HostParameters {
     // asked (a pointer frame was recorded 1:1 only when the coding was declined, so the declined result is the recorded one).
     internal static DataFrame ReadFrame(JsonElement input, DataAcquisitionMode mode, OperationHost host = null, bool sequenceDates = false, bool reread = false) {
         if (!input.TryGetProperty("columns", out var cols) || cols.ValueKind != JsonValueKind.Array || cols.GetArrayLength() == 0) throw new ArgumentException("Choose worksheet columns or enter data in the table.");
+        var originMode = mode == DataAcquisitionMode.NumericCodingTextToDummiesPreserveRows ? DataAcquisitionMode.NumericPreserveRows : mode;
+        bool alignedMixed = mode == DataAcquisitionMode.NumericCodingTextToDummiesPreserveRows;
+        // Numeric mixed selections record mode 108 after their coding decision; rereads must retain its missing markers.
+        bool acceptMissingMarkers = alignedMixed || reread && mode == DataAcquisitionMode.NumericPreserveRows;
+        bool preserveAlignment = mode is DataAcquisitionMode.NumericPreserveRows or DataAcquisitionMode.NumericCodingTextToDummiesPreserveRows;
+        if (mode == DataAcquisitionMode.NumericPreserveRows) mode = DataAcquisitionMode.NumericReplaceMissing;
+        if (alignedMixed) mode = DataAcquisitionMode.NumericCodingTextToDummies;
+        bool directOrigins = true;
         var frame = new DataFrame(); frame.Name = input.TryGetProperty("source", out var source) ? source.GetString() : "Entered data";
         if(mode==DataAcquisitionMode.CategoryCombineAllColumns) {
+            // Matched categorical rows keep their positions; missing patterns never create a category.
             var parts=cols.EnumerateArray().Select(c=>c.GetProperty("values").EnumerateArray().Select(v=>v.ValueKind==JsonValueKind.Null?"":v.ToString().Trim()).ToArray()).ToArray();
-            var values=Enumerable.Range(0,parts.Max(c=>c.Length)).Select(r=>parts.Select(c=>r<c.Length?c[r]:"").ToArray()).Where(row=>row.All(s=>s!=""&&s!="*")).Select(row=>string.Join(", ",row)).ToArray();
-            var combinedInput=JsonSerializer.SerializeToElement(new {source=frame.Name,columns=new[]{new {title=string.Join(", ",cols.EnumerateArray().Select(c=>c.GetProperty("title").GetString())),values}}});
-            return ReadFrame(combinedInput,DataAcquisitionMode.GroupIdentifiers,host);
+            var combined=new ClassifierVariable {Title=string.Join(", ",cols.EnumerateArray().Select(c=>c.GetProperty("title").GetString())),Data=Enumerable.Repeat(Constant.MISSING,parts.Max(c=>c.Length)).ToArray()};
+            var patterns=new Dictionary<string,Group>();
+            for(int r=0;r<combined.Length;r++) {
+                var row=parts.Select(c=>r<c.Length?c[r]:"").ToArray();
+                if(row.Any(s=>s==""||s=="*"||s==Formatting.MISSINGLABEL)) continue;
+                string pattern=string.Join(", ",row);
+                if(!patterns.TryGetValue(pattern,out var group)) {group=new Group(pattern,patterns.Count);patterns.Add(pattern,group);}
+                group.NBin++;combined.Data[r]=group.Id;
+            }
+            combined.Groups=patterns.Values.ToList();frame.Variables.Add(combined);
+            AttachOrigins(input,frame,originMode);
+            if(frame.MaxRows==0)throw new ArgumentException("Enter at least one observation.");
+            return frame;
         }
         int categoryLength=cols.EnumerateArray().Select(c=>c.GetProperty("values").EnumerateArray().Select((v,r)=> new {v=v.ToString().Trim(),r}).Where(x=>x.v!=""&&x.v!="*").Select(x=>x.r+1).DefaultIfEmpty(0).Max()).Max();
         foreach (var col in cols.EnumerateArray()) {
@@ -189,15 +208,23 @@ internal static class HostParameters {
             var texts = col.GetProperty("values").EnumerateArray().Select(v => v.ValueKind == JsonValueKind.Null ? "" : v.ToString().Trim()).ToArray();
             // Trim only genuinely empty tail cells; '*' deliberately retains a missing final observation.
             int length = texts.Length;
-            bool preserveRows = input.TryGetProperty("preserveRows", out var preserve) && preserve.ValueKind == JsonValueKind.True;
+            bool preserveRows = preserveAlignment || input.TryGetProperty("preserveRows", out var preserve) && preserve.ValueKind == JsonValueKind.True;
             if (!preserveRows) while (length > 0 && texts[length - 1] == "") length--;
             texts = texts.Take(length).ToArray();
-            bool missing(string s) => s == "" || s == "*";
+            bool missing(string s) => s == "" || s == "*" || acceptMissingMarkers && (s == "."
+                || s.Equals("MISSING", StringComparison.OrdinalIgnoreCase)
+                || s.Equals(Formatting.MISSINGLABEL, StringComparison.OrdinalIgnoreCase)
+                || s.Equals("NA", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("N/A", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("NaN", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("NULL", StringComparison.OrdinalIgnoreCase));
             bool numeric(string s) => missing(s) || double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double n) && double.IsFinite(n);
             bool coded = mode == DataAcquisitionMode.NumericCodingTextToCategories || mode == DataAcquisitionMode.NumericCodingTextToDummies;
             if (mode == DataAcquisitionMode.DateReplaceMissing) {frame.Variables.Add(new DateVariable(texts.Select(s=>missing(s)?DateTime.MinValue:ParseDate(s)).ToArray(),title));continue;}
             if (mode == DataAcquisitionMode.Text || mode == DataAcquisitionMode.TextWithFormulae || mode == DataAcquisitionMode.TextNoTitles) { frame.Variables.Add(new StringVariable(texts, title)); continue; }
             if (mode == DataAcquisitionMode.CategoryReplaceMissing || mode == DataAcquisitionMode.CategoryCombineAllColumns || mode == DataAcquisitionMode.GroupIdentifiers || coded && texts.Any(s => !numeric(s))) {
+                // Windows's mixed acquisition mode is internal: transformed categorical inputs are snapshots, never numeric pointers.
+                if (alignedMixed) directOrigins = false;
                 if(mode==DataAcquisitionMode.CategoryReplaceMissing) {texts=Enumerable.Range(0,categoryLength).Select(r=>r>=texts.Length||missing(texts[r])?Formatting.MISSINGLABEL:texts[r]).ToArray();length=texts.Length;}
                 if(mode==DataAcquisitionMode.GroupIdentifiers) {texts=texts.Where(s=>!missing(s)).ToArray();length=texts.Length;}
                 var groups = new Dictionary<string, Group>();
@@ -205,12 +232,13 @@ internal static class HostParameters {
                 for (int r = 0; r < length; r++) {
                     string text = texts[r]; if (missing(text)) continue;
                     if (!groups.TryGetValue(text, out var group)) { group = new Group(text, groups.Count); groups.Add(text, group); }
-                    group.NBin++; cv.Data[r] = text.Contains(Formatting.MISSINGLABEL) ? Constant.MISSING : group.Id;
+                    bool missingLabel = alignedMixed ? text.Equals(Formatting.MISSINGLABEL, StringComparison.OrdinalIgnoreCase) : text.Contains(Formatting.MISSINGLABEL);
+                    group.NBin++; cv.Data[r] = missingLabel ? Constant.MISSING : group.Id;
                 }
                 cv.Groups = groups.Values.ToList();
                 if (mode == DataAcquisitionMode.NumericCodingTextToDummies) {
                     var dummy = reread ? null : StatsDirect.Builtins.Sheet.ToDummyVariables(host, cv, true);
-                    if (dummy == null) frame.Variables.Add(cv); else foreach (var v in dummy.Variables) frame.Variables.Add(v);
+                    if (dummy == null) frame.Variables.Add(cv); else { directOrigins = false; foreach (var v in dummy.Variables) frame.Variables.Add(v); }
                 } else frame.Variables.Add(cv);
                 continue;
             }
@@ -226,17 +254,18 @@ internal static class HostParameters {
             }
             double[] data = texts.Select(number).ToArray();
             if (mode == DataAcquisitionMode.NumericSkipMissing) data = data.Where(n => n != Constant.MISSING).ToArray();
-            if(mode==DataAcquisitionMode.NumericCodingTextToDummies && data.All(n=>n>=int.MinValue && n<=int.MaxValue && n==Math.Truncate(n))) {
-                var categories=data.Distinct().ToArray();
-                if(categories.Length>2 && categories.Length<Math.Min(data.Length,12)) {
-                    var classifier=new ClassifierVariable {Title=title,Data=data.Select(n=>(double)Array.IndexOf(categories,n)).ToArray(),Groups=categories.Select((n,i)=>new Group(n.ToString(CultureInfo.InvariantCulture),i){NBin=data.Count(v=>v==n)}).ToList()};
+            var observed = alignedMixed ? data.Where(n=>n!=Constant.MISSING).ToArray() : data;
+            if(mode==DataAcquisitionMode.NumericCodingTextToDummies && observed.All(n=>n>=int.MinValue && n<=int.MaxValue && n==Math.Truncate(n))) {
+                var categories=observed.Distinct().ToArray();
+                if(categories.Length>2 && categories.Length<Math.Min(observed.Length,12)) {
+                    var classifier=new ClassifierVariable {Title=title,Data=data.Select(n=>alignedMixed && n==Constant.MISSING?Constant.MISSING:(double)Array.IndexOf(categories,n)).ToArray(),Groups=categories.Select((n,i)=>new Group(n.ToString(CultureInfo.InvariantCulture),i){NBin=observed.Count(v=>v==n)}).ToList()};
                     var dummy=reread?null:StatsDirect.Builtins.Sheet.ToDummyVariables(host,classifier,true);
-                    if(dummy!=null){foreach(var v in dummy.Variables)frame.Variables.Add(v);continue;}
+                    if(dummy!=null){directOrigins=false;foreach(var v in dummy.Variables)frame.Variables.Add(v);continue;}
                 }
             }
             frame.Variables.Add(new DoubleVariable(data, title));
         }
-        AttachOrigins(input, frame, mode);
+        if (directOrigins) AttachOrigins(input, frame, originMode);
         if (frame.MaxRows == 0) throw new ArgumentException("Enter at least one observation.");
         return frame;
     }

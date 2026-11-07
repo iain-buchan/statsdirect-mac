@@ -66,6 +66,8 @@ jobs:
           assert len(rows) == 5, ('missing resize evidence', len(rows))
           assert [row['requestedWidth'] for row in rows] == [420,320,420,320,900]
           assert all(row['reachable'] and row['noVerticalOverflow'] and row['noBodyOverflow'] and row['paneLayout'] and row['wideHeightWhenFits'] and row['wideRecovery'] for row in rows)
+          assert all(set(row['modeLayouts']) == {'initialConsole','script','restoredConsole'} for row in rows)
+          assert all(mode['reachable'] and mode['paneLayout'] and mode['settledGeometry'] and mode['modeWorks'] for row in rows for mode in row['modeLayouts'].values())
           wide = rows[-1]
           assert not wide['needsScroll'] and wide['horizontalScrollbar'] == 0 and wide['outer']['height'] == 42
           required = 'legacy' if style == 'Always' else 'overlay'

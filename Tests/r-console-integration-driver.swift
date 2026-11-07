@@ -1242,9 +1242,6 @@ import WebKit
               requestAnimationFrame(() => { clearTimeout(timeout); resolve(); });
             });
             const toolbar = document.querySelector('.toolbar');
-            toolbar.scrollLeft = 0;
-            await frame(); await frame();
-            const buttons = Array.from(toolbar.querySelectorAll('button'));
             const rect = bounds => ({left:bounds.left, right:bounds.right, top:bounds.top, bottom:bounds.bottom,
               width:bounds.width, height:bounds.height});
             const viewport = () => {
@@ -1260,59 +1257,89 @@ import WebKit
                 horizontalScrollbar:Math.max(0,toolbar.offsetHeight-toolbar.clientHeight-parseFloat(style.borderTopWidth)-parseFloat(style.borderBottomWidth)),
                 verticalScrollbar:Math.max(0,toolbar.offsetWidth-toolbar.clientWidth-parseFloat(style.borderLeftWidth)-parseFloat(style.borderRightWidth))};
             };
-            const measure = (button, index) => {
-              const bounds = button.getBoundingClientRect(), view = viewport(), clip = view.clip;
-              const hit = document.elementFromPoint((bounds.left+bounds.right)/2, (bounds.top+bounds.bottom)/2);
-              return {index, id:button.id, button:rect(bounds), ...view,
-                hit:hit ? hit.tagName+(hit.id ? '#'+hit.id : '') : null,
-                display:getComputedStyle(button).display, hidden:button.hidden,
-                reachable:bounds.width>0 && bounds.height>0 && bounds.left>=clip.left-1 && bounds.right<=clip.right+1
-                  && bounds.top>=clip.top && bounds.bottom<=clip.bottom && button.contains(hit)};
+            const geometry = () => {
+              // Capture the header, main and footer together, before any mode or Run-label change.
+              const view = viewport(), mainElement = document.querySelector('main');
+              const main = mainElement.getBoundingClientRect(), footer = document.querySelector('footer').getBoundingClientRect();
+              const expectedMainGap = Number.parseFloat(getComputedStyle(mainElement).marginTop) || 0;
+              const mainGap = main.top-view.outer.bottom, footerGap = footer.top-main.bottom;
+              const needsScroll = toolbar.scrollWidth>toolbar.clientWidth;
+              return {...view, main:rect(main), footer:rect(footer), expectedMainGap, mainGap, footerGap,
+                needsScroll, didScroll:toolbar.scrollLeft>0,
+                noVerticalOverflow:toolbar.scrollHeight<=toolbar.clientHeight+1,
+                noVerticalScrollbar:view.verticalScrollbar<=1,
+                noBodyOverflow:document.documentElement.scrollWidth<=document.documentElement.clientWidth+1 && document.body.scrollWidth<=document.documentElement.clientWidth+1,
+                nativeScroll:['auto','scroll'].includes(getComputedStyle(toolbar).overflowX),
+                nativeScrollbarWhenNeeded:!needsScroll || nativeScrollerStyle!=='legacy' || view.horizontalScrollbar>0,
+                paneLayout:main.height>0 && Math.abs(mainGap-expectedMainGap)<=1 && Math.abs(footerGap)<=1 && footer.bottom<=window.innerHeight+1,
+                wideHeightWhenFits:needsScroll || Math.abs(view.outer.height-42)<=1,
+                wideRecovery:requestedWidth!==900 || (!needsScroll && view.horizontalScrollbar<=1 && Math.abs(view.outer.height-42)<=1)};
             };
-            const failedButtons = [];
-            let reachable = buttons.length > 0;
-            for (let index = 0; index < buttons.length; index++) {
-              const button = buttons[index];
-              button.scrollIntoView({block:'nearest', inline:'nearest'});
+            const settle = async () => {
               const deadline = performance.now()+2000;
-              let sample;
+              let previous = '', stable = 0;
               do {
-                // WebKit's overflow scroller and compositor hit-test must observe the scroll before the assertion.
                 await frame();
-                sample = measure(button, index);
-                if (sample.reachable) break;
+                const sample = geometry();
+                const key = JSON.stringify([sample.outer, sample.clip, sample.main, sample.footer,
+                  sample.scrollWidth, sample.scrollHeight, sample.inlineHeight]);
+                stable = key===previous ? stable+1 : 1;
+                previous = key;
+                if (stable>=3) return true;
               } while (performance.now()<deadline);
-              if (!sample.reachable) { reachable=false; failedButtons.push(sample); break; }
-            }
-            const viewportAfterScroll = viewport();
-            const didScroll = toolbar.scrollLeft > 0;
-            const needsScroll = toolbar.scrollWidth > toolbar.clientWidth;
-            const noVerticalOverflow = toolbar.scrollHeight <= toolbar.clientHeight+1;
-            const noBodyOverflow = document.documentElement.scrollWidth <= document.documentElement.clientWidth+1 && document.body.scrollWidth <= document.documentElement.clientWidth+1;
-            const nativeScroll = ['auto','scroll'].includes(getComputedStyle(toolbar).overflowX);
-            const scriptTab = document.getElementById('script-tab');
-            scriptTab.scrollIntoView({block:'nearest', inline:'nearest'}); await frame(); scriptTab.click(); await frame();
-            const scriptWorks = StatsDirectRConsole.snapshot().mode === 'script' && !document.getElementById('script-panel').hidden && !document.getElementById('script-source').disabled;
-            const consoleTab = document.getElementById('console-tab');
-            consoleTab.scrollIntoView({block:'nearest', inline:'nearest'}); await frame(); consoleTab.click();
+              return false;
+            };
+            const inspectMode = async mode => {
+              toolbar.scrollLeft=0; toolbar.scrollTop=0;
+              const settledGeometry = await settle();
+              const buttons = Array.from(toolbar.querySelectorAll('button')), failedButtons = [];
+              let reachable = buttons.length>0;
+              for (let index=0; index<buttons.length; index++) {
+                const button=buttons[index];
+                button.scrollIntoView({block:'nearest',inline:'nearest'});
+                const deadline=performance.now()+2000;
+                let sample;
+                do {
+                  await frame();
+                  const bounds=button.getBoundingClientRect(), view=viewport(), clip=view.clip;
+                  const hit=document.elementFromPoint((bounds.left+bounds.right)/2,(bounds.top+bounds.bottom)/2);
+                  sample={index,id:button.id,button:rect(bounds),...view,
+                    hit:hit ? hit.tagName+(hit.id ? '#'+hit.id : '') : null,
+                    display:getComputedStyle(button).display,hidden:button.hidden,
+                    reachable:bounds.width>0 && bounds.height>0 && bounds.left>=clip.left-1 && bounds.right<=clip.right+1
+                      && bounds.top>=clip.top && bounds.bottom<=clip.bottom && button.contains(hit)};
+                  if (sample.reachable) break;
+                } while (performance.now()<deadline);
+                if (!sample.reachable) { reachable=false; failedButtons.push(sample); break; }
+              }
+              const sample=geometry();
+              const actualMode=StatsDirectRConsole.snapshot().mode;
+              const modeWorks=actualMode===mode && (mode==='script'
+                ? !document.getElementById('script-panel').hidden && !document.getElementById('script-source').disabled
+                : document.activeElement===document.getElementById('console-input'));
+              return {...sample,mode,actualMode,runLabel:document.getElementById('run').textContent,
+                settledGeometry,reachable,failedButtons,buttonCount:buttons.length,modeWorks};
+            };
             StatsDirectRConsole.focusInput();
-            const main = document.querySelector('main').getBoundingClientRect(), footer = document.querySelector('footer').getBoundingClientRect();
-            const expectedMainGap = Number.parseFloat(getComputedStyle(document.querySelector('main')).marginTop) || 0;
-            const mainGap = main.top-viewportAfterScroll.outer.bottom, footerGap = footer.top-main.bottom;
-            const paneLayout = main.height>0 && Math.abs(mainGap-expectedMainGap)<=1
-              && Math.abs(footerGap)<=1 && footer.bottom<=window.innerHeight+1;
-            const wideHeightWhenFits = needsScroll || Math.abs(viewportAfterScroll.outer.height-42)<=1;
-            const noVerticalScrollbar = viewportAfterScroll.verticalScrollbar<=1;
-            const nativeScrollbarWhenNeeded = !needsScroll || nativeScrollerStyle!=='legacy' || viewportAfterScroll.horizontalScrollbar>0;
-            const wideRecovery = requestedWidth!==900 || (!needsScroll && viewportAfterScroll.horizontalScrollbar<=1 && Math.abs(viewportAfterScroll.outer.height-42)<=1);
-            return {reachable, noBodyOverflow, nativeScroll, didScroll, needsScroll, noVerticalOverflow, noVerticalScrollbar, nativeScrollbarWhenNeeded, paneLayout, wideHeightWhenFits, wideRecovery, failedButtons,
-              main:rect(main), footer:rect(footer), expectedMainGap, mainGap, footerGap,
-              requestedWidth, resizePass, nativeViewportWidth, nativeHorizontalInset, nativeScrollerStyle,
-              viewportWidth:window.innerWidth, buttonCount:buttons.length, ...viewportAfterScroll,
-              finalScrollLeft:toolbar.scrollLeft, finalScrollTop:toolbar.scrollTop,
-              scriptWorks, consoleWorks:StatsDirectRConsole.snapshot().mode === 'console' && document.activeElement === document.getElementById('console-input')};
+            const initialConsole=await inspectMode('console');
+            const scriptTab=document.getElementById('script-tab');
+            scriptTab.scrollIntoView({block:'nearest',inline:'nearest'}); await frame(); scriptTab.click();
+            const script=await inspectMode('script');
+            const consoleTab=document.getElementById('console-tab');
+            consoleTab.scrollIntoView({block:'nearest',inline:'nearest'}); await frame(); consoleTab.click();
+            StatsDirectRConsole.focusInput();
+            const restoredConsole=await inspectMode('console');
+            const modeLayouts={initialConsole,script,restoredConsole}, modes=Object.values(modeLayouts);
+            const flags=['reachable','settledGeometry','noBodyOverflow','nativeScroll','noVerticalOverflow',
+              'noVerticalScrollbar','nativeScrollbarWhenNeeded','paneLayout','wideHeightWhenFits','wideRecovery'];
+            const aggregate=Object.fromEntries(flags.map(name=>[name,modes.every(sample=>sample[name])]));
+            return {...restoredConsole,...aggregate,modeLayouts,
+              everyRequiredScrollWorked:modes.every(sample=>!sample.needsScroll || sample.didScroll),
+              requestedWidth,resizePass,nativeViewportWidth,nativeHorizontalInset,nativeScrollerStyle,
+              viewportWidth:window.innerWidth,finalScrollLeft:toolbar.scrollLeft,finalScrollTop:toolbar.scrollTop,
+              scriptWorks:script.modeWorks,consoleWorks:initialConsole.modeWorks && restoredConsole.modeWorks};
             """, arguments: ["requestedWidth": width, "resizePass": pass + 1, "nativeViewportWidth": Double(doc.web.bounds.width), "nativeHorizontalInset": nativeHorizontalInset, "nativeScrollerStyle": nativeScrollerStyle], in: nil, contentWorld: .page) as? [String: Any] ?? [:]
-            let narrowWorks = ["reachable", "noBodyOverflow", "nativeScroll", "scriptWorks", "consoleWorks", "noVerticalOverflow", "noVerticalScrollbar", "nativeScrollbarWhenNeeded", "paneLayout", "wideHeightWhenFits", "wideRecovery"].allSatisfy { layout[$0] as? Bool == true }
+            let narrowWorks = ["reachable", "settledGeometry", "everyRequiredScrollWorked", "noBodyOverflow", "nativeScroll", "scriptWorks", "consoleWorks", "noVerticalOverflow", "noVerticalScrollbar", "nativeScrollbarWhenNeeded", "paneLayout", "wideHeightWhenFits", "wideRecovery"].allSatisfy { layout[$0] as? Bool == true }
                 && (layout["needsScroll"] as? Bool != true || layout["didScroll"] as? Bool == true)
             // Keep one machine-readable viewport record per pass, including successful classic-scrollbar checks.
             print("INFO: narrow toolbar viewport: \(try literal(layout))"); fflush(stdout)

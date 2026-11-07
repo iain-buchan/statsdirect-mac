@@ -302,6 +302,29 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         open(page)
         if page == nil { notice.stringValue = HelpPane.unavailableTopicMessage }
     }
+    /// HelpService.Show for a page given as a file: on Windows every help request reaches ShowTopic, the callers giving a
+    /// page by its path. So the topic is the file's path within the help folder, as text, with any fragment of the address.
+    /// A file outside the help folder is refused, as before.
+    func showTopic(file: URL) {
+        let path = HelpPane.resolvedPath(file)
+        guard path.hasPrefix(resources.root.path + "/") else { return }
+        var topic = String(path.dropFirst(resources.root.path.count + 1))
+        guard !topic.isEmpty else { return }
+        if let fragment = URLComponents(url:file,resolvingAgainstBaseURL:false)?.percentEncodedFragment { topic += "#" + fragment }
+        showTopic(topic)
+    }
+    /// A file's path with its links resolved as the help folder's are. Foundation resolves links only in what exists, and
+    /// keeps a leading /private on a path that does not exist, as under App Translocation, so a missing page is resolved
+    /// through the nearest folder that exists.
+    private static func resolvedPath(_ file: URL) -> String {
+        var existing = file.standardizedFileURL
+        var missing: [String] = []
+        while !FileManager.default.fileExists(atPath:existing.path), existing.pathComponents.count > 1 {
+            missing.insert(existing.lastPathComponent, at:0)
+            existing.deleteLastPathComponent()
+        }
+        return missing.reduce(existing.resolvingSymlinksInPath()) { $0.appendingPathComponent($1) }.path
+    }
     /// HelpView.OpenExternal for an address given as a topic, which Uri reads without its surrounding white space.
     private func openExternal(_ address: String) {
         guard let url = URL(string:address.trimmingCharacters(in:CharacterSet(charactersIn:" \t\r\n"))) else {

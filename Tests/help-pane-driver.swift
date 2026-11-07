@@ -755,6 +755,36 @@ import WebKit
         pane.showTopic("twice")
         try await until(pane.web,"location.pathname==='/second.htm' && document.readyState==='complete'")
         try check(pane.notice.stringValue.isEmpty,"Of two mappings of a name in different cases, the later wins, as in Windows's catalogue")
+        // A page given as a file, as Viewer.openHelp gives every caller's page: Windows's callers give ShowTopic its path.
+        var anchored=URLComponents(url:folder.appendingPathComponent("basics/calculator.htm"),resolvingAgainstBaseURL:false)!
+        anchored.fragment="keys"
+        pane.notice.stringValue="probe"
+        pane.showTopic(file:anchored.url!)
+        try await until(pane.web,"location.pathname==='/basics/calculator.htm' && location.hash==='#keys' && document.getElementById('keys')!==null")
+        try check(pane.notice.stringValue.isEmpty,"A page given as a file in the help folder opens at its anchor and clears the status line")
+        // Both forms of a temporary path, as App Translocation runs a downloaded app from /private/var/folders/...
+        let real=folder.resolvingSymlinksInPath().path, privateForm=real.hasPrefix("/private/") ? real : "/private"+real
+        try check(FileManager.default.fileExists(atPath:privateForm),"The fixture is reachable through its /private form")
+        for (form,base) in [("plain",folder.path),("/private",privateForm)] {
+            pane.showTopic("5003")
+            try await until(pane.web,"location.pathname==='/first.htm' && document.readyState==='complete'")
+            pane.showTopic(file:URL(fileURLWithPath:base).appendingPathComponent("basics/missing.htm"))
+            try await until(pane.web,"location.pathname==='/contents.htm' && document.readyState==='complete'")
+            try await settle()
+            try check(pane.notice.stringValue == topicUnavailable && external.isEmpty,"A missing page given as a file in its \(form) form shows the help contents with Windows's status line")
+        }
+        // A page in a sibling folder whose name is as long as the help folder's, so that its path beyond that folder names a
+        // page the help has: it is refused all the same.
+        let sibling=folder.deletingLastPathComponent().appendingPathComponent(String(("elsewhere-"+UUID().uuidString+UUID().uuidString).prefix(folder.lastPathComponent.count)))
+        try FileManager.default.createDirectory(at:sibling.appendingPathComponent("basics"),withIntermediateDirectories:true)
+        defer { try? FileManager.default.removeItem(at:sibling) }
+        try Data("<!doctype html><html><head><title>Outside</title></head><body>Outside the help</body></html>".utf8).write(to:sibling.appendingPathComponent("basics/calculator.htm"))
+        try await rememberPage(pane.web)
+        pane.notice.stringValue="probe"
+        pane.showTopic(file:sibling.appendingPathComponent("basics/calculator.htm"))
+        try await settle()
+        try check(pane.notice.stringValue == "probe","A page outside the help folder is refused and leaves the status line, though its path beyond the folder names a page the help has")
+        try await checkPageUnchanged(pane.web,"A page outside the help folder leaves the page and its history")
         try FileManager.default.removeItem(at:folder.appendingPathComponent("contents.htm"))
         pane.contents()
         try await until(pane.web,"location.pathname==='/index.html' && document.readyState==='complete'")
@@ -998,6 +1028,7 @@ import WebKit
         try check(true,"reference link opens the correct offline anchor")
         try await checkTopics(h)
         try await checkTopicAliases(h)
+        try await checkMissingPageHelp(v)
         try await checkTopicCallers(v)
 
         let pdf=try await web.pdf(configuration:WKPDFConfiguration())
@@ -1011,6 +1042,21 @@ import WebKit
         try check(v.validateMenuItem(NSMenuItem(title:"Close",action:#selector(Viewer.closeTab),keyEquivalent:"w")),"Close remains available for help without workspace documents")
         v.closeTab()
         try check(!h.visible,"Close Document hides focused help without closing the application")
+    }
+    /// F1 on an analysis whose catalogue page is missing: Viewer.openHelp passes the page to ShowTopic, as Windows's HelpService.Show does.
+    @MainActor static func checkMissingPageHelp(_ v: Viewer) async throws {
+        guard let doc=v.active else { throw NSError(domain:"HelpPaneTests",code:7,userInfo:[NSLocalizedDescriptionKey:"No active document for context help"]) }
+        let h=v.helpPane, operation=doc.operationName, entry=v.analysisCatalog["TPaired"]
+        try check(entry?["help"] as? String == "Help/parametric_methods/paired_t.htm","The paired t entry gives its catalogue page")
+        defer { v.analysisCatalog["TPaired"]=entry; doc.operationName=operation }
+        h.showTopic("1213")
+        try await until(h.web,"location.pathname==='/methods/method_selection.htm' && document.readyState==='complete'")
+        v.analysisCatalog["TPaired"]?["help"]="Help/parametric_methods/no_such_page.htm"
+        doc.operationName="TPaired"
+        v.currentMethodHelp()
+        try await until(h.web,"location.pathname==='/contents.htm' && document.readyState==='complete'")
+        try await settle()
+        try check(h.notice.stringValue == topicUnavailable,"F1 on an analysis whose help page is missing shows the help contents with Windows's status line")
     }
     /// The callers of HelpPane.showTopic, given the fixture's help, which has none of their topics, in place of the bundled help.
     @MainActor static func checkTopicCallers(_ v: Viewer) async throws {

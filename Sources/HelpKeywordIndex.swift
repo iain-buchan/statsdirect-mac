@@ -1119,3 +1119,48 @@ private struct StrictJSON {
         index += expected.count
     }
 }
+
+extension HelpKeywordIndex {
+    /// For Tests/help-keyword-index-test.swift, which compares these private parts with the answers .NET 10 gave
+    /// (Tests/help-keyword-index-dotnet10.json). They forward to those parts or read ICU's version; the app does not use them.
+    enum TestHooks {
+        /// Whether the system's ICU library is in use, which it never is in the KEYWORD_INDEX_WITHOUT_ICU build.
+        static var usesICU: Bool { KeywordCollation.shared != nil }
+
+        /// The system ICU's version (u_getVersion) and its en-GB collator's version as .NET reports it in
+        /// SortVersion.FullVersion (ucol_getVersion's four bytes as a little-endian number), or nil without ICU. They say
+        /// which ICU data the ICU parts were compared on.
+        static var icuVersions: (icu: String, sort: Int)? {
+            guard usesICU, let library = dlopen("/usr/lib/libicucore.A.dylib", RTLD_NOW | RTLD_LOCAL),
+                  let version = dlsym(library, "u_getVersion"), let open = dlsym(library, "ucol_open"),
+                  let collatorVersion = dlsym(library, "ucol_getVersion"), let close = dlsym(library, "ucol_close") else { return nil }
+            typealias VersionFunction = @convention(c) (UnsafeMutablePointer<UInt8>?) -> Void
+            typealias OpenFunction = @convention(c) (UnsafePointer<CChar>?, UnsafeMutablePointer<Int32>?) -> OpaquePointer?
+            typealias CollatorVersionFunction = @convention(c) (OpaquePointer?, UnsafeMutablePointer<UInt8>?) -> Void
+            typealias CloseFunction = @convention(c) (OpaquePointer?) -> Void
+            var icu = [UInt8](repeating: 0, count: 4), sort = [UInt8](repeating: 0, count: 4), status: Int32 = 0
+            unsafeBitCast(version, to: VersionFunction.self)(&icu)
+            guard let collator = unsafeBitCast(open, to: OpenFunction.self)("en_GB", &status), status <= 0 else { return nil }
+            unsafeBitCast(collatorVersion, to: CollatorVersionFunction.self)(collator, &sort)
+            unsafeBitCast(close, to: CloseFunction.self)(collator)
+            return (icu.map(String.init).joined(separator: "."), sort.reversed().reduce(0) { $0 << 8 | Int($1) })
+        }
+
+        /// AbsolutePath, without its leading '/', and Fragment of Uri("https://help.statsdirect.invalid/" + text).
+        static func pathAndFragment(_ text: [UInt16]) -> (path: String, fragment: String) { DotNetUri.canonical(text) }
+
+        /// Uri.TryCreate(text, UriKind.Absolute) as it answers on Windows, and the parts HelpCatalog.Resolve reads: Host,
+        /// AbsolutePath, Fragment, GetLeftPart(UriPartial.Authority) and PathAndQuery.
+        static func absoluteAddress(_ text: String) -> (host: String, path: String, fragment: String, authority: String, pathAndQuery: String)? {
+            DotNetUri.absolute(text).map { ($0.host, $0.path, $0.fragment, $0.authority, $0.pathAndQuery) }
+        }
+
+        /// The sign of string.Compare(a, b, StringComparison.OrdinalIgnoreCase), and StringComparer.OrdinalIgnoreCase.Equals.
+        static func ordinalIgnoreCase(_ a: [UInt16], _ b: [UInt16]) -> (order: Int, equal: Bool) {
+            (OrdinalCase.compare(a, b).signum(), OrdinalCase.key(a) == OrdinalCase.key(b))
+        }
+
+        /// The sign of StringComparer.Create(en-GB, ignoreCase: true).Compare(a, b), HelpCatalog's order of terms and titles.
+        static func englishOrder(_ a: [UInt16], _ b: [UInt16]) -> Int { HelpKeywordIndex.cultureCompare(a, b).signum() }
+    }
+}

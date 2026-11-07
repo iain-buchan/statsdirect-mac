@@ -287,8 +287,170 @@ struct HelpKeywordIndexTests {
             try check(actual.filteredRows("metafor").contains { $0.entry.term == "R package: metafor" },"The corrected R package label is available")
         }
     }
+    /// .NET 10's own answers, recorded in Tests/help-keyword-index-dotnet10.json (Tests/verification.md says how), so that
+    /// a change in .NET, ICU or this code shows here. The ICU parts are left out of the KEYWORD_INDEX_WITHOUT_ICU build.
+    static func dotNetAnswers() throws {
+        let manager = FileManager.default
+        let file = URL(fileURLWithPath:manager.currentDirectoryPath).appendingPathComponent("Tests/help-keyword-index-dotnet10.json")
+        guard let data = try? Data(contentsOf:file), let answers = (try? JSONSerialization.jsonObject(with:data)) as? [String: Any],
+              let source = answers["source"] as? [String: Any], let runtime = source["runtime"] as? String, let os = source["os"] as? String,
+              let icu = source["icu"] as? String, let sortVersion = source["enGBSortVersion"] as? Int else {
+            throw Failure(errorDescription:"The .NET 10 answers could not be read from \(file.path)")
+        }
+        let recorded = "\(runtime) on ICU \(icu), en-GB sort version \(sortVersion), \(os)"
+        let here = HelpKeywordIndex.TestHooks.icuVersions
+        let thisMac = here.map { "ICU \($0.icu), en-GB sort version \($0.sort)" } ?? "no ICU"
+        // Given with every failure of a part that depends on ICU, so that a failure on another macOS can be read.
+        let sameICU = here.map { $0.icu == icu && $0.sort == sortVersion } == true
+        let icuNote = " This part depends on ICU. The answers were recorded with ICU \(icu), en-GB sort version \(sortVersion), and this Mac has \(thisMac)"
+            + (sameICU ? ", the same, so the code or its use of ICU has changed." : ", which differs, so the differences may come from ICU's data rather than the code.")
+        func cases(_ section: String, _ member: String = "cases") throws -> [[Any]] {
+            guard let rows = (answers[section] as? [String: Any])?[member] as? [[Any]], !rows.isEmpty else {
+                throw Failure(errorDescription:"The .NET 10 answers have no \(section) \(member)")
+            }
+            return rows
+        }
+        func malformed(_ section: String, _ row: [Any]) -> Failure { Failure(errorDescription:"A malformed \(section) case in the .NET 10 answers: \(row)") }
+        /// A recorded string is JSON text, or its UTF-16 code units where it holds U+0000, U+FEFF or an unpaired surrogate.
+        func units(_ value: Any) -> [UInt16]? {
+            if let text = value as? String { return Array(text.utf16) }
+            guard let list = value as? [Int], list.allSatisfy({ (0...0xFFFF).contains($0) }) else { return nil }
+            return list.map { UInt16($0) }
+        }
+        func shown(_ value: [UInt16]?) -> String {
+            guard let value else { return "null" }
+            return "\"" + value.map { (0x20...0x7E).contains($0) && $0 != 0x5C ? String(UnicodeScalar(UInt8($0))) : String(format:"\\u{%04X}",$0) }.joined() + "\""
+        }
+        func shown(_ value: String) -> String { shown(Array(value.utf16)) }
+        /// One check for a part: every case agrees, or every difference is listed and the part fails.
+        func agree(_ differences: [String], of total: Int, _ section: String, icuDependent: Bool = false) throws {
+            guard differences.isEmpty else {
+                for difference in differences.prefix(200) { print("  \(section) differs: \(difference)") }
+                if differences.count > 200 { print("  ... and \(differences.count - 200) more \(section) differences") }
+                throw Failure(errorDescription:"\(differences.count) of \(total) \(section) cases differ from \(recorded), as listed above." + (icuDependent ? icuNote : ""))
+            }
+            try check(true,section)
+        }
+        var summary: [String] = []
+
+        // HelpCatalog.Resolve's forms of a path and fragment, and the parts it reads from an alias's address.
+        let uri = try cases("uriPathAndFragment")
+        var differences: [String] = []
+        for row in uri {
+            guard row.count == 4, let path = units(row[0]), row[1] is NSNull || units(row[1]) != nil,
+                  let absolutePath = units(row[2]), let fragmentPart = units(row[3]) else { throw malformed("Uri path and fragment",row) }
+            let fragment = units(row[1])
+            let actual = HelpKeywordIndex.TestHooks.pathAndFragment(path + (fragment.map { [0x23] + $0 } ?? []))
+            if Array(actual.path.utf16) != absolutePath || Array(actual.fragment.utf16) != fragmentPart {
+                differences.append("\(shown(path)) # \(shown(fragment)): .NET \(shown(absolutePath)) \(shown(fragmentPart)), Mac \(shown(actual.path)) \(shown(actual.fragment))")
+            }
+        }
+        try agree(differences,of:uri.count,"Uri path and fragment")
+        summary.append("\(uri.count) Uri paths and fragments")
+
+        let parts = try cases("aliasAddressParts")
+        differences = []
+        for row in parts {
+            guard row.count == 6, let address = units(row[0]) else { throw malformed("alias address parts",row) }
+            let expected = try row[1...].map { value -> [UInt16] in
+                guard let part = units(value) else { throw malformed("alias address parts",row) }
+                return part
+            }
+            let text = String(decoding:address,as:UTF16.self)
+            guard let actual = HelpKeywordIndex.TestHooks.absoluteAddress(text) else { differences.append("\(shown(text)) is no absolute address on the Mac"); continue }
+            let found = [actual.host,actual.path,actual.fragment,actual.authority,actual.pathAndQuery].map { Array($0.utf16) }
+            if found != expected {
+                differences.append("\(shown(text)): .NET \(expected.map { shown($0) }.joined(separator:" ")), Mac \(found.map { shown($0) }.joined(separator:" "))")
+            }
+        }
+        try agree(differences,of:parts.count,"alias address parts")
+        summary.append("\(parts.count) alias addresses' parts")
+
+        // Uri.TryCreate(text, UriKind.Absolute) as on Windows. The one documented difference: .NET also accepts a final
+        // IPv4 octet such as 04 in an IPv6 literal, and the Mac does not, so that target gets the other refusal message.
+        let documented: Set<String> = ["http://[::1.2.3.04]/one.htm"]
+        let absolute = try cases("absoluteAddresses")
+        differences = []
+        for row in absolute {
+            guard row.count == 2, let text = units(row[0]), let answer = row[1] as? Int, answer == 0 || answer == 1 else { throw malformed("absolute address",row) }
+            let address = String(decoding:text,as:UTF16.self), accepted = HelpKeywordIndex.TestHooks.absoluteAddress(address) != nil
+            if documented.contains(address) ? accepted == (answer == 1) : accepted != (answer == 1) {
+                differences.append("\(shown(address)): .NET \(answer == 1 ? "absolute" : "not absolute"), Mac \(accepted ? "absolute" : "not absolute")" + (documented.contains(address) ? " (a documented difference that no longer differs)" : ""))
+            }
+        }
+        try agree(differences,of:absolute.count,"absolute address")
+        summary.append("\(absolute.count) absolute or other addresses")
+
+        // String.Compare and StringComparer.OrdinalIgnoreCase, which both builds follow, and the en-GB order, which needs ICU.
+        let pairs = try cases("ordinalAndEnglish")
+        differences = []
+        var english: [String] = []
+        for row in pairs {
+            guard row.count == 5, let a = units(row[0]), let b = units(row[1]), let order = row[2] as? Int, let equal = row[3] as? Int, let culture = row[4] as? Int,
+                  (-1...1).contains(order), equal == 0 || equal == 1, (-1...1).contains(culture) else { throw malformed("comparison",row) }
+            let actual = HelpKeywordIndex.TestHooks.ordinalIgnoreCase(a,b)
+            if actual.order != order || actual.equal != (equal == 1) {
+                differences.append("\(shown(a)) and \(shown(b)): .NET \(order) \(equal == 1), Mac \(actual.order) \(actual.equal)")
+            }
+            #if !KEYWORD_INDEX_WITHOUT_ICU
+            let sign = HelpKeywordIndex.TestHooks.englishOrder(a,b)
+            if sign != culture { english.append("\(shown(a)) and \(shown(b)): .NET \(culture), Mac \(sign)") }
+            #endif
+        }
+        // With ICU, OrdinalIgnoreCase takes ICU's simple upper case of each unit, as .NET does.
+        try agree(differences,of:pairs.count,"OrdinalIgnoreCase",icuDependent:here != nil)
+        summary.append("\(pairs.count) OrdinalIgnoreCase pairs")
+
+        #if KEYWORD_INDEX_WITHOUT_ICU
+        try check(!HelpKeywordIndex.TestHooks.usesICU,"The no-ICU build loaded ICU")
+        summary.append("the ICU parts skipped")
+        #else
+        try check(HelpKeywordIndex.TestHooks.usesICU && here != nil,"The system's ICU library did not load, so the ICU parts cannot be compared with .NET 10")
+        try agree(english,of:pairs.count,"en-GB IgnoreCase order",icuDependent:true)
+        summary.append("\(pairs.count) en-GB orderings")
+
+        // HelpCatalog's order of the shipped map, from a shuffled input, and HelpIndexMenu's filter over it, through
+        // load() and filteredRows().
+        guard let filter = answers["filter"] as? [String: Any], let map = filter["map"] as? [[String]], let order = filter["order"] as? [Int],
+              let listed = filter["hitsListedUpTo"] as? Int, map.allSatisfy({ $0.count == 3 }), map.count == order.count, Set(order) == Set(map.indices) else {
+            throw Failure(errorDescription:"The .NET 10 answers have no valid filter map")
+        }
+        let queries = try cases("filter","queries")
+        let scratch = URL(fileURLWithPath:manager.currentDirectoryPath).appendingPathComponent(".build/help-keyword-index-dotnet10-" + UUID().uuidString)
+        defer { try? manager.removeItem(at:scratch) }
+        for path in Set(map.map { $0[2] }) {
+            let page = scratch.appendingPathComponent(path)
+            try manager.createDirectory(at:page.deletingLastPathComponent(),withIntermediateDirectories:true)
+            try Data("<html><body>Topic</body></html>".utf8).write(to:page)
+        }
+        try JSONSerialization.data(withJSONObject:["schemaVersion":1,"entries":map.map { ["term":$0[0],"title":$0[1],"path":$0[2]] }]).write(to:scratch.appendingPathComponent("keyword-index.json"))
+        guard let index = try HelpKeywordIndex.load(root:scratch) else { throw Failure(errorDescription:"The recorded map was not loaded") }
+        let sorted = index.entries.map { [$0.term,$0.title,$0.path] }, expectedOrder = order.map { map[$0] }
+        let first = sorted.indices.first { $0 >= expectedOrder.count || sorted[$0] != expectedOrder[$0] }
+        try check(sorted.count == expectedOrder.count && first == nil,"The \(map.count) entries are not in .NET 10's order" + (first.map { ": entry \($0 + 1) is \(sorted[$0]), .NET has \($0 < expectedOrder.count ? "\(expectedOrder[$0])" : "none")" } ?? ": \(sorted.count) entries") + "." + icuNote)
+        var position: [HelpKeywordIndex.Entry: Int] = [:]
+        for (offset, entry) in index.entries.enumerated() { position[entry] = offset }
+        differences = []
+        for row in queries {
+            guard let text = units(row[0]), let count = row[1] as? Int, count >= 0 else { throw malformed("keyword filter",row) }
+            // The hits themselves are recorded for short answers, and for the rest the count.
+            var expected: [Int]?
+            if count <= listed {
+                guard row.count == 3, let hits = row[2] as? [Int], hits.count == count else { throw malformed("keyword filter",row) }
+                expected = hits
+            } else if row.count != 2 { throw malformed("keyword filter",row) }
+            let query = String(decoding:text,as:UTF16.self), hits = index.filteredRows(query).map { position[$0.entry]! }
+            if hits.count != count || expected.map({ $0 != hits }) == true {
+                differences.append("\(shown(query)): .NET \(expected.map { "\($0)" } ?? "\(count) hits"), Mac \(expected == nil ? "\(hits.count) hits" : "\(hits)")")
+            }
+        }
+        try agree(differences,of:queries.count,"keyword filter",icuDependent:true)
+        summary.append("the order of \(map.count) shuffled entries and \(queries.count) filter queries")
+        #endif
+        print(".NET 10 answers (recorded with \(recorded); this Mac: \(thisMac)) agree: " + summary.joined(separator:", "))
+    }
     static func main() {
-        do { try run(); print("PASS: \(checks) help keyword index model checks") }
+        do { try run(); try dotNetAnswers(); print("PASS: \(checks) help keyword index model checks") }
         catch { print("FAIL: \(error.localizedDescription)"); exit(1) }
     }
 }

@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "format": "statsdirect-builtin-tutor-import",
   "repository": "https://github.com/iain-buchan/statisticalhelp",
-  "commit": "7101cea6398785276196e7ce2b7aebf005738361",
+  "commit": "d59e49f1c3517be606fec3ef9b71abdfe436a1f3",
   "source": "Published/Tutor",
   "publisher": "StatsDirectHelpEditor",
   "producerSchemaVersion": 1,
-  "producerManifestSHA256": "ec8a4d7363a7d04a43028442292b4f7d31465a84d54ee351af9f67f8cf260629",
+  "producerManifestSHA256": "8b359a37bb9353e60cf7c664c141facf1f0ef4c5b3be4da4be5f30697dadf62d",
   "sourceCourseId": "statsdirect-health-foundations",
   "sourceCourseVersion": "2026-11-03-draft",
   "bankVersion": "learn-draft-2026-10-01",
@@ -14,16 +14,16 @@
   "reviewWarningCount": 47,
   "sha256": {
     "Content/Learn/lessons.json": "3615029651633d6bc5dac0a964d7c983abc967e88b3628e0ce103e860fe6efb0",
-    "Content/learning-source-manifest.json": "31a2300ab62e83558c009d1774fbf3a3087667f142132be2d1bda20af24cf40b",
+    "Content/learning-source-manifest.json": "748b5e2c4e95a97e94b400daca13954b98b25055a7b1860d0f9cdfafbe15fa1c",
     "Learn/AuthoredTutor/README.md": "d1882f2adea41402cb0e661534eb8b4be05752ec60b9f5e3fe6598d2532e87b4",
     "Learn/AuthoredTutor/bank.mjs": "6cf616442f5b385929f9ef087b9dec0341c501a5c7817542d8881a61cf67ca1a",
     "Learn/AuthoredTutor/lessons.json": "3615029651633d6bc5dac0a964d7c983abc967e88b3628e0ce103e860fe6efb0",
-    "Learn/AuthoredTutor/manifest.json": "ec8a4d7363a7d04a43028442292b4f7d31465a84d54ee351af9f67f8cf260629",
+    "Learn/AuthoredTutor/manifest.json": "8b359a37bb9353e60cf7c664c141facf1f0ef4c5b3be4da4be5f30697dadf62d",
     "Learn/AuthoredTutor/questions.json": "1c2bc360afbd28c7bc45a5b5d8f93c5f480b71dd6e251fd317cc45ff58f4c4ad",
     "Learn/AuthoredTutor/tracks.json": "4d55754bb0de19338402aca455546d77dad4c09eb7edefff70478d342c88bdd2",
     "Learn/lessons.json": "3615029651633d6bc5dac0a964d7c983abc967e88b3628e0ce103e860fe6efb0"
   },
-  "publicationManifestSHA256": "31a2300ab62e83558c009d1774fbf3a3087667f142132be2d1bda20af24cf40b",
+  "publicationManifestSHA256": "748b5e2c4e95a97e94b400daca13954b98b25055a7b1860d0f9cdfafbe15fa1c",
   "publicationManifestPath": "Published/content-manifest.json",
   "publicationTutorReviewProofBinding": "authoring-source-before-generated-sync-v1"
 }

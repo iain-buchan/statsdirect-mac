@@ -60,7 +60,7 @@ rsync -a --delete Content/ "$TEST_APP/Contents/Resources/Content/"
 if [[ -n "$PRIVATE_HELP" ]]; then
   rsync -a --delete "$PRIVATE_HELP/" "$TEST_APP/Contents/Resources/Content/Help/"
 fi
-# The pinned publication (7101cea6) carries the reader's Escape fix, so its Escape checks run on every run, CI included.
+# The pinned publication (d59e49f1, as every one since 7101cea6) carries the reader's Escape fix, so its Escape checks run on every run, CI included.
 TEST_ARGUMENTS+=(--check-reader-escape)
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.statsdirect.viewer.helptest.${TEST_WORK##*.}" "$TEST_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName StatsDirect Help Pane Test' "$TEST_APP/Contents/Info.plist"

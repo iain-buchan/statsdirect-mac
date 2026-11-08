@@ -1,8 +1,10 @@
 """Focused 5.3.5 regressions through the Mac operation host, with base-R oracles.
 
 Fixtures mirror the verified upstream PairwiseDifferencesChecks,
-MixedSelectionChecks and LogisticStackingChecks at 3de5558. They exercise actual
-worksheet answers and follow-on operations rather than calling builtins directly.
+MixedSelectionChecks and LogisticStackingChecks at 3de5558. The alignment
+records follow 5.3.6 (506cb4bf), whose run record leaves out a selection's tail
+rows blank in every frame (RunRecord.KeptRows). They exercise actual worksheet
+answers and follow-on operations rather than calling builtins directly.
 """
 from html.parser import HTMLParser
 import hashlib
@@ -335,6 +337,10 @@ def alignment_record_checks(session):
     # then padded at the tail: it silently changed the mean from -52 to -50.
     x = [None] + list(range(2, 101)) + [None]
     y = [2 * i + i % 3 for i in range(1, 101)] + [None]
+    # Since 5.3.6 (RunRecord.KeptRows) the record keeps the selected rows up to the last one holding a value in any column: the
+    # 101st row, blank in both columns, is not data and is left out of the pointers, their hashes and the held values, while the
+    # leading blank of x stays; a reread brings back exactly the recorded rows.
+    kept_x, kept_y = x[:100], y[:100]
     source = recorded_worksheet(['Before', 'After'], [x, y])
     paired = session.run('TPaired', {'data': source, 'doAgreement': False}, PREFERENCES)
     assert paired['values']['n'] == 99 and paired['values']['df'] == 98, paired['values']
@@ -342,8 +348,9 @@ def alignment_record_checks(session):
     record = json.loads(paired['record'])
     acquired = next(item for item in record['inputs'] if item['name'] == 'data')
     assert acquired['kind'] == 'frame' and acquired['mode'] == 'NumericPreserveRows', acquired
-    assert [c['hash'] for c in acquired['columns']] == [value_hash(x), value_hash(y)], acquired
-    assert [c['rows'] for c in acquired['columns']] == [[1, 102], [1, 102]], acquired
+    assert [c['hash'] for c in acquired['columns']] == [value_hash(kept_x), value_hash(kept_y)], acquired
+    assert [c['rows'] for c in acquired['columns']] == [[1, 101], [1, 101]], acquired
+    assert [record['data']['data'][title] for title in ('Before', 'After')] == [kept_x, kept_y], record['data']
 
     # Clear only the optional small-data cache to take the real pointer-only
     # path, exactly as a large saved run does, without a large statistical fit.
@@ -363,11 +370,11 @@ def alignment_record_checks(session):
     try:
         for mode in ('NumericPreserveRows', '108'):
             acquired['mode'] = mode
-            script = write(record, [{'name': 'data', 'columns': source['columns']}])
+            script = write(record, [{'name': 'data', 'columns': [{'title': c['title'], 'values': c['values'][:100]} for c in source['columns']]}])
             assert script['asked'] == ['data'], script
-            assert r_vector(script['text'], 'before') == x, script['text']
-            assert r_vector(script['text'], 'after') == y, script['text']
-        print('PASS: paired inputs align without preserveRows; numeric origins persist as mode 108 and named/numeric pointer rereads retain all 101 rows and missing edges', flush=True)
+            assert r_vector(script['text'], 'before') == kept_x, script['text']
+            assert r_vector(script['text'], 'after') == kept_y, script['text']
+        print('PASS: paired inputs align without preserveRows; numeric origins persist as mode 108 and named/numeric pointer rereads retain the 100 recorded rows and the leading blank, the wholly blank 101st row left out of the record (5.3.6)', flush=True)
 
         # Ten matched pairs, five case-only exposures and one control-only:
         # finite conditional logistic estimate log(5), plus a wholly blank tail.
@@ -389,20 +396,21 @@ def alignment_record_checks(session):
         conditional_record = json.loads(conditional['record'])
         strata = next(item for item in conditional_record['inputs'] if item['name'] == 'stratum')
         assert strata['kind'] == 'frame' and strata['mode'] == 'CategoryCombineAllColumns', strata
-        assert strata['columns'][0]['rows'] == [1, 22], strata
-        assert strata['columns'][0]['hash'] == value_hash(stratum), strata
+        # the wholly blank 21st row is not data: left out of every frame's pointers and hashes alike (5.3.6), the same 20 rows for all three
+        assert strata['columns'][0]['rows'] == [1, 21], strata
+        assert strata['columns'][0]['hash'] == value_hash(stratum[:20]), strata
         numeric = next(item for item in conditional_record['inputs'] if item['name'] == 'predictors')
         assert numeric['kind'] == 'frame' and numeric['mode'] == 'NumericPreserveRows', numeric
-        assert numeric['columns'][0]['hash'] == value_hash(exposure), numeric
+        assert numeric['columns'][0]['rows'] == [1, 21] and numeric['columns'][0]['hash'] == value_hash(exposure[:20]), numeric
         conditional_record.pop('data', None)
-        frames = [{'name': name, 'columns': answers[name]['columns']}
+        frames = [{'name': name, 'columns': [{'title': c['title'], 'values': c['values'][:20]} for c in answers[name]['columns']]}
                   for name in ('stratum', 'case-control', 'predictors')]
         script = write(conditional_record, frames)
         assert script['asked'] == ['stratum', 'case-control', 'predictors'], script
-        assert r_vector(script['text'], 'stratum') == [str(v) if v is not None else None for v in stratum], script['text']
-        assert r_vector(script['text'], 'case') == case, script['text']
-        assert re.search(r'"Exposure" = c\([^)]*, NA\)', script['text']), script['text']
-        print('PASS: aligned conditional-logistic stratum records mode 5 and retains its 21st missing row through hash-checked R-pointer reread', flush=True)
+        assert r_vector(script['text'], 'stratum') == [str(v) for v in stratum[:20]], script['text']
+        assert r_vector(script['text'], 'case') == case[:20], script['text']
+        assert re.search(r'"Exposure" = c\([^)]*\)', script['text']) and not re.search(r'"Exposure" = c\([^)]*, NA\)', script['text']), script['text']
+        print('PASS: aligned conditional-logistic stratum records mode 5; its wholly blank 21st row is left out of the record (5.3.6) and the hash-checked R-pointer reread brings the 20 recorded rows', flush=True)
     finally:
         writer.stdin.close()
         writer.wait()

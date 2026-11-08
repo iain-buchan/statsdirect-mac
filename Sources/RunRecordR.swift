@@ -172,8 +172,11 @@ enum RunRecordR {
                         guard let column = item as? [String: Any] else { return nil }
                         if let c = column["column"], !(c is NSNull) { guard let n = integer(c), (1...maxColumn).contains(n) else { return nil } }
                         if let r = column["rows"], !(r is NSNull) {
+                            // A held frame may also record no rows at all, [first, first - 1]: since 5.3.6 the writer keeps a run's frames up
+                            // to the last row holding a value in any of them, so a selection blank in every row and not under a title keeps
+                            // none. Windows's readers take that range; its values are the held ones, never read again by the pointers.
                             guard let rows = r as? [Any], rows.count == 2, let a = integer(rows[0]), let b = integer(rows[1]), a >= 1, a <= maxRow,
-                                  (a <= b && b <= maxRow) || (held && b < 0) else { return nil }
+                                  (a <= b && b <= maxRow) || (held && (b < 0 || b == a - 1)) else { return nil }
                         }
                         if let h = column["hash"], !(h is NSNull) {
                             guard let hash = h as? String, hash.count == 16, hash.unicodeScalars.allSatisfy({ ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x61 && $0.value <= 0x66) }) else { return nil }

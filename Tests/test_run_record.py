@@ -239,6 +239,32 @@ check(script['text'].startswith('# Paired Student t test, from StatsDirect, '), 
 script = rs.write(entered_record, None, [])
 check(script['hasRecipe'] and '# Data:' not in script['text'] and 'before <- c(190, 220, 260, 210' in script['text'] and '   # 1st\n' in script['text'] and 'confidence <- 0.95\n' in script['text'],
       'an entered frame gets no Data line and its columns carry the title alone')
+# --- the trailing blank rows of a whole-column selection, as tests/RScript/TrailingBlankRows.cs checks on Windows (5.3.6): a column selected
+# whole on a sheet whose other columns are longer brings blank rows below its data; the record keeps each column up to the last value in any
+# of them, so the script's vectors are the data and the recipe's own lines agree with the report; interior missing values stay, keeping the pairs aligned
+pefr_before = [312, 242, 340, 388, 296, 254, 391, 402, 290]; pefr_after = [300, 201, 232, 312, 220, 256, 328, 330, 231]
+whole_column = lambda values: values + [''] * (298 - len(values))   # the 298 data rows a whole-column selection took in, below the title row, on a sheet used to row 299
+result = s.run('TPaired', {'data': sheet_answer(2, 'Parametric', [0, 1], 2, 299, ['PEFR Before', 'PEFR After'], [whole_column(pefr_before), whole_column(pefr_after)]), 'gamma': 95, 'doAgreement': True})
+trimmed = json.loads(result['record']); tc = trimmed['inputs'][0]['columns']; th = trimmed['data']['data']
+check(tc[0]['rows'] == [1, 10] and tc[1]['rows'] == [1, 10] and tc[0]['hash'] == defined_hash(str(v) for v in pefr_before) and tc[1]['hash'] == defined_hash(str(v) for v in pefr_after),
+      'a whole-column selection\'s record ends each column\'s row range at the last value in any column, after the title row, with the hashes of the kept values')
+check(len(th['PEFR Before']) == 9 and len(th['PEFR After']) == 9 and th['PEFR After'][8] == 231, 'the values held with the record stop at the last value in any column')
+script = rs.write(result['record'], None, [])
+check(script['hasRecipe'] and 'rows 1 to 10' in script['text'] and ', NA' not in script['text'] and script['asked'] == [], 'the script\'s data block names rows 1 to 10 and carries no NA padding')
+output = run_r(script['text'] + '\nstopifnot(length(before) == 9L, length(after) == 9L)\ncat("TRAILING BLANK ROWS VERIFIED\\n")\n')
+check('Mean of differences = 56.111111  (n = 9)' in output and 'Power (for 5% significance) = 98.98%' in output and '95% Limits of agreement = -10.868665 to 123.090887' in output
+      and '= NA' not in output and 'Error' not in output and 'TRAILING BLANK ROWS VERIFIED' in output, 'the paired t recipe reproduces the report from the kept rows, with its agreement plot and no NA lines')
+result = s.run('TPaired', {'data': sheet_answer(2, 'Parametric', [0, 1], 2, 8, ['x', 'y'], [['1', '2', '', '4', '5', '', ''], ['2', '4', '6', '8', '', '12', '']]), 'gamma': 95, 'doAgreement': False})
+ragged = json.loads(result['record']); rh = ragged['data']['data']
+check(rh['x'] == [1, 2, None, 4, 5, None] and rh['y'] == [2, 4, 6, 8, None, 12] and ragged['inputs'][0]['columns'][0]['rows'] == [1, 7],
+      'interior missing values and a column\'s blank within the kept rows stay, so the pairs keep their alignment')
+# a selection blank in every row keeps none of them: one not under a title records no rows, [3, 2], with empty held values (the shape
+# Tests/report-notebook-import-checks.swift has the Mac's record reader accept, as Windows's readers do), and its script has empty vectors
+result = s.run('TPaired', {'data': sheet_answer(2, 'Parametric', [0, 1], 3, 22, ['a', 'b'], [[''] * 20, [''] * 20]), 'gamma': 95, 'doAgreement': False})
+blank_record = json.loads(result['record']); blank_columns = blank_record['inputs'][0]['columns']
+check([c['rows'] for c in blank_columns] == [[3, 2], [3, 2]] and not any(c['hasTitle'] for c in blank_columns) and all(c['hash'] == defined_hash([]) for c in blank_columns)
+      and blank_record['data']['data'] == {'a': [], 'b': []} and 'before <- numeric(0)   # a, column 1, rows 3 to 2' in rs.write(result['record'], None, [])['text'],
+      'a selection blank in every row, not under a title, records no rows ([3, 2]) with empty held values and empty vectors in its script')
 # the large run: the values are read again by the pointers; the hash comparison through ReadFrame under the recorded mode
 same = [{'name': 'data', 'columns': [{'title': 'x', 'values': [str(v) for v in x], 'kinds': ['number'] * 2600}, {'title': 'y', 'values': [str(v) for v in y], 'kinds': ['number'] * 2600}]}]
 script = rs.write(big_record, None, same)

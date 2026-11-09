@@ -3,6 +3,14 @@
 # data: aspirin, aspirin_deaths, control, control_deaths, study
 # settings: confidence = gamma, exact_meta = metaExact
 
+# Keep only studies with all inputs needed for this analysis.
+keep <- complete.cases(aspirin, aspirin_deaths, control, control_deaths)
+if (any(!keep)) cat("(", sum(!keep), " other rows not used)\n", sep = "")
+aspirin <- aspirin[keep]
+aspirin_deaths <- aspirin_deaths[keep]
+control <- control[keep]
+control_deaths <- control_deaths[keep]
+study <- study[keep]
 if (is.null(study)) study <- paste("Trial", seq_along(aspirin))
 # Peto odds ratio meta-analysis: the StatsDirect help example (Fleiss 1993, deaths after
 # heart attack in seven trials of aspirin; the test workbook's Meta-analysis worksheet

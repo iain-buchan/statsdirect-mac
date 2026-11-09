@@ -1,7 +1,17 @@
 # StatsDirect recipe: Mantel-Haenszel analysis of a series of 2 by 2 tables, as the help shows it in R.
 # From the help's R code (meta_analysis/mh.htm); the data and settings above come from the run.
-# data: smokers = sn, smokers_cancer = sr, nonsmokers = xn, nonsmokers_cancer = xr
-# settings: confidence = gamma
+# data: smokers = sn, smokers_cancer = sr, nonsmokers = xn, nonsmokers_cancer = xr, strata = strata
+# settings: confidence = gamma, exact_meta = metaExact
+
+# Keep only studies with all inputs needed for this analysis.
+keep <- complete.cases(smokers, smokers_cancer, nonsmokers, nonsmokers_cancer)
+if (any(!keep)) cat("(", sum(!keep), " other rows not used)\n", sep = "")
+smokers <- smokers[keep]
+smokers_cancer <- smokers_cancer[keep]
+nonsmokers <- nonsmokers[keep]
+nonsmokers_cancer <- nonsmokers_cancer[keep]
+strata <- strata[keep]
+if (is.null(strata)) strata <- paste("stratum", seq_along(smokers))
 
 # Odds ratio meta-analysis (Mantel-Haenszel and exact): the StatsDirect help example
 # (Armitage and Berry 1994, smoking among lung cancer patients and controls in ten
@@ -28,6 +38,9 @@ tables <- array(rbind(a, b, c, d), dim = c(2, 2, k),
 # interval, and the Mantel-Haenszel chi-square with the continuity correction
 # (correct = TRUE is the default)
 r <- mantelhaen.test(tables, conf.level = confidence)
+
+# Older records without a stored method used exact limits.
+if (is.null(exact_meta)) exact_meta <- TRUE
 
 # The exact block below uses tighter root tolerances than R's standard exact test,
 # and adds mid-P limits and P values, so it is calculated separately.
@@ -98,19 +111,25 @@ exact_limits <- function(dist, s, level = 0.95, half = FALSE) {
   c(lower, upper)
 }
 
-# Each study's odds ratio with its exact (conditional maximum likelihood) limits,
-# as fisher.test would give them, but to a tight tolerance. The report gives the odds
-# ratio of a table with an empty cell after a continuity correction, and the exact
-# limits of the table as it is; no table has an empty cell here
+# Each study's odds ratio and selected confidence interval.
 or <- a * d / (b * c)
-lci <- numeric(k)
-uci <- numeric(k)
-for (i in 1:k) {
-  lim <- exact_limits(conditional(a[i], b[i], c[i], d[i]), a[i], level = confidence)
-  lci[i] <- lim[1]
-  uci[i] <- lim[2]
+v_woolf <- 1 / a + 1 / b + 1 / c + 1 / d
+if (isTRUE(exact_meta)) {
+  # Exact conditional limits use the study table as entered.
+  limits <- vapply(seq_len(k), function(i) {
+    exact_limits(conditional(a[i], b[i], c[i], d[i]), a[i], level = confidence)
+  }, numeric(2))
+  lci <- limits[1, ]
+  uci <- limits[2, ]
+  study_method <- "CML"
+} else {
+  # Woolf limits use the usual log-odds-ratio standard error.
+  margin <- z * sqrt(v_woolf)
+  lci <- exp(log(or) - margin)
+  uci <- exp(log(or) + margin)
+  study_method <- "logit"
 }
-cat("Stratum, odds ratio,", pct, "CI (CML)\n")
+cat("Stratum, odds ratio, ", pct, " CI (", study_method, ")\n", sep = "")
 for (i in 1:k) {
   cat(i, six(or[i]), six(lci[i]), six(uci[i]), "\n")
 }
@@ -138,7 +157,6 @@ v_ea <- 1 / (1 / ea + 1 / (cases - ea) + 1 / (exposed - ea) +
                1 / (controls - exposed + ea))
 bd <- sum((a - ea)^2 / v_ea)
 yi <- log(or)
-v_woolf <- 1 / a + 1 / b + 1 / c + 1 / d
 w <- 1 / v_woolf
 q <- sum(w * (yi - log(or_mh))^2)
 
@@ -167,42 +185,29 @@ cat("Chi2 (test odds ratio differs from 1) =", six(x2), " ", pv(r$p.value), "\n"
 # The pooled exact analysis: the conditional maximum likelihood estimate, the exact
 # Fisher and mid-P limits, and the P values at odds ratio 1 (the Fisher two sided P
 # sums the probabilities of totals no more probable than the one observed)
-all <- conditional(a, b, c, d)
-s <- sum(a)
-cml <- cond_solve(all, 0, s)
-fisher <- exact_limits(all, s, level = confidence)
-midp <- exact_limits(all, s, level = confidence, half = TRUE)
-p_upper <- cond_p(all, 1, all$support >= s)
-p_lower <- cond_p(all, 1, all$support <= s)
-p_at_s <- cond_p(all, 1, all$support == s)
-w1 <- exp(all$logc - max(all$logc))
-p2_fisher <- sum(w1[w1 <= w1[all$support == s]]) / sum(w1)
-p1_mid <- min(p_upper - p_at_s / 2, 1 - (p_upper - p_at_s / 2))
-cat("Fixed effects (conditional maximum likelihood)\n")
-cat("Pooled odds ratio =", six(cml), "\n")
-cat("Exact Fisher", pct, "CI =", six(fisher[1]), "to", six(fisher[2]), "\n")
-cat("Exact Fisher one sided ", pv(min(p_upper, p_lower)), ", two sided ",
-    pv(p2_fisher), "\n", sep = "")
-cat("Exact mid-P", pct, "CI =", six(midp[1]), "to", six(midp[2]), "\n")
-cat("Exact mid-P one sided ", pv(p1_mid), ", two sided ", pv(min(1, 2 * p1_mid)),
-    "\n", sep = "")
-
-# I-squared is 100 (Q - df) / Q, not below zero. Its interval is the non-central
-# chi-square method of Hedges and Pigott (2001) that the report uses: Q is treated
-# as a non-central chi-square variable on df degrees of freedom, and each limit is
-# the non-centrality parameter at which the observed Q sits at the 97.5th (lower
-# limit) or the 2.5th (upper limit) percentile, found with uniroot and pchisq; a
-# limit is 0 when the central distribution already puts Q below that percentile.
-# A non-centrality lambda gives I-squared = lambda / (df + lambda)
-df <- k - 1
-isq <- max(0, 100 * (q - df) / q)
-ncp_limit <- function(p) {
-  if (pchisq(q, df) <= p) return(0)
-  # the bracket Q + 1000 is ample: the distribution function there is near 0
-  uniroot(function(l) pchisq(q, df, ncp = l) - p, c(0, q + 1000), tol = 1e-10)$root
+if (isTRUE(exact_meta)) {
+  all <- conditional(a, b, c, d)
+  s <- sum(a)
+  cml <- cond_solve(all, 0, s)
+  fisher <- exact_limits(all, s, level = confidence)
+  midp <- exact_limits(all, s, level = confidence, half = TRUE)
+  p_upper <- cond_p(all, 1, all$support >= s)
+  p_lower <- cond_p(all, 1, all$support <= s)
+  p_at_s <- cond_p(all, 1, all$support == s)
+  w1 <- exp(all$logc - max(all$logc))
+  p2_fisher <- sum(w1[w1 <= w1[all$support == s]]) / sum(w1)
+  p1_mid <- min(p_upper - p_at_s / 2, 1 - (p_upper - p_at_s / 2))
+  cat("Fixed effects (conditional maximum likelihood)\n")
+  cat("Pooled odds ratio =", six(cml), "\n")
+  cat("Exact Fisher", pct, "CI =", six(fisher[1]), "to", six(fisher[2]), "\n")
+  cat("Exact Fisher one sided ", pv(min(p_upper, p_lower)), ", two sided ",
+      pv(p2_fisher), "\n", sep = "")
+  cat("Exact mid-P", pct, "CI =", six(midp[1]), "to", six(midp[2]), "\n")
+  cat("Exact mid-P one sided ", pv(p1_mid), ", two sided ", pv(min(1, 2 * p1_mid)),
+      "\n", sep = "")
 }
-lambda <- c(ncp_limit((1 + confidence) / 2), ncp_limit((1 - confidence) / 2))
-i2_ci <- 100 * lambda / (df + lambda)
+
+df <- k - 1
 one <- function(x) formatC(x, digits = 1, format = "f", drop0trailing = TRUE)
 cat("Non-combinability of studies\n")
 cat("Breslow-Day = ", six(bd), "  (df = ", df, ")  ",
@@ -210,8 +215,37 @@ cat("Breslow-Day = ", six(bd), "  (df = ", df, ")  ",
 cat("Cochran Q = ", six(q), "  (df = ", df, ")  ",
     pv(pchisq(q, df, lower.tail = FALSE)), "\n", sep = "")
 cat("Moment-based estimate of between studies variance =", six(tau2), "\n")
-cat("I2 (inconsistency) = ", one(isq), "% (", pct, "CI = ", one(i2_ci[1]), "% to ",
-    one(i2_ci[2]), "%)\n", sep = "")
+# I-squared interval: recorded exact/test-based choice.
+df_i2 <- k - 1
+i2 <- if (k < 2) NA_real_ else if (q == 0) 0 else max(0, 100 * (q - df_i2) / q)
+i2_ci <- rep(NA_real_, 2)
+if (k >= 2 && confidence > 0 && confidence < 1) {
+  if (isTRUE(exact_meta)) {
+    # Invert the non-central chi-square CDF (Hedges & Pigott, 2001).
+    lambda <- function(p) {
+      if (pchisq(q, df_i2) <= p) 0 else
+        uniroot(function(l) pchisq(q, df_i2, ncp = l) - p,
+                c(0, 10 * q + 100), tol = 1e-10)$root
+    }
+    lim <- c(lambda((1 + confidence) / 2), lambda((1 - confidence) / 2))
+    i2_ci <- 100 * lim / (df_i2 + lim)
+  } else if (k >= 3) {
+    # Test-based log(H) interval (Higgins & Thompson, 2002), as in
+    # StatsDirect's MIT Meta.IsquareNcc. H is at least one.
+    h2 <- max(1, q / df_i2)
+    se_log_h <- if (q > k) 0.5 * (log(q) - log(df_i2)) /
+      (sqrt(2 * q) - sqrt(2 * k - 3)) else
+      sqrt((1 - 1 / (3 * (k - 2)^2)) / (2 * (k - 2)))
+    h_limits <- exp(log(sqrt(h2)) + c(-1, 1) * z * se_log_h)
+    h_limits[1] <- max(1, h_limits[1])
+    i2_ci <- 100 * (1 - 1 / h_limits^2)
+  }
+}
+if (k < 2) cat("I2 not calculated: at least two studies are required.\n") else if (anyNA(i2_ci))
+  cat("I2 (inconsistency) =", one(i2), "% (interval unavailable for this number of studies and confidence level)\n") else
+  cat("I2 (inconsistency) = ", one(i2), "% (", pct, "CI = ",
+      one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")
+# End of I-squared interval.
 
 re_ci <- exp(log(or_re) + c(-1, 1) * z / sqrt(sum(w_re)))
 cat("Random effects (DerSimonian-Laird)\n")
@@ -274,7 +308,7 @@ x0 <- seq(0, 1, 0.01)
 lines(100 * x0, 100 * or_mh * x0 / (1 + (or_mh - 1) * x0), lty = 2)
 
 # The two forest plots: each study's odds ratio (the symbol area proportional to
-# its weight) with its exact interval on a log scale, the line of no effect at 1,
+# its weight) with its selected interval on a log scale, the line of no effect at 1,
 # and the pooled estimate as a diamond at the foot with a dashed line up from it
 forest <- function(pooled, lower, upper, weights, main, label) {
   y <- (k + 1):2
@@ -288,7 +322,7 @@ forest <- function(pooled, lower, upper, weights, main, label) {
   segments(lci, y, uci, y)
   points(or, y, pch = 15, cex = 0.5 + 2 * sqrt(weights / max(weights)))
   polygon(c(lower, pooled, upper, pooled), c(1, 1.3, 1, 0.7), col = "grey")
-  axis(2, at = c(y, 1), labels = c(paste("stratum", 1:k), label), las = 1,
+  axis(2, at = c(y, 1), labels = c(strata, label), las = 1,
        tick = FALSE)
   axis(4, at = c(y, 1), tick = FALSE, las = 1,
        labels = paste0(two(c(or, pooled)), " (", two(c(lci, lower)), ", ",

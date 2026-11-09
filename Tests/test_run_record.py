@@ -121,8 +121,8 @@ for op, entry in manifest.items():
     if confidence_owner:
         owner = (ROOT / 'FullEngine/publish/Operations' / (confidence_owner + '.xml')).read_text()
         parameters |= {m.strip() for m in re.findall(r'<confidence-interval>.*?<name>([^<]+)</name>.*?</confidence-interval>', owner, re.S)}
-    if entry['file'] in ('relative-risk-meta.R', 'meta-summary.R', 'risk-difference.R', 'peto-meta.R'):
-        parameters.add('metaExact')   # captured once by each native meta-analysis report, then retained for replay (5.3.7)
+    if entry['file'] in ('relative-risk-meta.R', 'meta-summary.R', 'risk-difference.R', 'peto-meta.R', 'mantel.R', 'effect.R', 'meta-correlation.R', 'proportion-meta.R'):
+        parameters.add('metaExact')   # captured once by each native meta-analysis report, then retained for replay (5.3.7; the last four 5.3.8)
     settings = re.search(r'^# settings:\s*(.*)$', text, re.M)
     if settings:
         for item in [x.strip() for x in settings.group(1).split(',') if '=' in x]:
@@ -655,8 +655,10 @@ def record_of(example):
 # contain the actual S and confidence-limit columns supplied to the plot form.
 REAL_RUN_COLUMNS = {'Chi2byNWithTrend': {'data': [{'title': 'score', 'values': [1, 2, 3]}]}}
 # settings a form asks for that the example leaves to the help's layout: the number of groups or repeats whose frames it then asks for one by one
-# The help's paired example shows the agreement analysis, which the 5.3.7 recipe prints only when the run asked for it (doAgreement).
-REAL_RUN_SETTINGS = {'SurvivalPlot': {'group-count': 2}, 'WeiLachin': {'nr': 4}, 'PoissonRegression': {'has-exposure': 'true'}, 'TPaired': {'doAgreement': True}}
+# The help's paired example shows the agreement analysis, which the 5.3.7 recipe prints only when the run asked for it (doAgreement); the
+# Mantel-Haenszel screen's example shows the exact limits, which the 5.3.8 recipe takes from the run's own choice (try_exact, which has no default).
+REAL_RUN_SETTINGS = {'SurvivalPlot': {'group-count': 2}, 'WeiLachin': {'nr': 4}, 'PoissonRegression': {'has-exposure': 'true'}, 'TPaired': {'doAgreement': True},
+                     'MantelHaenszelScreen': {'try_exact': True}}
 def run_example(session, example, parent=None, keep=False, extra=None, preferences=None):
     """Answers the operation's prompts from the example: frames by the name the operation asks them by, else the example's columns in order (one
     at a time to a single-column prompt, the rest to a wider one), a screen-typed 2 by 2 from its cell settings, the Distributions calculator's

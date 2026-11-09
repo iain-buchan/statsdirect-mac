@@ -25,7 +25,7 @@ print(wilcox.test(nz, exact = length(nz) <= 200, correct = FALSE))
 r <- rank(abs(nz))                        # tied values share a mid-rank
 Tplus <- sum(r[nz > 0])
 cat("Number of non-zero differences ranked =", length(nz), "\n")
-cat("Sum of ranks for positive differences =", Tplus, "\n")
+cat("Sum of ranks for positive differences =", format(Tplus, digits = 15, scientific = FALSE), "\n")
 
 if (length(nz) <= 200) {
   # Exact sign assignments, allowing ties: double the mid-ranks to make integers.
@@ -62,7 +62,7 @@ if (length(nz) >= 4 && K > 0) {
   coverage <- if (n <= 1000) 1 - 2 * psignrank(K - 1, n) else confidence
   cat(sprintf("%s%.1f%% confidence interval for difference between population medians:\n",
               if (n > 1000) "Approximate " else "", 100 * coverage))
-  cat(sprintf("K = %g%s   Median difference = %g (%g to %g)\n",
+  cat(sprintf("K = %.0f%s   Median difference = %g (%g to %g)\n",
               K, if (n >= 200) " (approx)" else "", median(a), a[K], rev(a)[K]))
 } else {
   reason <- if (length(nz) < 4) "fewer than four non-zero differences" else "too few pairs at this confidence level"

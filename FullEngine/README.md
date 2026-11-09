@@ -1,6 +1,6 @@
 # Full headless calculation engine
 
-This project compiles the StatsDirect 5.1.0 calculation source, rather than extracting a single procedure. `Upstream` is a Git submodule of [iain-buchan/statsdirect](https://github.com/iain-buchan/statsdirect), tracking its primary **main** branch for explicit updates and pinned to the tested commit recorded in `upstream-manifest.json`. The project compiles the calculation source directly from that checkout: all Builtins (apart from the dialog-dependent ImportExport implementation), Numerics, Data, Templates, expression parsers, template processing, chart definitions/renderers, utilities, configuration, CSV and R support. All 284 operation definitions and their report templates are included. Numerical algorithms are unchanged.
+This project compiles the StatsDirect calculation source (its version and commit are in `Content/engine-info.json`), rather than extracting a single procedure. `Upstream` is a Git submodule of [iain-buchan/statsdirect](https://github.com/iain-buchan/statsdirect), tracking its primary **main** branch for explicit updates and pinned to the tested commit recorded in `upstream-manifest.json`. The project compiles the calculation source directly from that checkout: all Builtins (apart from the dialog-dependent ImportExport implementation), Numerics, Data, Templates, expression parsers, template processing, chart definitions/renderers, utilities, configuration, CSV and R support. All 284 operation definitions and their report templates are included. Numerical algorithms are unchanged.
 
 The original `OperationTestHost` and `OperationsTester` are compiled unchanged. This source revision contains **two populated operation tests**, covering paired t and exact sign, plus one empty test. Both populated tests pass, checking 26 expected outputs in total. Loading 284 definitions does not mean all 284 procedures have been exercised.
 
@@ -35,7 +35,7 @@ These are hosting/rendering boundaries, not numerical rewrites. Do not interpret
 
 Run `../build.sh` to compile, run the original operation and upstream distribution tests, and package the app. Requirements: Apple Silicon Mac, Xcode command line tools, Python 3 and the .NET 10 SDK. Alternatively, `../docker-build.sh` supplies the SDK in Docker. R is only required for the additional comparison suite: run `../test.sh`, or set `STATSDIRECT_RUN_TESTS=1` when building. `RSCRIPT` overrides automatic R discovery. The .NET runtime is bundled with the app, so the resulting app does not require a separate .NET installation.
 
-Missing engine submodules are initialised automatically at the pinned revision. The build verifies the submodule revision and all 866 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build. It also runs the upstream distribution regression suite (1,552 checks in 5.0.14).
+Missing engine submodules are initialised automatically at the pinned revision. The build verifies the submodule revision and all 879 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build. It also runs the upstream distribution regression suite (1,552 checks at 5.3.8).
 
 ## Updating the calculation engine
 

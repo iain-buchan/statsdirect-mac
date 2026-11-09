@@ -23,7 +23,7 @@ sd_terms[names(predictors) == "."] <- "I(`.`)"
 model <- reformulate(c(sd_terms,
                        if (!is.null(stratum)) paste0("strata(", encodeString(sd_own[3], quote = "`"), ")")),
                      response = call("Surv", as.name(sd_own[1]), as.name(sd_own[2])))
-fit <- coxph(model, data = sd_data, ties = "breslow")
+fit <- eval(bquote(coxph(.(model), data = sd_data, ties = "breslow")))
 print(summary(fit, conf.int = confidence))
 
 # The report's lines to 6 places

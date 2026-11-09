@@ -520,7 +520,11 @@
   "PCRCoefficients": {
     "file": "pca.R",
     "detail": "Principal components and scale reliability, as the help shows them in R.",
-    "inherits": "PCRCorrelation"
+    "parentFiles": {
+      "PCRCorrelation": "pca.R",
+      "PCRCovariance": "pca-covariance.R",
+      "PCRCovarianceNoFollowOns": "pca-covariance.R"
+    }
   },
   "PCRCorrelation": {
     "file": "pca.R",

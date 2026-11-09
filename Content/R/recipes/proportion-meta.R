@@ -1,8 +1,14 @@
 # StatsDirect recipe: Proportion meta-analysis, as the help shows it in R.
 # From the help's R code (meta_analysis/proportion.htm); the data and settings above come from the run.
 # data: total, adherent, trial
-# settings: confidence = gamma, method = method
+# settings: confidence = gamma, method = method, exact_meta = metaExact
 
+# Keep only studies with all inputs needed for this analysis.
+keep <- complete.cases(total, adherent)
+if (any(!keep)) cat("(", sum(!keep), " other rows not used)\n", sep = "")
+total <- total[keep]
+adherent <- adherent[keep]
+trial <- trial[keep]
 if (is.null(trial)) trial <- paste("Trial", seq_along(total))
 # Proportion meta-analysis: the StatsDirect help example (adherence with medication in
 # 22 fictitious trials; the test workbook's Meta-analysis worksheet columns Trial,
@@ -60,29 +66,44 @@ cat("Fixed effects (inverse variance)\n")
 cat("Pooled proportion = ", six(inv(xf)), " (", pct, "CI = ", six(inv(xf - z * se_f)),
     " to ", six(inv(xf + z * se_f)), ")\n", sep = "")
 
-# Cochran's Q against chi-square on k - 1 df, the DerSimonian-Laird estimate of the
-# between-studies variance, and I-squared, which is lambda / (df + lambda) for the
-# noncentrality parameter lambda = Q - df, with the confidence interval that StatsDirect
-# gives by default (the noncentral chi-square method of Hedges and Pigott): the lambda
-# at which the observed Q is the 97.5% point of the noncentral chi-square distribution
-# on df degrees of freedom, and the lambda at which it is the 2.5% point, each turned
-# into an I-squared; a limit is 0 when the central distribution already puts Q below
-# that point
 cat("Non-combinability of studies\n")
 cat("Cochran Q = ", six(q), "  (df = ", k - 1, ")  ",
     pv(pchisq(q, k - 1, lower.tail = FALSE)), "\n", sep = "")
 cat("Moment-based estimate of between studies variance =", six(tau2), "\n")
-df <- k - 1
-i2 <- function(lambda) 100 * lambda / (df + lambda)
-lambda_at <- function(prob) {
-  if (pchisq(q, df) < prob) return(0)
-  uniroot(function(l) pchisq(q, df, ncp = l) - prob, c(0, 10 * (q + df)),
-          tol = 1e-10)$root
-}
 one <- function(x) formatC(x, digits = 1, format = "f")
-cat("I2 (inconsistency) = ", one(i2(max(0, q - df))), "% (", pct, "CI = ",
-    one(i2(lambda_at((1 + confidence) / 2))), "% to ",
-    one(i2(lambda_at((1 - confidence) / 2))), "%)\n", sep = "")
+# I-squared interval: recorded exact/test-based choice.
+# Older records have no preference: retain the non-central interval they used.
+if (is.null(exact_meta)) exact_meta <- TRUE
+df_i2 <- k - 1
+i2 <- if (k < 2) NA_real_ else if (q == 0) 0 else max(0, 100 * (q - df_i2) / q)
+i2_ci <- rep(NA_real_, 2)
+if (k >= 2 && confidence > 0 && confidence < 1) {
+  if (isTRUE(exact_meta)) {
+    # Invert the non-central chi-square CDF (Hedges & Pigott, 2001).
+    lambda <- function(p) {
+      if (pchisq(q, df_i2) <= p) 0 else
+        uniroot(function(l) pchisq(q, df_i2, ncp = l) - p,
+                c(0, 10 * q + 100), tol = 1e-10)$root
+    }
+    lim <- c(lambda((1 + confidence) / 2), lambda((1 - confidence) / 2))
+    i2_ci <- 100 * lim / (df_i2 + lim)
+  } else if (k >= 3) {
+    # Test-based log(H) interval (Higgins & Thompson, 2002), as in
+    # StatsDirect's MIT Meta.IsquareNcc. H is at least one.
+    h2 <- max(1, q / df_i2)
+    se_log_h <- if (q > k) 0.5 * (log(q) - log(df_i2)) /
+      (sqrt(2 * q) - sqrt(2 * k - 3)) else
+      sqrt((1 - 1 / (3 * (k - 2)^2)) / (2 * (k - 2)))
+    h_limits <- exp(log(sqrt(h2)) + c(-1, 1) * z * se_log_h)
+    h_limits[1] <- max(1, h_limits[1])
+    i2_ci <- 100 * (1 - 1 / h_limits^2)
+  }
+}
+if (k < 2) cat("I2 not calculated: at least two studies are required.\n") else if (anyNA(i2_ci))
+  cat("I2 (inconsistency) =", one(i2), "% (interval unavailable for this number of studies and confidence level)\n") else
+  cat("I2 (inconsistency) = ", one(i2), "% (", pct, "CI = ",
+      one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")
+# End of I-squared interval.
 
 cat("Random effects (DerSimonian-Laird)\n")
 cat("Pooled proportion = ", six(inv(xr)), " (", pct, "CI = ", six(inv(xr - z * se_r)),

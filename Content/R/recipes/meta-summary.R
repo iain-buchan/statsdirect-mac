@@ -3,6 +3,14 @@
 # data: or = y, lower = ll_y, upper = ul_y, se_in = se_y, study = studies
 # settings: confidence = gamma, type = type, use_ci = use_ci, exact_meta = metaExact
 
+# Keep studies with an estimate and the supplied uncertainty measure.
+keep <- if (!is.null(se_in)) complete.cases(or, se_in) else complete.cases(or, lower, upper)
+if (any(!keep)) cat("(", sum(!keep), " other rows not used)\n", sep = "")
+or <- or[keep]
+se_in <- se_in[keep]
+lower <- lower[keep]
+upper <- upper[keep]
+study <- study[keep]
 if (is.null(study)) study <- paste("Study", seq_along(or))
 # Summary data meta-analysis: the StatsDirect help example (the odds ratio of each of
 # seven trials of aspirin after heart attack, Fleiss 1993, with its 95% confidence

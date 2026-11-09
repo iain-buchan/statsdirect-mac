@@ -3,6 +3,14 @@
 # data: exposed_total, exposed_cases, control_total, control_cases, study
 # settings: confidence = gamma, exact_meta = metaExact
 
+# Keep only studies with all inputs needed for this analysis.
+keep <- complete.cases(exposed_total, exposed_cases, control_total, control_cases)
+if (any(!keep)) cat("(", sum(!keep), " other rows not used)\n", sep = "")
+exposed_total <- exposed_total[keep]
+exposed_cases <- exposed_cases[keep]
+control_total <- control_total[keep]
+control_cases <- control_cases[keep]
+study <- study[keep]
 if (is.null(study)) study <- paste("Study", seq_along(exposed_total))
 # Older records did not save this preference; their R recipe used score intervals.
 if (is.null(exact_meta)) exact_meta <- TRUE

@@ -3,6 +3,14 @@
 # data: n1, a, n2, b, study
 # settings: confidence = gamma, exact_meta = metaExact
 
+# Keep only studies with all inputs needed for this analysis.
+keep <- complete.cases(n1, a, n2, b)
+if (any(!keep)) cat("(", sum(!keep), " other rows not used)\n", sep = "")
+n1 <- n1[keep]
+a <- a[keep]
+n2 <- n2[keep]
+b <- b[keep]
+study <- study[keep]
 if (is.null(study)) study <- paste("Study", seq_along(n1))
 # Older records did not save this preference; their R recipe used score intervals.
 if (is.null(exact_meta)) exact_meta <- TRUE
@@ -35,21 +43,33 @@ rd <- a / n1 - b / n2
 # variances further down (but not for its risk difference or for these limits).
 mn_limits <- function(a, n1, b, n2) {
   N <- n1 + n2
+  est <- a / n1 - b / n2
   score <- function(delta) {
-    L3 <- N
-    L2 <- (n1 + 2 * n2) * delta - N - a - b
-    L1 <- (n2 * delta - N - 2 * b) * delta + a + b
-    L0 <- b * delta * (1 - delta)
-    q <- L2^3 / (3 * L3)^3 - L1 * L2 / (6 * L3^2) + L0 / (2 * L3)
-    p <- sign(q) * sqrt(L2^2 / (3 * L3)^2 - L1 / (3 * L3))
-    p2 <- 2 * p * cos((pi + acos(q / p^3)) / 3) - L2 / (3 * L3)
+    if (delta == est) return(0)
+    if (abs(est) == 1) {
+      # With one arm all successes and the other all failures, the likelihood
+      # derivative has a linear numerator. Use its root within the feasible range.
+      p2 <- if (est > 0) (n1 - n2 * delta) / N else n2 * (1 - delta) / N
+      p2 <- max(0, -delta, min(1, 1 - delta, p2))
+    } else {
+      L3 <- N
+      L2 <- (n1 + 2 * n2) * delta - N - a - b
+      L1 <- (n2 * delta - N - 2 * b) * delta + a + b
+      L0 <- b * delta * (1 - delta)
+      q <- L2^3 / (3 * L3)^3 - L1 * L2 / (6 * L3^2) + L0 / (2 * L3)
+      # At q = 0 the cubic still has a nonzero scale. sign(0) would lose that root.
+      p <- (if (q < 0) -1 else 1) * sqrt(L2^2 / (3 * L3)^2 - L1 / (3 * L3))
+      p2 <- 2 * p * cos((pi + acos(q / p^3)) / 3) - L2 / (3 * L3)
+    }
     p1 <- p2 + delta
     v <- (p1 * (1 - p1) / n1 + p2 * (1 - p2) / n2) * N / (N - 1)
     (a / n1 - b / n2 - delta) / sqrt(v)
   }
-  est <- a / n1 - b / n2
-  c(uniroot(function(x) score(x) - z, c(-1 + 1e-9, est), tol = 1e-12)$root,
-    uniroot(function(x) score(x) + z, c(est, 1 - 1e-9), tol = 1e-12)$root)
+  lower <- if (est <= -1 + 1e-9) -1 else
+    uniroot(function(x) score(x) - z, c(-1 + 1e-9, est), tol = 1e-12)$root
+  upper <- if (est >= 1 - 1e-9) 1 else
+    uniroot(function(x) score(x) + z, c(est, 1 - 1e-9), tol = 1e-12)$root
+  c(lower, upper)
 }
 if (isTRUE(exact_meta)) {
   ci <- t(mapply(mn_limits, a, n1, b, n2))

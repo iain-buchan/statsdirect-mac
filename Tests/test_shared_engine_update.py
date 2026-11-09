@@ -290,7 +290,10 @@ def mixed_predictor_case(session, label, x, y, normalized, expected_dummies,
             assert script.get('hasRecipe') and not script.get('dataUnavailable'), (label, script)
             assert script['asked'] == ['outcome', 'predictors'] and not script['relocate'], (label, script)
             assert 'has changed in the workbook' not in script['text'], (label, script)
-            verify = '\nstopifnot(identical(as.numeric(predictors[[1]]), c(1,2,3,NA,1,2,3,NA)))\n'
+            # The data block keeps the marked rows missing in place; since 5.3.7 the recipe then keeps complete cases
+            # jointly (complete.cases(outcome, predictors, weights)), so R fits the six aligned pairs.
+            assert re.search(r'^predictors <- list\("X" = c\(1, 2, 3, NA, 1, 2, 3, NA\)\)$', script['text'], re.M), (label, script['text'])
+            verify = '\nstopifnot(identical(as.numeric(predictors[[1]]), c(1,2,3,1,2,3)), identical(as.numeric(outcome), c(2,4,6,2,4,6)))\n'
             result = subprocess.run([rscript(), '--vanilla', '-e', script['text'] + verify],
                                     text=True, capture_output=True, timeout=30)
             assert result.returncode == 0, (label, result.stdout, result.stderr)

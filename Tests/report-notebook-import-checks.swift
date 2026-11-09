@@ -184,9 +184,10 @@ extension ReportExportTests {
         try require(longRaw.utf8.count > 4_000_000 && RunRecordR.validated(longRaw) == longRaw && RunRecordR.validated(wholeRaw) == wholeRaw, "large records, long cell strings and held whole-column provenance remain valid")
         var unheld = try object(Data(wholeRaw.utf8)); unheld.removeValue(forKey: "data")
         try require(RunRecordR.validated(String(decoding: try encode(unheld), as: UTF8.self)) == nil, "unresolved negative-row pointers remain rejected")
-        // Since 5.3.6 the shared writer keeps a run's frames up to the last row holding a value in any of them: a selection blank in
-        // every row, not under a title, records no rows, [3, 2], with empty held values (the shape Tests/test_run_record.py checks the
-        // engine writes). Windows's readers take it and so does this one; without its held values there is nothing to read it by.
+        // The 5.3.6 writer kept a run's frames up to the last row holding a value in any of them, so a selection blank in every row,
+        // not under a title, recorded no rows, [3, 2], with empty held values (5.3.7 keeps such a selection's original range instead).
+        // Records saved by 5.3.6 keep that range: Windows's readers take it and so does this one; without its held values there is
+        // nothing to read it by.
         let blankRaw = #"{"version":1,"operation":"TPaired","title":"Paired Student t test","run":"2026-11-08T13:30:00.0000000+00:00","source":{"file":"blank.xlsx","path":"/tmp/blank.xlsx","modified":"2026-11-08T13:00:00.0000000+00:00"},"inputs":[{"name":"data","prompt":"Select 2 matched columns (or 1 of differences)","kind":"frame","mode":"NumericPreserveRows","file":"blank.xlsx","path":"/tmp/blank.xlsx","sheet":"Sheet1","columns":[{"title":"a","column":1,"rows":[3,2],"hasTitle":false,"hash":"e3b0c44298fc1c14"},{"title":"b","column":2,"rows":[3,2],"hasTitle":false,"hash":"e3b0c44298fc1c14"}]},{"name":"gamma","prompt":"Confidence level","kind":"confidence","value":0.95}],"parameters":{"gamma":0.95},"values":{"n":0},"data":{"data":{"a":[],"b":[]}}}"#
         var blankUnheld = try object(Data(blankRaw.utf8)); blankUnheld.removeValue(forKey: "data")
         try require(RunRecordR.validated(blankRaw) == blankRaw && RunRecordR.requests(in: try object(Data(blankRaw.utf8))).isEmpty

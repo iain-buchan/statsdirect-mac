@@ -1,10 +1,14 @@
 # StatsDirect recipe: Diversity of classes with bootstrap intervals, as the help shows it in R.
 # From the help's R code (nonparametric_methods/diversity.htm); the data and settings above come from the run.
 # data: counts
+# repeat: data
 # settings: confidence = gamma, boots = boots, seed = seed
 
 # Diversity of classes: the StatsDirect help example (strains of Staphylococcus
 # aureus in hospital samples, Grundmann et al. 2001) in R
+# The native analysis uses non-missing positive integer class counts.
+counts <- counts[!is.na(counts) & counts > 0 & counts == floor(counts)]
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 N <- sum(counts)
 S <- length(counts)                       # classes observed (richness)
@@ -16,13 +20,15 @@ cat("Total number of counts =", N, "  Number of classes observed =", S, "\n")
 # Estimated total number of classes (Chao 1987), from the numbers of classes
 # seen once (f1) and twice (f2), with a log-normal confidence interval that
 # cannot fall below the number observed
-f1 <- sum(counts == 1)
-f2 <- sum(counts == 2)
+# StatsDirect's Chao convention uses at least one singleton and doubleton.
+f1 <- max(1, sum(counts == 1))
+f2 <- max(1, sum(counts == 2))
 extra <- f1^2 / (2 * f2)
 se <- sqrt(f2 * ((f1 / f2)^4 / 4 + (f1 / f2)^3 + (f1 / f2)^2 / 2))
 K <- exp(z * sqrt(log(1 + se^2 / extra^2)))
+# Round the unseen classes first, matching the native integer convention.
 cat(sprintf("Estimated total number of classes = %.0f   Standard error = %.6f\n",
-            S + extra, se))
+            S + round(extra), se))
 cat(sprintf("Log-normal (Chao) %s CI = %.0f to %.0f\n", pct, S + extra / K,
             S + extra * K))
 
@@ -30,9 +36,9 @@ cat(sprintf("Log-normal (Chao) %s CI = %.0f to %.0f\n", pct, S + extra / K,
 # random belong to different classes
 l <- sum(counts * (counts - 1)) / (N * (N - 1))       # dominance
 Ds <- 1 - l
-seL <- sqrt(4 / N * (sum(p^3) - sum(p^2)^2))
-seS <- sqrt((4 * N * (N - 1) * (N - 2) * sum(p^3) + 2 * N * (N - 1) * sum(p^2) -
-             2 * N * (N - 1) * (2 * N - 3) * sum(p^2)^2) / (N * (N - 1))^2)
+seL <- sqrt(max(0, 4 / N * (sum(p^3) - sum(p^2)^2)))
+seS <- sqrt(max(0, (4 * N * (N - 1) * (N - 2) * sum(p^3) + 2 * N * (N - 1) * sum(p^2) -
+             2 * N * (N - 1) * (2 * N - 3) * sum(p^2)^2) / (N * (N - 1))^2))
 cat(sprintf("Simpson Ds = %.6f  (dominance l = %.6f, ds = %.6f)\n", Ds, l, 1 / l))
 cat(sprintf("Standard error: large sample = %.6f   small sample = %.6f\n", seL, seS))
 cat(sprintf("Normal (large sample) %s CI = %.6f to %.6f\n", pct, Ds - z * seL,
@@ -40,7 +46,7 @@ cat(sprintf("Normal (large sample) %s CI = %.6f to %.6f\n", pct, Ds - z * seL,
 
 # Shannon's index
 H <- -sum(p * log(p))
-hL <- sqrt((sum(p * log(p)^2) - H^2) / N)
+hL <- sqrt(max(0, (sum(p * log(p)^2) - H^2) / N))
 hS <- sqrt(hL^2 + (S - 1) / (2 * N^2))
 cat(sprintf("Shannon H' (base e) = %.6f\n", H))
 cat(sprintf("Standard error: large sample = %.6f   small sample = %.6f\n", hL, hS))

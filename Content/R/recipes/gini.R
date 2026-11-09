@@ -2,7 +2,12 @@
 # From the help's R code (nonparametric_methods/gini.htm); the data and settings above come from the run.
 # data: imr = data, weights = weights
 # settings: confidence = gamma, boots = boots, seed = seed
+# hand-edited: use the native positive observations and jointly valid frequency weights
 
+keep <- if (is.null(weights)) !is.na(imr) & imr > 0 else
+  complete.cases(imr, weights) & imr > 0
+imr <- imr[keep]
+if (!is.null(weights)) weights <- weights[keep]
 if (!is.null(weights)) imr <- rep(imr, floor(weights))   # frequency weights: each value as many times as its weight, as the report takes them
 # Gini coefficient of inequality: the StatsDirect help example (Pan American
 # Health Organisation 2001, infant mortality in five countries) in R

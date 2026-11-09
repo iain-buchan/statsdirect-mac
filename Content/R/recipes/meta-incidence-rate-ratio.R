@@ -3,6 +3,14 @@
 # data: pt1, a, pt2, b, strata
 # settings: confidence = gamma
 
+# Keep only studies with all inputs needed for this analysis.
+keep <- complete.cases(pt1, a, pt2, b)
+if (any(!keep)) cat("(", sum(!keep), " other rows not used)\n", sep = "")
+pt1 <- pt1[keep]
+a <- a[keep]
+pt2 <- pt2[keep]
+b <- b[keep]
+strata <- strata[keep]
 if (is.null(strata)) strata <- paste("Stratum", seq_along(a))
 # Incidence rate meta-analysis: the StatsDirect help example (Rothman and Monson 1973,
 # deaths among patients with trigeminal neuralgia in two age strata, exposed and not

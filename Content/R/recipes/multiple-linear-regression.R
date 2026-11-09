@@ -8,7 +8,20 @@
 
 # R's standard regression: coefficients, t tests, the F test, R squared and the
 # adjusted R squared (Ra squared); its residual standard error is the root MSE
-fit <- eval(bquote(lm(.(reformulate(sprintf("`%s`", names(predictors)), "outcome", intercept = intercept)), data = as.data.frame(predictors, optional = TRUE), weights = weights)))
+# Zero prior weights are excluded from the fitted sample and residual sequence.
+keep <- complete.cases(outcome, predictors, weights)
+if (!is.null(weights) && any(weights < 0, na.rm = TRUE)) stop("Weights must not be negative.")
+if (!is.null(weights)) keep <- keep & weights > 0
+outcome <- outcome[keep]
+predictors <- lapply(predictors, function(v) v[keep])
+if (!is.null(weights)) weights <- weights[keep]
+sd_data <- as.data.frame(predictors, optional = TRUE)
+sd_own <- tail(make.unique(c(names(sd_data), "outcome", "weights")), 2)
+sd_data[sd_own] <- list(outcome, if (is.null(weights)) rep(1, length(outcome)) else weights)
+sd_terms <- encodeString(names(predictors), quote = "`")
+sd_terms[names(predictors) == "."] <- "I(`.`)"
+model <- reformulate(sd_terms, response = as.name(sd_own[1]), intercept = intercept)
+fit <- eval(bquote(lm(.(model), data = sd_data, weights = .(as.name(sd_own[2])))))
 print(summary(fit))
 print(anova(fit))
 

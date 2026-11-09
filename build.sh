@@ -86,6 +86,8 @@ rm -rf "$WORKER_SYMBOLS"
 xcrun dsymutil "$APP/Contents/MacOS/RConsoleWorker" -o "$WORKER_SYMBOLS"
 statsdirect_store_symbols "$WORKER_SYMBOLS" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION/RConsoleWorker.dSYM"
 cp FullEngine/publish/StatsDirectEngine.dylib "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
+# Replace the engine as a unit so that a runtime or file no longer in the publish folder cannot linger in the app.
+rm -rf "$APP/Contents/Resources/Engine"
 ditto FullEngine/publish "$APP/Contents/Resources/Engine"
 python3 Scripts/build-icon.py "$BUILD_WORK"
 cp "$BUILD_WORK/StatsDirect.icns" "$APP/Contents/Resources/StatsDirect.icns"

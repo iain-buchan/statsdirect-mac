@@ -7,23 +7,24 @@
 # children) in R
 # The data are the IgM column of the Parametric worksheet of the StatsDirect test
 # workbook.
+igm <- igm[!is.na(igm)]
 pct <- paste0(100 * confidence, "%")
+rpct <- paste0(100 * range, "%")
 n <- length(igm)
-z <- qnorm((1 + confidence) / 2)                   # for a 95% range and 95% confidence intervals
+z <- qnorm((1 + confidence) / 2)   # confidence in each estimated limit
+zr <- qnorm((1 + range) / 2)       # proportion covered by the reference interval
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
 cat("Sample mean =", six(mean(igm)), "  Sample size n =", n,
     "  Sample sd =", six(sd(igm)), "\n")
 
-# R has no standard function for a reference range. For data from a normal
-# distribution the range is the mean plus or minus z standard deviations, and
-# each limit has standard error s * sqrt(1/n + z^2/(2n)) (Altman 1991).
+# Normal reference limits use the requested population coverage. Their
+# confidence intervals use the separate confidence level (Altman 1991).
 normal_range <- function(x, back = identity) {
   m <- mean(x)
   s <- sd(x)
-  limits <- m + c(-1, 1) * z * s
-  se <- s * sqrt(1 / n + z^2 / (2 * n))
-  cat(pct, "reference interval =", six(back(limits[1])), "to", six(back(limits[2])),
-      "\n")
+  limits <- m + c(-1, 1) * zr * s
+  se <- s * sqrt(1 / n + zr^2 / (2 * n))
+  cat(rpct, "reference interval =", six(back(limits[1])), "to", six(back(limits[2])), "\n")
   cat(pct, "confidence interval for lower range limit =", six(back(limits[1] - z * se)),
       "to", six(back(limits[1] + z * se)), "\n")
   cat(pct, "confidence interval for upper range limit =", six(back(limits[2] - z * se)),
@@ -31,34 +32,55 @@ normal_range <- function(x, back = identity) {
 }
 cat("For normal data\n")
 normal_range(igm)
-# For log-normal data, the same on the logarithms with the results taken back to
-# the original scale (StatsDirect gives this only when no value is 0 or less)
-cat("For log-normal data\n")
-normal_range(log(igm), exp)
+if (all(igm > 0)) {
+  cat("For log-normal data\n")
+  normal_range(log(igm), exp)
+}
 
-# For any data: the 2.5th and 97.5th percentiles (type 6 in R, as in the quantile
-# confidence interval topic) with confidence intervals whose limits are ordered
-# values. The number of observations below a population quantile is binomial
-# (n, p). With more than 200 observations StatsDirect takes the limits from the
-# normal approximation to that distribution, at np plus or minus z sqrt(np(1-p)),
-# and then gives the exact probability that they cover the quantile; with fewer
-# it searches the binomial distribution itself, as in the quantile topic.
-if (n > 200) {   # the distribution-free range needs more than 200 values
+# Distribution-free limits use the same binomial order-statistic search as the
+# quantile recipe: exact search up to 200 values, normal starting limits above
+# 200, and conservative extension when requested. Capped limits are marked.
+reference_quantile <- function(p) {
+  tail_area <- (1 - confidence) / 2
+  cap_lower <- cap_upper <- FALSE
+  if (n > 200) {
+    lo <- n * p - z * sqrt(n * p * (1 - p))
+    hi <- n * p + z * sqrt(n * p * (1 - p))
+    if (lo < 1) { lo <- 0; cap_lower <- TRUE }
+    if (hi + 1 > n) { hi <- n - 1; cap_upper <- TRUE }
+    if (isTRUE(conservative)) {
+      while (lo >= 1 && pbinom(floor(lo), n, p) > tail_area) lo <- lo - 1
+      if (lo < 1) { lo <- 0; cap_lower <- TRUE }
+      while (hi + 1 < n && pbinom(floor(hi), n, p) < 1 - tail_area) hi <- hi + 1
+      if (hi + 1 >= n) { hi <- n - 1; cap_upper <- TRUE }
+    }
+    lo <- floor(lo); hi <- floor(hi)
+  } else {
+    cumulative <- pbinom(0:n, n, p)
+    if (isTRUE(conservative)) {
+      eligible <- which(cumulative <= tail_area)
+      lo <- if (length(eligible)) tail(eligible, 1L) - 1L else 0L
+      hi <- which(cumulative >= 1 - tail_area)[1L] - 1L
+    } else {
+      lo <- which.min(abs(cumulative - tail_area)) - 1L
+      hi <- which.min(abs(cumulative - (1 - tail_area))) - 1L
+    }
+    if (lo < 1) { lo <- 0L; cap_lower <- TRUE }
+    if (hi + 1 > n) { hi <- n - 1L; cap_upper <- TRUE }
+  }
+  list(value = unname(quantile(igm, p, type = 6)), lower = x[lo + 1], upper = x[hi + 1],
+       coverage = 100 * (pbinom(hi, n, p) - pbinom(lo, n, p)),
+       capLower = cap_lower, capUpper = cap_upper)
+}
 cat("For any data\n")
 x <- sort(igm)
-for (p in c((1 - range) / 2, (1 + range) / 2)) {
-  lo <- floor(n * p - z * sqrt(n * p * (1 - p)))   # numbers of values below
-  hi <- floor(n * p + z * sqrt(n * p * (1 - p)))
-  cat("Quantile", p, "=", quantile(igm, p, type = 6), "\n")
-  cat("Approximate", pct, "confidence interval (non-conservative) =", x[lo + 1], "to",
-      x[hi + 1], "\n")
-  cat(sprintf("Exact confidence level = %s%%\n",
-              six(100 * (pbinom(hi, n, p) - pbinom(lo, n, p)))))
-  if (isTRUE(conservative)) {   # the conservative limits: the nearest order statistics with at least the confidence
-    cum <- pbinom(0:n, n, p)
-    lo_c <- max(which(cum <= (1 - confidence) / 2)) - 1
-    hi_c <- min(which(cum >= 1 - (1 - confidence) / 2)) - 1
-    cat("Approximate", pct, "confidence interval (conservative) =", x[lo_c + 1], "to", x[hi_c + 1], "\n")
-  }
-}
+probabilities <- c((1 - range) / 2, (1 + range) / 2)
+reference_quantiles <- lapply(probabilities, reference_quantile)
+for (i in seq_along(reference_quantiles)) {
+  q <- reference_quantiles[[i]]
+  cat("Quantile", probabilities[i], "=", q$value, "\n")
+  cat("Approximate", pct, "confidence interval", if (isTRUE(conservative)) "(conservative)" else "(non-conservative)", "=",
+      paste0(if (q$capLower) "* " else "", q$lower), "to", paste0(if (q$capUpper) "* " else "", q$upper), "\n")
+  cat(sprintf("Exact confidence level = %s%%%s\n", six(q$coverage),
+              if (q$capLower || q$capUpper) " (* limit capped at min/max)" else ""))
 }

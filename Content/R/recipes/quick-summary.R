@@ -6,13 +6,15 @@
 
 # Quick univariate summary: the StatsDirect help example (resting systolic blood
 # pressure of 20 first year resident doctors, from the single sample t test) in R
+missing <- sum(is.na(bp))
+bp <- bp[!is.na(bp)]
 pct <- paste0(100 * confidence, "%")
 n <- length(bp)
 
 # R's standard summary, then each line of the quick summary to 6 places
 print(summary(bp))
 six <- function(x) formatC(round(x, 6), digits = 6, format = "f", drop0trailing = TRUE)
-cat("Valid data", n, "  Missing", sum(is.na(bp)), "\n")
+cat("Valid data", n, "  Missing", missing, "\n")
 cat("Sum", six(sum(bp)), "\n")
 cat("Mean", six(mean(bp)), "\n")
 cat("Variance", six(var(bp)), "\n")

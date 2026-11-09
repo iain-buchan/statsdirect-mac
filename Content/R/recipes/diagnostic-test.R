@@ -53,8 +53,8 @@ cat(rate(tn, fp + tn), "\n")
 # among the diseased over the negative rate among the disease-free. Its interval is
 # Koopman's (1984) score interval: the ratios at which the score chi-square, with the
 # proportions estimated under the constraint that they have that ratio, reaches
-# the 95% critical value
-koopman <- function(x1, n1, x0, n0, level = 0.95) {
+# the selected confidence critical value
+koopman <- function(x1, n1, x0, n0, level) {
   chi2 <- function(theta) {
     A <- (n0 + n1) * theta
     B <- -((x0 + n1) * theta + x1 + n0)
@@ -70,10 +70,10 @@ koopman <- function(x1, n1, x0, n0, level = 0.95) {
   c(est, lower, upper)
 }
 cat("Likelihood Ratio\n")
-lr_pos <- koopman(tp, tp + fn, fp, fp + tn)
+lr_pos <- koopman(tp, tp + fn, fp, fp + tn, level = confidence)
 cat("LR (positive test) = ", six(lr_pos[1]), " (", six(lr_pos[2]), " to ",
     six(lr_pos[3]), ")\n", sep = "")
-lr_neg <- koopman(fn, tp + fn, tn, fp + tn)
+lr_neg <- koopman(fn, tp + fn, tn, fp + tn, level = confidence)
 cat("LR (negative test) = ", six(lr_neg[1]), " (", six(lr_neg[2]), " to ",
     six(lr_neg[3]), ")\n", sep = "")
 

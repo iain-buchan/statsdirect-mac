@@ -2,59 +2,69 @@
 # From the help's R code (nonparametric_methods/wilcoxon_signed_ranks.htm); the data and settings above come from the run.
 # data: first, second
 # settings: confidence = gamma
-# hand-edited: the confidence level and the data come from the run, as the header says
+# hand-edited: the selected confidence level and complete pairs or differences come from the run
 
 # Wilcoxon signed ranks test: the StatsDirect help example (Conover 1999) in R
 pct <- paste0(100 * confidence, "%")
-d <- first - second                       # one difference is 0 and some are tied
+if (is.null(second)) {
+  d <- first[!is.na(first)]                 # one column already contains differences
+} else {
+  keep <- complete.cases(first, second)
+  d <- first[keep] - second[keep]
+}
 n <- length(d)
-
-# R's standard test. Its V is the sum of ranks for positive differences. R 4.6.0
-# or later gives exact results that allow for the zero and the ties, but it ranks
-# the zero with the other differences before setting it aside (the method of
-# Pratt, 1959): V = 48.5 and two sided P = 0.458. StatsDirect, like Conover, sets
-# zeros aside before ranking: the sum is 41.5 and two sided P = 0.4756. Each P is
-# exact for its own method. Older versions of R warn and use a normal
-# approximation with continuity correction, as exact = FALSE does (V = 41.5,
-# two sided P = 0.4765).
-print(wilcox.test(first, second, paired = TRUE, conf.int = TRUE))
-
-# With zeros set aside first, R 4.6.0 or later gives StatsDirect's two sided P.
-# Use alternative = "less" for the lower side P and "greater" for the upper.
-# Keep the confidence interval from the first call: it needs every difference.
 nz <- d[d != 0]
-print(wilcox.test(nz))
+if (!length(nz)) stop("All differences are zero; at least one non-zero difference is required.")
+
+# The standard R test after setting zero differences aside, as StatsDirect does.
+# R 4.6 or later supports exact tied ranks. The report's explicit calculation
+# below also works in older R versions, which otherwise approximate tied data.
+print(wilcox.test(nz, exact = length(nz) <= 200, correct = FALSE))
 
 # Number of non-zero differences and the sum of ranks for positive differences
 r <- rank(abs(nz))                        # tied values share a mid-rank
 Tplus <- sum(r[nz > 0])
 cat("Number of non-zero differences ranked =", length(nz), "\n")
-cat("Sum of ranks for positive differences =", Tplus, "\n")
+cat("Sum of ranks for positive differences =", format(Tplus, digits = 15, scientific = FALSE), "\n")
 
-# Exact P given the ties, in any version of R: each rank is as likely to belong
-# to a positive as to a negative difference, so build the distribution of the
-# sum one rank at a time. Ranks are doubled to make mid-ranks whole numbers.
-p <- 1                                    # P(doubled sum = 0), before any rank
-for (v in 2 * r) p <- (c(p, numeric(v)) + c(numeric(v), p)) / 2
-w <- 2 * Tplus + 1                        # position of the observed value
-lower <- sum(p[1:w])                      # each side includes the observed sum
-upper <- sum(p[w:length(p)])
+if (length(nz) <= 200) {
+  # Exact sign assignments, allowing ties: double the mid-ranks to make integers.
+  p <- 1
+  for (v in 2 * r) p <- (c(p, numeric(v)) + c(numeric(v), p)) / 2
+  w <- 2 * Tplus + 1
+  lower <- sum(p[1:w])
+  upper <- sum(p[w:length(p)])
+  cat("Exact probability", if (anyDuplicated(abs(nz))) " (adjusted for ties)", ":\n", sep = "")
+} else {
+  # The report uses this normal approximation above 200 non-zero differences,
+  # with no continuity correction and with the variance of the actual ranks.
+  z <- sum(sign(nz) * r) / sqrt(sum(r^2))
+  lower <- pnorm(z)
+  upper <- pnorm(z, lower.tail = FALSE)
+  cat("Normalised statistic", if (anyDuplicated(abs(nz))) " (adjusted for ties)",
+      " = ", z, "\n", sep = "")
+}
 cat("Lower side P =", round(lower, 4), "  Upper side P =", round(upper, 4),
     "  Two sided P =", round(min(1, 2 * min(lower, upper)), 4), "\n")
 
-# Confidence interval, from all n differences: K from the exact distribution of
-# the statistic without ties, then the Kth smallest and Kth largest of the
-# n(n + 1)/2 averages of two differences (each is also averaged with itself).
-# With fewer than 6 differences K is 0 and there is no 95% interval.
-# StatsDirect's median difference is the median of these averages, which R calls
-# the (pseudo)median; it is not median(d), which is 1 here.
-# R 4.6.0 or later gives the same limits for these data but works out the level
-# given the ties (96.2 percent in R 4.6.1). For other tied data its limits can
-# differ.
-K <- qsignrank((1 - confidence) / 2, n)
+# The confidence interval uses all pairs, including zero differences. Its limits
+# are the Kth smallest and largest Walsh averages (each difference is also paired
+# with itself). StatsDirect uses exact K below 200 pairs and normal K from 200.
+# R's qsignrank can overflow for large n, so it is not used in that branch.
+alpha <- (1 - confidence) / 2
+K <- if (n < 4) 0 else if (n < 200) qsignrank(alpha, n) else
+  floor(n * (n + 1) / 4 + qnorm(alpha) * sqrt(n * (n + 1) * (2 * n + 1) / 24)) + 1
 a <- outer(d, d, "+") / 2
 a <- sort(a[upper.tri(a, diag = TRUE)])
-cat(sprintf("%.1f%% confidence interval for difference between population medians:\n",
-            100 * (1 - 2 * psignrank(K - 1, n))))
-cat(sprintf("K = %g   Median difference = %g (%g to %g)\n",
-            K, median(a), a[K], rev(a)[K]))
+if (length(nz) >= 4 && K > 0) {
+  # Exact attained coverage is available through 1,000 pairs. Beyond that the
+  # report labels the selected coverage approximate; psignrank also overflows.
+  coverage <- if (n <= 1000) 1 - 2 * psignrank(K - 1, n) else confidence
+  cat(sprintf("%s%.1f%% confidence interval for difference between population medians:\n",
+              if (n > 1000) "Approximate " else "", 100 * coverage))
+  cat(sprintf("K = %.0f%s   Median difference = %g (%g to %g)\n",
+              K, if (n >= 200) " (approx)" else "", median(a), a[K], rev(a)[K]))
+} else {
+  reason <- if (length(nz) < 4) "fewer than four non-zero differences" else "too few pairs at this confidence level"
+  cat(sprintf("Median difference = %g (interval unavailable: %s)\n", median(a), reason))
+}

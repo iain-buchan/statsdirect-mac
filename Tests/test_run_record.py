@@ -104,6 +104,11 @@ for op, entry in manifest.items():
         parent = definition(entry['inherits'])
         parameters |= {m.strip() for m in re.findall(r'<name>([^<]+)</name>', parent)[1:]} | set(re.findall(r'<option name="([^"]+)"', parent))
         if '<frame>' in parent: xml += '<frame>'
+    # a recipe routed by the run's parent operation (parentFiles, 5.3.7) may take each parent's parameters and frames, as Script.cs reads them
+    for parent_name in entry.get('parentFiles') or {}:
+        parent = (ROOT / 'FullEngine/publish/Operations' / (parent_name + '.xml')).read_text()
+        parameters |= {m.strip() for m in re.findall(r'<name>([^<]+)</name>', parent)[1:]}
+        if '<frame>' in parent: xml += '<frame>'
     parameters |= {m.strip() for m in re.findall(r'<(?:top-left|top-right|bottom-left|bottom-right)-name>([^<]+)</', xml)}
     if re.search(r'<builtin function-name="dist[A-Za-z]+"', xml): parameters |= {'value', 'df', 'df2', 'lower', 'upper', 'two_sided', 'asked'}
     if '<chart-type>BoxWhisker</chart-type>' in xml: parameters.add('boxWhisker')   # final chart dialog choices recorded by the shared processor
@@ -111,6 +116,13 @@ for op, entry in manifest.items():
     if op == 'ROCPlot': parameters.add('rocCutoffs')
     if op in ('Probit', 'Logit') or op.startswith('Probit'): parameters.add('doseResponseModel')
     if '<grouped-covariance>' in xml: parameters.add('ci')   # its confidence level is asked through the grid and recorded as the setting ci
+    # a shared base/continuation recipe defaults its optional level until the confidence-bearing continuation has asked for it (5.3.7)
+    confidence_owner = 'Cronbach' if entry['file'] in ('pca.R', 'pca-covariance.R') else 'CoxHazardRatios' if entry['file'] == 'cox-regression.R' else None
+    if confidence_owner:
+        owner = (ROOT / 'FullEngine/publish/Operations' / (confidence_owner + '.xml')).read_text()
+        parameters |= {m.strip() for m in re.findall(r'<confidence-interval>.*?<name>([^<]+)</name>.*?</confidence-interval>', owner, re.S)}
+    if entry['file'] in ('relative-risk-meta.R', 'meta-summary.R', 'risk-difference.R', 'peto-meta.R', 'mantel.R', 'effect.R', 'meta-correlation.R', 'proportion-meta.R'):
+        parameters.add('metaExact')   # captured once by each native meta-analysis report, then retained for replay (5.3.7; the last four 5.3.8)
     settings = re.search(r'^# settings:\s*(.*)$', text, re.M)
     if settings:
         for item in [x.strip() for x in settings.group(1).split(',') if '=' in x]:
@@ -258,13 +270,16 @@ result = s.run('TPaired', {'data': sheet_answer(2, 'Parametric', [0, 1], 2, 8, [
 ragged = json.loads(result['record']); rh = ragged['data']['data']
 check(rh['x'] == [1, 2, None, 4, 5, None] and rh['y'] == [2, 4, 6, 8, None, 12] and ragged['inputs'][0]['columns'][0]['rows'] == [1, 7],
       'interior missing values and a column\'s blank within the kept rows stay, so the pairs keep their alignment')
-# a selection blank in every row keeps none of them: one not under a title records no rows, [3, 2], with empty held values (the shape
-# Tests/report-notebook-import-checks.swift has the Mac's record reader accept, as Windows's readers do), and its script has empty vectors
+# a selection blank in every row has no data row to keep, so since 5.3.7 the record keeps its original range: one not under a title
+# records rows [3, 22] with the hash of its 20 blank cells and 20 missing values held, and its script has vectors of NA. (5.3.6 wrote
+# [3, 2] with empty held values; the Mac's record reader still accepts that range for records saved then, as
+# Tests/report-notebook-import-checks.swift checks.)
 result = s.run('TPaired', {'data': sheet_answer(2, 'Parametric', [0, 1], 3, 22, ['a', 'b'], [[''] * 20, [''] * 20]), 'gamma': 95, 'doAgreement': False})
 blank_record = json.loads(result['record']); blank_columns = blank_record['inputs'][0]['columns']
-check([c['rows'] for c in blank_columns] == [[3, 2], [3, 2]] and not any(c['hasTitle'] for c in blank_columns) and all(c['hash'] == defined_hash([]) for c in blank_columns)
-      and blank_record['data']['data'] == {'a': [], 'b': []} and 'before <- numeric(0)   # a, column 1, rows 3 to 2' in rs.write(result['record'], None, [])['text'],
-      'a selection blank in every row, not under a title, records no rows ([3, 2]) with empty held values and empty vectors in its script')
+blank_script = rs.write(result['record'], None, [])['text']
+check([c['rows'] for c in blank_columns] == [[3, 22], [3, 22]] and not any(c['hasTitle'] for c in blank_columns) and all(c['hash'] == defined_hash([''] * 20) for c in blank_columns)
+      and blank_record['data']['data'] == {'a': [None] * 20, 'b': [None] * 20} and 'before <- c(NA, NA, ' in blank_script and '   # a, column 1, rows 3 to 22' in blank_script,
+      'a selection blank in every row, not under a title, keeps its original range [3, 22] with its 20 missing values held (5.3.7)')
 # the large run: the values are read again by the pointers; the hash comparison through ReadFrame under the recorded mode
 same = [{'name': 'data', 'columns': [{'title': 'x', 'values': [str(v) for v in x], 'kinds': ['number'] * 2600}, {'title': 'y', 'values': [str(v) for v in y], 'kinds': ['number'] * 2600}]}]
 script = rs.write(big_record, None, same)
@@ -429,10 +444,10 @@ def safe_name(title, names):
 def text_of(element, key): return element[key] if isinstance(element, dict) and isinstance(element.get(key), str) else None
 def parse_recipe(recipe):
     """The header's bindings and the body, as RScriptWriter.Parse reads them."""
-    b = {'data': [], 'list': None, 'table': None, 'matrix': None, 'nested': [], 'settings': [], 'body': ''}
+    b = {'data': [], 'list': None, 'table': None, 'matrix': None, 'repeat': None, 'nested': [], 'settings': [], 'body': ''}
     lines = recipe.replace('\r\n', '\n').split('\n'); last = -1; i = 0
     while i < len(lines) and (lines[i].strip() == '' or lines[i].startswith('#')):
-        m = re.match(r'^#\s*(data|table|matrix|nested|settings|recipe):\s*(.*)$', lines[i], re.I)
+        m = re.match(r'^#\s*(data|table|matrix|nested|settings|recipe|repeat):\s*(.*)$', lines[i], re.I)
         if not m:
             if re.match(r'^# (StatsDirect recipe|From the help|hand-edited)', lines[i], re.I): last = i
             i += 1; continue
@@ -446,6 +461,7 @@ def parse_recipe(recipe):
                 else: b['data'].append((variable, source, is_list))
         elif what == 'table': b['table'] = rest
         elif what == 'matrix': b['matrix'] = rest
+        elif what == 'repeat': b['repeat'] = rest   # run a one-column recipe for every column of this input (5.3.7)
         elif what == 'nested':
             for item in [x.strip() for x in rest.split(',') if x.strip()]:
                 eq = item.find('=')
@@ -514,8 +530,20 @@ def expected_script(record, recipe, detail, after=None):
                 t = text_of(c, 'title'); items.append(('' if not t else quote(t) + ' = ') + vector(objects(c.get('values') if isinstance(c, dict) else None)))
             levels.append('list(' + ', '.join(items) + ')')
         out.append(variable + ' <- list(\n  ' + ',\n  '.join(levels) + ')\n')
+    # a one-column recipe with a repeat header keeps its short script for one column; a multi-column selection becomes a list of samples,
+    # indexed rather than looked up by name (worksheet titles may repeat), and the recipe runs once for each (5.3.7)
+    repeated = binding['data'][0] if binding and binding['repeat'] is not None and len(binding['data']) == 1 and not binding['data'][0][2] else None
+    repeat_columns = [i for name, start, count in groups if name == binding['repeat'] for i in range(start, start + count)] if repeated else []
+    repeat = len(repeat_columns) > 1
+    if repeat:
+        if any(not columns[i]['title'] for i in repeat_columns):   # R does not accept list("" = ...): the names are assigned afterwards
+            out.append('samples <- list(' + ',\n  '.join(vector(columns[i]['values']) for i in repeat_columns) + ')\n')
+            out.append('names(samples) <- c(' + ', '.join(quote(columns[i]['title'] or '') for i in repeat_columns) + ')\n'); names.add('samples')
+        else: list_of('samples', repeat_columns)
+        bound.update(repeat_columns)
     if binding:
         for variable, source, is_list in [d for d in binding['data'] if d[1] is not None]:
+            if repeat and (variable, source, is_list) == repeated: continue
             # a prompt repeated for each series, group or period gives several inputs of one name: a list takes every one of their
             # columns, a vector the first not yet taken
             indices = [i for _, start, count in groups if _ == source for i in range(start, start + count) if i not in bound]
@@ -534,6 +562,7 @@ def expected_script(record, recipe, detail, after=None):
         return n
     if binding:
         for variable, source, is_list in [d for d in binding['data'] if d[1] is None]:
+            if repeat and (variable, source, is_list) == repeated: continue
             nxt = skip(nxt)
             if nxt >= len(columns): missing(variable, 'no column for it in this run'); continue
             assign(variable, columns[nxt]); bound.add(nxt); nxt += 1
@@ -570,7 +599,12 @@ def expected_script(record, recipe, detail, after=None):
         out.append((ROOT / 'Content/R/recipes/chart-common.R').read_text().rstrip('\n') + '\n')
     if binding and any(parameter == 'doseResponseModel' for _, parameter in binding['settings']):
         out.append((ROOT / 'Content/R/recipes/dose-response-common.R').read_text().rstrip('\n') + '\n')
-    out.append(binding['body'].rstrip('\n') + '\n' if binding else '# Add your analysis here.\n')
+    if repeat:
+        v = repeated[0]
+        out.append('for (sample_number in seq_along(samples)) {\n  ' + v + ' <- samples[[sample_number]]\n  ' + v + '_title <- names(samples)[sample_number]\n  cat("\\n", ' + v + '_title, "\\n", sep = "")\n')
+        out.extend('  ' + line + '\n' for line in binding['body'].rstrip('\n').split('\n'))
+        out.append('}\n')
+    else: out.append(binding['body'].rstrip('\n') + '\n' if binding else '# Add your analysis here.\n')
     if plots: out.append('\n' + plots['body'].rstrip('\n') + '\n')
     return ''.join(out)
 def first_difference(a, b):
@@ -621,7 +655,10 @@ def record_of(example):
 # contain the actual S and confidence-limit columns supplied to the plot form.
 REAL_RUN_COLUMNS = {'Chi2byNWithTrend': {'data': [{'title': 'score', 'values': [1, 2, 3]}]}}
 # settings a form asks for that the example leaves to the help's layout: the number of groups or repeats whose frames it then asks for one by one
-REAL_RUN_SETTINGS = {'SurvivalPlot': {'group-count': 2}, 'WeiLachin': {'nr': 4}, 'PoissonRegression': {'has-exposure': 'true'}}
+# The help's paired example shows the agreement analysis, which the 5.3.7 recipe prints only when the run asked for it (doAgreement); the
+# Mantel-Haenszel screen's example shows the exact limits, which the 5.3.8 recipe takes from the run's own choice (try_exact, which has no default).
+REAL_RUN_SETTINGS = {'SurvivalPlot': {'group-count': 2}, 'WeiLachin': {'nr': 4}, 'PoissonRegression': {'has-exposure': 'true'}, 'TPaired': {'doAgreement': True},
+                     'MantelHaenszelScreen': {'try_exact': True}}
 def run_example(session, example, parent=None, keep=False, extra=None, preferences=None):
     """Answers the operation's prompts from the example: frames by the name the operation asks them by, else the example's columns in order (one
     at a time to a single-column prompt, the rest to a wider one), a screen-typed 2 by 2 from its cell settings, the Distributions calculator's
@@ -807,6 +844,86 @@ for (name in names(box_summaries)) {
 }
 """
 
+# --- the model recipes against their worked examples, as Recipes.cs and RealRuns.cs check them since 5.3.7 (CheckModelWorkedExample): the
+# recipe's own fit, converged as tightly as the production recipe now is, and the help's independent script refitted at high precision give
+# the same coefficients, covariance, Wald limits and reported diagnostics, and the same rendered figures leaving out the call and iteration
+# lines; and the native engine's results on the same example agree with the recipe's fit. The Mac host gives a run's scalar outputs, not its
+# blocks, so the native comparison takes every diagnostic Windows compares (likelihoods, deviances, information criteria, R-squares, the
+# goodness-of-fit tests, the ANOVA's sums of squares and F) and leaves the coefficient, standard error and hazard-ratio blocks to the R
+# comparison above them; the native coefficients are checked against R by test_shared_engine_update.py and the option runs below.
+MODEL_FILES = ('logistic-regression.R', 'poisson-regression.R', 'multiple-linear-regression.R', 'cox-regression.R', 'conditional-logistic.R')
+MODEL_WORKED_EXAMPLE_R = "model_equal <- function(actual,expected,label,tolerance) {\n  actual<-as.numeric(actual);expected<-as.numeric(expected)\n  stopifnot(length(actual)==length(expected),identical(is.na(actual),is.na(expected)),\n            identical(is.infinite(actual),is.infinite(expected)),\n            identical(actual[is.infinite(expected)],expected[is.infinite(expected)]))\n  use<-is.finite(expected)\n  bad<-which(use & abs(actual-expected)>tolerance*pmax(1,abs(expected)))\n  if(length(bad))stop(label,': numerical mismatch at ',bad[1],': ',actual[bad[1]],' versus ',expected[bad[1]])\n}\nmodel_high_precision_glm <- function(...) {\n  model_call<-match.call(expand.dots=TRUE)\n  model_call[[1L]]<-quote(stats::glm)\n  model_call$control<-quote(stats::glm.control(epsilon=1e-14,maxit=100))\n  eval(model_call,parent.frame())\n}\nmodel_statistics <- function(fit,level) {\n  result<-c(coef(fit),as.vector(vcov(fit)),as.vector(summary(fit)$coefficients),as.vector(confint.default(fit,level=level)))\n  if(inherits(fit,'glm')) {\n    result<-c(result,fit$deviance,fit$null.deviance,fit$df.residual,fit$df.null,fit$rank,\n              sum(residuals(fit,type='pearson')^2),fitted(fit),residuals(fit,type='deviance'))\n  } else if(inherits(fit,'coxph')) {\n    result<-c(result,fit$loglik,fit$n,fit$nevent,exp(coef(fit)),as.vector(summary(fit,conf.int=level)$conf.int))\n  } else {\n    result<-c(result,as.vector(as.matrix(anova(fit))),fit$df.residual,summary(fit)$sigma,\n              summary(fit)$r.squared,summary(fit)$adj.r.squared,fitted(fit),residuals(fit))\n  }\n  unname(result)\n}\nmodel_rendered_numbers <- function(lines) {\n  # A formula/control call and a convergence iteration count are metadata,\n  # not statistical results. Keep all coefficient tables, confidence\n  # limits, likelihood/GOF lines, IRR combinations and baseline rows.\n  drop<-logical(length(lines));in_call<-FALSE\n  for(i in seq_along(lines)) {\n    if(grepl('^Call:',lines[i])) {in_call<-TRUE;drop[i]<-TRUE}\n    else if(in_call) {drop[i]<-TRUE;if(!nzchar(trimws(lines[i])))in_call<-FALSE}\n  }\n  lines<-lines[!drop & !grepl('Fisher Scoring iterations:|^[[:space:]]*Iterations:',lines)]\n  text<-gsub('\\\\[[0-9]*,[0-9]*\\\\]',' ',paste(lines,collapse='\\n'))\n  as.numeric(regmatches(text,gregexpr('-?[0-9]+(?:\\\\.[0-9]+)?(?:[eE][-+]?[0-9]+)?',text,perl=TRUE))[[1]])\n}"
+MODEL_REPORTED = {'logistic-regression.R': 'c(ll,dev,lr,df_lr,k,n,pearson,hl,hldf,r2,r2i)', 'poisson-regression.R': 'c(ll,dev,lr,df_lr,k,n,pearson,scale,r2,r2i)', 'multiple-linear-regression.R': 'c(ssreg,ssres,df,sum(diff(e)^2)/sum(e^2))', 'cox-regression.R': 'c(ll,dev,df)', 'conditional-logistic.R': 'c(ll,ll0,-2*ll,2*(ll-ll0),1-ll/ll0)'}
+MODEL_REFERENCE_REPORTED = {'logistic-regression.R': "c(model_ll,fit$deviance,fit$null.deviance-fit$deviance,fit$df.null-fit$df.residual,length(coef(fit)),nobs(fit),sum(residuals(fit,type='pearson')^2),model_hl,length(unique(group))-2,1-fit$deviance/fit$null.deviance,1-model_ll/model_ll0)", 'poisson-regression.R': 'c(as.numeric(logLik(fit)),fit$deviance,fit$null.deviance-fit$deviance,fit$df.null-fit$df.residual,length(coef(fit)),nobs(fit),model_pearson,model_pearson/fit$df.residual,1-fit$deviance/fit$null.deviance,1-as.numeric(logLik(fit))/as.numeric(logLik(model_null)))', 'multiple-linear-regression.R': "c(sum(anova(fit)$'Sum Sq'[-nrow(anova(fit))]),tail(anova(fit)$'Sum Sq',1),fit$df.residual,sum(diff(residuals(fit))^2)/sum(residuals(fit)^2))", 'cox-regression.R': 'c(fit$loglik,2*diff(fit$loglik),length(coef(fit)))', 'conditional-logistic.R': 'c(fit$loglik[2],fit$loglik[1],-2*fit$loglik[2],2*diff(fit$loglik),1-fit$loglik[2]/fit$loglik[1])'}
+MODEL_REFERENCE_EXTRAS = {'logistic-regression.R': 'model_y<-model.response(model.frame(fit));model_p<-fitted(fit)\nmodel_ll<-sum(model_y[,1]*log(model_p)+model_y[,2]*log1p(-model_p))\nmodel_p0<-sum(model_y[,1])/sum(model_y)\nmodel_ll0<-sum(model_y[,1]*log(model_p0)+model_y[,2]*log1p(-model_p0))\nmodel_observed<-rowsum(model_y[,1],group);model_expected<-rowsum(rowSums(model_y)*model_p,group);model_total<-rowsum(rowSums(model_y),group)\nmodel_hl<-sum((model_observed-model_expected)^2/(model_expected*(1-model_expected/model_total)))\n', 'poisson-regression.R': "model_y<-model.response(model.frame(fit));model_offset<-model.offset(model.frame(fit))\nmodel_null<-glm(model_y~1,offset=model_offset,family=poisson,control=glm.control(epsilon=1e-14,maxit=100))\nmodel_pearson<-sum(residuals(fit,type='pearson')^2)\n", 'multiple-linear-regression.R': '', 'cox-regression.R': '', 'conditional-logistic.R': ''}
+MODEL_BASELINE = 'baseline=as.numeric(head(cbind(base$time[base$n.event>0],base$surv[base$n.event>0],base$cumhaz[base$n.event>0]),5)),'   # Cox's printed baseline rows, compared without their row numbers and headings
+# the native results compared, as ModelWorkedExampleNative gives them less the blocks: the follow-on (or the parent) whose outputs hold each key, and
+# the expression of the recipe's fit each corresponds to, in Windows's order
+MODEL_PARENT = {'logistic-regression.R': 'LogisticRegression', 'poisson-regression.R': 'PoissonRegression', 'multiple-linear-regression.R': 'MultipleLinearRegression',
+                'cox-regression.R': 'CoxRegression', 'conditional-logistic.R': 'ConditionalLogisticRegression'}
+MODEL_NATIVE = {
+    'logistic-regression.R': ([('LogisticRegressionModel', k) for k in ('ll', 'dev', 'idf', 'rank', 'aka', 'sch', 'devx', 'x2dev', 'x2df', 'x2p', 'r2', 'r2i', 'x2', 'p', 'hl', 'df_hl', 'p_hl')],
+        'll,dev,fit$df.residual,k,dev+2*k,dev+k*log(n),null_deviance,lr,df_lr,pchisq(lr,df_lr,lower.tail=FALSE),r2,r2i,pearson,pchisq(pearson,fit$df.residual,lower.tail=FALSE),hl,hldf,pchisq(hl,hldf,lower.tail=FALSE)'),
+    'poisson-regression.R': ([('PoissonRegressionModel', k) for k in ('ll', 'dev', 'idf', 'rank', 'aka', 'sch', 'devx', 'x2dev', 'x2df', 'x2p', 'r2', 'r2i', 'x2_pearson', 'p_pearson', 'sp',
+                                                                   'x2dev_scaled', 'x2p_scaled', 'x2_scaled', 'p_p_scaled', 'dev_scaled', 'p_dev_scaled')],
+        'll,dev,fit$df.residual,k,dev+2*k,dev+k*log(n),null_deviance,lr,df_lr,pchisq(lr,df_lr,lower.tail=FALSE),r2,r2i,pearson,pchisq(pearson,fit$df.residual,lower.tail=FALSE),scale,lr/scale,pchisq(lr/scale,df_lr,lower.tail=FALSE),pearson/scale,pchisq(pearson/scale,fit$df.residual,lower.tail=FALSE),dev/scale,pchisq(dev/scale,fit$df.residual,lower.tail=FALSE)'),
+    'multiple-linear-regression.R': ([('MultipleLinearRegressionAnova', k) for k in ('reg_sum', 'reg_df', 'reg_mean', 'res_sum', 'res_df', 'res_mean', 'tot_sum', 'tot_df', 'mse', 'f', 'p', 'r2', 'ra2', 'dw')],
+        'ssreg,k,ssreg/k,ssres,df,ssres/df,ssreg+ssres,df+k,sqrt(ssres/df),summary(fit)$fstatistic[1],pf(summary(fit)$fstatistic[1],k,df,lower.tail=FALSE),100*summary(fit)$r.squared,100*summary(fit)$adj.r.squared,sum(diff(e)^2)/sum(e^2)'),
+    'cox-regression.R': ([('CoxModelAnalysis', k) for k in ('ll0', 'll', 'x2', 'df', 'p')] + [(None, 'n'), (None, 'd')],
+        'll,dev,df,pchisq(dev,df,lower.tail=FALSE),fit$n,fit$nevent'),
+    'conditional-logistic.R': ([(None, k) for k in ('dv', 'x2', 'p_dev', 'r2')],
+        '-2*ll,2*(ll-ll0),pchisq(2*(ll-ll0),length(coef(fit)),lower.tail=FALSE),1-ll/ll0'),
+}
+model_native_runs = {}
+def model_native(file, example, level):
+    """The native results on the example's inputs and settings: the parent through the Mac's prompts with ModelWorkedExampleNative's answers (the
+    example's settings over them; the accuracy written 1e-11, the 0.00000000001 Windows passes, as the 12-character box takes it), then the follow-on."""
+    key = (file, json.dumps(example.get('inputs')), json.dumps(example.get('settings'), sort_keys=True), level)
+    if key in model_native_runs: return model_native_runs[key]
+    names = {i['name'] for i in example.get('inputs', [])}
+    settings = {'gamma': level, 'ci': level, 'intercept': True, 'calculateIntercept': True, 'grouping': 'grouped' if file == 'logistic-regression.R' else 'individual',
+                'accuracy': 1e-11 if file == 'cox-regression.R' else '1e-11', 'weights': False, 'useWeights': False, 'has-exposure': 'true', 'show-counts': False,
+                'centre-continuous-covariates': True, 'useTimesAdjustment': False}
+    if not names & {'strata', 'stratum'}: settings['strata'] = None
+    settings.update({k: v for k, v in (example.get('settings') or {}).items() if isinstance(v, (bool, int, float, str))})
+    parent = run_example(s, {'operation': MODEL_PARENT[file], 'inputs': example.get('inputs', []), 'settings': settings}, keep=True)
+    try:
+        outputs = {None: parent['values']}
+        for follow_on in {op for op, _ in MODEL_NATIVE[file][0] if op}:
+            outputs[follow_on] = s.run(follow_on, {'ci': level * 100, 'gamma': level * 100}, None, parent=parent['jobId'])['values']
+        values = [float(outputs[op][k]) for op, k in MODEL_NATIVE[file][0]]
+    finally: s.close(parent['jobId'])
+    model_native_runs[key] = (MODEL_NATIVE[file][1], values)
+    return model_native_runs[key]
+def model_level(example):
+    level = 0.95
+    for key in ('gamma', 'ci'):
+        v = (example.get('settings') or {}).get(key)
+        if is_number(v): level = float(v)
+    return level
+def model_check_text(op, script, reference):
+    example = examples[op]; file = manifest[op]['file']; level = model_level(example)
+    native_expression, native_values = model_native(file, example, level)
+    baseline = MODEL_BASELINE if file == 'cox-regression.R' else ''
+    prefix = example.get('cut') is True
+    return (MODEL_WORKED_EXAMPLE_R + '\nmodel_level<-' + repr(level) + '\n'
+            + 'model_actual<-local({\nmodel_output<-capture.output({\n' + script + '\n})\nlist(' + baseline + 'rendered=model_rendered_numbers(model_output),statistics=model_statistics(fit,model_level),reported=' + MODEL_REPORTED[file] + ',native=c(' + native_expression + '))\n})\n'
+            + "model_reference<-local({\n# Refine the independent help's own glm formula, including its printed Wald values.\nglm<-model_high_precision_glm\nmodel_output<-capture.output({\n" + reference + '\n})\n' + MODEL_REFERENCE_EXTRAS[file]
+            + 'list(' + baseline + 'rendered=model_rendered_numbers(model_output),statistics=model_statistics(fit,model_level),reported=' + MODEL_REFERENCE_REPORTED[file] + ')\n})\n'
+            + "model_equal(model_actual$statistics,model_reference$statistics,'independent high-precision R model',1e-9)\n"
+            + "model_equal(model_actual$reported,model_reference$reported,'reported diagnostics',1e-8)\n"
+            + 'model_equal(model_actual$rendered,' + ('head(model_reference$rendered,length(model_actual$rendered))' if prefix else 'model_reference$rendered') + ",'rendered statistical figures',1e-7)\n"
+            + ("model_equal(model_actual$baseline,model_reference$baseline,'baseline survival and hazard',1e-9)\n" if file == 'cox-regression.R' else '')
+            + 'model_equal(model_actual$native,' + vector(native_values) + ",'native model',1e-7)\ncat('MODEL_WORKED_EXAMPLE_OK\\n')\n")
+def model_worked_examples(ops, scripts, what):
+    """The model check for each operation, its script given by operation; (agreed, failures)."""
+    outputs = r_outputs([model_check_text(op, scripts[op], help_scripts[op]) for op in ops])
+    agreed, failures = 0, []
+    for op, output in zip(ops, outputs):
+        if not isinstance(output, AssertionError) and 'MODEL_WORKED_EXAMPLE_OK' in output: agreed += 1
+        else: failures.append(op); print('      %s (%s, model worked example): %s' % (op, what, str(output).replace('\n', ' | ')[-600:]), flush=True)
+    return agreed, failures
+
 def compare_with_help(outputs, what):
     agreed, failures = 0, []
     for op, output in outputs:
@@ -827,11 +944,19 @@ def compare_with_help(outputs, what):
             print('      %s: the figures differ from the %dth: %s %s, help %s (%d and %d figures; %s)' % (op, i + 1, what, a[i] if i < len(a) else '(end)', b[i] if i < len(b) else '(end)', len(a), len(b),
                   'every figure printed is among the help\'s' if not extra else 'not in the help\'s: ' + ' '.join(extra[:8])), flush=True)
     return agreed, failures
-agreed, failures = compare_with_help(zip(operations, r_outputs([comparison_script(op, harness[op][1]['text']) for op in operations])), 'recipe')
-check(not failures, 'every recipe prints the figures the help\'s script prints on the help\'s example: %d of %d agree' % (agreed, len(operations)) + ('; differing: ' + ', '.join(failures) if failures else ''))
+model_ops = [op for op in operations if manifest[op]['file'] in MODEL_FILES]; figure_ops = [op for op in operations if op not in model_ops]
+agreed, failures = compare_with_help(zip(figure_ops, r_outputs([comparison_script(op, harness[op][1]['text']) for op in figure_ops])), 'recipe')
+model_agreed, model_failures = model_worked_examples(model_ops, {op: harness[op][1]['text'] for op in model_ops}, 'recipe')
+check(not failures and not model_failures, 'every recipe matches its independent worked example on the help\'s example: %d of %d print the help\'s figures, and %d of the %d operations of the model recipes agree with high-precision R and the native diagnostics'
+      % (agreed, len(figure_ops), model_agreed, len(model_ops)) + ('; differing: ' + ', '.join(failures + model_failures) if failures or model_failures else ''))
 
 # the real runs: the help's example inputs through the engine as entered frames
 INHERITING = {op: manifest[op]['inherits'] for op in operations if 'inherits' in manifest[op]}   # the follow-ons whose record carries the parent's frames
+# the follow-ons whose recipe the manifest routes by the parent they continue (parentFiles, 5.3.7: the principal components' Cronbach,
+# matrix and scores after the correlation or the covariance analysis), each run below from every parent that offers it
+ROUTED_PARENTS = {op: [p for p in manifest[op]['parentFiles'] if re.search(r'<prerequisite-operation>\s*%s\s*</prerequisite-operation>' % re.escape(p), (OPERATIONS / (op + '.xml')).read_text())]
+                  for op in operations if 'parentFiles' in manifest[op]}
+INHERITING.update({op: examples[op].get('rootOperation') or parents[0] for op, parents in ROUTED_PARENTS.items()})
 FOLLOW_ONS = {'FollowUpLifeTable', 'FriedmanMulti', 'PolynomialRegressionChangeDegree'} | set(INHERITING)   # run from a parent result, not from the menu
 DEFERRED = set()   # operations the Mac does not host yet (none: the R-based ones run through the engine's R step)
 runnable = [op for op in operations if op not in FOLLOW_ONS and op not in DEFERRED]
@@ -957,7 +1082,10 @@ def real_reference_script(op):
     record = json.loads(real[op]['record'])
     record['parameters']['chartSettings'] = examples[op]['settings']['chartSettings']
     return rs.write(record, None, [])['text']
-agreed, failures = compare_with_help(zip(recorded, r_outputs([comparison_script(op, real_reference_script(op)) for op in recorded])), 'real run')
+real_model_ops = [op for op in recorded if manifest[op]['file'] in MODEL_FILES]; real_figure_ops = [op for op in recorded if op not in real_model_ops]
+agreed, failures = compare_with_help(zip(real_figure_ops, r_outputs([comparison_script(op, real_reference_script(op)) for op in real_figure_ops])), 'real run')
+model_agreed, model_failures = model_worked_examples(real_model_ops, {op: real_scripts[op]['text'] for op in real_model_ops}, 'real run')   # as RealRuns.cs routes them since 5.3.7
+agreed += model_agreed; failures += model_failures
 # Expected, and the same for a Windows run of the dialog (raised with Windows rather than diverged from): none at present. The six the
 # Mac's real runs found on 11 October 2026 (Crosstabs's text classifiers, KappaScreen's binding, LogisticRegression's rest list, the
 # survival plot's and Wei-Lachin's frames asked once per group kept as the last ask alone) were changed in the shared code at e99fe24a,
@@ -990,7 +1118,8 @@ PARENT_ANSWERS = {'UniversalAgreementSimulateExactP': {'reference': None}}
 # follow-ons with no report step (they write their result to the worksheet alone) leave no record, as on Windows: they must run, and leave none
 FOLLOW_ON_NO_REPORT_STEP = {'CoxBaselineToWorksheet', 'LogisticRegressionFitToWorksheet', 'PoissonRegressionFitToWorksheet', 'SimpleLinearRegressionCI'}
 follow_on_problems = []; inherited_frames = 0; without_record = 0
-for op, parent_op in sorted(INHERITING.items()):
+follow_on_runs = sorted(INHERITING.items()) + sorted((op, parent) for op, parents in ROUTED_PARENTS.items() for parent in parents if parent != INHERITING[op])
+for op, parent_op in follow_on_runs:
     try:
         parent_state = run_example(s, examples[parent_op], keep=True, extra=PARENT_ANSWERS.get(op))
         try: child = run_example(s, examples[op], parent=parent_state['jobId'], extra=FOLLOW_ON_ANSWERS.get(op), preferences={'use-default-ci': False} if op in FOLLOW_ON_ANSWERS else None)   # a level given is asked, not the default taken
@@ -1006,6 +1135,9 @@ for op, parent_op in sorted(INHERITING.items()):
         # the frames the parent asked for (a frame the parent itself held in the bag, the prediction grid's source, may be the follow-on's own input)
         parent_frames = [i for i in pr['inputs'] if i['kind'] in ('frame', 'entered', 'frame2d', 'covariance') and i.get('inherited') is not True]
         assert cr['operation'] == op and child.get('recipe') is True, 'operation %r or recipe flag %r' % (cr['operation'], child.get('recipe'))
+        if op in ROUTED_PARENTS:   # the record names the parent it continued, which routes its recipe
+            assert cr.get('rootOperation') == parent_op, 'the record names %r as the parent continued, not %s' % (cr.get('rootOperation'), parent_op)
+            assert recipe_of(op, cr)[0] == (ROOT / 'Content/R/recipes' / manifest[op]['parentFiles'][parent_op]).read_text(), 'after %s the recipe is not %s' % (parent_op, manifest[op]['parentFiles'][parent_op])
         assert inherited and all(i['kind'] in ('entered', 'frame2d') and i.get('prompt') == '' for i in inherited), 'no frame marked inherited among the inputs %s' % [(i['name'], i['kind'], i.get('inherited')) for i in cr['inputs']]
         for frame in parent_frames:
             match = [i for i in inherited if i['name'] == frame['name']]
@@ -1039,7 +1171,10 @@ for op, parent_op in sorted(INHERITING.items()):
                 assert '\nlevel <- %s\n' % literal(FOLLOW_ON_ANSWERS[op]['reggamma']) in child_script['text'], 'the plot does not take the level the follow-on was given as its own setting'
             plots_drawn.append(op)
         elif not contextual:
-            if not own: assert b == a, 'the scripts differ at line %d: parent %r, follow-on %r' % first_difference(parent_script['text'], child_script['text'])
+            # below the title, each script's detail line names its own operation's recipe (a follow-on routed by its parent shares the
+            # parent's recipe but keeps its own detail); every other line is the parent's
+            a = [line for line in a if line != '# ' + parent_detail]; b = [line for line in b if line != '# ' + child_detail]
+            if not own: assert b == a, 'the scripts differ at line %d: parent %r, follow-on %r' % first_difference('\n'.join(a), '\n'.join(b))
             else:
                 rest = iter(b); assert all(line in rest for line in a), 'the parent\'s script lines are not all in the follow-on\'s (which asked for %s itself)' % [i['name'] for i in own]
         # Routed/interpolation/ANOVA recipes intentionally differ from the parent.
@@ -1047,9 +1182,9 @@ for op, parent_op in sorted(INHERITING.items()):
         # varied native numerical results are checked in test_recipe_regressions.
         expected = expected_script(cr, child_recipe, child_detail, child_after)
         assert child_script['text'] == expected, 'line %d differs from the writer\'s rules: engine %r, expected %r' % first_difference(child_script['text'], expected)
-    except AssertionError as e: follow_on_problems.append(op); print('      %s: %s' % (op, str(e).replace('\n', ' | ')[:600]), flush=True)
+    except AssertionError as e: follow_on_problems.append(op if parent_op == INHERITING.get(op) else '%s after %s' % (op, parent_op)); print('      %s after %s: %s' % (op, parent_op, str(e).replace('\n', ' | ')[:600]), flush=True)
 check(not follow_on_problems and sorted(plots_drawn) == sorted(PLOT_PAGES), 'the chart follow-ons of the regressions (%d) draw their plots in R after the parent\'s analysis, from the plots sections the manifest names' % len(plots_drawn))
-check(not follow_on_problems, 'the %d follow-on operations run from a parent run record the frames they inherit (%d), marked inherited, and their scripts use the correct recipe, inherited data and selected follow-on settings (the %d writing to the worksheet alone leave no record)' % (len(INHERITING), inherited_frames, without_record)
+check(not follow_on_problems, 'the %d follow-on operations run from a parent run record the frames they inherit (%d), marked inherited, and their scripts use the correct recipe, inherited data and selected follow-on settings (the %d writing to the worksheet alone leave no record; the %d routed by their parent run from each of its %d parents)' % (len(INHERITING), inherited_frames, without_record, len(ROUTED_PARENTS), sum(len(v) for v in ROUTED_PARENTS.values()))
       + ('; failing: ' + ', '.join(follow_on_problems) if follow_on_problems else ''))
 
 # --- runs with the options and sizes the help's examples do not have, as tests/RScript/Options.cs and Options2.cs check them on Windows
@@ -1085,8 +1220,9 @@ CONTINUOUS = 'Choose the reference category for %s'   # the dialog put for an in
 # multiple linear regression without an intercept and with weights: lm gets the formula without the intercept and the weights
 y = [12.1, 14.3, 15.2, 18.9, 20.4, 22.8, 23.9, 27.1, 29.6, 30.2, 33.8, 35.1]; x1 = list(range(1, 13)); x2 = [3.2, 1.5, 4.8, 2.2, 5.9, 3.1, 6.4, 2.8, 7.1, 4.4, 8.3, 5.0]; w = [1, 2, 1, 3, 1, 2, 1, 3, 1, 2, 1, 3]
 state, record, script, r, report = option_run('MultipleLinearRegression', [('outcome', [('y', y)]), ('weights', [('w', w)]), ('predictors', [('x1', x1), ('x2', x2)])], {'ci': 0.95, 'calculateIntercept': False, 'useWeights': True})
-check('intercept <- FALSE' in script and 'weights <- c(1, 2, 1, 3' in script and 'intercept = intercept' in script and 'weights = weights' in script,
-      'the regression\'s script carries the run\'s intercept option and weights and hands them to lm')
+# as Options.cs checks it since 5.3.7: the fitted model itself, not the script's wording, has no intercept and the run's weights
+fitted = run_r(script + "\nstopifnot(attr(terms(fit), 'intercept') == 0L, identical(as.double(weights(fit)), " + vector(w) + "))\ncat('MLR_OPTIONS_OK\\n')\n")
+check('MLR_OPTIONS_OK' in fitted, 'the fitted R regression uses the run\'s weights and no intercept')
 engine_b = numbers(report, r'^\S+ b\d+ = (-?[0-9.]+) r = '); engine_t = numbers(report, r'^\S+ b\d+ = -?[0-9.]+ r = -?[0-9.]+ t = (-?[0-9.]+)')
 r_b = numbers(r, r'^.+ b\d+ = (-?[0-9.]+)'); r_t = numbers(r, r'^.+ b\d+ = .*  t = (-?[0-9.]+)')
 print('      weighted regression without an intercept: engine b %s, R b %s; t %s and %s' % (shown(engine_b), shown(r_b), shown(engine_t), shown(r_t)), flush=True)
@@ -1141,7 +1277,8 @@ state, record, script, r, report = option_run('CoxRegression', [('times', [('tim
                                               {'accuracy': 0.000000001, 'centre-continuous-covariates': True, 'useTimesAdjustment': False})
 engine_cox = numbers(report, r'^\S+ b1 = (-?[0-9.]+)')[0]; r_cox = numbers(r, r'^\S+ b1 = (-?[0-9.]+)')[0]
 print('      stratified Cox: engine b %.7g, R b %.7g' % (engine_cox, r_cox), flush=True)
-check('stratum <- c(' in script and 'strata(sd_stratum)' in script and near(r_cox, engine_cox), 'R\'s stratified Cox regression gives the engine\'s coefficient')
+stratified = run_r(script + "\nstopifnot(length(attr(terms(fit),'specials')$strata)==1L)\ncat('STRATUM_MODEL_OK\\n')\n")   # as Options.cs checks it since 5.3.7
+check('stratum <- c(' in script and near(r_cox, engine_cox) and 'STRATUM_MODEL_OK' in stratified, 'R\'s stratified Cox model actually includes its selected stratum and gives the native coefficient')
 
 # conditional logistic regression with one predictor: the loops take the run's number of coefficients (ten matched pairs, case then
 # control: five pairs with the case alone exposed, one with the control alone, four concordant, so that the estimate is finite, log 5)

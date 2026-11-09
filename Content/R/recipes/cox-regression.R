@@ -1,6 +1,7 @@
 # StatsDirect recipe: Cox proportional hazards regression, as the help shows it in R.
 # From the help's R code (survival_analysis/cox_regression.htm); the data and settings above come from the run.
 # data: time = times, censor = events, predictors... = predictors, stratum = strata
+# settings: confidence = gamma
 
 # Cox (proportional hazards) regression: the StatsDirect help example (Armitage and
 # Berry 1994, survival in days of lymphoma patients by stage of disease; the test
@@ -12,10 +13,18 @@ library(survival)
 # approximation, so ties = "breslow" is given (R's default is Efron's method, which
 # gives b = 0.961322 here). The report's z and P are the Wald test of each
 # coefficient, its deviance chi-square is R's likelihood ratio test, and its hazard
-# ratio and 95% limits are exp(coef) with the lower .95 and upper .95 limits.
-fit <- if (is.null(stratum)) coxph(Surv(time, censor) ~ ., data = as.data.frame(predictors), ties = "breslow") else
-  coxph(Surv(time, censor) ~ . - sd_stratum + strata(sd_stratum), data = cbind(as.data.frame(predictors), sd_stratum = stratum), ties = "breslow")
-print(summary(fit))
+# ratio and selected confidence limits are exp(coef) and Wald limits.
+if (!exists("confidence") || is.null(confidence)) confidence <- 0.95
+sd_data <- as.data.frame(predictors, optional = TRUE)
+sd_own <- tail(make.unique(c(names(sd_data), "time", "censor", "sd_stratum")), 3)
+sd_data[sd_own] <- list(time, censor, if (is.null(stratum)) rep(1, length(time)) else stratum)
+sd_terms <- encodeString(names(predictors), quote = "`")
+sd_terms[names(predictors) == "."] <- "I(`.`)"
+model <- reformulate(c(sd_terms,
+                       if (!is.null(stratum)) paste0("strata(", encodeString(sd_own[3], quote = "`"), ")")),
+                     response = call("Surv", as.name(sd_own[1]), as.name(sd_own[2])))
+fit <- eval(bquote(coxph(.(model), data = sd_data, ties = "breslow")))
+print(summary(fit, conf.int = confidence))
 
 # The report's lines to 6 places
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
@@ -34,8 +43,8 @@ for (i in seq_len(nrow(s))) cat(paste(rownames(s)[i], paste0("b", i, " =")), six
 
 # Hazard ratios: exp of the coefficient, with Wald limits on the log scale
 for (i in seq_len(nrow(s))) {
-  half <- qnorm(0.975) * s[i, "se(coef)"]
-  cat(paste(rownames(s)[i], "hazard ratio ="), six(exp(s[i, "coef"])), " 95% CI =", six(exp(s[i, "coef"] - half)), "to", six(exp(s[i, "coef"] + half)), "\n")
+  half <- qnorm((1 + confidence) / 2) * s[i, "se(coef)"]
+  cat(paste(rownames(s)[i], "hazard ratio ="), six(exp(s[i, "coef"])), paste0(" ", 100 * confidence, "% CI ="), six(exp(s[i, "coef"] - half)), "to", six(exp(s[i, "coef"] + half)), "\n")
   cat(paste(rownames(s)[i], "coefficient ="), six(s[i, "coef"]), " standard error =", six(s[i, "se(coef)"]), "\n")
 }
 
@@ -53,7 +62,7 @@ cat("Deviance (likelihood ratio) chi-square =", six(dev), " df =", df, " ",
 # direct estimate agrees with the report's to 6 places here, though the two can
 # differ at a time when everyone still at risk dies at the same time.
 if (is.null(stratum)) {   # the baseline of a stratified model is a curve for each stratum, which the report does not give
-base <- survfit(fit, newdata = as.data.frame(lapply(predictors, function(v) 0)), stype = 1, ctype = 1)
+base <- survfit(fit, newdata = as.data.frame(lapply(predictors, function(v) 0), optional = TRUE), stype = 1, ctype = 1)
 at_event <- base$n.event > 0
 cat("First baseline rows: time, survival probability, cumulative hazard\n")
 print(head(data.frame(time = base$time[at_event], survival = six(base$surv[at_event]),

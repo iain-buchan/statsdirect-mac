@@ -73,6 +73,7 @@ tab <- data.frame(Study = study, `Risk difference` = six(rd), Lower = six(ci[, 1
                   Upper = six(ci[, 2]), Variance = six(v_iv),
                   `% fixed` = six(100 * w_mh / sum(w_mh)),
                   `% random` = six(100 * w_dl / sum(w_dl)), check.names = FALSE)
+cat("95% study confidence intervals (Miettinen)\n")
 print(tab, row.names = FALSE)
 
 cat("Fixed effects (Mantel-Haenszel, Greenland-Robins)\n")

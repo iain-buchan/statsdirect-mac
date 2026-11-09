@@ -10,14 +10,14 @@
 # -log(-log(survival)) against log(time), in which the two groups run side by
 # side if their hazards are proportional. Tics mark censored times and markers
 # every observed time when the follow-on asked for them.
-predictor_frame <- as.data.frame(predictors)
+predictor_frame <- as.data.frame(predictors, optional = TRUE)
 binary <- names(predictor_frame)[vapply(predictor_frame, function(v) length(unique(v[!is.na(v)])) == 2, logical(1))]
 split_choices <- if (!is.null(stratum)) "Strata" else c(binary, "None")
 split_by <- if (is.null(split)) split_choices[1] else split_choices[which(unlist(split))[1]]
 if (is.na(split_by)) split_by <- split_choices[1]
 if (is.null(use_tics)) use_tics <- FALSE
 if (is.null(use_markers)) use_markers <- FALSE
-baseline_rows <- as.data.frame(lapply(predictor_frame, function(v) 0))
+baseline_rows <- as.data.frame(lapply(predictor_frame, function(v) 0), optional = TRUE)
 grouped <- split_by != "Strata" && split_by != "None"
 if (grouped) {
   group_values <- sort(unique(predictor_frame[[split_by]][!is.na(predictor_frame[[split_by]])]))

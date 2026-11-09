@@ -37,7 +37,7 @@ koopman <- function(x1, n1, x0, n0) {   # the ratio (x1 / n1) / (x0 / n0)
   c(est, lower, upper)
 }
 interval <- function(v) paste0(six(v[1]), " (", six(v[2]), " to ", six(v[3]), ")")
-cat("Estimates with 95% confidence intervals:\n")
+cat("Estimates with", paste0(100 * level, "%"), "confidence intervals:\n")
 cat("Risk of event in controls =", risk(xc, nc), "\n")
 cat("Risk of event in treated =", risk(xt, nt), "\n")
 rre <- koopman(xt, nt, xc, nc)

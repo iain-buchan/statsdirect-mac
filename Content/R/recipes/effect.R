@@ -1,8 +1,20 @@
 # StatsDirect recipe: Effect size meta-analysis, as the help shows it in R.
 # From the help's R code (meta_analysis/effect_size.htm); the data and settings above come from the run.
 # data: en = en, em = em, es = es, cn = cn, cm = cm, cs = cs, gin = g, trial = strata
-# settings: confidence = gamma, type = type
+# settings: confidence = gamma, type = type, exact_meta = metaExact
 
+# A supplied effect size needs only the two sample sizes; the other methods
+# need both means and standard deviations as well.
+keep <- if (type == "g") complete.cases(en, cn, gin) else complete.cases(en, cn, em, es, cm, cs)
+if (any(!keep)) cat("(", sum(!keep), " other rows not used)\n", sep = "")
+en <- en[keep]
+em <- em[keep]
+es <- es[keep]
+cn <- cn[keep]
+cm <- cm[keep]
+cs <- cs[keep]
+gin <- gin[keep]
+trial <- trial[keep]
 if (is.null(trial)) trial <- paste("Trial", seq_along(en))
 # Effect size meta-analysis: the StatsDirect help example (Freemantle, personal
 # communication, test outcomes of seven comparisons from six trials of an educational
@@ -67,31 +79,48 @@ cat("Pooled effect size d+ = ", six(dplus), " (", pct, "CI = ", six(dplus - z * 
 cat("Z (test d+ differs from 0) =", six(dplus / se_dplus), " ",
     pv(2 * pnorm(-abs(dplus / se_dplus))), "\n")
 
-# Heterogeneity: Cochran's Q, the DerSimonian-Laird moment estimate of the between
-# studies variance and I-squared. The interval for I-squared is the iterative
-# noncentral chi-square method of Hedges and Pigott (2001): Q is taken as a
-# noncentral chi-square variable on df degrees of freedom, and each limit is the
-# noncentrality parameter lambda that puts the observed Q at its 97.5th or 2.5th
-# percentile (found with uniroot and pchisq; 0 when the central distribution already
-# puts Q below that percentile), converted to I-squared as 100 lambda / (df + lambda)
+# Cochran's Q and the DerSimonian-Laird between-study variance.
 Q <- sum(w * (d - dplus)^2)
 df <- k - 1
 tausq <- max(0, (Q - df) / (sum(w) - sum(w^2) / sum(w)))
-isq <- max(0, 100 * (Q - df) / Q)
-ncp_chisq <- function(p) {
-  if (pchisq(Q, df) < p) return(0)
-  uniroot(function(lambda) pchisq(Q, df, ncp = lambda) - p, c(0, 10 * Q + 100),
-          tol = 1e-10)$root
-}
-lambda_ci <- c(ncp_chisq((1 + confidence) / 2), ncp_chisq((1 - confidence) / 2))
-isq_ci <- 100 * lambda_ci / (df + lambda_ci)
-pc1 <- function(x) formatC(x, digits = 1, format = "f", drop0trailing = TRUE)
+one <- function(x) formatC(x, digits = 1, format = "f", drop0trailing = TRUE)
 cat("Non-combinability of studies\n")
 cat("Cochran Q = ", six(Q), "  (df = ", df, ")  ",
     pv(pchisq(Q, df, lower.tail = FALSE)), "\n", sep = "")
 cat("Moment-based estimate of between studies variance =", six(tausq), "\n")
-cat("I-squared (inconsistency) = ", pc1(isq), "% (", pct, "CI = ", pc1(isq_ci[1]), "% to ",
-    pc1(isq_ci[2]), "%)\n", sep = "")
+# I-squared interval: recorded exact/test-based choice.
+# Older records have no preference: retain the non-central interval they used.
+if (is.null(exact_meta)) exact_meta <- TRUE
+df_i2 <- k - 1
+i2 <- if (k < 2) NA_real_ else if (Q == 0) 0 else max(0, 100 * (Q - df_i2) / Q)
+i2_ci <- rep(NA_real_, 2)
+if (k >= 2 && confidence > 0 && confidence < 1) {
+  if (isTRUE(exact_meta)) {
+    # Invert the non-central chi-square CDF (Hedges & Pigott, 2001).
+    lambda <- function(p) {
+      if (pchisq(Q, df_i2) <= p) 0 else
+        uniroot(function(l) pchisq(Q, df_i2, ncp = l) - p,
+                c(0, 10 * Q + 100), tol = 1e-10)$root
+    }
+    lim <- c(lambda((1 + confidence) / 2), lambda((1 - confidence) / 2))
+    i2_ci <- 100 * lim / (df_i2 + lim)
+  } else if (k >= 3) {
+    # Test-based log(H) interval (Higgins & Thompson, 2002), as in
+    # StatsDirect's MIT Meta.IsquareNcc. H is at least one.
+    h2 <- max(1, Q / df_i2)
+    se_log_h <- if (Q > k) 0.5 * (log(Q) - log(df_i2)) /
+      (sqrt(2 * Q) - sqrt(2 * k - 3)) else
+      sqrt((1 - 1 / (3 * (k - 2)^2)) / (2 * (k - 2)))
+    h_limits <- exp(log(sqrt(h2)) + c(-1, 1) * z * se_log_h)
+    h_limits[1] <- max(1, h_limits[1])
+    i2_ci <- 100 * (1 - 1 / h_limits^2)
+  }
+}
+if (k < 2) cat("I-squared not calculated: at least two studies are required.\n") else if (anyNA(i2_ci))
+  cat("I-squared (inconsistency) =", one(i2), "% (interval unavailable for this number of studies and confidence level)\n") else
+  cat("I-squared (inconsistency) = ", one(i2), "% (", pct, "CI = ",
+      one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")
+# End of I-squared interval.
 
 # Random effects (DerSimonian-Laird): the between studies variance is added to
 # each study's variance before weighting

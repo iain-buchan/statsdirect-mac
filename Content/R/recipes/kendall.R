@@ -6,6 +6,9 @@
 
 # Kendall's rank correlation: the StatsDirect help example (Armitage and Berry
 # 1994, p. 466) in R
+keep <- complete.cases(career, psychology)
+career <- career[keep]
+psychology <- psychology[keep]
 pct <- paste0(100 * confidence, "%")
 n <- length(career)
 

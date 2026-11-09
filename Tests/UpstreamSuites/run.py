@@ -32,7 +32,7 @@ mac=work/'CrosstabsReports.cs';mac.write_text(source)
 source=(ROOT/'FullEngine/Upstream/tests/Frequencies/Program.cs').read_text()
 start=source.index('        int rows = columns.Max(c => c.Length);')
 end=source.index('        return frame;',start)+len('        return frame;')
-source=source[:start]+'        var input = System.Text.Json.JsonSerializer.SerializeToElement(new {\n            columns = columns.Select((values, i) => new { title = titles[i], values }).ToArray()\n        });\n        var reader = typeof(Describe).Assembly.GetType("HostParameters");\n        return (DataFrame)reader.GetMethod("ReadFrame", BindingFlags.NonPublic | BindingFlags.Static)\n            .Invoke(null, new object[] { input, DataAcquisitionMode.CategoryReplaceMissing, null });'+source[end:]
+source=source[:start]+'        var input = System.Text.Json.JsonSerializer.SerializeToElement(new {\n            columns = columns.Select((values, i) => new { title = titles[i], values }).ToArray()\n        });\n        var reader = typeof(Describe).Assembly.GetType("HostParameters");\n        return (DataFrame)reader.GetMethod("ReadFrame", BindingFlags.NonPublic | BindingFlags.Static)\n            .Invoke(null, new object[] { input, DataAcquisitionMode.CategoryReplaceMissing, null, false, false });'+source[end:]
 frequency=work/'FrequenciesProgram.cs';frequency.write_text(source)
 
 # The Windows calculator control is absent on Mac. Retain the unchanged numerical

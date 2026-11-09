@@ -8,6 +8,7 @@
 if (!exists("increase_title")) increase_title <- "increase"
 if (!exists("weight_title")) weight_title <- "weight"
 if (is.null(level)) level <- confidence
+if (!is.finite(level) || level <= 0 || level >= 1) level <- 0.95
 at <- seq(min(weight, na.rm = TRUE), max(weight, na.rm = TRUE), length.out = 100)
 estimate <- predict(fit, newdata = data.frame(weight = at), se.fit = TRUE, interval = "confidence", level = level)
 plot(weight, increase, xlab = weight_title, ylab = increase_title,

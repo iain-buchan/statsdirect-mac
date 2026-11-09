@@ -5,6 +5,8 @@
 # hand-edited: the confidence level and the data come from the run, as the header says
 
 # Mann-Whitney U test: the StatsDirect help example (Conover 1999, p. 218) in R
+farm <- farm[!is.na(farm)]
+town <- town[!is.na(town)]
 pct <- paste0(100 * confidence, "%")
 n1 <- length(farm)
 n2 <- length(town)

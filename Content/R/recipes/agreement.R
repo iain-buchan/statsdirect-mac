@@ -2,8 +2,10 @@
 # From the help's R code (agreement/intraclass.htm); the data and settings above come from the run.
 # data: raters...
 # settings: confidence = ci
+# hand-edited: omit incomplete subjects before all summaries and plots
 
 flow <- do.call(cbind, raters)
+flow <- flow[complete.cases(flow), , drop = FALSE]
 # Agreement of continuous measurements: the StatsDirect help example (Bland and Altman
 # 1996a, four peak flow readings on each of 20 children; the test workbook's Agreement
 # worksheet columns 1st to 4th) in R
@@ -37,20 +39,53 @@ cat("Intra-class correlation coefficient (one way random effects) =", six(icc),
 sw <- sqrt(msw)
 cat("Estimated within-subjects standard deviation =", six(sw), "\n")
 
-# Each child's standard deviation against the child's mean: Kendall's tau b, with the
-# continuity corrected normal approximation to its P value (the ties rule out the
-# exact test)
+# Kendall's tau between each subject's standard deviation and mean. The report
+# treats computed values equal to 1 part in 10^12 as ties, with an additional
+# rounding allowance for the standard deviations.
 child_sd <- apply(flow, 1, sd)
 child_mean <- rowMeans(flow)
-kt <- cor.test(child_sd, child_mean, method = "kendall", exact = FALSE,
-               continuity = TRUE)
-cat("For within-subjects sd vs. mean, Kendall's tau b =", six(kt$estimate),
+same <- function(v, tolerance = 0) {
+  o <- order(v)
+  for (j in seq_along(o)[-1]) {
+    a <- v[o[j - 1]]; b <- v[o[j]]
+    if (abs(a - b) <= max(tolerance, 1e-12 * max(abs(a), abs(b)))) v[o[j]] <- a
+  }
+  v
+}
+ksd <- same(child_sd, 4e-15 * max(abs(flow)))
+kmean <- same(child_mean)
+tied <- anyDuplicated(ksd) > 0 || anyDuplicated(kmean) > 0
+kt <- cor.test(ksd, kmean, method = "kendall", exact = FALSE, continuity = TRUE)
+if (!tied && n <= 170) {
+  # The distribution is symmetric. Use its small tail directly rather than
+  # subtracting an almost-one CDF, which can lose a tiny positive-association P.
+  kt$p.value <- cor.test(ksd, if (kt$estimate > 0) -kmean else kmean,
+                         method = "kendall", exact = TRUE)$p.value
+} else if (!tied && n <= 1000) {
+  # The report counts permutations through 1,000 subjects. R's exact Kendall
+  # test divides by n!, which overflows beyond 170. Normalised probabilities
+  # avoid that overflow: inserting subject j adds 0 to j-1 discordant pairs.
+  pairs <- n * (n - 1) / 2
+  s <- round(kt$estimate * pairs)
+  if (abs(s) == pairs) kt$p.value <- min(1, 2 * exp(-lgamma(n + 1))) else {
+    p <- 1
+    for (j in 2:n) {
+      cs <- cumsum(c(p, numeric(j - 1)))
+      next_p <- (cs - c(numeric(j), cs)[seq_along(cs)]) / j
+      half <- seq_len((length(next_p) + 1) %/% 2)
+      next_p[length(next_p) + 1 - half] <- next_p[half]
+      p <- pmax(0, next_p)
+    }
+    kt$p.value <- min(1, 2 * sum(p[seq_len((pairs - abs(s)) %/% 2 + 1)]))
+  }
+}
+cat("For within-subjects sd vs. mean, Kendall's tau", if (tied) "b =" else "=", six(kt$estimate),
     " two sided", pv(kt$p.value), "\n")
 
-# The repeatability coefficient: for 95% of pairs of readings on the same child, the
-# two readings differ by less than root 2 times 1.96 times the within-subjects
-# standard deviation
-cat("Repeatability (for alpha = 0.05) =", six(sqrt(2) * qnorm((1 + confidence) / 2) * sw), "\n")
+# The selected proportion of differences between repeated readings lies within
+# this repeatability coefficient, under the normal model.
+cat(sprintf("Repeatability (for alpha = %g) = ", 1 - confidence),
+    six(sqrt(2) * qnorm((1 + confidence) / 2) * sw), "\n", sep = "")
 
 # The report's three plots: each child's standard deviation, then the largest
 # difference between two of the child's readings, against the child's mean; and the

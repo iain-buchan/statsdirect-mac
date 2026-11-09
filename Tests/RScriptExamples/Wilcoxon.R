@@ -4,21 +4,11 @@ second <- c(88, 77, 76, 64, 96, 72, 65, 90, 65, 80, 81, 72)
 d <- first - second                       # one difference is 0 and some are tied
 n <- length(d)
 
-# R's standard test. Its V is the sum of ranks for positive differences. R 4.6.0
-# or later gives exact results that allow for the zero and the ties, but it ranks
-# the zero with the other differences before setting it aside (the method of
-# Pratt, 1959): V = 48.5 and two sided P = 0.458. StatsDirect, like Conover, sets
-# zeros aside before ranking: the sum is 41.5 and two sided P = 0.4756. Each P is
-# exact for its own method. Older versions of R warn and use a normal
-# approximation with continuity correction, as exact = FALSE does (V = 41.5,
-# two sided P = 0.4765).
-print(wilcox.test(first, second, paired = TRUE, conf.int = TRUE))
-
-# With zeros set aside first, R 4.6.0 or later gives StatsDirect's two sided P.
-# Use alternative = "less" for the lower side P and "greater" for the upper.
-# Keep the confidence interval from the first call: it needs every difference.
+# Match the selected analysis by excluding zero differences before ranking.
+# On R 4.6 or later the raw paired call uses Pratt ranks (V = 48.5), while
+# StatsDirect and Conover exclude zeros before ranking (V = 41.5).
 nz <- d[d != 0]
-print(wilcox.test(nz))
+print(wilcox.test(nz, exact = TRUE, correct = FALSE))
 
 # Number of non-zero differences and the sum of ranks for positive differences
 r <- rank(abs(nz))                        # tied values share a mid-rank
@@ -26,14 +16,12 @@ Tplus <- sum(r[nz > 0])
 cat("Number of non-zero differences ranked =", length(nz), "\n")
 cat("Sum of ranks for positive differences =", Tplus, "\n")
 
-# Exact P given the ties, in any version of R: each rank is as likely to belong
-# to a positive as to a negative difference, so build the distribution of the
-# sum one rank at a time. Ranks are doubled to make mid-ranks whole numbers.
-p <- 1                                    # P(doubled sum = 0), before any rank
-for (v in 2 * r) p <- (c(p, numeric(v)) + c(numeric(v), p)) / 2
-w <- 2 * Tplus + 1                        # position of the observed value
-lower <- sum(p[1:w])                      # each side includes the observed sum
-upper <- sum(p[w:length(p)])
+# Independently enumerate all 2^11 equally likely sign assignments in this
+# example. Each side includes the observed positive rank sum.
+assignments <- as.matrix(expand.grid(rep(list(c(0, 1)), length(r))))
+positive_sums <- drop(assignments %*% r)
+lower <- mean(positive_sums <= Tplus)
+upper <- mean(positive_sums >= Tplus)
 cat("Lower side P =", round(lower, 4), "  Upper side P =", round(upper, 4),
     "  Two sided P =", round(min(1, 2 * min(lower, upper)), 4), "\n")
 

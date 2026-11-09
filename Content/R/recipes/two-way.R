@@ -1,8 +1,10 @@
 # StatsDirect recipe: Two way analysis of variance of a randomized block layout, as the help shows it in R.
 # From the help's R code (analysis_of_variance/two_way.htm); the data and settings above come from the run.
 # matrix: blocks
+# hand-edited: omit incomplete blocks to retain the native balanced design
 
 # the blocks are the rows of the frame and the treatments its columns
+blocks <- blocks[complete.cases(blocks), , drop = FALSE]
 clotting <- as.vector(t(blocks))
 subject <- factor(rep(seq_len(nrow(blocks)), each = ncol(blocks)))
 treatment <- factor(rep(colnames(blocks), times = nrow(blocks)), levels = colnames(blocks))

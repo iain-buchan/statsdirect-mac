@@ -5,6 +5,8 @@
 
 # Normal distribution (z) tests: the StatsDirect help example (Michelson's 100
 # measurements of the speed of light in air, millions of metres per second) in R
+speed <- speed[!is.na(speed)]
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 n <- length(speed)
 
@@ -19,7 +21,7 @@ cat("Sample mean =", six(mean(speed)), "  Sample size n =", n,
     "  Sample sd =", six(sd(speed)), "\n")
 
 # Single sample test, with the population sd not known: the sample sd is used
-se <- (if (is.null(popsd)) sd(speed) else popsd) / sqrt(n)   # the population standard deviation when it is known
+se <- (if (is.null(popsd) || popsd == 0) sd(speed) else popsd) / sqrt(n)   # a positive population sd when known
 cat(pct, "confidence interval for mean difference =", six(mean(speed) - mu - z * se),
     "to", six(mean(speed) - mu + z * se), "\n")
 dev <- (mean(speed) - mu) / se

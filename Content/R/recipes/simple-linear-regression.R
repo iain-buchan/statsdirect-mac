@@ -8,6 +8,11 @@
 # and Berry 1994, birth weight and percentage weight gain of 32 babies) in R
 
 # R's standard regression: the coefficients, their standard errors and t tests
+keep <- complete.cases(increase, weight)
+increase <- increase[keep]
+weight <- weight[keep]
+if (!is.null(confidence) && !is.na(confidence) && confidence <= 0) stop("Confidence must be greater than zero.")
+if (is.null(confidence) || !is.finite(confidence) || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 fit <- lm(increase ~ weight)
 print(summary(fit))
@@ -22,15 +27,18 @@ six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
 b <- coef(fit)
 se <- summary(fit)$coefficients["weight", "Std. Error"]
 n <- length(weight)
-cat("Equation: % Increase =", six(b[2]), "Birth Weight +", six(b[1]), "\n")
+if (!exists("increase_title")) increase_title <- "increase"
+if (!exists("weight_title")) weight_title <- "weight"
+cat("Equation:", increase_title, "=", six(b[2]), weight_title, "+", six(b[1]), "\n")
 cat(pct, "CI for population value of slope =", six(confint(fit, level = confidence)[2, 1]), "to",
     six(confint(fit, level = confidence)[2, 2]), "\n")
 cat("R squared =", six(ct$estimate^2), "\n")
 
-# Power of the test of r at the 5% level: Fisher's z of r is about normal with
+# Power of the test of r at the selected significance level: Fisher's z is about normal with
 # standard deviation 1 / root(n - 3), so the power against zero is the two tails
-# beyond the 5% points
+# beyond the critical points
 z <- abs(atanh(ct$estimate)) * sqrt(n - 3)
-power <- pnorm(z - qnorm(0.975)) + pnorm(-z - qnorm(0.975))
-cat("Power (for 5% significance) =",
-    paste0(formatC(100 * power, digits = 2, format = "f"), "%"), "\n")
+alpha <- 1 - confidence
+critical <- qnorm(1 - alpha / 2)
+power <- pnorm(z - critical) + pnorm(-z - critical)
+cat(sprintf("Power (for %g%% significance) = %.2f%%\n", 100 * alpha, 100 * power))

@@ -1,9 +1,11 @@
 # StatsDirect recipe: Relative risk meta-analysis, as the help shows it in R.
 # From the help's R code (meta_analysis/relative_risk.htm); the data and settings above come from the run.
 # data: exposed_total, exposed_cases, control_total, control_cases, study
-# settings: confidence = gamma
+# settings: confidence = gamma, exact_meta = metaExact
 
 if (is.null(study)) study <- paste("Study", seq_along(exposed_total))
+# Older records did not save this preference; their R recipe used score intervals.
+if (is.null(exact_meta)) exact_meta <- TRUE
 # Relative risk meta-analysis: the StatsDirect help example (Fleiss and Gross 1991,
 # deaths after myocardial infarction in seven placebo-controlled trials of aspirin;
 # the test workbook's Meta-analysis worksheet columns A to E) in R
@@ -48,8 +50,14 @@ koopman <- function(x1, n1, x0, n0) {
   c(uniroot(function(t) score(t) - z, c(est / 100, est), tol = 1e-12)$root,
     uniroot(function(t) score(t) + z, c(est, est * 100), tol = 1e-12)$root)
 }
-ci <- t(mapply(koopman, a, a + cx, b, b + d))
-cat("Stratum  Relative risk", pct, "CI (Koopman)\n")
+if (isTRUE(exact_meta)) {
+  ci <- t(mapply(koopman, a, a + cx, b, b + d))
+} else {
+  se_log_rr <- sqrt(1 / a + 1 / b - 1 / (a + cx) - 1 / (b + d))
+  ci <- cbind(exp(log(rr) - z * se_log_rr), exp(log(rr) + z * se_log_rr))
+}
+cat("Stratum  Relative risk", pct, "CI (",
+    if (isTRUE(exact_meta)) "Koopman" else "approximate", ")\n", sep = " ")
 for (i in 1:k) cat(i, six(rr[i]), six(ci[i, 1]), six(ci[i, 2]), study[i], "\n")
 
 # Fixed effects: the Mantel-Haenszel type pooled risk ratio of Rothman and Boice,
@@ -89,26 +97,49 @@ cat("Pooled relative risk = ", six(rr_mh), " (", pct, "CI = ",
 cat("Chi2 (test relative risk differs from 1) =", six(x2), " (df = 1) ",
     pv(pchisq(x2, 1, lower.tail = FALSE)), "\n")
 
-# I-squared = (Q - df) / Q, with the interval that the heterogeneity topic attributes
+# I-squared = (Q - df) / Q, with the default interval that the heterogeneity topic attributes
 # to Hedges and Pigott (2001): Q is treated as non-central chi-square and its
 # distribution function at the observed Q is inverted for the non-centrality parameter
-# lambda, the lower limit where that probability is 0.975 (0 when even the central
-# distribution gives less) and the upper where it is 0.025; each limit is converted to
+# lambda, using the selected upper and lower tail probabilities (a limit is 0 when
+# even the central distribution gives less); each limit is converted to
 # I-squared as lambda / (df + lambda)
 cat("Non-combinability of studies\n")
 cat("Cochran Q = ", six(q), "  (df = ", k - 1, ")  ",
     pv(pchisq(q, k - 1, lower.tail = FALSE)), "\n", sep = "")
 cat("Moment-based estimate of between studies variance =", six(tau2), "\n")
-i2 <- max(0, 100 * (q - (k - 1)) / q)
-lambda <- function(p) {
-  if (pchisq(q, k - 1) < p) 0 else
-    uniroot(function(l) pchisq(q, k - 1, ncp = l) - p, c(0, 10 * q + 100),
-            tol = 1e-10)$root
+# I-squared interval: recorded exact/test-based choice.
+# Older records have no preference: retain the non-central interval they used.
+if (is.null(exact_meta)) exact_meta <- TRUE
+df_i2 <- k - 1
+i2 <- if (k < 2) NA_real_ else if (q == 0) 0 else max(0, 100 * (q - df_i2) / q)
+i2_ci <- rep(NA_real_, 2)
+if (k >= 2 && confidence > 0 && confidence < 1) {
+  if (isTRUE(exact_meta)) {
+    # Invert the non-central chi-square CDF (Hedges & Pigott, 2001).
+    lambda <- function(p) {
+      if (pchisq(q, df_i2) <= p) 0 else
+        uniroot(function(l) pchisq(q, df_i2, ncp = l) - p,
+                c(0, 10 * q + 100), tol = 1e-10)$root
+    }
+    lim <- c(lambda((1 + confidence) / 2), lambda((1 - confidence) / 2))
+    i2_ci <- 100 * lim / (df_i2 + lim)
+  } else if (k >= 3) {
+    # Test-based log(H) interval (Higgins & Thompson, 2002), as in
+    # StatsDirect's MIT Meta.IsquareNcc. H is at least one.
+    h2 <- max(1, q / df_i2)
+    se_log_h <- if (q > k) 0.5 * (log(q) - log(df_i2)) /
+      (sqrt(2 * q) - sqrt(2 * k - 3)) else
+      sqrt((1 - 1 / (3 * (k - 2)^2)) / (2 * (k - 2)))
+    h_limits <- exp(log(sqrt(h2)) + c(-1, 1) * z * se_log_h)
+    h_limits[1] <- max(1, h_limits[1])
+    i2_ci <- 100 * (1 - 1 / h_limits^2)
+  }
 }
-lim <- c(lambda(0.975), lambda(0.025))
-cat("I2 (inconsistency) = ", one(i2), "% (", pct, "CI = ",
-    one(100 * lim[1] / (k - 1 + lim[1])), "% to ",
-    one(100 * lim[2] / (k - 1 + lim[2])), "%)\n", sep = "")
+if (k < 2) cat("I2 not calculated: at least two studies are required.\n") else if (anyNA(i2_ci))
+  cat("I2 (inconsistency) =", one(i2), "% (interval unavailable for this number of studies and confidence level)\n") else
+  cat("I2 (inconsistency) = ", one(i2), "% (", pct, "CI = ",
+      one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")
+# End of I-squared interval.
 
 cat("Random effects (DerSimonian-Laird)\n")
 cat("Pooled relative risk = ", six(rr_dl), " (", pct, "CI = ", six(dl_ci[1]), " to ",

@@ -10,7 +10,11 @@
 # R's standard test, first assuming equal variances and then not (R's default,
 # the Welch test, whose t and df are StatsDirect's t(d) and its fractional df).
 # Each gives t, df, the two sided P and the confidence interval.
+high <- high[!is.na(high)]
+low <- low[!is.na(low)]
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
+alpha <- 1 - confidence
 equal <- t.test(high, low, var.equal = TRUE, conf.level = confidence)
 print(equal)
 unequal <- t.test(high, low, conf.level = confidence)
@@ -31,12 +35,12 @@ report <- function(r, label) {
   cat(label, "\n")
   cat("Combined standard error =", six(r$stderr), "\n")
   cat(sprintf("One sided P = %.4f\n", r$p.value / 2))
-  # Power of a two sided test at the 5% level to detect the difference seen, from
+  # Power at the selected significance level to detect the difference seen, from
   # the noncentral t distribution: the noncentrality parameter is the t observed
-  tc <- qt(0.975, r$parameter)
+  tc <- qt(1 - alpha / 2, r$parameter)
   pw <- pt(-tc, r$parameter, ncp = r$statistic) +
         pt(tc, r$parameter, ncp = r$statistic, lower.tail = FALSE)
-  cat(sprintf("Power (for 5%% significance) = %.2f%%\n", 100 * pw))
+  cat(sprintf("Power (for %g%% significance) = %.2f%%\n", 100 * alpha, 100 * pw))
 }
 report(equal, "Assuming equal variances")
 report(unequal, "Assuming unequal variances")

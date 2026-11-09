@@ -47,7 +47,7 @@ size_for_power <- function(power) {
 }
 power <- uniroot(function(pw) size_for_power(pw) - (a + c), c(alpha, 1 - 1e-12),
                  tol = 1e-10)$root         # the size falls as the power asked for falls
-cat("Approximate power (for 5% significance) = ",
+cat(sprintf("Approximate power (for %g%% significance) = ", 100 * alpha),
     formatC(100 * power, digits = 2, format = "f", drop0trailing = TRUE), "%\n",
     sep = "")
 

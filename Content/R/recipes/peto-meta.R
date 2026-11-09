@@ -1,7 +1,7 @@
 # StatsDirect recipe: Peto odds ratio meta-analysis, as the help shows it in R.
 # From the help's R code (meta_analysis/peto.htm); the data and settings above come from the run.
 # data: aspirin, aspirin_deaths, control, control_deaths, study
-# settings: confidence = gamma
+# settings: confidence = gamma, exact_meta = metaExact
 
 if (is.null(study)) study <- paste("Trial", seq_along(aspirin))
 # Peto odds ratio meta-analysis: the StatsDirect help example (Fleiss 1993, deaths after
@@ -73,10 +73,10 @@ cat("Z (test of odds ratio differs from 1) =", six(z_pooled), " ",
 # Non-combinability: Cochran's Q is the weighted sum of squared differences between the
 # studies' log odds ratios and the pooled one, with the V as weights, referred to the
 # chi-square distribution with k - 1 degrees of freedom. I-squared is 100 (Q - df) / Q,
-# not below zero. Its interval is the non-central chi-square method of Hedges and
+# not below zero. Its default interval uses the non-central chi-square method of Hedges and
 # Pigott (2001) that the report uses: Q is treated as a non-central chi-square variable
 # on df degrees of freedom, and each limit is the non-centrality parameter at which the
-# observed Q sits at the 97.5th (lower limit) or the 2.5th (upper limit) percentile,
+# observed Q reaches the selected upper (lower limit) or lower (upper limit) tail,
 # found with uniroot and pchisq; a limit is 0 when the central distribution already
 # puts Q below that percentile. A non-centrality lambda gives
 # I-squared = lambda / (df + lambda)
@@ -85,16 +85,39 @@ dfq <- k - 1
 cat("Cochran Q = ", six(Q), "  (df = ", dfq, ")  ",
     pv(pchisq(Q, dfq, lower.tail = FALSE)), "\n", sep = "")
 one <- function(x) formatC(x, digits = 1, format = "f", drop0trailing = TRUE)
-i2 <- max(0, 100 * (Q - dfq) / Q)
-ncp_limit <- function(p) {
-  if (pchisq(Q, dfq) <= p) return(0)
-  # the bracket Q + 1000 is ample: the distribution function there is near 0
-  uniroot(function(l) pchisq(Q, dfq, ncp = l) - p, c(0, Q + 1000), tol = 1e-10)$root
+# I-squared interval: recorded exact/test-based choice.
+# Older records have no preference: retain the non-central interval they used.
+if (is.null(exact_meta)) exact_meta <- TRUE
+df_i2 <- k - 1
+i2 <- if (k < 2) NA_real_ else if (Q == 0) 0 else max(0, 100 * (Q - df_i2) / Q)
+i2_ci <- rep(NA_real_, 2)
+if (k >= 2 && confidence > 0 && confidence < 1) {
+  if (isTRUE(exact_meta)) {
+    # Invert the non-central chi-square CDF (Hedges & Pigott, 2001).
+    lambda <- function(p) {
+      if (pchisq(Q, df_i2) <= p) 0 else
+        uniroot(function(l) pchisq(Q, df_i2, ncp = l) - p,
+                c(0, 10 * Q + 100), tol = 1e-10)$root
+    }
+    lim <- c(lambda((1 + confidence) / 2), lambda((1 - confidence) / 2))
+    i2_ci <- 100 * lim / (df_i2 + lim)
+  } else if (k >= 3) {
+    # Test-based log(H) interval (Higgins & Thompson, 2002), as in
+    # StatsDirect's MIT Meta.IsquareNcc. H is at least one.
+    h2 <- max(1, Q / df_i2)
+    se_log_h <- if (Q > k) 0.5 * (log(Q) - log(df_i2)) /
+      (sqrt(2 * Q) - sqrt(2 * k - 3)) else
+      sqrt((1 - 1 / (3 * (k - 2)^2)) / (2 * (k - 2)))
+    h_limits <- exp(log(sqrt(h2)) + c(-1, 1) * z * se_log_h)
+    h_limits[1] <- max(1, h_limits[1])
+    i2_ci <- 100 * (1 - 1 / h_limits^2)
+  }
 }
-lambda <- c(ncp_limit(0.975), ncp_limit(0.025))
-i2_ci <- 100 * lambda / (dfq + lambda)
-cat("I2 (inconsistency) = ", one(i2), "% (", pct, "CI = ", one(i2_ci[1]), "% to ",
-    one(i2_ci[2]), "%)\n", sep = "")
+if (k < 2) cat("I2 not calculated: at least two studies are required.\n") else if (anyNA(i2_ci))
+  cat("I2 (inconsistency) =", one(i2), "% (interval unavailable for this number of studies and confidence level)\n") else
+  cat("I2 (inconsistency) = ", one(i2), "% (", pct, "CI = ",
+      one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")
+# End of I-squared interval.
 
 # Bias indicators. Each study's standard error of the log odds ratio is 1 / sqrt(V).
 # Begg and Mazumdar's test is Kendall's tau between the standardised deviates of the

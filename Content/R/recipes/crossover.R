@@ -2,7 +2,14 @@
 # From the help's R code (analysis_of_variance/crossover.htm); the data and settings above come from the run.
 # data: drug1 = group1drug, placebo1 = group1placebo, baseline1 = group1baseline, drug2 = group2drug, placebo2 = group2placebo, baseline2 = group2baseline
 # settings: confidence = gamma
+# hand-edited: omit incomplete subjects within each treatment-sequence group
 
+keep1 <- complete.cases(cbind(drug1, placebo1, baseline1))
+drug1 <- drug1[keep1]; placebo1 <- placebo1[keep1]
+if (!is.null(baseline1)) baseline1 <- baseline1[keep1]
+keep2 <- complete.cases(cbind(drug2, placebo2, baseline2))
+drug2 <- drug2[keep2]; placebo2 <- placebo2[keep2]
+if (!is.null(baseline2)) baseline2 <- baseline2[keep2]
 if (!is.null(baseline1)) { drug1 <- drug1 - baseline1; placebo1 <- placebo1 - baseline1 }   # a baseline, when given, is taken from both periods, as the report does
 if (!is.null(baseline2)) { drug2 <- drug2 - baseline2; placebo2 <- placebo2 - baseline2 }
 # Crossover trial: the StatsDirect help example (Armitage and Berry 1994, dry

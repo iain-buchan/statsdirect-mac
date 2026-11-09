@@ -23,10 +23,9 @@ print(lr, digits = 7)
 # Base R has no function for the confidence interval of a ratio of two binomial
 # proportions, so the limits are found as Koopman (1984) defines them: the ratios at
 # which the score chi-square, with the two proportions estimated under the constraint
-# that they have that ratio, reaches the chi-square critical value for the chosen level
-# (95% here). Every count in the example is greater than zero, which this function
-# assumes.
-koopman <- function(x1, n1, x0, n0, level = 0.95) {
+# that they have that ratio, reaches the critical value for the selected confidence
+# level. Every count in the example is greater than zero, which this function assumes.
+koopman <- function(x1, n1, x0, n0, level) {
   chi2 <- function(theta) {
     A <- (n0 + n1) * theta
     B <- -((x0 + n1) * theta + x1 + n0)
@@ -46,7 +45,7 @@ koopman <- function(x1, n1, x0, n0, level = 0.95) {
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
 cat("Result  + Feature  - Feature  Likelihood Ratio", pct, "CI (Koopman)\n")
 for (i in seq_along(mi)) {
-  k <- koopman(mi[i], sum(mi), no_mi[i], sum(no_mi))
+  k <- koopman(mi[i], sum(mi), no_mi[i], sum(no_mi), level = confidence)
   cat(i, " ", mi[i], " ", no_mi[i], " ", six(k[1]), " ", six(k[2]), " to ", six(k[3]),
       "\n", sep = "")
 }

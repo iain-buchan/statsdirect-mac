@@ -32,9 +32,9 @@ cat("Risk ratio (relative risk in incidence study) =", six(rr), "\n")
 # Base R has no function for the confidence interval of a ratio of two binomial
 # proportions, so the limits are found as Koopman (1984) defines them: the ratios at
 # which the score chi-square, with the two rates estimated under the constraint that
-# they have that ratio, reaches the 95% critical value. Every count in the example is
-# greater than zero, which this function assumes.
-koopman <- function(x1, n1, x0, n0, level = 0.95) {
+# they have that ratio, reaches the selected confidence critical value. Every count
+# in the example is greater than zero, which this function assumes.
+koopman <- function(x1, n1, x0, n0, level) {
   chi2 <- function(theta) {
     A <- (n0 + n1) * theta
     B <- -((x0 + n1) * theta + x1 + n0)
@@ -49,14 +49,14 @@ koopman <- function(x1, n1, x0, n0, level = 0.95) {
   upper <- exp(uniroot(f, c(log(est), log(est) + 20), tol = 1e-12)$root)
   c(lower, upper)
 }
-k <- koopman(a, n1, b, n2)
+k <- koopman(a, n1, b, n2, level = confidence)
 cat("Approximate (Koopman)", pct, "confidence interval =", six(k[1]), "to", six(k[2]),
     "\n")
 
 # Approximate power: the power with which Fisher's exact test on groups of this size
 # (756 exposed, 573 unexposed) would detect the observed difference between the two
-# rates at the two sided 5% level. It is the power at which the continuity corrected
-# sample size formula of Casagrande, Pike and Smith (1978), in the form given by
+# rates at the selected two sided significance level. It is the power at which the
+# continuity corrected sample size formula of Casagrande, Pike and Smith (1978), in the form given by
 # Fleiss, returns the size of the exposed group.
 alpha <- 1 - confidence
 m <- n2 / n1                              # unexposed per exposed subject
@@ -70,15 +70,15 @@ size_for_power <- function(power) {
 }
 power <- uniroot(function(pw) size_for_power(pw) - n1, c(alpha, 1 - 1e-12),
                  tol = 1e-10)$root         # the size falls as the power asked for falls
-cat("Approximate power (for 5% significance) = ",
+cat(sprintf("Approximate power (for %g%% significance) = ", 100 * alpha),
     formatC(100 * power, digits = 2, format = "f"), "%\n", sep = "")
 
 # The risk difference, with the score interval of Miettinen and Nurminen (1985): the
 # differences at which the chi-square, with the two rates estimated by maximum
-# likelihood under the constraint that they differ by that amount, reaches the 95%
-# critical value. The variance carries their factor of N / (N - 1).
+# likelihood under the constraint that they differ by that amount, reaches the
+# selected confidence critical value. The variance carries their factor of N / (N - 1).
 cat("Risk difference =", six(p1 - p0), "\n")
-miettinen <- function(x1, n1, x0, n0, level = 0.95) {
+miettinen <- function(x1, n1, x0, n0, level) {
   dhat <- x1 / n1 - x0 / n0
   chi2 <- function(delta) {
     loglik <- function(q0) {
@@ -96,7 +96,7 @@ miettinen <- function(x1, n1, x0, n0, level = 0.95) {
   upper <- uniroot(f, c(dhat, 1 - 1e-9), tol = 1e-12)$root
   c(lower, upper)
 }
-mn <- miettinen(a, n1, b, n2)
+mn <- miettinen(a, n1, b, n2, level = confidence)
 cat("Approximate (Miettinen)", pct, "confidence interval =", six(mn[1]), "to", six(mn[2]),
     "\n")
 

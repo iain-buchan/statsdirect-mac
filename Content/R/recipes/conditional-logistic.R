@@ -3,7 +3,11 @@
 # data: stratum = stratum, case = case-control, predictors... = predictors
 # settings: confidence = gamma
 
-lowbwt <- data.frame(PAIRID = stratum, LBWT = case, as.data.frame(predictors, optional = TRUE), check.names = FALSE)
+if (length(stratum) != length(case) || any(lengths(predictors) != length(case)))
+  stop("Matched-set identifiers, case indicators and predictors must have equal lengths.")
+lowbwt <- as.data.frame(predictors, optional = TRUE)
+sd_own <- tail(make.unique(c(names(lowbwt), "PAIRID", "LBWT")), 2)
+lowbwt[sd_own] <- list(stratum, case)
 # Conditional logistic regression: the StatsDirect help example (Hosmer and Lemeshow
 # 1989, low birth weight in 56 matched pairs) in R. The data are the test workbook's
 # Regression worksheet columns PAIRID, LBWT, RACE, LWT, SMOKE, PTD, HT and UI.
@@ -13,7 +17,11 @@ lowbwt <- data.frame(PAIRID = stratum, LBWT = case, as.data.frame(predictors, op
 # limits depends on where the iterations stop, in R as in StatsDirect
 if (!requireNamespace("survival", quietly = TRUE)) install.packages("survival", repos = "https://cloud.r-project.org")
 library(survival)
-fit <- clogit(reformulate(c(sprintf("`%s`", names(predictors)), "strata(PAIRID)"), "LBWT"), data = lowbwt)
+sd_terms <- encodeString(names(predictors), quote = "`")
+sd_terms[names(predictors) == "."] <- "I(`.`)"
+model <- reformulate(c(sd_terms,
+                       paste0("strata(", encodeString(sd_own[1], quote = "`"), ")")), as.name(sd_own[2]))
+fit <- clogit(model, data = lowbwt)
 print(summary(fit, conf.int = confidence))
 
 # The report's lines to 6 places. The deviance is -2 times the log likelihood, the

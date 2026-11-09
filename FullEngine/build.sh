@@ -28,6 +28,8 @@ statsdirect_store_symbols FullEngine/publish/libStatsDirectText.dylib.dSYM "$BUI
 codesign --force --sign - FullEngine/publish/libStatsDirectText.dylib
 "$ENGINE_DOTNET" FullEngine/publish/StatsDirect.Headless.dll
 cp FullEngine/publish/test-operations-results.txt Tests/test-operations-results.txt
+# The build SDK's runtime alone: one an earlier SDK's build left here is removed, not bundled beside it.
+rm -rf FullEngine/publish/dotnet/shared/Microsoft.NETCore.App
 mkdir -p FullEngine/publish/dotnet/shared/Microsoft.NETCore.App
 # ditto replaces files without nesting duplicate runtime folders on repeat builds.
 ditto "$DOTNET_ROOT_DIR/shared/Microsoft.NETCore.App/$RUNTIME_VERSION" "FullEngine/publish/dotnet/shared/Microsoft.NETCore.App/$RUNTIME_VERSION"

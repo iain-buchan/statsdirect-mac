@@ -318,7 +318,7 @@ extension Viewer {
         let operation = doc.operationName ?? ""
         let instant = doc.operationName.flatMap({ analysisCatalog[$0]?["instant"] as? Bool }) == true
         // The engine's record of the run (its pointers to the worksheet columns with their hashes, the settings and the results)
-        // comes with the completed output, as does whether the shared recipes cover the operation; the entry is titled by the
+        // comes with the completed output, as does whether the shared recipes cover that record; the entry is titled by the
         // record's friendly name, as on Windows, so its R script is headed by it.
         let record = output["record"] as? String
         let entry = ReportEntry(id: resultID, title: record.flatMap(RunRecordR.title(of:)) ?? recordTitle(doc), operation: operation, body: body,

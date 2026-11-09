@@ -107,9 +107,12 @@ internal sealed class OperationJob {
     object frames, outputs, analysisOptions, suggestions;
     // The engine's record of the run (RunRecord, shared with Windows) as it stood at the last report step: the report keeps it with the result.
     string record;
-    // Whether the shared R recipes (RRecipes, the manifest published beside the engine) hold one for this operation: the report
-    // offers Continue in R when they do and Open data and settings in R otherwise.
-    readonly bool recipe;
+    // Whether the shared R recipes (RRecipes, the manifest published beside the engine) hold the one the script writer would use for
+    // this run: the report offers Continue in R when they do and Open data and settings in R otherwise. It follows the record once the
+    // run leaves one (RScriptIO.HasRecipe, the writer's own choice, as the Windows report's menu asks RRecipes.Find of the record), so a
+    // follow-on whose recipe depends on the analysis it continued is not offered a continuation its record cannot route; until then,
+    // and for a run that leaves no record, it says whether the operation has a recipe at all.
+    bool recipe;
     readonly string script, language;
     string consoleOutput;
     internal sealed record InputRecord(string Title, object Value, string Name = null, string Kind = null, string Mode = null);
@@ -184,7 +187,7 @@ internal sealed class OperationJob {
         Check(); return value;
     }
     public void Record(string title, object value, string name = null, string kind = null, string mode = null) { lock (sync) history.Add(new InputRecord(title, value, name, kind, mode)); }
-    public void SetRecord(string json) { lock (sync) record = json; }
+    public void SetRecord(string json) { bool has = RScriptIO.HasRecipe(json, Operation.Name); lock (sync) { record = json; recipe = has; } }
     public void Answer(int requestedToken, JsonElement value) {
         lock (sync) {
             Check(); if (state != "input" || token != requestedToken || answer.HasValue) throw new Exception("That input step has already changed. Use the current form.");

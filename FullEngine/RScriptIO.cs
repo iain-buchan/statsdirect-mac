@@ -28,6 +28,11 @@ using StatsDirect.Utilities;
 // or {"error"}. The values go through HostParameters.ReadFrame under the frame's recorded acquisition mode, as the original
 // run's did, so RunRecord.Hash of the variable equals the recorded hash exactly when the cells are unchanged (the Windows
 // FrameReader reads the grid the same way); a column whose hash differs is marked Changed and the script notes it.
+// A request {"recipes": [<a record object, or its JSON text>, …]} asks only which of the records the shared recipes cover, and reads no
+// data: {"recipes": [true, false, …]} in the request's order, each the HasRecipe the writer would give that record (RRecipes.Find of the
+// record). A follow-on whose recipe depends on the analysis it continued (the regression ANOVA, the principal components and dose-response
+// follow-ons) has one only when its record names that analysis or lets the writer infer it, so a saved result that does not is offered
+// its data and settings rather than a continuation, as the Windows report's menu offers it. A record that cannot be read has none.
 public static partial class RScriptIO {
     static readonly JsonSerializerOptions json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
     public static string Execute(string text) {
@@ -36,6 +41,10 @@ public static partial class RScriptIO {
             var root = request.RootElement;
             if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("notebookImport", out _)) return ExecuteNotebookImport(root);
             if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("notebook", out _)) return ExecuteNotebook(root);
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("recipes", out var records)) {
+                if (records.ValueKind != JsonValueKind.Array) throw new Exception("The request's recipes are not a list of records.");
+                return JsonSerializer.Serialize(new { recipes = records.EnumerateArray().Select(RecordHasRecipe).ToArray() }, json);
+            }
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("record", out var given)) throw new Exception("The request names no record of a run.");
             using var parsed = given.ValueKind == JsonValueKind.String ? JsonDocument.Parse(given.GetString() ?? "") : null;
             var record = parsed != null ? parsed.RootElement : given;
@@ -60,6 +69,27 @@ public static partial class RScriptIO {
             lock (EngineExecution.Gate) script = RScriptWriter.Write(record, title, pointer => Read(pointer, frames, asked, relocate, taken));
             return JsonSerializer.Serialize(new { text = script.Text, hasRecipe = script.HasRecipe, detail = script.Detail, dataUnavailable = script.DataUnavailable, asked, relocate }, json);
         } catch (Exception ex) { return JsonSerializer.Serialize(new { error = ex.Message }, json); }
+    }
+    // Whether the shared recipes hold the one the writer would write this record's script from (RRecipes.Find of the record, which
+    // Write's HasRecipe reports): the record as an object or as its JSON text. The manifest is only read, so this does not wait at the
+    // engine's gate behind a running analysis. Anything unreadable has no recipe: text that is not JSON, a value that is not an object,
+    // and parameters that are not an object, where the shared routing would otherwise throw.
+    static bool RecordHasRecipe(JsonElement record) {
+        try {
+            RuntimeHelpers.RunClassConstructor(typeof(Exports).TypeHandle);
+            using var parsed = record.ValueKind == JsonValueKind.String ? JsonDocument.Parse(record.GetString() ?? "") : null;
+            return RRecipes.Find(parsed != null ? parsed.RootElement : record) != null;
+        } catch (Exception) { return false; }
+    }
+    // The recipe flag of a run in hand, for the completed snapshot: by the record it left, as above, and by the operation alone for a
+    // run that left none (the report offers no R command for such a result, so the flag then says only whether the method has a recipe).
+    public static bool HasRecipe(string record, string operation) {
+        try {
+            RuntimeHelpers.RunClassConstructor(typeof(Exports).TypeHandle);
+            if (string.IsNullOrEmpty(record)) return RRecipes.Has(operation);
+            using var parsed = JsonDocument.Parse(record);
+            return RecordHasRecipe(parsed.RootElement);
+        } catch (Exception) { return false; }
     }
     // The values of a pointer frame from what the host supplied, with the Windows FrameReader's wording when they cannot be read.
     static FrameValues Read(FramePointer pointer, Dictionary<string, Queue<JsonElement>> frames, List<string> asked, List<object> relocate, Dictionary<string, int> taken) {

@@ -48,8 +48,14 @@ import PDFKit
     }
     @MainActor static func run(_ v: Viewer) async throws {
         let output=URL(fileURLWithPath:CommandLine.arguments[1]);try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
-        let recipes=RunRecordR.manifest(resources:v.root)
-        precondition(recipes["TPaired"] != nil && recipes["Ranv"] != nil && recipes["ProbitMore"] != nil,"nested parentFiles routing must preserve ordinary and routed R recipe availability")
+        // Which records the shared recipes cover is the engine's answer (the recipe its writer would use for the record), in the order asked,
+        // a result without a record having none: an ordinary method by its name, a follow-on routed by its parent only when the record names
+        // the analysis it continued or lets the writer infer it, and nothing unreadable.
+        let covered=await v.recipesAvailable(for:[#"{"operation":"TPaired"}"#,nil,#"{"operation":"Ranv","parameters":{}}"#,#"{"operation":"ProbitMore","rootOperation":"Logit"}"#,
+            #"{"operation":"ProbitMore","parameters":{}}"#,#"{"operation":"PCRScores","rootOperation":"PCRCovariance"}"#,#"{"operation":"PCRScores"}"#,"not a record"])
+        precondition(covered==[true,false,true,true,false,true,false,false],"nested parentFiles routing must preserve ordinary and routed R recipe availability, by the record: \(covered)")
+        let noRecords=await v.recipesAvailable(for:[nil,nil])
+        precondition(noRecords==[false,false],"results without a record have no recipe")
         func dataset(_ columns:[[Int]]) -> [String:Any] {
             ["complete":true,"rowCount":columns[0].count,"columns":columns.enumerated().map{["title":$0.offset==0 ? "Before":"After","values":$0.element,"index":$0.offset]}]
         }
@@ -899,9 +905,11 @@ import PDFKit
 // an R pane headed by the method's friendly name; a run over the embedding threshold on a worksheet typed in is read back from the open
 // grid, notes one edited cell and forgets it after undo, follows the workbook through Save As, is read from the saved file through the
 // engine once the grid is closed, and says when the file is not where the record says; the menus follow the recipe flag; a report saved
-// by Windows reopens with its records, dropping one that does not validate.
+// by Windows reopens with its records, dropping one that does not validate; a reopened follow-on takes its R label from its record, as
+// the Windows report does.
 extension ReportExportTests {
     @MainActor static func runRecords(_ v: Viewer, output: URL) async throws {
+        try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)   // run alone (--records-only) in a fresh tree, nothing else has made it
         func check(_ ok:Bool,_ message:String) throws { if !ok { throw NSError(domain:"ReportExportTests",code:1,userInfo:[NSLocalizedDescriptionKey:message]) } }
         func wait(_ what:String, timeout:TimeInterval=30, _ condition:() async throws -> Bool) async throws {
             let deadline=Date().addingTimeInterval(timeout)
@@ -1201,5 +1209,57 @@ extension ReportExportTests {
         r=try await continueInR(report,id:formulaEntry.id)
         try check(r.text.contains("# Data: \"formulas.xlsx\", sheet \"Sheet1\" could not be read (the workbook holds formula cells whose results are not saved): put the values in by hand.") && !r.text.contains("# NOTE:") && r.text.contains("after <- NULL   # y, column 2, rows 1 to 2601: not read, see above") && r.status=="R script opened, but its data could not be read from the workbook: see the head of the script","the formula workbook after its streaming save: \(headLines(r.text)) · \(r.status)")
         print("PASS: a closed workbook whose formula cells lost their saved results is reported as unreadable, as the grid refuses such cells, with no NOTE of a change");fflush(stdout)
+        // 11. Which R label a reopened follow-on gets is its record's to say, not its operation's, as on Windows (ReportView asks
+        //     RRecipes.Find(record)): a follow-on whose recipe is its parent's has one only while its record names the analysis it
+        //     continued, or its settings identify that analysis. The saved file does not carry the label, so a report that holds four
+        //     such follow-ons as recipes (records of real runs, two with that name taken out as an earlier version saved them) is saved
+        //     and reopened: the principal component scores without the name come back as data and settings, with the writer's reason
+        //     at the head of their script, and the regression ANOVA without it keeps the recipe its settings identify.
+        let scoresRecord=#"{"version":1,"operation":"PCRScores","rootOperation":"PCRCovariance","title":"Principal component scores","run":"2026-11-09T20:34:22.9751340\u002B00:00","inputs":[{"name":"data","prompt":"","inherited":true,"kind":"entered","columns":[{"title":"First","values":[1,2,4,3,5,7,6,8]},{"title":"Second","values":[3,1,4,6,5,8,7,9]},{"title":"Third","values":[2,3,1,4,6,5,8,7]}]}],"parameters":{"ci":0.95,"correctForReversal":false},"values":{}}"#
+        let anovaRecord=#"{"version":1,"operation":"Ranv","rootOperation":"SimpleLinearRegression","title":"Analysis of variance from regression","run":"2026-11-09T20:34:23.0202390\u002B00:00","inputs":[{"name":"y","prompt":"","inherited":true,"kind":"entered","columns":[{"title":"Selected Y","values":[3,4,5,7,9,11]}]},{"name":"x","prompt":"","inherited":true,"kind":"entered","columns":[{"title":"Selected X","values":[1,2,3,4,5,6]}]}],"parameters":{"gamma":0.95},"values":{"reg_sum":46.41428571428571,"reg_df":"1","reg_mean":46.41428571428571,"res_sum":1.085714285714289,"res_df":4,"res_mean":0.27142857142857224,"tot_sum":47.5,"tot_df":5,"f":170.9999999999995,"p":0.0001974305681318189,"r":0.9771428571428571,"mse":0.5209880722517285}}"#
+        func unnamed(_ text:String,_ parent:String) throws -> String {
+            let cut=text.replacingOccurrences(of:"\"rootOperation\":\"\(parent)\",",with:"")
+            try check(cut != text && !cut.contains("rootOperation") && RunRecordR.validated(text)==text && RunRecordR.validated(cut)==cut,"the follow-on record continuing \(parent) validates with and without that name")
+            return cut
+        }
+        let followOns:[(title:String,operation:String,record:String,recipe:Bool)]=[
+            ("Scores, analysis named","PCRScores",scoresRecord,true),("Scores, analysis not named","PCRScores",try unnamed(scoresRecord,"PCRCovariance"),false),
+            ("ANOVA, analysis not named","Ranv",try unnamed(anovaRecord,"SimpleLinearRegression"),true),("ANOVA, analysis named","Ranv",anovaRecord,true)]
+        let followOnReport=v.makeReport()
+        followOnReport.reportEntries=followOns.map{ReportEntry(id:UUID().uuidString,title:$0.title,operation:$0.operation,body:"<p>\($0.title)</p>",record:$0.record,recipe:true)}
+        followOnReport.reportRevision += 1; v.renderReport(followOnReport); try await settled(followOnReport)
+        let followOnFile=output.appendingPathComponent("follow-on-records.html")
+        try await v.reportExportData(followOnReport,format:.html).write(to:followOnFile)
+        let followOnBlock=try String(contentsOf:followOnFile,encoding:.utf8).components(separatedBy:"<script type=\"application/json\" id=\"statsdirect-report-data\">").last!.components(separatedBy:"</script>")[0]
+        let followOnSaved=((try? JSONSerialization.jsonObject(with:Data(followOnBlock.utf8))) as? [String:Any])?["entries"] as? [[String:Any]] ?? []
+        try check(followOnSaved.count==4 && followOnSaved.allSatisfy{$0["recipe"]==nil && $0["record"] is [String:Any]} && followOns.allSatisfy{followOnBlock.contains($0.record)},"the saved report carries each follow-on's record as written and nothing of its label: \(followOnSaved.map{$0.keys.sorted()})")
+        let followOnReopened=try await v.importReport(followOnFile); try await settled(followOnReopened)
+        let followOnBack=followOnReopened.reportEntries ?? []
+        try check(followOnBack.map(\.record)==followOns.map{Optional($0.record)} && followOnBack.map(\.operation)==followOns.map(\.operation) && followOnBack.map(\.title)==followOns.map(\.title),"the follow-ons reopen with their records as saved: \(followOnBack.map{($0.title,$0.operation,$0.record?.count ?? -1)})")
+        try check(followOnBack.map(\.recipe)==followOns.map(\.recipe),"the reopened follow-ons' recipe flags follow their records: \(followOnBack.map(\.recipe))")
+        let followOnR=try await followOnReopened.web.evaluateJavaScript("[...document.querySelectorAll('.report-entry')].map(e=>e.dataset.r||'')") as? [String] ?? []
+        try check(followOnR==followOns.map{$0.recipe ? "recipe" : "data"},"data-r of the reopened follow-ons: \(followOnR)")
+        v.tabs.selectTabViewItem(followOnReopened.item)
+        for (i,entry) in followOnBack.enumerated() {
+            let label=followOns[i].recipe ? "Continue in R" : "Open Data and Settings in R", other=followOns[i].recipe ? "Open Data and Settings in R" : "Continue in R"
+            followOnReopened.reportContext=["inReport":true,"resultId":entry.id,"r":followOnR[i]]; let followOnMenu=NSMenu(); v.extendReportMenu(followOnMenu,for:followOnReopened)
+            try check(followOnMenu.items.contains{$0.title==label} && !followOnMenu.items.contains{$0.title==other},"the context menu of \(entry.title): \(followOnMenu.items.map(\.title))")
+            _=try await followOnReopened.web.evaluateJavaScript("getSelection().selectAllChildren(document.getElementById(\(v.jsString("result-"+entry.id))))")
+            try await wait("the toolbar's R action for \(entry.title): \(label)") {
+                (try? await js(followOnReopened,"(()=>{const b=document.querySelector('[data-command=continueInR]');return {ok:!!b&&!b.disabled&&b.title.startsWith(\(v.jsString(label+":")))&&b.dataset.target===\(v.jsString(entry.id))};})()"))?["ok"] as? Bool == true
+            }
+        }
+        r=try await continueInR(followOnReopened,id:followOnBack[0].id)
+        try check(r.text.hasPrefix("# Principal component scores, from StatsDirect, ") && r.text.contains("\n# Principal components and scale reliability, as the help shows them in R.\n") && r.text.contains("prcomp(") && !r.text.contains("does not identify its original analysis") && r.status=="R script of the analysis opened","Continue in R on the reopened scores that name their analysis: \(headLines(r.text)) · \(r.status)")
+        r=try await continueInR(followOnReopened,id:followOnBack[1].id)
+        try check(r.text.hasPrefix("# Principal component scores, from StatsDirect, ") && r.text.contains("\n# The saved result does not identify its original analysis. Rerun that analysis to reproduce this follow-on in R.\n") && r.text.contains("first <- c(1, 2, 4, 3, 5, 7, 6, 8)   # First\n") && !r.text.contains("prcomp(") && r.text.hasSuffix("# Add your analysis here.\n") && r.status=="R script with the data and settings opened","the reopened scores that name no analysis open as data and settings: \(headLines(r.text)) · \(r.status)")
+        let anovaUnnamed=try await continueInR(followOnReopened,id:followOnBack[2].id)
+        r=try await continueInR(followOnReopened,id:followOnBack[3].id)
+        try check(r.text.hasPrefix("# Analysis of variance from regression, from StatsDirect, ") && r.text.contains("fit <- lm(y ~ x)\n") && r.status=="R script of the analysis opened" && anovaUnnamed.text==r.text && anovaUnnamed.status==r.status,"the reopened regression ANOVA continues in R the same with or without the name of its analysis: \(headLines(anovaUnnamed.text)) · \(anovaUnnamed.status) · \(headLines(r.text)) · \(r.status)")
+        v.remove(followOnReopened); v.remove(followOnReport); v.activeReportID=report.id
+        print("PASS: reopened follow-ons take their R label from the record, as the Windows report does: principal component scores saved without the analysis they continued reopen as data and settings, with the writer's reason at the head of their script, and the regression ANOVA keeps the recipe its settings identify");fflush(stdout)
+        // 12. The same rule over every follow-on the shared manifest routes by its parent, and through both ways a saved result comes
+        //     back, the saved report and the notebook: Codex's routing fixtures (Tests/report-recipe-routing-checks.swift).
+        try await recipeRouting(v, output: output); v.activeReportID=report.id
     }
 }

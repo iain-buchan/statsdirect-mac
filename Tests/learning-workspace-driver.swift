@@ -90,7 +90,7 @@ import Cocoa
         let again=try await workspace.call("statsdirect_run_analysis",["operation":"TPaired","datasetId":data["datasetId"]!,"agreement":true])
         precondition(again["resultId"] as? String==result["resultId"] as? String)
         let report=v.documents.first{$0.id==result["reportId"] as? String}!
-        precondition(report.reportEntries?.count==1 && report.lastRecordEntry != nil && v.recipeAvailable(for:"TPaired") && v.active===learn)
+        precondition(report.reportEntries?.count==1 && report.lastRecordEntry != nil && report.reportEntries![0].recipe && v.active===learn)
         precondition(!report.reportEntries![0].body.contains("<details>"),"tutor report keeps the run record without displaying its code")
         print("PASS: real test.xlsx → exact nine PEFR pairs → engine → one active report with SVG and R link; repeated request reuses result")
         try await wait {

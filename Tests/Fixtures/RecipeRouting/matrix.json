@@ -1,0 +1,146 @@
+[
+  {
+    "title": "TPaired ordinary",
+    "expected": true
+  },
+  {
+    "title": "Cronbach PCRCorrelation",
+    "expected": true
+  },
+  {
+    "title": "Cronbach PCRCovariance",
+    "expected": true
+  },
+  {
+    "title": "Cronbach PCRCovarianceNoFollowOns",
+    "expected": true
+  },
+  {
+    "title": "Cronbach parentless",
+    "expected": false
+  },
+  {
+    "title": "Cronbach unknown parent",
+    "expected": false
+  },
+  {
+    "title": "PCRMatrix PCRCorrelation",
+    "expected": true
+  },
+  {
+    "title": "PCRMatrix PCRCovariance",
+    "expected": true
+  },
+  {
+    "title": "PCRMatrix PCRCovarianceNoFollowOns",
+    "expected": true
+  },
+  {
+    "title": "PCRMatrix parentless",
+    "expected": false
+  },
+  {
+    "title": "PCRMatrix unknown parent",
+    "expected": false
+  },
+  {
+    "title": "PCRScores PCRCorrelation",
+    "expected": true
+  },
+  {
+    "title": "PCRScores PCRCovariance",
+    "expected": true
+  },
+  {
+    "title": "PCRScores PCRCovarianceNoFollowOns",
+    "expected": true
+  },
+  {
+    "title": "PCRScores parentless",
+    "expected": false
+  },
+  {
+    "title": "PCRScores unknown parent",
+    "expected": false
+  },
+  {
+    "title": "Ranv explicit simple",
+    "expected": true
+  },
+  {
+    "title": "Ranv explicit linearized",
+    "expected": true
+  },
+  {
+    "title": "Ranv legacy simple",
+    "expected": true
+  },
+  {
+    "title": "Ranv legacy model key",
+    "expected": true
+  },
+  {
+    "title": "Ranv legacy null model key",
+    "expected": true
+  },
+  {
+    "title": "Ranv invalid explicit parent",
+    "expected": false
+  },
+  {
+    "title": "ProbitMore legacy probit",
+    "expected": true
+  },
+  {
+    "title": "ProbitMore legacy logit",
+    "expected": true
+  },
+  {
+    "title": "ProbitMore invalid explicit parent",
+    "expected": false
+  },
+  {
+    "title": "ProbitPlot legacy probit",
+    "expected": true
+  },
+  {
+    "title": "ProbitPlot legacy logit",
+    "expected": true
+  },
+  {
+    "title": "ProbitPlot invalid explicit parent",
+    "expected": false
+  },
+  {
+    "title": "ProbitInterpolateX legacy probit",
+    "expected": true
+  },
+  {
+    "title": "ProbitInterpolateX legacy logit",
+    "expected": true
+  },
+  {
+    "title": "ProbitInterpolateX invalid explicit parent",
+    "expected": false
+  },
+  {
+    "title": "ProbitInterpolateY legacy probit",
+    "expected": true
+  },
+  {
+    "title": "ProbitInterpolateY legacy logit",
+    "expected": true
+  },
+  {
+    "title": "ProbitInterpolateY invalid explicit parent",
+    "expected": false
+  },
+  {
+    "title": "ProbitMore missing legacy model",
+    "expected": false
+  },
+  {
+    "title": "ProbitMore unknown legacy model",
+    "expected": false
+  }
+]

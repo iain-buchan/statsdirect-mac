@@ -10,7 +10,8 @@ struct ReportEntry {
     // The engine's record of the run that produced this result (its JSON text: pointers to the worksheet columns, the settings and
     // the results), from which the engine writes the R script on demand; nil for text and for results without one.
     let record: String?
-    // Whether the shared R recipes hold one for the operation: from the engine's snapshot, or the manifest for a reopened report.
+    // Whether the shared R recipes hold the one the engine's writer would use for the record: from the engine's snapshot of the run, or
+    // asked of the engine for a result reopened from a file (recipesAvailable).
     var recipe: Bool = false
     var editedBody: String?
     var annotation = ""

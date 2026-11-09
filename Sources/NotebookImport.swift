@@ -68,12 +68,15 @@ extension Viewer {
             let operation = entry["operation"] as? String ?? ""
             recovered.append(ReportEntry(id: UUID().uuidString, title: entry["title"] as? String ?? title,
                                          operation: operation, body: (index == 0 ? notes : "") + body,
-                                         record: record, recipe: record != nil && recipeAvailable(for: operation),
+                                         record: record,
                                          helpPath: savedHelpPath(entry["helpPath"] as? String ?? analysisCatalog[operation]?["help"] as? String)))
         }
         if recovered.isEmpty, !notes.isEmpty {
             recovered = [ReportEntry(id: UUID().uuidString, title: title, operation: "", body: notes, record: nil)]
         }
+        // Which recovered results the shared recipes cover, from each record, as for a report reopened from its HTML.
+        let recipes = await recipesAvailable(for: recovered.map(\.record))
+        for index in recovered.indices { recovered[index].recipe = recipes[index] }
 
         var prepared = try prepareNotebookWorkbook(tables, title: title)
         var staged: [Document] = []

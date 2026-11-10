@@ -14,7 +14,7 @@ function safeStyle(style) {
     const value=style.getPropertyValue(name);
     // Internal SVG paint/clip references are local, never network requests.
     const check=value.replace(/url\(\s*["']?#[^\s"'()<>]+["']?\s*\)/gi,'');
-    if(properties.has(name)&&!/(?:url\s*\(|expression|javascript|@|[<>])/i.test(check))clean.setProperty(name,value);
+    if(properties.has(name)&&!/(?:url\s*\(|image-set\s*\(|expression|javascript|@|[<>])/i.test(check))clean.setProperty(name,value);
   }
   return clean.cssText;
 }
@@ -29,7 +29,7 @@ purifier.addHook('afterSanitizeAttributes',node=>{
     if(attr.name!=='style'&&/url\s*\(/i.test(attr.value.replace(/url\(\s*["']?#[^\s"'()<>]+["']?\s*\)/gi,'')))node.removeAttribute(attr.name);
   }
   node.removeAttribute('srcset');node.removeAttribute('name');
-  if(node.style){const css=safeStyle(node.style);if(css)node.setAttribute('style',css);else node.removeAttribute('style');}
+  if(node.style){const css=safeStyle(node.style);if(css)node.setAttribute('style',css);else node.removeAttribute('style');}else node.removeAttribute('style');
 });
 
 // Clipboard HTML is untrusted even when it carries our private pasteboard type.
@@ -38,8 +38,8 @@ purifier.addHook('afterSanitizeAttributes',node=>{
 export function cleanFragment(html,{freshIDs=true}={}) {
   if(new TextEncoder().encode(html).length>30_000_000)throw new Error('The selected content is too large to paste. Select a smaller part of the report.');
   const root=purifier.sanitize(html,{RETURN_DOM_FRAGMENT:true,FORCE_BODY:true,ALLOW_DATA_ATTR:false,ADD_TAGS:['use'],
-    FORBID_TAGS:['script','iframe','object','embed','form','input','button','textarea','select','link','base','meta','foreignObject','animate','animateMotion','animateTransform','set'],
-    FORBID_ATTR:['contenteditable','tabindex','autofocus','draggable']});
+    FORBID_TAGS:['script','iframe','object','embed','form','input','button','textarea','select','link','base','meta','foreignObject','animate','animateColor','animateMotion','animateTransform','set','video','audio','source','track'],
+    FORBID_ATTR:['contenteditable','tabindex','autofocus','draggable','poster','background','cite','download']});
   root.querySelectorAll('.report-controls,.report-r-link,.code-actions,.report-chart[hidden]').forEach(el=>el.remove());
   isolateSvgStyles(root,safeStyle);
   for(const source of root.querySelectorAll('style')) {

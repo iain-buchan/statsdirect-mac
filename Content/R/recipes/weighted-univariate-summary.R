@@ -2,11 +2,13 @@
 # From the help's R code (basic_descriptive_statistics/univariate_summary.htm); the data and settings above come from the run.
 # data: value = data, weight = weights
 # settings: confidence = gamma
+# hand-edited: a confidence level of 0% or 100% is taken as 95%, as the report takes it
 
 # Weighted univariate summary: five values with weights, as a second example.
 # StatsDirect first scales the weights to sum to the number of values n, then
 # uses n - 1 for the variance and n for the moments and the standard error, so a
 # weighted summary is not the summary of the values repeated by their weights.
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 if (length(value) != length(weight)) stop("values and weights must have the same length")
 if (any(weight < 0, na.rm = TRUE)) stop("weights must not be negative")

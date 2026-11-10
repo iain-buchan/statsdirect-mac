@@ -118,6 +118,83 @@ try:
     print(f'PASS: {count} named saved records, as objects and as JSON text: a follow-on naming no analysis has a recipe only where '
           'the writer infers it (the regression ANOVA from its settings, the dose-response follow-ons from their link)', flush=True)
 
+    # --- the follow-ons the 5.3.9 manifest routes by their parent (Windows v5.3.9, f41aad46), by name and stated outright rather than
+    # read from the manifest: the five multiple comparisons continue a one way, two way or replicated two way analysis of variance,
+    # and the regression analysis of variance a multiple linear or polynomial regression (Recipes539.cs, CheckFollowOnRouting539).
+    # Alone, or after an analysis they do not continue, they are data and settings only; after a parent they have its recipe
+    comparisons = ['Bonferroni', 'Dunnett', 'NewmanKeuls', 'Scheffe', 'Tukey']
+    variances = ['OneWay', 'TwoWay', 'ReplicateTwoWay']
+    regressions = ['MultipleLinearRegression', 'PolynomialRegression', 'PolynomialRegressionChangeDegree']
+    assert all(sorted(routed.get(operation, {})) == sorted(variances) for operation in comparisons), {operation: routed.get(operation) for operation in comparisons}
+    assert routed.get('MultipleLinearRegressionAnova') == {'MultipleLinearRegression': 'multiple-linear-regression.R', 'PolynomialRegression': 'polynomial-regression.R',
+                                                           'PolynomialRegressionChangeDegree': 'polynomial-regression.R'}, routed.get('MultipleLinearRegressionAnova')
+    assert all(routed[operation] == {'OneWay': 'one-way-anova.R', 'TwoWay': 'two-way.R', 'ReplicateTwoWay': 'replicate-two-way.R'} for operation in comparisons)
+    newly = []
+    for operation, parents, others in [(operation, variances, regressions) for operation in comparisons] + [('MultipleLinearRegressionAnova', regressions, variances)]:
+        newly.append((operation + ' alone', {'operation': operation}, False))
+        newly.append((operation + ' alone, with settings', {'operation': operation, 'parameters': {'gamma': 0.95}}, False))
+        newly += [(operation + ' after ' + parent, {'operation': operation, 'rootOperation': parent, 'parameters': {'gamma': 0.95}}, True) for parent in parents]
+        newly += [(operation + ' after ' + other + ', which it does not continue', {'operation': operation, 'rootOperation': other, 'parameters': {'gamma': 0.95}}, False) for other in others]
+    count = check('newly routed follow-ons', newly)
+    count += check('newly routed follow-ons as JSON text', [(what, json.dumps(record), expected) for what, record, expected in newly])
+    assert count == 2 * 6 * 8, count
+    print(f'PASS: {count} named records of the six follow-ons routed by their parent since 5.3.9 (Bonferroni, Dunnett, Newman-Keuls, Scheffe, Tukey; the '
+          'regression ANOVA after a multiple linear or polynomial regression): alone no recipe, after each parent a recipe, after another analysis none', flush=True)
+
+    # --- the Windows label check's own records (tests/WebReports/ContinueInRLabel.cs at v5.3.9, with Notebook.cs's NotebookRecord), and
+    # the legacy records the 5.3.9 routing adds to them. A record the Mac report keeps needs version 1, an operation and an ISO 8601 run
+    # key (RunRecordR.validated); the Windows helper leaves the run key out, so it is added here, and nothing in the answer depends on it
+    def saved_record(operation, root=None, parameters=None, inputs=None):
+        record = {'version': 1, 'operation': operation, 'run': '2026-11-09T23:19:00.0000000+00:00', 'parameters': {'gamma': 0.95},
+                  'inputs': [{'name': 'data', 'kind': 'frame', 'file': 'PEFR.xlsx', 'sheet': 'Paired', 'columns': [
+                      {'title': 'PEFR Before', 'column': 1, 'rows': [2, 10]}, {'title': 'PEFR After', 'column': 2, 'rows': [2, 10]}]}],
+                  'data': {'data': {'PEFR Before': [312, 242, 340, 388, 296, 254, 391, 402, 290], 'PEFR After': [300, 201, 232, 312, 220, 256, 328, 330, 231]}}}
+        if root is not None:
+            record['rootOperation'] = root
+        if parameters is not None:
+            record['parameters'] = parameters
+        if inputs is not None:
+            record['inputs'] = [{'name': name, 'kind': 'entered', 'columns': [{'title': name, 'values': [1, 2, 3, 4, 5, 7]}]} for name in inputs]
+            del record['data']
+        return record
+
+    labels = [
+        # ContinueInRLabel.cs: "Continue in R", "Continue in R", "Open data and settings in R" (twice), "Continue in R", "Open data and settings in R"
+        ('Paired t test', saved_record('TPaired'), True),
+        ('Reliability of covariance components', saved_record('Cronbach', 'PCRCovariance'), True),
+        ('Reliability saved without its analysis', saved_record('Cronbach'), False),
+        ('Probit plot saved without its model', saved_record('ProbitPlot'), False),
+        ('Logit estimates saved with their model', saved_record('ProbitMore', parameters={'doseResponseModel': 'logit', 'gamma': 0.95}), True),
+        ('Contracted frequencies', saved_record('ContractFrequencies'), False),
+        # ... and its records whose settings are not an object: the recipe cannot be resolved, and the answer is data and settings
+        ('Malformed BoxWhiskerPlot', saved_record('BoxWhiskerPlot', parameters=[1]), False),
+        ('Malformed Cronbach', saved_record('Cronbach', parameters='settings'), False),
+        ('Malformed Ranv', saved_record('Ranv', parameters=3), False),
+        # 5.3.9 (RRecipes.Find): a regression ANOVA saved without the analysis it continued is known by the frames it names, a polynomial
+        # regression's y and x or a multiple regression's outcome, and by nothing else
+        ('a legacy regression ANOVA naming y and x frames: the polynomial regression', saved_record('MultipleLinearRegressionAnova', parameters={'ci': 0.95}, inputs=['y', 'x']), True),
+        ('a legacy regression ANOVA naming an outcome frame: the multiple linear regression', saved_record('MultipleLinearRegressionAnova', parameters={'ci': 0.95}, inputs=['outcome', 'predictors']), True),
+        ('a legacy regression ANOVA whose named analysis is empty text, naming y and x frames', saved_record('MultipleLinearRegressionAnova', '', {'ci': 0.95}, ['y', 'x']), True),
+        ('a legacy regression ANOVA naming a y frame and no x', saved_record('MultipleLinearRegressionAnova', parameters={'ci': 0.95}, inputs=['y']), False),
+        ('a legacy regression ANOVA naming neither frame', saved_record('MultipleLinearRegressionAnova', parameters={'ci': 0.95}), False),
+        ('a regression ANOVA naming y and x frames after an analysis it does not continue', saved_record('MultipleLinearRegressionAnova', 'OneWay', {'ci': 0.95}, ['y', 'x']), False),
+        ('a regression ANOVA naming an outcome frame after the polynomial regression its record names', saved_record('MultipleLinearRegressionAnova', 'PolynomialRegression', {'ci': 0.95}, ['outcome']), True),
+    ] + [
+        # 5.3.9: nothing in a multiple comparisons record tells which analysis of variance it continued
+        ('legacy ' + operation + ' comparisons naming no analysis', saved_record(operation), False) for operation in comparisons
+    ] + [
+        ('legacy ' + operation + ' comparisons with their residual settings and no analysis', saved_record(operation, parameters={'gamma': 0.95, 'dfres': 28, 'msres': 3.312946428571429}), False) for operation in comparisons
+    ]
+    count = check('saved records', labels)
+    count += check('saved records as JSON text', [(what, json.dumps(record), expected) for what, record, expected in labels])
+    for what, record, expected in labels:
+        if what.startswith('legacy '):
+            reply = written(record)
+            assert reply.get('hasRecipe') is False and reply['detail'] == UNIDENTIFIED and 'does not identify its original analysis' in reply['text'], (what, reply.get('detail'))
+    assert count == 2 * 26, count
+    print(f'PASS: {count} answers for saved records as the Windows label check builds them (ContinueInRLabel.cs, v5.3.9), with a run key: its six results and three '
+          'malformed settings, a legacy regression ANOVA known by its y and x or outcome frames, and legacy multiple comparisons, which ask for a rerun', flush=True)
+
     # --- nothing unreadable has a recipe, and none of it stops the request: the records beside it are still answered, in order
     unreadable = [('text that is not JSON', 'not a record'), ('empty text', ''), ('JSON text of a list', '[1]'), ('JSON text of nothing', 'null'),
                   ('a number', 5), ('nothing', None), ('a flag', True), ('a list', [{'operation': 'TPaired'}]),

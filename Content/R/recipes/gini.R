@@ -11,6 +11,7 @@ if (!is.null(weights)) weights <- weights[keep]
 if (!is.null(weights)) imr <- rep(imr, floor(weights))   # frequency weights: each value as many times as its weight, as the report takes them
 # Gini coefficient of inequality: the StatsDirect help example (Pan American
 # Health Organisation 2001, infant mortality in five countries) in R
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 n <- length(imr)
 

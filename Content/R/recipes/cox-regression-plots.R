@@ -11,18 +11,26 @@
 # side if their hazards are proportional. Tics mark censored times and markers
 # every observed time when the follow-on asked for them.
 predictor_frame <- as.data.frame(predictors, optional = TRUE)
-binary <- names(predictor_frame)[vapply(predictor_frame, function(v) length(unique(v[!is.na(v)])) == 2, logical(1))]
-split_choices <- if (!is.null(stratum)) "Strata" else c(binary, "None")
-split_by <- if (is.null(split)) split_choices[1] else split_choices[which(unlist(split))[1]]
-if (is.na(split_by)) split_by <- split_choices[1]
+# A predictor is binary, as the report judges it, by its values in the records
+# that the fit used: those with a time, an event code, every predictor and the
+# stratum (a record left out can hold a third value)
+used <- if (is.null(stratum)) complete.cases(predictor_frame, time, censor) else complete.cases(predictor_frame, time, censor, stratum)
+binary <- which(vapply(predictor_frame, function(v) length(unique(v[used])) == 2, logical(1)))
+split_choices <- if (!is.null(stratum)) "Strata" else c(names(predictor_frame)[binary], "None")
+# A choice is known by its place in the list, as the report knows it, since a
+# predictor may itself be named "None" or "Strata"
+choice <- if (is.null(split)) 1L else which(unlist(split))[1]
+if (is.na(choice) || choice > length(split_choices)) choice <- 1L
+split_by <- split_choices[choice]
 if (is.null(use_tics)) use_tics <- FALSE
 if (is.null(use_markers)) use_markers <- FALSE
 baseline_rows <- as.data.frame(lapply(predictor_frame, function(v) 0), optional = TRUE)
-grouped <- split_by != "Strata" && split_by != "None"
+grouped <- is.null(stratum) && choice <= length(binary)
 if (grouped) {
-  group_values <- sort(unique(predictor_frame[[split_by]][!is.na(predictor_frame[[split_by]])]))
+  split_column <- binary[[choice]]
+  group_values <- sort(unique(predictor_frame[[split_column]][used]))
   baseline_rows <- baseline_rows[rep(1, 2), , drop = FALSE]
-  baseline_rows[[split_by]] <- group_values
+  baseline_rows[[split_column]] <- group_values
 }
 curves <- survfit(fit, newdata = baseline_rows, stype = 1, ctype = 1)
 curve_count <- if (grouped) 2L else max(1L, length(curves$strata))

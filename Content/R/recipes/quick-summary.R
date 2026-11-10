@@ -8,6 +8,7 @@
 # pressure of 20 first year resident doctors, from the single sample t test) in R
 missing <- sum(is.na(bp))
 bp <- bp[!is.na(bp)]
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 n <- length(bp)
 

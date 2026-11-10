@@ -35,7 +35,7 @@ These are hosting/rendering boundaries, not numerical rewrites. Do not interpret
 
 Run `../build.sh` to compile, run the original operation and upstream distribution tests, and package the app. Requirements: Apple Silicon Mac, Xcode command line tools, Python 3 and the .NET 10 SDK. Alternatively, `../docker-build.sh` supplies the SDK in Docker. R is only required for the additional comparison suite: run `../test.sh`, or set `STATSDIRECT_RUN_TESTS=1` when building. `RSCRIPT` overrides automatic R discovery. The .NET runtime is bundled with the app, so the resulting app does not require a separate .NET installation.
 
-Missing engine submodules are initialised automatically at the pinned revision. The build verifies the submodule revision and all 879 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build. It also runs the upstream distribution regression suite (1,552 checks at 5.3.8).
+Missing engine submodules are initialised automatically at the pinned revision. The build verifies the submodule revision and all 879 recorded source/asset hashes before compiling. It does not fetch a newer engine during a build. It also runs the upstream distribution regression suite (1,552 checks at 5.3.9).
 
 ## Updating the calculation engine
 

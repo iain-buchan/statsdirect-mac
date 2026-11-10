@@ -4,7 +4,7 @@
 # settings: confidence = gamma
 
 if (length(outcome) != length(predictor)) stop("Select outcome and predictor columns of equal length.")
-if (is.null(confidence)) confidence <- 0.95
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 keep <- !is.na(outcome) & !is.na(predictor)
 np_y <- outcome[keep]; np_x <- predictor[keep]
 n <- length(np_x)

@@ -31,7 +31,7 @@ import PDFKit
                     else if CommandLine.arguments.contains("--single-region-only") {try await singleRegion(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--raster-readback-only") {try await rasterReadbackRegression(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--images-only") {try await imageEditing(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
-                    else if CommandLine.arguments.contains("--svg-isolation-only") {try await importedRCharts(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
+                    else if CommandLine.arguments.contains("--svg-isolation-only") {try await importedRCharts(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]));try await reportSanitizing(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--deletion-only") {try await deletions(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--presentation-only") {try await presentation(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
                     else if CommandLine.arguments.contains("--creole-only") {try await creolePresentation(viewer, output:URL(fileURLWithPath:CommandLine.arguments[1]))}
@@ -192,6 +192,7 @@ import PDFKit
         try await chartAlignment(v, output: output)
         try await reportSaving(v, output: output)
         try await importedRCharts(v, output: output)
+        try await reportSanitizing(v, output: output)
         try await imageEditing(v, output: output)
         try await notebooks(v, output: output)
         try await notebookImports(v, output: output)

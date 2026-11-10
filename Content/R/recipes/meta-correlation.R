@@ -12,9 +12,9 @@
 # 1 / (n - 3); the studies are pooled on the z scale with weights n - 3, and the pooled
 # z and its limits are transformed back to correlations (tanh)
 pct <- paste0(100 * confidence, "%")
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
+six <- function(x) ifelse(is.na(x), "*", formatC(x, digits = 6, format = "f", drop0trailing = TRUE))
 pv <- function(p) {
-  if (p < 0.0001) "P < 0.0001" else
+  if (is.na(p)) "P = *" else if (p < 0.0001) "P < 0.0001" else
     paste("P =", formatC(p, digits = 4, format = "f", drop0trailing = TRUE))
 }
 k <- length(r)
@@ -77,9 +77,10 @@ if (k >= 2 && confidence > 0 && confidence < 1) {
     }
     lim <- c(lambda((1 + confidence) / 2), lambda((1 - confidence) / 2))
     i2_ci <- 100 * lim / (df_i2 + lim)
-  } else if (k >= 3) {
+  } else if (k >= 3 || Q > k) {
     # Test-based log(H) interval (Higgins & Thompson, 2002), as in
-    # StatsDirect's MIT Meta.IsquareNcc. H is at least one.
+    # StatsDirect's MIT Meta.IsquareNcc. H is at least one; with two studies
+    # only Q > k gives a standard error (the first form below).
     h2 <- max(1, Q / df_i2)
     se_log_h <- if (Q > k) 0.5 * (log(Q) - log(df_i2)) /
       (sqrt(2 * Q) - sqrt(2 * k - 3)) else
@@ -106,18 +107,30 @@ cat("Z (test correlation differs from 0) =", six(z_random / se_random), " ",
 # cor.test gives the exact two sided P, as the report does; with tied sample sizes the
 # report instead uses a continuity corrected normal approximation, which cor.test
 # does not. The test has low power with fewer than 11 studies, as the report notes.
+# The report gives the bias indicators only with more than three studies.
 cat("Bias indicators\n")
-deviation <- (z - z_fixed) / sqrt(v - 1 / sum(w))
-bm <- cor.test(deviation, v, method = "kendall", conf.level = confidence)
-cat("Begg-Mazumdar: Kendall's tau =", six(bm$estimate), " ", pv(bm$p.value),
-    if (k < 11) "(low power)\n" else "\n")
+# Egger's interval is at the level of the bias tests, twice the analysis's alpha
+# (90% for a 95% analysis); as the report has it, there is no figure when every
+# study has the same precision or the line fits every study exactly
+bias_level <- 1 - 2 * (1 - confidence)
+if (!(bias_level > 0 && bias_level < 1)) bias_level <- 0.9
+if (k > 3) {
+  deviation <- (z - z_fixed) / sqrt(v - 1 / sum(w))
+  bm <- cor.test(deviation, v, method = "kendall", conf.level = confidence)
+  cat("Begg-Mazumdar: Kendall's tau =", six(bm$estimate), " ", pv(bm$p.value),
+      if (k < 11) "(low power)\n" else "\n")
 
-# Egger: each standardised effect (z / se) regressed on its precision (1 / se); the
-# bias is the intercept, with a t test on k - 2 degrees of freedom and a 90% interval
-egger <- lm(I(z / sqrt(v)) ~ I(1 / sqrt(v)))
-egger_ci <- confint(egger, level = 0.9)[1, ]
-cat("Egger: bias = ", six(coef(egger)[1]), " (90% CI = ", six(egger_ci[1]), " to ",
-    six(egger_ci[2]), ")  ", pv(summary(egger)$coefficients[1, 4]), "\n", sep = "")
+  # Egger: each standardised effect (z / se) regressed on its precision (1 / se); the
+  # bias is the intercept, with a t test on k - 2 degrees of freedom
+  egger <- lm(I(z / sqrt(v)) ~ I(1 / sqrt(v)))
+  if (diff(range(1 / sqrt(v))) > 1e-12 * max(1 / sqrt(v)) &&
+      sum(residuals(egger)^2) > 1e-12 * sum((z / sqrt(v))^2)) {
+    egger_ci <- confint(egger, level = bias_level)[1, ]
+    egger_figures <- unname(c(coef(egger)[1], egger_ci, summary(egger)$coefficients[1, 4]))
+  } else egger_figures <- rep(NA, 4)
+  cat("Egger: bias = ", six(egger_figures[1]), " (", round(100 * bias_level, 2), "% CI = ", six(egger_figures[2]), " to ",
+      six(egger_figures[3]), ")  ", pv(egger_figures[4]), "\n", sep = "")
+} else cat("Bias indicators need more than three studies with an estimate\n")
 
 # Schmidt-Hunter: the mean correlation weighted by sample size, the variance of the
 # correlations about it, the part of that variance expected from sampling error alone

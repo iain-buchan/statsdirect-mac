@@ -22,9 +22,11 @@ print(a)
 
 # The report's lines to 6 places. The interval for the coefficient comes from the F
 # distribution of MSB/MSW on n - 1 and n(m - 1) degrees of freedom
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
+# A figure that cannot be calculated is shown as *, as the report shows it: tau and
+# its P are undefined when every subject has the same standard deviation or mean.
+six <- function(x) ifelse(is.na(x), "*", formatC(x, digits = 6, format = "f", drop0trailing = TRUE))
 pv <- function(p) {
-  if (p < 0.0001) "P < 0.0001" else
+  if (is.na(p)) "P = *" else if (p < 0.0001) "P < 0.0001" else
     paste("P =", formatC(p, digits = 4, format = "f", drop0trailing = TRUE))
 }
 msb <- a["child", "Mean Sq"]
@@ -78,6 +80,22 @@ if (!tied && n <= 170) {
     }
     kt$p.value <- min(1, 2 * sum(p[seq_len((pairs - abs(s)) %/% 2 + 1)]))
   }
+} else if (!tied) {
+  # Above 1,000 subjects the report takes the tail of S from an Edgeworth series
+  # in |S| - 1, whose figures this follows.
+  s <- abs(round(kt$estimate * n * (n - 1) / 2))
+  x <- (s - 1) / sqrt((2 * n^3 + 3 * n^2 - 5 * n - 6) / 18)
+  h <- numeric(15); h[1] <- x; h[2] <- x^2 - 1
+  for (i in 3:15) h[i] <- x * h[i - 1] - (i - 1) * h[i - 2]
+  inverse_n <- 1 / n
+  sc1 <- h[3] * (-0.09 + inverse_n * (0.045 + inverse_n * (-0.5325 + inverse_n * 0.506)))
+  sc2 <- h[5] * (0.036735 + inverse_n * (-0.036735 + inverse_n * 0.3214)) +
+    h[7] * (0.00405 + inverse_n * (-0.023336 + inverse_n * 0.07787))
+  sc3 <- h[9] * (-0.0033061 - inverse_n * 0.0065166) + h[11] * (-0.0001215 + inverse_n * 0.0025927) +
+    inverse_n * (h[13] * 0.00014878 + h[15] * 0.0000027338)
+  sc <- inverse_n * (sc1 + inverse_n * (sc2 + inverse_n * sc3))
+  upper_tail <- min(1, max(0, pnorm(x, lower.tail = FALSE) + sc * 0.398942 * exp(-0.5 * x^2)))
+  kt$p.value <- min(1, 2 * upper_tail)
 }
 cat("For within-subjects sd vs. mean, Kendall's tau", if (tied) "b =" else "=", six(kt$estimate),
     " two sided", pv(kt$p.value), "\n")

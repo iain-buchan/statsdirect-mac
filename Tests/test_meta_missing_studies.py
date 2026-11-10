@@ -1,5 +1,5 @@
 """Incomplete studies in the meta-analyses through the Mac operation host and real R, as Windows's tests/RScript/MetaMissingStudies.cs
-(5.3.8 = f24edb13) checks them.
+(5.3.9 = f41aad46) checks them.
 
 Each analysis runs with one study incomplete, either as a whole blank worksheet row without a column of study names or as one typed *
 cell with the names given as a Text frame, at the session preference meta-exact false and then true (Windows's MetaExact). The native
@@ -19,10 +19,14 @@ Mirrored from Windows: the fixtures, the study names, the incomplete third study
   (SdApplication.FillParameter calls the same shared ValidationProcessor), and the meta-analysis frames do not opt into
   preserve-row-alignment, so a missing value is refused where a frame has a domain validator: the summary statistic of a ratio type
   (Positive), the confidence limits (NoMissingData) and both counts of the proportion meta-analysis (Positive, NonNegative). Those runs
-  must be refused with exactly that validator's message at that frame (any other refusal fails); if a later engine accepts one, it is
-  checked in full instead. Each refused run is covered instead by the same analysis of the five complete studies (the incomplete row
-  deleted, so nothing is missing and R drops nothing) and, for the summary statistic, by the same pattern with the "other difference"
-  type, whose estimate has no domain validator (its confidence limits are still refused, as Windows's comment on the picker says).
+  must be refused with exactly that validator's message at that frame (any other refusal fails). Since 5.3.9 Windows puts each
+  selection through the picker's validators too (RunAtPicker) and asserts the verdict both ways: a selection the picker refuses is
+  "record-only" (it reaches a replay only in a stored record), every other selection must be accepted, and each run has one check of
+  that, with Windows's flags (the label of a record-only run ends "-record-only"). Windows still replays the record-only selections,
+  since its checking host runs on after a refusal; the Mac host stops at the refusal, as the picker does, so each refused run is
+  covered instead by the same analysis of the five complete studies (the incomplete row deleted, so nothing is missing and R drops
+  nothing) and, for the summary statistic of a ratio, by the same pattern with the "other difference" type, whose estimate has no
+  domain validator (its confidence limits are still refused, as Windows's comment on the picker says).
 The worksheet is the test workbook's "Modes" sheet, as Windows's RecordCells names it, with its titles in row 1 (the Mac grid keeps titles
 for the whole sheet, so the numeric columns are titled "Column 1" and so on, as Windows titles its untitled columns).
 """
@@ -56,6 +60,8 @@ CONTROL = [100, 140, 125, 90, 210, 115]
 CONTROL_EVENTS = [12, 20, 18, 12, 30, 15]
 ESTIMATES = [1.5, .8, 1.7, 2, 1.15, 2.6]
 ERRORS = [.12, .18, .22, .21, .15, .25]
+DIFFERENCES = [.05, -.02, .10, .03, .08, -.04]
+DIFFERENCE_ERRORS = [.03, .04, .05, .02, .06, .03]
 PROPORTION_EVENTS = [0, 35, 23, 10, 60, 50]
 TABLES = [('sn', EXPOSED), ('sr', EVENTS), ('xn', CONTROL), ('xr', CONTROL_EVENTS)]
 RATES = [('pt1', EXPOSED), ('a', EVENTS), ('pt2', CONTROL), ('b', CONTROL_EVENTS)]
@@ -64,18 +70,26 @@ CN = [39, 44, 35, 29, 48, 36]
 MEANS = [('en', EN), ('cn', CN), ('em', [11, 8, 9, 10, 14, 13]), ('es', [2.1, 2.5, 2.8, 3.4, 2.2, 2.6]),
          ('cm', [8, 10, 9, 8, 11, 8]), ('cs', [1.8, 2, 3.1, 3.2, 2.9, 2.4])]
 
-# The checks in Windows's order: (operation, columns, the input missing in the typed-cell pattern, settings)
-CASES = [(operation, TABLES, 'xr', {}) for operation in ('RelativeRiskMeta', 'RiskDifference', 'PetoMeta', 'Mantel')]
-CASES += [(operation, RATES, 'pt2', {}) for operation in ('MetaIncidenceRateRatio', 'MetaIncidenceRateDifference')]
-CASES += [('MetaSummary', [('y', ESTIMATES), ('se_y', ERRORS)], 'se_y', {'type': 'oddsRatio', 'use_ci': 'false'}),
-          # The current picker requires complete confidence-limit columns. An estimate may still be missing; stored runs can also
-          # carry blank limits (Windows's comment; on both platforms the picker also refuses a missing estimate of a ratio, see below).
+# The checks in Windows's order: (operation, columns, the input missing in the typed-cell pattern, settings, Windows's recordOnly
+# flags: whether the picker refuses the whole blank row and the typed * cell)
+ACCEPTED = (False, False)
+CASES = [(operation, TABLES, 'xr', {}, ACCEPTED) for operation in ('RelativeRiskMeta', 'RiskDifference', 'PetoMeta', 'Mantel')]
+CASES += [(operation, RATES, 'pt2', {}, ACCEPTED) for operation in ('MetaIncidenceRateRatio', 'MetaIncidenceRateDifference')]
+CASES += [# A ratio's estimate must be positive, so the picker refuses a blank one; a blank standard error it takes.
+          ('MetaSummary', [('y', ESTIMATES), ('se_y', ERRORS)], 'se_y', {'type': 'oddsRatio', 'use_ci': 'false'}, (True, False)),
+          # The picker also requires complete confidence-limit columns: a ratio with limits has no reachable blank.
           ('MetaSummary', [('y', ESTIMATES), ('ll_y', [1.2, .55, 1.1, 1.3, .85, 1.6]), ('ul_y', [1.9, 1.2, 2.2, 3.1, 1.6, 4.2])], 'y',
-           {'type': 'oddsRatio', 'use_ci': 'true'}),
-          ('Effect', [('en', EN), ('cn', CN), ('g', [.42, -.1, .3, .22, .85, 1.1])], 'g', {'type': 'g'})]
-CASES += [('Effect', MEANS, 'cs', {'type': kind}) for kind in ('d', 'm')]
+           {'type': 'oddsRatio', 'use_ci': 'true'}, (True, True)),
+          # A difference may be negative or blank: a blank estimate, standard error or whole row reaches the analysis from the
+          # picker, apart from a whole row with blank limits (the two cases Windows added at 5.3.9).
+          ('MetaSummary', [('y', DIFFERENCES), ('se_y', DIFFERENCE_ERRORS)], 'se_y', {'type': 'riskDifference', 'use_ci': 'false'}, ACCEPTED),
+          ('MetaSummary', [('y', DIFFERENCES), ('ll_y', [v - .06 for v in DIFFERENCES]), ('ul_y', [v + .06 for v in DIFFERENCES])], 'y',
+           {'type': 'riskDifference', 'use_ci': 'true'}, (True, False)),
+          ('Effect', [('en', EN), ('cn', CN), ('g', [.42, -.1, .3, .22, .85, 1.1])], 'g', {'type': 'g'}, ACCEPTED)]
+CASES += [('Effect', MEANS, 'cs', {'type': kind}, ACCEPTED) for kind in ('d', 'm')]
+# The picker takes positive totals and nonnegative counts only: a blank in either is record-only.
 # fudge is answered as Windows answers it; ProportionMeta.xml no longer asks it (#893), on either platform
-CASES += [('ProportionMeta', [('sn', EXPOSED), ('sr', PROPORTION_EVENTS)], 'sr', {'fudge': .5, 'method': 'doubleArcsine'})]
+CASES += [('ProportionMeta', [('sn', EXPOSED), ('sr', PROPORTION_EVENTS)], 'sr', {'fudge': .5, 'method': 'doubleArcsine'}, (True, True))]
 
 # Windows's switch: the block of each study's figures, the R label vector, its default label, R's Q, R's per-study limits and the
 # block's lower and upper keys; for the Mac, the report table that prints that block (its heading, a cell's prefix or None for any)
@@ -104,6 +118,7 @@ REFUSED = {
     ('MetaSummary', 'oddsRatio', 'true', 'row'): ('y', POSITIVE),
     ('MetaSummary', 'oddsRatio', 'true', 'cell'): ('y', POSITIVE),
     ('MetaSummary', 'otherDifference', 'true', 'row'): ('ll_y', NO_MISSING),  # ll_y and ul_y are NoMissingData for every type
+    ('MetaSummary', 'riskDifference', 'true', 'row'): ('ll_y', NO_MISSING),
     ('ProportionMeta', None, None, 'row'): ('sn', POSITIVE),                 # ProportionMeta.xml: sn Positive, sr NonNegative
     ('ProportionMeta', None, None, 'cell'): ('sr', NON_NEGATIVE),
 }
@@ -213,10 +228,12 @@ def heading_matches(heading, expected):
     return len(heading) >= len(expected) and all(e is None or h.startswith(e) for h, e in zip(heading, expected))
 
 
-def label_of(operation, settings, exact, whole_row):
-    """Windows's label: the operation, its first setting (else default), use_ci, MetaExact and the pattern."""
+def label_of(operation, settings, exact, whole_row, record_only=False):
+    """Windows's label: the operation, its first setting (else default), use_ci, MetaExact, the pattern and, for a selection the
+    picker refuses, "-record-only"."""
     first = str(next(iter(settings.values()))) if settings else 'default'
-    return f'{operation}-{first}-{settings.get("use_ci", "")}-{exact}-{"row" if whole_row else "cell"}'
+    return (f'{operation}-{first}-{settings.get("use_ci", "")}-{exact}-{"row" if whole_row else "cell"}' +
+            ('-record-only' if record_only else ''))
 
 
 def verify(session, writer, folder, operation, columns, missing_input, settings, whole_row, labelled, exact, deleted=False, label=None):
@@ -344,20 +361,27 @@ if __name__ == '__main__':
     session, writer = Session(), RWriter()
     jobs = []
     try:
-        for operation, columns, missing_input, settings in CASES:
+        for operation, columns, missing_input, settings, record_only_flags in CASES:
             for exact in (False, True):
                 for whole_row, labelled in ((True, False), (False, True)):
-                    label = label_of(operation, settings, exact, whole_row)
+                    record_only = record_only_flags[0 if whole_row else 1]
+                    label = label_of(operation, settings, exact, whole_row, record_only)
                     outcome = attempt(label, lambda: verify(session, writer, folder, operation, columns, missing_input, settings,
-                                                            whole_row, labelled, exact))
+                                                            whole_row, labelled, exact, label=label))
                     key = (operation, settings.get('type') if operation == 'MetaSummary' else None, settings.get('use_ci'),
                            'row' if whole_row else 'cell')
-                    if isinstance(outcome, dict):
-                        jobs.append(outcome)
-                        if key in REFUSED:
-                            print('NOTE: ' + label + ' is now accepted by the picker and was checked in full', flush=True)
-                        continue
                     if outcome is None:
+                        continue
+                    # Windows's check of the picker's verdict (5.3.9), both ways: a record-only selection must be refused, and
+                    # every other selection accepted
+                    refused = not isinstance(outcome, dict)
+                    if record_only:
+                        verdict = ': the picker refuses this selection' + (' (%s: %s)' % outcome[1:] if refused else '') + ', so it is record-only'
+                    else:
+                        verdict = ': the picker accepts this selection' + (', but it refused %s: %s' % outcome[1:] if refused else '')
+                    attempt(label, lambda: check(refused == record_only, label + verdict))
+                    if not refused:
+                        jobs.append(outcome)   # an accepted selection was checked in full, whatever its flag
                         continue
                     _, prompt, message = outcome
                     if not attempt(label, lambda: check(REFUSED.get(key) == (prompt, message),

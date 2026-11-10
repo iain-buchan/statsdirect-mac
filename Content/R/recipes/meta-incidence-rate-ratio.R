@@ -54,7 +54,8 @@ summarise <- function(p, name, null, f = identity) {
       pv(pchisq(p$q, k - 1, lower.tail = FALSE)), "\n", sep = "")
   cat("Moment-based estimate of between studies variance =", six(p$tau2), "\n")
   # I2 is the share of Q beyond its degrees of freedom; StatsDirect adds a confidence
-  # interval for it when there are at least three strata
+  # interval for it: the exact one, or with the exact methods off the test-based one,
+  # which needs three strata, or two whose Q is above 2
   i2 <- max(0, 100 * (p$q - (k - 1)) / p$q)
   cat("I2 (inconsistency) = ",
       formatC(i2, digits = 1, format = "f", drop0trailing = TRUE), "%\n", sep = "")

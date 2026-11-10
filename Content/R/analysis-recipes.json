@@ -17,7 +17,12 @@
   },
   "Bonferroni": {
     "file": "one-way-anova.R",
-    "detail": "One way analysis of variance, as the help shows it in R.",
+    "detail": "The analysis of variance that these comparisons follow, as the help shows it in R.",
+    "parentFiles": {
+      "OneWay": "one-way-anova.R",
+      "TwoWay": "two-way.R",
+      "ReplicateTwoWay": "replicate-two-way.R"
+    },
     "inherits": "OneWay"
   },
   "BoxWhiskerPlot": {
@@ -184,7 +189,12 @@
   },
   "Dunnett": {
     "file": "one-way-anova.R",
-    "detail": "One way analysis of variance, as the help shows it in R.",
+    "detail": "The analysis of variance that these comparisons follow, as the help shows it in R.",
+    "parentFiles": {
+      "OneWay": "one-way-anova.R",
+      "TwoWay": "two-way.R",
+      "ReplicateTwoWay": "replicate-two-way.R"
+    },
     "inherits": "OneWay"
   },
   "Effect": {
@@ -473,7 +483,12 @@
   },
   "MultipleLinearRegressionAnova": {
     "file": "multiple-linear-regression.R",
-    "detail": "Multiple linear regression, as the help shows it in R.",
+    "detail": "The multiple linear or polynomial regression that this analysis of variance follows, as the help shows it in R.",
+    "parentFiles": {
+      "MultipleLinearRegression": "multiple-linear-regression.R",
+      "PolynomialRegression": "polynomial-regression.R",
+      "PolynomialRegressionChangeDegree": "polynomial-regression.R"
+    },
     "inherits": "MultipleLinearRegression"
   },
   "MultipleLinearRegressionBestSubset": {
@@ -498,7 +513,12 @@
   },
   "NewmanKeuls": {
     "file": "one-way-anova.R",
-    "detail": "One way analysis of variance, as the help shows it in R.",
+    "detail": "The analysis of variance that these comparisons follow, as the help shows it in R.",
+    "parentFiles": {
+      "OneWay": "one-way-anova.R",
+      "TwoWay": "two-way.R",
+      "ReplicateTwoWay": "replicate-two-way.R"
+    },
     "inherits": "OneWay"
   },
   "NonparametricLinearRegression": {
@@ -841,7 +861,12 @@
   },
   "Scheffe": {
     "file": "one-way-anova.R",
-    "detail": "One way analysis of variance, as the help shows it in R.",
+    "detail": "The analysis of variance that these comparisons follow, as the help shows it in R.",
+    "parentFiles": {
+      "OneWay": "one-way-anova.R",
+      "TwoWay": "two-way.R",
+      "ReplicateTwoWay": "replicate-two-way.R"
+    },
     "inherits": "OneWay"
   },
   "SimpleLinearRegression": {
@@ -935,7 +960,12 @@
   },
   "Tukey": {
     "file": "one-way-anova.R",
-    "detail": "One way analysis of variance, as the help shows it in R.",
+    "detail": "The analysis of variance that these comparisons follow, as the help shows it in R.",
+    "parentFiles": {
+      "OneWay": "one-way-anova.R",
+      "TwoWay": "two-way.R",
+      "ReplicateTwoWay": "replicate-two-way.R"
+    },
     "inherits": "OneWay"
   },
   "TwoWay": {

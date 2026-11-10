@@ -132,31 +132,57 @@ public static partial class RScriptIO {
             return variable;
         }
         var result = new FrameValues();
+        // ReadFrame lengthens every column of a CategoryReplaceMissing frame to the frame's last row of data with the missing label, where
+        // Windows reads each column over its own recorded rows (StatsDirectUI/UI/CellArrayProcessor.cs, ProcessCellArrayCategoriesPerColumn):
+        // a column recorded over a shorter range ends with the cells the host supplied for it, as its hash was taken.
+        int[] own = columns.EnumerateArray().Select(c => c.TryGetProperty("values", out var v) && v.ValueKind == JsonValueKind.Array ? v.GetArrayLength() : 0).ToArray();
+        var pending = new List<(int Column, object Request)>();   // this frame's columns to look for, held until the padding rule below has been tried
         for (int i = 0; i < read.VariableCount; i++) {
             var variable = read.Variables[i];
             var column = pointer.Columns[i];
             bool moved = false;
-            if (column.Hash != null && RunRecord.Hash(variable) != column.Hash) {
+            object[] values = RunRecord.Values(variable);
+            if (mode == DataAcquisitionMode.CategoryReplaceMissing && values.Length > own[i]) values = values.Take(own[i]).ToArray();
+            string hash = RunRecord.Hash(values);
+            if (column.Hash != null && hash != column.Hash) {
                 if (candidates.Count > 0) {
                     int? found = ColumnLocator.Find(column, index => {
-                        var v = index == column.Column ? variable : ReadAt(index);
+                        if (index == column.Column) return (variable.Title, hash);
+                        var v = ReadAt(index);
                         return v == null ? null : (v.Title, RunRecord.Hash(v));
                     });
-                    if (found != null && found != column.Column) {
-                        variable = ReadAt(found.Value) ?? variable;
+                    if (found != null && found != column.Column && ReadAt(found.Value) is IVariable elsewhere) {
+                        variable = elsewhere;
+                        values = RunRecord.Values(variable);
+                        hash = RunRecord.Hash(values);
                         column.Column = found.Value;   // the pointer now names the column's new place, which the script's comment gives
                         moved = true;
                     }
                 } else
-                    relocate.Add(new { frame = frameIndex, name = pointer.Name, column = i, place = column.Column, firstRow = column.FirstRow, lastRow = column.LastRow, hasTitle = column.HasTitle, sheet = column.Sheet ?? pointer.Sheet });
+                    pending.Add((i, new { frame = frameIndex, name = pointer.Name, column = i, place = column.Column, firstRow = column.FirstRow, lastRow = column.LastRow, hasTitle = column.HasTitle, sheet = column.Sheet ?? pointer.Sheet }));
             }
             result.Columns.Add(new ColumnValues {
                 Title = string.IsNullOrEmpty(column.Title) ? variable.Title : column.Title,
-                Values = RunRecord.Values(variable),
-                Changed = column.Hash != null && RunRecord.Hash(variable) != column.Hash,
+                Values = values,
+                Changed = column.Hash != null && hash != column.Hash,
                 Moved = moved
             });
         }
+        // As the Windows reader does from 5.3.9 (StatsDirectUI/UI/FrameReader.cs, FrameReader.Read): a record saved before 5.3.7 kept the
+        // padding of unequal columns, accepted at the selection, as pointers, and the hash of each shorter column takes in the missing values
+        // that padded it to the longest. Such columns are padded so again, and are the values the analysis used only if every one of them
+        // then has its recorded hash; the host is then not asked to look for them elsewhere. (No columns: nothing is the longest.)
+        int longest = result.Columns.Count == 0 ? 0 : result.Columns.Max(c => c.Values.Length);
+        List<int> shorter = Enumerable.Range(0, result.Columns.Count).Where(i => result.Columns[i].Changed && result.Columns[i].Values.Length < longest).ToList();
+        List<object[]> padded = shorter.Select(i => result.Columns[i].Values.Concat(new object[longest - result.Columns[i].Values.Length]).ToArray()).ToList();
+        if (shorter.Count > 0 && shorter.Select((i, j) => RunRecord.Hash(padded[j]) == pointer.Columns[i].Hash).All(same => same)) {
+            for (int j = 0; j < shorter.Count; j++) {
+                result.Columns[shorter[j]].Values = padded[j];
+                result.Columns[shorter[j]].Changed = false;
+            }
+            pending.RemoveAll(p => shorter.Contains(p.Column));
+        }
+        relocate.AddRange(pending.Select(p => p.Request));
         return result;
     }
     // A cell as the grid's text: a string as it is; a number, a flag or nothing given typed is written as the grid would show it.

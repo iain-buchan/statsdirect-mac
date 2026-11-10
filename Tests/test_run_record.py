@@ -123,6 +123,8 @@ for op, entry in manifest.items():
         parameters |= {m.strip() for m in re.findall(r'<confidence-interval>.*?<name>([^<]+)</name>.*?</confidence-interval>', owner, re.S)}
     if entry['file'] in ('relative-risk-meta.R', 'meta-summary.R', 'risk-difference.R', 'peto-meta.R', 'mantel.R', 'effect.R', 'meta-correlation.R', 'proportion-meta.R'):
         parameters.add('metaExact')   # captured once by each native meta-analysis report, then retained for replay (5.3.7; the last four 5.3.8)
+    if entry['file'] in ('relative-risk-meta.R', 'risk-difference.R', 'mantel.R', 'mantel-haenszel-screen.R'):
+        parameters |= {'metaCC', 'delayContinuityCorrection'}   # the continuity correction those reports applied, recorded with them (5.3.9)
     settings = re.search(r'^# settings:\s*(.*)$', text, re.M)
     if settings:
         for item in [x.strip() for x in settings.group(1).split(',') if '=' in x]:
@@ -1357,7 +1359,7 @@ check('log_doses <- TRUE' in script and 'centile <- 80' in script and near(engin
 
 # the meta-analysis of relative risks given with their standard errors
 state, record, script, r, report = option_run('MetaSummary', [('y', [('rr', [1.2, 0.8, 1.5])]), ('se_y', [('se', [0.1, 0.2, 0.15])])], {'gamma': 0.95, 'type': 'relativeRisk', 'use_ci': 'false', 'studies': None})
-r_meta = numbers(r, r'^Pooled odds ratio = (-?[0-9.]+)')[0]; engine_meta = state['values']['rmh']
+r_meta = numbers(r, r'^Pooled relative risk = (-?[0-9.]+)')[0]; engine_meta = state['values']['rmh']   # the report names the statistic it pools (5.3.9)
 print('      relative risks with standard errors: engine pooled %.7g, R %.7g' % (engine_meta, r_meta), flush=True)
 check('se_in <- c(0.1, 0.2, 0.15)' in script and 'lower <- NULL' in script and near(r_meta, engine_meta, 1e-4), 'R\'s pooled relative risk from the standard errors given gives the engine\'s')
 

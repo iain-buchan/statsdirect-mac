@@ -21,15 +21,19 @@ if (paired) {
 if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 n <- length(d)
-if (n >= 2 && sd(d) == 0) {
-  # R's t.test rejects constant differences. The report's limiting result has
-  # a point interval, infinite t for a nonzero mean, and undefined t/P at zero.
-  t <- mean(d) / 0
+se_d <- if (n >= 2) sd(d) / sqrt(n) else NA_real_
+if (n >= 2 && (se_d == 0 || se_d < 10 * .Machine$double.eps * abs(mean(d)))) {
+  # R's t.test rejects differences that are constant to its working precision
+  # (a standard error below 10 epsilon of the mean, as decimal data with a constant
+  # shift give), where the report still gives t, P and the interval, worked out here
+  # in the same way. Exactly constant differences give a point interval, infinite
+  # t for a nonzero mean, and undefined t and P at zero.
+  t <- mean(d) / se_d
   r <- structure(list(statistic = c(t = t), parameter = c(df = n - 1),
     p.value = 2 * pt(-abs(t), n - 1),
-    conf.int = structure(rep(mean(d), 2), conf.level = confidence),
+    conf.int = structure(mean(d) + c(-1, 1) * qt((1 + confidence) / 2, n - 1) * se_d, conf.level = confidence),
     estimate = c("mean difference" = mean(d)), null.value = c("mean difference" = 0),
-    stderr = 0, alternative = "two.sided", method = "Paired t-test (constant differences)",
+    stderr = se_d, alternative = "two.sided", method = "Paired t-test (constant differences)",
     data.name = "Recorded differences"), class = "htest")
   if (mean(d) == 0) cat("All differences are zero: t and P are undefined.\n")
 } else {

@@ -50,7 +50,9 @@ dev <- fit$deviance
 lr <- if (intercept) max(0, fit$null.deviance - dev) else NA_real_
 cat("Deviance goodness of fit chi-square =", six(dev), " df =", fit$df.residual, " ",
     pv(if (fit$df.residual > 0) pchisq(dev, fit$df.residual, lower.tail = FALSE) else NA_real_), "\n")
-df_lr <- fit$df.null - fit$df.residual
+# Without an intercept the report counts the df from the intercept-only model, as
+# it does with one (R's null model is then the zero model, with one df more)
+df_lr <- fit$df.null - fit$df.residual - as.integer(!intercept)
 cat("Deviance (likelihood ratio) chi-square =", six(lr), " df =", df_lr, " ",
     pv(if (df_lr > 0) pchisq(lr, df_lr, lower.tail = FALSE) else NA_real_), "\n")
 s <- summary(fit)$coefficients

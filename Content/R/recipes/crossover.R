@@ -18,6 +18,7 @@ if (!is.null(baseline2)) { drug2 <- drug2 - baseline2; placebo2 <- placebo2 - ba
 
 # Each group's mean in each period and its mean difference, period 1 less
 # period 2
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
 pv <- function(p) {

@@ -27,46 +27,51 @@ b <- control_deaths
 cc <- aspirin - aspirin_deaths
 dd <- control - control_deaths
 n <- a + b + cc + dd
-k <- length(a)
 print(data.frame(study, a, b, cc, dd))
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
+six <- function(x) ifelse(is.na(x), "*", formatC(x, digits = 6, format = "f", drop0trailing = TRUE))
 pv <- function(p) {
-  if (p < 0.0001) "P < 0.0001" else
+  if (is.na(p)) "P = *" else if (p < 0.0001) "P < 0.0001" else
     paste("P =", formatC(p, digits = 4, format = "f", drop0trailing = TRUE))
 }
 
 # O - E is the number of deaths on aspirin less the number expected if aspirin had no
 # effect; V is the hypergeometric variance of that number, and it is also the weight of
 # the study. The Peto odds ratio is exp((O - E) / V), with its interval from the normal
-# distribution.
+# distribution. A study without a variance (no deaths, or deaths of every subject, a
+# group of nobody, or one subject) has no odds ratio: it is listed as excluded, and k
+# is the number of studies pooled
 E <- (a + b) * (a + cc) / n
-oe <- a - E
-V <- (a + b) * (cc + dd) * (a + cc) * (b + dd) / (n^2 * (n - 1))
+oe <- ifelse(n > 0, a - E, 0)
+V <- ifelse(n > 1, (a + b) * (cc + dd) * (a + cc) * (b + dd) / (n^2 * (n - 1)), 0)
+included <- V > 0
+k <- sum(included)
+note <- ifelse(included, "", "* (excluded)")
 z <- qnorm((1 + confidence) / 2)
-or <- exp(oe / V)
-lower <- exp((oe - z * sqrt(V)) / V)
-upper <- exp((oe + z * sqrt(V)) / V)
+or <- ifelse(included, exp(oe / V), NA)
+lower <- ifelse(included, exp((oe - z * sqrt(V)) / V), NA)
+upper <- ifelse(included, exp((oe + z * sqrt(V)) / V), NA)
 cat("Stratum, O-E, odds ratio,", pct, "CI:\n")
-for (i in 1:k) {
-  cat(i, six(oe[i]), six(or[i]), six(lower[i]), six(upper[i]), study[i], "\n")
+for (i in seq_along(a)) {
+  cat(i, six(oe[i]), six(or[i]), six(lower[i]), six(upper[i]), study[i], note[i], "\n")
 }
 
 # The standardised effect is the log odds ratio, (O - E) / V, whose variance is 1 / V;
 # the weights are the V as percentages of their total
 cat("Stratum, standardised effect, variance, % weight:\n")
-for (i in 1:k) {
-  cat(i, six(log(or[i])), six(1 / V[i]), six(100 * V[i] / sum(V)), study[i], "\n")
+for (i in seq_along(a)) {
+  cat(i, six(log(or[i])), six(if (included[i]) 1 / V[i] else NA), six(100 * V[i] / sum(V)),
+      study[i], note[i], "\n")
 }
 
 # Each study's test of no effect: z = (O - E) / sqrt(V) against the normal distribution
-zi <- oe / sqrt(V)
+zi <- ifelse(included, oe / sqrt(V), NA)
 cat("Stratum, V, z, P (two sided):\n")
-for (i in 1:k) {
-  cat(i, six(V[i]), six(zi[i]), pv(2 * pnorm(-abs(zi[i]))), study[i], "\n")
+for (i in seq_along(a)) {
+  cat(i, six(V[i]), six(zi[i]), pv(2 * pnorm(-abs(zi[i]))), study[i], note[i], "\n")
 }
 
 # The pooled odds ratio (fixed effects): the sums of O - E and of V take the place of
-# the single study's in the same formulae
+# the single study's in the same formulae (an excluded study adds nothing to either)
 sum_oe <- sum(oe)
 sum_V <- sum(V)
 pooled <- exp(sum_oe / sum_V)
@@ -88,7 +93,7 @@ cat("Z (test of odds ratio differs from 1) =", six(z_pooled), " ",
 # found with uniroot and pchisq; a limit is 0 when the central distribution already
 # puts Q below that percentile. A non-centrality lambda gives
 # I-squared = lambda / (df + lambda)
-Q <- sum(V * (log(or) - log(pooled))^2)
+Q <- if (k > 1) sum((V * (log(or) - log(pooled))^2)[included]) else 0
 dfq <- k - 1
 cat("Cochran Q = ", six(Q), "  (df = ", dfq, ")  ",
     pv(pchisq(Q, dfq, lower.tail = FALSE)), "\n", sep = "")
@@ -109,9 +114,10 @@ if (k >= 2 && confidence > 0 && confidence < 1) {
     }
     lim <- c(lambda((1 + confidence) / 2), lambda((1 - confidence) / 2))
     i2_ci <- 100 * lim / (df_i2 + lim)
-  } else if (k >= 3) {
+  } else if (k >= 3 || Q > k) {
     # Test-based log(H) interval (Higgins & Thompson, 2002), as in
-    # StatsDirect's MIT Meta.IsquareNcc. H is at least one.
+    # StatsDirect's MIT Meta.IsquareNcc. H is at least one; with two studies
+    # only Q > k gives a standard error (the first form below).
     h2 <- max(1, Q / df_i2)
     se_log_h <- if (Q > k) 0.5 * (log(Q) - log(df_i2)) /
       (sqrt(2 * Q) - sqrt(2 * k - 3)) else
@@ -127,42 +133,58 @@ if (k < 2) cat("I2 not calculated: at least two studies are required.\n") else i
       one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")
 # End of I-squared interval.
 
-# Bias indicators. Each study's standard error of the log odds ratio is 1 / sqrt(V).
+# Bias indicators, which the report gives only when more than three studies are
+# pooled. Each study's standard error of the log odds ratio is 1 / sqrt(V).
 # Begg and Mazumdar's test is Kendall's tau between the standardised deviates of the
 # studies from the pooled log odds ratio and their variances; the exact P holds when
 # there are no ties among either, as here. The report notes the test's low power with
 # fewer than eleven studies.
-se <- 1 / sqrt(V)
-deviate <- (log(or) - log(pooled)) / sqrt(se^2 - 1 / sum_V)
-begg <- cor.test(deviate, se^2, method = "kendall", exact = TRUE, conf.level = confidence)
-cat("Begg-Mazumdar: Kendall's tau =", six(begg$estimate), " ", pv(begg$p.value),
-    "(low power)\n")
+se <- ifelse(included, 1 / sqrt(V), NA)
+# Egger's and Harbord's intervals are at the level of the bias tests, twice the
+# analysis's alpha (90% for a 95% analysis); as the report has it, there is no
+# figure when every study has the same precision or the line fits every study exactly
+bias_level <- 1 - 2 * (1 - confidence)
+if (!(bias_level > 0 && bias_level < 1)) bias_level <- 0.9
+regression <- function(y, x, label, spread) {
+  fit <- lm(y ~ x)
+  if (spread && sum(residuals(fit)^2) > 1e-12 * sum(y^2)) {
+    fit_ci <- confint(fit, level = bias_level)
+    figures <- c(coef(fit)[1], fit_ci[1, 1], fit_ci[1, 2], summary(fit)$coefficients[1, 4])
+  } else figures <- rep(NA, 4)
+  cat(label, ": bias = ", six(figures[1]), " (", round(100 * bias_level, 2), "% CI = ",
+      six(figures[2]), " to ", six(figures[3]), ")  ", pv(figures[4]), "\n", sep = "")
+  invisible(unname(figures))
+}
+if (k > 3) {
+  deviate <- (log(or) - log(pooled)) / sqrt(se^2 - 1 / sum_V)
+  begg <- cor.test(deviate[included], se[included]^2, method = "kendall", exact = TRUE,
+                   conf.level = confidence)
+  cat("Begg-Mazumdar: Kendall's tau =", six(begg$estimate), " ", pv(begg$p.value),
+      "(low power)\n")
 
-# Egger's test regresses each log odds ratio divided by its standard error on the
-# precision, 1 / standard error: the bias is the intercept, tested with Student's t on
-# k - 2 degrees of freedom and given a 90% interval, twice the alpha of the analysis
-egger <- lm(I(log(or) / se) ~ I(1 / se))
-egger_ci <- confint(egger, level = 0.9)
-cat("Egger: bias = ", six(coef(egger)[1]), " (90% CI = ", six(egger_ci[1, 1]), " to ",
-    six(egger_ci[1, 2]), ")  ", pv(summary(egger)$coefficients[1, 4]), "\n", sep = "")
+  # Egger's test regresses each log odds ratio divided by its standard error on the
+  # precision, 1 / standard error: the bias is the intercept, tested with Student's t on
+  # k - 2 degrees of freedom
+  precision <- 1 / se[included]
+  egger_figures <- regression(log(or[included]) / se[included], precision, "Egger",
+                      diff(range(precision)) > 1e-12 * max(precision))
 
-# Harbord's modification regresses the score O - E divided by sqrt(V) on sqrt(V). For
-# the Peto odds ratio that is the same regression as Egger's, since the log odds ratio
-# over its standard error is (O - E) / sqrt(V) and the precision is sqrt(V), so the two
-# tests agree
-harbord <- lm(I(oe / sqrt(V)) ~ sqrt(V))
-harbord_ci <- confint(harbord, level = 0.9)
-cat("Harbord-Egger: bias = ", six(coef(harbord)[1]), " (90% CI = ",
-    six(harbord_ci[1, 1]), " to ", six(harbord_ci[1, 2]), ")  ",
-    pv(summary(harbord)$coefficients[1, 4]), "\n", sep = "")
+  # Harbord's modification regresses the score O - E divided by sqrt(V) on sqrt(V). For
+  # the Peto odds ratio that is the same regression as Egger's, since the log odds ratio
+  # over its standard error is (O - E) / sqrt(V) and the precision is sqrt(V), so the two
+  # tests agree
+  root_v <- sqrt(V[included])
+  harbord_figures <- regression(oe[included] / root_v, root_v, "Harbord-Egger",
+                        sum((root_v - mean(root_v))^2) > 1e-12 * sum(root_v^2))
+} else cat("Bias indicators need more than three studies with an estimate\n")
 
 # The report's charts. First the bias assessment (funnel) plot: each log odds ratio
 # against its standard error, the axis reversed so that the 95% cone about the pooled
 # log odds ratio opens downwards
-se_top <- max(se) * 1.05
+se_top <- max(se, na.rm = TRUE) * 1.05
 plot(log(or), se, ylim = c(se_top, 0), xlab = "Log(Peto odds ratio)",
      ylab = "Standard error", main = "Bias assessment plot",
-     xlim = range(log(or), log(pooled) + c(-1, 1) * z * se_top))
+     xlim = range(log(or), log(pooled) + c(-1, 1) * z * se_top, na.rm = TRUE))
 abline(v = log(pooled))
 lines(log(pooled) + c(-1, 0, 1) * z * se_top, c(se_top, 0, se_top))
 
@@ -180,25 +202,28 @@ lines(pc, 100 * pooled * pc / (100 - pc + pooled * pc), lty = 2)
 
 # The Peto odds ratio (forest) plot on a log scale: each study's odds ratio with its 95%
 # interval and a square whose size grows with its weight, the line of no effect, and
-# the pooled odds ratio and interval at the foot
+# the pooled odds ratio and interval at the foot; an excluded study has a row without
+# an estimate
+rows <- length(a):1
 par(mar = c(5, 6, 4, 8))
-plot(c(lower, pooled_lower), k:0, type = "n", log = "x", yaxt = "n",
-     xlim = range(lower, upper), ylim = c(-0.5, k + 0.5), ylab = "",
+plot(c(lower, pooled_lower), c(rows, 0), type = "n", log = "x", yaxt = "n",
+     xlim = range(lower, upper, pooled_lower, pooled_upper, na.rm = TRUE),
+     ylim = c(-0.5, length(a) + 0.5), ylab = "",
      xlab = "Peto odds ratio (95% confidence interval)", main = "Peto odds ratio plot")
-segments(lower, k:1, upper, k:1)
-points(or, k:1, pch = 15, cex = 3 * sqrt(V / max(V)))
+segments(lower, rows, upper, rows)
+points(or, rows, pch = 15, cex = 3 * sqrt(V / max(V)))
 segments(pooled_lower, 0, pooled_upper, 0)
 points(pooled, 0, pch = 18, cex = 2)
 abline(v = 1)
-axis(2, at = k:0, labels = c(study, "combined"), las = 1)
-label <- sprintf("%.2f (%.2f, %.2f)", c(or, pooled), c(lower, pooled_lower),
-                 c(upper, pooled_upper))
-mtext(label, side = 4, at = k:0, las = 1, line = 1, cex = 0.8)
+axis(2, at = c(rows, 0), labels = c(study, "combined"), las = 1)
+label <- c(ifelse(included, sprintf("%.2f (%.2f, %.2f)", or, lower, upper), "excluded"),
+           sprintf("%.2f (%.2f, %.2f)", pooled, pooled_lower, pooled_upper))
+mtext(label, side = 4, at = c(rows, 0), las = 1, line = 1, cex = 0.8)
 par(mar = c(5, 4, 4, 2) + 0.1)
 
 # And the plot of O - E against V, both axes including the origin: the studies fall
 # along the line through the origin with the slope of the pooled log odds ratio when
 # all of them share one odds ratio
-plot(V, oe, xlim = c(0, max(V)), ylim = range(0, oe), xlab = "Peto weights",
+plot(V, oe, xlim = c(0, max(V)), ylim = range(0, oe, na.rm = TRUE), xlab = "Peto weights",
      ylab = "Observed-Expected", main = "Peto O-E vs. V plot")
 abline(0, log(pooled))

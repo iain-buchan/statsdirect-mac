@@ -7,6 +7,7 @@
 # the same test is rebuilt here and printed as t.test prints it: t, df, the two sided P and
 # the confidence interval for the mean. StatsDirect's interval is for the difference between
 # the sample and population means, so its limits are these less mu0.
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 se <- s / sqrt(n)
 df <- n - 1
 t <- (xbar - mu0) / se

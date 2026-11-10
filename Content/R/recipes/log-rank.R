@@ -97,7 +97,9 @@ death_tables <- function(time, dead, group) {
   array(cells, c(2, 2, length(cells) / 4))
 }
 tables <- death_tables(time, dead, stage)
-print(mantelhaen.test(tables, exact = TRUE))
+# R uses uniroot's default tolerance for the estimate and limits. The report
+# values below use tighter roots, so the last digits can differ.
+print(mantelhaen.test(tables, exact = TRUE, conf.level = confidence))
 
 # The same from the conditional distribution of the total deaths in group 1 given the
 # margins of every table: the product of the hypergeometric polynomials of the tables,

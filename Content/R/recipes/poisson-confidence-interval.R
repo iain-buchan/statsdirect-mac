@@ -40,6 +40,6 @@ cat("Exact two sided", pct, "CI =", six(r$conf.int[1]), "to", six(r$conf.int[2])
 ci <- if (confidence <= 0.5) rep(NA_real_, 2) else
   c(if (sum(counts) == 0) 0 else qgamma(1 - confidence, sum(counts)),
     qgamma(confidence, sum(counts) + 1)) / n
-cat("Exact one sided", pct, "confidence limits: lower ", six(ci[1]), ", upper ", six(ci[2]),
+cat("Exact one sided ", pct, " confidence limits: lower ", six(ci[1]), ", upper ", six(ci[2]),
     "\n", sep = "")
 }

@@ -1,7 +1,7 @@
 # StatsDirect recipe: Logistic regression of grouped counts, as the help shows it in R.
 # From the help's R code (regression_and_correlation/logistic.htm); the data and settings above come from the run.
 # data: total = total, responders = response, predictors... = predictors, weight = weight
-# settings: confidence = gamma, intercept = intercept
+# settings: confidence = gamma, intercept = intercept, precision = accuracy
 # hand-edited: omit incomplete model rows before grouping and all calculations
 
 keep <- complete.cases(responders, total, predictors, weight)
@@ -35,16 +35,22 @@ sd_own <- tail(make.unique(c(names(sd_data), "responders", "nonresponders", "pri
 sd_data[sd_own] <- list(responders, total - responders, if (is.null(weight)) rep(1, length(responders)) else weight)
 sd_terms <- encodeString(names(predictors), quote = "`")
 sd_terms[names(predictors) == "."] <- "I(`.`)" # an actual column, not the formula shorthand
+precision <- suppressWarnings(as.numeric(sub("[dD]", "e", precision)))
+if (length(precision) != 1L || !is.finite(precision) || precision <= 0) precision <- 1e-7
+precision <- min(precision, 0.01)
 model <- reformulate(sd_terms,
                      response = call("cbind", as.name(sd_own[1]), as.name(sd_own[2])), intercept = intercept)
 fit <- eval(bquote(glm(.(model), data = sd_data, family = binomial,
                       weights = .(as.name(sd_own[3])), control = glm.control(maxit = 100))))
-# A warm start updates covariance at the fitted values without changing glm's
-# rank tolerance (which also depends on its convergence epsilon).
+# R also uses epsilon to decide QR rank. Establish rank at its default
+# tolerance, then apply the recorded precision to the full-rank refinement.
+# Keep the default tolerance when a tighter epsilon could resurrect an alias.
 if (fit$converged && !fit$boundary) {
   refit_start <- coef(fit)
   refit_start[is.na(refit_start)] <- 0
-  fit <- update(fit, start = refit_start)
+  refit_epsilon <- if (fit$rank == length(refit_start)) precision else 1e-8
+  refined <- update(fit, start = refit_start, control = glm.control(epsilon = refit_epsilon, maxit = 100))
+  if (refined$converged && !refined$boundary && refined$rank == fit$rank) fit <- refined
 }
 print(summary(fit))
 print(exp(cbind(OR = coef(fit), confint.default(fit, level = confidence))))
@@ -72,6 +78,8 @@ for (i in if (intercept) seq_len(nrow(s))[-1] else seq_len(nrow(s))) {
   cat(lab[i], "odds ratio =", six(exp(s[i, 1])), " (", six(exp(ci[i, 1])), "to",
       six(exp(ci[i, 2])), ")  z =", six(s[i, 3]), " ", pv(s[i, 4]), "\n")
 }
+every <- if (intercept) c("(Intercept)", names(predictors)) else names(predictors)
+for (j in which(is.na(coef(fit)))) cat(every[j], "* error: drop this variable *\n")
 slopes <- if (intercept) s[-1, 1] else s[, 1]
 cat("logit =", if (intercept) six(s[1, 1]) else "", paste0(ifelse(slopes >= 0, "+", ""), six(slopes), " ", if (intercept) lab[-1] else lab, collapse = " "), "\n")
 
@@ -81,7 +89,7 @@ cat("logit =", if (intercept) six(s[1, 1]) else "", paste0(ifelse(slopes >= 0, "
 # for the n rows of data), and the two pseudo R-squares are 1 minus the ratio of
 # the deviances and 1 minus the ratio of the log likelihoods (McFadden's). Rows
 # with a prior weight of zero add nothing to the likelihood, and are not in n
-k <- length(coef(fit))
+k <- fit$rank
 n <- if (is.null(weight)) length(total) else sum(weight > 0)
 p <- fitted(fit)
 w <- if (is.null(weight)) 1 else weight   # the prior weights, as the report weights the rows
@@ -119,10 +127,12 @@ sd_hl_predictors <- lapply(sd_hl_predictors, function(v) v[positive])
 sd_hl$p <- sd_hl$expected / sd_hl$total
 sd_hl <- sd_hl[do.call(order, unname(c(list(sd_hl$p), sd_hl_predictors))), , drop = FALSE]
 # Cuts are decided within 1e-9 of the total, so that decimal weights whose exact
-# sum lands on a cut do not move with rounding or with the order of the rows
+# sum lands on a cut do not move with rounding or with the order of the rows. The
+# tolerance stays under 0.1 however large the total, so whole frequencies (a tenth
+# of whose total ends in .0 to .9) are never moved to another group
 ntot <- sum(sd_hl$total)
 ndiv <- ntot / 10
-eps <- 1e-9 * ntot
+eps <- min(1e-9 * ntot, 0.05)
 ncut <- floor(ndiv + eps)
 ncum <- 0
 g <- 1L

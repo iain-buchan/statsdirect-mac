@@ -2,6 +2,8 @@
 # From the help's R code (proportions/unpaired.htm); the data and settings above come from the run.
 # settings: n1 = n1, r1 = r1, n2 = n2, r2 = r2, confidence = cco
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # Two independent proportions: the StatsDirect help example (Armitage and Berry 1994,
 # deaths under two treatments: 41 of 257 patients given A and 64 of 244 given B) in R
 

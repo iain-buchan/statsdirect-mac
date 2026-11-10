@@ -28,18 +28,19 @@ fit <- eval(bquote(coxph(.(model), data = sd_data, ties = "breslow")))
 print(summary(fit, conf.int = confidence))
 
 # The report's lines to 6 places
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
+six <- function(x) ifelse(is.na(x), "*", formatC(x, digits = 6, format = "f", drop0trailing = TRUE))
 pv <- function(p) {
-  if (p < 0.0001) "P < 0.0001" else
+  if (is.na(p)) "P = *" else if (p < 0.0001) "P < 0.0001" else
     paste("P =", formatC(p, digits = 4, format = "f", drop0trailing = TRUE))
 }
 ll <- fit$loglik                     # log likelihood without, then with, the covariates
 dev <- 2 * (ll[2] - ll[1])
-df <- length(coef(fit))
+df <- sum(!is.na(coef(fit)))
 cat(fit$n, "subjects with", fit$nevent, "events\n")
 cat("Deviance (likelihood ratio) chi-square =", six(dev), " df =", df, " ",
-    pv(pchisq(dev, df, lower.tail = FALSE)), "\n")
+    pv(if (df > 0) pchisq(dev, df, lower.tail = FALSE) else NA_real_), "\n")
 s <- summary(fit)$coefficients
+s[is.na(s[, "coef"]), ] <- NA_real_
 for (i in seq_len(nrow(s))) cat(paste(rownames(s)[i], paste0("b", i, " =")), six(s[i, "coef"]), " z =", six(s[i, "z"]), " ", pv(s[i, "Pr(>|z|)"]), "\n")
 
 # Hazard ratios: exp of the coefficient, with Wald limits on the log scale
@@ -53,7 +54,7 @@ for (i in seq_len(nrow(s))) {
 cat("Log likelihood with no covariates =", six(ll[1]), "\n")
 cat("Log likelihood with all model covariates =", six(ll[2]), "\n")
 cat("Deviance (likelihood ratio) chi-square =", six(dev), " df =", df, " ",
-    pv(pchisq(dev, df, lower.tail = FALSE)), "\n")
+    pv(if (df > 0) pchisq(dev, df, lower.tail = FALSE) else NA_real_), "\n")
 
 # The report's "baseline survival and hazard" option gives, at each event time,
 # the survival probability for a subject with every predictor at zero (or at its

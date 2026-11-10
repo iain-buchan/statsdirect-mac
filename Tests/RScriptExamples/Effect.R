@@ -28,7 +28,9 @@ g <- (em - cm) / s
 J <- ifelse(m < 200, exp(lgamma(m / 2) - lgamma((m - 1) / 2)) / sqrt(m / 2),
             1 - 3 / (4 * m - 1))
 d <- J * g
-z <- qnorm(0.975)
+confidence <- 0.95
+pct <- paste0(100 * confidence, "%")
+z <- qnorm((1 + confidence) / 2)
 
 # The approximate confidence interval for d uses its large sample variance. The
 # exact interval for g comes from the noncentral t distribution: g times
@@ -47,8 +49,8 @@ ncp_limit <- function(t, df, hw, p) {
   uniroot(f, if (p > 0.5) c(t - 2 * hw, t) else c(t, t + 2 * hw), tol = 1e-10)$root
 }
 hw <- z * sqrt(vard) * scale
-lcig <- mapply(ncp_limit, g * scale, m, hw, 0.975) / scale
-ucig <- mapply(ncp_limit, g * scale, m, hw, 0.025) / scale
+lcig <- mapply(ncp_limit, g * scale, m, hw, (1 + confidence) / 2) / scale
+ucig <- mapply(ncp_limit, g * scale, m, hw, (1 - confidence) / 2) / scale
 print(data.frame(trial, J = six(J), g = six(g), exact_lower = six(lcig),
                  exact_upper = six(ucig)), row.names = FALSE)
 print(data.frame(trial, en, cn, d = six(d), approx_lower = six(lcid),
@@ -59,7 +61,7 @@ w <- 1 / vard
 dplus <- sum(w * d) / sum(w)
 se_dplus <- sqrt(1 / sum(w))
 cat("Fixed effects (Hedges-Olkin)\n")
-cat("Pooled effect size d+ = ", six(dplus), " (95% CI = ", six(dplus - z * se_dplus),
+cat("Pooled effect size d+ = ", six(dplus), " (", pct, " CI = ", six(dplus - z * se_dplus),
     " to ", six(dplus + z * se_dplus), ")\n", sep = "")
 cat("Z (test d+ differs from 0) =", six(dplus / se_dplus), " ",
     pv(2 * pnorm(-abs(dplus / se_dplus))), "\n")
@@ -80,14 +82,14 @@ ncp_chisq <- function(p) {
   uniroot(function(lambda) pchisq(Q, df, ncp = lambda) - p, c(0, 10 * Q + 100),
           tol = 1e-10)$root
 }
-lambda_ci <- c(ncp_chisq(0.975), ncp_chisq(0.025))
+lambda_ci <- c(ncp_chisq((1 + confidence) / 2), ncp_chisq((1 - confidence) / 2))
 isq_ci <- 100 * lambda_ci / (df + lambda_ci)
 pc1 <- function(x) formatC(x, digits = 1, format = "f", drop0trailing = TRUE)
 cat("Non-combinability of studies\n")
 cat("Cochran Q = ", six(Q), "  (df = ", df, ")  ",
     pv(pchisq(Q, df, lower.tail = FALSE)), "\n", sep = "")
 cat("Moment-based estimate of between studies variance =", six(tausq), "\n")
-cat("I-squared (inconsistency) = ", pc1(isq), "% (95% CI = ", pc1(isq_ci[1]), "% to ",
+cat("I-squared (inconsistency) = ", pc1(isq), "% (", pct, " CI = ", pc1(isq_ci[1]), "% to ",
     pc1(isq_ci[2]), "%)\n", sep = "")
 
 # Random effects (DerSimonian-Laird): the between studies variance is added to
@@ -96,7 +98,7 @@ wr <- 1 / (vard + tausq)
 dsd <- sum(wr * d) / sum(wr)
 se_dsd <- sqrt(1 / sum(wr))
 cat("Random effects (DerSimonian-Laird)\n")
-cat("Pooled d+ = ", six(dsd), " (95% CI = ", six(dsd - z * se_dsd), " to ",
+cat("Pooled d+ = ", six(dsd), " (", pct, " CI = ", six(dsd - z * se_dsd), " to ",
     six(dsd + z * se_dsd), ")\n", sep = "")
 cat("Z (test d+ differs from 0) =", six(dsd / se_dsd), " ",
     pv(2 * pnorm(-abs(dsd / se_dsd))), "\n")
@@ -129,7 +131,7 @@ cat("Egger: bias = ", six(bias["Estimate"]), " (90% CI = ",
 
 # The bias assessment plot that follows in the report: each study's d against its
 # standard error, with the smallest standard errors at the top, the fixed effects
-# pooled d+ as a vertical line and the 95% limits expected around it as a funnel
+# pooled d+ as a vertical line and the limits expected around it as a funnel
 plot(d, se, ylim = rev(range(0, se)), xlim = range(lcid, ucid), pch = 1,
      xlab = "Effect size", ylab = "Standard error", main = "Bias assessment plot")
 abline(v = dplus)
@@ -137,7 +139,7 @@ se_line <- seq(0, max(se), length.out = 100)
 lines(dplus + z * se_line, se_line)
 lines(dplus - z * se_line, se_line)
 
-# The forest plots: each study's d with its approximate 95% interval and a square
+# The forest plots: each study's d with its approximate interval and a square
 # proportional to its size, then the pooled estimate as a diamond, for the fixed
 # and the random effects models (the program prefixes the random effects label
 # with DL for DerSimonian-Laird)
@@ -152,7 +154,7 @@ forest <- function(pooled, lower, upper, label) {
   abline(v = pooled, lty = 2)
   if (min(lcid) < 0) abline(v = 0)
   prefix <- if (grepl("random", label)) "DL " else ""
-  mtext(paste0(prefix, "pooled effect size = ", six(pooled), "  (95% CI = ",
+  mtext(paste0(prefix, "pooled effect size = ", six(pooled), "  (", pct, " CI = ",
                six(lower), " to ", six(upper), ")"), side = 3, line = 0.3, cex = 0.9)
 }
 op <- par(mar = c(3, 9, 4, 1))

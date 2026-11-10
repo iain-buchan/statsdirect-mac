@@ -12,6 +12,9 @@ n2 <- n2[keep]
 b <- b[keep]
 study <- study[keep]
 if (is.null(study)) study <- paste("Study", seq_along(n1))
+# A study whose label is blank has its place among the studies kept, as in the report.
+blank <- is.na(study) | !nzchar(trimws(study))
+study[blank] <- paste("stratum", which(blank))
 # Older records did not save this preference; their R recipe used score intervals.
 if (is.null(exact_meta)) exact_meta <- TRUE
 # Nor the continuity correction: the program's default is the treatment arm
@@ -147,7 +150,7 @@ cat(pct, "study confidence intervals (",
 print(tab, row.names = FALSE)
 
 cat("Fixed effects (Mantel-Haenszel, Greenland-Robins)\n")
-cat("Pooled risk difference = ", six(rd_mh), " (", pct, "CI = ", six(rd_mh - z * se_mh),
+cat("Pooled risk difference = ", six(rd_mh), " (", pct, " CI = ", six(rd_mh - z * se_mh),
     " to ", six(rd_mh + z * se_mh), ")\n", sep = "")
 # without an event, or without a subject free of it, in any study the cells as they
 # are give the pooled difference no variance, and so no test
@@ -164,7 +167,7 @@ cat("Chi-square (test risk difference differs from 0) =", six(x2), " (df = 1) ",
 cat("Non-combinability of studies\n")
 dfree <- k - 1
 cat("Cochran Q =", six(q), paste0(" (df = ", dfree, ") "),
-    pv(pchisq(q, dfree, lower.tail = FALSE)), "\n")
+    pv(if (k > 1) pchisq(q, dfree, lower.tail = FALSE) else NA_real_), "\n")
 cat("Moment-based estimate of between studies variance =", six(tau2), "\n")
 # I-squared interval: recorded exact/test-based choice.
 # Older records have no preference: retain the non-central interval they used.
@@ -197,12 +200,12 @@ if (k >= 2 && confidence > 0 && confidence < 1) {
 }
 if (k < 2) cat("I-squared not calculated: at least two studies are required.\n") else if (anyNA(i2_ci))
   cat("I-squared (inconsistency) =", one(i2), "% (interval unavailable for this number of studies and confidence level)\n") else
-  cat("I-squared (inconsistency) = ", one(i2), "% (", pct, "CI = ",
+  cat("I-squared (inconsistency) = ", one(i2), "% (", pct, " CI = ",
       one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")
 # End of I-squared interval.
 
 cat("Random effects (DerSimonian-Laird)\n")
-cat("Pooled risk difference = ", six(rd_dl), " (", pct, "CI = ", six(rd_dl - z * se_dl),
+cat("Pooled risk difference = ", six(rd_dl), " (", pct, " CI = ", six(rd_dl - z * se_dl),
     " to ", six(rd_dl + z * se_dl), ")\n", sep = "")
 x2_dl <- (rd_dl / se_dl)^2
 cat("Chi-square (test risk difference differs from 0) =", six(x2_dl), " (df = 1) ",
@@ -213,8 +216,10 @@ cat("Chi-square (test risk difference differs from 0) =", six(x2_dl), " (df = 1)
 # from, whatever the method of the intervals of the studies. Begg and Mazumdar's test
 # is Kendall's rank correlation between the standardised effects (deviations from the
 # inverse variance pooled estimate) and the variances, with the exact P that cor.test
-# gives for so few studies when no values tie (fewer than about ten gives the test
-# little power). Egger's test regresses the standardised effect (estimate / se) on
+# gives for so few studies when no values tie; with ties the report gives tau-b and a
+# continuity corrected normal approximation, cor.test(..., exact = FALSE,
+# continuity = TRUE). Fewer than eleven studies give the test little power, which
+# the report then notes. Egger's test regresses the standardised effect (estimate / se) on
 # precision (1 / se) and asks whether the intercept is zero, with an interval at the
 # bias tests' level, twice the analysis's alpha (90% for a 95% analysis); as the
 # report has it, there is no figure when every study has the same precision or the
@@ -226,9 +231,11 @@ if (!(bias_level > 0 && bias_level < 1)) bias_level <- 0.9
 if (k > 3) {
   rd_iv <- sum((w_iv * rd)[included]) / sum(w_iv)
   t_std <- (rd - rd_iv) / sqrt(v_iv - 1 / sum(w_iv))
-  begg <- cor.test(t_std[included], v_iv[included], method = "kendall", conf.level = confidence)
+  tied <- anyDuplicated(t_std[included]) > 0 || anyDuplicated(v_iv[included]) > 0
+  begg <- cor.test(t_std[included], v_iv[included], method = "kendall",
+                   exact = if (tied) FALSE else NULL, continuity = TRUE, conf.level = confidence)
   cat("Begg-Mazumdar: Kendall's tau =", six(begg$estimate), " ", pv(begg$p.value),
-      "(low power)\n")
+      if (k < 11 && !is.na(begg$estimate)) "(low power)\n" else "\n")
   precision <- 1 / se_iv[included]
   standard <- rd[included] / se_iv[included]
   egger <- lm(standard ~ precision)
@@ -259,7 +266,7 @@ forest <- function(weight, pooled, lower, upper, title, label) {
   rows <- length(a):1
   op <- par(mar = c(5, 8, 4, 9))
   plot(NA, xlim = range(ci, lower, upper, 0, na.rm = TRUE), ylim = c(0, length(a) + 0.5), yaxt = "n",
-       ylab = "", xlab = "risk difference (95% confidence interval)", main = title)
+       ylab = "", xlab = paste0("risk difference (", pct, " confidence interval)"), main = title)
   axis(2, at = c(rows, 0), labels = c(study, label), las = 1, tick = FALSE)
   axis(4, at = c(rows, 0), tick = FALSE, las = 1, cex.axis = 0.8,
        labels = c(ifelse(included, sprintf("%.3f (%.3f, %.3f)", rd, ci[, 1], ci[, 2]), "excluded"),

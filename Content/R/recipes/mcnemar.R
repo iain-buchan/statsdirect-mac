@@ -4,6 +4,8 @@
 # settings: confidence = gamma
 # hand-edited: the confidence level and the data come from the run, as the header says
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # McNemar and exact (Liddell) test for matched pairs: the StatsDirect help example
 # (Armitage and Berry 1994, p. 127, fifty sputum specimens cultured on two media) in R
 pct <- paste0(100 * confidence, "%")

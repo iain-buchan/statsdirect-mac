@@ -12,6 +12,9 @@ control_total <- control_total[keep]
 control_cases <- control_cases[keep]
 study <- study[keep]
 if (is.null(study)) study <- paste("Study", seq_along(exposed_total))
+# A study whose label is blank has its place among the studies kept, as in the report.
+blank <- is.na(study) | !nzchar(trimws(study))
+study[blank] <- paste("stratum", which(blank))
 # Older records did not save this preference; their R recipe used score intervals.
 if (is.null(exact_meta)) exact_meta <- TRUE
 # Nor the continuity correction: the program's default is the treatment arm
@@ -144,7 +147,7 @@ for (i in seq_along(a)) {
 }
 
 cat("Fixed effects (Mantel-Haenszel, Rothman-Boice)\n")
-cat("Pooled relative risk = ", six(rr_mh), " (", pct, "CI = ",
+cat("Pooled relative risk = ", six(rr_mh), " (", pct, " CI = ",
     six(exp(log(rr_mh) - z * sqrt(v_mh))), " to ",
     six(exp(log(rr_mh) + z * sqrt(v_mh))), ")\n", sep = "")
 cat("Chi2 (test relative risk differs from 1) =", six(x2), " (df = 1) ",
@@ -158,7 +161,7 @@ cat("Chi2 (test relative risk differs from 1) =", six(x2), " (df = 1) ",
 # I-squared as lambda / (df + lambda)
 cat("Non-combinability of studies\n")
 cat("Cochran Q = ", six(q), "  (df = ", k - 1, ")  ",
-    pv(pchisq(q, k - 1, lower.tail = FALSE)), "\n", sep = "")
+    pv(if (k > 1) pchisq(q, k - 1, lower.tail = FALSE) else NA_real_), "\n", sep = "")
 cat("Moment-based estimate of between studies variance =", six(tau2), "\n")
 # I-squared interval: recorded exact/test-based choice.
 # Older records have no preference: retain the non-central interval they used.
@@ -191,12 +194,12 @@ if (k >= 2 && confidence > 0 && confidence < 1) {
 }
 if (k < 2) cat("I2 not calculated: at least two studies are required.\n") else if (anyNA(i2_ci))
   cat("I2 (inconsistency) =", one(i2), "% (interval unavailable for this number of studies and confidence level)\n") else
-  cat("I2 (inconsistency) = ", one(i2), "% (", pct, "CI = ",
+  cat("I2 (inconsistency) = ", one(i2), "% (", pct, " CI = ",
       one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")
 # End of I-squared interval.
 
 cat("Random effects (DerSimonian-Laird)\n")
-cat("Pooled relative risk = ", six(rr_dl), " (", pct, "CI = ", six(dl_ci[1]), " to ",
+cat("Pooled relative risk = ", six(rr_dl), " (", pct, " CI = ", six(dl_ci[1]), " to ",
     six(dl_ci[2]), ")\n", sep = "")
 cat("Chi2 (test relative risk differs from 1) =", six(x2_dl), " (df = 1) ",
     pv(pchisq(x2_dl, 1, lower.tail = FALSE)), "\n")
@@ -205,8 +208,10 @@ cat("Chi2 (test relative risk differs from 1) =", six(x2_dl), " (df = 1) ",
 # pooled. Begg and Mazumdar's rank correlation is Kendall's tau between each
 # pooled study's deviation from the inverse variance pooled log relative risk,
 # standardised by its variance less the pooled variance, and that variance; with
-# no ties among seven studies cor.test gives the exact two sided P, and fewer than
-# eleven studies give the test little power
+# no ties among seven studies cor.test gives the exact two sided P. With ties the
+# report gives tau-b and a continuity corrected normal approximation, which is
+# cor.test(..., exact = FALSE, continuity = TRUE). Fewer than eleven studies give
+# the test little power, which the report then notes
 cat("Bias indicators\n")
 se_i <- sqrt(v_i)
 # Egger's and Harbord's intervals are at the level of the bias tests, twice the
@@ -216,9 +221,11 @@ if (!(bias_level > 0 && bias_level < 1)) bias_level <- 0.9
 if (k > 3) {
   use <- included
   dev <- (lrr - sum(w_i * lrr, na.rm = TRUE) / sum(w_i)) / sqrt(v_i - 1 / sum(w_i))
-  kt <- cor.test(dev[use], v_i[use], method = "kendall", conf.level = confidence)
+  tied <- anyDuplicated(dev[use]) > 0 || anyDuplicated(v_i[use]) > 0
+  kt <- cor.test(dev[use], v_i[use], method = "kendall", exact = if (tied) FALSE else NULL,
+                 continuity = TRUE, conf.level = confidence)
   cat("Begg-Mazumdar: Kendall's tau =", six(kt$estimate), "", pv(kt$p.value),
-      "(low power)\n")
+      if (k < 11 && !is.na(kt$estimate)) "(low power)\n" else "\n")
 
   # Egger's test regresses each study's standardised effect (log relative risk over
   # its standard error) on its precision (one over that standard error); the bias
@@ -279,7 +286,7 @@ forest <- function(weights, pooled, lower, upper, title, label) {
   par(mar = c(5, 8, 4, 8))
   plot(rr, y, log = "x", xlim = xlim, ylim = c(0.5, length(a) + 1.5),
        pch = 15, cex = 0.5 + 2 * sqrt(weights / max(weights)), yaxt = "n", ylab = "",
-       xlab = "relative risk (95% confidence interval)", main = title)
+       xlab = paste0("relative risk (", pct, " confidence interval)"), main = title)
   segments(pmax(ci[, 1], xlim[1])[included], y[included], pmin(ci[, 2], xlim[2])[included], y[included])
   polygon(c(lower, pooled, upper, pooled), c(1, 1.3, 1, 0.7), col = "grey")
   segments(pooled, 1, pooled, length(a) + 1, lty = 3)

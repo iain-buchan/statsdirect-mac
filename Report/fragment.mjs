@@ -8,6 +8,7 @@ const purifier=createDOMPurify(window);
 export const presentation=['font-family','font-size','font-style','font-weight','text-decoration','text-decoration-line','text-align','vertical-align','color','background-color','white-space','line-height','margin-left','margin-right','margin-top','margin-bottom','padding','padding-left','padding-right','padding-top','padding-bottom','border','border-top','border-bottom','border-left','border-right','border-collapse','border-spacing','list-style-type',...borderProperties];
 const properties=new Set([...presentation,'width','height','max-width','fill','fill-rule','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-dasharray','stroke-dashoffset','stroke-miterlimit','opacity','fill-opacity','stroke-opacity','clip-path','clip-rule','mask','filter','marker-start','marker-mid','marker-end','text-anchor','dominant-baseline','stop-color','stop-opacity']);
 const rasterURL=value=>/^data:image\/(png|jpeg|gif|webp);base64,[a-z\d+/=\s]+$/i.test(value);
+const svgReferences=/^(fill|stroke|filter|clip-path|mask|marker-(start|mid|end))$/;
 function safeStyle(style) {
   const clean=document.createElement('span').style;
   for(const name of style) {
@@ -26,7 +27,11 @@ purifier.addHook('afterSanitizeAttributes',node=>{
       if(!allowed)node.removeAttribute(attr.name);
     }
     if(attr.name==='src'&&!rasterURL(attr.value))node.removeAttribute(attr.name);
-    if(attr.name!=='style'&&/url\s*\(/i.test(attr.value.replace(/url\(\s*["']?#[^\s"'()<>]+["']?\s*\)/gi,'')))node.removeAttribute(attr.name);
+    if(attr.name!=='style'){
+      const value=attr.value.replace(/url\(\s*["']?#[^\s"'()<>]+["']?\s*\)/gi,'');
+      if(/url\s*\(/i.test(value)||(svgReferences.test(attr.name)
+        &&/\\|(?:image(?:-set)?|cross-fade)\s*\(/i.test(value)))node.removeAttribute(attr.name);
+    }
   }
   node.removeAttribute('srcset');node.removeAttribute('name');
   if(node.style){const css=safeStyle(node.style);if(css)node.setAttribute('style',css);else node.removeAttribute('style');}else node.removeAttribute('style');

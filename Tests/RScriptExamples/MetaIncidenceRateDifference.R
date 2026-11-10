@@ -43,11 +43,21 @@ summarise <- function(p, name, null, f = identity) {
   cat("Cochran Q = ", six(p$q), "  (df = ", k - 1, ")  ",
       pv(pchisq(p$q, k - 1, lower.tail = FALSE)), "\n", sep = "")
   cat("Moment-based estimate of between studies variance =", six(p$tau2), "\n")
-  # I2 is the share of Q beyond its degrees of freedom; StatsDirect adds a confidence
-  # interval for it when there are at least three strata
+  # I2 is the share of Q beyond its degrees of freedom. Its confidence interval treats
+  # Q as non-central chi-square: the distribution function at the observed Q is solved
+  # for the non-centrality parameter lambda at each tail probability (a limit is 0 when
+  # even the central distribution gives less), and each limit is lambda / (df + lambda)
+  one <- function(x) formatC(x, digits = 1, format = "f", drop0trailing = TRUE)
   i2 <- max(0, 100 * (p$q - (k - 1)) / p$q)
-  cat("I2 (inconsistency) = ",
-      formatC(i2, digits = 1, format = "f", drop0trailing = TRUE), "%\n", sep = "")
+  lambda <- function(prob) {
+    if (pchisq(p$q, k - 1) <= prob) 0 else
+      uniroot(function(l) pchisq(p$q, k - 1, ncp = l) - prob, c(0, 10 * p$q + 100),
+              tol = 1e-10)$root
+  }
+  lim <- c(lambda(0.975), lambda(0.025))
+  cat("I2 (inconsistency) = ", one(i2), "% (95% CI = ",
+      one(100 * lim[1] / (k - 1 + lim[1])), "% to ",
+      one(100 * lim[2] / (k - 1 + lim[2])), "%)\n", sep = "")
   cat("Random effects (DerSimonian-Laird)\n")
   cat("Pooled", name, "=", six(f(p$random)), ci(p$random, p$se_r), "\n")
   cat("Z (test ", name, " differs from ", null, ") = ", six(p$random / p$se_r), "  ",
@@ -84,6 +94,10 @@ print(data.frame(stratum = 1:k, effect = six(ird), variance = six(v_ird),
                  fixed = six(res$fixed_pct), random = six(res$random_pct), strata),
       row.names = FALSE)
 summarise(res, "IRD", 0)
+# The report ends with bias indicators (Begg-Mazumdar and Egger) only when more than
+# three strata are pooled: with these two it says why there are none
+cat("Bias indicators\n")
+cat("Bias indicators need more than three studies with an estimate\n")
 forest(ird, ird - z * se_ird, ird + z * se_ird, res$fixed, res$fixed - z * res$se,
        res$fixed + z * res$se, res$fixed_pct,
        "Incidence rate difference meta-analysis plot [fixed effects]",

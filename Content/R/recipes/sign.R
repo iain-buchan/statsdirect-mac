@@ -3,6 +3,8 @@
 # settings: n = n, r = r, confidence = cco
 # hand-edited: the confidence level and the data come from the run, as the header says
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # Sign test: the StatsDirect help example (Altman 1991, p. 186: 9 of 11 women with a
 # food energy intake below the daily average) in R
 

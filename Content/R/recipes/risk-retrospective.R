@@ -3,6 +3,8 @@
 # table: counts
 # settings: confidence = cco, px = pe
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # Risk (retrospective): the StatsDirect help example (Sahai and Khurshid 1996, heavy
 # smoking of 16 or more cigarettes a day among 304 oral cancer cases and 139 controls)
 # in R

@@ -3,6 +3,8 @@
 # settings: events = revents, time_at_risk = tar, confidence = cco
 # hand-edited: the confidence level and the data come from the run, as the header says
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # Poisson rate confidence interval: the StatsDirect help example (14 events in 400
 # person-years of observation, an incidence rate) in R
 

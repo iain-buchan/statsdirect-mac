@@ -2,6 +2,8 @@
 # From the help's R code (clinical_epidemiology/diagnostic.htm); the data and settings above come from the run.
 # settings: tp = a, fp = b, fn = c, tn = d, confidence = cco
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # Diagnostic test 2 by 2 table: the StatsDirect help example (a hypothetical serum
 # marker of disease, positive at 100 units or more: 431 diseased and 30 disease-free
 # patients tested positive, 29 and 116 tested negative) in R

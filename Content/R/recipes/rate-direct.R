@@ -5,6 +5,8 @@
 
 per <- as.numeric(per)
 if (is.null(age)) age <- paste("Group", seq_along(deaths))
+blank <- is.na(age) | !nzchar(trimws(age))
+age[blank] <- paste("stratum", which(blank))
 # Direct standardization: the StatsDirect help example (Curtin and Klein 1995, stroke
 # deaths in males of a hypothetical US state, standardized to the 1940 US Standard
 # Million; the test workbook's Rates worksheet columns Age Bands, Index Events, Index

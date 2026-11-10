@@ -3,6 +3,8 @@
 # table: counts
 # settings: confidence = cco, pe = pe
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # Risk (prospective): the StatsDirect help example (Sahai and Khurshid 1996, coronary
 # heart disease after six years in 1329 Framingham men aged 40 to 59, by serum
 # cholesterol at the start) in R
@@ -21,7 +23,7 @@ n <- n1 + n2
 # a chi-square test (uncorrected here). The two rates it prints are the risks in the
 # exposed and the unexposed, but its interval for their difference is the simple
 # normal (Wald) one, not the Miettinen and Nurminen interval of the report
-print(prop.test(t(counts), correct = FALSE))
+print(prop.test(t(counts), correct = FALSE, conf.level = confidence))
 
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
 p1 <- a / n1

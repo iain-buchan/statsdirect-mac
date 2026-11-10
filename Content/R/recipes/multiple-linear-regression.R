@@ -39,6 +39,10 @@ pv <- function(p) {
 }
 s <- fit_summary$coefficients
 df <- tail(a$Df, 1)
+slopes_all <- if (intercept) coef(fit)[-1] else coef(fit)
+dropped <- names(predictors)[is.na(slopes_all)]
+if (length(dropped)) cat(paste(dropped, collapse = ", "),
+    "dropped from the model due to very high correlation with other variable(s) included.\n")
 for (i in seq_len(nrow(s))) {
   cat(rownames(s)[i], " b", if (intercept) i - 1 else i, " = ", six(s[i, 1]),
       if (!intercept || i > 1) paste("  r =", six(s[i, 3] / sqrt(s[i, 3]^2 + df))) else "",

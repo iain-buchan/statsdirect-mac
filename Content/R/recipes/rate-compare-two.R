@@ -2,6 +2,8 @@
 # From the help's R code (rates/compare_crude_incidence_rates.htm); the data and settings above come from the run.
 # settings: a = a, b = b, pt1 = pt1, pt2 = pt2, confidence = gamma
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # Compare two crude rates: the StatsDirect help example (Stampfer et al. 1985, cases of
 # coronary heart disease and person-years of follow up among users and non-users of
 # postmenopausal hormones) in R

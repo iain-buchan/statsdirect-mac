@@ -1,6 +1,6 @@
 # StatsDirect recipe: Correlation meta-analysis, as the help shows it in R.
 # From the help's R code (meta_analysis/correlation.htm); the data and settings above come from the run.
-# data: r = r, n = n
+# data: r = r, n = n, study = studies
 # settings: confidence = gamma, exact_meta = metaExact
 
 # Correlation meta-analysis: the StatsDirect help example (eight studies of the
@@ -17,7 +17,17 @@ pv <- function(p) {
   if (is.na(p)) "P = *" else if (p < 0.0001) "P < 0.0001" else
     paste("P =", formatC(p, digits = 4, format = "f", drop0trailing = TRUE))
 }
+# Omit incomplete studies, including their labels, before pooling.
+keep <- complete.cases(r, n)
+if (any(!keep)) cat("(", sum(!keep), " other rows not used)\n", sep = "")
+r <- r[keep]
+n <- n[keep]
 k <- length(r)
+if (k == 0) stop("At least one study must have a correlation and sample size")
+study <- study[keep]
+if (is.null(study)) study <- paste("study", seq_len(k))
+blank <- is.na(study) | !nzchar(trimws(study))
+study[blank] <- paste("study", which(blank))
 z <- atanh(r)
 v <- 1 / (n - 3)
 cit <- qnorm((1 + confidence) / 2)
@@ -30,9 +40,10 @@ fixed <- tanh(z_fixed + c(0, -1, 1) * cit * se_fixed)
 
 # Cochran's Q on the z scale, and the DerSimonian-Laird moment estimate of the
 # between-studies variance that the random effects weights add to each variance
-Q <- sum(w * (z - z_fixed)^2)
+Q <- if (k > 1) sum(w * (z - z_fixed)^2) else 0
 df <- k - 1
-tau2 <- max(0, (Q - df) / (sum(w) - sum(w^2) / sum(w)))
+spread <- sum(w) - sum(w^2) / sum(w)
+tau2 <- if (k < 2 || spread == 0) 0 else max(0, (Q - df) / spread)
 w_random <- 1 / (v + tau2)
 z_random <- sum(w_random * z) / sum(w_random)
 se_random <- 1 / sqrt(sum(w_random))
@@ -42,23 +53,23 @@ random <- tanh(z_random + c(0, -1, 1) * cit * se_random)
 # its Fisher z, variance and percentage weights (fixed effects, random effects, and by
 # sample size as the Schmidt-Hunter method below weights)
 print(data.frame(Study = 1:k, Size = n, Correlation = r, Lower = six(lower),
-                 Upper = six(upper)), row.names = FALSE)
+                 Upper = six(upper), Label = study), row.names = FALSE)
 # (study 1's variance is exactly 1/128, printed 0.007812 here and 0.007813 by the
 # program, which squares the standard error)
 print(data.frame(Study = 1:k, Fisher_z = six(z), Variance = six(v),
                  Fixed = six(100 * w / sum(w)),
                  Random = six(100 * w_random / sum(w_random)),
-                 Size = six(100 * n / sum(n))), row.names = FALSE)
+                 Size = six(100 * n / sum(n)), Label = study), row.names = FALSE)
 
 cat("Hedges-Olkin fixed effects\n")
-cat("Pooled correlation = ", six(fixed[1]), " (", pct, "CI = ", six(fixed[2]), " to ",
+cat("Pooled correlation = ", six(fixed[1]), " (", pct, " CI = ", six(fixed[2]), " to ",
     six(fixed[3]), ")\n", sep = "")
 cat("Z (test correlation differs from 0) =", six(z_fixed / se_fixed), " ",
     pv(2 * pnorm(-abs(z_fixed / se_fixed))), "\n")
 
 cat("Non-combinability of studies\n")
 cat("Cochran Q = ", six(Q), "  (df = ", df, ")  ",
-    pv(pchisq(Q, df, lower.tail = FALSE)), "\n", sep = "")
+    pv(if (k > 1) pchisq(Q, df, lower.tail = FALSE) else NA_real_), "\n", sep = "")
 cat("Moment-based estimate of between studies variance =", six(tau2), "\n")
 one <- function(x) formatC(x, digits = 1, format = "f", drop0trailing = TRUE)
 # I-squared interval: recorded exact/test-based choice.
@@ -92,12 +103,12 @@ if (k >= 2 && confidence > 0 && confidence < 1) {
 }
 if (k < 2) cat("I-squared not calculated: at least two studies are required.\n") else if (anyNA(i2_ci))
   cat("I-squared (inconsistency) =", one(i2), "% (interval unavailable for this number of studies and confidence level)\n") else
-  cat("I-squared (inconsistency) = ", one(i2), "% (", pct, "CI = ",
+  cat("I-squared (inconsistency) = ", one(i2), "% (", pct, " CI = ",
       one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")
 # End of I-squared interval.
 
 cat("Hedges-Olkin random effects\n")
-cat("Pooled correlation = ", six(random[1]), " (", pct, "CI = ", six(random[2]), " to ",
+cat("Pooled correlation = ", six(random[1]), " (", pct, " CI = ", six(random[2]), " to ",
     six(random[3]), ")\n", sep = "")
 cat("Z (test correlation differs from 0) =", six(z_random / se_random), " ",
     pv(2 * pnorm(-abs(z_random / se_random))), "\n")
@@ -105,8 +116,9 @@ cat("Z (test correlation differs from 0) =", six(z_random / se_random), " ",
 # Begg-Mazumdar: Kendall's rank correlation between each study's standardised
 # deviation from the fixed effects pooled z and its variance. With no tied variances
 # cor.test gives the exact two sided P, as the report does; with tied sample sizes the
-# report instead uses a continuity corrected normal approximation, which cor.test
-# does not. The test has low power with fewer than 11 studies, as the report notes.
+# report instead gives tau-b and a continuity corrected normal approximation, which is
+# cor.test(..., exact = FALSE, continuity = TRUE). The test has low power with fewer
+# than 11 studies, as the report notes.
 # The report gives the bias indicators only with more than three studies.
 cat("Bias indicators\n")
 # Egger's interval is at the level of the bias tests, twice the analysis's alpha
@@ -116,9 +128,11 @@ bias_level <- 1 - 2 * (1 - confidence)
 if (!(bias_level > 0 && bias_level < 1)) bias_level <- 0.9
 if (k > 3) {
   deviation <- (z - z_fixed) / sqrt(v - 1 / sum(w))
-  bm <- cor.test(deviation, v, method = "kendall", conf.level = confidence)
+  tied <- anyDuplicated(deviation) > 0 || anyDuplicated(v) > 0
+  bm <- cor.test(deviation, v, method = "kendall", exact = if (tied) FALSE else NULL,
+                 continuity = TRUE, conf.level = confidence)
   cat("Begg-Mazumdar: Kendall's tau =", six(bm$estimate), " ", pv(bm$p.value),
-      if (k < 11) "(low power)\n" else "\n")
+      if (k < 11 && !is.na(bm$estimate)) "(low power)\n" else "\n")
 
   # Egger: each standardised effect (z / se) regressed on its precision (1 / se); the
   # bias is the intercept, with a t test on k - 2 degrees of freedom
@@ -142,7 +156,7 @@ var_p <- max(0, var_r - var_e)
 se_wmc <- sqrt(var_r / k)
 sh <- wmc + c(0, -1, 1) * cit * se_wmc
 cat("Schmidt-Hunter\n")
-cat("Weighted mean correlation (", pct, "CI): ", six(sh[1]), " (", six(sh[2]), " to ",
+cat("Weighted mean correlation (", pct, " CI): ", six(sh[1]), " (", six(sh[2]), " to ",
     six(sh[3]), ")\n", sep = "")
 cat("Z (test correlation differs from 0) =", six(wmc / se_wmc),
     pv(2 * pnorm(-abs(wmc / se_wmc))), "\n")
@@ -161,7 +175,7 @@ cat("2. Percent of observed variance accounted for by sampling error",
     "(should be at least 75%):", six(100 * var_e / var_r), "\n")
 het <- k * var_r / var_e
 cat("3. Chi-square test of heterogeneity:", six(het),
-    pv(pchisq(het, df, lower.tail = FALSE)), "\n")
+    pv(if (k > 1) pchisq(het, df, lower.tail = FALSE) else NA_real_), "\n")
 
 # The report's charts: the bias assessment (funnel) plot of each study's Fisher z
 # against its standard error, the most precise studies at the top, with the fixed
@@ -183,11 +197,11 @@ forest <- function(pooled, title) {
   left <- if (min(lower, pooled[2]) < 0) -1 else 0
   right <- if (max(upper, pooled[3]) <= 0) 0 else 1
   plot(c(r, pooled[1]), y, xlim = c(left, right), yaxt = "n", ylab = "",
-       xlab = "Correlation (95% confidence interval)", main = title,
+       xlab = paste0("Correlation (", pct, " confidence interval)"), main = title,
        pch = c(rep(15, k), 18), cex = c(2 * sqrt(w / max(w)), 3))
   segments(c(lower, pooled[2]), y, c(upper, pooled[3]), y)
   abline(v = pooled[1], lty = 2)
-  axis(2, at = y, labels = c(paste("study", 1:k), "combined"), las = 1, tick = FALSE)
+  axis(2, at = y, labels = c(study, "combined"), las = 1, tick = FALSE)
 }
 forest(fixed, "Correlation (Hedges-Olkin fixed effects) meta-analysis plot")
 forest(random, "Correlation (Hedges-Olkin random effects) meta-analysis plot")

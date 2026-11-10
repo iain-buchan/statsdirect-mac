@@ -2,6 +2,8 @@
 # From the help's R code (proportions/paired.htm); the data and settings above come from the run.
 # settings: n = n, r = r, s = s, t = t, confidence = cco
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # Paired proportions: the StatsDirect help example (Armitage and Berry 1994, p. 138,
 # growth of tubercle bacilli from 50 sputum specimens on two culture media) in R
 pct <- paste0(100 * confidence, "%")
@@ -24,7 +26,7 @@ cat("Proportion difference =", six((s - t) / n), "\n")
 # symmetric, so the outcomes at least as far from 7 as s = 12 are 0 to 2 and 12 to 14,
 # and binom.test's two sided P (0.0129) is twice the one sided P. mcnemar.test() on the
 # 2 by 2 table gives the continuity corrected chi-square approximation instead.
-print(binom.test(s, s + t, p = 0.5))
+print(binom.test(s, s + t, p = 0.5, conf.level = confidence))
 
 # One sided and mid P values. The one sided P is the lower tail of the smaller of
 # s and t; mid P counts the observed value with half weight. Two sided P is twice

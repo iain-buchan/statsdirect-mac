@@ -43,6 +43,7 @@ print(f)
 # The report's other lines, to 6 decimal places
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
 pct <- paste0(100 * confidence, "%")
+alpha <- 1 - confidence
 cat(sprintf("Mean of the first sample = %s  (n = %d)\n", six(xbar1), n1))
 cat(sprintf("Mean of the second sample = %s  (n = %d)\n", six(xbar2), n2))
 report <- function(r, label, t) {
@@ -52,12 +53,12 @@ report <- function(r, label, t) {
   cat(sprintf("One sided P = %.4f   Two sided P = %.4f\n", r$p.value / 2, r$p.value))
   cat(pct, "confidence interval for difference between means =", six(r$conf.int[1]),
       "to", six(r$conf.int[2]), "\n")
-  # Power of a two sided test at the 5% level to detect the difference seen, from
+  # Power of a two sided test at the selected level to detect the difference seen, from
   # the noncentral t distribution: the noncentrality parameter is the t observed
-  tc <- qt(0.975, r$parameter)
+  tc <- qt(1 - alpha / 2, r$parameter)
   pw <- pt(-tc, r$parameter, ncp = r$statistic) +
         pt(tc, r$parameter, ncp = r$statistic, lower.tail = FALSE)
-  cat(sprintf("Power (for 5%% significance) = %.2f%%\n", 100 * pw))
+  cat(sprintf("Power (for %g%% significance) = %.2f%%\n", 100 * alpha, 100 * pw))
 }
 report(equal, "Assuming equal variances", "t")
 report(unequal, "Assuming unequal variances", "t(d)")

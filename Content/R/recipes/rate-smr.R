@@ -5,6 +5,8 @@
 
 per <- as.numeric(per)
 if (is.null(age)) age <- paste("Group", seq_along(rate))
+blank <- is.na(age) | !nzchar(trimws(age))
+age[blank] <- paste("stratum", which(blank))
 # Indirect standardization and SMR: the StatsDirect help example (Bland 2000, deaths
 # from liver cirrhosis among male doctors against the age-specific rates for all men;
 # the test workbook's Rates worksheet columns Reference Mortality, Index Group Sizes

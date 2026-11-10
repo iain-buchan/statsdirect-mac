@@ -549,7 +549,7 @@ foreach (bool exact in new[] { false, true })
     ParameterBag egger = Meta539Rows(bag, "*egger").Single(), harbord = Meta539Rows(bag, "*harbord").Single();
     IEnumerable<double> Figures(params string[] keys) => keys.Select(key => Meta539Number(bag, key));
     string checks = "if (!identical(grep('^Pooled proportion = ', printed, value = TRUE)[1], paste0('Pooled proportion = ', six(" + Meta539Value(Meta539Number(bag, "rmh"))
-        + "), ' (', pct, 'CI = ', six(" + Meta539Value(Meta539Number(bag, "from")) + "), ' to ', six(" + Meta539Value(Meta539Number(bag, "to"))
+        + "), ' (', pct, ' CI = ', six(" + Meta539Value(Meta539Number(bag, "from")) + "), ' to ', six(" + Meta539Value(Meta539Number(bag, "to"))
         + "), ')'))) stop('the printed fixed effects line differs: ', grep('^Pooled proportion = ', printed, value = TRUE)[1])\n"
         + Meta539Compare("fixed effects", "fixed", Figures("rmh", "from", "to"))
         + Meta539Compare("random effects", "inv(xr), inv(xr - z * se_r), inv(xr + z * se_r)", Figures("dspr", "from_ds", "to_ds"))
@@ -704,8 +704,11 @@ def forest_labels(html):
 def vector(text, name):
     """The numbers of a variable the R script sets from the record's data, or None if it does not set it so."""
     found = re.search(r'^%s <- c\(([^()]*)\)' % re.escape(name), text, flags=re.M)
+    if not found:
+        return None
     try:
-        return [float(value) for value in found.group(1).split(',')] if found else None
+        values = [value.strip() for value in found.group(1).split(',')]
+        return [float.fromhex(value) if value.lstrip('+-').startswith('0x') else float(value) for value in values]
     except ValueError:
         return None
 

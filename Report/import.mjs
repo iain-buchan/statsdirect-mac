@@ -19,6 +19,7 @@ function safeStyle(style) {
   return result.cssText;
 }
 const rasterURL = value => /^data:image\/(png|jpeg|gif|webp);base64,[a-z\d+/=\s]+$/i.test(value);
+const svgReferences = /^(fill|stroke|filter|clip-path|mask|marker-(start|mid|end))$/;
 DOMPurify.addHook('afterSanitizeAttributes', (node, _data, config) => {
   if (!node.attributes) return;
   for (const attr of [...node.attributes]) {
@@ -28,7 +29,11 @@ DOMPurify.addHook('afterSanitizeAttributes', (node, _data, config) => {
     }
     if (attr.name === 'src' && !rasterURL(attr.value) && !(config.STATSDIRECT_ATTACHMENTS && attr.value.startsWith('attachment:'))) node.removeAttribute(attr.name);
     // An SVG presentation attribute (fill, stroke, filter, clip-path, mask, marker-*) may name only the document's own definitions.
-    if (attr.name !== 'style' && /url\s*\(/i.test(attr.value.replace(/url\(\s*["']?#[^\s"'()<>]+["']?\s*\)/gi,''))) node.removeAttribute(attr.name);
+    if (attr.name !== 'style') {
+      const value = attr.value.replace(/url\(\s*["']?#[^\s"'()<>]+["']?\s*\)/gi,'');
+      if (/url\s*\(/i.test(value) || (svgReferences.test(attr.name)
+        && /\\|(?:image(?:-set)?|cross-fade)\s*\(/i.test(value))) node.removeAttribute(attr.name);
+    }
   }
   node.removeAttribute('srcset'); node.removeAttribute('name');
   if (node.style) { const css=safeStyle(node.style); if(css)node.setAttribute('style',css);else node.removeAttribute('style'); } else node.removeAttribute('style');

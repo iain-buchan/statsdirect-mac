@@ -44,9 +44,11 @@ print(r)
 
 # The report's other lines, to 6 decimal places
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
-n <- length(d)
+spread <- function(x) {
+  if (isTRUE(x != 0 && abs(x) < 0.0000005)) trimws(formatC(x, digits = 7, format = "g")) else six(x)
+}
 cat(sprintf("Mean of differences = %s  (n = %d)\n", six(mean(d)), n))
-cat("Standard deviation =", six(sd(d)), "  Standard error =", six(sd(d) / sqrt(n)),
+cat("Standard deviation =", spread(sd(d)), "  Standard error =", spread(se_d),
     "\n")
 cat(pct, "CI =", six(r$conf.int[1]), "to", six(r$conf.int[2]), "\n")
 cat("df =", r$parameter, "  t =", six(r$statistic), "\n")

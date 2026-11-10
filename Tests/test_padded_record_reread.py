@@ -1,7 +1,7 @@
-"""Mac mirror of the Windows saved-run reread tests at v5.3.9 (f41aad46cafc8b8746beee232deee35fe935d574).
+"""Mac mirror of the Windows saved-run reread tests, updated for 5.3.10.
 
 Windows test mirrored: tests/Learning/SavedRunRereads.cs, the groups "Saved frequency, longer range first",
-"Saved kappa, unequal ranges" and "Saved paired t, padded by 5.3.6", with the reader rule the last one pins
+"Saved kappa, unequal ranges", "Saved paired t, padded by 5.3.6" and "Saved one way, two columns padded by 5.3.6", with the reader rule
 (StatsDirectUI/UI/FrameReader.cs, Windows commit 4722fd56), which the Mac's reader carries in FullEngine/RScriptIO.cs.
 
 A record is pointer-only above 5,000 values, so the data are the Windows test's own: 6,000 and 15 values for the pairs,
@@ -273,8 +273,90 @@ def frequency_bins(html, title):
     return total, [(value, int(count)) for value, count in rows]
 
 
+def atomic_padding(session, engine):
+    """Saved one way, two columns padded by 5.3.6."""
+    columns = [('Group one', [10.0 + k % 17 * .5 for k in range(3000)]),
+               ('Group two', [11.0 + k % 13 * .25 for k in range(2400)]),
+               ('Group three', [12.0 + k % 7 * .75 for k in range(40)])]
+    titles = [title for title, _ in columns]
+    native = session.run('OneWay', {'data': sheet(titles, [v + [''] * (3000 - len(v)) for _, v in columns])}, PREFS)
+    record = json.loads(native['record'])
+    pointer = acquisition(record)
+    for column, (_, values) in zip(pointer['columns'], columns):
+        column['rows'] = [1, len(values) + 1]
+    check('data' not in record and pointer['kind'] == 'frame' and pointer['mode'] == 'NumericReplaceMissing'
+          and [column['hash'] for column in pointer['columns']] == ['e69e1717ffb9ae6c', 'a51ae29acc5c03fe', 'cc605a61a19f8ced'],
+          'the saved one-way record has the three Windows padded hashes', pointer)
+
+    def replay_lengths(text, lengths, assertion=''):
+        # The recipe drops missing values at this line. Check the reread before it does.
+        before, binding, after = text.partition('\ngroups <- lapply(')
+        assert binding, 'missing one-way groups'
+        check_lengths = '\nstopifnot(identical(as.numeric(lengths(groups)), ' + vector(lengths) + '))\n'
+        run_r(before + check_lengths + binding + after + assertion, 'ONE_WAY_PADDED_OK')
+
+    original = engine.script(record, 'One way', [supplied('data', columns)])
+    check(quiet(original), 'both shorter one-way columns recover their recorded padding', brief(original))
+    native_figures = vector(native['values'][key] for key in ('f', 'b_sum', 'w_sum', 'w_df'))
+    attempt('the two padded columns replay to the native ANOVA and the Windows reference', lambda:
+            replay_lengths(original['text'], [3000, 3000, 3000],
+                           '\nexpected <- ' + native_figures +
+                           '\nstopifnot(isTRUE(all.equal(c(a$"F value"[1], a$"Sum Sq"[1], a$"Sum Sq"[2], a$Df[2]), expected, tolerance=1e-10)), '
+                           'isTRUE(all.equal(expected, c(405.5196746169783, 3011.5213463541654, 20188.46752083341, 5437), tolerance=1e-10)))'))
+
+    for index, row in ((2, 5), (1, 7)):
+        edited = [(title, list(values)) for title, values in columns]
+        edited[index][1][row] = 777
+        frame = supplied('data', edited)
+        result = engine.script(record, 'One way', [frame])
+        changed = ['NOTE: "' + title + '" ' + CHANGE_NOTE for title in titles[1:]]
+        check([c['place'] for c in result.get('relocate', [])] == [2, 3]
+              and result['text'].count(CHANGE_NOTE) == 2 and all(note in result['text'] for note in changed),
+              f'editing {titles[index]} flags both short columns and leaves the long one unchanged', brief(result))
+        attempt(f'editing {titles[index]} prevents padding either short column',
+                lambda: replay_lengths(result['text'], [3000, 2400, 40]))
+
+    legacy = json.loads(json.dumps(record))
+    acquisition(legacy)['columns'][2]['hash'] = None
+    result = engine.script(legacy, 'One way', [supplied('data', columns)])
+    check(quiet(result), 'the hashless shorter column does not block the other padding', brief(result))
+    attempt('the hashless shorter column retains only its own rows',
+            lambda: replay_lengths(result['text'], [3000, 3000, 40]))
+
+
+def r_strings(values):
+    return 'c(' + ', '.join(json.dumps(value) for value in values) + ')'
+
+
+def frequency_replay(text, columns, native_bins):
+    """Check the complete vectors and the printed table of every selected column in R."""
+    code = 'output <- capture.output({\n' + text + '\n})\n'
+    titles = [title for title, _ in columns]
+    code += 'stopifnot(identical(names(samples), ' + r_strings(titles) + '))\n'
+    for index, (_, values) in enumerate(columns, 1):
+        code += f'stopifnot(identical(samples[[{index}L]], ' + r_strings(values) + '))\n'
+    code += r"""
+check_column <- function(title, total, labels, frequencies) {
+  first <- match(title, output)
+  header <- first + match("Value  Frequency  Relative %  Cumulative  Cumulative Relative %",
+                          output[seq.int(first + 1L, length(output))])
+  stopifnot(identical(output[header - 1L], paste("Total =", total)))
+  rows <- strsplit(trimws(output[header + seq_along(labels)]), "[[:space:]]+")
+  stopifnot(identical(vapply(rows, `[`, "", 1L), labels),
+            identical(as.numeric(vapply(rows, `[`, "", 2L)), frequencies))
+}
+"""
+    for title in titles:
+        total, bins = native_bins[title]
+        labels = r_strings(value for value, _ in bins)
+        counts = vector(count for _, count in bins)
+        code += f'\ncheck_column({json.dumps(title)}, {total}, {labels}, {counts})'
+    run_r(code, 'SAVED_FREQUENCY_OK')
+
+
 def frequency(session, engine):
     """Saved frequency, longer range first."""
+    columns = [('Response one', RESPONSE_ONE), ('Response two', RESPONSE_TWO)]
     native = session.run('Frequency', {'data': sheet(['Response one', 'Response two'], [RESPONSE_ONE, RESPONSE_TWO + [''] * 400]),
                                        'sortBy': 'value', 'sortOrder': 'asc'}, PREFS)
     record = json.loads(native['record'])
@@ -286,27 +368,29 @@ def frequency(session, engine):
     check('data' not in record and pointer['kind'] == 'frame' and pointer['columns'][0]['rows'][1] == 3001 and pointer['columns'][1]['rows'][1] == 2601
           and one_hash == record_hash(RESPONSE_ONE),
           'frequency of 5,600 categories is saved pointer-only, the longer range first', json.dumps(pointer)[:600])
-    frames = [supplied('data', [('Response one', RESPONSE_ONE), ('Response two', RESPONSE_TWO)])]
+    frames = [supplied('data', columns)]
     result = engine.script(record, 'Frequency', frames)
-    read = vectors(result['text'])
-    check(not result.get('relocate') and not result.get('dataUnavailable')
-          and texts(read.get('Response one', [])) == RESPONSE_ONE and texts(read.get('Response two', [])) == RESPONSE_TWO,
-          '[own rows] the actual reread of a category frame with its longer range first gives every value with its recorded hash', brief(result))
     check(quiet(result), '[own rows] the frequency replay reads its pointer-only data without a change note', brief(result))
-    total, bins = frequency_bins(native['html'], 'Response one')
-    expected = ('\nstopifnot(n == ' + str(total) + ', identical(names(counts), c(' + ', '.join('"' + value + '"' for value, _ in bins) + ')), '
-                + 'identical(as.vector(counts), as.integer(c(' + ', '.join(str(count) for _, count in bins) + '))))')
-    attempt('the frequency replay gives the native total and counts in R', lambda: run_r(result['text'] + expected, 'SAVED_FREQUENCY_OK'))
+    # Mac selections use one range for all columns. Run each native column at the saved
+    # range length so the shorter column's total reflects its 2,600 selected rows.
+    native_bins = {}
+    for title, values in columns:
+        single = session.run('Frequency', {'data': sheet([title], [values]), 'sortBy': 'value', 'sortOrder': 'asc'}, PREFS)
+        total, bins = frequency_bins(single['html'], title)
+        assert total == len(values) and sum(count for _, count in bins) == len(values), (title, total, bins)
+        native_bins[title] = (total, bins)
+    attempt('[own rows] the frequency replay retains both full vectors and gives both native tables and totals in R',
+            lambda: frequency_replay(result['text'], columns, native_bins))
     attempt('[own rows] the frequency notebook export accepts the reread values', lambda: notebook_code(engine.notebook(record, 'Frequency', pointer, frames[0])))
 
     # the longer range last rereads the same values
     last = json.loads(json.dumps(record))
     acquisition(last)['columns'].reverse()
-    result = engine.script(last, 'Frequency', [supplied('data', [('Response two', RESPONSE_TWO), ('Response one', RESPONSE_ONE)])])
-    again = vectors(result['text'])
-    check(quiet(result) and list(again) == ['Response two', 'Response one']
-          and texts(again.get('Response two', [])) == RESPONSE_TWO and texts(again.get('Response one', [])) == RESPONSE_ONE,
-          '[own rows] the same columns with the longer range last reread the same values', brief(result))
+    columns.reverse()
+    result = engine.script(last, 'Frequency', [supplied('data', columns)])
+    check(quiet(result), '[own rows] the longer range last also rereads both recorded hashes', brief(result))
+    attempt('[own rows] the longer range last retains both vectors and tables in the requested order',
+            lambda: frequency_replay(result['text'], columns, native_bins))
 
 
 def kappa(session, engine):
@@ -335,7 +419,8 @@ def kappa(session, engine):
 if __name__ == '__main__':
     session, engine = Session(), Engine()
     try:
-        for label, group in [('Saved paired t, padded by 5.3.6', padded_pairs), ('Saved frequency, longer range first', frequency),
+        for label, group in [('Saved paired t, padded by 5.3.6', padded_pairs), ('Saved one way, two columns padded by 5.3.6', atomic_padding),
+                             ('Saved frequency, longer range first', frequency),
                              ('Saved kappa, unequal ranges', kappa)]:
             try:
                 group(session, engine)

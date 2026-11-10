@@ -28,7 +28,8 @@ What the Mac does differently, and why (nothing is compared more loosely than on
   * The quick summary reports through its builtin and leaves no record, on the Mac as on Windows. The Windows check
     writes its record by hand (RunRecord.Write, from the frame the grid acquired and the recorded level); the Mac's is
     written by hand too: the frame entry is the one the Mac's host records for the same selection in another analysis.
-  * Two paired cases (differences only, shifts 0.1 and 1.1) are left out: see check_paired.
+  * The 5.3.10 writer's hexadecimal literals let the paired differences at shifts 0.1 and 1.1 run on Apple Silicon
+    at the original tolerance, which decimal literals could not reliably meet.
 
 STATSDIRECT_RECIPES539_CONTINUE=1, as on Windows, notes a failing case with R's last words and runs the others, to show
 what fails before a fix; the run still fails at its end. STATSDIRECT_RECIPES539_ONLY names one part to run.
@@ -63,7 +64,6 @@ NUMBER = re.compile(r'[-+]?(?:\d+\.?\d*|\.\d+)(?:[Ee][-+]?\d+)?')
 FIGURE = r'(-?[0-9]+(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?)'
 FAILED = []
 PASSED = []
-LEFT_OUT = []
 
 
 class Failure(Exception):
@@ -90,12 +90,6 @@ def case(label, body):
             return
     PASSED.append(label)
     print('PASS: ' + label, flush=True)
-
-
-def left_out(label, why):
-    """A Windows case the Mac does not run, and why: said in the output, never counted as a pass."""
-    LEFT_OUT.append(label)
-    print('LEFT OUT: ' + label + ': ' + why, flush=True)
 
 
 class Writer:
@@ -778,15 +772,6 @@ def check_paired():
     for shift in (.1, .3, 1.1):
         for paired in (True, False):
             for agreement in ((False, True) if paired else (False,)):
-                if not paired and shift in (.1, 1.1):
-                    # Left out, not loosened. The differences are written into the script with 17 significant figures
-                    # (0.10000000000000053), and R on Apple silicon, whose long double is a double, reads such a literal
-                    # one unit in the last place away (0.10000000000000052), where R on Windows reads it exactly. The
-                    # standard deviation of these differences is rounding error alone (3.6e-16), so R's t then differs
-                    # from the report's in the second figure (6.86e14 against 6.75e14). With a shift of 0.3 the literals
-                    # happen to be read exactly and the case holds.
-                    left_out('paired shift %s %s %s' % (shift, paired, agreement), 'R on Apple silicon reads the 17-figure differences of the script one unit in the last place away, and their SD is rounding error alone')
-                    continue
                 def body(shift=shift, paired=paired, agreement=agreement):
                     # typed decimals, as in a worksheet: 5.1, 6.2 ... and 5.1 - shift, 6.2 - shift ... each the double nearest its decimal
                     first = [round(5.1 + 1.1 * i, 10) for i in range(6)]
@@ -856,6 +841,5 @@ if __name__ == '__main__':
     if FAILED:
         print('FAIL ' + str(len(FAILED)) + ' of the 5.3.9 recipe cases: ' + ' | '.join(FAILED), file=sys.stderr)
         raise SystemExit(1)
-    print('PASS: %d cases of the 5.3.9 recipe review reproduce the native reports in R (%s)%s in %.0f s' % (
-        len(PASSED), ', '.join(part for part in PARTS if part in CHECKS and ONLY in (None, part)),
-        ', %d left out as said above' % len(LEFT_OUT) if LEFT_OUT else '', time.time() - started))
+    print('PASS: %d cases of the 5.3.9 recipe review reproduce the native reports in R (%s) in %.0f s' % (
+        len(PASSED), ', '.join(part for part in PARTS if part in CHECKS and ONLY in (None, part)), time.time() - started))

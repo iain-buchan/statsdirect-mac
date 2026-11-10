@@ -1,36 +1,9 @@
-"""A missing subject identifier or category is refused at the picker, through the Mac operation host, as the checks Windows added to
-tests/DataSelection/ValidationPolicyChecks.cs at v5.3.9 (f41aad46) have it.
+"""Exercise the 5.3.10 category validation rules through the Mac operation host.
 
-Since 5.3.9 the shared ValidationProcessor's NoMissingData tests a classifier frame as it tests a numeric one, so a blank cell or a typed *
-among the subject identifiers of the time series summary (TimeSeriesSummary subjectIds), or among the categories of the contraction of
-frequencies (ContractFrequencies categories), is refused with "Data with missing values cannot be used here" before the analysis meets
-the missing code. At 5.3.8 those answers were accepted and the analysis then failed with an exception.
-
-Mirrored from Windows, in its order and with its cells, answers and expected values (12 checks):
-- each frame "deserializes its category mode and its NoMissingData" (2);
-- the cells Subject / p1, p2, blank, p4, p2 ("a blank cell") and p1, *, p3, p4, p2 ("a typed * marker") are refused by NoMissingData with
-  exactly that message, and p1, p2, p3, p4, p2 ("every value present") is accepted, at each frame (6);
-- through the whole analysis, blank then complete: the time series summary of times 0, 0, 1, 1 ("Time"), observations 1, 2, 3, 4
-  ("Level") and subjects p1, p2, blank or p1, p2 ("Subject"), no groups, 95% confidence and no exact P, stops at the message or gives
-  the means by time 1.5 and 3.5; the contraction of the categories red, blue, blank or red, blue ("Category") stops at the message or
-  gives the labels red, blue with the frequencies 2, 2 (4).
-
-Where the Mac host gives the evidence otherwise:
-- Windows reads the deserialized FrameParameter. The Mac host reports the frame's selection mode in the prompt it presents, and not its
-  validators: the mode is asserted from the prompt, and the validator from the operation definition the engine under test loads
-  (Operations/<operation>.xml beside the library; in the app, in Contents/Resources/Engine). That the validator binds is what the
-  refusals show.
-- Windows acquires the cells into a ClassifierVariable and counts its length (5) and its missing codes (1 or 0) before validating.
-  The Mac host answers the frame's prompt with a worksheet selection as the form sends one (a blank cell as empty text, a typed * as
-  itself; FullEngine/HostParameters.cs reads both as the missing code and keeps the row) and applies the same validators, so the
-  check is the picker's verdict: refused at that prompt with exactly the message, or accepted. For the time series summary the
-  identifiers follow five times and five observations (0, 0, 1, 1, 2 and 1 to 5; Windows validates the frame alone, so they are the
-  Mac's), and the host checks the row count against the times before it runs the validators, so the refusal also shows the column was
-  held at five rows; accepted means the host goes on to ask for the groups. For the contraction, accepted means the run completes
-  and counts all five cells (p1 1, p2 2, p3 1, p4 1).
-- The native ParameterBag is not returned. The means by time are read from the report's table of the single group (Windows's *group
-  and *time blocks), the contracted labels and frequencies from the first and last columns of the output frame the host returns.
-The validation message is compared exactly; no check here is weaker than its Windows original.
+The time series summary and contraction of frequencies refuse interior and final missing identifiers,
+groups and categories at the picker. The checks answer with the worksheet selection the Mac form
+sends and compare the exact validation message, as Windows's ValidationPolicyChecks does.
+The complete analyses check grouped and ungrouped report means and the contracted worksheet counts.
 """
 import os
 from pathlib import Path
@@ -48,9 +21,11 @@ PREFS = {'use-default-ci': False}   # the confidence level is asked and answered
 WORKBOOK = 'Identifiers.xlsx'       # never opened: the answers carry their cells
 
 # Windows's (operation, frame) pairs and its three selections, each under the title "Subject"
-FRAMES = [('TimeSeriesSummary', 'subjectIds'), ('ContractFrequencies', 'categories')]
+FRAMES = [('TimeSeriesSummary', 'subjectIds'), ('TimeSeriesSummary', 'groups'), ('ContractFrequencies', 'categories')]
 SELECTIONS = [('a blank cell', ['p1', 'p2', None, 'p4', 'p2']),
               ('a typed * marker', ['p1', '*', 'p3', 'p4', 'p2']),
+              ('a final blank cell', ['p1', 'p2', 'p3', 'p4', None]),
+              ('a final typed * marker', ['p1', 'p2', 'p3', 'p4', '*']),
               ('every value present', ['p1', 'p2', 'p3', 'p4', 'p2'])]
 
 checks = 0
@@ -125,20 +100,23 @@ def outcome(state):
 
 
 def definition(operation, frame):
-    """(mode, validator names) of the frame in the operation definition the engine under test loads."""
+    """Mode, alignment and validators of the frame the engine under test loads."""
     beside = ENGINE.resolve().parent   # FullEngine/publish in the source tree; Contents/Frameworks in the app, whose definitions are in Contents/Resources/Engine
     folders = [folder / 'Operations' for folder in (beside, beside.parent / 'Resources/Engine')]
     path = next((folder for folder in folders if folder.is_dir()), folders[0]) / (operation + '.xml')
     found = [node for node in ET.parse(path).iter(SCHEMA + 'frame') if node.findtext(SCHEMA + 'name') == frame]
     assert len(found) == 1, (str(path), frame, len(found))
     names = [node.findtext(SCHEMA + 'name') for node in found[0].iter(SCHEMA + 'validator')]
-    return found[0].findtext(SCHEMA + 'mode'), names
+    return found[0].findtext(SCHEMA + 'mode'), found[0].findtext(SCHEMA + 'preserve-row-alignment'), names
 
 
-def before(operation):
+def before(operation, frame):
     """The answers that bring the operation to its identifier or category frame (five rows for the time series summary)."""
     if operation == 'TimeSeriesSummary':
-        return {'times': cells('Time', [0, 0, 1, 1, 2], 0), 'observations': cells('Level', [1, 2, 3, 4, 5], 1)}
+        answers = {'times': cells('Time', [0, 0, 1, 1, 2], 0), 'observations': cells('Level', [1, 2, 3, 4, 5], 1)}
+        if frame == 'groups':
+            answers['subjectIds'] = cells('Subject', ['p1', 'p2', 'p1', 'p2', 'p1'], 2)
+        return answers
     return {'type': 'categories'}
 
 
@@ -163,24 +141,25 @@ def means_by_time(html):
 
 
 def defined(session, operation, frame):
-    column = 2 if operation == 'TimeSeriesSummary' else 0
-    answers = dict(before(operation), **{frame: cells('Subject', SELECTIONS[2][1], column)})
+    column = {'subjectIds': 2, 'groups': 3, 'categories': 0}[frame]
+    answers = dict(before(operation, frame), **{frame: cells('Subject', SELECTIONS[-1][1], column)})
     seen, _ = walk(session, operation, answers, until=frame)
-    mode, validators = definition(operation, frame)
-    check(frame in seen and seen[frame].get('mode') == CATEGORY and mode == CATEGORY and 'NoMissingData' in validators,
-          f'{operation} {frame} deserializes its category mode and its NoMissingData',
-          (seen.get(frame, {}).get('mode'), mode, validators))
+    mode, aligned, validators = definition(operation, frame)
+    check(frame in seen and seen[frame].get('mode') == CATEGORY and mode == CATEGORY
+          and aligned == 'true' and 'NoMissingData' in validators,
+          f'{operation} {frame} retains selected category rows for NoMissingData',
+          (seen.get(frame, {}).get('mode'), mode, aligned, validators))
 
 
 def selected(session, operation, frame, label, values):
-    column = 2 if operation == 'TimeSeriesSummary' else 0
-    answers = dict(before(operation), **{frame: cells('Subject', values, column)})
+    column = {'subjectIds': 2, 'groups': 3, 'categories': 0}[frame]
+    answers = dict(before(operation, frame), **{frame: cells('Subject', values, column)})
     _, state = walk(session, operation, answers, until=frame)
     if label != 'every value present':
         check(refusal(state) == (frame, NO_MISSING), f'{operation} {frame} with {label} is refused by NoMissingData', outcome(state))
     elif operation == 'TimeSeriesSummary':
-        # accepted: no message, and the host goes on to the next parameter
-        check(state.get('state') == 'input' and not state['prompt'].get('error') and state['prompt'].get('name') == 'groups',
+        next_prompt = 'groups' if frame == 'subjectIds' else 'ci'
+        check(state.get('state') == 'input' and not state['prompt'].get('error') and state['prompt'].get('name') == next_prompt,
               f'{operation} {frame} with {label} is accepted', outcome(state))
     else:
         # accepted: the contraction runs, and counts each of the five cells
@@ -201,6 +180,17 @@ def summarised(session, blank):
         check(state.get('state') == 'complete' and means_by_time(state['html']) == [1.5, 3.5],
               'time series summary with complete identifiers gives its means by time',
               outcome(state) if state.get('state') != 'complete' else means_by_time(state['html']))
+
+
+def summarised_groups(session):
+    answers = {'times': cells('Time', [0, 0, 1, 1], 0), 'observations': cells('Level', [1, 2, 3, 4], 1),
+               'subjectIds': cells('Subject', ['p1', 'p2', 'p1', 'p2'], 2),
+               'groups': cells('Group', ['a', 'b', 'a', 'b'], 3), 'ci': 95, 'doExactP': False}
+    _, state = walk(session, 'TimeSeriesSummary', answers)
+    by_time = [t for t in tables(state.get('html') or '') if t and t[0][:3] == ['Time', 'Observations', 'Mean']]
+    means = [[float(row[2]) for row in group[1:]] for group in by_time]
+    check(state.get('state') == 'complete' and means == [[1.0, 3.0], [2.0, 4.0]],
+          'time series summary with complete groups gives the means for each group', means or outcome(state))
 
 
 def contracted(session, blank):
@@ -225,6 +215,7 @@ if __name__ == '__main__':
         for blank in (True, False):
             attempt('time series summary, ' + ('blank' if blank else 'complete'), lambda: summarised(session, blank))
             attempt('contraction of frequencies, ' + ('blank' if blank else 'complete'), lambda: contracted(session, blank))
+        attempt('time series summary, complete groups', lambda: summarised_groups(session))
     finally:
         session.finish()
     print(f'NO MISSING IDENTIFIERS: {checks} checks passed, {len(failures)} failed', flush=True)

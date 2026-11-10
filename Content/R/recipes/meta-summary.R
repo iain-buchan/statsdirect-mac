@@ -12,6 +12,9 @@ lower <- lower[keep]
 upper <- upper[keep]
 study <- study[keep]
 if (is.null(study)) study <- paste("Study", seq_along(or))
+# A study whose label is blank has its place among the studies kept, as in the report.
+blank <- is.na(study) | !nzchar(trimws(study))
+study[blank] <- paste("study", which(blank))
 # Summary data meta-analysis: the StatsDirect help example (the odds ratio of each of
 # seven trials of aspirin after heart attack, Fleiss 1993, with its 95% confidence
 # limits; the test workbook's Meta-analysis worksheet columns Odds Ratio, LCI, UCI and
@@ -58,8 +61,9 @@ z_fixed <- pooled / se_pooled
 # Cochran's Q about the pooled log odds ratio, then the DerSimonian-Laird moment
 # estimate of the between studies variance, which inflates each study's variance
 # for the random effects weights
-q <- sum(w * (y - pooled)^2)
-tau2 <- max(0, (q - (k - 1)) / (sum(w) - sum(w^2) / sum(w)))
+q <- if (k > 1) sum(w * (y - pooled)^2) else 0
+spread <- sum(w) - sum(w^2) / sum(w)
+tau2 <- if (k < 2 || spread == 0) 0 else max(0, (q - (k - 1)) / spread)
 w_dl <- 1 / (tau2 + se^2)
 pooled_dl <- sum(w_dl * y) / sum(w_dl)
 se_dl <- 1 / sqrt(sum(w_dl))
@@ -75,7 +79,7 @@ for (i in 1:k) {
 }
 
 cat("Fixed effects (inverse variance)\n")
-cat("Pooled ", tolower(stat), " = ", six(back(pooled)), " (", pct, "CI = ",
+cat("Pooled ", tolower(stat), " = ", six(back(pooled)), " (", pct, " CI = ",
     six(back(pooled - z * se_pooled)), " to ", six(back(pooled + z * se_pooled)), ")\n",
     sep = "")
 cat("Z (test ", stat, " differs from ", null_value, ") = ", six(z_fixed), "  ",
@@ -91,7 +95,7 @@ cat("Z (test ", stat, " differs from ", null_value, ") = ", six(z_fixed), "  ",
 cat("Non-combinability of studies\n")
 dfree <- k - 1
 cat("Cochran Q = ", six(q), "  (df = ", dfree, ")  ",
-    pv(pchisq(q, dfree, lower.tail = FALSE)), "\n", sep = "")
+    pv(if (k > 1) pchisq(q, dfree, lower.tail = FALSE) else NA_real_), "\n", sep = "")
 cat("Moment-based estimate of between studies variance =", six(tau2), "\n")
 # I-squared interval: recorded exact/test-based choice.
 # Older records have no preference: retain the non-central interval they used.
@@ -124,12 +128,12 @@ if (k >= 2 && confidence > 0 && confidence < 1) {
 }
 if (k < 2) cat("I2 not calculated: at least two studies are required.\n") else if (anyNA(i2_ci))
   cat("I2 (inconsistency) =", one(i2), "% (interval unavailable for this number of studies and confidence level)\n") else
-  cat("I2 (inconsistency) = ", one(i2), "% (", pct, "CI = ",
+  cat("I2 (inconsistency) = ", one(i2), "% (", pct, " CI = ",
       one(i2_ci[1]), "% to ", one(i2_ci[2]), "%)\n", sep = "")
 # End of I-squared interval.
 
 cat("Random effects (DerSimonian-Laird)\n")
-cat("Pooled ", tolower(stat), " = ", six(back(pooled_dl)), " (", pct, "CI = ",
+cat("Pooled ", tolower(stat), " = ", six(back(pooled_dl)), " (", pct, " CI = ",
     six(back(pooled_dl - z * se_dl)), " to ", six(back(pooled_dl + z * se_dl)), ")\n",
     sep = "")
 cat("Z (test ", stat, ") = ", six(z_dl), "  ", pv(2 * pnorm(-abs(z_dl))), "\n", sep = "")
@@ -138,9 +142,9 @@ cat("Z (test ", stat, ") = ", six(z_dl), "  ", pv(2 * pnorm(-abs(z_dl))), "\n", 
 # and Mazumdar's test is Kendall's tau between each study's
 # deviation from the pooled log odds ratio, standardised by its variance less the
 # pooled variance, and that variance; with no ties among seven studies cor.test
-# gives the exact two sided P (with tied standard errors it would give tau-b and a
-# normal approximation, which the report corrects for continuity); the report marks
-# the test as low in power when there are fewer than eleven studies
+# gives the exact two sided P (with ties the report gives tau-b and a continuity
+# corrected normal approximation, cor.test(..., exact = FALSE, continuity = TRUE));
+# the report marks the test as low in power when there are fewer than eleven studies
 cat("Bias indicators\n")
 # Egger's interval is at the level of the bias tests, twice the analysis's alpha
 # (90% for a 95% analysis); as the report has it, there is no figure when every
@@ -149,9 +153,11 @@ bias_level <- 1 - 2 * (1 - confidence)
 if (!(bias_level > 0 && bias_level < 1)) bias_level <- 0.9
 if (k > 3) {
   dev <- (y - pooled) / sqrt(se^2 - se_pooled^2)
-  kt <- cor.test(dev, se^2, method = "kendall", conf.level = confidence)
+  tied <- anyDuplicated(dev) > 0 || anyDuplicated(se^2) > 0
+  kt <- cor.test(dev, se^2, method = "kendall", exact = if (tied) FALSE else NULL,
+                 continuity = TRUE, conf.level = confidence)
   cat("Begg-Mazumdar: Kendall's tau =", six(kt$estimate), " ", pv(kt$p.value),
-      "(low power)\n")
+      if (k < 11 && !is.na(kt$estimate)) "(low power)\n" else "\n")
 
   # Egger's test regresses each study's standardised effect (log odds ratio over its
   # standard error) on its precision (one over that standard error); the bias is the

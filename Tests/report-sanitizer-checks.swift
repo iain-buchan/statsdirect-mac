@@ -1,9 +1,9 @@
 import Cocoa
 import WebKit
 
-// Mac mirror of the two report sanitizer checks Windows added for v5.3.9 (f41aad46):
+// Mac mirror of the two report sanitizer checks Windows added for v5.3.9 (f41aad46), with the v5.3.10 SVG reference cases:
 //   tests/WebReports/ImportedUrlAttributes.cs   CheckImportedUrlAttributes   (4 checks)
-//   tests/WebReports/ReportSanitizerParity.cs   CheckReportSanitizerParity   (5 checks)
+//   tests/WebReports/ReportSanitizerParity.cs   CheckReportSanitizerParity   (7 checks)
 // The sanitizers are the shared report editor's (Report/import.mjs for an opened report, Report/fragment.mjs for a paste). What this
 // shows is that in the Mac's WKWebView they give the result Windows asserts of WebView2: an opened or pasted report keeps a chart's
 // own url(#id) references and the harmless content, and loses every external or file: address, video, audio, source, track,
@@ -102,15 +102,28 @@ extension ReportExportTests {
         // animateColor. A style attribute keeps only its filtered declarations, so an external image in MathML or behind image-set()
         // reaches neither path.
         func sanitizerParity() async throws {
-            let payload = """
+            let media = """
             <video poster="https://invalid.example/poster.png"></video>
             <table background="https://invalid.example/t.png"><tr><td background="//invalid.example/c.png">c</td></tr></table>
             <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="9" height="9"><rect fill="red" width="9" height="9"><animateColor attributeName="fill" values="red;blue" dur="1s" repeatCount="indefinite"/></rect><animateColor xlink:href="#t" attributeName="href" values="javascript:alert(1)"/></svg>
             <math><mi style="background-image:url(https://invalid.example/m.png);color:red">x</mi></math>
             <p style="mask:image-set(&quot;https://invalid.example/m.png&quot; 1x);color:red">p</p>
             """
+            let referenceAttributes = ["fill", "stroke", "filter", "clip-path", "mask", "marker-start", "marker-mid", "marker-end"]
+            let externalReferences = [
+                #"u\72l(https://invalid.example/a.svg#g)"#, #"\75rl(https://invalid.example/a.svg#g)"#,
+                #"u\72 l(https://invalid.example/a.svg#g)"#, "url(https://invalid.example/a.svg#g)",
+                "image-set('https://invalid.example/m.png' 1x)", "-webkit-image-set('https://invalid.example/m.png' 1x)",
+                "image('https://invalid.example/m.png')", "cross-fade('https://invalid.example/m.png', 'https://invalid.example/n.png', 50%)"
+            ]
+            let externalRects = referenceAttributes.flatMap { attribute in
+                externalReferences.map { value in "<rect width=\"9\" height=\"9\" \(attribute)=\"\(value)\"/>" }
+            }.joined()
+            let payload = media
+                + #"<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="local"><stop stop-color="red"/></linearGradient></defs><rect fill="url(#local)" width="9" height="9"/>"#
+                + externalRects + "</svg>"
             // what reached the report body that neither path may keep, and how many copies of the harmless content arrived
-            func inspect(_ report: Document) async throws -> (leaks: [String], cells: Int, rects: Int) {
+            func inspect(_ report: Document) async throws -> (leaks: [String], cells: Int, rects: Int, localPaints: Int) {
                 guard let found = try await report.web.evaluateJavaScript(#"""
                 (()=>{
                   const body=document.querySelector('.report-body'),leaks=[];
@@ -121,21 +134,25 @@ extension ReportExportTests {
                       if(['poster','background','cite','download'].includes(attr.name.toLowerCase())||/invalid\.example|javascript:/i.test(attr.value))leaks.push(name+' '+attr.name+'="'+attr.value+'"');
                   }
                   return {leaks,cells:[...body.querySelectorAll('td')].filter(td=>td.textContent==='c').length,
-                    rects:[...body.querySelectorAll('rect')].filter(r=>r.getAttribute('fill')==='red').length};
+                    rects:[...body.querySelectorAll('rect')].filter(r=>r.getAttribute('fill')==='red').length,
+                    localPaints:[...body.querySelectorAll('rect')].filter(r=>/^url\(\s*['"]?#/.test(r.getAttribute('fill'))).length};
                 })()
-                """#) as? [String: Any], let leaks = found["leaks"] as? [String], let cells = found["cells"] as? Int, let rects = found["rects"] as? Int
+                """#) as? [String: Any], let leaks = found["leaks"] as? [String], let cells = found["cells"] as? Int,
+                    let rects = found["rects"] as? Int, let localPaints = found["localPaints"] as? Int
                 else { throw failure("the report body could not be inspected") }
-                return (leaks, cells, rects)
+                return (leaks, cells, rects, localPaints)
             }
             let report = try await open("<p>Opened content</p>" + payload + "<p>Paste here</p>", title: "Sanitizer parity")
             let opened = try await inspect(report)
             try check(opened.leaks.isEmpty, "an opened report keeps no media element, poster, background or animateColor and no external address: " + opened.leaks.joined(separator: "; "))
             try check(opened.cells == 1 && opened.rects == 1, "an opened report keeps the table cell and the chart's rectangle (\(opened.cells) cells, \(opened.rects) rectangles)")
+            try check(opened.localPaints == 1, "an opened report keeps a paint reference to its own SVG definition")
 
             try check(try await paste(payload, into: report), "the same content pastes through the typed report API")
             let pasted = try await inspect(report)
             try check(pasted.leaks.isEmpty, "a paste keeps no media element, poster, background or animateColor and no external address, as opening does: " + pasted.leaks.joined(separator: "; "))
             try check(pasted.cells == 2 && pasted.rects == 2, "a paste keeps the table cell and the chart's rectangle (\(pasted.cells) cells, \(pasted.rects) rectangles)")
+            try check(pasted.localPaints == 2, "a paste keeps both charts' paint references to their own SVG definitions")
         }
 
         // Collecting, a check that cannot be made (the page script failed, the caret could not be placed) is a failure of its group

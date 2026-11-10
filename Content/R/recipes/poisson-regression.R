@@ -1,7 +1,7 @@
 # StatsDirect recipe: Poisson regression of counts with an exposure, as the help shows it in R.
 # From the help's R code (regression_and_correlation/poisson.htm); the data and settings above come from the run.
 # data: response = response, exposure = exposure, predictors... = predictors, weight = weight
-# settings: confidence = gamma, intercept = intercept
+# settings: confidence = gamma, intercept = intercept, precision = accuracy, cov = cov
 # hand-edited: every model and summary uses the same complete rows
 
 keep <- complete.cases(response, predictors, exposure, weight)
@@ -29,14 +29,20 @@ sd_data[sd_own] <- list(response, if (is.null(exposure)) rep(0, length(response)
                         if (is.null(weight)) rep(1, length(response)) else weight)
 sd_terms <- encodeString(names(predictors), quote = "`")
 sd_terms[names(predictors) == "."] <- "I(`.`)"
+precision <- suppressWarnings(as.numeric(sub("[dD]", "e", precision)))
+if (length(precision) != 1L || !is.finite(precision) || precision <= 0) precision <- 1e-7
+precision <- min(precision, 0.01)
 model <- reformulate(sd_terms, response = as.name(sd_own[1]), intercept = intercept)
 fit <- eval(bquote(glm(.(model), offset = .(as.name(sd_own[2])), data = sd_data, family = poisson,
                       weights = .(as.name(sd_own[3])), control = glm.control(maxit = 100))))
-# Refine covariance at the fitted values while retaining glm's rank tolerance.
+# Establish QR rank at R's default tolerance before refining the full-rank fit.
+# A tighter epsilon also tightens rank detection and can resurrect an alias.
 if (fit$converged && !fit$boundary) {
   refit_start <- coef(fit)
   refit_start[is.na(refit_start)] <- 0
-  fit <- update(fit, start = refit_start)
+  refit_epsilon <- if (fit$rank == length(refit_start)) precision else 1e-8
+  refined <- update(fit, start = refit_start, control = glm.control(epsilon = refit_epsilon, maxit = 100))
+  if (refined$converged && !refined$boundary && refined$rank == fit$rank) fit <- refined
 }
 print(summary(fit))
 
@@ -58,35 +64,63 @@ cat("Deviance (likelihood ratio) chi-square =", six(lr), " df =", df_lr, " ",
 s <- summary(fit)$coefficients
 position <- match(rownames(s), names(coef(fit)))
 lab <- (if (intercept) c("Intercept", names(predictors)) else names(predictors))[position]
+every <- if (intercept) c("Intercept", names(predictors)) else names(predictors)
+dropped <- "* error: drop this variable *"
 slopes <- if (intercept) seq_len(nrow(s))[-1] else seq_len(nrow(s))
-for (i in seq_len(nrow(s))) {
-  cat(lab[i], " b", position[i] - as.integer(intercept), " = ", six(s[i, 1]), "  z = ", six(s[i, 3]), "  ",
-      pv(s[i, 4]), "\n", sep = "")
+for (j in seq_along(every)) {
+  i <- match(j, position)
+  if (is.na(i)) cat(every[j], dropped, "\n") else
+    cat(lab[i], " b", j - as.integer(intercept), " = ", six(s[i, 1]), "  z = ", six(s[i, 3]), "  ",
+        pv(s[i, 4]), "\n", sep = "")
 }
 
 signed <- paste0(ifelse(s[slopes, 1] >= 0, "+", ""), six(s[slopes, 1]), " ", lab[slopes])
 cat("log(response)", if (is.null(exposure)) "" else "[offset log(exposure)]", "=", if (intercept) six(s[1, 1]) else "", paste(signed, collapse = " "), "\n")
 
 # Incidence rate ratios: exp of the coefficients, with Wald limits (the intercept's
-# row is the baseline rate per subject-year)
+# row is the baseline rate per subject-year). A predictor that R dropped as aliased
+# (its coefficient is NA) has no ratio: its row carries the report's marker
 ci <- confint.default(fit, level = confidence)[rownames(s), , drop = FALSE]
-for (i in seq_len(nrow(s))) {
-  cat(lab[i], six(s[i, 1]), six(exp(s[i, 1])), six(exp(ci[i, 1])), "to",
-      six(exp(ci[i, 2])), "\n")
+for (j in seq_along(every)) {
+  i <- match(j, position)
+  if (is.na(i)) cat(every[j], dropped, "\n") else
+    cat(lab[i], six(s[i, 1]), six(exp(s[i, 1])), six(exp(ci[i, 1])), "to",
+        six(exp(ci[i, 2])), "\n")
 }
 
-# The report also gives the ratios in each veteran status: among the veterans
-# each age group's rate relative to the youngest non-veterans is exp of the age
-# coefficient plus the veteran coefficient, with the standard error of that sum
-# from the covariance matrix; among the non-veterans they are the ratios above
+# For a selected dichotomous covariate, the 1 group uses the sum of its
+# coefficient and each other coefficient, with their covariance. The 0
+# group uses the whole-study ratios. An old selection against a changed
+# list must be refused before it can select a different group.
 vc <- vcov(fit)[rownames(s), rownames(s), drop = FALSE]
-first <- match(1 + as.integer(intercept), position) # first predictor, if estimable
-if (!is.na(first)) for (i in setdiff(slopes, first)) {
+choices <- which(vapply(predictors, function(v) all(v %in% c(0, 1)), logical(1))) + as.integer(intercept)
+choices <- choices[choices %in% position]
+if (length(predictors) < 2) choices <- integer()
+if (!is.null(cov)) {
+  selected <- unlist(cov)
+  if (length(selected) != length(choices) || !is.logical(selected) || anyNA(selected) || sum(selected) != 1L)
+    stop("The selected sub-population is no longer available. Choose a covariate from the current list.")
+  first <- match(choices[selected], position)
+} else {
+  first <- match(choices[1], position)
+}
+if (!is.na(first)) for (j in setdiff(seq_along(every), c(if (intercept) 1L, position[first]))) {
+  i <- match(j, position)
+  if (is.na(i)) {
+    cat(paste0(lab[first], " = 1:"), every[j], dropped, "\n")
+    next
+  }
   est <- s[i, 1] + s[first, 1]
   se_sum <- sqrt(vc[i, i] + vc[first, first] + 2 * vc[i, first])
   half <- qnorm((1 + confidence) / 2) * se_sum
   cat(paste0(lab[first], " = 1:"), lab[i], six(s[i, 1]), six(exp(est)), six(exp(est - half)), "to",
       six(exp(est + half)), "\n")
+}
+if (!is.null(cov) && !is.na(first)) for (j in setdiff(seq_along(every), c(if (intercept) 1L, position[first]))) {
+  i <- match(j, position)
+  if (is.na(i)) cat(paste0(lab[first], " = 0:"), every[j], dropped, "\n") else
+    cat(paste0(lab[first], " = 0:"), lab[i], six(s[i, 1]), six(exp(s[i, 1])), six(exp(ci[i, 1])), "to",
+        six(exp(ci[i, 2])), "\n")
 }
 
 # The model analysis: the log likelihood (as R's logLik gives it), the information
@@ -96,7 +130,7 @@ if (!is.na(first)) for (i in setdiff(slopes, first)) {
 # scale, which is Pearson's chi-square over its degrees of freedom
 ll <- as.numeric(logLik(fit))
 ll0 <- as.numeric(logLik(glm(response ~ 1, offset = if (is.null(exposure)) NULL else log(exposure), family = poisson, weights = weight)))
-k <- length(coef(fit))
+k <- fit$rank
 n <- length(response)
 cat("Log likelihood with all covariates =", six(ll), "\n")
 cat("Deviance with all covariates =", six(dev), " df =", fit$df.residual,

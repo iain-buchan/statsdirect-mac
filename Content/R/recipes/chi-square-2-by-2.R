@@ -4,6 +4,8 @@
 # settings: confidence = cco, study = study_type, fisher = doFisher
 # hand-edited: the confidence level and the data come from the run, as the header says
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # 2 by 2 chi-square test: the StatsDirect help example (Armitage and Berry 1994, deaths
 # among 257 patients given treatment A and 244 given treatment B) in R
 pct <- paste0(100 * confidence, "%")
@@ -50,7 +52,11 @@ cat("Approximate", pct, "confidence interval =", six(exp(log(or) - z * se)), "to
     six(exp(log(or) + z * se)), "\n")
 }
 if (study == "cohort") {   # the relative risk of a cohort study, with the score limits of Koopman
-rr <- (a / (a + c)) / (b / (b + d))
+n1 <- a + c
+n2 <- b + d
+p1 <- a / n1
+p0 <- b / n2
+rr <- p1 / p0
 koopman <- function(x1, n1, x0, n0, level) {   # the score limits of the ratio of two proportions
   chi2 <- function(theta) {
     A <- (n0 + n1) * theta
@@ -63,10 +69,51 @@ koopman <- function(x1, n1, x0, n0, level) {   # the score limits of the ratio o
   f <- function(lt) chi2(exp(lt)) - qchisq(level, 1)
   c(exp(uniroot(f, c(log(est) - 20, log(est)), tol = 1e-12)$root), exp(uniroot(f, c(log(est), log(est) + 20), tol = 1e-12)$root))
 }
-kl <- koopman(a, a + c, b, b + d, confidence)
+kl <- koopman(a, n1, b, n2, confidence)
 cat("Relative risk =", six(rr), "\n")
 cat("Approximate (Koopman)", pct, "confidence interval =", six(kl[1]), "to", six(kl[2]), "\n")
 
+# As in the prospective risk report, invert the continuity-corrected sample-size
+# formula for power. Use the uncorrected normal power if no root is bracketed.
+alpha <- 1 - confidence
+m <- n2 / n1
+z <- qnorm(1 - alpha / 2)
+pbar <- (p1 + m * p0) / (m + 1)
+null_sd <- sqrt((1 + 1 / m) * pbar * (1 - pbar))
+alt_sd <- sqrt(p0 * (1 - p0) / m + p1 * (1 - p1))
+shift <- sqrt(n1) * (p0 - p1)
+power <- pnorm((-z * null_sd - shift) / alt_sd) +
+  pnorm((z * null_sd - shift) / alt_sd, lower.tail = FALSE)
+if (p0 != p1 && is.finite(power) && power > alpha) {
+  size_error <- function(power) {
+    np <- ((z * null_sd + qnorm(power) * alt_sd) / (p0 - p1))^2
+    (sqrt(np) + sqrt(np + 2 * (m + 1) / (m * abs(p0 - p1))))^2 / 4 - n1
+  }
+  bracket <- c(alpha, min(power, 1 - 1e-12))
+  if (prod(vapply(bracket, size_error, numeric(1))) < 0)
+    power <- uniroot(size_error, bracket, tol = 1e-10)$root
+}
+cat(sprintf("Approximate power (for %g%% significance) = %.2f%%\n", 100 * alpha, 100 * power))
+
+# Miettinen and Nurminen score limits: estimate both risks under the constraint
+# that they differ by delta, using the variance correction N / (N - 1).
+risk_difference <- p1 - p0
+miettinen_score <- function(delta) {
+  loglik <- function(q0) {
+    q1 <- q0 + delta
+    dbinom(a, n1, q1, log = TRUE) + dbinom(b, n2, q0, log = TRUE)
+  }
+  q0 <- optimize(loglik, c(max(0, -delta), min(1, 1 - delta)), maximum = TRUE,
+                 tol = 1e-12)$maximum
+  q1 <- q0 + delta
+  (risk_difference - delta)^2 /
+    ((q1 * (1 - q1) / n1 + q0 * (1 - q0) / n2) * n / (n - 1)) - qchisq(confidence, 1)
+}
+risk_limits <- c(uniroot(miettinen_score, c(-1 + 1e-9, risk_difference), tol = 1e-12)$root,
+                 uniroot(miettinen_score, c(risk_difference, 1 - 1e-9), tol = 1e-12)$root)
+cat("Risk difference =", six(risk_difference), "\n")
+cat("Approximate (Miettinen)", pct, "confidence interval =", six(risk_limits[1]), "to",
+    six(risk_limits[2]), "\n")
 }
 
 # fisher.test: its P value is the two sided P by summation of the tables no more
@@ -75,7 +122,7 @@ cat("Approximate (Koopman)", pct, "confidence interval =", six(kl[1]), "to", six
 # one, agreeing with the report to four decimal places, and its estimate is the
 # conditional maximum likelihood odds ratio rather than the sample odds ratio above.
 if (isTRUE(fisher)) {   # the exact test, when the run asked for it
-print(fisher.test(counts))
+print(fisher.test(counts, conf.level = confidence))
 cat("Exact Fisher one sided ", pv(fisher.test(counts, alternative = "less")$p.value),
     ", two sided ", pv(fisher.test(counts)$p.value), "\n", sep = "")
 }

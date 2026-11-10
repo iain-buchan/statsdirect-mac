@@ -1,5 +1,5 @@
 """Incomplete studies in the meta-analyses through the Mac operation host and real R, as Windows's tests/RScript/MetaMissingStudies.cs
-(5.3.9 = f41aad46) checks them.
+(5.3.10) checks them.
 
 Each analysis runs with one study incomplete, either as a whole blank worksheet row without a column of study names or as one typed *
 cell with the names given as a Text frame, at the session preference meta-exact false and then true (Windows's MetaExact). The native
@@ -16,10 +16,10 @@ Mirrored from Windows: the fixtures, the study names, the incomplete third study
   block (*poolok) that 'values' leaves out: its Q is read from the report at 12 decimal places, and its I-squared and limits, which the
   report prints to one decimal place, are compared to that precision (half a unit in the last place printed, plus 2e-7 relative).
 - The Windows test host fills a parameter without the picker's validators. The Mac host applies them, as the Windows picker does
-  (SdApplication.FillParameter calls the same shared ValidationProcessor), and the meta-analysis frames do not opt into
-  preserve-row-alignment, so a missing value is refused where a frame has a domain validator: the summary statistic of a ratio type
-  (Positive), the confidence limits (NoMissingData) and both counts of the proportion meta-analysis (Positive, NonNegative). Those runs
-  must be refused with exactly that validator's message at that frame (any other refusal fails). Since 5.3.9 Windows puts each
+  (SdApplication.FillParameter calls the same shared ValidationProcessor). A missing value is refused for the summary statistic
+  of a ratio type (Positive) and the confidence limits (NoMissingData). Those runs must be refused with exactly that validator's
+  message at that frame. ProportionMeta keeps missing totals and counts aligned so its analysis can omit the incomplete study.
+  Since 5.3.9 Windows puts each
   selection through the picker's validators too (RunAtPicker) and asserts the verdict both ways: a selection the picker refuses is
   "record-only" (it reaches a replay only in a stored record), every other selection must be accepted, and each run has one check of
   that, with Windows's flags (the label of a record-only run ends "-record-only"). Windows still replays the record-only selections,
@@ -87,9 +87,9 @@ CASES += [# A ratio's estimate must be positive, so the picker refuses a blank o
            {'type': 'riskDifference', 'use_ci': 'true'}, (True, False)),
           ('Effect', [('en', EN), ('cn', CN), ('g', [.42, -.1, .3, .22, .85, 1.1])], 'g', {'type': 'g'}, ACCEPTED)]
 CASES += [('Effect', MEANS, 'cs', {'type': kind}, ACCEPTED) for kind in ('d', 'm')]
-# The picker takes positive totals and nonnegative counts only: a blank in either is record-only.
+# Missing totals and counts stay aligned so the analysis can omit the incomplete study.
 # fudge is answered as Windows answers it; ProportionMeta.xml no longer asks it (#893), on either platform
-CASES += [('ProportionMeta', [('sn', EXPOSED), ('sr', PROPORTION_EVENTS)], 'sr', {'fudge': .5, 'method': 'doubleArcsine'}, (True, True))]
+CASES += [('ProportionMeta', [('sn', EXPOSED), ('sr', PROPORTION_EVENTS)], 'sr', {'fudge': .5, 'method': 'doubleArcsine'}, ACCEPTED)]
 
 # Windows's switch: the block of each study's figures, the R label vector, its default label, R's Q, R's per-study limits and the
 # block's lower and upper keys; for the Mac, the report table that prints that block (its heading, a cell's prefix or None for any)
@@ -108,10 +108,8 @@ SPEC = {
 # the recipes that bind the recorded exact preference (Tests/test_run_record.py's binding list; the incidence rate recipes do not)
 EXACT_BOUND = {'RelativeRiskMeta', 'RiskDifference', 'PetoMeta', 'Mantel', 'MetaSummary', 'Effect', 'ProportionMeta'}
 
-# What the shared validators refuse (ValidationProcessor.cs: allowMissing only for a frame with preserve-row-alignment, which none of
-# these has): keyed by (operation, type, use_ci, pattern), the frame refused and the validator's message.
+# The frame refused and the validator's message, keyed by (operation, type, use_ci, pattern).
 POSITIVE = 'Data must be positive non-zero numbers'
-NON_NEGATIVE = 'Data must be positive or zero numbers'
 NO_MISSING = 'Data with missing values cannot be used here'
 REFUSED = {
     ('MetaSummary', 'oddsRatio', 'false', 'row'): ('y', POSITIVE),          # MetaSummary.xml: y is Positive when use_ratio
@@ -119,8 +117,6 @@ REFUSED = {
     ('MetaSummary', 'oddsRatio', 'true', 'cell'): ('y', POSITIVE),
     ('MetaSummary', 'otherDifference', 'true', 'row'): ('ll_y', NO_MISSING),  # ll_y and ul_y are NoMissingData for every type
     ('MetaSummary', 'riskDifference', 'true', 'row'): ('ll_y', NO_MISSING),
-    ('ProportionMeta', None, None, 'row'): ('sn', POSITIVE),                 # ProportionMeta.xml: sn Positive, sr NonNegative
-    ('ProportionMeta', None, None, 'cell'): ('sr', NON_NEGATIVE),
 }
 SUBSTITUTE_TYPE = 'otherDifference'
 

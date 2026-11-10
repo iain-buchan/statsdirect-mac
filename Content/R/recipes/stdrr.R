@@ -6,6 +6,8 @@
 per <- as.numeric(per)
 if (is.null(ref)) ref <- pt2   # the reference population: the non-exposed group when none is given
 if (is.null(strata)) strata <- paste("Stratum", seq_along(a))
+blank <- is.na(strata) | !nzchar(trimws(strata))
+strata[blank] <- paste("stratum", which(blank))
 # Standardize and compare two rates: the StatsDirect help example (Newman 2001, deaths
 # in a cohort of men treated for schizophrenia and in the Alberta population, in eight
 # age strata; the test workbook's Rates worksheet columns d1, pt1, d2, pt2, ref and

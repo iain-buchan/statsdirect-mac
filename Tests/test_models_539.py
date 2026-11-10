@@ -15,15 +15,13 @@ engine's missing value) but not its blocks, and validates each answer as the for
   Analysis Options allow), where Windows reads the block at full precision; the rounding (5e-13) is far inside every tolerance
   used with them, which are kept. A statistic Windows requires to be NaN or missing in a block must be printed as "*".
 - A P that Windows reads from a block is known here to the 7 places the report prints; R's figure must round to it.
-- The precision of the Poisson and logistic fits is answered ".00000000001": the Mac form refuses Windows's "0.00000000001"
-  (13 characters; the definition's maximum length is 12, which the Windows check does not pass through). The engine reads the
-  same 1e-11 (the model follow-on's acc), which is asserted.
+- The Poisson and logistic precision answer ".00000000001" also fits the 12-character limit of the 5.3.9 definition.
+  The engine reads 1e-11 (the model follow-on's acc), which is asserted.
 - Confidence comes from the default interval of Analysis Options (95%), as the Mac form supplies it; the Windows answers are .95.
   The Cox hazard ratios of item 12 are the exception: there the interval is asked for and answered 90, Windows's gamma .9.
 - A refusal is the failed run's message.
-- An unanswered question fails the check: the answers are exactly those the Mac form asks of the Windows answers. The Mac host
-  also asks, of a predictor with more than two values (Treated with a 2 in the incomplete record, Age), how to code it: the
-  answer is "Treat as a continuous variable", which is the single numeric term the Windows check fits.
+- An unanswered question fails the check. Since 5.3.10, an extra predictor level found only in a row with a missing time or event
+  does not introduce a coding prompt for an otherwise binary Cox predictor.
 - The Cox plots (item 8): Windows reads the chart options the follow-on returns (the split, the series, the labels), which the
   Mac host does not return. Here the split is read from the charts the report draws: split by a predictor it draws three (the
   individual survival, its confidence band and the log-log plot), each with one series labelled <title>=0 and one <title>=1,
@@ -59,7 +57,7 @@ from test_shared_engine_update import ReportText
 
 PREFS = {'use-default-ci': True, 'default-ci': '95', 'decp': '12', 'pdecp': '7'}
 MISSING = -sys.float_info.max          # Constant.MISSING (double.MinValue)
-PRECISION = '.00000000001'             # 1e-11 in the 12 characters the Mac form accepts (see the module note)
+PRECISION = '.00000000001'             # 1e-11, also accepted by the 5.3.9 form
 COLLECT = os.environ.get('MODELS_539_COLLECT', '') not in ('', '0')
 PASSED, FAILED = [], []
 
@@ -620,7 +618,7 @@ def charts(state):
     return [(svg, [label.strip() for label in re.findall(r'>([^<>]*)</tspan>', svg)]) for svg in re.findall(r'<svg.*?</svg>', state['html'], re.S)]
 
 
-def cox_plots(session, columns, predictors, choice, extra=None):
+def cox_plots(session, columns, predictors, choice):
     """The Cox fit and its survival plots split by the choice in this place of the list offered: the plots' run, the titles offered."""
     offered = []
 
@@ -628,7 +626,7 @@ def cox_plots(session, columns, predictors, choice, extra=None):
         offered.extend(option['label'] for option in prompt['options'])
         return [choice]
 
-    fitted = ask(session, 'CoxRegression', dict(cox_answers(columns, predictors), **(extra or {})), keep=True)
+    fitted = ask(session, 'CoxRegression', cox_answers(columns, predictors), keep=True)
     try:
         plots = ask(session, 'CoxHazardPlots', {'use-tics': True, 'use-markers': True, 'group': by_place}, parent=fitted['id'])
     finally:
@@ -679,14 +677,16 @@ def cox_split(session, writer, folder):
                       if expected > 0 else 'stopifnot(!grouped, curve_count == 1L)\n')
         verify(writer, folder, 'cox-split-' + label, plots['record'], assertions)
 
-    # A record that the fit leaves out (here one without a time) can hold a third value of a predictor that is binary in the records
-    # the fit uses. The Mac asks how to code a predictor of three values: it is answered as a number, which is how the Windows check runs.
-    incomplete = [('Time', times + [None]), ('Event', events + [1]), ('Treated', treated + [2]), ('Female', female + [1]), ('Age', age + [50])]
-    plots, offered = cox_plots(session, incomplete, [2, 3, 4], 0, {'Choose the reference category for Treated': '-2'})
-    check(offered == ['Treated', 'Female', 'None'], 'Cox with an incomplete record: Treated and Female are binary in the records the fit uses', offered)
-    check(split_by(plots, 'Treated'), 'Cox with an incomplete record: the native plots are split by Treated', [labels for _, labels in charts(plots)])
-    verify(writer, folder, 'cox-split-incomplete-record', plots['record'],
-           "stopifnot(identical(split_choices, c('Treated', 'Female', 'None')), grouped, split_by == 'Treated', curve_count == 2L, identical(unname(baseline_rows[[1]]), c(0, 1)), all(unlist(baseline_rows[-1]) == 0))\n")
+    # Incomplete time/event rows may contain a third numeric level or text. Neither belongs in
+    # the predictor coding prompt, and both are excluded from the fit and its replay.
+    for label, time, event, treated_value in [('missing-time', None, 1, 2), ('missing-event', 35, None, 'excluded')]:
+        incomplete = [('Time', times + [time]), ('Event', events + [event]), ('Treated', treated + [treated_value]),
+                      ('Female', female + [1]), ('Age', age + [50])]
+        plots, offered = cox_plots(session, incomplete, [2, 3, 4], 0)
+        check(offered == ['Treated', 'Female', 'None'], label + ': Cox predictors stay binary without an extra coding prompt', offered)
+        check(split_by(plots, 'Treated'), label + ': the native plots are split by Treated', [labels for _, labels in charts(plots)])
+        verify(writer, folder, 'cox-split-' + label, plots['record'],
+               "stopifnot(identical(split_choices, c('Treated', 'Female', 'None')), grouped, split_by == 'Treated', curve_count == 2L, identical(unname(baseline_rows[[1]]), c(0, 1)), all(unlist(baseline_rows[-1]) == 0))\n")
 
 
 # CheckModels539CoxNames's times and events, drawn from .NET's Random(539) by the engine's own runtime (a C# user script), draw for draw

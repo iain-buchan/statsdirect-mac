@@ -30,6 +30,7 @@ cat(sprintf("One sided P = %.4f   Two sided P = %.4f\n", r$p.value / 2, r$p.valu
 
 # Power of a two sided test at the 5% level to detect the difference and sd seen, from the
 # noncentral t distribution; strict = TRUE counts rejections in both tails, as StatsDirect does.
-pw <- power.t.test(n = n, delta = xbar - mu0, sd = s, sig.level = 0.05,
+alpha <- 1 - confidence
+pw <- power.t.test(n = n, delta = xbar - mu0, sd = s, sig.level = alpha,
                    type = "one.sample", strict = TRUE)
-cat(sprintf("Power (for 5%% significance) = %.2f%%\n", 100 * pw$power))
+cat(sprintf("Power (for %g%% significance) = %.2f%%\n", 100 * alpha, 100 * pw$power))

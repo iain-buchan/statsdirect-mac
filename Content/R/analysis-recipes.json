@@ -311,7 +311,11 @@
   },
   "KappaSimulateExactP": {
     "file": "kappa.R",
-    "detail": "Kappa agreement of two raters from their responses, as the help shows it in R.",
+    "detail": "The kappa agreement of two raters that this simulation follows, as the help shows it in R.",
+    "parentFiles": {
+      "Kappa": "kappa.R",
+      "KappaScreen": "kappa-screen.R"
+    },
     "inherits": "Kappa"
   },
   "Kendall": {

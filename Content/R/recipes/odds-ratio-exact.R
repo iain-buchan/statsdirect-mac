@@ -4,6 +4,8 @@
 # settings: confidence = gamma
 # hand-edited: the confidence level and the data come from the run, as the header says
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # Exact confidence interval for a 2 by 2 odds ratio: the StatsDirect help example
 # (Thomas 1971, criminal convictions of monozygotic and dizygotic twins) in R
 pct <- paste0(100 * confidence, "%")

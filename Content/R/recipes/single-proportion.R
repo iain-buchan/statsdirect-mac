@@ -3,6 +3,8 @@
 # settings: n = n, r = r, pi0 = qpi, confidence = cco
 # hand-edited: the confidence level and the data come from the run, as the header says
 
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
+
 # Single proportion: the StatsDirect help example (Armitage and Berry 1994, p. 119,
 # 65 of 100 patients preferred analgesic Y) in R
 

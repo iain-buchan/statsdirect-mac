@@ -86,7 +86,8 @@ differing = [f.name for f in sorted((upstream / 'recipes').glob('*.R')) if not (
 check(not differing and all(manifest.get(op) == entry for op, entry in pinned.items()) and (ROOT / 'Content/R/session.R').is_file() and (ROOT / 'Content/R/data-files.R').is_file(),
       'Content/R holds the pinned engine\'s %d recipes and %d manifest entries unchanged (the Mac manifest has %d) beside session.R and data-files.R' % (len(list((upstream / 'recipes').glob('*.R'))), len(pinned), len(manifest)))
 missing = [op for op in manifest if not (ROOT / 'FullEngine/publish/Operations' / (op + '.xml')).is_file()]
-headed = [f.name for f in (ROOT / 'Content/R/recipes').glob('*.R') if f.name not in ('chart-common.R', 'dose-response-common.R') and not f.read_text().startswith('# StatsDirect recipe:')]
+helpers = {'chart-common.R', 'dose-response-common.R', 'kappa-common.R'}
+headed = [f.name for f in (ROOT / 'Content/R/recipes').glob('*.R') if f.name not in helpers and not f.read_text().startswith('# StatsDirect recipe:')]
 check(len(manifest) >= 28 and not missing and not headed and all((ROOT / 'Content/R/recipes' / e['file']).is_file() for e in manifest.values()),
       'every manifest operation is a published operation with a headed recipe file')
 # the recipes against the definitions of the operations they are mapped to, as tests/RScript/Script.cs CheckRecipes: every setting a recipe
@@ -117,14 +118,25 @@ for op, entry in manifest.items():
     if op in ('Probit', 'Logit') or op.startswith('Probit'): parameters.add('doseResponseModel')
     if '<grouped-covariance>' in xml: parameters.add('ci')   # its confidence level is asked through the grid and recorded as the setting ci
     # a shared base/continuation recipe defaults its optional level until the confidence-bearing continuation has asked for it (5.3.7)
-    confidence_owner = 'Cronbach' if entry['file'] in ('pca.R', 'pca-covariance.R') else 'CoxHazardRatios' if entry['file'] == 'cox-regression.R' else None
-    if confidence_owner:
-        owner = (ROOT / 'FullEngine/publish/Operations' / (confidence_owner + '.xml')).read_text()
-        parameters |= {m.strip() for m in re.findall(r'<confidence-interval>.*?<name>([^<]+)</name>.*?</confidence-interval>', owner, re.S)}
-    if entry['file'] in ('relative-risk-meta.R', 'meta-summary.R', 'risk-difference.R', 'peto-meta.R', 'mantel.R', 'effect.R', 'meta-correlation.R', 'proportion-meta.R'):
+    setting_owner = {'pca.R': 'Cronbach', 'pca-covariance.R': 'Cronbach', 'cox-regression.R': 'CoxHazardRatios',
+                     'kruskal-wallis.R': 'KruskalWallisMulti'}.get(entry['file'])
+    if setting_owner:
+        owner = definition(setting_owner)
+        parameters |= {m.strip() for m in re.findall(r'<(?:confidence-interval|option)>\s*<name>([^<]+)</name>', owner)}
+    incidence_recipes = ('meta-incidence-rate-ratio.R', 'meta-incidence-rate-difference.R')
+    if entry['file'] in ('relative-risk-meta.R', 'meta-summary.R', 'risk-difference.R', 'peto-meta.R', 'mantel.R', 'effect.R',
+                         'meta-correlation.R', 'proportion-meta.R') + incidence_recipes:
         parameters.add('metaExact')   # captured once by each native meta-analysis report, then retained for replay (5.3.7; the last four 5.3.8)
     if entry['file'] in ('relative-risk-meta.R', 'risk-difference.R', 'mantel.R', 'mantel-haenszel-screen.R'):
         parameters |= {'metaCC', 'delayContinuityCorrection'}   # the continuity correction those reports applied, recorded with them (5.3.9)
+    if entry['file'] in incidence_recipes:
+        parameters.add('metaCC')
+    if op in ('Kappa', 'KappaScreen', 'KappaSimulateExactP'):
+        parameters.add('kappaConfidence')
+        if entry['file'] == 'kappa.R':
+            parameters |= {'kappaGrades', 'kappaTextGrades'}
+    if entry['file'] == 'poisson-regression.R':
+        parameters.add('cov')   # the sub-population chosen by PoissonRegressionIRR
     settings = re.search(r'^# settings:\s*(.*)$', text, re.M)
     if settings:
         for item in [x.strip() for x in settings.group(1).split(',') if '=' in x]:
@@ -287,7 +299,10 @@ same = [{'name': 'data', 'columns': [{'title': 'x', 'values': [str(v) for v in x
 script = rs.write(big_record, None, same)
 check(script['asked'] == ['data'] and not script['dataUnavailable'] and 'NOTE' not in script['text'] and re.search(r'# Data: "test\.xlsx", sheet "Big", read on \d+ \w+ 20\d\d \d\d:\d\d\.', script['text']),
       'unchanged cells re-read through the recorded mode hash as recorded: no NOTE, and the head says when the data were read')
-check(re.search(r'^before <- c\(100, 108\.414709848078\d*, ', script['text'], re.M) and '   # x, column 4, rows 1 to 2601\n' in script['text'], 'the values read are written into the script under the recipe\'s names')
+check(re.search(r'^# before <- c\(100, 108\.414709848078\d*, ', script['text'], re.M)
+      and re.search(r'^before <- c\(100, 0x', script['text'], re.M)
+      and '   # x, column 4, rows 1 to 2601\n' in script['text'],
+      'worksheet values have exact literals and a decimal comment under the recipe\'s names')
 changed = json.loads(json.dumps(same)); changed[0]['columns'][1]['values'][7] = '99.5'
 script = rs.write(big_record, None, changed)
 check(script['text'].count('# NOTE:') == 1 and '# NOTE: "y" has changed in the workbook since the analysis ran; these are its values now.' in script['text'] and '"x" has changed' not in script['text'] and ', 99.5, ' in script['text'],
@@ -420,18 +435,25 @@ def plain(value):
     return ''.join(' ' if ord(ch) < 32 or ord(ch) == 0x7f else ch for ch in (value or ''))
 def is_number(v): return isinstance(v, (int, float)) and not isinstance(v, bool)
 def is_scalar(v): return is_number(v) or isinstance(v, (bool, str))
-def literal(v):
+def r_number(value, exact):
+    text = csharp(value)
+    if not exact or not math.isfinite(value) or len(Decimal(text).normalize().as_tuple().digits) <= 15:
+        return text
+    mantissa, exponent = float(value).hex().split('p')
+    return mantissa.rstrip('0').rstrip('.') + 'p' + str(int(exponent))
+
+def literal(v, exact=False):
     if isinstance(v, bool): return 'TRUE' if v else 'FALSE'
-    if is_number(v): return csharp(v)
+    if is_number(v): return r_number(v, exact)
     if isinstance(v, str): return quote(v)
-    if isinstance(v, list): return 'list(' + ', '.join(literal(x) for x in v) + ')'
-    if isinstance(v, dict): return 'list(' + ', '.join(quote(k) + ' = ' + literal(x) for k, x in v.items()) + ')'
+    if isinstance(v, list): return 'list(' + ', '.join(literal(x, exact) for x in v) + ')'
+    if isinstance(v, dict): return 'list(' + ', '.join(quote(k) + ' = ' + literal(x, exact) for k, x in v.items()) + ')'
     return 'NULL'
-def vector(values):
+def vector(values, exact=False):
     numeric = all(v is None or is_number(v) for v in values)
     if not values: return 'numeric(0)' if numeric else 'character(0)'
     def one(v):
-        if numeric: return 'NA' if v is None else csharp(v)
+        if numeric: return 'NA' if v is None else r_number(v, exact)
         if v is None: return 'NA'
         if isinstance(v, bool): return quote('TRUE' if v else 'FALSE')
         if is_number(v): return quote(csharp(v))
@@ -496,7 +518,7 @@ def expected_script(record, recipe, detail, after=None):
         name = text_of(inp, 'name') or 'input'; kind = text_of(inp, 'kind') or 'other'; start = len(columns); inherited = inp.get('inherited') is True
         if kind == 'table':
             counts = inp.get('counts') if isinstance(inp.get('counts'), list) else []
-            rows = [[literal(v) for v in r] if isinstance(r, list) else [literal(r)] for r in counts]
+            rows = [r if isinstance(r, list) else [r] for r in counts]
             def strings(key): return [v if isinstance(v, str) else json.dumps(v) for v in inp[key]] if isinstance(inp.get(key), list) else []
             tables.append((rows, strings('rowLabels'), strings('columnLabels'), text_of(inp, 'rowsTitle'), text_of(inp, 'columnsTitle')))
             continue
@@ -514,24 +536,48 @@ def expected_script(record, recipe, detail, after=None):
     # asked for frames itself, the bag's inherited frames are not its data, so the rest list leaves them out
     named_only = bool(binding) and binding['list'] is None and binding['matrix'] is None and binding['table'] is None and all(d[1] is not None for d in binding['data']) and bool(binding['data'] or binding['nested'])
     own_frames = any(not c['inherited'] for c in columns)
+    def data_assignment(variable, render, label=''):
+        decimal, exact = render(False), render(True)
+        prefix = variable + ' <- '
+        if decimal != exact:
+            out.append('# ' + prefix + decimal.replace('\n', '\n# ') + '\n')
+        out.append(prefix + exact + label + '\n')
+
+    def setting(variable, value, label=None):
+        if isinstance(value, (list, dict)):
+            data_assignment(variable, lambda exact: literal(value, exact))
+            return
+        decimal, exact = literal(value), literal(value, True)
+        if exact != decimal:
+            label = decimal if label is None else f'{decimal} ({label})'
+        suffix = '' if label is None else '   # ' + label
+        out.append(variable + ' <- ' + exact + suffix + '\n')
+
     def assign(variable, column):
-        names.add(variable); out.append(variable + ' <- ' + vector(column['values']) + '   # ' + plain(column['title']) + '\n')
+        names.add(variable)
+        data_assignment(variable, lambda exact: vector(column['values'], exact), '   # ' + plain(column['title']))
         # the column's title for a recipe's labels (Windows 0f634625): the help example's names must not label the user's data
         names.add(variable + '_title'); out.append(variable + '_title <- ' + quote(column['title']) + '\n')
     def list_of(variable, indices):
-        out.append(variable + ' <- list(' + ',\n  '.join(quote(columns[i]['title']) + ' = ' + vector(columns[i]['values']) for i in indices) + ')\n'); names.add(variable)
+        data_assignment(variable, lambda exact: 'list(' + ',\n  '.join(
+            quote(columns[i]['title']) + ' = ' + vector(columns[i]['values'], exact) for i in indices) + ')')
+        names.add(variable)
     def missing(variable, why): names.add(variable); out.append(variable + ' <- NULL   # ' + why + '\n')
     def nested_list(variable, value):
         # a two-level input as a list of lists, the inner vectors named by their titles when they have any
         names.add(variable); frames = value.get('frames')
         if not isinstance(frames, list): out.append(variable + " <- NULL   # the run's data were too many to keep with the result\n"); return
-        levels = []
-        for level in frames:
-            items = []
-            for c in level if isinstance(level, list) else []:
-                t = text_of(c, 'title'); items.append(('' if not t else quote(t) + ' = ') + vector(objects(c.get('values') if isinstance(c, dict) else None)))
-            levels.append('list(' + ', '.join(items) + ')')
-        out.append(variable + ' <- list(\n  ' + ',\n  '.join(levels) + ')\n')
+        def render(exact):
+            levels = []
+            for level in frames:
+                items = []
+                for c in level if isinstance(level, list) else []:
+                    title = text_of(c, 'title')
+                    values = objects(c.get('values') if isinstance(c, dict) else None)
+                    items.append(('' if not title else quote(title) + ' = ') + vector(values, exact))
+                levels.append('list(' + ', '.join(items) + ')')
+            return 'list(\n  ' + ',\n  '.join(levels) + ')'
+        data_assignment(variable, render)
     # a one-column recipe with a repeat header keeps its short script for one column; a multi-column selection becomes a list of samples,
     # indexed rather than looked up by name (worksheet titles may repeat), and the recipe runs once for each (5.3.7)
     repeated = binding['data'][0] if binding and binding['repeat'] is not None and len(binding['data']) == 1 and not binding['data'][0][2] else None
@@ -539,7 +585,8 @@ def expected_script(record, recipe, detail, after=None):
     repeat = len(repeat_columns) > 1
     if repeat:
         if any(not columns[i]['title'] for i in repeat_columns):   # R does not accept list("" = ...): the names are assigned afterwards
-            out.append('samples <- list(' + ',\n  '.join(vector(columns[i]['values']) for i in repeat_columns) + ')\n')
+            data_assignment('samples', lambda exact: 'list(' + ',\n  '.join(
+                vector(columns[i]['values'], exact) for i in repeat_columns) + ')')
             out.append('names(samples) <- c(' + ', '.join(quote(columns[i]['title'] or '') for i in repeat_columns) + ')\n'); names.add('samples')
         else: list_of('samples', repeat_columns)
         bound.update(repeat_columns)
@@ -578,29 +625,41 @@ def expected_script(record, recipe, detail, after=None):
         if name not in nested_taken and not (binding and inherited) and not named_only: nested_list(safe_name(name, names), value)   # as for the columns: without a recipe every input is written
     for rows, row_labels, column_labels, rows_title, columns_title in tables:
         variable = binding['table'] if binding and binding['table'] else safe_name('counts', names)
-        line = variable + ' <- matrix(c(' + ', '.join(v for r in rows for v in r) + '), ' + str(len(rows)) + ', byrow = TRUE'
-        if len(row_labels) == len(rows) and len(column_labels) == (len(rows[0]) if rows else 0):
-            line += ',\n  dimnames = list(' + (quote(rows_title) + ' = ' if rows_title is not None else '') + 'c(' + ', '.join(map(quote, row_labels)) + '), ' \
-                    + (quote(columns_title) + ' = ' if columns_title is not None else '') + 'c(' + ', '.join(map(quote, column_labels)) + '))'
-        out.append(line + ')\n'); names.add(variable)
+        def render(exact):
+            line = 'matrix(c(' + ', '.join(literal(v, exact) for r in rows for v in r) + '), ' + str(len(rows)) + ', byrow = TRUE'
+            if len(row_labels) == len(rows) and len(column_labels) == (len(rows[0]) if rows else 0):
+                line += ',\n  dimnames = list(' + (quote(rows_title) + ' = ' if rows_title is not None else '') + 'c(' + ', '.join(map(quote, row_labels)) + '), ' \
+                        + (quote(columns_title) + ' = ' if columns_title is not None else '') + 'c(' + ', '.join(map(quote, column_labels)) + '))'
+            return line + ')'
+        data_assignment(variable, render)
+        names.add(variable)
     if binding and binding['matrix'] is not None and columns and not binding['data'] and binding['list'] is None:
-        out = [head, binding['matrix'] + ' <- cbind(' + ',\n  '.join(quote(c['title']) + ' = ' + vector(c['values']) for c in columns) + ')\n']; names.add(binding['matrix'])
+        out = [head]
+        data_assignment(binding['matrix'], lambda exact: 'cbind(' + ',\n  '.join(
+            quote(c['title']) + ' = ' + vector(c['values'], exact) for c in columns) + ')')
+        names.add(binding['matrix'])
     parameters = record.get('parameters') if isinstance(record.get('parameters'), dict) else None
     if binding:
         # a bound setting the record holds is written as its literal (a list of marks as list(...), null as NULL); one the run skipped or was
         # not asked for is NULL with a note, so that the script does not stop on the missing name
         for variable, parameter in binding['settings']:
             source = {key: record[field] for key, field in [('statsdirectOperation', 'operation'), ('statsdirectRootOperation', 'rootOperation')] if field in record} if parameter in ('statsdirectOperation', 'statsdirectRootOperation') else parameters
-            if source is not None and parameter in source and (is_scalar(source[parameter]) or source[parameter] is None or isinstance(source[parameter], (list, dict))): out.append(variable + ' <- ' + literal(source[parameter]) + '\n')
+            if source is not None and parameter in source and (is_scalar(source[parameter]) or source[parameter] is None or isinstance(source[parameter], (list, dict))): setting(variable, source[parameter])
             else: out.append(variable + ' <- NULL   # the run had no ' + plain(parameter) + '\n')
     elif parameters is not None:
         for key, value in parameters.items():
-            if is_scalar(value) and not key.lower().startswith('statsdirect'): out.append(safe_name(key, names) + ' <- ' + literal(value) + '   # ' + plain(key) + '\n')
+            if is_scalar(value) and not key.lower().startswith('statsdirect'): setting(safe_name(key, names), value, plain(key))
     out.append('\n')
     if binding and any(parameter == 'chartSettings' for _, parameter in binding['settings']):
         out.append((ROOT / 'Content/R/recipes/chart-common.R').read_text().rstrip('\n') + '\n')
     if binding and any(parameter == 'doseResponseModel' for _, parameter in binding['settings']):
         out.append((ROOT / 'Content/R/recipes/dose-response-common.R').read_text().rstrip('\n') + '\n')
+    if binding:
+        entry = manifest[operation]
+        root = record.get('rootOperation', entry.get('inherits', operation))
+        filename = entry.get('parentFiles', {}).get(root, entry['file'])
+        if filename in {'kappa.R', 'kappa-screen.R', 'kappa-raters.R'}:
+            out.append((ROOT / 'Content/R/recipes/kappa-common.R').read_text().rstrip('\n') + '\n')
     if repeat:
         v = repeated[0]
         out.append('for (sample_number in seq_along(samples)) {\n  ' + v + ' <- samples[[sample_number]]\n  ' + v + '_title <- names(samples)[sample_number]\n  cat("\\n", ' + v + '_title, "\\n", sep = "")\n')
@@ -931,6 +990,9 @@ def compare_with_help(outputs, what):
     for op, output in outputs:
         example = examples[op]
         if isinstance(output, AssertionError): failures.append(op); print('      %s: %s' % (op, str(output).replace('\n', ' | ')[:400]), flush=True); continue
+        if op == 'MetaCorrelation':
+            # The report now prints a separate study label. Its default number is not another statistic.
+            output = re.sub(r'(?m)[ \t]+study [0-9]+[ \t]*(?=\r?$)', '', output)
         ours = figures(output)
         if example.get('nocompare') is True:
             if ours: agreed += 1
@@ -1122,6 +1184,10 @@ FOLLOW_ON_NO_REPORT_STEP = {'CoxBaselineToWorksheet', 'LogisticRegressionFitToWo
 follow_on_problems = []; inherited_frames = 0; without_record = 0
 follow_on_runs = sorted(INHERITING.items()) + sorted((op, parent) for op, parents in ROUTED_PARENTS.items() for parent in parents if parent != INHERITING[op])
 for op, parent_op in follow_on_runs:
+    # A typed kappa table offers simulation inside its own dialog. The saved
+    # follow-on recipe for that table is covered by test_engine_5310.py.
+    if (op, parent_op) == ('KappaSimulateExactP', 'KappaScreen'):
+        continue
     try:
         parent_state = run_example(s, examples[parent_op], keep=True, extra=PARENT_ANSWERS.get(op))
         try: child = run_example(s, examples[op], parent=parent_state['jobId'], extra=FOLLOW_ON_ANSWERS.get(op), preferences={'use-default-ci': False} if op in FOLLOW_ON_ANSWERS else None)   # a level given is asked, not the default taken

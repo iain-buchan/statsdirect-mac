@@ -123,7 +123,8 @@ internal static class HostParameters {
             case OptionsParameter o: foreach (var option in o.Options) bag.AddInput(option.Name, input.TryGetProperty(option.Name, out var flag) && flag.GetBoolean()); return bag;
             case FrameParameter f:
                 bool longLayout = IsLongLayout(input);
-                var frame = longLayout ? PivotLongFrame(input, f, processor, context, host) : ReadFrame(input, f.SelectionMode, host, f.Operation?.Name == "ControlPlot" && f.Name == "X");
+                var frame = longLayout ? PivotLongFrame(input, f, processor, context, host) : ReadFrame(input, f.SelectionMode, host,
+                    f.Operation?.Name == "ControlPlot" && f.Name == "X", codingRows: CoxCodingRows(f, context));
                 var count = longLayout ? frame.VariableCount : input.GetProperty("columns").GetArrayLength();
                 // Windows pads pivoted groups of unequal size with missing values once the user accepts.
                 if (longLayout && f.ColumnsAreSameLength && frame.MinRows != frame.MaxRows) {
@@ -165,6 +166,17 @@ internal static class HostParameters {
         }
         bag.AddInput(p.Name, value); return bag;
     }
+    // Incomplete time or event rows cannot introduce a Cox predictor category.
+    static bool[] CoxCodingRows(FrameParameter parameter, ParameterBag context) {
+        if (parameter.Name != "predictors" || parameter.SelectionMode != DataAcquisitionMode.NumericCodingTextToDummiesPreserveRows ||
+            !context.TryGetValue("times", out var times) || times?.AsDataFrame?.Variables[0] is not DoubleVariable t ||
+            !context.TryGetValue("events", out var events) || events?.AsDataFrame?.Variables[0] is not DoubleVariable e)
+            return null;
+        var usable = new bool[Math.Min(t.Length, e.Length)];
+        for (int row = 0; row < usable.Length; row++)
+            usable[row] = t.Data[row] != Constant.MISSING && e.Data[row] != Constant.MISSING;
+        return usable;
+    }
     // Append only after validation, so retrying a rejected selection cannot duplicate columns.
     internal static void Commit(Parameter p, ParameterBag filled, ParameterBag context) {
         if (p is FrameParameter f && !string.IsNullOrEmpty(f.AppendToFrame) && filled.ContainsKey(f.Name)) {
@@ -174,7 +186,7 @@ internal static class HostParameters {
     }
     // reread: the columns a record points to are read again for an R script, without a host: the dummy-coding prompts are not
     // asked (a pointer frame was recorded 1:1 only when the coding was declined, so the declined result is the recorded one).
-    internal static DataFrame ReadFrame(JsonElement input, DataAcquisitionMode mode, OperationHost host = null, bool sequenceDates = false, bool reread = false) {
+    internal static DataFrame ReadFrame(JsonElement input, DataAcquisitionMode mode, OperationHost host = null, bool sequenceDates = false, bool reread = false, bool[] codingRows = null) {
         if (!input.TryGetProperty("columns", out var cols) || cols.ValueKind != JsonValueKind.Array || cols.GetArrayLength() == 0) throw new ArgumentException("Choose worksheet columns or enter data in the table.");
         var originMode = mode == DataAcquisitionMode.NumericCodingTextToDummiesPreserveRows ? DataAcquisitionMode.NumericPreserveRows : mode;
         bool alignedMixed = mode == DataAcquisitionMode.NumericCodingTextToDummiesPreserveRows;
@@ -184,6 +196,7 @@ internal static class HostParameters {
         if (mode == DataAcquisitionMode.NumericPreserveRows) mode = DataAcquisitionMode.NumericReplaceMissing;
         if (alignedMixed) mode = DataAcquisitionMode.NumericCodingTextToDummies;
         bool directOrigins = true;
+        bool CanCode(int row) => codingRows == null || row < codingRows.Length && codingRows[row];
         var frame = new DataFrame(); frame.Name = input.TryGetProperty("source", out var source) ? source.GetString() : "Entered data";
         if(mode==DataAcquisitionMode.CategoryCombineAllColumns) {
             // Matched categorical rows keep their positions; missing patterns never create a category.
@@ -222,7 +235,7 @@ internal static class HostParameters {
             bool coded = mode == DataAcquisitionMode.NumericCodingTextToCategories || mode == DataAcquisitionMode.NumericCodingTextToDummies;
             if (mode == DataAcquisitionMode.DateReplaceMissing) {frame.Variables.Add(new DateVariable(texts.Select(s=>missing(s)?DateTime.MinValue:ParseDate(s)).ToArray(),title));continue;}
             if (mode == DataAcquisitionMode.Text || mode == DataAcquisitionMode.TextWithFormulae || mode == DataAcquisitionMode.TextNoTitles) { frame.Variables.Add(new StringVariable(texts, title)); continue; }
-            if (mode == DataAcquisitionMode.CategoryReplaceMissing || mode == DataAcquisitionMode.CategoryCombineAllColumns || mode == DataAcquisitionMode.GroupIdentifiers || coded && texts.Any(s => !numeric(s))) {
+            if (mode == DataAcquisitionMode.CategoryReplaceMissing || mode == DataAcquisitionMode.CategoryCombineAllColumns || mode == DataAcquisitionMode.GroupIdentifiers || coded && texts.Where((_, row) => CanCode(row)).Any(s => !numeric(s))) {
                 // Windows's mixed acquisition mode is internal: transformed categorical inputs are snapshots, never numeric pointers.
                 if (alignedMixed) directOrigins = false;
                 if(mode==DataAcquisitionMode.CategoryReplaceMissing) {texts=Enumerable.Range(0,categoryLength).Select(r=>r>=texts.Length||missing(texts[r])?Formatting.MISSINGLABEL:texts[r]).ToArray();length=texts.Length;}
@@ -230,7 +243,7 @@ internal static class HostParameters {
                 var groups = new Dictionary<string, Group>();
                 var cv = new ClassifierVariable { Title = title, Data = Enumerable.Repeat(Constant.MISSING, length).ToArray() };
                 for (int r = 0; r < length; r++) {
-                    string text = texts[r]; if (missing(text)) continue;
+                    string text = texts[r]; if (!CanCode(r) || missing(text)) continue;
                     if (!groups.TryGetValue(text, out var group)) { group = new Group(text, groups.Count); groups.Add(text, group); }
                     bool missingLabel = alignedMixed ? text.Equals(Formatting.MISSINGLABEL, StringComparison.OrdinalIgnoreCase) : text.Contains(Formatting.MISSINGLABEL);
                     group.NBin++; cv.Data[r] = missingLabel ? Constant.MISSING : group.Id;
@@ -250,15 +263,20 @@ internal static class HostParameters {
                 if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double n) && double.IsFinite(n)) return n;
                 if (sequenceDates && DateTime.TryParseExact(s, new[] { "yyyy-MM-dd", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss.FFFFFFF", "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) && date.Year >= 100)
                     return date.ToOADate();
+                if (!CanCode(row)) {
+                    // Keep a snapshot when text in an excluded row has no numeric worksheet equivalent.
+                    directOrigins = false;
+                    return Constant.MISSING;
+                }
                 throw new ArgumentException($"{title}, row {row + 1}: ‘{s}’ is not numeric. Correct it or use * for a missing value.");
             }
             double[] data = texts.Select(number).ToArray();
             if (mode == DataAcquisitionMode.NumericSkipMissing) data = data.Where(n => n != Constant.MISSING).ToArray();
-            var observed = alignedMixed ? data.Where(n=>n!=Constant.MISSING).ToArray() : data;
+            var observed = alignedMixed ? data.Where((n,row)=>CanCode(row) && n!=Constant.MISSING).ToArray() : data;
             if(mode==DataAcquisitionMode.NumericCodingTextToDummies && observed.All(n=>n>=int.MinValue && n<=int.MaxValue && n==Math.Truncate(n))) {
                 var categories=observed.Distinct().ToArray();
                 if(categories.Length>2 && categories.Length<Math.Min(observed.Length,12)) {
-                    var classifier=new ClassifierVariable {Title=title,Data=data.Select(n=>alignedMixed && n==Constant.MISSING?Constant.MISSING:(double)Array.IndexOf(categories,n)).ToArray(),Groups=categories.Select((n,i)=>new Group(n.ToString(CultureInfo.InvariantCulture),i){NBin=observed.Count(v=>v==n)}).ToList()};
+                    var classifier=new ClassifierVariable {Title=title,Data=data.Select((n,row)=>!CanCode(row) || alignedMixed && n==Constant.MISSING?Constant.MISSING:(double)Array.IndexOf(categories,n)).ToArray(),Groups=categories.Select((n,i)=>new Group(n.ToString(CultureInfo.InvariantCulture),i){NBin=observed.Count(v=>v==n)}).ToList()};
                     var dummy=reread?null:StatsDirect.Builtins.Sheet.ToDummyVariables(host,classifier,true);
                     if(dummy!=null){directOrigins=false;foreach(var v in dummy.Variables)frame.Variables.Add(v);continue;}
                 }

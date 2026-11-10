@@ -7,6 +7,7 @@
 # deviation the same tests are rebuilt here and printed as R prints them: first assuming
 # equal variances and then not (R's default, the Welch test, whose t and df are StatsDirect's
 # t(d) and its fractional df), each with t, df, the two sided P and the confidence interval.
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 delta <- xbar1 - xbar2
 htest <- function(t, df, se, method) {
   ci <- delta + c(-1, 1) * qt((1 + confidence) / 2, df) * se

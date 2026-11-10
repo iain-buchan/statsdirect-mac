@@ -203,6 +203,9 @@ extension Viewer {
             metafiles = converted["metafiles"] as? Int ?? 0
         }
         guard results.reduce(0, { $0 + $1.body.utf8.count }) <= 30_000_000 else { throw LegacyReportError("The converted report is larger than 30 MB. Split it into smaller reports in the Windows application.") }
+        // Which results the shared recipes cover is the engine's to say from each saved record: asked before the tab is made, so that no
+        // empty report shows while it answers.
+        let recipes = await recipesAvailable(for: results.map(\.record))
         let doc = newDocument(kind: "report", title: title)
         doc.reportSourceURL = url
         if !legacy { doc.notebookImportProvenance = Self.savedNotebookProvenance(in: source.html) }
@@ -213,7 +216,7 @@ extension Viewer {
         let warningHTML = warnings.isEmpty ? "" : "<aside class='report-import-warning'><strong>Import notes</strong><ul>" + warnings.map { "<li>\(htmlEscape($0))</li>" }.joined() + "</ul></aside>"
         doc.reportEntries = results.enumerated().map { index, result in
             ReportEntry(id: UUID().uuidString, title: result.title, operation: result.operation, body: (index == 0 ? warningHTML : "") + result.body, record: result.record,
-                        recipe: result.record != nil && recipeAvailable(for: result.operation), helpPath: result.helpPath)
+                        recipe: recipes[index], helpPath: result.helpPath)
         }
         activeReportID = doc.id; renderReport(doc)
         status.stringValue = "Opened \(url.lastPathComponent)" + (warnings.isEmpty ? "" : " · Review the import notes in the report")

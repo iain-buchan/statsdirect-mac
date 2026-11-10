@@ -8,6 +8,7 @@
 # approximation, with the standard error of the difference from each sample's own variance.
 six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
 pv <- function(p) if (p < 0.0001) "P < 0.0001" else paste("P =", formatC(p, digits = 4, format = "f"))
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 x <- samples[[1]][!is.na(samples[[1]])]
 y <- samples[[2]][!is.na(samples[[2]])]

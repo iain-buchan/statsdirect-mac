@@ -6,7 +6,10 @@
 
 rname <- function(s) { s <- tolower(s); s <- gsub("[^a-z0-9._]", ".", s); if (!grepl("^[a-z]", s)) s <- paste0(".", s); if (grepl("^\\.[0-9]", s)) s <- paste0(".", s); s }   # names as the program makes them for R
 d <- data.frame(Hgb, as.data.frame(eGFR, optional = TRUE), check.names = FALSE)
-names(d) <- sapply(names(d), rname)
+# Predictors of the same title are told apart as the record keeps them (X, X_2), and
+# names that are still the same made unique, as the program names them for R
+record_titles <- function(titles) { kept <- character(0); for (t in titles) { u <- t; n <- 2L; while (u %in% kept) { u <- paste0(t, "_", n); n <- n + 1L }; kept <- c(kept, u) }; kept }
+names(d) <- c(rname(names(d)[1]), make.unique(vapply(record_titles(names(d)[-1]), rname, "")))
 names(d)[1] <- trimws(sub("~.*$", "", model))   # the outcome as the run's formula names it
 # LOESS curve fitting: the StatsDirect help example (haemoglobin against kidney
 # function in 804 people with type 2 diabetes) in R

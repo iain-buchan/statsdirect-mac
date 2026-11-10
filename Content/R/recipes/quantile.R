@@ -4,7 +4,7 @@
 # settings: p = quantile, conf = gamma, conservative = conservative-ci
 
 if (is.null(p) || p <= 0 || p >= 1) p <- 0.5
-if (is.null(conf)) conf <- 0.95
+if (is.null(conf) || !is.finite(conf) || conf <= 0 || conf >= 1) conf <- 0.95
 if (is.null(conservative)) conservative <- FALSE
 quantile_summary <- function(values) {
   x <- sort(values[!is.na(values)])

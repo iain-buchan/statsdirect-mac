@@ -59,7 +59,9 @@ dev <- fit$deviance
 lr <- if (intercept) max(0, fit$null.deviance - dev) else NA_real_
 cat("Deviance goodness of fit chi-square =", six(dev), " df =", fit$df.residual, " ",
     pv(if (fit$df.residual > 0) pchisq(dev, fit$df.residual, lower.tail = FALSE) else NA_real_), "\n")
-df_lr <- fit$df.null - fit$df.residual
+# Without an intercept the report counts the df from the intercept-only model, as
+# it does with one (R's null model is then the zero model, with one df more)
+df_lr <- fit$df.null - fit$df.residual - as.integer(!intercept)
 cat("Deviance (likelihood ratio) chi-square =", six(lr), " df =", df_lr, " ",
     pv(if (df_lr > 0) pchisq(lr, df_lr, lower.tail = FALSE) else NA_real_), "\n")
 s <- summary(fit)$coefficients
@@ -77,9 +79,10 @@ cat("logit =", if (intercept) six(s[1, 1]) else "", paste0(ifelse(slopes >= 0, "
 # log p or log(1 - p) (without the binomial coefficients that R's logLik adds), the
 # information criteria are on the deviance scale (deviance + 2k, deviance + k log n
 # for the n rows of data), and the two pseudo R-squares are 1 minus the ratio of
-# the deviances and 1 minus the ratio of the log likelihoods (McFadden's)
+# the deviances and 1 minus the ratio of the log likelihoods (McFadden's). Rows
+# with a prior weight of zero add nothing to the likelihood, and are not in n
 k <- length(coef(fit))
-n <- length(total)
+n <- if (is.null(weight)) length(total) else sum(weight > 0)
 p <- fitted(fit)
 w <- if (is.null(weight)) 1 else weight   # the prior weights, as the report weights the rows
 ll <- sum(w * (responders * log(p) + (total - responders) * log(1 - p)))
@@ -115,16 +118,19 @@ sd_hl <- sd_hl[positive, , drop = FALSE]
 sd_hl_predictors <- lapply(sd_hl_predictors, function(v) v[positive])
 sd_hl$p <- sd_hl$expected / sd_hl$total
 sd_hl <- sd_hl[do.call(order, unname(c(list(sd_hl$p), sd_hl_predictors))), , drop = FALSE]
+# Cuts are decided within 1e-9 of the total, so that decimal weights whose exact
+# sum lands on a cut do not move with rounding or with the order of the rows
 ntot <- sum(sd_hl$total)
 ndiv <- ntot / 10
-ncut <- floor(ndiv)
+eps <- 1e-9 * ntot
+ncut <- floor(ndiv + eps)
 ncum <- 0
 g <- 1L
 group <- integer(nrow(sd_hl))
 for (i in seq_len(nrow(sd_hl))) {
-  if (ncum > 0 && ncum >= ncut && g < 10L) {
+  if (ncum > 0 && ncum >= ncut - eps && g < 10L) {
     g <- g + 1L
-    ncut <- floor(max(ncum + ndiv, g * ndiv))
+    ncut <- floor(max(ncum + ndiv, g * ndiv) + eps)
   }
   group[i] <- g
   ncum <- ncum + sd_hl$total[i]

@@ -2,12 +2,14 @@
 # From the help's R code (parametric_methods/reference_range.htm); the data and settings above come from the run.
 # data: igm
 # settings: confidence = gamma, range = reference-interval, conservative = do_conservative
+# hand-edited: a confidence level of 0% or 100% is taken as 95%, as the report takes it
 
 # Reference range: the StatsDirect help example (Altman 1991, serum IgM in 298
 # children) in R
 # The data are the IgM column of the Parametric worksheet of the StatsDirect test
 # workbook.
 igm <- igm[!is.na(igm)]
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 rpct <- paste0(100 * range, "%")
 n <- length(igm)

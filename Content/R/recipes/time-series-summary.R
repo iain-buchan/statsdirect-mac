@@ -2,6 +2,7 @@
 # From the help's R code (basic_descriptive_statistics/time_series.htm); the data and settings above come from the run.
 # data: time = times, zidovudine = observations, patient = subjectIds, group = groups
 # settings: confidence = ci, zero_at_start = addZeroObservationAtZeroTime
+# hand-edited: a confidence level of 0% or 100% is taken as 95%, as the report takes it
 
 if (isTRUE(zero_at_start) && !any(time == 0)) {   # an observation of 0 at time 0 for each subject, as the run asked
   ids <- unique(patient); first <- match(ids, patient)
@@ -14,6 +15,7 @@ d <- data.frame(Time = time, Zidovudine = zidovudine, Patient = patient, Group =
 # The data are the Group, Time, Zidovudine and Patient columns of the Other
 # worksheet of the StatsDirect test workbook.
 # 2 decimal places, with halves rounded up as StatsDirect rounds them
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 two <- function(x) {
   formatC(sign(x) * floor(abs(x) * 100 + 0.5 + 1e-9) / 100, digits = 2, format = "f",

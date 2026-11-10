@@ -2,6 +2,7 @@
 # From the help's R code (survival_analysis/cox_regression.htm); the data and settings above come from the run.
 # data: time = times, censor = events, predictors... = predictors, stratum = strata
 # settings: confidence = gamma
+# hand-edited: a confidence level of 0% or 100% is taken as 95%, as the report takes it
 
 # Cox (proportional hazards) regression: the StatsDirect help example (Armitage and
 # Berry 1994, survival in days of lymphoma patients by stage of disease; the test
@@ -14,7 +15,7 @@ library(survival)
 # gives b = 0.961322 here). The report's z and P are the Wald test of each
 # coefficient, its deviance chi-square is R's likelihood ratio test, and its hazard
 # ratio and selected confidence limits are exp(coef) and Wald limits.
-if (!exists("confidence") || is.null(confidence)) confidence <- 0.95
+if (!exists("confidence") || is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 sd_data <- as.data.frame(predictors, optional = TRUE)
 sd_own <- tail(make.unique(c(names(sd_data), "time", "censor", "sd_stratum")), 3)
 sd_data[sd_own] <- list(time, censor, if (is.null(stratum)) rep(1, length(time)) else stratum)

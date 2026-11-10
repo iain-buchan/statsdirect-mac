@@ -1,18 +1,12 @@
 import Cocoa
 import WebKit
 
-/// A recipe of the shared manifest (Content/R/analysis-recipes.json): the R file that reproduces an analysis and what it says of itself.
-struct RRecipe {
-    var file: String
-    var detail: String
-}
-
 // The record of a run is the engine's (RunRecord, shared with Windows): the report keeps its JSON text with each result, and the
 // R script is written from it on demand by the engine's RScriptWriter (the statsdirect_r_script entry). This file supplies what the
-// engine cannot know: the record's friendly title for the entry, the manifest of recipes for results whose recipe flag the engine
-// did not give (reports reopened from a file), the validation of records read back from files, and the values of the worksheet
-// columns a record points to when it does not hold them: from the grid when the workbook is open, else from the file read through
-// the engine, else the reason they could not be read.
+// engine cannot know: the record's friendly title for the entry, the validation of records read back from files, and the values of
+// the worksheet columns a record points to when it does not hold them: from the grid when the workbook is open, else from the file
+// read through the engine, else the reason they could not be read. Which recipe a record has is the engine's to say, from its copy of
+// the shared manifest (the completed snapshot's flag, and Viewer.recipesAvailable for records read back from files).
 enum RunRecordR {
     struct Failure: LocalizedError { let message: String; var errorDescription: String? { message } }
     static let maxColumn = 16384, maxRow = 1_048_576
@@ -23,16 +17,6 @@ enum RunRecordR {
     static func title(of record: String) -> String? {
         guard let object = try? JSONSerialization.jsonObject(with: Data(record.utf8)) as? [String: Any], let title = object["title"] as? String, !title.isEmpty else { return nil }
         return title
-    }
-    /// The manifest of recipes in the program's R folder, operation name to recipe.
-    static func manifest(resources: URL) -> [String: RRecipe] {
-        guard let data = try? Data(contentsOf: resources.appendingPathComponent("R/analysis-recipes.json")),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: [String: Any]] else { return [:] }
-        var result: [String: RRecipe] = [:]
-        // Shared entries may also carry nested parentFiles routing. The engine
-        // resolves that routing from the saved record when writing the script.
-        for (operation, entry) in object { if let file = entry["file"] as? String { result[operation] = RRecipe(file: file, detail: entry["detail"] as? String ?? "") } }
-        return result
     }
     /// A whole number, as the record's version, columns and rows are (a JSON boolean is not one).
     static func integer(_ value: Any?) -> Int? {

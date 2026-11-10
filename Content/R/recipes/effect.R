@@ -27,9 +27,9 @@ k <- length(en)
 # deviation; d is g corrected for its small sample bias by J(N - 2), computed from
 # the gamma function (lgamma is its logarithm), or from the usual approximation
 # 1 - 3 / (4m - 1) when N - 2 is 200 or more
-six <- function(x) formatC(x, digits = 6, format = "f", drop0trailing = TRUE)
+six <- function(x) ifelse(is.na(x), "*", formatC(x, digits = 6, format = "f", drop0trailing = TRUE))
 pv <- function(p) {
-  if (p < 0.0001) "P < 0.0001" else
+  if (is.na(p)) "P = *" else if (p < 0.0001) "P < 0.0001" else
     paste("P =", formatC(p, digits = 4, format = "f", drop0trailing = TRUE))
 }
 n <- en + cn
@@ -104,9 +104,10 @@ if (k >= 2 && confidence > 0 && confidence < 1) {
     }
     lim <- c(lambda((1 + confidence) / 2), lambda((1 - confidence) / 2))
     i2_ci <- 100 * lim / (df_i2 + lim)
-  } else if (k >= 3) {
+  } else if (k >= 3 || Q > k) {
     # Test-based log(H) interval (Higgins & Thompson, 2002), as in
-    # StatsDirect's MIT Meta.IsquareNcc. H is at least one.
+    # StatsDirect's MIT Meta.IsquareNcc. H is at least one; with two studies
+    # only Q > k gives a standard error (the first form below).
     h2 <- max(1, Q / df_i2)
     se_log_h <- if (Q > k) 0.5 * (log(Q) - log(df_i2)) /
       (sqrt(2 * Q) - sqrt(2 * k - 3)) else
@@ -143,21 +144,34 @@ print(data.frame(trial, fixed = six(100 * w / sum(w)),
 # program uses tau-b with a normal approximation and a continuity correction instead).
 # The report notes the test's low power with fewer than eleven studies. Egger's test
 # regresses the standard normal deviate d / se on the precision 1 / se: the
-# intercept estimates the bias, judged here with a 90% interval on k - 2 degrees
-# of freedom
+# intercept estimates the bias, judged on k - 2 degrees of freedom. The report gives
+# the bias indicators only with more than three studies.
 se <- sqrt(vard)
-ts <- (d - dplus) / sqrt(vard - 1 / sum(w))
-begg <- cor.test(ts, vard, method = "kendall", exact = TRUE, conf.level = confidence)
-power_note <- if (k < 11) "(low power)" else ""
 cat("Bias indicators\n")
-cat("Begg-Mazumdar: Kendall's tau =", six(begg$estimate), " ", pv(begg$p.value),
-    power_note, "\n")
-egger <- lm(I(d / se) ~ I(1 / se))
-bias <- coef(summary(egger))[1, ]
-ci <- confint(egger, level = 0.9)[1, ]
-cat("Egger: bias = ", six(bias["Estimate"]), " (90% CI = ",
-    six(ci[1]), " to ", six(ci[2]), ")  ",
-    pv(bias["Pr(>|t|)"]), "\n", sep = "")
+# Egger's interval is at the level of the bias tests, twice the analysis's alpha
+# (90% for a 95% analysis); as the report has it, there is no figure when every
+# study has the same precision or the line fits every study exactly
+bias_level <- 1 - 2 * (1 - confidence)
+if (!(bias_level > 0 && bias_level < 1)) bias_level <- 0.9
+if (k > 3) {
+  ts <- (d - dplus) / sqrt(vard - 1 / sum(w))
+  begg <- cor.test(ts, vard, method = "kendall", exact = TRUE, conf.level = confidence)
+  power_note <- if (k < 11) "(low power)" else ""
+  cat("Begg-Mazumdar: Kendall's tau =", six(begg$estimate), " ", pv(begg$p.value),
+      power_note, "\n")
+  egger <- lm(I(d / se) ~ I(1 / se))
+  if (diff(range(1 / se)) > 1e-12 * max(1 / se) && sum(residuals(egger)^2) > 1e-12 * sum((d / se)^2)) {
+    bias <- coef(summary(egger))[1, ]
+    ci <- confint(egger, level = bias_level)[1, ]
+  } else {
+    bias <- c(Estimate = NA, "Pr(>|t|)" = NA)
+    ci <- c(NA, NA)
+  }
+  egger_figures <- unname(c(bias["Estimate"], ci, bias["Pr(>|t|)"]))
+  cat("Egger: bias = ", six(bias["Estimate"]), " (", round(100 * bias_level, 2), "% CI = ",
+      six(ci[1]), " to ", six(ci[2]), ")  ",
+      pv(bias["Pr(>|t|)"]), "\n", sep = "")
+} else cat("Bias indicators need more than three studies with an estimate\n")
 
 # The bias assessment plot that follows in the report: each study's d against its
 # standard error, with the smallest standard errors at the top, the fixed effects

@@ -9,6 +9,7 @@
 keep <- complete.cases(career, psychology)
 career <- career[keep]
 psychology <- psychology[keep]
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 n <- length(career)
 

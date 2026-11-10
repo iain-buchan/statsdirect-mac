@@ -5,6 +5,7 @@
 # hand-edited: the selected confidence level and complete pairs or differences come from the run
 
 # Wilcoxon signed ranks test: the StatsDirect help example (Conover 1999) in R
+if (is.null(confidence) || !is.finite(confidence) || confidence <= 0 || confidence >= 1) confidence <- 0.95
 pct <- paste0(100 * confidence, "%")
 if (is.null(second)) {
   d <- first[!is.na(first)]                 # one column already contains differences

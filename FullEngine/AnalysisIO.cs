@@ -100,8 +100,9 @@ public static class AnalysisIO {
         Check(); // A cancelled simulation may return partial output: never publish it as a completed report.
         return new { html = host.Html.ToString(), values = Scalars(result), input, total, warnings = host.Warnings,
             operation = "ExactChiRbyCScreen", exactSkipped = input.DoExact && total > 100000,
-            // The engine's record of the run (the table as an entered frame and the settings) and whether the shared recipes cover it.
-            record = host.Record, recipe = StatsDirect.R.RRecipes.Has("ExactChiRbyCScreen") };
+            // The engine's record of the run (the table as an entered frame and the settings) and whether the shared recipes cover it:
+            // the recipe the script writer would use for that record, as the completed snapshot of an operation says.
+            record = host.Record, recipe = RScriptIO.HasRecipe(host.Record, "ExactChiRbyCScreen") };
     }
     static Dictionary<string, object> Scalars(ParameterBag bag) {
         var result = new Dictionary<string, object>();

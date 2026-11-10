@@ -176,9 +176,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var activeReportID: String?
     var checkingUpdates = false
     var updateTimer: Timer?
-    // Results whose R script is being generated (one pane per click) and the recipe manifest, read once.
+    // Results whose R script is being generated (one pane per click).
     var rGenerating = Set<String>()
-    var recipeManifestCache: [String: RRecipe]?
     var libraryHandle: UnsafeMutableRawPointer?
     var root: URL { Bundle.main.resourceURL!.appendingPathComponent("Content") }
     var engineInfo: [String: String] {

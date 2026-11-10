@@ -2,11 +2,21 @@ import Cocoa
 import WebKit
 
 extension Viewer {
-    /// Whether the operation has an R recipe (Content/R/analysis-recipes.json), read once: for results whose recipe flag the engine
-    /// did not supply with their record, such as a report reopened from a file.
-    func recipeAvailable(for operation: String) -> Bool {
-        if recipeManifestCache == nil { recipeManifestCache = RunRecordR.manifest(resources: root) }
-        return !operation.isEmpty && recipeManifestCache?[operation] != nil
+    /// Whether the shared R recipes hold one for each of the records, in their order: for results whose recipe flag did not come with
+    /// a run's completed output, those of a report or notebook reopened from a file. The engine answers from the record (the `recipes`
+    /// request of its script entry: the recipe its writer would use), not from the operation's name alone, so a follow-on whose recipe
+    /// depends on the analysis it continued is offered Continue in R only when its saved record still says which that was, and Open
+    /// Data and Settings in R otherwise, as the Windows report offers it. A result without a record has none, and so has every result
+    /// when the engine cannot answer.
+    func recipesAvailable(for records: [String?]) async -> [Bool] {
+        let texts = records.compactMap { $0 }
+        guard !texts.isEmpty else { return records.map { _ in false } }
+        let answered: [Bool]? = await withCheckedContinuation { continuation in
+            analysisRequest(["recipes": texts], entry: "statsdirect_r_script") { continuation.resume(returning: (try? $0.get())?["recipes"] as? [Bool]) }
+        }
+        guard let flags = answered, flags.count == texts.count else { return records.map { _ in false } }
+        var next = flags.makeIterator()
+        return records.map { $0 == nil ? false : next.next() ?? false }
     }
     func handleReport(_ message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, let web = message.webView, let doc = document(for: web),

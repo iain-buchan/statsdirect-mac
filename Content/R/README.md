@@ -31,7 +31,9 @@ observations.
 A data item may bind an input of the run by its name: `name = input` takes the first column of the input of that name, and
 `name... = input` all of its columns as a named list. When the run has no such input the variable is set to `NULL`, so that a recipe
 can test for an optional frame (stratum labels, weights, a group identifier) and supply a default. Items without `= input` take the
-columns in order, as before. Example: `# data: time = times, event = deaths, group = groups`.
+columns in order, as before. Example: `# data: time = times, event = deaths, group = groups`. The record keeps repeated worksheet
+titles apart (`dup`, `dup_2`); a recipe that names a list's items by the titles themselves, as the report does, says so with
+`# titles: q`, and `q` is then named by the titles the run recorded, repeated ones included.
 
 Most recipes are generated from the help's R sections by a script kept with the maintainer's tooling, from a table of bindings per
 operation; the generated files are written whole and must not be edited by hand. Those marked `# hand-edited` are written by hand

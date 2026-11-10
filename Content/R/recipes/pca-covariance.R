@@ -2,7 +2,8 @@
 # From the help's R code (regression_and_correlation/pca.htm); the data and settings above come from the run.
 # data: q... = data
 # settings: correct = correctForReversal, confidence = ci
-# hand-edited: omit incomplete subjects before components and reliability estimates
+# titles: q
+# hand-edited: omit incomplete subjects before components and reliability estimates; items keep their worksheet titles
 
 q <- as.data.frame(q, check.names = FALSE)
 q <- q[complete.cases(q), , drop = FALSE]

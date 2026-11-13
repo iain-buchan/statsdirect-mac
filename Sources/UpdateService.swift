@@ -13,17 +13,46 @@ struct AppVersion: Comparable {
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.parts.lexicographicallyPrecedes(rhs.parts) }
 }
 
-struct PublishedUpdate {
+struct PublishedUpdate: Sendable {
     let version: String
     let url: URL
+    let archive: UpdateArchive?
+    /// The version as a user reads it: the release tag without its leading v.
+    var displayVersion: String { version.hasPrefix("v") ? String(version.dropFirst()) : version }
+
+    init(version: String, url: URL, archive: UpdateArchive? = nil) {
+        self.version = version
+        self.url = url
+        self.archive = archive
+    }
 }
 
-enum UpdateStatus {
+struct UpdateArchive: Sendable {
+    let url: URL
+    let sha256: String
+    let size: Int64
+
+    static let maximumSize: Int64 = 512 * 1024 * 1024
+
+    static func canonicalURL(tag: String) -> URL? {
+        guard AppVersion(tag) != nil else { return nil }
+        let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        return UpdateService.releases.appendingPathComponent("download").appendingPathComponent(tag)
+            .appendingPathComponent("StatsDirect-\(version)-macOS-arm64.zip")
+    }
+
+    static func isSHA256(_ value: String) -> Bool {
+        value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) }
+    }
+}
+
+enum UpdateStatus: Sendable {
     case available(PublishedUpdate), current, noRelease
 }
 
 enum UpdateService {
     static let releases = URL(string: "https://github.com/iain-buchan/statsdirect-mac/releases")!
+    static let revisions = URL(string: "https://www.statsdirect.com/Revisions.aspx")!
     static let latestRelease = releases.appendingPathComponent("latest")
     static let endpoint = URL(string: "https://api.github.com/repos/iain-buchan/statsdirect-mac/releases/latest")!
     struct Release: Decodable {
@@ -31,6 +60,30 @@ enum UpdateService {
         let html_url: URL
         let draft: Bool
         let prerelease: Bool
+    }
+    private struct ReleaseAssets: Decodable {
+        struct Asset: Decodable {
+            let name: String?
+            let browser_download_url: String?
+            let state: String?
+            let size: Int64?
+            let digest: String?
+        }
+        let assets: [Asset]
+    }
+
+    private static func archive(_ data: Data, tag: String) -> UpdateArchive? {
+        // Bad or missing asset metadata must leave the official release page available.
+        guard let expectedURL = UpdateArchive.canonicalURL(tag: tag),
+              let metadata = try? JSONDecoder().decode(ReleaseAssets.self, from: data) else { return nil }
+        let matches = metadata.assets.filter { $0.name == expectedURL.lastPathComponent }
+        guard matches.count == 1, let asset = matches.first,
+              asset.browser_download_url == expectedURL.absoluteString, asset.state == "uploaded",
+              let size = asset.size, size > 0, size <= UpdateArchive.maximumSize,
+              let digest = asset.digest, digest.hasPrefix("sha256:") else { return nil }
+        let sha256 = String(digest.dropFirst("sha256:".count))
+        guard UpdateArchive.isSHA256(sha256) else { return nil }
+        return UpdateArchive(url: expectedURL, sha256: sha256.lowercased(), size: size)
     }
     static func interpret(_ data: Data, status: Int, installed: String) throws -> UpdateStatus {
         guard let current = AppVersion(installed) else { throw failure("The installed version could not be read.") }
@@ -44,7 +97,8 @@ enum UpdateService {
               release.html_url.path == releases.path + "/tag/" + release.tag_name else {
             throw failure("GitHub returned an unrecognised release. Check the project's releases page.")
         }
-        return version > current ? .available(PublishedUpdate(version: release.tag_name, url: release.html_url)) : .current
+        guard version > current else { return .current }
+        return .available(PublishedUpdate(version: release.tag_name, url: release.html_url, archive: archive(data, tag: release.tag_name)))
     }
     private static func isReleaseURL(_ url: URL) -> Bool {
         url.scheme == "https" && url.host == "github.com" && url.user == nil && url.password == nil && url.port == nil && url.query == nil && url.fragment == nil
@@ -70,7 +124,7 @@ enum UpdateService {
         request.setValue("StatsDirect-Mac/\(installed)", forHTTPHeaderField: "User-Agent")
         do {
             let (data, response) = try await session.data(for: request)
-            guard let response = response as? HTTPURLResponse else { throw failure("GitHub returned an unreadable response.") }
+            guard let response = response as? HTTPURLResponse, response.url == endpoint else { throw failure("GitHub returned an unrecognised update response.") }
             return try interpret(data, status: response.statusCode, installed: installed)
         } catch {
             if Task.isCancelled || (error as? URLError)?.code == .cancelled { throw error }

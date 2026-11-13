@@ -174,8 +174,13 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var running = false
     var reportNumber = 0
     var activeReportID: String?
-    var checkingUpdates = false
-    var updateTimer: Timer?
+    var updateCheckTask: Task<Void, Never>?
+    var updateDownloadTask: Task<Void, Never>?
+    var updateDownloadSheet: NSWindow?
+    var pendingUpdateNotice: UpdateNotice?
+    var offeredUpdate = false
+    var updateHostStopped = false
+    var stagedUpdate: (StagedUpdate, URL)?
     // Results whose R script is being generated (one pane per click).
     var rGenerating = Set<String>()
     var libraryHandle: UnsafeMutableRawPointer?
@@ -362,7 +367,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if menuItem.action == #selector(saveDocument), NSApp.keyWindow?.windowController is RConsolePDFWindow {
             menuItem.title = "Save PDF…"; return true
         }
-        if menuItem.action == #selector(checkUpdates) { return !checkingUpdates && window.attachedSheet == nil }
+        if menuItem.action == #selector(checkUpdates) {
+            return !updateHostStopped && updateCheckTask == nil && updateDownloadTask == nil && window.attachedSheet == nil
+        }
         if menuItem.action == #selector(toggleAutomaticUpdates) { menuItem.state = automaticUpdates ? .on : .off; return true }
         if menuItem.action == #selector(currentMethodHelp) { return calculatorPane.isFocused || active?.operationName != nil || active?.kind == "analysis" }
         if menuItem.action == #selector(reportFormatCommand(_:)) {
@@ -770,12 +777,16 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         let allowed = approveApplicationClose()
         closeApproved = allowed
-        if allowed { helpPane.shutdown(); calculatorPane.shutdown(); scriptAI.shutdown() }
+        if allowed {
+            stopUpdateHost()
+            helpPane.shutdown(); calculatorPane.shutdown(); scriptAI.shutdown()
+        }
         return allowed
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if consoleQuitPending { return .terminateLater }
-        guard approveApplicationClose() else { return .terminateCancel }
+        guard approveApplicationClose() else { cancelStagedUpdate(); return .terminateCancel }
+        stopUpdateHost()
         if prepareConsoleTermination(completion: { sender.reply(toApplicationShouldTerminate: true) }) {
             consoleQuitPending = true
             return .terminateLater
@@ -804,10 +815,23 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         return true
     }
-    func applicationWillTerminate(_ notification: Notification) { helpPane.shutdown(); calculatorPane.shutdown(); scriptAI.shutdown(); if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }; RInstaller.shared.shutdown(); chatGPTTutor.runtime?.shutdown(); chatGPTTutor.shutdown(); for doc in documents { doc.rPane?.shutdown(); doc.rConsolePane?.shutdown() }; closeOpenWorkbooks(); SnapshotStore.shared.shutdown() }
+    func applicationWillTerminate(_ notification: Notification) {
+        helpPane.shutdown()
+        calculatorPane.shutdown()
+        scriptAI.shutdown()
+        if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }
+        RInstaller.shared.shutdown()
+        chatGPTTutor.runtime?.shutdown()
+        chatGPTTutor.shutdown()
+        for doc in documents { doc.rPane?.shutdown(); doc.rConsolePane?.shutdown() }
+        closeOpenWorkbooks()
+        SnapshotStore.shared.shutdown()
+        launchStagedUpdate()
+    }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 MainActor.assumeIsolated {
+    guard !UpdateInstaller.runIfRequested() else { return }
     let app = NSApplication.shared; app.setActivationPolicy(.regular)
     let delegate = Viewer(); app.delegate = delegate; app.run()
 }

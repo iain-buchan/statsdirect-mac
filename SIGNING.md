@@ -92,6 +92,8 @@ Apple Developer ID, and published. Nothing in this repository or its workflows h
    **Latest**. Only then update the public download link or its `StatsDirect-macOS-arm64.zip` alias to the verified
    signed and notarised ZIP. **Help → Check for Updates** in earlier installations then offers it: the updater uses
    GitHub's latest stable release and excludes drafts and pre-releases. Keep the previous release's assets intact.
+   The in-app installer uses the versioned ZIP and its GitHub asset digest. It accepts an update signed by the same
+   Developer ID team as the running app. If a release moves to a different signing team, install that release manually.
 
 ## Why these choices
 

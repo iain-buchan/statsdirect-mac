@@ -70,10 +70,13 @@ jobs:
           python3 Tests/test_packaged_content.py "$PWD/StatsDirect.app"
       - name: AppKit R quit lifecycle
         run: bash Scripts/test-r-console-termination.sh "$PWD/StatsDirect.app/Contents/MacOS/RConsoleWorker"
-      - name: Update discovery
+      - name: Update discovery and installation
         run: |
-          swiftc -g -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache Sources/UpdateService.swift Tests/update-service-test.swift -o .build/update-service-test
+          swiftc -g -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache Sources/UpdateService.swift Sources/UpdateDownload.swift Tests/update-service-test.swift -o .build/update-service-test
           .build/update-service-test --app "$PWD/StatsDirect.app"
+          swiftc -g -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache Sources/UpdateService.swift Sources/UpdateDownload.swift Sources/UpdateInstaller.swift Tests/update-installer-test.swift -o .build/update-installer-test
+          .build/update-installer-test
+          bash Scripts/test-update-host.sh
       - name: Engine and R comparison tests
         run: ./test.sh
       - name: Worksheet column selection gestures

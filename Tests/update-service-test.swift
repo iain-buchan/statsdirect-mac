@@ -1,7 +1,11 @@
 import Foundation
+import CryptoKit
 
 private final class UpdateFixture: URLProtocol {
- enum Reply { case error(URLError.Code), response(URL, Int, Data) }
+ enum Reply {
+  case error(URLError.Code), response(URL, Int, Data, headers: [String:String] = [:])
+  case hold(URL, Data, @Sendable () -> Void)
+ }
  static var replies: [Reply] = []
  static var requests: [URL] = []
  override class func canInit(with request: URLRequest) -> Bool { true }
@@ -11,9 +15,13 @@ private final class UpdateFixture: URLProtocol {
   precondition(!Self.replies.isEmpty, "Unexpected update request")
   switch Self.replies.removeFirst() {
    case .error(let code): client?.urlProtocol(self,didFailWithError:URLError(code))
-   case .response(let url,let status,let data):
-    client?.urlProtocol(self,didReceive:HTTPURLResponse(url:url,statusCode:status,httpVersion:nil,headerFields:nil)!,cacheStoragePolicy:.notAllowed)
+   case .response(let url,let status,let data,let headers):
+    client?.urlProtocol(self,didReceive:HTTPURLResponse(url:url,statusCode:status,httpVersion:nil,headerFields:headers)!,cacheStoragePolicy:.notAllowed)
     client?.urlProtocol(self,didLoad:data);client?.urlProtocolDidFinishLoading(self)
+   case .hold(let url,let data,let started):
+    client?.urlProtocol(self,didReceive:HTTPURLResponse(url:url,statusCode:200,httpVersion:nil,headerFields:nil)!,cacheStoragePolicy:.notAllowed)
+    client?.urlProtocol(self,didLoad:data)
+    started()
   }
  }
  override func stopLoading() {}
@@ -21,8 +29,10 @@ private final class UpdateFixture: URLProtocol {
 
 @main struct UpdateTests {
  static func main() async throws {
-  func release(_ version:String="v0.4.0", _ url:String?=nil, draft:Bool=false, prerelease:Bool=false) throws -> Data {
-   try JSONSerialization.data(withJSONObject:["tag_name":version,"html_url":url ?? "https://github.com/iain-buchan/statsdirect-mac/releases/tag/" + version,"draft":draft,"prerelease":prerelease])
+  func release(_ version:String="v0.4.0", _ url:String?=nil, draft:Bool=false, prerelease:Bool=false, assets:[[String:Any]]?=nil) throws -> Data {
+   var value: [String:Any] = ["tag_name":version,"html_url":url ?? "https://github.com/iain-buchan/statsdirect-mac/releases/tag/" + version,"draft":draft,"prerelease":prerelease]
+   if let assets { value["assets"] = assets }
+   return try JSONSerialization.data(withJSONObject:value)
   }
   assert(AppVersion("v0.10.0")! > AppVersion("0.9.9")!)
   assert(AppVersion("0.3")! == AppVersion("0.3.0")!)
@@ -35,9 +45,41 @@ private final class UpdateFixture: URLProtocol {
   for url in ["http://github.com/iain-buchan/statsdirect-mac/releases/tag/v0.4.0","https://other.example/release","https://github.com/other/repo/releases/tag/v0.4.0"] {do {_ = try UpdateService.interpret(release("v0.4.0",url),status:200,installed:"0.3.2");fatalError("Untrusted update link accepted")}catch{}}
   do {_ = try UpdateService.interpret(Data("not JSON".utf8),status:200,installed:"0.3.2");fatalError("Malformed JSON accepted")}catch{}
   print("PASS: version comparison, updates, no releases, draft/prerelease exclusion, HTTP failures, malformed responses and trusted release URLs")
+  // The public v1.1.1 release includes both this versioned asset and an unversioned alias.
+  let archiveURL = URL(string:"https://github.com/iain-buchan/statsdirect-mac/releases/download/v1.1.1/StatsDirect-1.1.1-macOS-arm64.zip")!
+  let archiveDigest = "e56456d8971e4c5537c045e217d4e83c9fe631522cdac37cabb704451d7ed098"
+  let asset: [String:Any] = ["name":archiveURL.lastPathComponent,"browser_download_url":archiveURL.absoluteString,
+                             "state":"uploaded","size":68_885_468,"digest":"sha256:" + archiveDigest]
+  var alias = asset
+  alias["name"] = "StatsDirect-macOS-arm64.zip"
+  alias["browser_download_url"] = archiveURL.deletingLastPathComponent().appendingPathComponent("StatsDirect-macOS-arm64.zip").absoluteString
+  let publicRelease = try release("v1.1.1",assets:[asset,alias])
+  guard case .available(let releaseWithArchive) = try UpdateService.interpret(publicRelease,status:200,installed:"1.1.0"),
+        let archive = releaseWithArchive.archive else { fatalError("The current GitHub asset shape was not recognised") }
+  precondition(archive.url == archiveURL && archive.sha256 == archiveDigest && archive.size == 68_885_468)
+  let invalidFields: [(String,Any)] = [
+   ("browser_download_url", "https://example.org/" + archiveURL.lastPathComponent),
+   ("browser_download_url", archiveURL.absoluteString.replacingOccurrences(of:"/iain-buchan/",with:"/other/")),
+   ("browser_download_url", archiveURL.absoluteString.replacingOccurrences(of:"/v1.1.1/",with:"/v1.1.0/")),
+   ("browser_download_url", archiveURL.absoluteString + "?token=unexpected"),
+   ("browser_download_url", archiveURL.absoluteString.replacingOccurrences(of:"github.com",with:"github.com:443")),
+   ("state", "starter"), ("digest", NSNull()), ("digest", "sha1:" + archiveDigest),
+   ("digest", "sha256:" + String(repeating:"z",count:64)), ("digest", "sha256:1234"),
+   ("size",0), ("size",-1), ("size",UpdateArchive.maximumSize + 1), ("size","68885468")
+  ]
+  let invalidAssets = invalidFields.map { key,value -> [[String:Any]] in
+   var invalid = asset
+   invalid[key] = value
+   return [invalid]
+  } + [[asset,asset],[alias],[]]
+  for assets in invalidAssets {
+   guard case .available(let manual) = try UpdateService.interpret(release("v1.1.1",assets:assets),status:200,installed:"1.1.0"),
+         manual.archive == nil, manual.url == releaseWithArchive.url else { fatalError("Invalid archive metadata replaced the manual release page") }
+  }
+  print("PASS: current versioned GitHub asset, exact repository and tag URL, digest, size, uploaded state, and duplicate/alias rejection")
   func page(_ url: String, _ status: Int = 200) -> HTTPURLResponse { HTTPURLResponse(url:URL(string:url)!,statusCode:status,httpVersion:nil,headerFields:nil)! }
   let tag = "https://github.com/iain-buchan/statsdirect-mac/releases/tag/v0.4.0"
-  if case .available(let r) = try UpdateService.interpretReleasePage(page(tag),installed:"0.3.7") { assert(r.version == "v0.4.0") } else { fatalError("Fallback lost new version") }
+  if case .available(let r) = try UpdateService.interpretReleasePage(page(tag),installed:"0.3.7") { assert(r.version == "v0.4.0" && r.archive == nil) } else { fatalError("Fallback lost new version") }
   for version in ["0.4.0","0.5.0"] { if case .current = try UpdateService.interpretReleasePage(page(tag),installed:version) {} else { fatalError("Fallback proposed a downgrade") } }
   for response in [page(UpdateService.releases.absoluteString),page(UpdateService.latestRelease.absoluteString,404)] {
    if case .noRelease = try UpdateService.interpretReleasePage(response,installed:"0.3.7") {} else { fatalError("Missing releases not recognised") }
@@ -53,6 +95,10 @@ private final class UpdateFixture: URLProtocol {
   fixture([.response(UpdateService.endpoint,200,try release())])
   if case .available = try await UpdateService.check(installed:"0.3.7",session:session) {} else { fatalError("API success") }
   assert(UpdateFixture.requests == [UpdateService.endpoint])
+  fixture([.response(URL(string:"https://other.example/releases/latest")!,200,publicRelease),.response(releaseWithArchive.url,200,Data())])
+  guard case .available(let manual) = try await UpdateService.check(installed:"1.1.0",session:session), manual.archive == nil else {
+   fatalError("A redirected API response supplied download metadata")
+  }
   for problem in [UpdateFixture.Reply.error(.cannotFindHost),.response(UpdateService.endpoint,429,Data()),.response(UpdateService.endpoint,500,Data())] {
    fixture([problem,.response(URL(string:tag)!,200,Data("unused HTML".utf8))])
    if case .available = try await UpdateService.check(installed:"0.3.7",session:session) {} else { fatalError("API failure did not fall back") }
@@ -100,6 +146,45 @@ private final class UpdateFixture: URLProtocol {
    do { _ = try UpdateService.interpretReleasePage(page(invalidURL.absoluteString),installed:"0.3.29");fatalError("Invalid website release version accepted") } catch {}
   }
   print("PASS: 1.0.1 offered to 1.0.0 and older through API and website fallback, current/newer excluded, draft/prerelease/invalid versions excluded")
+  let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("statsdirect-update-test-" + UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: temporary) }
+  let payload = Data("a fixture archive body".utf8)
+  let digest = SHA256.hash(data:payload).map { String(format:"%02x",$0) }.joined()
+  let transfer = UpdateArchive(url:archiveURL,sha256:digest,size:Int64(payload.count))
+  let cdn = URL(string:"https://release-assets.githubusercontent.com/github-production-release-asset/fixture?signature=test")!
+  fixture([.response(cdn,200,payload,headers:["Content-Length":String(payload.count)])])
+  let downloaded = try await transfer.download(to:temporary,configuration:configuration)
+  let downloadedBytes = try Data(contentsOf:downloaded)
+  precondition(downloaded.lastPathComponent == archiveURL.lastPathComponent && downloadedBytes == payload)
+  precondition(UpdateFixture.requests == [archiveURL])
+  try FileManager.default.removeItem(at:downloaded.deletingLastPathComponent())
+  for reply in [
+   UpdateFixture.Reply.response(URL(string:"https://other.example/archive.zip")!,200,payload),
+   .response(URL(string:"http://release-assets.githubusercontent.com/github-production-release-asset/fixture")!,200,payload),
+   .response(URL(string:"https://release-assets.githubusercontent.com/another/path")!,200,payload),
+   .response(archiveURL,206,payload),
+   .response(archiveURL,200,payload,headers:["Content-Length":String(payload.count + 1)]),
+   .response(archiveURL,200,Data(payload.dropLast())),
+   .response(archiveURL,200,payload + Data([0])),
+   .response(archiveURL,200,Data(repeating:0,count:payload.count))
+  ] {
+   fixture([reply])
+   do { _ = try await transfer.download(to:temporary,configuration:configuration);fatalError("Unverified update download succeeded") } catch {}
+   let leftovers = try FileManager.default.contentsOfDirectory(atPath:temporary.path)
+   precondition(leftovers.isEmpty && UpdateFixture.requests == [archiveURL])
+  }
+  let (started, signal) = AsyncStream<Void>.makeStream()
+  fixture([.hold(archiveURL,Data(payload.prefix(5)),{ signal.yield(()); signal.finish() })])
+  let cancelled = Task { try await transfer.download(to:temporary,configuration:configuration) }
+  let timeout = Task { try await Task.sleep(for:.seconds(5)); signal.finish() }
+  var events = started.makeAsyncIterator()
+  guard await events.next() != nil else { cancelled.cancel(); fatalError("Cancellation fixture did not begin") }
+  timeout.cancel()
+  cancelled.cancel()
+  do { _ = try await cancelled.value;fatalError("Cancelled update download succeeded") } catch is CancellationError {}
+  let leftovers = try FileManager.default.contentsOfDirectory(atPath:temporary.path)
+  precondition(leftovers.isEmpty)
+  print("PASS: verified CDN download, address/status/header/size/hash rejection, and partial archive cleanup after cancellation")
   var installed = "0.3.2"
   if let index = CommandLine.arguments.firstIndex(of:"--app") {
    guard index + 1 < CommandLine.arguments.count,
@@ -120,6 +205,13 @@ private final class UpdateFixture: URLProtocol {
     case .current: print("PASS: no newer published release than installed version \(installed) at the real public GitHub endpoint")
     case .available(let r): print("PASS: real public GitHub endpoint returned \(r.version)")
    }
+  }
+  if CommandLine.arguments.contains("--live-download") {
+   guard case .available(let live) = try await UpdateService.check(installed:"0.0.0"), let archive = live.archive else {
+    fatalError("The official release API returned no verified versioned archive")
+   }
+   _ = try await archive.download(to:temporary)
+   print("PASS: live \(live.version) archive verified at \(archive.size) bytes, SHA-256 \(archive.sha256)")
   }
   // Use after publication to verify visibility, rather than treating any valid
   // response (including an older latest release) as a successful release check.

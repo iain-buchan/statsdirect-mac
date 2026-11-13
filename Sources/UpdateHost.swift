@@ -70,7 +70,7 @@ extension Viewer {
             offeredUpdate = true
             let installable = release.archive != nil && UpdateInstaller.canInstall
             // The wording follows the Windows program's update question.
-            let version = release.version.hasPrefix("v") ? String(release.version.dropFirst()) : release.version
+            let version = release.displayVersion
             let running = "You are presently running StatsDirect version \(installed). Version \(version) is available."
             alert.messageText = "StatsDirect \(version) is available"
             if installable {
@@ -124,9 +124,9 @@ extension Viewer {
 
     func downloadUpdate(_ release: PublishedUpdate, prepare: @escaping (PublishedUpdate) async throws -> StagedUpdate = { try await UpdateInstaller.prepare($0) }) {
         guard !updateHostStopped, updateDownloadTask == nil else { return }
-        status.stringValue = "Downloading and verifying StatsDirect \(release.version)…"
+        status.stringValue = "Downloading and verifying StatsDirect \(release.displayVersion)…"
         let alert = NSAlert()
-        alert.messageText = "Preparing StatsDirect \(release.version)"
+        alert.messageText = "Preparing StatsDirect \(release.displayVersion)"
         alert.informativeText = "Downloading and verifying the update. You can cancel before installation."
         let progress = NSProgressIndicator(frame: NSRect(x: 0, y: 0, width: 260, height: 16))
         progress.isIndeterminate = true

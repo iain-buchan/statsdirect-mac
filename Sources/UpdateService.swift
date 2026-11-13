@@ -17,6 +17,8 @@ struct PublishedUpdate: Sendable {
     let version: String
     let url: URL
     let archive: UpdateArchive?
+    /// The version as a user reads it: the release tag without its leading v.
+    var displayVersion: String { version.hasPrefix("v") ? String(version.dropFirst()) : version }
 
     init(version: String, url: URL, archive: UpdateArchive? = nil) {
         self.version = version

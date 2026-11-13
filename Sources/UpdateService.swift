@@ -50,6 +50,7 @@ enum UpdateStatus: Sendable {
 
 enum UpdateService {
     static let releases = URL(string: "https://github.com/iain-buchan/statsdirect-mac/releases")!
+    static let revisions = URL(string: "https://www.statsdirect.com/Revisions.aspx")!
     static let latestRelease = releases.appendingPathComponent("latest")
     static let endpoint = URL(string: "https://api.github.com/repos/iain-buchan/statsdirect-mac/releases/latest")!
     struct Release: Decodable {

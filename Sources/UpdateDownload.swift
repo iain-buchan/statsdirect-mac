@@ -69,7 +69,7 @@ private final class UpdateArchiveTransfer: NSObject, URLSessionDataDelegate, @un
 
     func fetch(configuration: URLSessionConfiguration) async throws {
         configuration.timeoutIntervalForRequest = 30
-        configuration.timeoutIntervalForResource = 600
+        configuration.timeoutIntervalForResource = 1800
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
         configuration.urlCredentialStorage = nil

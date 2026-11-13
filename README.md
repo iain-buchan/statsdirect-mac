@@ -6,7 +6,7 @@ A native macOS preview of StatsDirect, using the [Windows calculation engine](ht
 
 **[Download the latest Mac release](https://www.statsdirect.com/download.aspx)** — Apple Silicon, macOS 14 or later.
 
-Expand the application ZIP and move **StatsDirect.app** to Applications. From version 1.1.2, StatsDirect checks for a stable release at each launch when **Automatic Update Checks** is enabled. **Install Now** verifies the update and uses the normal quit flow before restarting StatsDirect. You can also check from **Help → Check for Updates** or download an update through your browser.
+Expand the application ZIP and move **StatsDirect.app** to Applications. From version 1.1.2, StatsDirect checks for a stable release at each launch while **StatsDirect → Automatically Check for Updates** is ticked, and asks, as the Windows program does, whether to close and install the new version. **Install Now** downloads and verifies the update, quits in the normal way (asking about unsaved work) and reopens StatsDirect. You can also check from **Help → Check for Updates** or download an update through your browser.
 
 Upgrading from 0.3.18 or earlier: after saving work and quitting the old app, remove **StatsDirect Viewer.app** from Applications to avoid keeping both names. Your existing settings and learning records are retained.
 

@@ -116,8 +116,11 @@ enum UpdateInstaller {
         let destination = directory.appendingPathComponent("extracted", isDirectory: true)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false,
                                                 attributes: [.posixPermissions: 0o700])
+        // macOS's tar still applies the AppleDouble entries of a ZIP (access control lists and extended
+        // attributes) whatever flags it is given, so checkAttributes below is the real guard against them.
         let extraction = try command("/usr/bin/tar", ["-xf", archive.path, "--safe-writes",
-                                                     "--no-same-owner", "--no-same-permissions", "--mac-metadata",
+                                                     "--no-same-owner", "--no-same-permissions", "--no-mac-metadata",
+                                                     "--no-acls", "--no-xattrs", "--no-fflags",
                                                      "-C", destination.path])
         extraction.waitUntilExit()
         let contents = try FileManager.default.contentsOfDirectory(atPath: destination.path)
@@ -135,6 +138,7 @@ enum UpdateInstaller {
 
     private static func verify(_ candidate: URL, version: String, installed: InstalledApp) throws {
         _ = try directoryInfo(candidate)
+        try checkAttributes(candidate)
         let code = try staticCode(candidate)
         guard SecStaticCodeCheckValidity(code, validationFlags, installed.requirement) == errSecSuccess else {
             throw UpdateService.failure("The update failed the StatsDirect Developer ID signature check.")
@@ -145,10 +149,69 @@ enum UpdateInstaller {
               AppVersion(text) == offered else {
             throw UpdateService.failure("The downloaded app does not match the offered update version.")
         }
+        let minimum = bundle.object(forInfoDictionaryKey: "LSMinimumSystemVersion") as? String
+        guard supportsThisMac(minimum: minimum) else {
+            throw UpdateService.failure("StatsDirect \(text) needs macOS \(minimum ?? "") or later, so it cannot be installed on this Mac.")
+        }
         let policy = try command("/usr/bin/syspolicy_check", ["distribution", candidate.path])
         policy.waitUntilExit()
         guard policy.terminationStatus == 0 else {
             throw UpdateService.failure("macOS could not verify the update’s notarisation and distribution signature.")
+        }
+    }
+
+    // A code signature covers what a file holds, not who may change it. Refuse an app whose files other
+    // users could alter or that carries marks a genuine release never has; nothing is repaired.
+    static func checkAttributes(_ app: URL) throws {
+        let refusal = UpdateService.failure("The update has file permissions or attributes that a StatsDirect release never has.")
+        guard let walker = FileManager.default.enumerator(at: app, includingPropertiesForKeys: nil, options: [], errorHandler: { _, _ in false }) else { throw refusal }
+        var items = [app]
+        for case let item as URL in walker { items.append(item) }
+        for item in items {
+            var info = stat()
+            guard lstat(item.path, &info) == 0 else { throw refusal }
+            let kind = info.st_mode & S_IFMT
+            guard kind == S_IFREG || kind == S_IFDIR, info.st_uid == geteuid(),
+                  info.st_mode & (S_ISUID | S_ISGID | S_ISVTX | S_IWGRP | S_IWOTH) == 0,
+                  kind == S_IFDIR || info.st_nlink == 1 else { throw refusal }
+            if let list = acl_get_link_np(item.path, ACL_TYPE_EXTENDED) {
+                var entry: acl_entry_t?
+                let listed = acl_get_entry(list, ACL_FIRST_ENTRY.rawValue, &entry) == 0
+                acl_free(UnsafeMutableRawPointer(list))
+                guard !listed else { throw refusal }
+            }
+            let size = listxattr(item.path, nil, 0, XATTR_NOFOLLOW)
+            guard size >= 0 else { throw refusal }
+            if size > 0 {
+                var names = [CChar](repeating: 0, count: size)
+                let read = listxattr(item.path, &names, size, XATTR_NOFOLLOW)
+                guard read >= 0 else { throw refusal }
+                let attributes = names.prefix(read).split(separator: 0).map { String(cString: Array($0) + [0]) }
+                // macOS itself marks files an app writes (com.apple.provenance) or was granted (com.apple.macl);
+                // nothing else belongs on a freshly unpacked release.
+                guard attributes.allSatisfy({ $0 == "com.apple.provenance" || $0 == "com.apple.macl" }) else { throw refusal }
+            }
+        }
+    }
+
+    static func supportsThisMac(minimum: String?, current: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion) -> Bool {
+        guard let minimum, !minimum.isEmpty else { return true }
+        let parts = minimum.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
+        guard (1...3).contains(parts.count), !parts.contains(nil) else { return false }
+        let wanted = parts.compactMap { $0 } + Array(repeating: 0, count: 3 - parts.count)
+        return [current.majorVersion, current.minorVersion, current.patchVersion].lexicographicallyPrecedes(wanted) == false
+    }
+
+    // An interrupted update leaves its private staging folder, with a whole copy of the app, beside StatsDirect.
+    static func removeStaleStaging(beside app: URL = Bundle.main.bundleURL, olderThan age: TimeInterval = 86_400, now: Date = Date()) {
+        let parent = app.resolvingSymlinksInPath().standardizedFileURL.deletingLastPathComponent()
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: parent.path) else { return }
+        for name in names where name.hasPrefix(stagingPrefix) && UUID(uuidString: String(name.dropFirst(stagingPrefix.count))) != nil {
+            let folder = parent.appendingPathComponent(name, isDirectory: true)
+            var info = stat()
+            guard lstat(folder.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR, info.st_uid == geteuid(),
+                  now.timeIntervalSince1970 - TimeInterval(info.st_mtimespec.tv_sec) > age else { continue }
+            try? FileManager.default.removeItem(at: folder)
         }
     }
 

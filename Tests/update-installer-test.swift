@@ -8,6 +8,9 @@ import Foundation
 
         try checkArchivePaths(in: folder)
         try checkReplacement(in: folder)
+        try checkAttributes(in: folder)
+        checkSupportedSystem()
+        try checkStaleStaging(in: folder)
         if CommandLine.arguments.count == 3 {
             try checkSignedReleases(in: folder, installedZip: CommandLine.arguments[1], updateZip: CommandLine.arguments[2])
         }
@@ -58,6 +61,95 @@ import Foundation
             }
         }
         print("PASS: the ZIP extractor rejects traversal, symlink escapes and additional top-level files")
+    }
+
+    private static func run(_ tool: String, _ arguments: [String]) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: tool)
+        process.arguments = arguments
+        try! process.run()
+        process.waitUntilExit()
+        precondition(process.terminationStatus == 0, "\(tool) failed")
+    }
+
+    private static func hasAccessList(_ path: String) -> Bool {
+        guard let list = acl_get_link_np(path, ACL_TYPE_EXTENDED) else { return false }
+        defer { acl_free(UnsafeMutableRawPointer(list)) }
+        var entry: acl_entry_t?
+        return acl_get_entry(list, ACL_FIRST_ENTRY.rawValue, &entry) == 0
+    }
+
+    private static func checkAttributes(in folder: URL) throws {
+        let manager = FileManager.default
+        func app(_ name: String) throws -> URL {
+            let app = folder.appendingPathComponent(name).appendingPathComponent("StatsDirect.app")
+            try manager.createDirectory(at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o755])
+            try Data("fixture".utf8).write(to: app.appendingPathComponent("Contents/file"))
+            return app
+        }
+        try UpdateInstaller.checkAttributes(try app("plain"))
+        let listed = try app("listed")
+        run("/bin/chmod", ["+a", "everyone allow write", listed.appendingPathComponent("Contents/file").path])
+        reject { try UpdateInstaller.checkAttributes(listed) }
+        let marked = try app("marked")
+        run("/usr/bin/xattr", ["-w", "com.apple.quarantine", "0083;00000000;Fixture;", marked.appendingPathComponent("Contents/file").path])
+        reject { try UpdateInstaller.checkAttributes(marked) }
+        let writable = try app("writable")
+        run("/bin/chmod", ["g+w", writable.appendingPathComponent("Contents").path])
+        reject { try UpdateInstaller.checkAttributes(writable) }
+        let linked = try app("linked")
+        try manager.linkItem(at: linked.appendingPathComponent("Contents/file"), to: linked.appendingPathComponent("Contents/twin"))
+        reject { try UpdateInstaller.checkAttributes(linked) }
+        let pointed = try app("pointed")
+        try manager.createSymbolicLink(at: pointed.appendingPathComponent("Contents/link"), withDestinationURL: URL(fileURLWithPath: "/etc/hosts"))
+        reject { try UpdateInstaller.checkAttributes(pointed) }
+
+        // ditto stores an access control list as an AppleDouble entry, and macOS's tar applies it on extraction.
+        // Whatever the extractor does with it, an app that still carries the list must not pass.
+        let archive = folder.appendingPathComponent("listed.zip")
+        run("/usr/bin/ditto", ["-c", "-k", "--keepParent", listed.path, archive.path])
+        let location = folder.appendingPathComponent("listed-extracted")
+        try manager.createDirectory(at: location, withIntermediateDirectories: false)
+        let extracted = try UpdateInstaller.extract(archive, in: location)
+        if hasAccessList(extracted.appendingPathComponent("Contents/file").path) {
+            reject { try UpdateInstaller.checkAttributes(extracted) }
+        } else {
+            try UpdateInstaller.checkAttributes(extracted)
+        }
+        print("PASS: an app with an access control list, a foreign attribute, group write permission, a hard link or a symbolic link is refused, also after extraction from a ZIP")
+    }
+
+    private static func checkSupportedSystem() {
+        let mac = OperatingSystemVersion(majorVersion: 14, minorVersion: 6, patchVersion: 1)
+        precondition(UpdateInstaller.supportsThisMac(minimum: nil, current: mac))
+        precondition(UpdateInstaller.supportsThisMac(minimum: "14.0", current: mac))
+        precondition(UpdateInstaller.supportsThisMac(minimum: "14.6.1", current: mac))
+        precondition(!UpdateInstaller.supportsThisMac(minimum: "14.6.2", current: mac))
+        precondition(!UpdateInstaller.supportsThisMac(minimum: "15", current: mac))
+        precondition(!UpdateInstaller.supportsThisMac(minimum: "fourteen", current: mac))
+        print("PASS: an update that needs a later macOS than this Mac has is refused")
+    }
+
+    private static func checkStaleStaging(in folder: URL) throws {
+        let manager = FileManager.default
+        let home = folder.appendingPathComponent("stale")
+        let app = home.appendingPathComponent("StatsDirect.app")
+        try manager.createDirectory(at: app, withIntermediateDirectories: true)
+        let old = home.appendingPathComponent(".StatsDirect-update-" + UUID().uuidString)
+        let fresh = home.appendingPathComponent(".StatsDirect-update-" + UUID().uuidString)
+        let other = home.appendingPathComponent(".StatsDirect-update-notes")
+        for item in [old, fresh, other] {
+            try manager.createDirectory(at: item.appendingPathComponent("extracted"), withIntermediateDirectories: true)
+        }
+        let longAgo = Date().addingTimeInterval(-172_800)
+        try manager.setAttributes([.modificationDate: longAgo], ofItemAtPath: old.path)
+        try manager.setAttributes([.modificationDate: longAgo], ofItemAtPath: other.path)
+        UpdateInstaller.removeStaleStaging(beside: app)
+        precondition(!manager.fileExists(atPath: old.path))
+        precondition(manager.fileExists(atPath: fresh.path))
+        precondition(manager.fileExists(atPath: other.path))
+        precondition(manager.fileExists(atPath: app.path))
+        print("PASS: a staging folder left by an interrupted update is removed after a day; recent ones and other folders are kept")
     }
 
     private static func checkReplacement(in folder: URL) throws {

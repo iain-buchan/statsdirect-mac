@@ -18,7 +18,10 @@ extension Viewer {
 
     @objc func checkUpdates() { checkForUpdates(manual: true) }
 
+    @objc func openUpdateRevisions() { NSWorkspace.shared.open(UpdateService.revisions) }
+
     func startUpdateChecks(check: @escaping (String) async throws -> UpdateStatus = { try await UpdateService.check(installed: $0) }) {
+        DispatchQueue.global(qos: .utility).async { UpdateInstaller.removeStaleStaging() }
         checkForUpdates(manual: false, check: check)
     }
 
@@ -66,13 +69,21 @@ extension Viewer {
             guard manual || (automaticUpdates && !offeredUpdate) else { return }
             offeredUpdate = true
             let installable = release.archive != nil && UpdateInstaller.canInstall
-            alert.messageText = "StatsDirect \(release.version) is available"
+            // The wording follows the Windows program's update question.
+            let version = release.version.hasPrefix("v") ? String(release.version.dropFirst()) : release.version
+            let running = "You are presently running StatsDirect version \(installed). Version \(version) is available."
+            alert.messageText = "StatsDirect \(version) is available"
             if installable {
-                alert.informativeText = "You are using \(installed). Download and verify the update now. StatsDirect will ask before quitting if you have unsaved work."
+                alert.informativeText = running + " Would you like to close StatsDirect and install the new version? StatsDirect will ask first if you have unsaved work."
                 alert.addButton(withTitle: "Install Now")
             } else {
-                alert.informativeText = "You are using \(installed). Open the GitHub release to read the changes and download the new version."
+                alert.informativeText = running + " This copy of StatsDirect cannot install it for you. Choose View Update to download it."
             }
+            let news = NSButton(title: "What’s new in StatsDirect", target: self, action: #selector(openUpdateRevisions))
+            news.isBordered = false
+            news.contentTintColor = .linkColor
+            news.sizeToFit()
+            alert.accessoryView = news
             alert.addButton(withTitle: "View Update")
             alert.addButton(withTitle: "Later").keyEquivalent = "\u{1b}"
             alert.beginSheetModal(for: window) { [weak self] response in

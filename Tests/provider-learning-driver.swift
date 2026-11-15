@@ -18,7 +18,12 @@ import Cocoa
                        let details = try? await viewer.learningJavaScript(doc,"({cards:document.querySelectorAll('main>.card').length,body:document.body.innerText.slice(0,2200)})") { print("LEARNING PAGE:",details) }
                     fflush(stdout); exit(1)
                 }
-                fflush(stdout); if !CommandLine.arguments.contains("--stay-open") { viewer.closeApproved = true; app.terminate(nil) }
+                fflush(stdout)
+                if !CommandLine.arguments.contains("--stay-open") {
+                    viewer.chatGPTTutor.shutdown()
+                    // This fixture tests the Learning flow. Retire its workers before exiting.
+                    if !viewer.prepareConsoleTermination(completion: { exit(0) }) { exit(0) }
+                }
             }
         }
         app.run()
@@ -28,7 +33,10 @@ import Cocoa
         throw LearningTutor.Failure(message:"Timed out waiting for the native interface at \(file):\(line)")
     }
     @MainActor static func run(_ v: Viewer) async throws {
-        try check(v.learningDiagnostics["libraryVersion"] as? String == "2026-10-12")
+        let lessons = v.learningLessons
+        let versions = lessons.compactMap { $0["contentVersion"] as? String }
+        try check(!versions.isEmpty && versions.count == lessons.count)
+        try check(v.learningDiagnostics["libraryVersion"] as? String == versions.max())
         v.openLearningOptions(); let d = v.documents.first{$0.kind == "learn"}!
         try await wait { guard d.learningState != nil else { return false }; return (try? await v.learningJavaScript(d,"({ok:!!document.getElementById('statisticalSkills')})"))?["ok"] as? Bool == true }
         var rows = try await v.learningJavaScript(d,"({count:document.querySelectorAll('main>.card').length,resources:!!document.getElementById('resourceURLs'),pack:!!document.querySelector('#trainingProvider #importCourse'),recipient:document.getElementById('reviewEmail').value,details:document.querySelector('.option-details').open,assessment:document.getElementById('assessmentType').value})")
@@ -71,7 +79,7 @@ import Cocoa
         try await wait { v.chatGPTTutor.account != nil }
         v.learningSettings(d)
         // Exercise the shipped library through the same UI and native request used by learners.
-        for lesson in v.learningLessons {
+        for lesson in lessons {
             let id = lesson["id"] as! String
             _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-lesson=\"\(id)\"]').click()===undefined})")
             let guide = try await v.learningJavaScript(d,"({title:document.querySelector('h1').textContent,text:document.querySelector('.lesson-guide').textContent,links:document.querySelectorAll('.lesson-guide a').length,open:document.querySelector('.lesson-guide').open})")
@@ -100,7 +108,24 @@ import Cocoa
         try await wait { (d.learningState?["conversation"] as? [[String:Any]])?.last?["model"] as? String == "fixture-model" }
         let libraryReply = (d.learningState!["conversation"] as! [[String:Any]]).last!
         try check((libraryReply["courseSources"] as! [[String:String]]).contains{$0["id"] == "library:missing"})
-        print("PASS: all 12 enriched guides display in WKWebView; complete selected lesson, fixed key and source metadata reach the native tutor request; lesson version retained with reply")
+        print("PASS: all \(lessons.count) enriched guides display in WKWebView; the selected lesson, fixed key and source metadata reach the native tutor request")
+        let longerLesson = try lessons.first { lesson in
+            let curated = lesson.filter { LearningLibrary.fields.contains($0.key) }
+            let fullJSON = try JSONSerialization.data(withJSONObject:curated,options:[.sortedKeys,.withoutEscapingSlashes])
+            return String(decoding:fullJSON,as:UTF8.self).count > 6500
+        }
+        if let lessonID = longerLesson?["id"] as? String {
+            let previousReply = libraryReply["id"] as? String
+            _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-lesson=\"\(lessonID)\"]').click()===undefined})")
+            _ = try await v.learningJavaScript(d,"({ok:(document.getElementById('question').value='LONG_LESSON_CONTEXT_TEST \(lessonID)',document.getElementById('send').click(),true)})")
+            try await wait {
+                let latest = (d.learningState?["conversation"] as? [[String:Any]])?.last
+                return latest?["model"] as? String == "fixture-model" && latest?["id"] as? String != previousReply
+            }
+            let reply = (d.learningState!["conversation"] as! [[String:Any]]).last!
+            try check((reply["courseSources"] as! [[String:String]]).contains { $0["id"] == "library:" + lessonID })
+            print("PASS: compact teaching context and review identity reach the native tutor for \(lessonID)")
+        }
         var pack = try JSONSerialization.jsonObject(with:JSONEncoder().encode(v.loadCoursePack()!)) as! [String:Any]
         pack["documents"] = [["id":"cohort","title":"Cohort population","text":"retrieved-cohort-evidence: A cohort follows people at risk over time.","url":"https://example.org/course-cohort","retrievedAt":"2026-10-01"]]
         try JSONSerialization.data(withJSONObject:pack).write(to:v.coursePackURL)

@@ -22,6 +22,18 @@ def login():
     global signed_in
     time.sleep(.1); signed_in = True
     notify('account/login/completed', {'loginId':'fixture-login', 'success':True, 'error':None})
+
+def bundled_lesson(lesson_id):
+    lessons = json.loads((Path(__file__).resolve().parents[1]/'Content/Learn/lessons.json').read_text())
+    return next(lesson for lesson in lessons if lesson['id'] == lesson_id)
+
+def curated_lesson(context):
+    marker = 'CURATED STATSDIRECT LESSON (original teaching material; references are editorial links, not pages fetched during this conversation):\n'
+    payload = next(line for line in context.split(marker, 1)[1].splitlines() if line.startswith('{'))
+    assert len(payload) <= 6500
+    assert 'METHOD CATALOGUE:' in context and len(context) < 32000
+    return json.loads(payload)
+
 for line in sys.stdin:
     request = json.loads(line); method = request.get('method'); params = request.get('params', {})
     if method == 'initialized': continue
@@ -69,21 +81,33 @@ for line in sys.stdin:
             send({'id':request['id'],'error':{'code':-32000,'message':'PRIVATE_SENTINEL_exception','data':'PRIVATE_SENTINEL_data'}}); continue
         if 'RISK_METHOD_TEST' in latest:
             context = json.loads(text.split('\n',1)[1])['referenceContext']
-            lessons = json.loads((Path(__file__).resolve().parents[1]/'Content/Learn/lessons.json').read_text())
-            lesson = next(l for l in lessons if l['id'] == 'risk')
+            lesson = bundled_lesson('risk')
             assert lesson['r'] in context  # Includes the complete helper and its actual call.
             assert lesson['workedExample']['interpretation'] in context
-            assert '2026-10-12' in context and 'METHOD CATALOGUE:' in context and len(context) < 32000
+            assert curated_lesson(context)['contentVersion'] == lesson['contentVersion']
         if 'LIBRARY_TEST' in latest:
             context = json.loads(text.split('\n',1)[1])['referenceContext']
-            marker = 'CURATED STATSDIRECT LESSON (original teaching material; references are editorial links, not pages fetched during this conversation):\n'
-            lesson = json.loads(context.split(marker,1)[1].split('\n',1)[0])
-            assert lesson['id'] == 'missing' and lesson['contentVersion'] == '2026-10-01'
+            lesson = curated_lesson(context)
+            assert lesson['id'] == 'missing' and lesson['contentVersion'] == bundled_lesson('missing')['contentVersion']
             assert len(lesson['keyConcepts']) == 3 and len(lesson['teachingPrompts']) == 2
             assert lesson['practiceQuestions'][0]['correct'] == 'D'
             assert '17.5' in lesson['workedExample']['interpretation']
             assert lesson['sources'][0]['url'] == 'https://stefvanbuuren.name/fimd/sec-MCAR.html'
-            assert 'METHOD CATALOGUE:' in context and len(context) < 32000
+        if latest.startswith('LONG_LESSON_CONTEXT_TEST '):
+            context = json.loads(text.split('\n',1)[1])['referenceContext']
+            expected = bundled_lesson(latest.removeprefix('LONG_LESSON_CONTEXT_TEST '))
+            lesson = curated_lesson(context)
+            for key in ('id', 'contentVersion', 'assessmentIds', 'learningObjectives', 'keyConcepts',
+                        'workedExample', 'misconceptions', 'rProgression', 'sources'):
+                assert lesson[key] == expected[key], key
+            if 'teachingPrompts' in lesson:
+                assert lesson['teachingPrompts'] == expected['teachingPrompts']
+            else:
+                with_prompts = {**lesson, 'teachingPrompts': expected['teachingPrompts']}
+                assert len(json.dumps(with_prompts, ensure_ascii=False, separators=(',', ':'))) > 6500
+            assert lesson['review'] == {key: value for key, value in expected['review'].items() if key != 'notes'}
+            assert 'practiceQuestions' not in lesson
+            assert expected['r'] in context
         if 'RESOURCE_TEST' in latest:
             context = json.loads(text.split('\n',1)[1])['referenceContext']
             assert 'https://example.org/course-cohort' in context

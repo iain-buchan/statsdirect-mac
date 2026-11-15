@@ -92,14 +92,36 @@ class AuthoredTutorImportTests(unittest.TestCase):
         self.files = publication()
 
     def test_actual_published_bundle_retains_original_ids_tracks_and_review_metadata(self):
-        manifest = IMPORT.validate_bundle(self.files)
+        manifest = IMPORT.verify(ROOT)
+        baseline = json.loads((ROOT / "Learn/Upstream/HelpEditor/TutorSource/starter-course.json").read_bytes())
+        publication_manifest = json.loads((ROOT / IMPORT.PUBLICATION_COPY).read_bytes())
+        published_tutor = publication_manifest["artifacts"]["tutor"]
         self.assertEqual(manifest["format"], "statsdirect-builtin-tutor")
-        self.assertEqual((manifest["lessonCount"], manifest["questionCount"], manifest["trackCount"]), (12, 35, 5))
+        for name in ("lessonCount", "questionCount", "trackCount", "bankVersion"):
+            self.assertEqual(manifest[name], published_tutor[name], name)
         self.assertTrue(manifest["reviewGatePassed"])
-        self.assertEqual(manifest["reviewWarningCount"], 47)
-        self.assertEqual(manifest["sourceCourseVersion"], "2026-11-03-draft")
-        self.assertIn('"id": "UG-SENS-01"', self.files["questions.json"].decode())
-        self.assertNotIn('"id": "course:', self.files["questions.json"].decode())
+        self.assertFalse(manifest["unreviewedChangedItems"])
+        tracks = json.loads(self.files["tracks.json"])
+        self.assertTrue(baseline["authoring"]["sourceTracks"].keys() <= tracks.keys())
+
+        records = {
+            kind: {item["id"]: item for item in json.loads(self.files[kind + ".json"])}
+            for kind in ("lessons", "questions")
+        }
+        changed_proofs = {(proof["kind"], proof["id"]): proof for proof in manifest["reviewedChangedItems"]}
+        self.assertEqual(len(changed_proofs), len(manifest["reviewedChangedItems"]))
+        for kind, items in records.items():
+            baseline_ids = {item["id"] for item in baseline[kind]}
+            self.assertTrue(baseline_ids <= items.keys(), kind)
+            for item_id in items.keys() - baseline_ids:
+                self.assertIn((kind, item_id), changed_proofs)
+        for (kind, item_id), proof in changed_proofs.items():
+            review = records[kind][item_id]["review"]
+            self.assertRegex(review["status"], r"(?i)^reviewed")
+            self.assertNotIn("draft", review["status"].lower())
+            self.assertEqual({key: review[key] for key in ("reviewer", "date", "notes", "contentSha256")},
+                             {key: proof[key] for key in ("reviewer", "date", "notes", "contentSha256")})
+        self.assertTrue(all(not item_id.startswith("course:") for item_id in records["questions"]))
 
     def test_primary_shared_publication_checks_all_three_git_trees_before_import(self):
         with tempfile.TemporaryDirectory() as tmp:

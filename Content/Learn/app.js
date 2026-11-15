@@ -21879,6 +21879,4254 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
         "cochrane-10",
         "cochrane-8"
       ]
+    },
+    {
+      id: "BIO-DATA-01",
+      version: 1,
+      track: "foundation",
+      topic: "Skewed continuous data",
+      objective: "Choose a primary descriptive summary.",
+      stem: "A clinic wants to describe typical appointment waits. Most recorded waits are between 5 and 20 minutes, with a long tail up to 95 minutes. Which pair of summaries best describes the centre and middle spread?",
+      options: [
+        {
+          id: "A",
+          text: "Mean and range",
+          feedback: "Both can be strongly influenced by the longest wait."
+        },
+        {
+          id: "B",
+          text: "Median and interquartile range",
+          feedback: "These summarise the centre and middle half without being strongly pulled by the long tail."
+        },
+        {
+          id: "C",
+          text: "Mode and standard error of the mean",
+          feedback: "The standard error measures precision of a mean, not spread across patients."
+        },
+        {
+          id: "D",
+          text: "Standard deviation and sample size",
+          feedback: "Neither gives the requested location."
+        },
+        {
+          id: "E",
+          text: "Maximum and interquartile range",
+          feedback: "The maximum describes an extreme, not the centre."
+        }
+      ],
+      correct: "B",
+      hint: "Match the measure to the feature being described: a typical value and middle spread.",
+      lesson: "Tail shape helps determine which centre and spread are most interpretable.",
+      explanation: "Use the median and IQR for the stated aim. Include a display, range or upper percentiles if long waits matter.",
+      lessonId: "describe-data",
+      sourceIds: [
+        "gmc-graduates",
+        "dfph-syllabus"
+      ],
+      help: "basic_descriptive_statistics/univariate_summary.htm",
+      difficulty: "beginner",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "healthcareBusinessAnalyst"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "451bf9f05bc2fda3f41fc32a14269968eac15a530b0b3b3edd821e8614cb5cd2"
+      }
+    },
+    {
+      id: "BIO-DATA-02",
+      version: 1,
+      track: "foundation",
+      topic: "Quantitative displays",
+      objective: "Choose a chart that shows a distribution.",
+      stem: "A team has one systolic blood pressure measurement in mmHg for each of 240 adults. They want to see the shape of the distribution while retaining absolute measurement units. Which display is most appropriate?",
+      options: [
+        {
+          id: "A",
+          text: "A pie chart using one slice per adult",
+          feedback: "The observations are measurements, not shares of a whole."
+        },
+        {
+          id: "B",
+          text: "A line joining records in patient-ID order",
+          feedback: "Arbitrary record order can suggest a trend with no scientific meaning."
+        },
+        {
+          id: "C",
+          text: "A scatterplot of blood pressure against itself",
+          feedback: "This produces an identity line and obscures the marginal frequencies."
+        },
+        {
+          id: "D",
+          text: "A histogram of blood pressure with equal-width bins",
+          feedback: "The horizontal axis retains mmHg and bin heights show how observations are distributed."
+        },
+        {
+          id: "E",
+          text: "A bar chart of the mean blood pressure only",
+          feedback: "One mean cannot show spread, shape or tails."
+        }
+      ],
+      correct: "D",
+      hint: "Ask which display keeps measurement units and shows frequencies across a numeric range.",
+      lesson: "Histograms display frequencies across quantitative intervals.",
+      explanation: "A labelled histogram groups blood pressure into bins and shows spread, skew and possible multiple peaks.",
+      lessonId: "describe-data",
+      sourceIds: [
+        "gmc-mla",
+        "dfph-syllabus"
+      ],
+      help: "basic_descriptive_statistics/univariate_summary.htm",
+      difficulty: "beginner",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "publicHealth"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "e3dd3027bb1ab015bf1dd759fa75a2e0af2e4d363a98964128cff6340df363a3"
+      }
+    },
+    {
+      id: "BIO-DATA-03",
+      version: 2,
+      track: "medicine",
+      topic: "Probability models",
+      objective: "Recognise the binomial setting.",
+      stem: "In a fictional reliability study, the cancellation outcomes for 20 appointments are independent. Each appointment has a 0.15 chance of being cancelled. Which model describes the number cancelled?",
+      options: [
+        {
+          id: "A",
+          text: "Binomial with n = 20 and p = 0.15",
+          feedback: "The count is the sum of a fixed number of independent Bernoulli outcomes with common probability."
+        },
+        {
+          id: "B",
+          text: "Bernoulli with p = 0.15",
+          feedback: "This would describe one appointment only."
+        },
+        {
+          id: "C",
+          text: "Normal with mean 0.15",
+          feedback: "The count is discrete and its mean is 20 times 0.15."
+        },
+        {
+          id: "D",
+          text: "Poisson with mean 0.15",
+          feedback: "This proposed mean is incorrect; the exact count model under the stated design is binomial."
+        },
+        {
+          id: "E",
+          text: "Uniform on integers 0 to 20",
+          feedback: "The possible counts are not equally likely."
+        }
+      ],
+      correct: "A",
+      hint: "Identify what is counted, how many opportunities occur and the probability of each.",
+      lesson: "A binomial count requires a fixed number of independent trials and a common success probability.",
+      explanation: "Under the stated assumptions, the exact model is Binomial(20, 0.15), with expected count 3.",
+      lessonId: "describe-data",
+      sourceIds: [
+        "dfph-syllabus"
+      ],
+      help: "basic_descriptive_statistics/univariate_summary.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "publicHealth"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "201335490035a2ba30828d67deb215af7dcb81e4357b7724473b9fdf099dc458"
+      }
+    },
+    {
+      id: "BIO-METHOD-01",
+      version: 1,
+      track: "medicine",
+      topic: "Independent and paired designs",
+      objective: "Select a mean comparison from the design.",
+      stem: "A clinic samples 25 patients in June and 25 different, independently sampled patients in July. The outcome is continuous, roughly symmetric in each month and substantially more variable in July. Which method targets the difference in mean outcome while allowing unequal variances?",
+      options: [
+        {
+          id: "A",
+          text: "Paired t test",
+          feedback: "There are no linked pairs; putting patients in adjacent rows does not create a match."
+        },
+        {
+          id: "B",
+          text: "Mann\u2013Whitney test",
+          feedback: "A rank comparison does not directly estimate the difference in means."
+        },
+        {
+          id: "C",
+          text: "Welch two-sample t test",
+          feedback: "It compares independent means and allows different group variances."
+        },
+        {
+          id: "D",
+          text: "Pooled two-sample t test",
+          feedback: "Its pooled standard error assumes equal population variances."
+        },
+        {
+          id: "E",
+          text: "McNemar test",
+          feedback: "This is for paired binary responses."
+        }
+      ],
+      correct: "C",
+      hint: "Identify the unit, relationship between groups and target effect before looking at the method names.",
+      lesson: "Design determines independence; the target here is a mean difference.",
+      explanation: "Welch's t method estimates the difference in means with separate group variances and a degrees-of-freedom approximation.",
+      lessonId: "choose-analysis",
+      sourceIds: [
+        "gmc-graduates",
+        "mrcp-part1",
+        "dfph-syllabus"
+      ],
+      help: "parametric_methods/unpaired_t.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "publicHealth"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "4aebde7d85b881a2deb29858e0705d5ab257dbe843d4a5a34fec0647c12a6627"
+      }
+    },
+    {
+      id: "BIO-METHOD-02",
+      version: 1,
+      track: "medicine",
+      topic: "Sparse contingency tables",
+      objective: "Choose a test for an independent sparse 2\xD72 table.",
+      stem: "In an independent randomised pilot, 1 of 10 participants receiving a new process and 5 of 10 controls have a prespecified binary event. A two-sided test of association is wanted. Which method provides an exact conditional test?",
+      options: [
+        {
+          id: "A",
+          text: "Pearson chi-square without continuity correction",
+          feedback: "This uses an asymptotic reference distribution, which can be unreliable with sparse expected counts."
+        },
+        {
+          id: "B",
+          text: "McNemar exact test",
+          feedback: "This requires paired binary observations."
+        },
+        {
+          id: "C",
+          text: "Ordinary Pearson correlation with a normal-theory P value",
+          feedback: "This is not the requested exact conditional table test."
+        },
+        {
+          id: "D",
+          text: "Welch t test",
+          feedback: "It is not the intended exact conditional test on the 2\xD72 counts."
+        },
+        {
+          id: "E",
+          text: "Fisher exact test",
+          feedback: "It calculates probabilities over the tables compatible with the margins under the null."
+        }
+      ],
+      correct: "E",
+      hint: "Work out how many events would be expected in each group under no association.",
+      lesson: "Sparse tables may call for exact rather than asymptotic inference.",
+      explanation: "Each group has three expected events under the null. Fisher's exact test meets the request for a conditional exact test.",
+      lessonId: "choose-analysis",
+      sourceIds: [
+        "mrcp-part1",
+        "dfph-syllabus"
+      ],
+      help: "exact_tests_on_counts/fisher_exact.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "74fadb48f17ca45af96e37625e9e48dcacd917bf294ad4740a6a0ffdea74a7ad"
+      }
+    },
+    {
+      id: "BIO-METHOD-03",
+      version: 1,
+      track: "publicHealth",
+      topic: "Rank correlation",
+      objective: "Identify an association measure for an ordered relationship.",
+      stem: "A scatterplot of two variables measured once per participant shows a steadily increasing curved relationship with no reversal. Which statistic best summarises the strength of the monotonic association using ranks?",
+      options: [
+        {
+          id: "A",
+          text: "Pearson correlation",
+          feedback: "It summarises linear association using the original values."
+        },
+        {
+          id: "B",
+          text: "Spearman rank correlation",
+          feedback: "It correlates ranks and describes the strength of monotonic association."
+        },
+        {
+          id: "C",
+          text: "Intraclass correlation for agreement",
+          feedback: "It targets agreement or reliability under a specified measurement model."
+        },
+        {
+          id: "D",
+          text: "Coefficient of variation",
+          feedback: "It is a relative measure of a single variable's dispersion."
+        },
+        {
+          id: "E",
+          text: "Mean paired difference",
+          feedback: "It describes an average change or difference in measurement level."
+        }
+      ],
+      correct: "B",
+      hint: "The question asks about ranked order, without requiring a straight line.",
+      lesson: "A monotonic relationship can be curved and still preserve ordering.",
+      explanation: "Spearman correlation addresses the requested rank-based association. A strong correlation does not establish agreement or a causal effect.",
+      lessonId: "choose-analysis",
+      sourceIds: [
+        "dfph-syllabus"
+      ],
+      help: "nonparametric_methods/spearman.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "57a614caa3b6ce466ccf19b7a9bca3f388e9beda5eec689961dc2b00e2cbef46"
+      }
+    },
+    {
+      id: "BIO-SURV-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Surveillance ascertainment",
+      objective: "Identify the information needed to interpret a detection signal.",
+      stem: "A surveillance system records twice as many positive reports this month after several additional practices begin submitting specimens. Which response is most informative before interpreting the rise as a change in incidence?",
+      options: [
+        {
+          id: "A",
+          text: "Compare raw counts with the previous month only",
+          feedback: "Changes in participating practices and reporting can affect raw counts."
+        },
+        {
+          id: "B",
+          text: "Divide the new positives by last month's number of tests",
+          feedback: "Misaligned time denominators give an uninterpretable measure."
+        },
+        {
+          id: "C",
+          text: "Compare positivity and reports using comparable practices and periods, and inspect testing coverage and case definitions",
+          feedback: "This helps distinguish changes in surveillance from a genuine rise."
+        },
+        {
+          id: "D",
+          text: "Check whether the population census doubled",
+          feedback: "Population size is relevant, but this ignores the known surveillance change."
+        },
+        {
+          id: "E",
+          text: "Assume incidence is stable because ascertainment changed",
+          feedback: "A genuine rise can occur at the same time as changed ascertainment."
+        }
+      ],
+      correct: "C",
+      hint: "Ask what changed about how cases enter the system.",
+      lesson: "Reporting systems can change the number of detected cases independently of underlying disease occurrence.",
+      explanation: "Use like-for-like time windows and coverage, compare testing denominators and case definitions, and triangulate with other indicators where possible.",
+      lessonId: "surveillance-outbreaks",
+      sourceIds: [
+        "gmc-graduates",
+        "phe-surveillance"
+      ],
+      help: "clinical_epidemiology/risk_prospective.htm",
+      difficulty: "beginner",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "publicHealth"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "f20ca59c78104ab88d32b0dd1ae8cc5163a10cc0ae8deba144b640532607d567"
+      }
+    },
+    {
+      id: "BIO-SURV-02",
+      version: 1,
+      track: "publicHealth",
+      topic: "Outbreak cohort analysis",
+      objective: "Calculate a risk ratio from known attendees.",
+      stem: "At a fictional residential course, all 80 participants were followed for three days. Illness affected 12 of 30 who used a shared water dispenser and 5 of 50 who did not. What is the observed three-day illness risk ratio for dispenser use versus no use?",
+      options: [
+        {
+          id: "A",
+          text: "0.25",
+          feedback: "This is the reciprocal comparison."
+        },
+        {
+          id: "B",
+          text: "0.30",
+          feedback: "This is the risk difference as a fraction, equal to 30 percentage points."
+        },
+        {
+          id: "C",
+          text: "2.4",
+          feedback: "The ratio of case counts ignores the different denominators."
+        },
+        {
+          id: "D",
+          text: "4.0",
+          feedback: "The two group risks are 0.40 and 0.10, so their ratio is 4."
+        },
+        {
+          id: "E",
+          text: "6.0",
+          feedback: "This is the odds ratio, using cases and non-cases as the odds denominators."
+        }
+      ],
+      correct: "D",
+      hint: "Calculate the risk within each exposure group before dividing.",
+      lesson: "Whole-group denominators produce risks in a completed fixed cohort.",
+      explanation: "12/30 divided by 5/50 is 4. This is an observed association; competing exposures and ascertainment should be checked.",
+      lessonId: "surveillance-outbreaks",
+      sourceIds: [
+        "dfph-syllabus",
+        "ukhsa-outbreak"
+      ],
+      help: "clinical_epidemiology/risk_prospective.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d624e787ba5a585e20518288d2027b0f7aaeeea61902bea7310b537bd4a39a0c"
+      }
+    },
+    {
+      id: "BIO-SURV-03",
+      version: 1,
+      track: "publicHealth",
+      topic: "Ecological comparison",
+      objective: "Identify what district-level data can support.",
+      stem: "Districts with higher air-pollution averages have higher age-standardised hospital admission rates. The analyst has district averages and rates only. Which conclusion is most defensible?",
+      options: [
+        {
+          id: "A",
+          text: "The district-level association is observable, while individual exposure\u2013outcome association and causality require additional data and assumptions",
+          feedback: "Aggregate associations do not identify relationships for individuals."
+        },
+        {
+          id: "B",
+          text: "Age standardisation establishes that pollution caused the admissions",
+          feedback: "Adjusting for age structure does not handle every confounder or bias."
+        },
+        {
+          id: "C",
+          text: "Everyone in a higher-pollution district has higher personal admission risk",
+          feedback: "District means do not describe each individual or their risk."
+        },
+        {
+          id: "D",
+          text: "The association is necessarily the same within every age group",
+          feedback: "A standardised aggregate does not establish uniform stratum-specific associations."
+        },
+        {
+          id: "E",
+          text: "District-level associations are always spurious",
+          feedback: "They describe aggregate patterns and may be relevant for planning and hypothesis formation."
+        }
+      ],
+      correct: "A",
+      hint: "Identify the unit on which exposure and outcome were observed.",
+      lesson: "Population-level evidence and individual-level inference answer different questions.",
+      explanation: "The data describe districts and can motivate further study. Individual association and causal claims need an appropriate design, linked observations and control of relevant biases.",
+      lessonId: "surveillance-outbreaks",
+      sourceIds: [
+        "gmc-graduates",
+        "dfph-syllabus"
+      ],
+      help: "clinical_epidemiology/risk_prospective.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "healthcareBusinessAnalyst",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "13dddd2c0769b58a81bd4fbe551827842e3e983a46ab2f0d06c2e542779a6a96"
+      }
+    },
+    {
+      id: "BIO-DEP-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Cluster design effect",
+      objective: "Calculate the approximate standard-error adjustment.",
+      stem: "A fictional survey samples equal clusters of 10 people. Suppose the common intracluster correlation is 0.20 and use the simple equal-size approximation. What should multiply the independent-sample standard error?",
+      options: [
+        {
+          id: "A",
+          text: "0.36",
+          feedback: "A factor below one would reduce uncertainty despite the positive correlation under the stated design."
+        },
+        {
+          id: "B",
+          text: "1.00",
+          feedback: "This treats all observed people as independent."
+        },
+        {
+          id: "C",
+          text: "1.67",
+          feedback: "The variance ratio is 1 + 9 \xD7 0.20 = 2.8. Its square root is about 1.67."
+        },
+        {
+          id: "D",
+          text: "2.80",
+          feedback: "This is the variance multiplier, not the standard-error multiplier."
+        },
+        {
+          id: "E",
+          text: "3.00",
+          feedback: "Using cluster size rather than cluster size minus one is incorrect; this would also be a variance multiplier."
+        }
+      ],
+      correct: "C",
+      hint: "Compute the design effect first and recall how variance relates to standard error.",
+      lesson: "A standard error is the square root of a variance.",
+      explanation: "The approximate design effect is 2.8; the standard-error multiplier is its square root, about 1.67.",
+      lessonId: "dependent-samples",
+      sourceIds: [
+        "dfph-syllabus",
+        "ons-survey-error"
+      ],
+      help: "sample_size/population_survey.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d018dbd2bdccda673a9fc38ac2339af01ee294ab4e335b366c0031305733a163"
+      }
+    },
+    {
+      id: "BIO-DEP-02",
+      version: 1,
+      track: "publicHealth",
+      topic: "Survey weights and variance",
+      objective: "Identify design inputs for a national estimate.",
+      stem: "A health survey oversamples rural areas and interviews several adults per sampled household. It provides design weights, strata and household identifiers as primary sampling units. How should a population proportion and its standard error be estimated?",
+      options: [
+        {
+          id: "A",
+          text: "Use an unweighted proportion with binomial SE",
+          feedback: "This ignores unequal selection and dependence."
+        },
+        {
+          id: "B",
+          text: "Use an unweighted proportion and double its SE",
+          feedback: "An arbitrary multiplier does not account for either selection or the sample design."
+        },
+        {
+          id: "C",
+          text: "Use the weights but use a binomial SE with the raw headcount",
+          feedback: "Weights can correct the point estimate; raw binomial SE ignores complex design."
+        },
+        {
+          id: "D",
+          text: "Analyse the number of households as though it were the count of adults",
+          feedback: "Sampling units and outcome units need to be represented appropriately."
+        },
+        {
+          id: "E",
+          text: "Use survey weights for estimation and the supplied strata and primary sampling units in design-based variance estimation",
+          feedback: "This uses both the weighting and relevant design information."
+        }
+      ],
+      correct: "E",
+      hint: "Think separately about who the sample represents and how its observations are related.",
+      lesson: "Point estimation and variance estimation use different aspects of the survey design.",
+      explanation: "The supplied weights and design variables allow estimation for the target population while accounting for unequal selection, strata and clustering.",
+      lessonId: "dependent-samples",
+      sourceIds: [
+        "ons-survey-design",
+        "ons-survey-error"
+      ],
+      help: "sample_size/population_survey.htm",
+      difficulty: "advanced",
+      learnerGoals: [
+        "publicHealth",
+        "healthcareBusinessAnalyst",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "13adb037c412bd4db8c6e9e047a38b6088d4080fe52f21b69a056b039157beb6"
+      }
+    },
+    {
+      id: "BIO-DEP-03",
+      version: 1,
+      track: "medicine",
+      topic: "Repeated measurements",
+      objective: "Recognise why repeated measurements are dependent.",
+      stem: "A study records four blood pressure readings for each of 60 participants over a year. It aims to estimate the mean trajectory using all readings. Which strategy best recognises the data structure?",
+      options: [
+        {
+          id: "A",
+          text: "Fit a longitudinal model with participant-level dependence accounted for",
+          feedback: "It can use all observations while allowing readings from one participant to be correlated."
+        },
+        {
+          id: "B",
+          text: "Use an independent-observation model with 240 independent patients",
+          feedback: "The study has 60 independent participant units if participants are sampled independently."
+        },
+        {
+          id: "C",
+          text: "Apply a single paired t test to all 240 rows",
+          feedback: "A two-occasion paired test does not describe a four-occasion trajectory."
+        },
+        {
+          id: "D",
+          text: "Keep the single highest reading for each person",
+          feedback: "Maximum readings answer a different question and discard timing."
+        },
+        {
+          id: "E",
+          text: "Treat the four time points as independent groups and drop participant identifiers",
+          feedback: "Removing identifiers does not remove dependence."
+        }
+      ],
+      correct: "A",
+      hint: "What do the four rows for each participant have in common?",
+      lesson: "Repeated observations improve information about trajectories but share a participant.",
+      explanation: "A suitable longitudinal analysis models or accommodates within-participant dependence and uses time appropriately; choose the model after defining the trajectory of interest.",
+      lessonId: "dependent-samples",
+      sourceIds: [
+        "dfph-syllabus",
+        "ons-survey-error"
+      ],
+      help: "sample_size/population_survey.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "dc86cf1958e6e8e18c9800b3c6bf36c696b471d3ba1d1974eef9cc3cf0ffcd43"
+      }
+    },
+    {
+      id: "CLIN-POWER-01",
+      version: 2,
+      track: "medicine",
+      topic: "Recruitment allowance",
+      objective: "Apply a loss allowance to a per-arm sample size.",
+      stem: "A fictional two-arm trial needs 108 analysable participants in each arm. Investigators expect 15% of recruited participants to have no primary outcome in each arm. Based on this allowance alone, what is the minimum integer recruitment target per arm?",
+      options: [
+        {
+          id: "A",
+          text: "108",
+          feedback: "This is the number needed for analysis and does not allow for loss."
+        },
+        {
+          id: "B",
+          text: "124",
+          feedback: "Adding 15% of the analysable count underestimates loss, which is expected among those recruited."
+        },
+        {
+          id: "C",
+          text: "126",
+          feedback: "This target leaves 107.1 expected analysable participants per arm."
+        },
+        {
+          id: "D",
+          text: "128",
+          feedback: "Dividing 108 by 0.85 gives approximately 127.06, which rounds up to 128."
+        },
+        {
+          id: "E",
+          text: "255",
+          feedback: "255 comes from rounding up the combined calculation 216/0.85. The target is per arm, so round up 108/0.85 separately for each arm."
+        }
+      ],
+      correct: "D",
+      hint: "If N is recruited, the expected number available is 0.85 \xD7 N.",
+      lesson: "Inflate the analysable target by dividing by the fraction expected to remain.",
+      explanation: "Require 0.85 \xD7 N \u2265 108, so round 108/0.85 up to 128 per arm. This is an expected-count allowance and does not address informative attrition.",
+      help: "sample_size/unpaired_t_test.htm",
+      lessonId: "trial-power",
+      sourceIds: [
+        "ich-e9",
+        "rcog-mrcog"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6140f7b6226e9c152b7ca469be23df805744cf0ab8c3df752d8a076d11ca42d3"
+      }
+    },
+    {
+      id: "CLIN-POWER-02",
+      version: 1,
+      track: "medicine",
+      topic: "Type II error",
+      objective: "Give the correct conditional interpretation of beta.",
+      stem: "A superiority trial design has 80% power if the true improvement difference is 3 points under its specified assumptions. Which repeated-trial frequency follows from this statement?",
+      options: [
+        {
+          id: "A",
+          text: "About 20% of repeats fail to reject the null when the true difference is 3 points.",
+          feedback: "Correct. This is beta at the specified alternative."
+        },
+        {
+          id: "B",
+          text: "About 20% of statistically significant trial reports are false positives.",
+          feedback: "Power does not give the proportion of significant results that arise from true nulls."
+        },
+        {
+          id: "C",
+          text: "About 20% of repeats reject the null when it is true.",
+          feedback: "That probability is the type I error at the null, governed by alpha."
+        },
+        {
+          id: "D",
+          text: "About 80% of patients improve by at least 3 points.",
+          feedback: "Power concerns a decision across repeated trials, not individual response rates."
+        },
+        {
+          id: "E",
+          text: "About 80% of trials with any nonzero difference reject the null.",
+          feedback: "Power varies with the magnitude and direction of the true difference."
+        }
+      ],
+      correct: "A",
+      hint: "Identify what is assumed true and which decision counts as an error.",
+      lesson: "At a chosen alternative, beta is the probability the planned test fails to reject the null.",
+      explanation: "With the true difference fixed at 3 points, beta is 1 \u2212 0.80 = 0.20 under the specified model.",
+      help: "sample_size/unpaired_t_test.htm",
+      lessonId: "trial-power",
+      sourceIds: [
+        "ich-e9",
+        "rcpsych-paperb"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "cd682852b69e7d77ee9035a3364c26e7858a2b80e887582f303d69110161ba68"
+      }
+    },
+    {
+      id: "CLIN-POWER-03",
+      version: 1,
+      track: "medicine",
+      topic: "Trial margins",
+      objective: "Distinguish three confidence-interval decision rules.",
+      stem: "In a fictional trial, higher scores are better. The estimated new-minus-control difference has a 95% confidence interval of \u22121.1 to +3.0 points. Use the same interval to assess prespecified rules: superiority requires the whole interval above 0, noninferiority requires the lower bound above \u22122, and equivalence requires the whole interval between \u22122 and +2. Which rule is met?",
+      options: [
+        {
+          id: "A",
+          text: "Superiority only",
+          feedback: "The lower bound is below zero, so the superiority rule is not met."
+        },
+        {
+          id: "B",
+          text: "Equivalence only",
+          feedback: "The upper bound exceeds +2, outside the equivalence range."
+        },
+        {
+          id: "C",
+          text: "Noninferiority only",
+          feedback: "The lower bound exceeds \u22122. The interval crosses zero and exceeds the upper equivalence margin."
+        },
+        {
+          id: "D",
+          text: "All three rules",
+          feedback: "Only the noninferiority boundary is cleared."
+        },
+        {
+          id: "E",
+          text: "None of the rules",
+          feedback: "The lower bound is \u22121.1, above the noninferiority boundary."
+        }
+      ],
+      correct: "C",
+      hint: "Compare the lower limit with \u22122 and zero, then inspect the upper limit.",
+      lesson: "Each claim uses a different region of effects to exclude.",
+      explanation: "The interval excludes losses of 2 points or more under the stated confidence rule. It neither excludes zero nor rules out a difference greater than +2.",
+      help: "sample_size/unpaired_t_test.htm",
+      lessonId: "trial-power",
+      sourceIds: [
+        "ich-e9",
+        "fda-ni"
+      ],
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "5ac34ba3efdc5c112148ca5e360b6c50b4ff3d5cdcc3c1328ebbc99a2565efcf"
+      }
+    },
+    {
+      id: "CLIN-TRIAL-01",
+      version: 1,
+      track: "medicine",
+      topic: "Recruitment and allocation",
+      objective: "Identify the process that prevents selective enrolment.",
+      stem: "A trial compares two rehabilitation schedules. A computer creates the random allocation sequence, but the enrolment therapist can see the next assignment before confirming a patient's eligibility and consent. Which design change most directly addresses this weakness?",
+      options: [
+        {
+          id: "A",
+          text: "Ask participants not to tell the outcome assessor which schedule they receive.",
+          feedback: "This protects outcome assessment after assignment, leaving the recruitment problem."
+        },
+        {
+          id: "B",
+          text: "Use more centres without changing enrolment.",
+          feedback: "The same foreknowledge can influence enrolment in any number of centres."
+        },
+        {
+          id: "C",
+          text: "Make the allocation list available only to the enrolment therapist.",
+          feedback: "That therapist can still alter enrolment after seeing the assignment."
+        },
+        {
+          id: "D",
+          text: "Adjust the results for recorded age and baseline severity.",
+          feedback: "Adjustment is not a substitute for preventing selective enrolment, including selection on unmeasured factors."
+        },
+        {
+          id: "E",
+          text: "Use a secure service to reveal the next assignment only after eligibility and consent are recorded.",
+          feedback: "Correct. This conceals forthcoming assignments until enrolment is fixed."
+        }
+      ],
+      correct: "E",
+      hint: "Ask what the recruiter can know before the participant is enrolled.",
+      lesson: "Allocation concealment occurs before assignment. Blinding refers to knowledge after assignment.",
+      explanation: "Recruiters who can see the next assignment can selectively enrol or delay patients. A secure service releasing it only after enrolment limits that opportunity.",
+      help: "randomization/randomization.htm",
+      lessonId: "trial-appraisal",
+      sourceIds: [
+        "consort-2025",
+        "rcpsych-paperb"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "520a7b0202bb58d08e11d01446b65b3a34ffa501e5b0a858311f3000bdd4c436"
+      }
+    },
+    {
+      id: "CLIN-TRIAL-02",
+      version: 1,
+      track: "medicine",
+      topic: "Trial attrition",
+      objective: "Appraise an available-case analysis that claims intention to treat.",
+      stem: "A randomised trial of home monitoring reports fewer admissions in the intervention group, analysing everyone with recorded outcomes in their assigned group. Outcome data are missing in 22% of the intervention group and 3% of controls. The paper calls the result intention to treat. What is the most useful next check?",
+      options: [
+        {
+          id: "A",
+          text: "Assume missing participants had no admission in both groups.",
+          feedback: "This replaces unknown outcomes with an assumption that may be especially misleading when follow-up differs."
+        },
+        {
+          id: "B",
+          text: "Review reasons for missing outcomes by arm and sensitivity analyses for the prespecified endpoint.",
+          feedback: "Correct. Original group labels are useful, but informative missingness may still bias the comparison."
+        },
+        {
+          id: "C",
+          text: "Move participants with missing outcomes into the control group.",
+          feedback: "This violates original allocation and does not recover any missing observations."
+        },
+        {
+          id: "D",
+          text: "Compare the P value with 0.05 before considering follow-up.",
+          feedback: "A P value from incomplete data does not resolve the missingness."
+        },
+        {
+          id: "E",
+          text: "Check only that the allocation sequence was generated randomly.",
+          feedback: "Sequence generation does not explain why outcome ascertainment differs after assignment."
+        }
+      ],
+      correct: "B",
+      hint: "Does analysing observed outcomes by allocation supply data for the people who are absent?",
+      lesson: "A treatment-policy comparison still needs follow-up and a defensible missing-data plan.",
+      explanation: "Identify the amount, causes and timing of missingness by group. Assess whether clinically plausible assumptions about absent outcomes change the estimate.",
+      help: "randomization/randomization.htm",
+      lessonId: "trial-appraisal",
+      sourceIds: [
+        "consort-2025",
+        "ich-e9"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "aa61308481c6d9b6bd53c45bdb2bfef4345a9932e5a182909ff40c7b14d083f3"
+      }
+    },
+    {
+      id: "CLIN-TRIAL-03",
+      version: 2,
+      track: "medicine",
+      topic: "Clustered allocation",
+      objective: "Recognise the consequence of ward-level randomisation.",
+      stem: "A trial randomises 16 wards to a new discharge protocol or usual care. Patients' readmissions are then recorded. An analysis calculates its standard error as if all patients had been independently randomised. What is the central problem?",
+      options: [
+        {
+          id: "A",
+          text: "Treatments must be assigned by alternating patients across wards.",
+          feedback: "Alternation is predictable and does not address within-ward dependence."
+        },
+        {
+          id: "B",
+          text: "Patient outcomes cannot be recorded in a cluster trial.",
+          feedback: "Individual outcomes are useful. The analysis must reflect how patients are grouped."
+        },
+        {
+          id: "C",
+          text: "The outcome must be converted to a continuous score.",
+          feedback: "Binary outcomes are valid for cluster trials."
+        },
+        {
+          id: "D",
+          text: "The analysis ignores ward-level allocation and possible within-ward correlation.",
+          feedback: "The allocation units are wards. Account for possible correlation among patients within each ward and use inference appropriate for 16 wards."
+        },
+        {
+          id: "E",
+          text: "Every patient's pre-discharge and post-discharge measurements should be treated as a crossover.",
+          feedback: "Receiving a ward protocol does not constitute receiving both treatments in random order."
+        }
+      ],
+      correct: "D",
+      hint: "Identify what was randomised and which observations share local influences.",
+      lesson: "People in the same randomised cluster may have related outcomes, so the apparent sample size can exaggerate precision.",
+      explanation: "An analysis that ignores within-ward correlation can underestimate uncertainty. The allocation unit is the ward. Use a method that accounts for correlation among patients within wards and gives appropriate inference for 16 independent wards.",
+      help: "randomization/randomization.htm",
+      lessonId: "trial-appraisal",
+      sourceIds: [
+        "consort-2025",
+        "rcpsych-paperb"
+      ],
+      difficulty: "advanced",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "7e63efc22c8244980808456cf53eb69da9625854230a0b2a119ac95f61028593"
+      }
+    },
+    {
+      id: "CLIN-DX-01",
+      version: 2,
+      track: "medicine",
+      topic: "Negative test result",
+      objective: "Convert a negative likelihood ratio to a remaining probability.",
+      stem: "A fictional test has sensitivity 75% and specificity 80% at a fixed threshold. A patient's pretest probability of the condition is 40%. Assuming these estimates apply to the patient, what is the approximate probability after a negative result?",
+      options: [
+        {
+          id: "A",
+          text: "12.5%",
+          feedback: "12.5% comes from multiplying the pretest probability by 0.3125. The likelihood ratio multiplies the pretest odds."
+        },
+        {
+          id: "B",
+          text: "17.2%",
+          feedback: "Correct. Prior odds 2/3 multiplied by 0.25/0.80 give 5/24. Convert to probability 5/29."
+        },
+        {
+          id: "C",
+          text: "25.0%",
+          feedback: "This is the proportion of people with the condition who test negative, not the chance of disease after a negative test."
+        },
+        {
+          id: "D",
+          text: "31.3%",
+          feedback: "31.3% expresses LR\u2212 = 0.3125 as a rounded percentage. Calculate post-test odds before converting back to probability."
+        },
+        {
+          id: "E",
+          text: "68.8%",
+          feedback: "68.8% expresses 1 \u2212 LR\u2212 = 0.6875 as a rounded percentage. Taking that complement does not update the pretest probability."
+        }
+      ],
+      correct: "B",
+      hint: "Use the false-negative fraction divided by specificity, and multiply odds rather than probability.",
+      lesson: "A negative result lowers the odds when its LR is below 1. Convert the remaining odds to a probability before communicating it.",
+      explanation: "The negative LR is 0.25/0.80 = 0.3125. Prior odds are 0.40/0.60 = 2/3. The updated probability is (5/24)/(1 + 5/24), or about 17.2%.",
+      help: "nonparametric_methods/roc.htm",
+      lessonId: "diagnostic-evidence",
+      sourceIds: [
+        "fda-diagnostic",
+        "rcgp-evidence"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "usMedicalBoards"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "0035d6a349c3b87ad2736a33397f8cfcd9d1059bf3a75ee0e0a1fbcf35594423"
+      }
+    },
+    {
+      id: "CLIN-DX-02",
+      version: 2,
+      track: "medicine",
+      topic: "Partial verification",
+      objective: "Spot a design feature that can bias accuracy estimates.",
+      stem: "A clinic compares a new clot marker with imaging. Nearly everyone with a positive marker receives imaging, but most people with a negative marker do not. Investigators report accuracy only for those imaged. Which limitation follows most directly?",
+      options: [
+        {
+          id: "A",
+          text: "The results have no clinically relevant threshold.",
+          feedback: "The marker can have a threshold regardless of who receives imaging."
+        },
+        {
+          id: "B",
+          text: "The verified subset automatically has the intended clinic prevalence.",
+          feedback: "Selection for imaging depends on the marker result, so its case fraction is not automatically representative."
+        },
+        {
+          id: "C",
+          text: "A larger sample would remove bias from selective verification.",
+          feedback: "Larger samples cannot remove systematic selection into verification."
+        },
+        {
+          id: "D",
+          text: "The design proves the imaging itself causes positive marker results.",
+          feedback: "Imaging determines the reference classification, but the problem described is selective verification."
+        },
+        {
+          id: "E",
+          text: "Disease status is incompletely established among marker-negative people, which can bias reported accuracy.",
+          feedback: "This is partial verification. Disease status is missing for many marker-negative participants because reference verification depends on the index result."
+        }
+      ],
+      correct: "E",
+      hint: "Who does the accuracy table omit, and is that related to their marker result?",
+      lesson: "Check how the intended diagnostic population was enrolled and which patients received the reference standard.",
+      explanation: "The subset with reference results is selected partly by the index result. Unverified negative patients can include missed cases. The available table cannot simply be treated as if it covered all tested people.",
+      help: "nonparametric_methods/roc.htm",
+      lessonId: "diagnostic-evidence",
+      sourceIds: [
+        "stard-2015",
+        "fda-diagnostic"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "usMedicalBoards"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "98f800cb975c5f6af2e0453d3702281d5b668aaea14c99f72764b4f19611235f"
+      }
+    },
+    {
+      id: "CLIN-DX-03",
+      version: 1,
+      track: "medicine",
+      topic: "ROC discrimination",
+      objective: "Recognise what discrimination does not tell us about an operating threshold.",
+      stem: "A fictional marker's empirical ROC AUC is 0.84, estimated by comparing scores from known cases with known noncases and counting ties as halves. Which interpretation is supported by this value alone?",
+      options: [
+        {
+          id: "A",
+          text: "At the selected threshold, 84% of positive results are true positives.",
+          feedback: "That is positive predictive value at a specified cut-off, which also depends on the case mix."
+        },
+        {
+          id: "B",
+          text: "Any threshold on the curve has 84% sensitivity.",
+          feedback: "Sensitivity varies with threshold."
+        },
+        {
+          id: "C",
+          text: "The marker's predicted probabilities match observed disease frequencies.",
+          feedback: "That is calibration. Ranking performance alone does not establish it."
+        },
+        {
+          id: "D",
+          text: "It scores a randomly selected case higher than a randomly selected noncase about 84% of the time when ties count as half credit.",
+          feedback: "Correct. This describes ranking in the evaluated data."
+        },
+        {
+          id: "E",
+          text: "The optimal treatment decision for each patient follows from 0.84 alone.",
+          feedback: "Clinical utility depends on threshold, setting and consequences of decisions."
+        }
+      ],
+      correct: "D",
+      hint: "AUC gives a summary of pairwise ranking across thresholds.",
+      lesson: "AUC describes discrimination in the evaluated population. It does not establish calibration, predictive value or the best decision rule.",
+      explanation: "The empirical AUC equals the fraction of case\u2013noncase pairs correctly ordered plus half the tied fraction. Performance in another population needs separate evidence.",
+      help: "nonparametric_methods/roc.htm",
+      lessonId: "diagnostic-evidence",
+      sourceIds: [
+        "fda-diagnostic",
+        "stard-2015"
+      ],
+      difficulty: "advanced",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "usMedicalBoards"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "877f6944393418743df6178fc3fbeb46aab1350bde2b0f229cedd4fe74644c26"
+      }
+    },
+    {
+      id: "CLIN-SCREEN-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Survival and lead time",
+      objective: "Recognise lead time in an individual example with unchanged death age.",
+      stem: "For a fictional condition, screening shifts a person's date of diagnosis from age 67 to 64. Treatment and age at death remain identical. Which phenomenon can explain the apparent three-year increase in survival measured from diagnosis?",
+      options: [
+        {
+          id: "A",
+          text: "Lead-time bias",
+          feedback: "Correct. The diagnosis moves earlier but the death does not."
+        },
+        {
+          id: "B",
+          text: "Length bias",
+          feedback: "Length bias concerns preferential detection of more slowly progressing conditions. This example follows one unchanged course."
+        },
+        {
+          id: "C",
+          text: "Verification bias",
+          feedback: "The example does not concern selective application of a reference standard."
+        },
+        {
+          id: "D",
+          text: "Loss to follow-up",
+          feedback: "Death is observed at the same age under both scenarios."
+        },
+        {
+          id: "E",
+          text: "A treatment effect on mortality",
+          feedback: "The example explicitly fixes the time of death."
+        }
+      ],
+      correct: "A",
+      hint: "Which event changed, diagnosis or death?",
+      lesson: "Looking from diagnosis starts the clock at different times. A programme comparison needs a common start point.",
+      explanation: "The added three years reflect earlier recognition. No extension of life follows from comparing survival from diagnosis alone.",
+      help: "clinical_epidemiology/screening_test.htm",
+      lessonId: "screening-programmes",
+      sourceIds: [
+        "uk-nsc-effectiveness",
+        "uk-nsc-glossary"
+      ],
+      difficulty: "beginner",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "undergraduateMedicine"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "b1d930c0e2b2a6b9425adcd7c8c0bb278cd32c309f3a5e34dbe9f020d162e265"
+      }
+    },
+    {
+      id: "CLIN-SCREEN-02",
+      version: 1,
+      track: "publicHealth",
+      topic: "Overdiagnosis",
+      objective: "Distinguish overdiagnosis from an incorrect result or a false alarm.",
+      stem: "A fictional screening test triggers a biopsy. The biopsy correctly identifies a slow-growing lesion. In the hypothetical absence of screening, the lesion would never have caused symptoms or shortened the person's life. Which term best describes detecting it?",
+      options: [
+        {
+          id: "A",
+          text: "False-positive screening result",
+          feedback: "There is a real lesion, confirmed by diagnostic assessment."
+        },
+        {
+          id: "B",
+          text: "Lead-time bias alone",
+          feedback: "An earlier diagnosis can affect observed survival, but the defining feature here is that the lesion would never matter clinically."
+        },
+        {
+          id: "C",
+          text: "Overdiagnosis",
+          feedback: "Correct. The disease is genuinely detected, but would never have caused harm in the person's lifetime."
+        },
+        {
+          id: "D",
+          text: "False-negative screening result",
+          feedback: "The lesion was detected."
+        },
+        {
+          id: "E",
+          text: "Prevented clinical disease",
+          feedback: "No symptoms would have occurred even without detection."
+        }
+      ],
+      correct: "C",
+      hint: "Does the finding exist, and would it have affected the person's life without screening?",
+      lesson: "Overdiagnosis concerns the consequences of detecting real disease. It is distinct from a false positive.",
+      explanation: "The hypothetical natural history meets the definition of overdiagnosis. In practice, whether an individual case is overdiagnosed is usually uncertain.",
+      help: "clinical_epidemiology/screening_test.htm",
+      lessonId: "screening-programmes",
+      sourceIds: [
+        "uk-nsc-effectiveness",
+        "uk-nsc-glossary"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "undergraduateMedicine"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "80d38cf49016395c843f444dd66f5438e0254cfb7e5a0a7bfdb0bdad5d002da8"
+      }
+    },
+    {
+      id: "CLIN-SCREEN-03",
+      version: 2,
+      track: "publicHealth",
+      topic: "Perinatal mortality",
+      objective: "Identify the numerator, denominator and scaling of a maternity indicator.",
+      stem: "A fictional annual register uses one consistent definition. It records 9,960 live births, 40 stillbirths, 10 deaths before seven completed days of life and 2 maternal deaths meeting the maternal mortality definition. What is the perinatal mortality rate per 1,000 total births, to two decimal places?",
+      options: [
+        {
+          id: "A",
+          text: "0.20 per 1,000",
+          feedback: "This uses maternal deaths, which do not belong in the perinatal numerator."
+        },
+        {
+          id: "B",
+          text: "4.00 per 1,000",
+          feedback: "This uses stillbirths only, omitting early neonatal deaths."
+        },
+        {
+          id: "C",
+          text: "5.02 per 1,000",
+          feedback: "That is approximately 50/9,960 \xD7 1,000. Perinatal mortality uses total births."
+        },
+        {
+          id: "D",
+          text: "5.00 per 1,000",
+          feedback: "Correct. The 50 perinatal deaths are divided by 10,000 total births, then multiplied by 1,000."
+        },
+        {
+          id: "E",
+          text: "50.00 per 1,000",
+          feedback: "This is the death count without the specified scaling and denominator."
+        }
+      ],
+      correct: "D",
+      hint: "Combine stillbirths and early neonatal deaths, and include stillbirths in the denominator.",
+      lesson: "Perinatal mortality and maternal mortality use different events and denominator definitions.",
+      explanation: "The numerator is 40 + 10 and the denominator is 9,960 + 40. This gives 5.00 per 1,000 total births. The maternal deaths belong to a separate indicator.",
+      help: "clinical_epidemiology/screening_test.htm",
+      lessonId: "screening-programmes",
+      sourceIds: [
+        "ons-perinatal",
+        "who-mmr",
+        "rcog-mrcog"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "undergraduateMedicine"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "7a25327da344a3939b7b0e89492890423313ae4a849110790e26be5030a34c7f"
+      }
+    },
+    {
+      id: "SURVIVAL-KM-01",
+      version: 1,
+      track: "medicine",
+      topic: "Kaplan\u2013Meier risk sets",
+      objective: "Update survival after right censoring.",
+      stem: "Ten patients are initially unrecovered. Two recover on day 1. Two other patients stop being observed on day 2 while still unrecovered. One recovers on day 3. The rest are still observed. What is the Kaplan\u2013Meier estimate of remaining unrecovered just after day 3?",
+      options: [
+        {
+          id: "A",
+          text: "0.50",
+          feedback: "That treats all five exits as events."
+        },
+        {
+          id: "B",
+          text: "0.70",
+          feedback: "Three events divided by ten ignores the later risk set."
+        },
+        {
+          id: "C",
+          text: "0.667",
+          feedback: "The two survival factors are 8/10 and 5/6."
+        },
+        {
+          id: "D",
+          text: "0.75",
+          feedback: "There were six still at risk at the last event."
+        },
+        {
+          id: "E",
+          text: "0.833",
+          feedback: "5/6 is the conditional day 3 factor alone."
+        }
+      ],
+      correct: "C",
+      hint: "Write the risk set just before each event time.",
+      lesson: "Define the start of follow-up, event and censoring. A right-censored participant contributes observed time at risk. Kaplan\u2013Meier multiplies conditional probabilities of remaining free of the specified event. Death before relapse prevents first relapse and enters its real-world cumulative incidence as a competing event. Log-rank compares curves using observed and expected event counts. A Cox hazard ratio describes relative instantaneous event rates. Its usual constant summary assumes proportional hazards.",
+      explanation: "(1 \u2212 2/10) \xD7 (1 \u2212 1/6) = 2/3. The two censorings reduce the later risk set.",
+      operation: "KaplanMeier",
+      help: "survival_analysis/kaplan_meier.htm",
+      lessonId: "survival-competing-risks",
+      sourceIds: [
+        "survival-vignette"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d6b3e72502f577aceb922b2c0b5686ac406209960d005c08a4dc3378b44679f9"
+      }
+    },
+    {
+      id: "SURVIVAL-CR-01",
+      version: 2,
+      track: "researcher",
+      topic: "Competing events",
+      objective: "Choose an observed-world probability estimator.",
+      stem: "An oncology team wants the probability that a first documented relapse occurs within one year of starting follow-up. A patient who dies relapse-free cannot subsequently relapse. Some are lost to follow-up alive and relapse-free. Which analysis best answers the question?",
+      options: [
+        {
+          id: "A",
+          text: "Censor deaths and report 1 minus Kaplan\u2013Meier.",
+          feedback: "It can overestimate relapse probability by treating death as ordinary loss of observation."
+        },
+        {
+          id: "B",
+          text: "Report the cause-specific relapse hazard at one year.",
+          feedback: "That is an instantaneous rate."
+        },
+        {
+          id: "C",
+          text: "Report first relapse or death as one endpoint.",
+          feedback: "This gives the risk of a composite outcome."
+        },
+        {
+          id: "D",
+          text: "Estimate relapse cumulative incidence with pre-relapse death as a competing event.",
+          feedback: "This accounts for the competing event that prevents a future first relapse."
+        },
+        {
+          id: "E",
+          text: "Exclude everyone who dies before relapse at the start.",
+          feedback: "That conditions selection on a future outcome."
+        }
+      ],
+      correct: "D",
+      hint: "Identify which event prevents a future first relapse.",
+      lesson: "Define the start of follow-up, event and censoring. A right-censored participant contributes observed time at risk. Kaplan\u2013Meier multiplies conditional probabilities of remaining free of the specified event. Death before relapse prevents first relapse and enters its real-world cumulative incidence as a competing event. Log-rank compares curves using observed and expected event counts. A Cox hazard ratio describes relative instantaneous event rates. Its usual constant summary assumes proportional hazards.",
+      explanation: "Use a cumulative incidence estimator for first relapse with death before relapse as a competing event. Handle loss of follow-up as right censoring under suitable assumptions.",
+      operation: "",
+      help: "survival_analysis/kaplan_meier.htm",
+      lessonId: "survival-competing-risks",
+      sourceIds: [
+        "survival-vignette",
+        "medical-oncology-sce"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "82453b0ce726a9564849a3278ec6f784da4c83dcd7614c2b870f6fcf627ab34a"
+      }
+    },
+    {
+      id: "SURVIVAL-PH-01",
+      version: 1,
+      track: "medicine",
+      topic: "Proportional hazards",
+      objective: "Recognise a changing relative effect.",
+      stem: "An intensive care trial shows higher early mortality with treatment, then lower later mortality. A Cox model gives HR 0.98 and scaled Schoenfeld residuals show a strong time trend. Which is the best next step?",
+      options: [
+        {
+          id: "A",
+          text: "Examine a time-varying effect and report absolute survival at prespecified times.",
+          feedback: "That represents the changing contrast and gives clinically interpretable comparisons."
+        },
+        {
+          id: "B",
+          text: "Conclude that survival is equivalent.",
+          feedback: "A near-one summary does not establish equivalence."
+        },
+        {
+          id: "C",
+          text: "Report 2% lower 90-day mortality risk.",
+          feedback: "A hazard ratio is an instantaneous contrast."
+        },
+        {
+          id: "D",
+          text: "Ignore the residual plot because Cox regression is nonparametric.",
+          feedback: "The baseline hazard is unspecified, but the covariate ratio still has model assumptions."
+        },
+        {
+          id: "E",
+          text: "Publish only a log-rank P value.",
+          feedback: "A single test result can hide opposing differences."
+        }
+      ],
+      correct: "A",
+      hint: "Ask whether a constant relative rate is appropriate.",
+      lesson: "Define the start of follow-up, event and censoring. A right-censored participant contributes observed time at risk. Kaplan\u2013Meier multiplies conditional probabilities of remaining free of the specified event. Death before relapse prevents first relapse and enters its real-world cumulative incidence as a competing event. Log-rank compares curves using observed and expected event counts. A Cox hazard ratio describes relative instantaneous event rates. Its usual constant summary assumes proportional hazards.",
+      explanation: "If the relative effect changes, examine the time pattern and report absolute survival at relevant times. Restricted mean survival time over a prespecified horizon is another interpretable estimand.",
+      operation: "CoxRegression",
+      help: "survival_analysis/cox_regression.htm",
+      lessonId: "survival-competing-risks",
+      sourceIds: [
+        "survival-manual"
+      ],
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6e2fd548caf9218464984c11ba8d85e1bb6d4b74cb7d31b7e2ed4c9e6a59d5fb"
+      }
+    },
+    {
+      id: "REGMODEL-OR-01",
+      version: 1,
+      track: "medicine",
+      topic: "Adjusted odds ratio",
+      objective: "Convert an odds ratio to risk at a stated baseline.",
+      stem: "A severity-adjusted logistic model gives OR 0.50 for reattendance with a new respiratory protocol. At the same severity profile, what new-protocol risk corresponds to an old-protocol risk of 50%?",
+      options: [
+        {
+          id: "A",
+          text: "25%",
+          feedback: "That halves probability rather than odds."
+        },
+        {
+          id: "B",
+          text: "33.3%",
+          feedback: "Old odds are 1. New odds are 0.5, giving risk 0.5/(1+0.5)."
+        },
+        {
+          id: "C",
+          text: "50%",
+          feedback: "An OR of 0.50 changes the odds at this profile."
+        },
+        {
+          id: "D",
+          text: "66.7%",
+          feedback: "That doubles old odds."
+        },
+        {
+          id: "E",
+          text: "75%",
+          feedback: "That corresponds to odds of 3."
+        }
+      ],
+      correct: "B",
+      hint: "Convert baseline risk to odds before applying the ratio.",
+      lesson: "Linear regression models a mean in the outcome's units, logistic regression models log odds for a binary outcome, and a Poisson model with a log exposure offset models a count rate. Adjust for selected covariates using the design and subject knowledge. Assess functional form, residuals, uncertainty and, for prediction, calibration beyond the development fit.",
+      explanation: "Multiply the old odds 1 by 0.50, then divide the new odds by one plus those odds. The resulting risk is 1/3.",
+      operation: "LogisticRegression",
+      help: "regression_and_correlation/logistic.htm",
+      lessonId: "regression-models",
+      sourceIds: [
+        "r-glm",
+        "respiratory-sce"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "healthcareBusinessAnalyst"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "bf97fb67b1f61010d477267c7deeaa1b5bef1972e300ebfacc8e37c46908b1e8"
+      }
+    },
+    {
+      id: "REGMODEL-RATE-01",
+      version: 1,
+      track: "analyst",
+      topic: "Poisson offset",
+      objective: "Model event rates with unequal exposure.",
+      stem: "Clinics contribute different person-months and counts of unplanned visits. Which model directly estimates a visit rate ratio for clinic type?",
+      options: [
+        {
+          id: "A",
+          text: "Logistic regression on raw visit counts.",
+          feedback: "Visits are counts, and a person can make more than one."
+        },
+        {
+          id: "B",
+          text: "Linear regression on raw visit counts.",
+          feedback: "Raw counts differ with the exposure time even at the same rate."
+        },
+        {
+          id: "C",
+          text: "Poisson regression with an unlogged person-time offset.",
+          feedback: "Use the log exposure with the log link."
+        },
+        {
+          id: "D",
+          text: "Poisson regression with log person-time as an estimated predictor.",
+          feedback: "A freely fitted exposure slope models a different relationship."
+        },
+        {
+          id: "E",
+          text: "Poisson regression with log person-time as an offset.",
+          feedback: "This models expected count in proportion to exposure and exponentiates the clinic-type coefficient as a rate ratio."
+        }
+      ],
+      correct: "E",
+      hint: "At equal rates, double the time means double the expected count.",
+      lesson: "Linear regression models a mean in the outcome's units, logistic regression models log odds for a binary outcome, and a Poisson model with a log exposure offset models a count rate. Adjust for selected covariates using the design and subject knowledge. Assess functional form, residuals, uncertainty and, for prediction, calibration beyond the development fit.",
+      explanation: "With log expected count = log person-time plus the linear predictor, the clinic-type coefficient exponentiates to a rate ratio. Check dispersion and clustering when estimating its uncertainty.",
+      operation: "PoissonRegression",
+      help: "regression_and_correlation/poisson.htm",
+      lessonId: "regression-models",
+      sourceIds: [
+        "r-glm",
+        "r-family"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "healthcareBusinessAnalyst",
+        "publicHealth",
+        "postgraduateMedicine"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "7bca8e07baf7690da0cac30a96e99a26f45cb5a36925c650c187004af0833148"
+      }
+    },
+    {
+      id: "REGMODEL-CAL-01",
+      version: 1,
+      track: "researcher",
+      topic: "Calibration",
+      objective: "Distinguish ranking from accurate risk predictions.",
+      stem: "An anaesthesia complications model has AUC 0.85 at a new hospital. Among patients in groups with predicted risks of 20%, 50% and 80%, observed risks are 15%, 40% and 70% with large denominators. Which is the best interpretation?",
+      options: [
+        {
+          id: "A",
+          text: "AUC 0.85 establishes accurate risk for 85% of individuals.",
+          feedback: "AUC measures ranking of cases and non-cases."
+        },
+        {
+          id: "B",
+          text: "The model underpredicts in these groups.",
+          feedback: "Observed risk is lower than predicted in each group."
+        },
+        {
+          id: "C",
+          text: "The model discriminates fairly well and overpredicts in these groups.",
+          feedback: "Ranking and calibration measure different properties."
+        },
+        {
+          id: "D",
+          text: "AUC above 0.80 makes calibration unnecessary.",
+          feedback: "A clinical decision threshold needs interpretable probabilities."
+        },
+        {
+          id: "E",
+          text: "Drop the highest risk group to optimise the estimate.",
+          feedback: "That changes the target population and obscures performance."
+        }
+      ],
+      correct: "C",
+      hint: "Compare each observed risk with its matched prediction.",
+      lesson: "Linear regression models a mean in the outcome's units, logistic regression models log odds for a binary outcome, and a Poisson model with a log exposure offset models a count rate. Adjust for selected covariates using the design and subject knowledge. Assess functional form, residuals, uncertainty and, for prediction, calibration beyond the development fit.",
+      explanation: "High discrimination can coexist with overprediction. Assess calibration across the intended range with uncertainty and investigate transportability.",
+      operation: "",
+      help: "regression_and_correlation/logistic.htm",
+      lessonId: "regression-models",
+      sourceIds: [
+        "r-glm",
+        "frca-research-data"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "mastersStatistics",
+        "healthcareBusinessAnalyst"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "e97abf1b707d47a9ba92999c2c022da7cbe31534fe472ee905a8c0ca1be7923c"
+      }
+    },
+    {
+      id: "AGREE-BA-01",
+      version: 1,
+      track: "medicine",
+      topic: "Limits and clinical tolerance",
+      objective: "Compare individual differences with a tolerance.",
+      stem: "A new paediatric monitor correlates 0.99 with the existing one. For new minus existing, mean bias is +2.5 units and estimated limits of agreement are +0.16 to +4.84. Differences above 3 units in either direction matter clinically. Which conclusion is best?",
+      options: [
+        {
+          id: "A",
+          text: "Correlation establishes interchangeability.",
+          feedback: "Ranking can agree even when paired differences are large."
+        },
+        {
+          id: "B",
+          text: "The estimated upper limit exceeds the tolerance. Assess uncertainty before deciding on replacement.",
+          feedback: "The point estimate exceeds +3 and the estimates have sampling uncertainty."
+        },
+        {
+          id: "C",
+          text: "A mean bias below 3 implies all individual differences are acceptable.",
+          feedback: "Mean bias summarises the average, rather than individual spread."
+        },
+        {
+          id: "D",
+          text: "The two limits are the confidence interval for mean bias.",
+          feedback: "Limits of agreement describe individual differences."
+        },
+        {
+          id: "E",
+          text: "Subtract the mean bias and declare all future readings safe.",
+          feedback: "A correction may reduce systematic bias, but residual spread and validation still matter."
+        }
+      ],
+      correct: "B",
+      hint: "Compare the limit estimates with the prespecified range.",
+      lesson: "Correlation measures association. Two devices can rank patients almost identically and still give differences large enough to change care. For paired quantitative measures, inspect differences against their means and compare the limits of agreement with a prespecified acceptable range. For two categorical raters report the agreement table and observed agreement alongside Cohen's kappa. For quantitative reliability specify the ICC design, single or average rating, and whether absolute agreement or consistency matters.",
+      explanation: "The limit at +4.84 exceeds +3. Review its uncertainty and the clinical consequences. High correlation and an average difference below 3 are insufficient evidence for replacing the device.",
+      operation: "TPaired",
+      help: "parametric_methods/paired_t.htm",
+      lessonId: "measurement-agreement",
+      sourceIds: [
+        "bland-altman",
+        "mrcpch-tas"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "postgraduateAlliedHealth"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d9ed377458cec9366ceff2a3e8e7671101eb74d1efcdb635479b4dbb64a68540"
+      }
+    },
+    {
+      id: "AGREE-KAPPA-01",
+      version: 1,
+      track: "medicine",
+      topic: "Categorical agreement",
+      objective: "Calculate Cohen's kappa from a table.",
+      stem: "Two emergency clinicians classify 100 fictional records. Both mark 36 positive and both mark 52 negative. Clinician A alone marks 4 positive and clinician B alone marks 8 positive. What is unweighted Cohen's kappa, to two decimals?",
+      options: [
+        {
+          id: "A",
+          text: "0.12",
+          feedback: "This is the observed disagreement fraction."
+        },
+        {
+          id: "B",
+          text: "0.51",
+          feedback: "This is approximately the marginal expected agreement."
+        },
+        {
+          id: "C",
+          text: "0.88",
+          feedback: "This is the observed agreement."
+        },
+        {
+          id: "D",
+          text: "0.37",
+          feedback: "This subtracts expected agreement from observed, but omits the scaling denominator."
+        },
+        {
+          id: "E",
+          text: "0.75",
+          feedback: "(0.88 \u2212 0.512)/(1 \u2212 0.512) \u2248 0.75."
+        }
+      ],
+      correct: "E",
+      hint: "Use both positive and negative marginals to calculate expected agreement.",
+      lesson: "Correlation measures association. Two devices can rank patients almost identically and still give differences large enough to change care. For paired quantitative measures, inspect differences against their means and compare the limits of agreement with a prespecified acceptable range. For two categorical raters report the agreement table and observed agreement alongside Cohen's kappa. For quantitative reliability specify the ICC design, single or average rating, and whether absolute agreement or consistency matters.",
+      explanation: "A's positive/negative fractions are 0.40/0.60 and B's 0.44/0.56. Their cross-products for matching categories sum to 0.512. Divide 0.88 \u2212 0.512 by 1 \u2212 0.512.",
+      operation: "KappaScreen",
+      help: "agreement/kappa.htm",
+      lessonId: "measurement-agreement",
+      sourceIds: [
+        "cohen-kappa"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "postgraduateAlliedHealth"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "dbc3a7c7159a1cf78a64031d30c0bf7e196dc46e9dd70d4f26e4c1fb0ef30285"
+      }
+    },
+    {
+      id: "AGREE-ICC-01",
+      version: 2,
+      track: "researcher",
+      topic: "ICC specification",
+      objective: "Choose a reliability estimate that matches single-reader use.",
+      stem: "Every image in a reliability study is read by the same two clinicians, viewed as a sample from eligible readers. In practice one reader's numerical value will be used. Systematic differences between readers matter. Which ICC specification best fits this use?",
+      options: [
+        {
+          id: "A",
+          text: "Two-way consistency, average of two readers.",
+          feedback: "Both the definition and number of readings differ from the intended use."
+        },
+        {
+          id: "B",
+          text: "One-way random-effects ICC for a single reading.",
+          feedback: "The same readers assess all images, allowing their effects to be separated in a two-way design."
+        },
+        {
+          id: "C",
+          text: "Two-way random-reader absolute agreement, single reading.",
+          feedback: "It addresses generalising to eligible readers, one deployed reading and systematic differences."
+        },
+        {
+          id: "D",
+          text: "Two-way absolute agreement for the average of two readings.",
+          feedback: "An average often has higher reliability than a single reading, but a single reading is used here."
+        },
+        {
+          id: "E",
+          text: "Pearson correlation of the two readers' scores.",
+          feedback: "Correlation does not penalise a systematic shift."
+        }
+      ],
+      correct: "C",
+      hint: "Ask who reads each image, how many readings are used and whether absolute values matter.",
+      lesson: "Correlation measures association. Two devices can rank patients almost identically and still give differences large enough to change care. For paired quantitative measures, inspect differences against their means and compare the limits of agreement with a prespecified acceptable range. For two categorical raters report the agreement table and observed agreement alongside Cohen's kappa. For quantitative reliability specify the ICC design, single or average rating, and whether absolute agreement or consistency matters.",
+      explanation: "Use two-way random-reader absolute agreement for a single measurement under the stated design and assumptions. Report its form and interval alongside the clinical consequences of measurement differences.",
+      operation: "Agreement",
+      help: "agreement/intraclass.htm",
+      lessonId: "measurement-agreement",
+      sourceIds: [
+        "icc-selection",
+        "bland-altman"
+      ],
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "postgraduateAlliedHealth",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "128e1ffa75fda946cd31e0290319da08946dda2e418da84e848e6ebbdb45e7d4"
+      }
+    },
+    {
+      id: "SPC-LIMIT-01",
+      version: 2,
+      track: "analyst",
+      topic: "p-chart limits",
+      objective: "Interpret equal proportions with unequal denominators.",
+      stem: "An emergency department's stable baseline is 8% delayed reviews. One later month has 15 delays among 100 eligible encounters, another has 45 among 300. Using a simple 3 SD binomial p-chart with baseline fixed, which statement is correct?",
+      options: [
+        {
+          id: "A",
+          text: "Both breach because both exceed 8%.",
+          feedback: "The centre line is not a control limit."
+        },
+        {
+          id: "B",
+          text: "Both must give the same signal because both equal 15%.",
+          feedback: "The denominator determines the width of the band."
+        },
+        {
+          id: "C",
+          text: "The smaller month breaches first because its estimate is noisier.",
+          feedback: "Expected variation is greater at smaller n, so the limit is wider."
+        },
+        {
+          id: "D",
+          text: "Only the 300-encounter month breaches the upper limit.",
+          feedback: "The two limits are about 16.1% and 12.7%."
+        },
+        {
+          id: "E",
+          text: "No control limit can be calculated without a clinical target.",
+          feedback: "The limits use the baseline proportion and denominator."
+        }
+      ],
+      correct: "D",
+      hint: "Calculate 0.08 + 3\u221A(0.08\xD70.92/n) in each month.",
+      lesson: "An audit defines a standard, eligibility and a denominator, checks current care, acts on findings and remeasures. Quality improvement measures are followed in time order with a stable definition. A control chart estimates expected variation in a stable process. A p-chart models the proportion of eligible encounters with a binary outcome and its limits vary with denominator. Clinical targets, control limits and confidence intervals serve different purposes.",
+      explanation: "At n=100 the limit is 16.1%, so 15% is within it. At n=300 it is 12.7%, so 15% breaches it. Verify the observation and investigate a potential special cause.",
+      operation: "",
+      help: "graphics/control.htm",
+      lessonId: "audit-spc",
+      sourceIds: [
+        "nist-p-chart",
+        "nhs-spc"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "healthcareBusinessAnalyst",
+        "publicHealth"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "4a798ef816e08f89db9bb279143d69afdfd433dfc8d2a10f1ec39a97f7e649fe"
+      }
+    },
+    {
+      id: "SPC-RESPONSE-01",
+      version: 2,
+      track: "medicine",
+      topic: "Responding to common causes",
+      objective: "Choose a response to stable performance short of a standard.",
+      stem: "For a year an ICU process has remained within its established control limits, with no chart-rule signals. The service\u2019s target maximum adverse-event rate is below every observed rate. Which action fits this evidence?",
+      options: [
+        {
+          id: "A",
+          text: "Study and redesign the underlying process, then continue monitoring.",
+          feedback: "Stable process variation can coexist with performance below the standard."
+        },
+        {
+          id: "B",
+          text: "Investigate each fluctuation as a separate staff error.",
+          feedback: "Ordinary variation need not have a separate assignable cause in each month."
+        },
+        {
+          id: "C",
+          text: "Raise the target to the current centre and declare success.",
+          feedback: "The service target and process centre answer different questions."
+        },
+        {
+          id: "D",
+          text: "Use the latest value as evidence of a sustained improvement.",
+          feedback: "A single point within the observed pattern does not show a sustained change."
+        },
+        {
+          id: "E",
+          text: "Stop measuring because the process is statistically stable.",
+          feedback: "Stability says little about whether care meets a clinical standard."
+        }
+      ],
+      correct: "A",
+      hint: "Decide separately whether the process is stable and whether it meets the standard.",
+      lesson: "An audit defines a standard, eligibility and a denominator, checks current care, acts on findings and remeasures. Quality improvement measures are followed in time order with a stable definition. A control chart estimates expected variation in a stable process. A p-chart models the proportion of eligible encounters with a binary outcome and its limits vary with denominator. Clinical targets, control limits and confidence intervals serve different purposes.",
+      explanation: "A stable process can consistently perform poorly. Examine its underlying design, monitor for change after intervention and keep the clinical target distinct from expected process variation.",
+      operation: "",
+      help: "graphics/control.htm",
+      lessonId: "audit-spc",
+      sourceIds: [
+        "nhs-spc",
+        "frcem-research-qi"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "healthcareBusinessAnalyst"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6809cabb79a255bcc3b40985458dfc7e6bea360c1594ab07655807c52930a244"
+      }
+    },
+    {
+      id: "SPC-STANDARD-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Rates and case mix",
+      objective: "Use common weights to compare sites.",
+      stem: "For an illustrative site comparison, low/high-frailty rates per 1,000 patient-days are 1 and 6 at A, and 2 and 8 at B. Crude rates are 4.75 at A and 3.2 at B. With a common 50:50 person-time mix, what are the directly standardised rates?",
+      options: [
+        {
+          id: "A",
+          text: "A 4.75, B 3.2.",
+          feedback: "Those are the crude rates with each site's own mix."
+        },
+        {
+          id: "B",
+          text: "A 3.5, B 5.0.",
+          feedback: "Apply the same half weight to each stratum in each site."
+        },
+        {
+          id: "C",
+          text: "A 7, B 10.",
+          feedback: "Add the two stratum rates only after weighting them."
+        },
+        {
+          id: "D",
+          text: "A 5.0, B 3.5.",
+          feedback: "The weighted rates have been assigned to the opposite sites."
+        },
+        {
+          id: "E",
+          text: "A 1, B 2.",
+          feedback: "That compares the low-frailty stratum alone."
+        }
+      ],
+      correct: "B",
+      hint: "Apply the same weights to both sets of stratum rates.",
+      lesson: "An audit defines a standard, eligibility and a denominator, checks current care, acts on findings and remeasures. Quality improvement measures are followed in time order with a stable definition. A control chart estimates expected variation in a stable process. A p-chart models the proportion of eligible encounters with a binary outcome and its limits vary with denominator. Clinical targets, control limits and confidence intervals serve different purposes.",
+      explanation: "A is 0.5\xD71 + 0.5\xD76 = 3.5 and B is 0.5\xD72 + 0.5\xD78 = 5.0. The common mix reverses the crude comparison. Case-mix adjustment does not settle measurement comparability or uncertainty.",
+      operation: "RateDirect",
+      help: "rates/direct_standardization.htm",
+      lessonId: "audit-spc",
+      sourceIds: [
+        "nhs-direct-standardisation"
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "healthcareBusinessAnalyst",
+        "postgraduateMedicine"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "ec4e23ff16a926d32c8460260dd2a5d6d0faf92fb79d9084a207bd9b7c0ba7a7"
+      }
+    },
+    {
+      id: "BIO-ABSTRACT-01",
+      version: 2,
+      track: "core",
+      topic: "Clinical evidence",
+      objective: "Calculate an absolute benefit.",
+      stem: "A 90-day trial reports that 30 of 500 people allocated to a new treatment and 50 of 500 allocated to usual care had at least one admission. How many fewer people per 1,000 allocated to the new treatment had at least one admission by day 90, compared with usual care?",
+      options: [
+        {
+          id: "A",
+          text: "20",
+          feedback: "Twenty is the raw difference between groups of 500."
+        },
+        {
+          id: "B",
+          text: "40",
+          feedback: "The absolute difference of 0.04 corresponds to 40 fewer people with at least one admission per 1,000."
+        },
+        {
+          id: "C",
+          text: "60",
+          feedback: "Sixty per 1,000 is the treatment risk."
+        },
+        {
+          id: "D",
+          text: "100",
+          feedback: "One hundred per 1,000 is the usual care risk."
+        },
+        {
+          id: "E",
+          text: "400",
+          feedback: "40% is the relative reduction in the risk of having at least one admission. The question asks for the absolute difference per 1,000 people."
+        }
+      ],
+      correct: "B",
+      hint: "Calculate the two risks before subtracting.",
+      lesson: "Report a common denominator and time.",
+      explanation: "The absolute difference is 50/500 \u2212 30/500 = 0.04. This estimates 40 fewer people with at least one admission per 1,000 allocated to the new treatment by day 90.",
+      help: "clinical_epidemiology/nnt.htm",
+      operation: "",
+      lessonId: "clinical-abstract",
+      difficulty: "beginner",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "publicHealth",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "usmle-2026"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "bc0c3d6775c62558431e24dd32964c9ec969212766e3099f07393929377cb143"
+      }
+    },
+    {
+      id: "BIO-ABSTRACT-02",
+      version: 1,
+      track: "core",
+      topic: "Clinical evidence",
+      objective: "Calculate the number needed to harm.",
+      stem: "Serious rash occurs in 15 of 500 treated patients and 5 of 500 usual-care patients by 90 days. What is the estimated number needed to harm for serious rash?",
+      options: [
+        {
+          id: "A",
+          text: "10",
+          feedback: "Ten is the raw excess count, not a number needed to harm."
+        },
+        {
+          id: "B",
+          text: "20",
+          feedback: "Twenty is the excess per 1,000 patients."
+        },
+        {
+          id: "C",
+          text: "33",
+          feedback: "This roughly inverts the treated risk alone."
+        },
+        {
+          id: "D",
+          text: "50",
+          feedback: "Take the reciprocal of the 0.02 risk increase."
+        },
+        {
+          id: "E",
+          text: "100",
+          feedback: "This inverts the usual-care risk alone."
+        }
+      ],
+      correct: "D",
+      hint: "Subtract the risks, not the raw counts.",
+      lesson: "The number needed to harm refers to a particular outcome over a particular time.",
+      explanation: "The extra risk is 15/500 \u2212 5/500 = 0.02. Its reciprocal is 50 for one additional serious rash by 90 days.",
+      help: "clinical_epidemiology/nnt.htm",
+      operation: "",
+      lessonId: "clinical-abstract",
+      difficulty: "beginner",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "publicHealth",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "usmle-2026"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "54d414a928974f924473a72e79b49db569e9a23915a5cb8b29c64b6e989c1103"
+      }
+    },
+    {
+      id: "BIO-ABSTRACT-03",
+      version: 2,
+      track: "core",
+      topic: "Clinical evidence",
+      objective: "Distinguish absolute and relative effects across settings.",
+      stem: "Assume a treatment's 90-day admission risk ratio of 0.60 also applies in a clinic where untreated risk is 2.5%. What absolute benefit would this model predict?",
+      options: [
+        {
+          id: "A",
+          text: "1.0 percentage point",
+          feedback: "Treated risk would be 0.60 \xD7 2.5% = 1.5%."
+        },
+        {
+          id: "B",
+          text: "1.5 percentage points",
+          feedback: "This is the predicted treated risk expressed as a percentage, not the reduction."
+        },
+        {
+          id: "C",
+          text: "2.5 percentage points",
+          feedback: "This is the untreated risk."
+        },
+        {
+          id: "D",
+          text: "4.0 percentage points",
+          feedback: "A 4.0-point reduction would require a 10% untreated risk at this risk ratio. The untreated risk here is 2.5%."
+        },
+        {
+          id: "E",
+          text: "40 percentage points",
+          feedback: "This confuses a 40% relative reduction with an absolute difference."
+        }
+      ],
+      correct: "A",
+      hint: "What treated risk does the stated ratio imply?",
+      lesson: "Absolute benefit depends on baseline risk if relative benefit is held constant.",
+      explanation: "Under the stated assumption, the predicted treated risk is 1.5% and the absolute reduction is 1.0 percentage point. Transporting the risk ratio is itself an assumption.",
+      help: "clinical_epidemiology/nnt.htm",
+      operation: "",
+      lessonId: "clinical-abstract",
+      difficulty: "beginner",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "publicHealth",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "usmle-2026"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "cdb8deb03d442679edda5525e4e1297ceb19ac712a339b937816498b892a927a"
+      }
+    },
+    {
+      id: "BIO-CAUSAL-01",
+      version: 1,
+      track: "researcher",
+      topic: "Causal inference",
+      objective: "Recognise interaction on the absolute scale.",
+      stem: "A treatment halves event risk in both age strata. Untreated risks are 10% in younger people and 30% in older people. How do absolute benefits compare?",
+      options: [
+        {
+          id: "A",
+          text: "They are each 50 percentage points.",
+          feedback: "The ratio halves the stated baseline risk; it does not subtract 50 points."
+        },
+        {
+          id: "B",
+          text: "They must be identical.",
+          feedback: "An identical ratio need not produce an identical risk difference."
+        },
+        {
+          id: "C",
+          text: "5 points younger, 15 points older.",
+          feedback: "Halving the two baseline risks prevents different numbers of events per 100."
+        },
+        {
+          id: "D",
+          text: "15 points younger, 5 points older.",
+          feedback: "The higher baseline risk has the larger absolute benefit here."
+        },
+        {
+          id: "E",
+          text: "They cannot be calculated.",
+          feedback: "The baseline risks and the stratum-specific ratios suffice for these contrasts."
+        }
+      ],
+      correct: "C",
+      hint: "Halve each untreated risk and subtract.",
+      lesson: "Effect modification depends on the scale.",
+      explanation: "Risk moves from 10% to 5%, and from 30% to 15%. The absolute reduction is larger in the older group.",
+      help: "basics/confounding.htm",
+      operation: "",
+      lessonId: "causal-adjustment",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "what-if"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "7328ba85ac120eedb7debc0ee42d8b062be8352d6b23080b0bfbc3cf8a52773d"
+      }
+    },
+    {
+      id: "BIO-CAUSAL-02",
+      version: 1,
+      track: "researcher",
+      topic: "Causal inference",
+      objective: "Distinguish confounders and mediators.",
+      stem: "Baseline illness severity affects both treatment uptake and later admission. Treatment reduces symptoms at one week, and that change affects admission. Which adjustment set is most appropriate for the total treatment effect, assuming no other common causes and this causal structure?",
+      options: [
+        {
+          id: "A",
+          text: "One-week symptoms only.",
+          feedback: "Symptoms are downstream of the treatment and lie on a pathway to the outcome."
+        },
+        {
+          id: "B",
+          text: "Neither variable.",
+          feedback: "Baseline severity opens a noncausal association between treatment and admission."
+        },
+        {
+          id: "C",
+          text: "Both variables.",
+          feedback: "Adjusting for symptoms can block part of the total effect."
+        },
+        {
+          id: "D",
+          text: "Baseline illness severity only.",
+          feedback: "This addresses the stated confounding without removing the effect through symptoms."
+        },
+        {
+          id: "E",
+          text: "Only people who improve by one week.",
+          feedback: "Selecting on a post-treatment variable can bias the comparison."
+        }
+      ],
+      correct: "D",
+      hint: "Order the variables in time and ask which precedes treatment.",
+      lesson: "Choose controls for the causal effect of interest.",
+      explanation: "Baseline severity is a common cause; the subsequent symptoms are a mediator in the stated structure. Adjustment for the mediator does not in general estimate the total effect.",
+      help: "basics/confounding.htm",
+      operation: "",
+      lessonId: "causal-adjustment",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "what-if"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6bd1119a65760f90aa6b480248bf018acbb968a0367ce6e528c3242e41a05496"
+      }
+    },
+    {
+      id: "BIO-CAUSAL-03",
+      version: 1,
+      track: "researcher",
+      topic: "Causal inference",
+      objective: "Identify a threat to comparing treatment strategies.",
+      stem: "In one patient subgroup, nobody receives the new treatment. What limits an adjusted comparison for that subgroup using only this cohort?",
+      options: [
+        {
+          id: "A",
+          text: "There is no treatment overlap in that subgroup.",
+          feedback: "A data-based comparison needs observations under both strategies within the subgroup."
+        },
+        {
+          id: "B",
+          text: "The problem disappears by choosing logistic regression.",
+          feedback: "A model can extrapolate, but this is not evidence under the unobserved strategy."
+        },
+        {
+          id: "C",
+          text: "A larger sample with the same treatment rule guarantees overlap.",
+          feedback: "A rule that excludes treatment in this subgroup can persist at any sample size."
+        },
+        {
+          id: "D",
+          text: "Only the confidence level needs changing.",
+          feedback: "Confidence levels do not supply missing treatment comparisons."
+        },
+        {
+          id: "E",
+          text: "The subgroup proves the treatment is ineffective.",
+          feedback: "It provides no observed treated outcome."
+        }
+      ],
+      correct: "A",
+      hint: "Can we observe both strategies for these patients?",
+      lesson: "Positivity is a condition for identification from observed comparisons.",
+      explanation: "The data lack overlap in this subgroup. Change the question to a supported population or state and justify external information or extrapolation.",
+      help: "basics/confounding.htm",
+      operation: "",
+      lessonId: "causal-adjustment",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "what-if"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "b3878510063a0177c8a80807f927e435a8a9c31fa6e180d2bca6a06ff8a85f46"
+      }
+    },
+    {
+      id: "BIO-SYNTH-01",
+      version: 1,
+      track: "researcher",
+      topic: "Evidence synthesis",
+      objective: "Distinguish the interval for a mean effect from an interval for a new setting.",
+      stem: "A meta-analysis estimates a 2-day average reduction in recovery time. Its 95% confidence interval for the mean excludes zero, but its prediction interval includes no reduction and some prolongation. Which interpretation is best?",
+      options: [
+        {
+          id: "A",
+          text: "Every setting should expect a shorter recovery.",
+          feedback: "A confidence interval for a mean does not describe every setting."
+        },
+        {
+          id: "B",
+          text: "The study outcomes must have been measured incorrectly.",
+          feedback: "The pattern can arise from real heterogeneity."
+        },
+        {
+          id: "C",
+          text: "The two results contradict each other.",
+          feedback: "They are intervals for different quantities."
+        },
+        {
+          id: "D",
+          text: "The result rules out increased recovery time in a new setting.",
+          feedback: "The prediction interval allows such an effect."
+        },
+        {
+          id: "E",
+          text: "The estimated average favours the intervention, but effects in comparable settings may differ.",
+          feedback: "The distinction matters when choosing whether to adopt the intervention."
+        }
+      ],
+      correct: "E",
+      hint: "Ask what each interval is intended to cover.",
+      lesson: "A pooled effect is a summary of study evidence, not a guaranteed local effect.",
+      explanation: "The mean-effect interval reflects uncertainty in the average. A prediction interval accounts for heterogeneity and allows no benefit or harm in a comparable setting under the model.",
+      help: "meta_analysis/summary.htm",
+      operation: "",
+      lessonId: "evidence-synthesis",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "cochrane-meta"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "836616654efd6ebae9b15ae66a8ae1cdab93adf73fdd2e7f494fd6d3c779e48f"
+      }
+    },
+    {
+      id: "BIO-SYNTH-02",
+      version: 2,
+      track: "researcher",
+      topic: "Evidence synthesis",
+      objective: "Interpret funnel plot asymmetry.",
+      stem: "Small studies in a systematic review report larger benefits than larger studies. What can be concluded from this finding alone?",
+      options: [
+        {
+          id: "A",
+          text: "Selective publication is proven.",
+          feedback: "It is one possible explanation, not proven by the pattern."
+        },
+        {
+          id: "B",
+          text: "Several explanations are possible, including selective reporting and genuine differences in populations.",
+          feedback: "The pattern prompts checks of study methods, setting and missing results."
+        },
+        {
+          id: "C",
+          text: "The pooled effect is automatically unbiased with random effects.",
+          feedback: "Random effects do not correct biased studies or absent results."
+        },
+        {
+          id: "D",
+          text: "All small studies must be excluded in every review.",
+          feedback: "Exclusion needs a principled, preferably prespecified reason."
+        },
+        {
+          id: "E",
+          text: "The largest study is definitely correct.",
+          feedback: "Size does not guarantee good design or applicability."
+        }
+      ],
+      correct: "B",
+      hint: "Distinguish a signal from its cause.",
+      lesson: "Different results in smaller studies call for investigation.",
+      explanation: "Larger benefits reported in smaller studies have several possible explanations. Consider chance, genuine differences in populations or methods, and selective reporting or publication.",
+      help: "meta_analysis/summary.htm",
+      operation: "",
+      lessonId: "evidence-synthesis",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "cochrane-meta"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "5d820e45c513181e410b4c7b1148d6b78b072b2b34b6d947c0feaabdeb7f2f0f"
+      }
+    },
+    {
+      id: "BIO-SYNTH-03",
+      version: 1,
+      track: "researcher",
+      topic: "Evidence synthesis",
+      objective: "Assess the certainty of an effect estimate in a target population.",
+      stem: "A review finds a precise benefit in young adults. The decision concerns frail older people with multiple conditions who were excluded from all studies. Which aspect is specifically threatened by this mismatch?",
+      options: [
+        {
+          id: "A",
+          text: "Indirectness",
+          feedback: "The included population differs from those to whom the result would apply."
+        },
+        {
+          id: "B",
+          text: "Sampling imprecision in the pooled estimate",
+          feedback: "The interval can be narrow even when populations differ."
+        },
+        {
+          id: "C",
+          text: "Inter-rater reliability",
+          feedback: "There is no stated measurement disagreement."
+        },
+        {
+          id: "D",
+          text: "Publication bias",
+          feedback: "Differences in participants do not establish suppressed results."
+        },
+        {
+          id: "E",
+          text: "Allocation concealment",
+          feedback: "How assignment was hidden is a separate study-level concern."
+        }
+      ],
+      correct: "A",
+      hint: "Ask who was studied and who will receive treatment.",
+      lesson: "Certainty depends partly on how directly the studies answer your question.",
+      explanation: "Even a precise estimate can be indirect for a different population. Assess the clinical reasons that the benefit or harm might change.",
+      help: "meta_analysis/summary.htm",
+      operation: "",
+      lessonId: "evidence-synthesis",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "cochrane-grade"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d4351ed9fedca665aed1a9e1ca8b0a7c69fef2a20c3a7ef89b98a04023b3b064"
+      }
+    },
+    {
+      id: "BIO-IMPACT-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Population health",
+      objective: "Calculate a population attributable fraction from a stated scenario.",
+      stem: "A population has 300 annual cases. A defined intervention is expected to prevent 50 of them without other changes. What proportion of the current population cases would it prevent?",
+      options: [
+        {
+          id: "A",
+          text: "1%",
+          feedback: "This might be a change in population risk if population size were known, not the proportion of current cases."
+        },
+        {
+          id: "B",
+          text: "6%",
+          feedback: "This is not the ratio of prevented to observed cases."
+        },
+        {
+          id: "C",
+          text: "16.7%",
+          feedback: "Fifty divided by 300 is one sixth."
+        },
+        {
+          id: "D",
+          text: "50%",
+          feedback: "The numerator is a count of 50 cases."
+        },
+        {
+          id: "E",
+          text: "83.3%",
+          feedback: "This is the fraction of cases expected to remain."
+        }
+      ],
+      correct: "C",
+      hint: "Use the total number of current cases as the denominator.",
+      lesson: "Keep population risk and fraction of cases distinct.",
+      explanation: "Under the assumptions the intervention would avert 50/300, or about 16.7% of current cases.",
+      help: "rates/direct_standardization.htm",
+      operation: "",
+      lessonId: "population-impact",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "cdc-field"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "2b4f7010c06dc9bc8037ede9ac1a9edd950ad80c229ac427e9d0e7a4e58ba07f"
+      }
+    },
+    {
+      id: "BIO-IMPACT-02",
+      version: 2,
+      track: "publicHealth",
+      topic: "Population health",
+      objective: "Translate a causal risk ratio into relative vaccine effectiveness.",
+      stem: "With equal ascertainment and adequate follow-up, a fictional randomised vaccine trial estimates a risk ratio of 0.25 for symptomatic infection, vaccine versus placebo. What is vaccine efficacy on the relative risk-reduction scale?",
+      options: [
+        {
+          id: "A",
+          text: "4%",
+          feedback: "The reciprocal risk ratio is 1/0.25 = 4. Vaccine efficacy instead uses (1 \u2212 0.25) \xD7 100% = 75%."
+        },
+        {
+          id: "B",
+          text: "25%",
+          feedback: "This is the vaccinated group's risk relative to placebo."
+        },
+        {
+          id: "C",
+          text: "50%",
+          feedback: "The reduction is not half here."
+        },
+        {
+          id: "D",
+          text: "75%",
+          feedback: "Relative risk reduction is one minus the risk ratio."
+        },
+        {
+          id: "E",
+          text: "100%",
+          feedback: "Some symptomatic infections remain in the vaccinated group."
+        }
+      ],
+      correct: "D",
+      hint: "Compare the ratio with a ratio of one.",
+      lesson: "Name the endpoint and duration when reporting efficacy.",
+      explanation: "The estimated efficacy against symptomatic infection is 1 \u2212 0.25 = 75% over the trial follow-up. This does not imply 75 fewer cases per 100 vaccinated.",
+      help: "rates/direct_standardization.htm",
+      operation: "",
+      lessonId: "population-impact",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "usmle-2026",
+        "cdc-field"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "434778b219775b78ca61cd279495046e228d4ac06938f292d9eee90924220228"
+      }
+    },
+    {
+      id: "BIO-IMPACT-03",
+      version: 2,
+      track: "publicHealth",
+      topic: "Population health",
+      objective: "Calculate an incremental cost per QALY.",
+      stem: "For a fictional programme the expected extra total cost is 50,000 currency units and the expected extra health gain is 2 QALYs against current care. What is the incremental cost per QALY?",
+      options: [
+        {
+          id: "A",
+          text: "25,000",
+          feedback: "Divide incremental costs by incremental QALYs."
+        },
+        {
+          id: "B",
+          text: "50,000",
+          feedback: "This is the total incremental cost."
+        },
+        {
+          id: "C",
+          text: "100,000",
+          feedback: "100,000 comes from multiplying 50,000 by 2. Incremental cost per QALY divides the extra cost by the extra QALYs."
+        },
+        {
+          id: "D",
+          text: "2",
+          feedback: "This is the incremental health gain."
+        },
+        {
+          id: "E",
+          text: "It cannot be computed without the total cost of each plan.",
+          feedback: "The differences suffice for this arithmetic."
+        }
+      ],
+      correct: "A",
+      hint: "What additional cost corresponds to one additional QALY?",
+      lesson: "An incremental ratio compares two stated strategies.",
+      explanation: "50,000 / 2 = 25,000 currency units per additional QALY. Whether the programme represents value requires evidence and a decision framework.",
+      help: "rates/direct_standardization.htm",
+      operation: "",
+      lessonId: "population-impact",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "nice-economic"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "a28badd70edc0b71f0d06f5e3103434c1baf739caaf64cd5734e1f5cf3d68e56"
+      }
+    },
+    {
+      id: "BIO-UNCERT-01",
+      version: 1,
+      track: "researcher",
+      topic: "Statistical inference",
+      objective: "Calculate the familywise error probability under independent true nulls.",
+      stem: "Twenty independent tests all have true null hypotheses. Each rejects falsely with probability 0.05. What is the probability of at least one false rejection?",
+      options: [
+        {
+          id: "A",
+          text: "5%",
+          feedback: "This is the probability for a single test."
+        },
+        {
+          id: "B",
+          text: "36%",
+          feedback: "This is close to the probability of no false rejections."
+        },
+        {
+          id: "C",
+          text: "50%",
+          feedback: "The probability should be calculated from the complement."
+        },
+        {
+          id: "D",
+          text: "64%",
+          feedback: "The complement of 0.95 to the 20th power is about 0.642."
+        },
+        {
+          id: "E",
+          text: "100%",
+          feedback: "The expected number of false rejections is one; that does not mean at least one is certain."
+        }
+      ],
+      correct: "D",
+      hint: "Calculate the probability all 20 avoid a false rejection.",
+      lesson: "A familywise error rate concerns at least one error among a set of tests.",
+      explanation: "Under independence the probability is 1 \u2212 0.95^20 \u2248 64.2%. Under dependence this formula generally changes.",
+      help: "basics/missing_data.htm",
+      operation: "",
+      lessonId: "uncertainty-sensitivity",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "usmle-2026"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "654abbc8e31a7aef5ae829cc467be418a2f28f75d2508f3069109118fdd21703"
+      }
+    },
+    {
+      id: "BIO-UNCERT-02",
+      version: 2,
+      track: "researcher",
+      topic: "Statistical inference",
+      objective: "Calculate a worst-case risk difference with missing binary outcomes.",
+      stem: "In a fictional trial with 100 patients per arm, 10 outcomes in each arm are unknown. Known event totals are 8 in treatment and 12 in control. What is the largest possible treatment-minus-control risk difference?",
+      options: [
+        {
+          id: "A",
+          text: "\u221214 percentage points",
+          feedback: "This is the smallest possible difference."
+        },
+        {
+          id: "B",
+          text: "\u22124 percentage points",
+          feedback: "Equal numbers of events among missing participants in the two arms would leave the difference at \u22124 points."
+        },
+        {
+          id: "C",
+          text: "0 percentage points",
+          feedback: "The extremes allow an excess in treatment."
+        },
+        {
+          id: "D",
+          text: "+4 percentage points",
+          feedback: "+4 reverses the difference for the known events. To maximise treatment minus control, assign an event to all ten missing treatment participants and to none of the missing controls. That gives +6 points."
+        },
+        {
+          id: "E",
+          text: "+6 percentage points",
+          feedback: "The extreme is (8 + 10)/100 \u2212 12/100."
+        }
+      ],
+      correct: "E",
+      hint: "Make treatment risk as high and control risk as low as possible.",
+      lesson: "A worst-case bound does not require missing outcomes to be random.",
+      explanation: "The maximum is 18% \u2212 12% = 6 percentage points. This ignores sampling uncertainty: it is a bound for the observed trial cohort.",
+      help: "basics/missing_data.htm",
+      operation: "",
+      lessonId: "uncertainty-sensitivity",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "cochrane-missing"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6ba8692b80b003b9b72fc8b7b50f8dc5941132866348ec8fbe7296690866b5f2"
+      }
+    },
+    {
+      id: "BIO-UNCERT-03",
+      version: 1,
+      track: "researcher",
+      topic: "Statistical inference",
+      objective: "Recognise missing not at random.",
+      stem: "Even after accounting for recorded baseline severity, patients with higher unrecorded outcome symptom scores are less likely to respond. Which missingness description fits the stated mechanism?",
+      options: [
+        {
+          id: "A",
+          text: "Missing not at random",
+          feedback: "Response still depends on the unobserved outcome after conditioning on measured variables."
+        },
+        {
+          id: "B",
+          text: "Missing completely at random",
+          feedback: "Response is not independent of the data."
+        },
+        {
+          id: "C",
+          text: "Missing at random given baseline severity",
+          feedback: "The stem specifies dependence on the unobserved outcome even at the same severity."
+        },
+        {
+          id: "D",
+          text: "No missing-data problem after complete-case analysis",
+          feedback: "Dropping missing outcomes does not remove selection on the outcome."
+        },
+        {
+          id: "E",
+          text: "Randomisation guarantees unbiased complete-case comparison",
+          feedback: "Allocation does not guarantee that observed outcomes are a representative subset."
+        }
+      ],
+      correct: "A",
+      hint: "What information predicts response after conditioning on measured variables?",
+      lesson: "The missingness mechanism is an assumption, not determined by the observed data alone.",
+      explanation: "The hypothetical mechanism depends on the missing outcome itself after accounting for observed covariates, so it is MNAR.",
+      help: "basics/missing_data.htm",
+      operation: "",
+      lessonId: "uncertainty-sensitivity",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "rcpsych-b",
+        "cochrane-missing"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "3e7342e764ef21e0ca621b081ec95e054fb36e87187e3ec3daa64d2aacd692ec"
+      }
+    },
+    {
+      id: "BIO-DESIGN-01",
+      version: 1,
+      track: "core",
+      topic: "Study design",
+      objective: "Identify controls from the population that produced the cases.",
+      stem: "A clinic studies whether an exposure is associated with an acute condition using a case-control design. Cases are residents of its catchment who developed the condition during one year. Which criterion matters most for selecting controls?",
+      options: [
+        {
+          id: "A",
+          text: "They had no exposure of interest.",
+          feedback: "Selecting on exposure can distort the comparison."
+        },
+        {
+          id: "B",
+          text: "Their age exactly equals the mean age of the cases.",
+          feedback: "Source population membership is central. Matching is optional and does not mean selecting the case-group mean."
+        },
+        {
+          id: "C",
+          text: "They come from people who could have been identified as cases had they developed the condition that year.",
+          feedback: "Controls should reflect the relevant population and time at risk."
+        },
+        {
+          id: "D",
+          text: "They are from a different region with no access to the clinic.",
+          feedback: "The region may have a different exposure distribution and different case ascertainment."
+        },
+        {
+          id: "E",
+          text: "Their number equals the number of cases.",
+          feedback: "The number of controls concerns precision, not the fundamental selection criterion."
+        }
+      ],
+      correct: "C",
+      hint: "Ask where the cases came from before matching or counting controls.",
+      lesson: "Controls provide a comparison of exposure in a specified source population.",
+      explanation: "Controls should come from the source population that generated the cases under the study's eligibility and ascertainment rules.",
+      help: "basics/bias.htm",
+      operation: "",
+      lessonId: "study-designs",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "publicHealth",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "cdc-design"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "527e9c8c6fb58b50a98de33736955ea544bd56bd7627960f867341f52ea9f6f3"
+      }
+    },
+    {
+      id: "BIO-DESIGN-02",
+      version: 1,
+      track: "core",
+      topic: "Study design",
+      objective: "Interpret an odds ratio without mistaking a case-control sample for a cohort.",
+      stem: "A case-control study observes 40 exposed and 20 unexposed cases, and 20 exposed and 40 unexposed controls. Which quantity can be calculated directly as a population association estimate under appropriate sampling?",
+      options: [
+        {
+          id: "A",
+          text: "Population disease prevalence of 50%",
+          feedback: "The number of cases sampled was chosen by design."
+        },
+        {
+          id: "B",
+          text: "Population risk difference of 33 percentage points",
+          feedback: "There are no population disease-risk denominators here."
+        },
+        {
+          id: "C",
+          text: "Risk ratio of 2",
+          feedback: "The disease risks cannot be obtained from the selected counts."
+        },
+        {
+          id: "D",
+          text: "Exposure odds ratio of 4",
+          feedback: "Divide 40/20 by 20/40."
+        },
+        {
+          id: "E",
+          text: "Incidence rate of 60 per 120 person-years",
+          feedback: "The denominators are sampled people and do not measure person-time."
+        }
+      ],
+      correct: "D",
+      hint: "Compare the odds of exposure in cases with those in controls.",
+      lesson: "Use effect measures that are identified by the sampling design.",
+      explanation: "The odds ratio is (40 \xD7 40)/(20 \xD7 20) = 4. It is not automatically a risk ratio.",
+      help: "basics/bias.htm",
+      operation: "",
+      lessonId: "study-designs",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "publicHealth",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "cdc-design"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "aba55b04da4ec88d4f42897fa8205bba797a6fe851d9f63844bf514cbd60c7c0"
+      }
+    },
+    {
+      id: "BIO-DESIGN-03",
+      version: 1,
+      track: "core",
+      topic: "Study design",
+      objective: "Identify a suitable qualitative contribution to a mixed-methods study.",
+      stem: "Attendance records show low uptake of a service in certain locations. The team wants to understand why before changing delivery. Which next step best adds qualitative evidence?",
+      options: [
+        {
+          id: "A",
+          text: "Interview diverse eligible people and staff, examine recurring themes and integrate them with the uptake patterns.",
+          feedback: "This investigates reasons and adds to the quantitative description."
+        },
+        {
+          id: "B",
+          text: "Treat non-attendance as proof of one common motive.",
+          feedback: "Records show an action, not the reasons for it."
+        },
+        {
+          id: "C",
+          text: "Report each theme as its prevalence in the entire catchment.",
+          feedback: "A purposive qualitative sample does not usually support that inference."
+        },
+        {
+          id: "D",
+          text: "Choose the most favourable explanation from an uptake chart.",
+          feedback: "The chart cannot establish participants' experiences."
+        },
+        {
+          id: "E",
+          text: "Increase the significance threshold until the data explain the reasons.",
+          feedback: "A threshold change does not supply evidence about motives."
+        }
+      ],
+      correct: "A",
+      hint: "Which data would help you understand experiences?",
+      lesson: "Use qualitative work to answer an explanatory question, then integrate the findings deliberately.",
+      explanation: "Purposefully sample a range of perspectives, examine the narratives systematically and reconcile themes with the observed data.",
+      help: "basics/bias.htm",
+      operation: "",
+      lessonId: "study-designs",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "publicHealth",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "nih-mixed"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "fa67de81ea8cb8b1a66e8656efc6534ab5889fb80f679758534e1a12204c4a19"
+      }
+    },
+    {
+      id: "BIO-INTEGRITY-01",
+      version: 1,
+      track: "researcher",
+      topic: "Research conduct",
+      objective: "Explain why single-test thresholds cannot be reused at every interim look.",
+      stem: "A study plans to inspect accumulating outcome data each month and stop for efficacy at the first unadjusted P < 0.05. What is the main statistical concern with this rule?",
+      options: [
+        {
+          id: "A",
+          text: "The repeated looks can inflate the chance of a false positive.",
+          feedback: "A planned sequential design can control this probability while allowing monitoring."
+        },
+        {
+          id: "B",
+          text: "Each look must be independent because a new month has passed.",
+          feedback: "The data commonly overlap across looks."
+        },
+        {
+          id: "C",
+          text: "The null hypothesis automatically changes with each look.",
+          feedback: "The same hypothesis may be tested repeatedly."
+        },
+        {
+          id: "D",
+          text: "A smaller P value always identifies the right treatment decision.",
+          feedback: "Results must account for monitoring and be interpreted alongside effects and harms."
+        },
+        {
+          id: "E",
+          text: "An ethics review alone adjusts the significance level.",
+          feedback: "Ethical and statistical oversight are related but distinct."
+        }
+      ],
+      correct: "A",
+      hint: "How many opportunities are there to stop by chance?",
+      lesson: "Specify how repeated looks and stopping rules affect inference before trial results are known.",
+      explanation: "Repeated stopping opportunities can inflate the false-positive probability. Use a prespecified group-sequential or other suitable monitoring method that accounts for dependence.",
+      help: "basics/bias.htm",
+      operation: "",
+      lessonId: "research-integrity",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "ich-e9"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "28f95110e262783ba1d776c2eef802968a8f1073fd57f25c80471b1a7472b076"
+      }
+    },
+    {
+      id: "BIO-INTEGRITY-02",
+      version: 1,
+      track: "researcher",
+      topic: "Research conduct",
+      objective: "Recognise re-identification risks when sharing analysis examples.",
+      stem: "A trainee wants to send a dataset to a tutor. Names have been removed, but exact visit dates, rare diagnoses and free-text case notes remain. What is the best way to share a reproducible worked example with this tutor?",
+      options: [
+        {
+          id: "A",
+          text: "Send it because the name column has been removed.",
+          feedback: "Remaining variables can identify participants."
+        },
+        {
+          id: "B",
+          text: "Send only the free-text notes.",
+          feedback: "Notes can contain direct or indirect identifiers."
+        },
+        {
+          id: "C",
+          text: "Replace the names with participant IDs and email the file.",
+          feedback: "Pseudonymisation does not by itself authorise disclosure."
+        },
+        {
+          id: "D",
+          text: "Use synthetic data that reproduce the analysis structure, and keep protected data within authorised systems.",
+          feedback: "This lets the tutor check methods while protecting participants."
+        },
+        {
+          id: "E",
+          text: "Convert the worksheet to an image before sending.",
+          feedback: "The medium does not remove identifying content."
+        }
+      ],
+      correct: "D",
+      hint: "Can you reproduce the method without sharing an actual row?",
+      lesson: "Share code, definitions and synthetic examples when real participant data are not authorised for the recipient.",
+      explanation: "Exact dates, uncommon diagnoses and free text can identify people. Synthetic data can illustrate the method without disclosing those records.",
+      help: "basics/bias.htm",
+      operation: "",
+      lessonId: "research-integrity",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "usmle-2026"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "433b971be192d38942ec6f5f4dd6b43607edfb36e4c9b4aae3a12d2a8172926d"
+      }
+    },
+    {
+      id: "BIO-INTEGRITY-03",
+      version: 2,
+      track: "researcher",
+      topic: "Research conduct",
+      objective: "Distinguish prespecified and exploratory findings.",
+      stem: "The prespecified comparison for the registered primary outcome did not meet the trial\u2019s significance threshold. After seeing the results, investigators found a favourable subgroup and want to call that comparison the prespecified primary finding. What is the best response?",
+      options: [
+        {
+          id: "A",
+          text: "Redefine the primary analysis after seeing the subgroup result.",
+          feedback: "This conceals the selection process."
+        },
+        {
+          id: "B",
+          text: "Report only the subgroup because it has the smallest P value.",
+          feedback: "Selective reporting distorts the evidence."
+        },
+        {
+          id: "C",
+          text: "Report the registered outcome, disclose the exploratory subgroup search and seek independent confirmation.",
+          feedback: "Readers can distinguish planned evidence from a hypothesis generated by the data."
+        },
+        {
+          id: "D",
+          text: "Declare the subgroup result false without further investigation.",
+          feedback: "An exploratory result can suggest a useful hypothesis."
+        },
+        {
+          id: "E",
+          text: "Report that subgroup and overall effects are different without an interaction comparison.",
+          feedback: "A significant result in one subgroup and a nonsignificant result elsewhere do not establish interaction. Compare effect estimates directly with an appropriate interaction test."
+        }
+      ],
+      correct: "C",
+      hint: "Separate analyses agreed before seeing data from those prompted by the data.",
+      lesson: "A clear record of decisions allows readers to judge the evidence.",
+      explanation: "Keep the original outcome visible, label the analysis exploratory, account for the wider search and do not present the subgroup as confirmatory.",
+      help: "basics/bias.htm",
+      operation: "",
+      lessonId: "research-integrity",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "ich-e9"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "47d0273d1eb32eeae5fd71ffa754ebc48edcf81c2468f1bd5262c2b4ad6f1729"
+      }
+    },
+    {
+      id: "BIO-CAUSAL-04",
+      version: 1,
+      track: "researcher",
+      topic: "Causal inference",
+      objective: "Use a DAG to choose adjustment for a total treatment effect.",
+      stem: "For a fictional treatment T and later admission Y, the assumed arrows are A \u2192 T, A \u2192 Y, T \u2192 Y, T \u2192 M, M \u2192 Y, T \u2192 F, U \u2192 F and U \u2192 Y. A is age, M is early improvement, F is follow-up attendance and U is access to care. Which approach estimates the total treatment effect under this graph, given complete outcome measurement, overlap and consistency?",
+      options: [
+        {
+          id: "A",
+          text: "Adjust for age and early improvement.",
+          feedback: "Early improvement mediates part of the effect that the total-effect question includes."
+        },
+        {
+          id: "B",
+          text: "Adjust for age alone.",
+          feedback: "Age blocks the backdoor path. Leaving M and F unconditioned preserves mediation and avoids opening the collider path."
+        },
+        {
+          id: "C",
+          text: "Adjust for age and restrict to follow-up attendees.",
+          feedback: "Conditioning on attendance opens T \u2192 F \u2190 U \u2192 Y."
+        },
+        {
+          id: "D",
+          text: "Control only for access to care.",
+          feedback: "Access does not close T \u2190 A \u2192 Y."
+        },
+        {
+          id: "E",
+          text: "Use the unadjusted contrast.",
+          feedback: "Age affects both treatment and admission under the stated assumptions."
+        }
+      ],
+      correct: "B",
+      hint: "Trace the arrows entering T, then check where two arrows enter the same node.",
+      lesson: "A DAG helps distinguish a confounder from a mediator and a collider.",
+      explanation: "Age is the stated common cause of treatment and outcome. Adjustment for age closes the backdoor path. Conditioning on improvement removes a mediated pathway, and conditioning on attendance opens a path through access to care.",
+      help: "basics/confounding.htm",
+      operation: "",
+      lessonId: "causal-adjustment",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "what-if"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "c5d4a43a84f02f45eb7426f29e66aaa71cabb5ca509325a967614bdff6615ec7"
+      }
+    },
+    {
+      id: "BIO-SYNTH-04",
+      version: 1,
+      track: "researcher",
+      topic: "Evidence synthesis",
+      objective: "Read an individual line, pooled diamond and prediction interval on a forest plot.",
+      stem: "A forest plot shows days to recovery, intervention minus usual care. One study's line spans \u22122.96 to +0.96 days. The pooled diamond spans \u22123.96 to \u22120.04 days. The separate prediction interval spans \u22125.93 to +1.93 days. Which reading is best?",
+      options: [
+        {
+          id: "A",
+          text: "The diamond shows that every study found a shorter recovery time.",
+          feedback: "The diamond represents the pooled estimate and its interval. Read individual rows separately."
+        },
+        {
+          id: "B",
+          text: "The prediction interval estimates uncertainty about the average effect.",
+          feedback: "The diamond represents this uncertainty. The prediction interval includes variation in true effects across settings."
+        },
+        {
+          id: "C",
+          text: "The individual study's confidence interval shows an effect of exactly zero.",
+          feedback: "The interval includes zero and both directions. It does not establish that the true effect is zero."
+        },
+        {
+          id: "D",
+          text: "The pooled interval favours shorter recovery on average, while a comparable new setting could see a longer recovery time.",
+          feedback: "The diamond is below zero, while the prediction interval extends above zero."
+        },
+        {
+          id: "E",
+          text: "The upper edge of the diamond rules out effects larger than zero in any comparable setting.",
+          feedback: "A confidence interval for the average does not bound the plausible true effect in each setting."
+        }
+      ],
+      correct: "D",
+      hint: "Zero represents no difference in recovery time. Identify which quantity each interval describes.",
+      lesson: "The individual interval, pooled confidence interval and prediction interval answer different questions.",
+      explanation: "The study line includes both shorter and longer recovery. The pooled confidence interval covers average effects below zero. The prediction interval includes zero and longer recovery times, conditional on the model.",
+      help: "meta_analysis/summary.htm",
+      operation: "",
+      lessonId: "evidence-synthesis",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      sourceIds: [
+        "cochrane-meta"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6bb788627db963668f07b29fa73cb61c53e20be3328155a7a9fc81e2cddf77c8"
+      }
+    },
+    {
+      id: "MULTI-IND-01",
+      version: 1,
+      track: "medicine",
+      topic: "Unequal group variances",
+      objective: "Choose a mean comparison under heteroscedasticity.",
+      stem: "Three independent groups of adults complete different fictional rehabilitation programmes. Each person gives one continuous score. Each group's distribution is roughly symmetric, the sample sizes and variances differ, and the planned question concerns any difference in population means. Which overall method fits the question?",
+      options: [
+        {
+          id: "A",
+          text: "A paired t test",
+          feedback: "This design has neither pairs nor a comparison limited to two means."
+        },
+        {
+          id: "B",
+          text: "Ordinary ANOVA with a common variance",
+          feedback: "The common-variance model conflicts with the stated unequal variances."
+        },
+        {
+          id: "C",
+          text: "Welch one-way ANOVA",
+          feedback: "It targets equality of independent group means without pooling within-group variance."
+        },
+        {
+          id: "D",
+          text: "Friedman test",
+          feedback: "This requires related observations arranged in blocks."
+        },
+        {
+          id: "E",
+          text: "Kruskal\u2013Wallis rank test",
+          feedback: "It compares groups on the rank scale and does not directly target equality of arithmetic means."
+        }
+      ],
+      correct: "C",
+      hint: "Hold the target quantity fixed when deciding how to handle unequal variances.",
+      lesson: "Welch's method retains the means as its target while allowing unequal group variances.",
+      explanation: "The three groups are independent and the estimand concerns means. Welch one-way ANOVA addresses that global comparison with separate variance estimates and approximate degrees of freedom.",
+      lessonId: "independent-group-comparisons",
+      sourceIds: [
+        "dfph-syllabus",
+        "r-oneway.test"
+      ],
+      help: "analysis_of_variance/one_way.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "5b16a5771289f4d793d865af41544b5392f54707074c029b26c6385b8ab74baa"
+      }
+    },
+    {
+      id: "MULTI-IND-02",
+      version: 1,
+      track: "medicine",
+      topic: "Omnibus result and pairwise inference",
+      objective: "Interpret a global F test and follow-up intervals.",
+      stem: "An ordinary ANOVA comparing mean scores across three training formats gives P = 0.002. The investigators also report a 95% Tukey simultaneous confidence interval of \u22120.4 to +3.4 points for written training minus usual training. Which interpretation is best supported?",
+      options: [
+        {
+          id: "A",
+          text: "Every pair of population means differs.",
+          feedback: "The overall test cannot identify specific pairs."
+        },
+        {
+          id: "B",
+          text: "The probability the written and usual means are equal is 0.002.",
+          feedback: "The overall P value is not a posterior probability and is not specific to this pair."
+        },
+        {
+          id: "C",
+          text: "Written training improves the mean by exactly 1.5 points.",
+          feedback: "The interval midpoint is a point estimate with appreciable uncertainty."
+        },
+        {
+          id: "D",
+          text: "The overall test gives evidence against all means being equal. The simultaneous comparison does not establish a written-versus-usual difference.",
+          feedback: "The small global P value and a pairwise interval that includes zero can coexist."
+        },
+        {
+          id: "E",
+          text: "Written and usual training have been shown equivalent.",
+          feedback: "A confidence interval crossing zero does not establish equivalence. An equivalence claim requires justified margins and the appropriate analysis."
+        }
+      ],
+      correct: "D",
+      hint: "Separate the global null from the specific contrast and inspect its interval.",
+      lesson: "An omnibus result can support an overall difference even when a chosen contrast is uncertain.",
+      explanation: "The data provide evidence against equality of all three means. The simultaneous interval for written versus usual includes zero, so that pair's difference is not established by this analysis.",
+      lessonId: "independent-group-comparisons",
+      sourceIds: [
+        "rcpsych-2027",
+        "r-tukeyhsd"
+      ],
+      help: "analysis_of_variance/multiple_comparisons.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "8766df6417317d201c8346994aaafa718e5ac4968149efeba914d8e74777bab7"
+      }
+    },
+    {
+      id: "MULTI-IND-03",
+      version: 1,
+      track: "medicine",
+      topic: "Baseline-adjusted means",
+      objective: "Recognise a continuous-outcome comparison with a baseline covariate.",
+      stem: "A four-arm randomised study measures the same symptom score at baseline and 12 weeks. The protocol prespecifies a comparison of mean 12-week score adjusting for baseline score, using one common baseline slope for all arms. Which model has that structure?",
+      options: [
+        {
+          id: "A",
+          text: "ANCOVA with 12-week score as outcome, treatment as a factor and baseline score as a covariate",
+          feedback: "This fits a baseline-adjusted comparison conditional on the proposed common slope."
+        },
+        {
+          id: "B",
+          text: "One-way ANOVA with 12-week score and treatment only",
+          feedback: "This compares groups without the prespecified baseline adjustment."
+        },
+        {
+          id: "C",
+          text: "MANOVA jointly analysing baseline and 12-week scores as two responses",
+          feedback: "Two responses do not specify the requested baseline covariate model."
+        },
+        {
+          id: "D",
+          text: "Kruskal\u2013Wallis test of baseline scores",
+          feedback: "This neither models the 12-week outcome nor estimates the requested adjusted mean contrasts."
+        },
+        {
+          id: "E",
+          text: "Friedman test treating treatment arms as repeated measurements on each participant",
+          feedback: "Each participant received one arm. Baseline and follow-up do not make the arms repeated conditions."
+        }
+      ],
+      correct: "A",
+      hint: "Ask which measurement is the outcome and which is the adjustment variable.",
+      lesson: "A baseline covariate and a follow-up outcome play different roles in a regression model.",
+      explanation: "Use ANCOVA with treatment indicators and a baseline covariate, then report prespecified adjusted contrasts and their intervals. Check whether the common-slope model is plausible.",
+      lessonId: "independent-group-comparisons",
+      sourceIds: [
+        "rcpsych-2027",
+        "aba-interpretation"
+      ],
+      help: "regression_and_correlation/grouped_covariance.htm",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "94049a813e79cdb0297a029c43a0e4e61b09b8d28fea7b41c1ad413dd30f083f"
+      }
+    },
+    {
+      id: "MULTI-REP-01",
+      version: 1,
+      track: "medicine",
+      topic: "Matched ordinal responses",
+      objective: "Select a global rank comparison for several matched conditions.",
+      stem: "Each of 18 participants rates the comfort of three fictional devices on a five-level ordered scale. Device order is randomised for each participant, every rating is observed, and a global comparison using within-person ranks is planned. Which test fits?",
+      options: [
+        {
+          id: "A",
+          text: "Kruskal\u2013Wallis",
+          feedback: "This pools ranks across independent groups, whereas the device scores are matched by participant."
+        },
+        {
+          id: "B",
+          text: "Cochran Q",
+          feedback: "It compares matched binary responses. The comfort scale has ordered categories beyond two levels."
+        },
+        {
+          id: "C",
+          text: "Welch one-way ANOVA",
+          feedback: "This compares independent group means and does not use the ranking within each participant."
+        },
+        {
+          id: "D",
+          text: "Friedman test",
+          feedback: "Rank the three scores within each participant and compare the conditions across the complete independent blocks."
+        },
+        {
+          id: "E",
+          text: "Wilcoxon signed-rank test for one pair",
+          feedback: "A single comparison of two related conditions does not address the global three-condition question."
+        }
+      ],
+      correct: "D",
+      hint: "Identify where the ranking needs to happen and how many conditions are compared.",
+      lesson: "Friedman is a global within-block rank comparison for repeated ordered responses.",
+      explanation: "A complete row is one participant. Rank the device scores inside each row and compare their rank patterns over all participants.",
+      lessonId: "repeated-condition-comparisons",
+      sourceIds: [
+        "rcpsych-2027",
+        "r-friedman.test"
+      ],
+      help: "nonparametric_methods/friedman.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "097ba0b75dcf742fee53978de51e153e68032e5a95b2bf5d0fc819f9f83f5d8c"
+      }
+    },
+    {
+      id: "MULTI-REP-02",
+      version: 1,
+      track: "medicine",
+      topic: "Sphericity",
+      objective: "Recognise the covariance assumption of an uncorrected F test.",
+      stem: "The same adults complete each of three measurement conditions. Analysts propose the usual uncorrected univariate repeated-measures ANOVA F test. Which statement describes sphericity?",
+      options: [
+        {
+          id: "A",
+          text: "The condition means are equal.",
+          feedback: "That is the global mean null hypothesis, not the covariance assumption."
+        },
+        {
+          id: "B",
+          text: "The population variances of all pairwise within-person differences are equal.",
+          feedback: "This is sphericity for a single within-person factor."
+        },
+        {
+          id: "C",
+          text: "Each participant's repeated observations are independent.",
+          feedback: "A repeated design allows dependence within the same person."
+        },
+        {
+          id: "D",
+          text: "The three marginal variances alone are equal.",
+          feedback: "Univariate marginal variances do not determine the variances of the differences, which also depend on covariance."
+        },
+        {
+          id: "E",
+          text: "The observed ranks have no ties.",
+          feedback: "Ties affect rank calculations. Sphericity concerns variances of contrasts in the mean model."
+        }
+      ],
+      correct: "B",
+      hint: "Think about what varies when the same person's measurements are subtracted.",
+      lesson: "Sphericity concerns within-participant differences, which depend on variances and covariances.",
+      explanation: "For three conditions it requires equal population variances of A\u2212B, A\u2212C and B\u2212C. A valid correction or a model with an appropriate covariance structure may be needed when it is untenable.",
+      lessonId: "repeated-condition-comparisons",
+      sourceIds: [
+        "r-aov"
+      ],
+      help: "analysis_of_variance/two_way.htm",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "1a8e4d8025d2614ea51bdd4c949949c54a6a615a7d527ea5c94ca063297dafd5"
+      }
+    },
+    {
+      id: "MULTI-REP-03",
+      version: 1,
+      track: "medicine",
+      topic: "Longitudinal treatment comparisons",
+      objective: "Choose a model that addresses trajectories with incomplete follow-up.",
+      stem: "In a fictional two-arm trial, symptom scores are scheduled at baseline, 1 month, 3 months and 6 months. Some follow-ups are missed. The primary question is whether mean trajectories differ by arm. Which strategy most directly addresses this target?",
+      options: [
+        {
+          id: "A",
+          text: "Compare the groups separately at each observed visit using unadjusted independent tests.",
+          feedback: "Separate tests do not estimate the planned trajectory interaction and need a multiplicity plan."
+        },
+        {
+          id: "B",
+          text: "Replace every missing score with zero, then analyse the independent rows.",
+          feedback: "Zero is an assumption about an unobserved outcome and repeated rows for each person are dependent."
+        },
+        {
+          id: "C",
+          text: "Test change over time separately in each arm and infer a treatment difference if only one is significant.",
+          feedback: "A difference in statistical significance does not show a difference between arms. Estimate the arm-by-visit contrast directly."
+        },
+        {
+          id: "D",
+          text: "Compare each person's last recorded score regardless of visit date.",
+          feedback: "Last observed values can represent different times and a changed target population."
+        },
+        {
+          id: "E",
+          text: "Use a suitable longitudinal model with arm, visit and their interaction, accounting for within-person correlation and missingness assumptions.",
+          feedback: "It addresses mean trajectories and makes both the dependency and missing-data assumptions explicit."
+        }
+      ],
+      correct: "E",
+      hint: "Choose a method that represents treatment, time and observations from the same person together.",
+      lesson: "A trajectory comparison is a treatment-by-time question, with a plan for within-person dependence and incomplete data.",
+      explanation: "A suitable longitudinal model can use observed repeated outcomes on their intended schedule and estimate treatment-by-visit contrasts. Check the chosen covariance and missingness assumptions and consider sensitivity analyses.",
+      lessonId: "repeated-condition-comparisons",
+      sourceIds: [
+        "rcpsych-2027",
+        "dfph-syllabus"
+      ],
+      help: "analysis_of_variance/two_way.htm",
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "89857be5af82f6ef9918afe3e7a96715f7e25afc37163f121207eaa748be9f4d"
+      }
+    },
+    {
+      id: "BIO-SURVEY-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Survey population weights",
+      objective: "Estimate a proportion with unequal sampling fractions.",
+      stem: "A fictional city has 800 eligible people in one stratum and 200 in another. Independent random samples of 100 from each yield 15 and 45 people with the outcome. What is the population-weighted proportion estimate?",
+      options: [
+        {
+          id: "A",
+          text: "12%",
+          feedback: "This is only the contribution from the larger stratum."
+        },
+        {
+          id: "B",
+          text: "21%",
+          feedback: "Weight 15% and 45% by the population shares 0.8 and 0.2."
+        },
+        {
+          id: "C",
+          text: "30%",
+          feedback: "This uses the equal sample sizes as weights."
+        },
+        {
+          id: "D",
+          text: "45%",
+          feedback: "This is only the estimate in the smaller stratum."
+        },
+        {
+          id: "E",
+          text: "60%",
+          feedback: "This sums the stratum estimates without weighting."
+        }
+      ],
+      correct: "B",
+      hint: "Use population shares, then add the two contributions.",
+      lesson: "Known population shares combine the stratum estimates.",
+      explanation: "0.8 \xD7 15% + 0.2 \xD7 45% = 21%.",
+      lessonId: "complex-surveys",
+      sourceIds: [
+        "nhanes-weighting"
+      ],
+      help: "sample_size/population_survey.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "mastersStatistics",
+        "healthcareBusinessAnalyst"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "86243ca487f161b2e485c408c4c5351de6ca79829cded5002f213b2f7e25d3bb"
+      }
+    },
+    {
+      id: "BIO-SURVEY-02",
+      version: 1,
+      track: "publicHealth",
+      topic: "Cluster survey precision",
+      objective: "Identify the source of information for survey variance.",
+      stem: "In a stratified survey, each stratum draws a simple random sample of clinics without replacement. Each clinic has the same number of eligible people and all people in sampled clinics respond. Which approach estimates the standard error of the overall proportion?",
+      options: [
+        {
+          id: "A",
+          text: "Calculate an unweighted binomial standard error using all people",
+          feedback: "That treats people as the independent sampling units."
+        },
+        {
+          id: "B",
+          text: "Pool clinic proportions and use one overall clinic sampling fraction.",
+          feedback: "This ignores each stratum\u2019s sampling fraction and its squared weight in the variance of the combined estimate."
+        },
+        {
+          id: "C",
+          text: "Weight observations and then assume they are independently sampled",
+          feedback: "Correct point-estimate weights do not make within-clinic selections independent."
+        },
+        {
+          id: "D",
+          text: "Use variation among sampled clinic proportions within strata and apply the finite population correction",
+          feedback: "Clinics were sampled separately within each stratum. Combine stratum variances with squared population shares."
+        },
+        {
+          id: "E",
+          text: "Set the standard error to zero because all selected people responded",
+          feedback: "Complete response removes non-response here. There is still uncertainty from selecting a subset of clinics."
+        }
+      ],
+      correct: "D",
+      hint: "Identify the units randomly selected by the survey.",
+      lesson: "A probability sample of clinics can estimate sampling variability from sampled clinics within each stratum.",
+      explanation: "Use the sampled clinic proportions within strata, incorporate sampling fractions and then combine the independent stratum variances.",
+      lessonId: "complex-surveys",
+      sourceIds: [
+        "dfph-syllabus",
+        "nhanes-variance"
+      ],
+      help: "sample_size/population_survey.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "mastersStatistics",
+        "healthcareBusinessAnalyst"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "55023b1319571cb847ff510ba9f52ac315c94c958260ed7c7d4976fc3a9a96d5"
+      }
+    },
+    {
+      id: "BIO-ITS-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Level and trend change",
+      objective: "Combine model terms at a given post-intervention time.",
+      stem: "A segmented regression estimates an immediate change of \u22124 incidents per 1,000 visits and a slope change of \u22121.2 per 1,000 visits per month. Time since intervention is coded zero at the first post-intervention observation. What is the fitted contrast with continuing the baseline trend four months after that observation?",
+      options: [
+        {
+          id: "A",
+          text: "\u22128.8 per 1,000 visits",
+          feedback: "Add the immediate change and four months of slope change."
+        },
+        {
+          id: "B",
+          text: "\u22124.8 per 1,000 visits",
+          feedback: "This omits the immediate change."
+        },
+        {
+          id: "C",
+          text: "\u22124.0 per 1,000 visits",
+          feedback: "This is the contrast at the start of the post-intervention period."
+        },
+        {
+          id: "D",
+          text: "\u22121.2 per 1,000 visits",
+          feedback: "This is the slope change per month rather than the contrast after four months."
+        },
+        {
+          id: "E",
+          text: "+0.8 per 1,000 visits",
+          feedback: "This reverses the direction of the slope change."
+        }
+      ],
+      correct: "A",
+      hint: "At the first post-intervention observation, time since intervention is zero.",
+      lesson: "The contrast combines level change and elapsed time times slope change.",
+      explanation: "The contrast is \u22124 + 4 \xD7 (\u22121.2) = \u22128.8 per 1,000 visits.",
+      lessonId: "interrupted-time-series",
+      sourceIds: [
+        "its-lopez-bernal"
+      ],
+      help: "regression_and_correlation/multiple_linear.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "mastersStatistics",
+        "healthcareBusinessAnalyst"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "24e9a7e58004d1775496dbcdd51634f784e7d8b892683f0779a8b4b833f6c216"
+      }
+    },
+    {
+      id: "BIO-ITS-02",
+      version: 1,
+      track: "publicHealth",
+      topic: "Changing denominators",
+      objective: "Use denominators when interpreting reported changes over time.",
+      stem: "A clinic recorded 10 incidents in 1,000 visits in one month and 20 incidents in 3,000 visits in another. Assume the recording method and coverage stayed the same. What can you say about the observed incidents per visit?",
+      options: [
+        {
+          id: "A",
+          text: "They doubled",
+          feedback: "Only the incident count doubled."
+        },
+        {
+          id: "B",
+          text: "They tripled",
+          feedback: "The visit denominator tripled."
+        },
+        {
+          id: "C",
+          text: "They stayed constant",
+          feedback: "The numerator and denominator changed by different factors."
+        },
+        {
+          id: "D",
+          text: "They fell from 10 to about 6.7 per 1,000 visits",
+          feedback: "Calculate the count divided by visits in each month and multiply by 1,000."
+        },
+        {
+          id: "E",
+          text: "They cannot be calculated without each person's follow-up time",
+          feedback: "The requested denominator is the number of visits, which is supplied."
+        }
+      ],
+      correct: "D",
+      hint: "Divide each incident count by its own visit total.",
+      lesson: "A larger count can accompany a lower rate.",
+      explanation: "The observed rates are 10/1,000 and 20/3,000. This comparison alone cannot attribute the change to an intervention.",
+      lessonId: "interrupted-time-series",
+      sourceIds: [
+        "dfph-syllabus",
+        "its-lopez-bernal"
+      ],
+      help: "regression_and_correlation/multiple_linear.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "mastersStatistics",
+        "healthcareBusinessAnalyst"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "78d19df77e2bf18701bae7588d38389d95b170a9f0fe23df7070fbedfdc446c8"
+      }
+    },
+    {
+      id: "BIO-SPATIAL-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Comparing rate and count maps",
+      objective: "Choose a measure appropriate for geographic comparison.",
+      stem: "Two districts have the same surveillance coverage and age mix. District A has 30 new diagnoses among 3,000 people at risk. District B has 80 among 20,000. Which interpretation is correct for this period?",
+      options: [
+        {
+          id: "A",
+          text: "District B has the higher observed risk because 80 is larger than 30",
+          feedback: "This compares counts only."
+        },
+        {
+          id: "B",
+          text: "Both risks are equal because they use the same case definition",
+          feedback: "Comparable case definitions do not make the risks equal."
+        },
+        {
+          id: "C",
+          text: "District A has the higher observed risk, although District B has more diagnoses",
+          feedback: "A has 10 per 1,000 and B has 4 per 1,000."
+        },
+        {
+          id: "D",
+          text: "Neither observed risk can be calculated until every district has the same number of residents",
+          feedback: "Different denominator sizes can be compared using proportions."
+        },
+        {
+          id: "E",
+          text: "There is proof of a causal effect of living in District A",
+          feedback: "These summaries cannot rule out other explanations for the geographic difference."
+        }
+      ],
+      correct: "C",
+      hint: "Divide each count by its own district denominator.",
+      lesson: "The rate or risk can rank places differently from a count.",
+      explanation: "The observed proportion is 1% in A and 0.4% in B. The case count is larger in B.",
+      lessonId: "small-area-rates",
+      sourceIds: [
+        "cdc-gis"
+      ],
+      help: "rates/direct_standardization.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "mastersStatistics",
+        "healthcareBusinessAnalyst"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "b31ef3b3b40ba6f4b2b205751b29c781e631750f5a0a1692588fbd214fbdeeee"
+      }
+    },
+    {
+      id: "BIO-SPATIAL-02",
+      version: 1,
+      track: "publicHealth",
+      topic: "Small-area uncertainty",
+      objective: "Interpret a high rate based on sparse data.",
+      stem: "A small area has one case among 100 residents at risk. A larger area has 100 cases among 20,000. The mapping system applies the same case definition and period in each. Which response is most appropriate?",
+      options: [
+        {
+          id: "A",
+          text: "Conclude the smaller area has twice the underlying risk",
+          feedback: "The observed estimates are in a 2:1 ratio, but the small area's rate is uncertain."
+        },
+        {
+          id: "B",
+          text: "Display the smaller area's value as zero",
+          feedback: "A sparse or suppressed result is distinct from zero."
+        },
+        {
+          id: "C",
+          text: "Investigate only if the small area has 100 cases",
+          feedback: "A single count threshold cannot decide whether a pattern warrants investigation."
+        },
+        {
+          id: "D",
+          text: "Use only raw counts to compare risk",
+          feedback: "Raw counts reflect population size as well as disease frequency."
+        },
+        {
+          id: "E",
+          text: "Examine uncertainty and detection before interpreting the difference",
+          feedback: "One additional case would double the smaller area's rate under the fixed denominator. Ascertainment can also differ."
+        }
+      ],
+      correct: "E",
+      hint: "Consider how moving one case affects each estimate.",
+      lesson: "Sparse counts can change a rank even if the population at risk is well measured.",
+      explanation: "The rates are 10 and 5 per 1,000. The former rests on one event, so seek comparable ascertainment and display or otherwise address uncertainty.",
+      lessonId: "small-area-rates",
+      sourceIds: [
+        "cdc-gis",
+        "dfph-syllabus"
+      ],
+      help: "rates/direct_standardization.htm",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "mastersStatistics",
+        "healthcareBusinessAnalyst"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "7ae2adc0bb1c2b03e290bc6e8922272493fa84a8a031d18af316a7b24cd3ce80"
+      }
+    },
+    {
+      id: "BIO-ECON-01",
+      version: 1,
+      track: "publicHealth",
+      topic: "Incremental cost per QALY",
+      objective: "Use the comparator to calculate an incremental ratio.",
+      stem: "After discounting, a fictional new programme costs \xA32,400 and yields 1.60 QALYs per person. Current care costs \xA32,000 and yields 1.55 QALYs over the same horizon. What is the incremental cost per additional QALY?",
+      options: [
+        {
+          id: "A",
+          text: "\xA3250",
+          feedback: "This divides the \xA3400 increment by the new programme's total QALYs."
+        },
+        {
+          id: "B",
+          text: "\xA3400",
+          feedback: "This is the incremental cost per person."
+        },
+        {
+          id: "C",
+          text: "\xA31,500",
+          feedback: "This divides the new programme's total cost by its total QALYs."
+        },
+        {
+          id: "D",
+          text: "\xA38,000",
+          feedback: "Divide the \xA3400 difference in cost by the 0.05 difference in QALYs."
+        },
+        {
+          id: "E",
+          text: "\xA348,000",
+          feedback: "This divides the new programme's total cost by the incremental QALYs."
+        }
+      ],
+      correct: "D",
+      hint: "Compute differences in both columns before dividing.",
+      lesson: "Incremental comparisons use differences in both costs and outcomes.",
+      explanation: "The increment is (\xA32,400 \u2212 \xA32,000)/(1.60 \u2212 1.55) = \xA38,000 per additional QALY.",
+      lessonId: "health-economic-evaluation",
+      sourceIds: [
+        "dfph-syllabus",
+        "nice-economic-evaluation"
+      ],
+      help: "",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "healthcareBusinessAnalyst",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d914ae0cf066150a9d29868fc978c3e1f1c208dce9b8c7cc33e021560473b639"
+      }
+    },
+    {
+      id: "BIO-ECON-02",
+      version: 1,
+      track: "publicHealth",
+      topic: "Perspective and sensitivity",
+      objective: "Identify how a broader perspective changes the analysis.",
+      stem: "A fictional programme reduces unpaid family care, but its original evaluation included only the provider's costs. What would address this limitation if a broader perspective is requested?",
+      options: [
+        {
+          id: "A",
+          text: "Include a stated valuation of changes in unpaid care, and vary that assumption in sensitivity analysis",
+          feedback: "A broader perspective can count the value of unpaid care. State how it is measured and valued, and check uncertainty."
+        },
+        {
+          id: "B",
+          text: "Use a different discount rate without adding unpaid care to the resource inventory.",
+          feedback: "Discounting changes the value assigned to resources over time. It does not account for omitted unpaid care."
+        },
+        {
+          id: "C",
+          text: "Treat the time as zero cost because no invoice was issued",
+          feedback: "Unpaid time can have an opportunity cost even without a payment."
+        },
+        {
+          id: "D",
+          text: "Compare the intervention with no care even though current care is available",
+          feedback: "A realistic alternative is still needed."
+        },
+        {
+          id: "E",
+          text: "Assume the programme saves money because care time falls",
+          feedback: "Other costs can offset the value of the reduction. Estimate the costs before concluding."
+        }
+      ],
+      correct: "A",
+      hint: "Ask which resources the requested perspective counts.",
+      lesson: "Perspective determines which resource consequences enter the evaluation.",
+      explanation: "Measure the change in unpaid care with a clear valuation method and show how different assumptions affect the conclusion.",
+      lessonId: "health-economic-evaluation",
+      sourceIds: [
+        "dfph-syllabus",
+        "nice-economic-evaluation"
+      ],
+      help: "",
+      difficulty: "intermediate",
+      learnerGoals: [
+        "publicHealth",
+        "healthcareBusinessAnalyst",
+        "mastersStatistics"
+      ],
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "bdaa72763ca1c3c27c5e094972cf841077673581730db6325877bc5f9f52e2a0"
+      }
     }
   ];
 
@@ -21911,26 +26159,26 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     schemaVersion: 1,
     format: "statsdirect-builtin-tutor",
     publisher: "StatsDirectHelpEditor",
-    publishedAtUtc: "2026-11-08T13:06:32.8609118+00:00",
+    publishedAtUtc: "2026-11-15T16:16:12.7074717+00:00",
     sourceCourseId: "statsdirect-health-foundations",
-    sourceCourseVersion: "2026-11-03-draft",
-    sourceCourseSha256: "7016e2f6c5e09fd7296bf116f6e059370249522686797f6f3b6b5fcde72e1f95",
-    sourceFileName: "starter-course.json",
-    sourceFileSha256: "618185dfe8d9ddcaa2ad7b25652d0ff54237b3050c8120d08f8bded33085f77e",
-    bankVersion: "learn-draft-2026-10-01",
-    lessonCount: 12,
-    questionCount: 35,
+    sourceCourseVersion: "2026-11-15-biostatistics",
+    sourceCourseSha256: "b27b30aefa1142dc9409daa891549098c8462320df3be5e009cba3bfbc71cfc5",
+    sourceFileName: "biostatistics-course.json",
+    sourceFileSha256: "3779ac876448b0fd685ba232f53c5da0801bce738d6ad8f23e2f997c657b0368",
+    bankVersion: "2026-11-15-biostatistics-cc2d92a4dc90",
+    lessonCount: 37,
+    questionCount: 108,
     trackCount: 5,
     files: [
       {
         path: "lessons.json",
-        sha256: "3615029651633d6bc5dac0a964d7c983abc967e88b3628e0ce103e860fe6efb0",
-        bytes: 102470
+        sha256: "2b4c12848181707cc616bc1ec2ef6189aa40355bb3b3c657a7ef26a6c4808424",
+        bytes: 402609
       },
       {
         path: "questions.json",
-        sha256: "1c2bc360afbd28c7bc45a5b5d8f93c5f480b71dd6e251fd317cc45ff58f4c4ad",
-        bytes: 68630
+        sha256: "c3340cd7cd055ad399e499a18529c7f6b20c8c3a3ea040e0d5c18fd89ab0c5ea",
+        bytes: 248479
       },
       {
         path: "tracks.json",
@@ -21939,11 +26187,11 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
       },
       {
         path: "bank.mjs",
-        sha256: "6cf616442f5b385929f9ef087b9dec0341c501a5c7817542d8881a61cf67ca1a",
-        bytes: 69579
+        sha256: "f7a8616ef676737e836ce85270309f8ee02e3cb8e90817c26f22b86c4b9a2800",
+        bytes: 249443
       }
     ],
-    readmeSha256: "d1882f2adea41402cb0e661534eb8b4be05752ec60b9f5e3fe6598d2532e87b4",
+    readmeSha256: "827c9ec40a349c7fe351c97b556fe32f6d8d379b35030800044f127513647ea1",
     reviewIssues: [
       {
         severity: "Warning",
@@ -22183,7 +26431,792 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     ],
     reviewWarningCount: 47,
     reviewGatePassed: true,
-    reviewedChangedItems: [],
+    reviewedChangedItems: [
+      {
+        kind: "lessons",
+        id: "describe-data",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "5c972a5ea4936b6878aecb33ed39c9d4f7f42e8f512585d710e60f2d714c8c15"
+      },
+      {
+        kind: "lessons",
+        id: "choose-analysis",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "b715b3dd397b429b959a82b964959f5aacce6a259cbcf41491721977d810772c"
+      },
+      {
+        kind: "lessons",
+        id: "surveillance-outbreaks",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "2fd08883b5d5e8fef1e3e5d97e834959b1bd7b29595eaf4363bc567354272f05"
+      },
+      {
+        kind: "lessons",
+        id: "dependent-samples",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "a9ef3dfca5f915a9b527b545222ae0ea5d117c0cd95fde3bc9c1d57497444ded"
+      },
+      {
+        kind: "lessons",
+        id: "trial-power",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "fb492efde444ad96123a78a081614e9147cc1adbe5470fadf71498e157207fab"
+      },
+      {
+        kind: "lessons",
+        id: "trial-appraisal",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "619902aaff8f046bee136d3ba380d9e2ca9f6383b9eab5356b6176609dbbb459"
+      },
+      {
+        kind: "lessons",
+        id: "diagnostic-evidence",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "c447533738db60e2807ef954c6f78149eeb8599b66e7252e702a52640f8ec59c"
+      },
+      {
+        kind: "lessons",
+        id: "screening-programmes",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "f0e46c81ffb220d3e27a4aa14e1ca85e59d28ce92baf8f84238a14718ab03453"
+      },
+      {
+        kind: "lessons",
+        id: "survival-competing-risks",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "72d86c5dfc9f16192ddf249c1e88e11dbbcc63918ab75d4a5efcde3240b6b07b"
+      },
+      {
+        kind: "lessons",
+        id: "regression-models",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "1a9cfdeda9fc5a00cb8cdf76dcb4f83402964a869e46b0a49112ad2b3aec0cbf"
+      },
+      {
+        kind: "lessons",
+        id: "measurement-agreement",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "85e0b34d00d708604f9aa9cd5f42bec61ea8823439e086c2bca02dbd1d98ef5f"
+      },
+      {
+        kind: "lessons",
+        id: "audit-spc",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "71ded60b5abadc14b559917b91f5e735749c3a800efd921f439863c1834b94bb"
+      },
+      {
+        kind: "lessons",
+        id: "clinical-abstract",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "b71e37d442cd19cef5cd6d4089ee25ef7a55717c7160a105ce081fa35cade984"
+      },
+      {
+        kind: "lessons",
+        id: "causal-adjustment",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "9f659c042c4ace1b35c60d85d5edb3741a42dd19bd56bbd8a591e80ad2025710"
+      },
+      {
+        kind: "lessons",
+        id: "evidence-synthesis",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "f12ae2f09472e1a2419e0a06bf0ac7e3d6e5c5080e667243adee8b0071f831c8"
+      },
+      {
+        kind: "lessons",
+        id: "population-impact",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "946f0b835c1e2a0d697eedabd73df66efb59bd26cab4e6db04c646f09a00a6ed"
+      },
+      {
+        kind: "lessons",
+        id: "uncertainty-sensitivity",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "8407326ce9bf754654337f51caa85566a759afc0bedcf11a2b65d9a7dd731164"
+      },
+      {
+        kind: "lessons",
+        id: "study-designs",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "62b97f461c4934aa90729f8eee69a8a1e683fb215d0e92a13311142e0b0c53ec"
+      },
+      {
+        kind: "lessons",
+        id: "research-integrity",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "6a59f25bb9bca080e71484f24c8a6566f7cfbb52f344a48ab52316962156da8d"
+      },
+      {
+        kind: "lessons",
+        id: "independent-group-comparisons",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "425de5cb00f42452e8fd5b9917c7abcd594d513894567a54bee87156b92c8e8d"
+      },
+      {
+        kind: "lessons",
+        id: "repeated-condition-comparisons",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "feb805b8e52071824b5c5747ca3be577eaaca33d65b1e46215bbff27695e1b66"
+      },
+      {
+        kind: "lessons",
+        id: "complex-surveys",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "57e36e3c8b91219b9b3a70cf11afa285f9faafc2a20e99d23ac76eebd1773203"
+      },
+      {
+        kind: "lessons",
+        id: "interrupted-time-series",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "ec75f1983a2653595c4dc87ef314a8f99e7786296d31863296ec52de2e83aa45"
+      },
+      {
+        kind: "lessons",
+        id: "small-area-rates",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "1a800a281a33e809301e921e9fbae8d98e96a094a362bb34ebbb321bcdc61a8e"
+      },
+      {
+        kind: "lessons",
+        id: "health-economic-evaluation",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "f8faba79fe22bd65b83dff855d39394600d47c71aacf3fa643daa2fe4f7404a1"
+      },
+      {
+        kind: "questions",
+        id: "BIO-DATA-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "451bf9f05bc2fda3f41fc32a14269968eac15a530b0b3b3edd821e8614cb5cd2"
+      },
+      {
+        kind: "questions",
+        id: "BIO-DATA-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "e3dd3027bb1ab015bf1dd759fa75a2e0af2e4d363a98964128cff6340df363a3"
+      },
+      {
+        kind: "questions",
+        id: "BIO-DATA-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "201335490035a2ba30828d67deb215af7dcb81e4357b7724473b9fdf099dc458"
+      },
+      {
+        kind: "questions",
+        id: "BIO-METHOD-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "4aebde7d85b881a2deb29858e0705d5ab257dbe843d4a5a34fec0647c12a6627"
+      },
+      {
+        kind: "questions",
+        id: "BIO-METHOD-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "74fadb48f17ca45af96e37625e9e48dcacd917bf294ad4740a6a0ffdea74a7ad"
+      },
+      {
+        kind: "questions",
+        id: "BIO-METHOD-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "57a614caa3b6ce466ccf19b7a9bca3f388e9beda5eec689961dc2b00e2cbef46"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SURV-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "f20ca59c78104ab88d32b0dd1ae8cc5163a10cc0ae8deba144b640532607d567"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SURV-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d624e787ba5a585e20518288d2027b0f7aaeeea61902bea7310b537bd4a39a0c"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SURV-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "13dddd2c0769b58a81bd4fbe551827842e3e983a46ab2f0d06c2e542779a6a96"
+      },
+      {
+        kind: "questions",
+        id: "BIO-DEP-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d018dbd2bdccda673a9fc38ac2339af01ee294ab4e335b366c0031305733a163"
+      },
+      {
+        kind: "questions",
+        id: "BIO-DEP-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "13adb037c412bd4db8c6e9e047a38b6088d4080fe52f21b69a056b039157beb6"
+      },
+      {
+        kind: "questions",
+        id: "BIO-DEP-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "dc86cf1958e6e8e18c9800b3c6bf36c696b471d3ba1d1974eef9cc3cf0ffcd43"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-POWER-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6140f7b6226e9c152b7ca469be23df805744cf0ab8c3df752d8a076d11ca42d3"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-POWER-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "cd682852b69e7d77ee9035a3364c26e7858a2b80e887582f303d69110161ba68"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-POWER-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "5ac34ba3efdc5c112148ca5e360b6c50b4ff3d5cdcc3c1328ebbc99a2565efcf"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-TRIAL-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "520a7b0202bb58d08e11d01446b65b3a34ffa501e5b0a858311f3000bdd4c436"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-TRIAL-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "aa61308481c6d9b6bd53c45bdb2bfef4345a9932e5a182909ff40c7b14d083f3"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-TRIAL-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "7e63efc22c8244980808456cf53eb69da9625854230a0b2a119ac95f61028593"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-DX-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "0035d6a349c3b87ad2736a33397f8cfcd9d1059bf3a75ee0e0a1fbcf35594423"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-DX-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "98f800cb975c5f6af2e0453d3702281d5b668aaea14c99f72764b4f19611235f"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-DX-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "877f6944393418743df6178fc3fbeb46aab1350bde2b0f229cedd4fe74644c26"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-SCREEN-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "b1d930c0e2b2a6b9425adcd7c8c0bb278cd32c309f3a5e34dbe9f020d162e265"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-SCREEN-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "80d38cf49016395c843f444dd66f5438e0254cfb7e5a0a7bfdb0bdad5d002da8"
+      },
+      {
+        kind: "questions",
+        id: "CLIN-SCREEN-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "7a25327da344a3939b7b0e89492890423313ae4a849110790e26be5030a34c7f"
+      },
+      {
+        kind: "questions",
+        id: "SURVIVAL-KM-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d6b3e72502f577aceb922b2c0b5686ac406209960d005c08a4dc3378b44679f9"
+      },
+      {
+        kind: "questions",
+        id: "SURVIVAL-CR-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "82453b0ce726a9564849a3278ec6f784da4c83dcd7614c2b870f6fcf627ab34a"
+      },
+      {
+        kind: "questions",
+        id: "SURVIVAL-PH-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6e2fd548caf9218464984c11ba8d85e1bb6d4b74cb7d31b7e2ed4c9e6a59d5fb"
+      },
+      {
+        kind: "questions",
+        id: "REGMODEL-OR-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "bf97fb67b1f61010d477267c7deeaa1b5bef1972e300ebfacc8e37c46908b1e8"
+      },
+      {
+        kind: "questions",
+        id: "REGMODEL-RATE-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "7bca8e07baf7690da0cac30a96e99a26f45cb5a36925c650c187004af0833148"
+      },
+      {
+        kind: "questions",
+        id: "REGMODEL-CAL-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "e97abf1b707d47a9ba92999c2c022da7cbe31534fe472ee905a8c0ca1be7923c"
+      },
+      {
+        kind: "questions",
+        id: "AGREE-BA-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d9ed377458cec9366ceff2a3e8e7671101eb74d1efcdb635479b4dbb64a68540"
+      },
+      {
+        kind: "questions",
+        id: "AGREE-KAPPA-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "dbc3a7c7159a1cf78a64031d30c0bf7e196dc46e9dd70d4f26e4c1fb0ef30285"
+      },
+      {
+        kind: "questions",
+        id: "AGREE-ICC-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "128e1ffa75fda946cd31e0290319da08946dda2e418da84e848e6ebbdb45e7d4"
+      },
+      {
+        kind: "questions",
+        id: "SPC-LIMIT-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "4a798ef816e08f89db9bb279143d69afdfd433dfc8d2a10f1ec39a97f7e649fe"
+      },
+      {
+        kind: "questions",
+        id: "SPC-RESPONSE-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6809cabb79a255bcc3b40985458dfc7e6bea360c1594ab07655807c52930a244"
+      },
+      {
+        kind: "questions",
+        id: "SPC-STANDARD-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "ec4e23ff16a926d32c8460260dd2a5d6d0faf92fb79d9084a207bd9b7c0ba7a7"
+      },
+      {
+        kind: "questions",
+        id: "BIO-ABSTRACT-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "bc0c3d6775c62558431e24dd32964c9ec969212766e3099f07393929377cb143"
+      },
+      {
+        kind: "questions",
+        id: "BIO-ABSTRACT-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "54d414a928974f924473a72e79b49db569e9a23915a5cb8b29c64b6e989c1103"
+      },
+      {
+        kind: "questions",
+        id: "BIO-ABSTRACT-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "cdb8deb03d442679edda5525e4e1297ceb19ac712a339b937816498b892a927a"
+      },
+      {
+        kind: "questions",
+        id: "BIO-CAUSAL-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "7328ba85ac120eedb7debc0ee42d8b062be8352d6b23080b0bfbc3cf8a52773d"
+      },
+      {
+        kind: "questions",
+        id: "BIO-CAUSAL-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6bd1119a65760f90aa6b480248bf018acbb968a0367ce6e528c3242e41a05496"
+      },
+      {
+        kind: "questions",
+        id: "BIO-CAUSAL-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "b3878510063a0177c8a80807f927e435a8a9c31fa6e180d2bca6a06ff8a85f46"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SYNTH-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "836616654efd6ebae9b15ae66a8ae1cdab93adf73fdd2e7f494fd6d3c779e48f"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SYNTH-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "5d820e45c513181e410b4c7b1148d6b78b072b2b34b6d947c0feaabdeb7f2f0f"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SYNTH-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d4351ed9fedca665aed1a9e1ca8b0a7c69fef2a20c3a7ef89b98a04023b3b064"
+      },
+      {
+        kind: "questions",
+        id: "BIO-IMPACT-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "2b4f7010c06dc9bc8037ede9ac1a9edd950ad80c229ac427e9d0e7a4e58ba07f"
+      },
+      {
+        kind: "questions",
+        id: "BIO-IMPACT-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "434778b219775b78ca61cd279495046e228d4ac06938f292d9eee90924220228"
+      },
+      {
+        kind: "questions",
+        id: "BIO-IMPACT-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "a28badd70edc0b71f0d06f5e3103434c1baf739caaf64cd5734e1f5cf3d68e56"
+      },
+      {
+        kind: "questions",
+        id: "BIO-UNCERT-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "654abbc8e31a7aef5ae829cc467be418a2f28f75d2508f3069109118fdd21703"
+      },
+      {
+        kind: "questions",
+        id: "BIO-UNCERT-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6ba8692b80b003b9b72fc8b7b50f8dc5941132866348ec8fbe7296690866b5f2"
+      },
+      {
+        kind: "questions",
+        id: "BIO-UNCERT-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "3e7342e764ef21e0ca621b081ec95e054fb36e87187e3ec3daa64d2aacd692ec"
+      },
+      {
+        kind: "questions",
+        id: "BIO-DESIGN-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "527e9c8c6fb58b50a98de33736955ea544bd56bd7627960f867341f52ea9f6f3"
+      },
+      {
+        kind: "questions",
+        id: "BIO-DESIGN-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "aba55b04da4ec88d4f42897fa8205bba797a6fe851d9f63844bf514cbd60c7c0"
+      },
+      {
+        kind: "questions",
+        id: "BIO-DESIGN-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "fa67de81ea8cb8b1a66e8656efc6534ab5889fb80f679758534e1a12204c4a19"
+      },
+      {
+        kind: "questions",
+        id: "BIO-INTEGRITY-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "28f95110e262783ba1d776c2eef802968a8f1073fd57f25c80471b1a7472b076"
+      },
+      {
+        kind: "questions",
+        id: "BIO-INTEGRITY-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "433b971be192d38942ec6f5f4dd6b43607edfb36e4c9b4aae3a12d2a8172926d"
+      },
+      {
+        kind: "questions",
+        id: "BIO-INTEGRITY-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "47d0273d1eb32eeae5fd71ffa754ebc48edcf81c2468f1bd5262c2b4ad6f1729"
+      },
+      {
+        kind: "questions",
+        id: "BIO-CAUSAL-04",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "c5d4a43a84f02f45eb7426f29e66aaa71cabb5ca509325a967614bdff6615ec7"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SYNTH-04",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "6bb788627db963668f07b29fa73cb61c53e20be3328155a7a9fc81e2cddf77c8"
+      },
+      {
+        kind: "questions",
+        id: "MULTI-IND-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "5b16a5771289f4d793d865af41544b5392f54707074c029b26c6385b8ab74baa"
+      },
+      {
+        kind: "questions",
+        id: "MULTI-IND-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "8766df6417317d201c8346994aaafa718e5ac4968149efeba914d8e74777bab7"
+      },
+      {
+        kind: "questions",
+        id: "MULTI-IND-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "94049a813e79cdb0297a029c43a0e4e61b09b8d28fea7b41c1ad413dd30f083f"
+      },
+      {
+        kind: "questions",
+        id: "MULTI-REP-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "097ba0b75dcf742fee53978de51e153e68032e5a95b2bf5d0fc819f9f83f5d8c"
+      },
+      {
+        kind: "questions",
+        id: "MULTI-REP-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "1a8e4d8025d2614ea51bdd4c949949c54a6a615a7d527ea5c94ca063297dafd5"
+      },
+      {
+        kind: "questions",
+        id: "MULTI-REP-03",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "89857be5af82f6ef9918afe3e7a96715f7e25afc37163f121207eaa748be9f4d"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SURVEY-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "86243ca487f161b2e485c408c4c5351de6ca79829cded5002f213b2f7e25d3bb"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SURVEY-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "55023b1319571cb847ff510ba9f52ac315c94c958260ed7c7d4976fc3a9a96d5"
+      },
+      {
+        kind: "questions",
+        id: "BIO-ITS-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "24e9a7e58004d1775496dbcdd51634f784e7d8b892683f0779a8b4b833f6c216"
+      },
+      {
+        kind: "questions",
+        id: "BIO-ITS-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "78d19df77e2bf18701bae7588d38389d95b170a9f0fe23df7070fbedfdc446c8"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SPATIAL-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "b31ef3b3b40ba6f4b2b205751b29c781e631750f5a0a1692588fbd214fbdeeee"
+      },
+      {
+        kind: "questions",
+        id: "BIO-SPATIAL-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "7ae2adc0bb1c2b03e290bc6e8922272493fa84a8a031d18af316a7b24cd3ce80"
+      },
+      {
+        kind: "questions",
+        id: "BIO-ECON-01",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "d914ae0cf066150a9d29868fc978c3e1f1c208dce9b8c7cc33e021560473b639"
+      },
+      {
+        kind: "questions",
+        id: "BIO-ECON-02",
+        reviewer: "Codex review; Iain Buchan release approval",
+        date: "2026-11-15",
+        notes: "Answer key, distractors and feedback independently checked.",
+        contentSha256: "bdaa72763ca1c3c27c5e094972cf841077673581730db6325877bc5f9f52e2a0"
+      }
+    ],
     unreviewedChangedItems: []
   };
 
@@ -22192,28 +27225,28 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     schemaVersion: 1,
     format: "statsdirect-builtin-tutor-import",
     repository: "https://github.com/iain-buchan/statisticalhelp",
-    commit: "d59e49f1c3517be606fec3ef9b71abdfe436a1f3",
+    commit: "3197200654594d81d84cf730646ed46bdc08b379",
     source: "Published/Tutor",
     publisher: "StatsDirectHelpEditor",
     producerSchemaVersion: 1,
-    producerManifestSHA256: "8b359a37bb9353e60cf7c664c141facf1f0ef4c5b3be4da4be5f30697dadf62d",
+    producerManifestSHA256: "7afdd1a7ce7bad7988fa0649bc8c6438ffe58dccc10d5db3042bde0726cfe010",
     sourceCourseId: "statsdirect-health-foundations",
-    sourceCourseVersion: "2026-11-03-draft",
-    bankVersion: "learn-draft-2026-10-01",
+    sourceCourseVersion: "2026-11-15-biostatistics",
+    bankVersion: "2026-11-15-biostatistics-cc2d92a4dc90",
     reviewGatePassed: true,
     reviewWarningCount: 47,
     sha256: {
-      "Content/Learn/lessons.json": "3615029651633d6bc5dac0a964d7c983abc967e88b3628e0ce103e860fe6efb0",
-      "Content/learning-source-manifest.json": "748b5e2c4e95a97e94b400daca13954b98b25055a7b1860d0f9cdfafbe15fa1c",
-      "Learn/AuthoredTutor/README.md": "d1882f2adea41402cb0e661534eb8b4be05752ec60b9f5e3fe6598d2532e87b4",
-      "Learn/AuthoredTutor/bank.mjs": "6cf616442f5b385929f9ef087b9dec0341c501a5c7817542d8881a61cf67ca1a",
-      "Learn/AuthoredTutor/lessons.json": "3615029651633d6bc5dac0a964d7c983abc967e88b3628e0ce103e860fe6efb0",
-      "Learn/AuthoredTutor/manifest.json": "8b359a37bb9353e60cf7c664c141facf1f0ef4c5b3be4da4be5f30697dadf62d",
-      "Learn/AuthoredTutor/questions.json": "1c2bc360afbd28c7bc45a5b5d8f93c5f480b71dd6e251fd317cc45ff58f4c4ad",
+      "Content/Learn/lessons.json": "2b4c12848181707cc616bc1ec2ef6189aa40355bb3b3c657a7ef26a6c4808424",
+      "Content/learning-source-manifest.json": "d55643a527c39f43a793bba76c2d65b81bcf089675ec9d0f4fbb580e635bedf0",
+      "Learn/AuthoredTutor/README.md": "827c9ec40a349c7fe351c97b556fe32f6d8d379b35030800044f127513647ea1",
+      "Learn/AuthoredTutor/bank.mjs": "f7a8616ef676737e836ce85270309f8ee02e3cb8e90817c26f22b86c4b9a2800",
+      "Learn/AuthoredTutor/lessons.json": "2b4c12848181707cc616bc1ec2ef6189aa40355bb3b3c657a7ef26a6c4808424",
+      "Learn/AuthoredTutor/manifest.json": "7afdd1a7ce7bad7988fa0649bc8c6438ffe58dccc10d5db3042bde0726cfe010",
+      "Learn/AuthoredTutor/questions.json": "c3340cd7cd055ad399e499a18529c7f6b20c8c3a3ea040e0d5c18fd89ab0c5ea",
       "Learn/AuthoredTutor/tracks.json": "4d55754bb0de19338402aca455546d77dad4c09eb7edefff70478d342c88bdd2",
-      "Learn/lessons.json": "3615029651633d6bc5dac0a964d7c983abc967e88b3628e0ce103e860fe6efb0"
+      "Learn/lessons.json": "2b4c12848181707cc616bc1ec2ef6189aa40355bb3b3c657a7ef26a6c4808424"
     },
-    publicationManifestSHA256: "748b5e2c4e95a97e94b400daca13954b98b25055a7b1860d0f9cdfafbe15fa1c",
+    publicationManifestSHA256: "d55643a527c39f43a793bba76c2d65b81bcf089675ec9d0f4fbb580e635bedf0",
     publicationManifestPath: "Published/content-manifest.json",
     publicationTutorReviewProofBinding: "authoring-source-before-generated-sync-v1"
   };
@@ -24159,6 +29192,5110 @@ if (FALSE) {
             "cochrane-8"
           ]
         }
+      ]
+    },
+    {
+      id: "describe-data",
+      title: "Describing and displaying data",
+      topic: "Data types, sampling and distributions",
+      objective: "Match a summary and display to what was measured and how the sample was obtained.",
+      summary: "Classify a variable before analysing it. Blood group is nominal, symptom grade is ordinal, visits are discrete counts, and waiting time is continuous even when recorded to whole minutes. Use counts and percentages with explicit denominators for categories. For a roughly symmetric quantitative distribution, the mean and standard deviation describe centre and spread. For skewed data, the median and interquartile range (IQR) are resistant to extreme values. Inspect a histogram or dot plot first; a box plot compactly compares groups. A histogram groups quantitative values into bins; a bar chart compares categories. A sampling frame defines who can be reached, and non-response can bias a probability sample. A normal model may describe approximately symmetric continuous measurements; a binomial model counts successes in a fixed number of independent trials with the same probability, and a Poisson model can describe event counts over fixed exposure when conditions such as a constant rate and independent increments are reasonable.",
+      challenge: "Which summary would you lead with if describing a typical wait? What would you add to show that some people wait much longer?",
+      steps: "Enter the eight fictional wait times in one column and run Univariate Summary. Check the histogram or dot plot, median and mean. Seven waits are 18 minutes or less and one is 42 minutes. The median is 11.5 minutes and the mean is 15.75. R's default quartiles give Q1 = 10 and Q3 = 15, for an IQR of 5 minutes. Small-sample quartile conventions can differ, so state the method if results differ.",
+      help: "basic_descriptive_statistics/univariate_summary.htm",
+      columns: [
+        {
+          title: "Wait (minutes)",
+          values: [
+            9,
+            10,
+            10,
+            11,
+            12,
+            14,
+            18,
+            42
+          ]
+        }
+      ],
+      r: 'wait <- c(9, 10, 10, 11, 12, 14, 18, 42)\nstopifnot(mean(wait) == 15.75, median(wait) == 11.5, IQR(wait) == 5)\nprint(c(mean = mean(wait), median = median(wait), sd = sd(wait), IQR = IQR(wait)))\nhist(wait, breaks = seq(5, 45, 5), xlab = "Wait in minutes", main = "Fictional clinic waiting times")\nstopifnot(isTRUE(all.equal(pbinom(0, 10, 0.2), 0.8^10)), isTRUE(all.equal(dpois(0, 2), exp(-2))))\n',
+      contentVersion: "2026-11-15-r2-q7a012208043c",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "5c972a5ea4936b6878aecb33ed39c9d4f7f42e8f512585d710e60f2d714c8c15"
+      },
+      prerequisites: [],
+      learningObjectives: [
+        "Distinguish nominal, ordinal, discrete and continuous variables.",
+        "Match a display and summary to a variable and its distribution.",
+        "Explain coverage and non-response, and distinguish normal, binomial and Poisson models."
+      ],
+      keyConcepts: [
+        {
+          term: "Scale of measurement",
+          explanation: "IDs and numerical codes can label categories without measuring a quantity."
+        },
+        {
+          term: "Spread",
+          explanation: "The IQR is the distance from the first to the third quartile; SD uses each observation's distance from the mean."
+        },
+        {
+          term: "Representativeness",
+          explanation: "Increasing the number of volunteers does not repair undercoverage or outcome-related non-response."
+        },
+        {
+          term: "Skewness and kurtosis",
+          explanation: "Skewness describes asymmetry. A long right tail suggests positive skewness. Kurtosis reflects how strongly extreme standardised deviations contribute to the fourth moment. Normal kurtosis is 3, or 0 on the excess-kurtosis convention. Inspect a histogram or normal Q\u2013Q plot before interpreting sample shape measures from a small dataset."
+        },
+        {
+          term: "Regression to the mean",
+          explanation: "If follow-up scores are imperfectly correlated with baseline scores, a group selected for unusually high baseline scores will often score closer to the population mean on repeat measurement. Some initial scores were extreme partly because of transient variation."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "A large convenience sample represents the population.",
+          correction: "Its estimate can still be biased if recruitment favours people with a different outcome."
+        },
+        {
+          claim: "A histogram bar is a category.",
+          correction: "A histogram uses numerical intervals; when widths differ, area represents frequency or proportion."
+        }
+      ],
+      workedExample: {
+        design: "Eight fictional appointments, with one waiting time recorded per appointment.",
+        interpretation: "The mean is pulled up by a relatively long wait. Median 11.5 minutes and IQR 5 minutes (R's convention) describe the centre and middle spread; show the long wait and report the number observed."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "If 42 minutes is a real value, what happens to the mean and median when you report it?",
+          expectedReasoning: "The mean is sensitive to the large value. Check whether it is a recording error, and retain a valid long wait when describing the clinic."
+        },
+        {
+          level: "intermediate",
+          prompt: "In a separate example, a clinic enrols only people with unusually high symptom scores. Their scores are lower on repeat testing. What would help distinguish improvement due to treatment from regression to the mean?",
+          expectedReasoning: "Compare with an appropriately selected and preferably randomised control group observed on the same schedule. Within-person improvement in the selected group alone cannot separate these explanations."
+        }
+      ],
+      rProgression: {
+        menus: "Run Univariate Summary on the wait column.",
+        bridge: "Locate mean, median and quartiles in both outputs and compare any stated quartile convention.",
+        coding: "Change 42 to 62 and check how the mean, median and SD move."
+      },
+      sources: [
+        {
+          id: "gmc-graduates",
+          title: "GMC: Outcomes for graduates, sections 25\u201326",
+          url: "https://www.gmc-uk.org/-/media/documents/dc11326-outcomes-for-graduates-2018_pdf-75040796.pdf/",
+          scope: "Population measurements and interpretation of research results.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "gmc-mla",
+          title: "GMC: Medical Licensing Assessment content map",
+          url: "https://www.gmc-uk.org/cdn/documents/251015---mla-content-map--english-_pdf-112647970.pdf",
+          scope: "Use of research, data and statistics within social and population health.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "dfph-syllabus",
+          title: "Faculty of Public Health: DFPH knowledge syllabus",
+          url: "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+          scope: "Research methods section 1b: distributions, graphical methods, location and dispersion.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "rcpsych-paperb",
+          title: "RCPsych: MRCPsych Paper B syllabus from January 2027",
+          url: "https://www.rcpsych.ac.uk/docs/default-source/training/examinations/mrcpsych-syllabus-2027/mrcpsych-paper-b-syllabus-2027.pdf",
+          scope: "Section 13.8.9 names normality, skewness, kurtosis and graphical or tabular displays.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        },
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+          scope: "Central tendency, variability, regression to mean and the normal distribution.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        }
+      ],
+      assessmentIds: [
+        "BIO-DATA-01",
+        "BIO-DATA-02",
+        "BIO-DATA-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-DATA-01",
+          version: 1,
+          track: "foundation",
+          topic: "Skewed continuous data",
+          objective: "Choose a primary descriptive summary.",
+          stem: "A clinic wants to describe typical appointment waits. Most recorded waits are between 5 and 20 minutes, with a long tail up to 95 minutes. Which pair of summaries best describes the centre and middle spread?",
+          options: [
+            {
+              id: "A",
+              text: "Mean and range",
+              feedback: "Both can be strongly influenced by the longest wait."
+            },
+            {
+              id: "B",
+              text: "Median and interquartile range",
+              feedback: "These summarise the centre and middle half without being strongly pulled by the long tail."
+            },
+            {
+              id: "C",
+              text: "Mode and standard error of the mean",
+              feedback: "The standard error measures precision of a mean, not spread across patients."
+            },
+            {
+              id: "D",
+              text: "Standard deviation and sample size",
+              feedback: "Neither gives the requested location."
+            },
+            {
+              id: "E",
+              text: "Maximum and interquartile range",
+              feedback: "The maximum describes an extreme, not the centre."
+            }
+          ],
+          correct: "B",
+          hint: "Match the measure to the feature being described: a typical value and middle spread.",
+          lesson: "Tail shape helps determine which centre and spread are most interpretable.",
+          explanation: "Use the median and IQR for the stated aim. Include a display, range or upper percentiles if long waits matter.",
+          lessonId: "describe-data",
+          sourceIds: [
+            "gmc-graduates",
+            "dfph-syllabus"
+          ],
+          help: "basic_descriptive_statistics/univariate_summary.htm",
+          difficulty: "beginner",
+          learnerGoals: [
+            "undergraduateMedicine",
+            "healthcareBusinessAnalyst"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "451bf9f05bc2fda3f41fc32a14269968eac15a530b0b3b3edd821e8614cb5cd2"
+          }
+        }
+      ],
+      operation: "UnivariateSummary",
+      readingURLs: [
+        "https://www.gmc-uk.org/-/media/documents/dc11326-outcomes-for-graduates-2018_pdf-75040796.pdf/",
+        "https://www.gmc-uk.org/cdn/documents/251015---mla-content-map--english-_pdf-112647970.pdf",
+        "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+        "https://www.rcpsych.ac.uk/docs/default-source/training/examinations/mrcpsych-syllabus-2027/mrcpsych-paper-b-syllabus-2027.pdf",
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37"
+      ]
+    },
+    {
+      id: "choose-analysis",
+      title: "Choosing a statistical test",
+      topic: "Outcome, estimand and dependence",
+      objective: "Select an analysis using the outcome type, design, target effect and plausible assumptions.",
+      summary: "Start with the scientific question and the outcome scale. For quantitative outcomes, a paired analysis works on within-pair information; a paired t test targets the mean of paired differences and relies on independent pairs, with normal differences for exact small-sample inference. For two independent samples targeting a mean difference, Welch's t test allows unequal variances. Consider plots, outliers, sample size and the intended estimand before choosing a rank or sign method. Wilcoxon signed-rank relies on symmetric difference distributions for the usual location interpretation. Mann\u2013Whitney compares distributions or rank tendencies under an appropriate sampling design; equal shape is needed for the familiar location-shift interpretation. For independent counts, Pearson's chi-square uses expected counts under the null; Fisher's exact test is a usual choice for sparse 2\xD72 tables. Binary matched outcomes need a paired method such as McNemar based on discordant pairs. Pearson correlation describes linear association; Spearman describes monotonic association using ranks. Inspect a scatterplot for curvature, outliers and dependence. Correlation alone does not establish agreement or causation.",
+      challenge: "Your independent groups have a continuous outcome with very different spreads and strong right skew. What effect would answer the practical question, and what further checks guide the analysis?",
+      steps: "Enter the fictional before and after measurements in two columns, select both and run Paired t to estimate mean improvement. The eight differences average 2.625 units. Check their spread and the interval before interpreting the point estimate. Then compare the expected counts and Fisher result from a separate independent 2\xD72 example in R. Observe that equal-looking columns are not themselves evidence of pairing.",
+      help: "parametric_methods/paired_t.htm",
+      columns: [
+        {
+          title: "Before",
+          values: [
+            20,
+            21,
+            22,
+            19,
+            24,
+            23,
+            25,
+            21
+          ]
+        },
+        {
+          title: "After",
+          values: [
+            20,
+            20,
+            20,
+            17,
+            21,
+            19,
+            21,
+            16
+          ]
+        }
+      ],
+      r: "before <- c(20, 21, 22, 19, 24, 23, 25, 21)\nafter <- c(20, 20, 20, 17, 21, 19, 21, 16)\npaired <- t.test(before, after, paired = TRUE)\nstopifnot(isTRUE(all.equal(unname(paired$estimate), 21/8)))\nprint(paired)\ncounts <- matrix(c(0, 4, 5, 3), nrow = 2, byrow = TRUE)\npearson <- suppressWarnings(chisq.test(counts, correct = FALSE))\nexact <- fisher.test(counts)\nsupport <- 0:4\nnull_prob <- dhyper(support, 5, 7, 4)\nstopifnot(min(pearson$expected) < 5, isTRUE(all.equal(exact$p.value, sum(null_prob[null_prob <= null_prob[1] + 1e-12]))))\nprint(pearson$expected)\nprint(exact)\n",
+      contentVersion: "2026-11-15-q28d7f8668763",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "b715b3dd397b429b959a82b964959f5aacce6a259cbcf41491721977d810772c"
+      },
+      prerequisites: [
+        "paired",
+        "describe-data"
+      ],
+      learningObjectives: [
+        "Identify whether observations are independent, paired or clustered.",
+        "Choose between a mean, rank-based or count analysis and explain what it tests.",
+        "Check sparse expected counts and identify appropriate correlation and association measures."
+      ],
+      keyConcepts: [
+        {
+          term: "Unit of analysis",
+          explanation: "Pairing follows the design, such as repeated measurements of the same person or prespecified matched participants."
+        },
+        {
+          term: "Estimand",
+          explanation: "The quantity of interest might be a mean difference, a difference in risks or a rank tendency. These are different questions."
+        },
+        {
+          term: "Expected counts",
+          explanation: "Check expected cell counts under the null to assess whether asymptotic chi-square inference is appropriate."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "A nonparametric test has no assumptions.",
+          correction: "Rank tests still require appropriate sampling, independence between analysis units and conditions for the particular interpretation."
+        },
+        {
+          claim: "A normality test can make the method choice for me.",
+          correction: "Start with design, effect of interest, sample size and plots; a normality-test P value does not choose an estimand."
+        }
+      ],
+      workedExample: {
+        design: "Eight people measured before and after; a second independent 2\xD72 example demonstrates sparse counts.",
+        interpretation: "Pairing changes what variability enters a mean-difference interval. For the independent sparse table, the exact test works with the table margins and avoids reliance on the asymptotic chi-square approximation."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "What would pairing mean if the clinic replaced its patients between the two measurement dates?",
+          expectedReasoning: "Without repeated people or a prespecified matching design, these are independent groups if there is no other clustering or dependence."
+        }
+      ],
+      rProgression: {
+        menus: "Select the Before and After columns and run Paired t.",
+        bridge: "Compare R's estimate and interval with the report's direction of subtraction.",
+        coding: "Make the independent table larger with the same proportions and compare expected counts."
+      },
+      sources: [
+        {
+          id: "gmc-graduates",
+          title: "GMC: Outcomes for graduates, sections 25\u201326",
+          url: "https://www.gmc-uk.org/-/media/documents/dc11326-outcomes-for-graduates-2018_pdf-75040796.pdf/",
+          scope: "Interpret and critically appraise statistical tests and study design.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "mrcp-part1",
+          title: "Federation of Royal Colleges of Physicians: MRCP(UK) Part 1 blueprint",
+          url: "https://www.thefederation.uk/examinations/part-1/format",
+          scope: "Broad statistics, epidemiology and evidence-based medicine category.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "dfph-syllabus",
+          title: "Faculty of Public Health: DFPH knowledge syllabus",
+          url: "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+          scope: "Research methods: parametric and nonparametric comparisons, correlation and inference.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        }
+      ],
+      assessmentIds: [
+        "BIO-METHOD-01",
+        "BIO-METHOD-02",
+        "BIO-METHOD-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-METHOD-01",
+          version: 1,
+          track: "medicine",
+          topic: "Independent and paired designs",
+          objective: "Select a mean comparison from the design.",
+          stem: "A clinic samples 25 patients in June and 25 different, independently sampled patients in July. The outcome is continuous, roughly symmetric in each month and substantially more variable in July. Which method targets the difference in mean outcome while allowing unequal variances?",
+          options: [
+            {
+              id: "A",
+              text: "Paired t test",
+              feedback: "There are no linked pairs; putting patients in adjacent rows does not create a match."
+            },
+            {
+              id: "B",
+              text: "Mann\u2013Whitney test",
+              feedback: "A rank comparison does not directly estimate the difference in means."
+            },
+            {
+              id: "C",
+              text: "Welch two-sample t test",
+              feedback: "It compares independent means and allows different group variances."
+            },
+            {
+              id: "D",
+              text: "Pooled two-sample t test",
+              feedback: "Its pooled standard error assumes equal population variances."
+            },
+            {
+              id: "E",
+              text: "McNemar test",
+              feedback: "This is for paired binary responses."
+            }
+          ],
+          correct: "C",
+          hint: "Identify the unit, relationship between groups and target effect before looking at the method names.",
+          lesson: "Design determines independence; the target here is a mean difference.",
+          explanation: "Welch's t method estimates the difference in means with separate group variances and a degrees-of-freedom approximation.",
+          lessonId: "choose-analysis",
+          sourceIds: [
+            "gmc-graduates",
+            "mrcp-part1",
+            "dfph-syllabus"
+          ],
+          help: "parametric_methods/unpaired_t.htm",
+          difficulty: "intermediate",
+          learnerGoals: [
+            "undergraduateMedicine",
+            "postgraduateMedicine",
+            "publicHealth"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "4aebde7d85b881a2deb29858e0705d5ab257dbe843d4a5a34fec0647c12a6627"
+          }
+        }
+      ],
+      operation: "TPaired",
+      readingURLs: [
+        "https://www.gmc-uk.org/-/media/documents/dc11326-outcomes-for-graduates-2018_pdf-75040796.pdf/",
+        "https://www.thefederation.uk/examinations/part-1/format",
+        "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf"
+      ]
+    },
+    {
+      id: "surveillance-outbreaks",
+      title: "Surveillance and outbreak investigation",
+      topic: "Person, place, time and changing denominators",
+      objective: "Interpret a surveillance signal and design a transparent first comparison of possible outbreak exposures.",
+      summary: "Surveillance tracks health patterns for public-health action. Define the case, population, place, time and coverage. Compare equivalent periods, checking reporting delays, seasonality, testing and who is at risk. Sentinel sites can track trends without representing the whole population. Use a line list and plot onsets in an epidemic curve. Compare attack rates in a defined attendee cohort. A case-control study can help assess exposures when the population at risk cannot be counted. Direct standardisation applies shared weights to stratum-specific rates. Indirect standardisation compares observed cases with expected cases based on reference rates. The ecological fallacy is inferring individual associations from group averages. Time trends can reflect concurrent events or serial dependence.",
+      challenge: "A larger number of positive laboratory reports appears after a new testing centre opens. What denominators, time patterns and independent sources would help tell whether occurrence changed?",
+      steps: "Among 120 fictional event attendees, 18 of 60 who ate a dish and six of 60 who did not became ill during follow-up. In prospective risk analysis, use case counts 18 and 6, non-case counts 42 and 54, with exposed then unexposed columns. Attack rates are 30% and 10%, so the risk ratio is 3 and the difference is 20 percentage points. The overall attack rate is 24/120 = 20%. Two of those 24 cases died from the illness within 30 days of onset, giving 30-day case fatality of 8.3%. Check timing and co-exposures before attributing the outbreak. R also compares crude with directly standardised rates in separate data.",
+      help: "clinical_epidemiology/risk_prospective.htm",
+      columns: [],
+      r: 'ill <- c(18, 6)\nattendees <- c(60, 60)\nrisk <- ill/attendees\nstopifnot(isTRUE(all.equal(risk[1]/risk[2], 3)), isTRUE(all.equal(diff(rev(risk)), 0.2)))\n# The two denominators answer different questions.\nattack_rate <- sum(ill) / sum(attendees)\ncase_fatality_30d <- 2 / sum(ill)\nstopifnot(abs(attack_rate - .20) < 1e-12,\n          abs(case_fatality_30d - 1/12) < 1e-12)\nprint(c(attack_exposed = risk[1], attack_unexposed = risk[2], risk_ratio = risk[1]/risk[2],\n        overall_attack_rate = attack_rate, case_fatality_30d = case_fatality_30d))\nage_rates <- matrix(c(1, 8, 2, 6), nrow = 2, dimnames = list(c("Younger","Older"), c("A","B")))\nweights <- c(0.75, 0.25)\nadjusted <- drop(crossprod(weights, age_rates))\ncrude <- colSums(age_rates * cbind(c(0.25, 0.75), c(0.8, 0.2)))\nstopifnot(isTRUE(all.equal(unname(adjusted), c(2.75, 3))), isTRUE(all.equal(unname(crude), c(6.25, 2.8))))\nprint(rbind(crude = crude, direct_standardised = adjusted))\n',
+      contentVersion: "2026-11-15-r2-q3fd47afa6086",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "2fd08883b5d5e8fef1e3e5d97e834959b1bd7b29595eaf4363bc567354272f05"
+      },
+      prerequisites: [
+        "epidemiology",
+        "rates"
+      ],
+      learningObjectives: [
+        "Distinguish surveillance signals from changes in disease occurrence.",
+        "Use case definitions, line lists and appropriate denominators when investigating outbreaks.",
+        "Explain when standardisation, ecological caution and comparison of time periods matter."
+      ],
+      keyConcepts: [
+        {
+          term: "Attack rate (attack proportion)",
+          explanation: "The number of new outbreak cases divided by the number initially at risk in a defined group and time window. It measures cumulative risk. A person-time incidence rate uses a different denominator."
+        },
+        {
+          term: "Case-fatality proportion",
+          explanation: "The proportion of the same defined group of cases who die from the disease within a specified follow-up period. The case definition, ascertainment and length of follow-up affect comparisons."
+        },
+        {
+          term: "Epidemic curve",
+          explanation: "A display of cases by onset time, which helps investigate patterns of exposure and spread. Reporting time answers a different question."
+        },
+        {
+          term: "Ecological fallacy (ecologic fallacy)",
+          explanation: "Districts with higher rates of an exposure and of illness may differ in age, testing or other factors. Their aggregate association does not establish that exposed individuals within those districts are more likely to be ill."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "A sudden jump in confirmed cases proves a sudden change in incidence.",
+          correction: "First account for reporting delay, new testing, case-definition changes and changes in the population at risk."
+        },
+        {
+          claim: "Standardisation controls every potential difference between populations.",
+          correction: "It accounts for differences in the distributions of variables used in the standardisation, subject to data quality and adequate strata."
+        }
+      ],
+      workedExample: {
+        design: "Complete, fictional fixed attendee cohort with binary illness outcome and complete 30-day follow-up from each case's onset. The age-stratified rate illustration uses separate data.",
+        interpretation: "Exposed attendees had a higher attack rate. Check the timing, co-exposures and case ascertainment before attributing the outbreak. Case fatality measures severity among cases."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "What would you tell a local journalist who asks whether the dish caused the outbreak?",
+          expectedReasoning: "Give the two risks and the uncertainty about other exposures and ascertainment in plain language. Explain what the investigation will check next."
+        },
+        {
+          level: "beginner",
+          prompt: "Why divide two deaths by 24 for case fatality and 24 illnesses by 120 for the overall attack rate?",
+          expectedReasoning: "One question starts with people who became cases and follows them for 30 days from onset. The other starts with all attendees at risk and asks who became ill during the outbreak window."
+        }
+      ],
+      rProgression: {
+        menus: "Enter the four count cells in the prospective risk analysis.",
+        bridge: "Use the attendee denominator for attack rates, the case denominator for case fatality and compare 20 percentage points with a risk ratio of three.",
+        coding: "Change the standard weights and explain why directly standardised rates can change."
+      },
+      sources: [
+        {
+          id: "gmc-graduates",
+          title: "GMC: Outcomes for graduates, sections 25\u201326",
+          url: "https://www.gmc-uk.org/-/media/documents/dc11326-outcomes-for-graduates-2018_pdf-75040796.pdf/",
+          scope: "Population health and principles of surveillance.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "dfph-syllabus",
+          title: "Faculty of Public Health: DFPH knowledge syllabus",
+          url: "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+          scope: "Research methods: populations at risk, standardisation, case-control designs and epidemic curves.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "ukhsa-outbreak",
+          title: "UKHSA: Communicable disease outbreak management guidance",
+          url: "https://www.gov.uk/government/publications/communicable-disease-outbreak-management-guidance/communicable-disease-outbreak-management-guidance-principles-to-support-local-health-protection-systems",
+          scope: "Case definitions, descriptive epidemiology, outbreak hypotheses and investigation.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "phe-surveillance",
+          title: "Public Health England: Approach to surveillance",
+          url: "https://www.gov.uk/government/publications/public-health-england-approach-to-surveillance/public-health-england-approach-to-surveillance",
+          scope: "Surveillance objectives, target populations, ascertainment and defined case criteria.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+          scope: "Outbreak investigation, attack rate and the ecologic fallacy.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        },
+        {
+          id: "cdc-epi-mortality",
+          title: "CDC Principles of Epidemiology: mortality frequency measures",
+          url: "https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson3/section3.html",
+          scope: "Case-fatality proportion and its case denominator.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        }
+      ],
+      assessmentIds: [
+        "BIO-SURV-01",
+        "BIO-SURV-02",
+        "BIO-SURV-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-SURV-01",
+          version: 1,
+          track: "publicHealth",
+          topic: "Surveillance ascertainment",
+          objective: "Identify the information needed to interpret a detection signal.",
+          stem: "A surveillance system records twice as many positive reports this month after several additional practices begin submitting specimens. Which response is most informative before interpreting the rise as a change in incidence?",
+          options: [
+            {
+              id: "A",
+              text: "Compare raw counts with the previous month only",
+              feedback: "Changes in participating practices and reporting can affect raw counts."
+            },
+            {
+              id: "B",
+              text: "Divide the new positives by last month's number of tests",
+              feedback: "Misaligned time denominators give an uninterpretable measure."
+            },
+            {
+              id: "C",
+              text: "Compare positivity and reports using comparable practices and periods, and inspect testing coverage and case definitions",
+              feedback: "This helps distinguish changes in surveillance from a genuine rise."
+            },
+            {
+              id: "D",
+              text: "Check whether the population census doubled",
+              feedback: "Population size is relevant, but this ignores the known surveillance change."
+            },
+            {
+              id: "E",
+              text: "Assume incidence is stable because ascertainment changed",
+              feedback: "A genuine rise can occur at the same time as changed ascertainment."
+            }
+          ],
+          correct: "C",
+          hint: "Ask what changed about how cases enter the system.",
+          lesson: "Reporting systems can change the number of detected cases independently of underlying disease occurrence.",
+          explanation: "Use like-for-like time windows and coverage, compare testing denominators and case definitions, and triangulate with other indicators where possible.",
+          lessonId: "surveillance-outbreaks",
+          sourceIds: [
+            "gmc-graduates",
+            "phe-surveillance"
+          ],
+          help: "clinical_epidemiology/risk_prospective.htm",
+          difficulty: "beginner",
+          learnerGoals: [
+            "undergraduateMedicine",
+            "publicHealth"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "f20ca59c78104ab88d32b0dd1ae8cc5163a10cc0ae8deba144b640532607d567"
+          }
+        }
+      ],
+      operation: "MiscRelRisk",
+      readingURLs: [
+        "https://www.gmc-uk.org/-/media/documents/dc11326-outcomes-for-graduates-2018_pdf-75040796.pdf/",
+        "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+        "https://www.gov.uk/government/publications/communicable-disease-outbreak-management-guidance/communicable-disease-outbreak-management-guidance-principles-to-support-local-health-protection-systems",
+        "https://www.gov.uk/government/publications/public-health-england-approach-to-surveillance/public-health-england-approach-to-surveillance",
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+        "https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson3/section3.html"
+      ]
+    },
+    {
+      id: "dependent-samples",
+      title: "Repeated, clustered and survey data",
+      topic: "What the sample design does to uncertainty",
+      objective: "Identify the independent unit and use the dependence, sampling and weighting design when estimating precision.",
+      summary: "Repeated measurements from the same person and participants within the same school, clinic or household can be correlated. In cluster-randomised studies the clusters, not the participant rows, were randomised. A paired change is useful for exactly two comparable observations per person; mixed models, suitable marginal methods, cluster summaries or design-based analysis may be needed for more complex settings. Survey strata are subgroups sampled separately and can improve precision; survey clusters are sampled groups containing multiple units. Inverse selection-probability weights account for unequal selection chances, with further adjustment where justified. Variance estimation also needs the strata, primary sampling units and weights, or provided replicate weights. For a simple equal-size cluster design with common intracluster correlation rho, the approximate design effect relative to the same number of independent observations is 1 + (m \u2212 1)rho. This is a variance ratio; multiply a simple-random-sample standard error by its square root. Unequal cluster sizes, sampling weights and few clusters require more careful methods.",
+      challenge: "A survey uses unequal selection probabilities and samples people within households. What variables do you need to estimate a population proportion and its uncertainty?",
+      steps: "Consider a fictional equal-size cluster sample of 20 clinics with 15 patients each. With ICC 0.10 the simple design effect is 2.4; the rough effective sample size is 300/2.4 = 125. If the estimate of event risk is 0.20, the simple independent-binomial SE is about 0.023 and the inflation gives about 0.036. This is a design illustration; real survey analyses use the actual structure. In a separate weighting example, equal-sized samples from two strata with population shares 80% and 20% and risks 10% and 30% give an estimated population risk of 14%, versus an unweighted 20%.",
+      help: "sample_size/population_survey.htm",
+      columns: [
+        {
+          title: "Population share",
+          values: [
+            0.8,
+            0.2
+          ]
+        },
+        {
+          title: "Observed stratum risk",
+          values: [
+            0.1,
+            0.3
+          ]
+        }
+      ],
+      r: "clusters <- 20\nm <- 15\nrho <- 0.10\nn <- clusters*m\ndeff <- 1 + (m - 1)*rho\np <- 0.2\nsimple_se <- sqrt(p*(1-p)/n)\neffective_n <- n/deff\nadjusted_se <- simple_se*sqrt(deff)\nstopifnot(isTRUE(all.equal(deff, 2.4)), isTRUE(all.equal(effective_n, 125)), isTRUE(all.equal(adjusted_se, sqrt(0.16/125))))\nprint(c(n = n, design_effect = deff, effective_n = effective_n, naive_se = simple_se, adjusted_se = adjusted_se))\nstratum_risk <- c(0.1, 0.3)\npopulation_share <- c(0.8, 0.2)\nstopifnot(isTRUE(all.equal(sum(stratum_risk*population_share), 0.14)), isTRUE(all.equal(mean(stratum_risk), 0.2)))\nprint(c(weighted = sum(stratum_risk*population_share), unweighted = mean(stratum_risk)))\n",
+      contentVersion: "2026-11-15-qeb98c38ee17d",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "a9ef3dfca5f915a9b527b545222ae0ea5d117c0cd95fde3bc9c1d57497444ded"
+      },
+      prerequisites: [
+        "precision",
+        "choose-analysis"
+      ],
+      learningObjectives: [
+        "Distinguish a patient, randomisation unit, cluster, primary sampling unit and stratum.",
+        "Calculate a simple design effect and distinguish variance inflation from standard-error inflation.",
+        "Explain when weights and design information are required for survey estimation."
+      ],
+      keyConcepts: [
+        {
+          term: "Intracluster correlation",
+          explanation: "The correlation between observations within the same cluster under the stated model. Positive correlation usually reduces information compared with the same number of independent observations."
+        },
+        {
+          term: "Design effect and design factor",
+          explanation: "Design effect is variance under the complex design divided by variance under the reference simple design. Its square root is the standard-error factor."
+        },
+        {
+          term: "Within-person versus between-person",
+          explanation: "Repeated measurements provide information about within-person change but are not independently sampled people."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "Weights automatically fix clustering and non-response bias.",
+          correction: "Weights can address a stated selection or response model; correct uncertainty still needs the design, and unmeasured selection can remain."
+        },
+        {
+          claim: "Effective sample size is the actual number of survey respondents.",
+          correction: "It is a precision comparison that can differ by outcome, estimator and design."
+        }
+      ],
+      workedExample: {
+        design: "Fictional equal-size clusters and a separate two-stratum probability-sampling illustration.",
+        interpretation: "Correlation inflates variance relative to the simple independent calculation. The population-weighted estimate can differ from the unweighted sample average when sampling fractions differ."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "For a fixed number of participants and positive intracluster correlation, why might sampling more clinics with fewer patients per clinic improve precision?",
+          expectedReasoning: "It spreads observation across more independent groups. With equal sizes and comparable assumptions, decreasing m lowers the cluster design effect."
+        }
+      ],
+      rProgression: {
+        menus: "Use the two-stratum example in Explore in R to see the separate columns for population shares and stratum risks. Read the Population Survey help for simple sample-size planning.",
+        bridge: "Use the R example to compare the independent standard error with the approximation for equal-size clusters.",
+        coding: "Increase the number of clinics and decrease cluster size while holding the total sample fixed, then recompute the design effect."
+      },
+      sources: [
+        {
+          id: "dfph-syllabus",
+          title: "Faculty of Public Health: DFPH knowledge syllabus",
+          url: "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+          scope: "Research methods: clustered data, effects on sample size and analysis, sampling and interpretation.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "ons-survey-design",
+          title: "ONS: Sample design and estimation",
+          url: "https://www.ons.gov.uk/methodology/methodologytopicsandstatisticalconcepts/sampledesignandestimation",
+          scope: "Stratified and clustered designs and weighting strategies.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "ons-survey-error",
+          title: "ONS: Guide to calculating standard errors for ONS social surveys",
+          url: "https://www.ons.gov.uk/methodology/methodologicalpublications/generalmethodology/onsworkingpaperseries/onsmethodologyworkingpaperseriesno9guidetocalculatingstandarderrorsforonssocialsurveys",
+          scope: "Complex-survey variance estimation and design effect versus design factor.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        }
+      ],
+      assessmentIds: [
+        "BIO-DEP-01",
+        "BIO-DEP-02",
+        "BIO-DEP-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-DEP-01",
+          version: 1,
+          track: "publicHealth",
+          topic: "Cluster design effect",
+          objective: "Calculate the approximate standard-error adjustment.",
+          stem: "A fictional survey samples equal clusters of 10 people. Suppose the common intracluster correlation is 0.20 and use the simple equal-size approximation. What should multiply the independent-sample standard error?",
+          options: [
+            {
+              id: "A",
+              text: "0.36",
+              feedback: "A factor below one would reduce uncertainty despite the positive correlation under the stated design."
+            },
+            {
+              id: "B",
+              text: "1.00",
+              feedback: "This treats all observed people as independent."
+            },
+            {
+              id: "C",
+              text: "1.67",
+              feedback: "The variance ratio is 1 + 9 \xD7 0.20 = 2.8. Its square root is about 1.67."
+            },
+            {
+              id: "D",
+              text: "2.80",
+              feedback: "This is the variance multiplier, not the standard-error multiplier."
+            },
+            {
+              id: "E",
+              text: "3.00",
+              feedback: "Using cluster size rather than cluster size minus one is incorrect; this would also be a variance multiplier."
+            }
+          ],
+          correct: "C",
+          hint: "Compute the design effect first and recall how variance relates to standard error.",
+          lesson: "A standard error is the square root of a variance.",
+          explanation: "The approximate design effect is 2.8; the standard-error multiplier is its square root, about 1.67.",
+          lessonId: "dependent-samples",
+          sourceIds: [
+            "dfph-syllabus",
+            "ons-survey-error"
+          ],
+          help: "sample_size/population_survey.htm",
+          difficulty: "intermediate",
+          learnerGoals: [
+            "publicHealth",
+            "mastersStatistics"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "d018dbd2bdccda673a9fc38ac2339af01ee294ab4e335b366c0031305733a163"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+        "https://www.ons.gov.uk/methodology/methodologytopicsandstatisticalconcepts/sampledesignandestimation",
+        "https://www.ons.gov.uk/methodology/methodologicalpublications/generalmethodology/onsworkingpaperseries/onsmethodologyworkingpaperseriesno9guidetocalculatingstandarderrorsforonssocialsurveys"
+      ]
+    },
+    {
+      id: "trial-power",
+      title: "Planning power and interpreting trial margins",
+      topic: "Trial design and inference",
+      objective: "Plan an independent two-arm superiority trial and distinguish its decision rules from noninferiority and equivalence.",
+      summary: "Choose the outcome, clinically important difference, plausible variability, allocation, significance level and target power before recruitment. Type I error is rejection under a true null. Type II error is failure to reject at a specified alternative. Power is one minus that probability. A sample size is conditional on the design and assumptions, not a guarantee of a positive result. Use prespecified clinical margins to interpret noninferiority and equivalence.",
+      challenge: "A report says two treatments are equivalent because its two-sided P value is 0.24. What prespecified margin, confidence interval and design information would you ask for?",
+      steps: "A fictional parallel trial targets a 4-point difference in a symptom improvement score with a common within-group SD of 10. Higher scores mean greater improvement. For independent participants, equal groups, a two-sided 5% test and 90% power at that difference, the equal-variance two-sample t calculation needs 133 analysable participants per arm. If 10% are expected to be unavailable, ceil(133/0.90) gives 148 per arm for recruitment. This allowance does not remove bias from missing outcomes. Halving the detectable difference to 2 points increases the target to 527 analysable participants per arm. In a separate illustrative trial, new minus control improvement is +1.4 with a 95% interval about \u22120.36 to +3.16. If \u22122.5 is the justified noninferiority boundary and the prespecified one-sided alpha is 0.025, the lower limit clears that boundary. The interval crosses zero, so it does not establish superiority. Its upper end also exceeds +2.5, so it fails a rule requiring the entire 95% interval within \xB12.5. In StatsDirect choose equal groups (one control per experimental participant), SD 10, difference 4, 90% power and two-sided 5% significance. Allow for anticipated missing outcomes separately. The equivalence rule above is illustrative. Conventional two one-sided tests at 5% use a 90% two-sided interval.",
+      help: "sample_size/unpaired_t_test.htm",
+      columns: [],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      r: '# Fictional planning model for an equal-variance two-sample t test\nn_for <- function(delta) ceiling(power.t.test(delta = delta, sd = 10,\n    sig.level = 0.05, power = 0.90, type = "two.sample",\n    alternative = "two.sided", strict = TRUE)$n)\nn <- n_for(4)\nrecruit <- ceiling(n / 0.90)\nprint(c(analysable_per_arm = n, recruit_per_arm = recruit,\n        smaller_effect_per_arm = n_for(2)))\nstopifnot(n == 133L, recruit == 148L, n_for(2) == 527L)\n# Illustrative normal interval from a different, already completed trial\nestimate <- 1.4\nse <- 0.9\nci <- estimate + c(-1, 1) * qnorm(0.975) * se\nmargin <- 2.5\nprint(ci)\nstopifnot(ci[1] > -margin, ci[1] < 0, ci[2] > margin)\n',
+      contentVersion: "2026-11-15-r2-qcd653dd6c228",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "fb492efde444ad96123a78a081614e9147cc1adbe5470fadf71498e157207fab"
+      },
+      prerequisites: [
+        "precision",
+        "risk"
+      ],
+      learningObjectives: [
+        "Identify the inputs and assumptions for a two-sample sample size calculation.",
+        "Describe type I and type II errors without reversing conditional probabilities.",
+        "Apply prespecified confidence interval rules for superiority, noninferiority and equivalence."
+      ],
+      keyConcepts: [
+        {
+          term: "Power at a chosen alternative",
+          explanation: "With a fixed sample and test, power depends on the true effect and variability. Smaller meaningful effects, greater SD or stricter alpha usually require more participants."
+        },
+        {
+          term: "Noninferiority",
+          explanation: "When higher is better, rule out an unacceptable loss by placing the lower confidence limit above the prespecified negative margin. An effective active control and a trial able to distinguish effective from ineffective treatment underpin interpretation."
+        },
+        {
+          term: "Equivalence",
+          explanation: "Both bounds must lie within justified margins at the confidence level specified for the test. For two one-sided tests at 5% each, use the corresponding 90% two-sided interval. Here the stated rule uses a 95% interval."
+        },
+        {
+          term: "Analysis sets",
+          explanation: "In noninferiority trials, deviations and crossover can dilute differences. Check the prespecified estimand and supporting analysis sets, including per-protocol sensitivity analyses when appropriate. Agreement across analyses helps but cannot rescue poor trial conduct."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "Power of 90% means the treatment is 90% likely to work.",
+          correction: "It is the chance of rejecting a null under a specified true effect and model in repeated trials."
+        },
+        {
+          claim: "A nonsignificant superiority test proves equivalence.",
+          correction: "It can leave worthwhile benefits or harms compatible with the data. Equivalence needs justified margins and an interval narrow enough to exclude both."
+        }
+      ],
+      workedExample: {
+        design: "Independent equal-sized arms and common SD for planning. A separate completed-trial example uses an approximate normal interval and a 2.5-point prechosen margin.",
+        interpretation: "Plan for 133 analysable or 148 recruited participants per arm at 4 points. In the separate example, conclude noninferiority only if the margin, estimand, active-control evidence and conduct support that inference."
+      },
+      teachingPrompts: [
+        {
+          level: "beginner",
+          prompt: "Why does 133 describe each arm rather than the whole trial?",
+          expectedReasoning: "The equal-arm power calculation reports n per group. Double that number for the analysable total."
+        },
+        {
+          level: "advanced",
+          prompt: "Would a 95% interval of \u22121 to +1 establish superiority, noninferiority or equivalence under the stated rules?",
+          expectedReasoning: "It crosses zero and satisfies both margin criteria. Whether those claims are justified also depends on the design and prespecified tests."
+        }
+      ],
+      rProgression: {
+        menus: "In Analysis \u2192 Sample Size \u2192 Unpaired t, set mean difference 4, SD 10, allocation 1:1, power 90% and alpha 5%.",
+        bridge: "Compare the reported arm count with the rounded equal-variance R calculation.",
+        coding: "Change SD, target effect and power one at a time. Revisit the chosen margin separately."
+      },
+      sources: [
+        {
+          id: "ich-e9",
+          title: "ICH E9 and E9(R1): Statistical principles for clinical trials",
+          url: "https://www.ema.europa.eu/en/scientific-guidelines/ich-e9-statistical-principles-clinical-trials",
+          scope: "Planning, analysis populations, estimands and sensitivity analysis.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "fda-ni",
+          title: "FDA: Non-Inferiority Clinical Trials",
+          url: "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/non-inferiority-clinical-trials",
+          scope: "Justifying margins and interpreting active-control noninferiority designs.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "rcpsych-paperb",
+          title: "RCPsych: MRCPsych Paper B syllabus from January 2027",
+          url: "https://www.rcpsych.ac.uk/training/exams/preparing-for-exams/mrcpsych-examination-syllabus/",
+          scope: "Domain 13 covers trial methods, error, power, analysis and evidence appraisal.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "rcog-mrcog",
+          title: "RCOG: MRCOG syllabus and knowledge requirements, April 2024",
+          url: "https://www.rcog.org.uk/media/yeqbkfrw/mrcog-syllabus-and-knowledge-requirements-v10.pdf",
+          scope: "Knowledge areas 2 and 5 cover evidence, trial design, power, screening and perinatal data.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        }
+      ],
+      assessmentIds: [
+        "CLIN-POWER-01",
+        "CLIN-POWER-02",
+        "CLIN-POWER-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "CLIN-POWER-01",
+          version: 2,
+          track: "medicine",
+          topic: "Recruitment allowance",
+          objective: "Apply a loss allowance to a per-arm sample size.",
+          stem: "A fictional two-arm trial needs 108 analysable participants in each arm. Investigators expect 15% of recruited participants to have no primary outcome in each arm. Based on this allowance alone, what is the minimum integer recruitment target per arm?",
+          options: [
+            {
+              id: "A",
+              text: "108",
+              feedback: "This is the number needed for analysis and does not allow for loss."
+            },
+            {
+              id: "B",
+              text: "124",
+              feedback: "Adding 15% of the analysable count underestimates loss, which is expected among those recruited."
+            },
+            {
+              id: "C",
+              text: "126",
+              feedback: "This target leaves 107.1 expected analysable participants per arm."
+            },
+            {
+              id: "D",
+              text: "128",
+              feedback: "Dividing 108 by 0.85 gives approximately 127.06, which rounds up to 128."
+            },
+            {
+              id: "E",
+              text: "255",
+              feedback: "255 comes from rounding up the combined calculation 216/0.85. The target is per arm, so round up 108/0.85 separately for each arm."
+            }
+          ],
+          correct: "D",
+          hint: "If N is recruited, the expected number available is 0.85 \xD7 N.",
+          lesson: "Inflate the analysable target by dividing by the fraction expected to remain.",
+          explanation: "Require 0.85 \xD7 N \u2265 108, so round 108/0.85 up to 128 per arm. This is an expected-count allowance and does not address informative attrition.",
+          help: "sample_size/unpaired_t_test.htm",
+          lessonId: "trial-power",
+          sourceIds: [
+            "ich-e9",
+            "rcog-mrcog"
+          ],
+          difficulty: "intermediate",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "mastersStatistics"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "6140f7b6226e9c152b7ca469be23df805744cf0ab8c3df752d8a076d11ca42d3"
+          }
+        }
+      ],
+      operation: "SizeUnPaired",
+      readingURLs: [
+        "https://www.ema.europa.eu/en/scientific-guidelines/ich-e9-statistical-principles-clinical-trials",
+        "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/non-inferiority-clinical-trials",
+        "https://www.rcpsych.ac.uk/training/exams/preparing-for-exams/mrcpsych-examination-syllabus/",
+        "https://www.rcog.org.uk/media/yeqbkfrw/mrcog-syllabus-and-knowledge-requirements-v10.pdf"
+      ]
+    },
+    {
+      id: "trial-appraisal",
+      title: "Reading a clinical trial beyond its abstract",
+      topic: "Randomisation, trial conduct and bias",
+      objective: "Trace a trial from enrolment to analysis and judge whether its effect estimate answers the clinical question.",
+      summary: "A random sequence generates assignments. Allocation concealment keeps the next assignment unknown during enrolment. Blinding limits knowledge after allocation. For a treatment-policy comparison, follow participants in their assigned groups even after stopping treatment. An intention-to-treat label does not resolve unobserved outcomes. Compare the abstract against registration, protocol, participant flow and analysis. Check whether the endpoint matters directly to patients or is a surrogate.",
+      challenge: "An abstract says a new care pathway reduced relapses in treatment completers. Which three details would you request before advising a service to change practice?",
+      steps: "In a fictional parallel trial, 120 people are randomised per arm. Relapses occur in 18 of 100 observed people assigned the pathway and 24 of 114 observed controls. The observed risk difference is \u22123.1 percentage points. Assigning all missing pathway outcomes and no missing controls as events gives +11.7 points. Reversing the assignments gives \u221210.0 points. These are bounds based on extreme scenarios. Check missingness, assessor masking, endpoint and protocol. Weigh absolute effects, uncertainty, harms and applicability. Ward randomisation requires accounting for clustering. In crossover trials compare within people and assess period effects, washout and carryover.",
+      help: "randomization/randomization.htm",
+      columns: [],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      r: "# Fictional relapse counts, following original group allocation\nrandomised <- c(pathway = 120, usual_care = 120)\nobserved <- c(pathway = 100, usual_care = 114)\nevents <- c(pathway = 18, usual_care = 24)\nmissing <- randomised - observed\nrd <- function(risks) unname(risks[1] - risks[2])\nobserved_rd <- rd(events / observed)\nfavourable_rd <- rd((events + c(0, missing[2])) / randomised)\nunfavourable_rd <- rd((events + c(missing[1], 0)) / randomised)\nprint(c(available_case_RD = observed_rd, best_for_pathway = favourable_rd,\n        worst_for_pathway = unfavourable_rd))\nstopifnot(abs(observed_rd - (18/100 - 24/114)) < 1e-12,\n          abs(favourable_rd + 0.10) < 1e-12,\n          abs(unfavourable_rd - 14/120) < 1e-12)\n",
+      contentVersion: "2026-11-15-r2-qdd7037f3b629",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "619902aaff8f046bee136d3ba380d9e2ca9f6383b9eab5356b6176609dbbb459"
+      },
+      prerequisites: [
+        "appraisal",
+        "missing",
+        "risk"
+      ],
+      learningObjectives: [
+        "Distinguish sequence generation, concealment and blinding.",
+        "Reconstruct the analysed denominators and identify deviations, missingness and selective reporting.",
+        "Recognise when allocation or measurement structure changes the unit of analysis."
+      ],
+      keyConcepts: [
+        {
+          term: "Allocation concealment",
+          explanation: "Protect enrolment from foreknowledge of the next assignment. Secure central allocation is one way. A computer-generated list alone cannot conceal assignments if recruiters can see it."
+        },
+        {
+          term: "Blinding and open-label trials",
+          explanation: "Document who knew the assignments and when. Masking outcome assessors can limit assessment bias even when patients and clinicians cannot be masked."
+        },
+        {
+          term: "Prespecified estimand",
+          explanation: "Define whose outcomes, the endpoint and time, the treatment contrast and how to handle events like stopping or switching therapy. State how missing outcomes are addressed and test sensitivity to assumptions."
+        },
+        {
+          term: "Patient-important and surrogate endpoints",
+          explanation: "How people feel, function or survive can be measured directly. A surrogate, such as a laboratory marker, stands in for a clinical outcome and needs evidence that intervention effects on the marker predict effects on that outcome in context. Prognostic association alone is insufficient."
+        },
+        {
+          term: "Cluster and crossover designs",
+          explanation: "People in the same randomised ward are likely correlated. Outcomes from different treatment periods in one person are paired. Carryover can confuse a crossover effect even with the correct pairing."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "Randomisation makes all later exclusions harmless.",
+          correction: "Exclusions and outcome loss after allocation can undermine comparability."
+        },
+        {
+          claim: "Reporting CONSORT items establishes low risk of bias.",
+          correction: "Good reporting shows what was done and enables appraisal. It cannot replace sound conduct."
+        }
+      ],
+      workedExample: {
+        design: "Two equal groups with different amounts of missing follow-up. Event means relapse by a fixed endpoint. Status of those not observed is unknown.",
+        interpretation: "The available-case estimate favours the pathway, but plausible concerns about missingness must be addressed before accepting a causal benefit. The extreme scenarios show why the abstract alone is insufficient."
+      },
+      teachingPrompts: [
+        {
+          level: "beginner",
+          prompt: "Which protection is needed when an enrolment nurse can read the next listed treatment?",
+          expectedReasoning: "Conceal forthcoming allocations before enrolment is final."
+        },
+        {
+          level: "advanced",
+          prompt: "The protocol specifies 12-week relapse, but the abstract promotes a 4-week laboratory marker instead. What would you ask?",
+          expectedReasoning: "Identify the prespecified outcome and time, check amendments and both outcomes, and consider selective reporting. Ask whether treatment-induced changes in this marker reliably predict changes in relapse in this setting."
+        }
+      ],
+      rProgression: {
+        menus: "Use the randomisation help to distinguish sequence generation and concealment.",
+        bridge: "Read the R denominators and list which people are excluded by the available-case estimate.",
+        coding: "Change event counts among the missing across a range of plausible scenarios and report when the sign changes."
+      },
+      sources: [
+        {
+          id: "consort-2025",
+          title: "CONSORT 2025 explanation and elaboration",
+          url: "https://doi.org/10.1136/bmj-2024-081124",
+          scope: "Trial reporting, randomisation, masking, participant flow and missing outcomes.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "ich-e9",
+          title: "ICH E9 and E9(R1): Statistical principles for clinical trials",
+          url: "https://www.ema.europa.eu/en/scientific-guidelines/ich-e9-statistical-principles-clinical-trials",
+          scope: "Planning, analysis populations, estimands and sensitivity analysis.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "rcpsych-paperb",
+          title: "RCPsych: MRCPsych Paper B syllabus from January 2027",
+          url: "https://www.rcpsych.ac.uk/training/exams/preparing-for-exams/mrcpsych-examination-syllabus/",
+          scope: "Domain 13 covers trial methods, error, power, analysis and evidence appraisal.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "rcog-mrcog",
+          title: "RCOG: MRCOG syllabus and knowledge requirements, April 2024",
+          url: "https://www.rcog.org.uk/media/yeqbkfrw/mrcog-syllabus-and-knowledge-requirements-v10.pdf",
+          scope: "Knowledge areas 2 and 5 cover evidence, trial design, power, screening and perinatal data.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+          scope: "Trial conduct, intention-to-treat analysis and clinical versus surrogate endpoints.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        },
+        {
+          id: "fda-surrogate-endpoints",
+          title: "FDA: Surrogate endpoint resources for drug and biologic development",
+          url: "https://www.fda.gov/drugs/development-resources/surrogate-endpoint-resources-drug-and-biologic-development",
+          scope: "Clinical outcomes, surrogate endpoints and the evidence needed for a particular use.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        }
+      ],
+      assessmentIds: [
+        "CLIN-TRIAL-01",
+        "CLIN-TRIAL-02",
+        "CLIN-TRIAL-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "CLIN-TRIAL-01",
+          version: 1,
+          track: "medicine",
+          topic: "Recruitment and allocation",
+          objective: "Identify the process that prevents selective enrolment.",
+          stem: "A trial compares two rehabilitation schedules. A computer creates the random allocation sequence, but the enrolment therapist can see the next assignment before confirming a patient's eligibility and consent. Which design change most directly addresses this weakness?",
+          options: [
+            {
+              id: "A",
+              text: "Ask participants not to tell the outcome assessor which schedule they receive.",
+              feedback: "This protects outcome assessment after assignment, leaving the recruitment problem."
+            },
+            {
+              id: "B",
+              text: "Use more centres without changing enrolment.",
+              feedback: "The same foreknowledge can influence enrolment in any number of centres."
+            },
+            {
+              id: "C",
+              text: "Make the allocation list available only to the enrolment therapist.",
+              feedback: "That therapist can still alter enrolment after seeing the assignment."
+            },
+            {
+              id: "D",
+              text: "Adjust the results for recorded age and baseline severity.",
+              feedback: "Adjustment is not a substitute for preventing selective enrolment, including selection on unmeasured factors."
+            },
+            {
+              id: "E",
+              text: "Use a secure service to reveal the next assignment only after eligibility and consent are recorded.",
+              feedback: "Correct. This conceals forthcoming assignments until enrolment is fixed."
+            }
+          ],
+          correct: "E",
+          hint: "Ask what the recruiter can know before the participant is enrolled.",
+          lesson: "Allocation concealment occurs before assignment. Blinding refers to knowledge after assignment.",
+          explanation: "Recruiters who can see the next assignment can selectively enrol or delay patients. A secure service releasing it only after enrolment limits that opportunity.",
+          help: "randomization/randomization.htm",
+          lessonId: "trial-appraisal",
+          sourceIds: [
+            "consort-2025",
+            "rcpsych-paperb"
+          ],
+          difficulty: "intermediate",
+          learnerGoals: [
+            "undergraduateMedicine",
+            "postgraduateMedicine",
+            "mastersStatistics"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "520a7b0202bb58d08e11d01446b65b3a34ffa501e5b0a858311f3000bdd4c436"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://doi.org/10.1136/bmj-2024-081124",
+        "https://www.ema.europa.eu/en/scientific-guidelines/ich-e9-statistical-principles-clinical-trials",
+        "https://www.rcpsych.ac.uk/training/exams/preparing-for-exams/mrcpsych-examination-syllabus/",
+        "https://www.rcog.org.uk/media/yeqbkfrw/mrcog-syllabus-and-knowledge-requirements-v10.pdf",
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+        "https://www.fda.gov/drugs/development-resources/surrogate-endpoint-resources-drug-and-biologic-development"
+      ]
+    },
+    {
+      id: "diagnostic-evidence",
+      title: "Using likelihood ratios and evaluating diagnostic thresholds",
+      topic: "Diagnostic evidence and clinical decisions",
+      objective: "Update a pretest probability with a likelihood ratio and judge whether diagnostic study results apply to the patient.",
+      summary: "Bayes\u2019 theorem updates pretest odds using the likelihood ratio for the result. The likelihood ratio compares how often that result occurs in people with and without the target condition. Multiply pretest odds by the ratio and convert back to probability. A receiver operating characteristic (ROC) curve displays sensitivity and the false-positive proportion across thresholds. Before applying an estimate, check the reference standard, who received it and whether the study patients resemble the intended population.",
+      challenge: "A test's sensitivity is reported as 95% in a sample of severe cases and healthy volunteers. What additional evidence would you need before using that estimate in a general practice population with uncertain diagnoses?",
+      steps: "Use fictional marker scores for people with (1, 3, 4, 4, 5, 5, 6, 7, 8, 9) and without (0, 1, 1, 2, 2, 3, 3, 3, 4, 5) the condition. Higher values suggest disease. At a positive threshold of at least 4, sensitivity and specificity are both 80%. LR+ = 0.80/0.20 = 4 and LR\u2212 = 0.20/0.80 = 0.25. With a separate, clinically justified pretest probability of 20%, odds are 1:4. A positive result raises probability to 50%, and a negative result lowers it to about 5.9%. At threshold 5, sensitivity drops to 60% and specificity rises to 90%. Plot the thresholds and connect these changes to the harms of missed diagnoses and unnecessary follow-up. The small sample teaches arithmetic. It cannot establish a reliable clinical threshold. In StatsDirect select one ROC series, then choose Condition present at the first column prompt and Condition absent at the next. Compare the AUC and use the R exercise to calculate likelihood ratios at a specified threshold.",
+      help: "nonparametric_methods/roc.htm",
+      columns: [
+        {
+          title: "Condition present",
+          values: [
+            1,
+            3,
+            4,
+            4,
+            5,
+            5,
+            6,
+            7,
+            8,
+            9
+          ]
+        },
+        {
+          title: "Condition absent",
+          values: [
+            0,
+            1,
+            1,
+            2,
+            2,
+            3,
+            3,
+            3,
+            4,
+            5
+          ]
+        }
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "usMedicalBoards"
+      ],
+      r: "# Fictional independent test results, with known condition status\ndisease <- c(1,3,4,4,5,5,6,7,8,9)\nno_disease <- c(0,1,1,2,2,3,3,3,4,5)\nthresholds <- c(Inf, sort(unique(c(disease, no_disease)), decreasing = TRUE))\nroc <- data.frame(threshold = thresholds,\n  sensitivity = sapply(thresholds, function(t) mean(disease >= t)),\n  specificity = sapply(thresholds, function(t) mean(no_disease < t)))\nat4 <- subset(roc, threshold == 4)\nat5 <- subset(roc, threshold == 5)\nlr <- c(positive = at4$sensitivity / (1 - at4$specificity),\n        negative = (1 - at4$sensitivity) / at4$specificity)\npretest_odds <- 0.20 / 0.80\nposttest_odds <- lr * pretest_odds\nposttest_probability <- posttest_odds / (1 + posttest_odds)\nauc <- mean(outer(disease, no_disease, function(a, b) (a > b) + 0.5*(a == b)))\nprint(roc)\nprint(posttest_probability)\nprint(c(AUC = auc))\nstopifnot(abs(lr[1] - 4) < 1e-12, abs(lr[2] - 0.25) < 1e-12,\n          max(abs(posttest_probability - c(0.5, 1/17))) < 1e-12,\n          at5$sensitivity == 0.6, at5$specificity == 0.9, abs(auc - 0.845) < 1e-12)\n",
+      contentVersion: "2026-11-15-r2-qe37a6ddf6575",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "c447533738db60e2807ef954c6f78149eeb8599b66e7252e702a52640f8ec59c"
+      },
+      prerequisites: [
+        "diagnostic",
+        "risk"
+      ],
+      learningObjectives: [
+        "Apply Bayes\u2019 theorem in odds form to update a pretest probability.",
+        "Read ROC coordinates and interpret what AUC measures.",
+        "Recognise spectrum and verification problems and communicate uncertainty."
+      ],
+      keyConcepts: [
+        {
+          term: "Bayes\u2019 theorem and likelihood ratios",
+          explanation: "Post-test odds = pretest odds \xD7 likelihood ratio. For a binary result, LR+ = sensitivity / (1 \u2212 specificity) and LR\u2212 = (1 \u2212 sensitivity) / specificity. Use both parts of each ratio from the same threshold and relevant population."
+        },
+        {
+          term: "ROC and area under the curve (AUC)",
+          explanation: "A point gives sensitivity against 1 \u2212 specificity. The empirical AUC here is 0.845, the probability of a randomly selected case score exceeding a randomly selected noncase score, counting ties as halves. It does not set the clinical threshold."
+        },
+        {
+          term: "Spectrum and verification",
+          explanation: "Severity, comorbidity and setting can change accuracy. If the reference diagnosis is obtained mainly in test-positive participants, estimates based only on those verified can be biased."
+        },
+        {
+          term: "Following an uncertain result",
+          explanation: "Describe the estimated chance in context, relate it to possible next steps and explain the limitations. For this illustration, about 50 of 100 similar people with a positive result would have the condition if the estimates apply."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "An LR of four means a 20% chance becomes 80%.",
+          correction: "The LR multiplies odds. Here a positive result moves 20% to 50%."
+        },
+        {
+          claim: "A high AUC tells us which cut-off maximises patient benefit.",
+          correction: "AUC describes ranking across thresholds. Consequences of errors, prevalence, preferences and costs inform the chosen cut-off."
+        }
+      ],
+      workedExample: {
+        design: "Two equal-sized illustrative score groups with complete reference status. The 20% pretest estimate is supplied separately because the artificial 50:50 study case mix does not describe clinical prevalence.",
+        interpretation: "A positive at threshold 4 gives 50% under the stated assumptions. A negative leaves residual risk. Describe that uncertainty without labelling either result diagnostic."
+      },
+      teachingPrompts: [
+        {
+          level: "beginner",
+          prompt: "Would you say that a negative result rules the condition out?",
+          expectedReasoning: "No. State the remaining probability and why the next step depends on the clinical context."
+        },
+        {
+          level: "advanced",
+          prompt: "If the reference standard is applied mainly to those testing positive, which entries in the diagnostic table become uncertain?",
+          expectedReasoning: "Disease and nondisease status among unverified negative results are unknown. Complete-case sensitivity and specificity may be biased. The direction and size depend on the verification process."
+        }
+      ],
+      rProgression: {
+        menus: "Put the marked scores in separate condition-present and condition-absent columns and open Graphics \u2192 ROC.",
+        bridge: "Match sensitivity and false-positive fractions to threshold points. Use the R calculation to update the odds at one point. The ROC example deliberately has equal numbers with and without the condition. Its predictive values reflect that artificial case mix. For the clinical scenario, start from the stated 20% pretest probability.",
+        coding: "Change the pretest probability separately from the threshold and explain what each change affects."
+      },
+      sources: [
+        {
+          id: "stard-2015",
+          title: "STARD 2015 explanation and elaboration",
+          url: "https://doi.org/10.1136/bmjopen-2016-012799",
+          scope: "Accuracy study reporting, reference standards, test thresholds and participant spectrum.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "fda-diagnostic",
+          title: "FDA: Statistical guidance for diagnostic test studies",
+          url: "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/statistical-guidance-reporting-results-studies-evaluating-diagnostic-tests-guidance-industry-and-fda",
+          scope: "Likelihood ratios, ROC analysis, study spectrum and verification.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "rcgp-evidence",
+          title: "RCGP: Evidence in practice, research, teaching and lifelong learning",
+          url: "https://www.rcgp.org.uk/mrcgp-exams/gp-curriculum/evidence-in-practice",
+          scope: "AKT interpretation of clinical estimates and communication of risk in general practice.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "rcpsych-paperb",
+          title: "RCPsych: MRCPsych Paper B syllabus from January 2027",
+          url: "https://www.rcpsych.ac.uk/training/exams/preparing-for-exams/mrcpsych-examination-syllabus/",
+          scope: "Domain 13 covers trial methods, error, power, analysis and evidence appraisal.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=38",
+          scope: "Bayes\u2019 theorem, likelihood ratios, ROC curves and pretest and post-test probability.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        }
+      ],
+      assessmentIds: [
+        "CLIN-DX-01",
+        "CLIN-DX-02",
+        "CLIN-DX-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "CLIN-DX-01",
+          version: 2,
+          track: "medicine",
+          topic: "Negative test result",
+          objective: "Convert a negative likelihood ratio to a remaining probability.",
+          stem: "A fictional test has sensitivity 75% and specificity 80% at a fixed threshold. A patient's pretest probability of the condition is 40%. Assuming these estimates apply to the patient, what is the approximate probability after a negative result?",
+          options: [
+            {
+              id: "A",
+              text: "12.5%",
+              feedback: "12.5% comes from multiplying the pretest probability by 0.3125. The likelihood ratio multiplies the pretest odds."
+            },
+            {
+              id: "B",
+              text: "17.2%",
+              feedback: "Correct. Prior odds 2/3 multiplied by 0.25/0.80 give 5/24. Convert to probability 5/29."
+            },
+            {
+              id: "C",
+              text: "25.0%",
+              feedback: "This is the proportion of people with the condition who test negative, not the chance of disease after a negative test."
+            },
+            {
+              id: "D",
+              text: "31.3%",
+              feedback: "31.3% expresses LR\u2212 = 0.3125 as a rounded percentage. Calculate post-test odds before converting back to probability."
+            },
+            {
+              id: "E",
+              text: "68.8%",
+              feedback: "68.8% expresses 1 \u2212 LR\u2212 = 0.6875 as a rounded percentage. Taking that complement does not update the pretest probability."
+            }
+          ],
+          correct: "B",
+          hint: "Use the false-negative fraction divided by specificity, and multiply odds rather than probability.",
+          lesson: "A negative result lowers the odds when its LR is below 1. Convert the remaining odds to a probability before communicating it.",
+          explanation: "The negative LR is 0.25/0.80 = 0.3125. Prior odds are 0.40/0.60 = 2/3. The updated probability is (5/24)/(1 + 5/24), or about 17.2%.",
+          help: "nonparametric_methods/roc.htm",
+          lessonId: "diagnostic-evidence",
+          sourceIds: [
+            "fda-diagnostic",
+            "rcgp-evidence"
+          ],
+          difficulty: "intermediate",
+          learnerGoals: [
+            "undergraduateMedicine",
+            "postgraduateMedicine",
+            "usMedicalBoards"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "0035d6a349c3b87ad2736a33397f8cfcd9d1059bf3a75ee0e0a1fbcf35594423"
+          }
+        }
+      ],
+      operation: "ROCPlot",
+      readingURLs: [
+        "https://doi.org/10.1136/bmjopen-2016-012799",
+        "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/statistical-guidance-reporting-results-studies-evaluating-diagnostic-tests-guidance-industry-and-fda",
+        "https://www.rcgp.org.uk/mrcgp-exams/gp-curriculum/evidence-in-practice",
+        "https://www.rcpsych.ac.uk/training/exams/preparing-for-exams/mrcpsych-examination-syllabus/",
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=38"
+      ]
+    },
+    {
+      id: "screening-programmes",
+      title: "Evaluating a screening programme",
+      topic: "Population screening, benefits and harms",
+      objective: "Judge screening on outcomes in the population offered it and compare benefits, harms and participation using appropriate denominators.",
+      summary: "A screening programme offers a pathway to an eligible population. Follow invitations, uptake, results, diagnosis and management through to outcomes. Counting additional diagnoses or comparing survival after diagnosis can exaggerate benefit. To estimate the effect of offering screening, compare outcomes by assigned invitation group where randomised evidence is available. Also measure harms, including false alarms, overdiagnosis and unnecessary treatment. For antenatal screening, enabling an informed personal choice may itself be a programme goal.",
+      challenge: "A prenatal programme reports higher uptake and more detected cases. What additional outcomes, decisions and denominators do you need before deciding whether access and informed choice improved?",
+      steps: "In a fictional ten-year invitation trial, 40,000 people are assigned an invitation and 40,000 usual care. There are 80 and 100 deaths from the target condition. Compare all assigned people, giving 2.0 versus 2.5 deaths per 1,000 and a difference of \u22120.5 per 1,000. The point estimate is 20 fewer deaths per 40,000 invited. An approximate interval in R includes zero. Among 30,000 invited people who attend, 600 screen positive and all have known follow-up status. Of those, 120 have the target condition and 480 do not. The proportion of positive results confirmed is 120/600 = 20%. There were 480 false-positive results per 30,000 attendees, or 16 per 1,000. Check harms in both groups, including downstream procedures and overdiagnosis. These false-positive counts do not measure overdiagnosis.",
+      help: "clinical_epidemiology/screening_test.htm",
+      columns: [],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "undergraduateMedicine"
+      ],
+      r: "# Fictional trial, equal complete follow-up from random assignment\ndeaths <- c(invited = 80, usual_care = 100)\nn <- c(invited = 40000, usual_care = 40000)\np <- deaths / n\nrd <- unname(p[1] - p[2])\nse <- sqrt(sum(p * (1 - p) / n))\nci <- rd + c(-1, 1) * qnorm(0.975) * se\nprint(1000 * c(p, risk_difference = rd, lower = ci[1], upper = ci[2]))\npositive <- 600\nconfirmed <- 120\nattended <- 30000\nppv <- confirmed / positive\nfalse_positive_per_1000 <- 1000 * (positive - confirmed) / attended\nprint(c(PPV = ppv, false_positive_per_1000 = false_positive_per_1000))\n# Separate fictional maternity indicators for the same period and geography\nlive_births <- 40000\nstillbirths <- 120\nearly_neonatal_deaths <- 40\nmaternal_deaths <- 3\nmaternal_ratio <- 1e5 * maternal_deaths / live_births\nperinatal_rate <- 1000 * (stillbirths + early_neonatal_deaths) / (live_births + stillbirths)\nprint(c(maternal_per_100000_live_births = maternal_ratio,\n        perinatal_per_1000_total_births = perinatal_rate))\nstopifnot(abs(rd + .0005) < 1e-12, ci[1] < 0, ci[2] > 0, ppv == .2,\n          false_positive_per_1000 == 16, maternal_ratio == 7.5,\n          round(perinatal_rate, 2) == 3.99)\n",
+      contentVersion: "2026-11-15-q7e4e192c940f",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "f0e46c81ffb220d3e27a4aa14e1ca85e59d28ce92baf8f84238a14718ab03453"
+      },
+      prerequisites: [
+        "epidemiology",
+        "rates",
+        "diagnostic-evidence"
+      ],
+      learningObjectives: [
+        "Distinguish lead-time, length bias and overdiagnosis.",
+        "Compare population outcomes by invitation and report downstream harms with denominators.",
+        "Explain informed choice and distinguish maternal and perinatal indicators."
+      ],
+      keyConcepts: [
+        {
+          term: "Lead time and length bias",
+          explanation: "Earlier diagnosis adds time measured from diagnosis even when death occurs at the same time. Screening also preferentially finds conditions with a longer detectable preclinical phase. Both can improve observed survival from diagnosis without demonstrating that screening postpones death."
+        },
+        {
+          term: "Overdiagnosis and false alarms",
+          explanation: "Overdiagnosis identifies real disease that would not have become symptomatic or caused harm in that person without screening. A false positive is an abnormal screening result when the target condition is absent."
+        },
+        {
+          term: "Antenatal screening",
+          explanation: "Review whether eligible pregnant people can make an informed decision, understand a higher-chance result and access appropriate follow-up. Report offer, uptake, diagnostic follow-up and meaningful outcomes separately. There is no single desirable uptake rate that establishes informed choice."
+        },
+        {
+          term: "Population indicators",
+          explanation: "The WHO maternal mortality ratio uses maternal deaths in the defined time window per 100,000 live births. The ONS perinatal mortality rate combines stillbirths and deaths under 7 days per 1,000 total births, using its defined birth and gestation criteria. Early neonatal mortality uses live births. Check place, period, gestational threshold and data completeness before comparing figures."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "Five-year survival after diagnosis rose, so screening saved lives.",
+          correction: "Diagnosis can occur earlier or preferentially find slowly progressing conditions. Compare outcomes from a common population starting point."
+        },
+        {
+          claim: "Every unconfirmed positive result is an overdiagnosis.",
+          correction: "A false alarm has no target condition. An overdiagnosis is a real condition that would not cause harm in the absence of screening."
+        }
+      ],
+      workedExample: {
+        design: "Fictional random allocation to invitation or usual care, fixed ten-year follow-up and target-condition deaths. Harms and maternal indicators illustrate separate denominators.",
+        interpretation: "The mortality difference is imprecise. Confirmed positives and false alarms describe the screening pathway, and the trade-off also needs harms and outcomes measured by invitation group."
+      },
+      teachingPrompts: [
+        {
+          level: "beginner",
+          prompt: "If people die at the same age but receive a diagnosis two years earlier, what happens to survival from diagnosis?",
+          expectedReasoning: "It increases by two years in this example even though life is not extended."
+        },
+        {
+          level: "advanced",
+          prompt: "Why is comparing attendees with nonattendees weaker than comparing invitation assignments?",
+          expectedReasoning: "Attendees may differ systematically in risk, access and other care. Analysing by assignment preserves randomisation and estimates the effect of offering the programme."
+        }
+      ],
+      rProgression: {
+        menus: "Use Screening Test Errors to distinguish predictive fractions from counts per person offered screening. The programme outcome example needs separate invitation denominators.",
+        bridge: "Read the R denominators aloud for the target death risk, the confirmed positive fraction and the false alarm burden.",
+        coding: "Change uptake, false positives and clinically important outcomes separately. State which uncertainties you would measure before comparing programmes."
+      },
+      sources: [
+        {
+          id: "uk-nsc-effectiveness",
+          title: "UK National Screening Committee: Effectiveness",
+          url: "https://www.gov.uk/guidance/principles-of-population-screening/effectiveness",
+          scope: "Appraising and monitoring programme benefits, harms, and outcomes.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "uk-nsc-glossary",
+          title: "UK National Screening Committee: Screening glossary of terms",
+          url: "https://www.gov.uk/guidance/principles-of-population-screening/screening-glossary-of-terms",
+          scope: "Terminology for screening bias, diagnosis and harms.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "nhs-fasp",
+          title: "NHS fetal anomaly screening programme: Overview",
+          url: "https://www.gov.uk/government/publications/fetal-anomaly-screening-programme-handbook/overview",
+          scope: "Antenatal eligibility, personal informed choice and follow-up pathway in England.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "who-mmr",
+          title: "WHO: Maternal mortality ratio",
+          url: "https://www.who.int/data/gho/data/indicators/indicator-details/GHO/maternal-mortality-ratio-%28per-100-000-live-births%29",
+          scope: "WHO numerator, time window and denominator for international comparison.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "ons-perinatal",
+          title: "ONS: Birth cohort tables for infant deaths, quality and methodology",
+          url: "https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/methodologies/birthcohorttablesforinfantdeathsqmi",
+          scope: "Neonatal and perinatal mortality denominators and England and Wales birth definitions.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        },
+        {
+          id: "rcog-mrcog",
+          title: "RCOG: MRCOG syllabus and knowledge requirements, April 2024",
+          url: "https://www.rcog.org.uk/media/yeqbkfrw/mrcog-syllabus-and-knowledge-requirements-v10.pdf",
+          scope: "Knowledge areas 2 and 5 cover evidence, trial design, power, screening and perinatal data.",
+          checkedAt: "2026-11-15",
+          use: "Reference for teaching scope and further reading. No examination items reproduced."
+        }
+      ],
+      assessmentIds: [
+        "CLIN-SCREEN-01",
+        "CLIN-SCREEN-02",
+        "CLIN-SCREEN-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "CLIN-SCREEN-01",
+          version: 1,
+          track: "publicHealth",
+          topic: "Survival and lead time",
+          objective: "Recognise lead time in an individual example with unchanged death age.",
+          stem: "For a fictional condition, screening shifts a person's date of diagnosis from age 67 to 64. Treatment and age at death remain identical. Which phenomenon can explain the apparent three-year increase in survival measured from diagnosis?",
+          options: [
+            {
+              id: "A",
+              text: "Lead-time bias",
+              feedback: "Correct. The diagnosis moves earlier but the death does not."
+            },
+            {
+              id: "B",
+              text: "Length bias",
+              feedback: "Length bias concerns preferential detection of more slowly progressing conditions. This example follows one unchanged course."
+            },
+            {
+              id: "C",
+              text: "Verification bias",
+              feedback: "The example does not concern selective application of a reference standard."
+            },
+            {
+              id: "D",
+              text: "Loss to follow-up",
+              feedback: "Death is observed at the same age under both scenarios."
+            },
+            {
+              id: "E",
+              text: "A treatment effect on mortality",
+              feedback: "The example explicitly fixes the time of death."
+            }
+          ],
+          correct: "A",
+          hint: "Which event changed, diagnosis or death?",
+          lesson: "Looking from diagnosis starts the clock at different times. A programme comparison needs a common start point.",
+          explanation: "The added three years reflect earlier recognition. No extension of life follows from comparing survival from diagnosis alone.",
+          help: "clinical_epidemiology/screening_test.htm",
+          lessonId: "screening-programmes",
+          sourceIds: [
+            "uk-nsc-effectiveness",
+            "uk-nsc-glossary"
+          ],
+          difficulty: "beginner",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "publicHealth",
+            "undergraduateMedicine"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "b1d930c0e2b2a6b9425adcd7c8c0bb278cd32c309f3a5e34dbe9f020d162e265"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.gov.uk/guidance/principles-of-population-screening/effectiveness",
+        "https://www.gov.uk/guidance/principles-of-population-screening/screening-glossary-of-terms",
+        "https://www.gov.uk/government/publications/fetal-anomaly-screening-programme-handbook/overview",
+        "https://www.who.int/data/gho/data/indicators/indicator-details/GHO/maternal-mortality-ratio-%28per-100-000-live-births%29",
+        "https://www.ons.gov.uk/peoplepopulationandcommunity/birthsdeathsandmarriages/deaths/methodologies/birthcohorttablesforinfantdeathsqmi",
+        "https://www.rcog.org.uk/media/yeqbkfrw/mrcog-syllabus-and-knowledge-requirements-v10.pdf"
+      ]
+    },
+    {
+      id: "survival-competing-risks",
+      title: "Time to event and competing risks",
+      topic: "Risk sets, competing events and survival comparisons",
+      objective: "Choose an event definition, time origin and estimator that match the question.",
+      summary: "Define the start of follow-up, event and censoring. A right-censored participant contributes observed time at risk. Kaplan\u2013Meier multiplies conditional probabilities of remaining free of the specified event. Find the median from where the estimated curve reaches or drops below 0.50. If it stays above 0.50, the median has not been reached. Death before relapse prevents first relapse and enters its real-world cumulative incidence as a competing event. Log-rank compares curves using observed and expected event counts. A Cox hazard ratio describes relative instantaneous event rates. Its usual constant summary assumes proportional hazards.",
+      challenge: "After cancer treatment, how does death before relapse differ from ending observation at the last known relapse-free visit?",
+      steps: "In the fictional oncology data, use Analysis \u2192 Survival Analysis \u2192 Kaplan\u2013Meier. Select Time (months), Composite event (1 = relapse or death before relapse, 0 = censored) and use Arm to identify the two groups. Usual care is Arm 0. Compare its composite event-free estimate at month 4 with R's 4/9. The curve first drops past 50% at month 4, so its median composite event-free time is four months. For relapse alone use the R calculation with Event type (0 = censored, 1 = relapse, 2 = death before relapse). It gives relapse cumulative incidence 7/18. Censoring deaths and taking 1 minus Kaplan\u2013Meier instead gives 4/9. Both comparisons use a deliberately tiny dataset.",
+      operation: "KaplanMeier",
+      help: "survival_analysis/kaplan_meier.htm",
+      columns: [
+        {
+          title: "Arm",
+          values: [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          title: "Time (months)",
+          values: [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            1.5,
+            2.5,
+            3.5,
+            4.5,
+            5.5,
+            6.5
+          ]
+        },
+        {
+          title: "Composite event",
+          values: [
+            1,
+            1,
+            0,
+            1,
+            1,
+            0,
+            1,
+            1,
+            0,
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          title: "Event type",
+          values: [
+            1,
+            2,
+            0,
+            1,
+            2,
+            0,
+            2,
+            1,
+            0,
+            2,
+            0,
+            0
+          ]
+        }
+      ],
+      r: '# Fictional first-event oncology follow-up. 0=censored, 1=relapse, 2=death before relapse.\ntime <- c(1:6, seq(1.5,6.5))\nkind <- c(1,2,0,1,2,0, 2,1,0,2,0,0)\narm <- rep(0:1,each=6)\nany_event <- kind != 0\nt <- time[arm==0]; k <- kind[arm==0]\net <- sort(t[k!=0])\nn <- vapply(et,function(u) sum(t>=u),integer(1))\nd1 <- vapply(et,function(u) sum(t==u & k==1),integer(1))\nd2 <- vapply(et,function(u) sum(t==u & k==2),integer(1))\nevent_free <- cumprod(1-(d1+d2)/n)\nbefore <- c(1,head(event_free,-1))\nrelapse <- cumsum(before*d1/n)\ndeath <- cumsum(before*d2/n)\nnaive <- 1-cumprod(1-d1/n)\ni <- match(4,et)\nstopifnot(all.equal(event_free+relapse+death,rep(1,length(et))),\n          abs(event_free[i]-4/9)<1e-12, abs(relapse[i]-7/18)<1e-12,\n          abs(naive[i]-4/9)<1e-12)\nprint(data.frame(month=et, at_risk=n, event_free, relapse, death, naive))\n# The step crosses 0.5 at an event in this example, with no plateau at 0.5.\nstopifnot(event_free[i-1] > .5, event_free[i] < .5)\nprint(c(median_event_free_months = et[i]))\n# Composite endpoint. This teaching partial likelihood has no ties.\nevents <- sort(time[any_event])\nn0 <- vapply(events,function(u) sum(time>=u & arm==0),integer(1))\nn1 <- vapply(events,function(u) sum(time>=u & arm==1),integer(1))\no1 <- sum(arm[any_event])\nchi <- (o1-sum(n1/(n0+n1)))^2/sum(n0*n1/(n0+n1)^2)\np <- pchisq(chi,1,lower.tail=FALSE)\nlog_likelihood <- function(beta) beta*o1-sum(log(n0+n1*exp(beta)))\nhr <- exp(optimize(log_likelihood,c(-10,10),maximum=TRUE)$maximum)\nstopifnot(abs(chi-.2832613)<1e-6,abs(p-.5945716)<1e-6,abs(hr-.6670618)<1e-4)\nprint(c(logrank=chi,p_value=p,composite_HR=hr))\nplot(c(0,et,6),c(0,relapse,tail(relapse,1)),type="s",ylim=c(0,1),\n     xlab="Months after treatment",ylab="Cumulative incidence",main="Fictional usual-care cohort")\nlines(c(0,et,6),c(0,death,tail(death,1)),type="s",lty=2)\nlegend("topleft",c("First relapse","Death before relapse"),lty=1:2,bty="n")\n',
+      contentVersion: "2026-11-15-r2-q5e8de2ac25c5",
+      knowledgeSchemaVersion: 1,
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "mastersStatistics"
+      ],
+      learnerGoalNotes: "Oncology and intensive care examples. The oncology blueprint gives a broad clinical research category.",
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "72d86c5dfc9f16192ddf249c1e88e11dbbcc63918ab75d4a5efcde3240b6b07b"
+      },
+      prerequisites: [
+        "epidemiology",
+        "precision",
+        "appraisal"
+      ],
+      learningObjectives: [
+        "Build risk sets immediately before event times.",
+        "Read a Kaplan\u2013Meier curve and determine whether the median event-free time is estimable.",
+        "Distinguish composite event-free survival from cause-specific cumulative incidence.",
+        "Interpret log-rank and Cox results and recognise non-proportional hazards."
+      ],
+      keyConcepts: [
+        {
+          term: "Right censoring",
+          explanation: "The event has not been recorded by the last observed event-free time. Censoring removes a person from later risk sets without causing a Kaplan\u2013Meier drop. Follow-up losses associated with prognosis can bias estimates."
+        },
+        {
+          term: "Median survival or event-free time",
+          explanation: "Read the 0.50 crossing on the step curve for the defined event. When a step jumps across 0.50, use the event time. StatsDirect and R use the midpoint for a plateau exactly at 0.50 between successive event times. The last censored time alone does not give a median."
+        },
+        {
+          term: "Log-rank",
+          explanation: "Sum observed versus expected events across risk sets. The test is especially sensitive under proportional hazards and can miss opposing early and late differences."
+        },
+        {
+          term: "Cox hazard ratio",
+          explanation: "Compare instantaneous rates among those still at risk at the same time with specified covariates fixed. Inspect time patterns, such as scaled Schoenfeld residuals, before relying on a constant ratio."
+        },
+        {
+          term: "Competing risks",
+          explanation: "Aalen\u2013Johansen adds each cause's event increment weighted by the probability of remaining free of every first event just beforehand. A cause-specific hazard ratio alone does not determine cumulative incidence."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "A censoring mark is a failed outcome.",
+          correction: "It records the end of observation and alters subsequent risk sets."
+        },
+        {
+          claim: "HR 0.67 means 33% fewer relapses by month six.",
+          correction: "The example HR concerns the composite instantaneous event rate. A risk ratio at six months answers a different question."
+        },
+        {
+          claim: "Censor competing deaths to estimate the observed-world relapse risk with Kaplan\u2013Meier.",
+          correction: "Use cumulative incidence for that probability. Removing deaths from risk sets in a cause-specific hazard model answers a hazard question."
+        }
+      ],
+      workedExample: {
+        design: "Twelve fictional oncology patients enter follow-up at the same clinical milestone. In usual care, two have first relapse, two die before relapse and two are right-censored. The two-group exercise uses the composite.",
+        interpretation: "In usual care at month 4, relapse incidence is 7/18, death before relapse is 1/6 and composite event-free survival is 4/9. These estimates sum to one. The median time free of either event is four months. The small-sample log-rank P of about 0.59 and Cox HR of about 0.67 provide little information about efficacy or equivalence."
+      },
+      teachingPrompts: [
+        {
+          level: "beginner",
+          prompt: "Who is at risk just before month 4 in usual care?",
+          expectedReasoning: "Three people remain observed and free of both first events."
+        },
+        {
+          level: "intermediate",
+          prompt: "Why add (2/3) \xD7 (1/3) to relapse incidence at month 4?",
+          expectedReasoning: "Two-thirds are estimated free of both events before month 4, and one of the three then at risk relapses."
+        },
+        {
+          level: "advanced",
+          prompt: "What if a treatment lowers both the relapse and early death hazards?",
+          expectedReasoning: "The directions need not determine the real-world relapse probability. More patients may survive long enough to relapse. Inspect both cumulative incidences."
+        },
+        {
+          level: "intermediate",
+          prompt: "The last observation is censored at 12 months and the Kaplan\u2013Meier curve is still above 50%. How would you report the median?",
+          expectedReasoning: "Report that the median was not reached during follow-up. The last censoring cannot replace the 50% crossing."
+        }
+      ],
+      rProgression: {
+        menus: "Estimate the composite curve in StatsDirect.",
+        bridge: "Trace the separate cause increments and risk sets in base R.",
+        coding: "Change one early competing death to a censoring and explain the altered incidence. For real studies use validated survival software with tie handling, uncertainty and model checks."
+      },
+      sources: [
+        {
+          id: "survival-vignette",
+          title: "R survival vignette on multi-state models and competing risks",
+          url: "https://cran.r-project.org/web/packages/survival/vignettes/compete.pdf",
+          scope: "Kaplan\u2013Meier, competing events and Aalen\u2013Johansen.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "survival-manual",
+          title: "R survival package reference",
+          url: "https://cran.r-project.org/web/packages/survival/refman/survival.html",
+          scope: "Kaplan\u2013Meier quantiles, log-rank, Cox modelling and proportional hazards checks.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "medical-oncology-sce",
+          title: "Federation Medical Oncology SCE blueprint",
+          url: "https://www.thefederation.uk/sites/default/files/uploads/sce-medical-oncology-blueprint_0.pdf",
+          scope: "The broad clinical research category provides an oncology appraisal context.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "rcpsych-paperb",
+          title: "RCPsych: MRCPsych Paper B syllabus from January 2027",
+          url: "https://www.rcpsych.ac.uk/docs/default-source/training/examinations/mrcpsych-syllabus-2027/mrcpsych-paper-b-syllabus-2027.pdf",
+          scope: "Section 13.9.6 names Cox, log-rank, Kaplan\u2013Meier curve interpretation and median survival.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        }
+      ],
+      assessmentIds: [
+        "SURVIVAL-KM-01",
+        "SURVIVAL-CR-01",
+        "SURVIVAL-PH-01"
+      ],
+      practiceQuestions: [
+        {
+          id: "SURVIVAL-KM-01",
+          version: 1,
+          track: "medicine",
+          topic: "Kaplan\u2013Meier risk sets",
+          objective: "Update survival after right censoring.",
+          stem: "Ten patients are initially unrecovered. Two recover on day 1. Two other patients stop being observed on day 2 while still unrecovered. One recovers on day 3. The rest are still observed. What is the Kaplan\u2013Meier estimate of remaining unrecovered just after day 3?",
+          options: [
+            {
+              id: "A",
+              text: "0.50",
+              feedback: "That treats all five exits as events."
+            },
+            {
+              id: "B",
+              text: "0.70",
+              feedback: "Three events divided by ten ignores the later risk set."
+            },
+            {
+              id: "C",
+              text: "0.667",
+              feedback: "The two survival factors are 8/10 and 5/6."
+            },
+            {
+              id: "D",
+              text: "0.75",
+              feedback: "There were six still at risk at the last event."
+            },
+            {
+              id: "E",
+              text: "0.833",
+              feedback: "5/6 is the conditional day 3 factor alone."
+            }
+          ],
+          correct: "C",
+          hint: "Write the risk set just before each event time.",
+          lesson: "Define the start of follow-up, event and censoring. A right-censored participant contributes observed time at risk. Kaplan\u2013Meier multiplies conditional probabilities of remaining free of the specified event. Death before relapse prevents first relapse and enters its real-world cumulative incidence as a competing event. Log-rank compares curves using observed and expected event counts. A Cox hazard ratio describes relative instantaneous event rates. Its usual constant summary assumes proportional hazards.",
+          explanation: "(1 \u2212 2/10) \xD7 (1 \u2212 1/6) = 2/3. The two censorings reduce the later risk set.",
+          operation: "KaplanMeier",
+          help: "survival_analysis/kaplan_meier.htm",
+          lessonId: "survival-competing-risks",
+          sourceIds: [
+            "survival-vignette"
+          ],
+          difficulty: "intermediate",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "mastersStatistics"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "d6b3e72502f577aceb922b2c0b5686ac406209960d005c08a4dc3378b44679f9"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://cran.r-project.org/web/packages/survival/vignettes/compete.pdf",
+        "https://cran.r-project.org/web/packages/survival/refman/survival.html",
+        "https://www.thefederation.uk/sites/default/files/uploads/sce-medical-oncology-blueprint_0.pdf",
+        "https://www.rcpsych.ac.uk/docs/default-source/training/examinations/mrcpsych-syllabus-2027/mrcpsych-paper-b-syllabus-2027.pdf"
+      ]
+    },
+    {
+      id: "regression-models",
+      title: "Choosing and interpreting regression models",
+      topic: "Linear, logistic and Poisson models",
+      objective: "Choose a model for the outcome and explain what an adjusted coefficient means.",
+      summary: "Linear regression models a mean in the outcome's units, logistic regression models log odds for a binary outcome, and a Poisson model with a log exposure offset models a count rate. Adjust for selected covariates using the design and subject knowledge. Assess functional form, residuals, uncertainty and, for prediction, calibration beyond the development fit.",
+      challenge: "A new respiratory protocol is used more often for severe patients. How could a crude comparison obscure an association within levels of severity?",
+      steps: "Use Analysis \u2192 Regression and Correlation \u2192 Logistic with four fictional strata. Choose Grouped response data and include an intercept, with weighting off. Use Total as the number assessed, Events as the number who reattend, and Protocol and Severe as 0/1 predictors. The adjusted protocol odds ratio is 0.50, compared with about 0.85 when severity is omitted. Find the reference levels and interval. The R script also uses separate datasets for recovery days and counts accumulated over person-time. For the protocol odds ratio, base R gives a profile-likelihood 95% interval of about 0.331 to 0.748. It also shows the Wald interval (about 0.333 to 0.751) for comparison. Compare methods as well as endpoints.",
+      operation: "LogisticRegression",
+      help: "regression_and_correlation/logistic.htm",
+      columns: [
+        {
+          title: "Protocol",
+          values: [
+            0,
+            0,
+            1,
+            1
+          ]
+        },
+        {
+          title: "Severe",
+          values: [
+            0,
+            1,
+            0,
+            1
+          ]
+        },
+        {
+          title: "Total",
+          values: [
+            200,
+            100,
+            90,
+            210
+          ]
+        },
+        {
+          title: "Events",
+          values: [
+            40,
+            50,
+            10,
+            70
+          ]
+        }
+      ],
+      r: '# Fictional respiratory service examples. Each model has its own outcome.\ng <- data.frame(protocol=c(0,0,1,1),severe=c(0,1,0,1),total=c(200,100,90,210),events=c(40,50,10,70))\nlogistic <- glm(cbind(events,total-events)~protocol+severe,binomial(),g)\ncrude <- glm(cbind(events,total-events)~protocol,binomial(),g)\nlr <- coef(logistic)["protocol"]\nwald <- exp(lr+c(-1,1)*qnorm(.975)*sqrt(vcov(logistic)["protocol","protocol"]))\nstopifnot(abs(exp(lr)-.5)<1e-8,abs(exp(coef(crude)["protocol"])-(80/220)/(90/210))<1e-8)\nprint(c(adjusted_OR=unname(exp(lr)),crude_OR=unname(exp(coef(crude)["protocol"])),Wald_lower=wald[1],Wald_upper=wald[2]))\nno <- predict(logistic,transform(g,protocol=0),type="response")\nyes <- predict(logistic,transform(g,protocol=1),type="response")\nprofile <- exp(confint(logistic, parm="protocol"))\nstopifnot(all(abs(profile-c(.3312941,.7478764))<1e-6))\nprint(profile)\nrd <- weighted.mean(yes-no,g$total)\nstopifnot(abs(rd-((1/9-1/5)*290+(1/3-1/2)*310)/600)<1e-8)\nprint(c(standardised_probability_difference=rd))\ndays <- data.frame(protocol=rep(g$protocol,each=2),severe=rep(g$severe,each=2),days=c(5,7,9,11,3,5,7,9))\nlinear <- lm(days~protocol+severe,days)\nstopifnot(abs(coef(linear)["protocol"]+2)<1e-10)\nprint(coef(summary(linear)))\nrates <- transform(g,episodes=c(10,18,8,18),person_months=c(200,120,240,180))\nrate <- glm(episodes~protocol+severe+offset(log(person_months)),poisson(),rates)\nstopifnot(abs(exp(coef(rate)["protocol"])-2/3)<1e-8)\nprint(exp(coef(rate)))\n# Fixed probabilities evaluated in a separate fictional population.\npred <- c(.2,.5,.8); n <- c(100,100,100); observed <- c(15,40,70)\nstopifnot(abs(sum(observed)/sum(n)-125/300)<1e-12,weighted.mean(pred,n)==.5)\nprint(data.frame(predicted=pred,observed=observed/n))\nplot(pred,observed/n,xlim=c(0,1),ylim=c(0,1),pch=19,\n     xlab="Predicted probability",ylab="Observed proportion",main="Fictional model validation")\nabline(0,1,lty=2)\n',
+      contentVersion: "2026-11-15-q8d7267bd9826",
+      knowledgeSchemaVersion: 1,
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "healthcareBusinessAnalyst",
+        "mastersStatistics"
+      ],
+      learnerGoalNotes: "Primary FRCA and respiratory medicine contexts. The models also support healthcare analysts and researchers.",
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "1a9cfdeda9fc5a00cb8cdf76dcb4f83402964a869e46b0a49112ad2b3aec0cbf"
+      },
+      prerequisites: [
+        "causal",
+        "precision",
+        "regression",
+        "validation"
+      ],
+      learningObjectives: [
+        "Match continuous, binary and count outcomes to the model and estimand.",
+        "Interpret adjusted differences, odds ratios and rate ratios.",
+        "Distinguish confounding, interaction and noncollapsibility.",
+        "Check assumptions and compare predicted with observed outcomes."
+      ],
+      keyConcepts: [
+        {
+          term: "Confounding",
+          explanation: "Choose adjustment variables using the study design and causal knowledge. Crude and conditional odds ratios sometimes differ even without confounding because odds ratios are noncollapsible."
+        },
+        {
+          term: "Interaction",
+          explanation: "A contrast can vary across severity levels. Include an interaction if justified and report contrasts for relevant groups. Interaction depends on the scale."
+        },
+        {
+          term: "Exposure offset",
+          explanation: "In log-rate regression, the coefficient of log exposure is fixed at one. The same rate over twice the exposure predicts twice the count."
+        },
+        {
+          term: "Model checks",
+          explanation: "Inspect residuals and variance in linear regression, functional form and separation in logistic regression, and dispersion and clustering in Poisson models. For prediction, check calibration and discrimination in appropriate evaluation data."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "OR 0.50 always halves the probability.",
+          correction: "At baseline risk 50%, halving odds gives risk 1/3."
+        },
+        {
+          claim: "Use log person-time as a freely estimated term for a rate ratio.",
+          correction: "Use a log offset to fix proportionality to exposure."
+        },
+        {
+          claim: "A significant coefficient or high AUC proves calibration.",
+          correction: "Compare predicted probabilities with observed frequencies."
+        }
+      ],
+      workedExample: {
+        design: "Four fictional protocol-by-severity strata for binary reattendance, separate recovery days and visit counts for linear and Poisson regression, and separate fixed validation predictions.",
+        interpretation: "The example gives \u22122 adjusted recovery days, adjusted OR 0.50 and adjusted rate ratio 2/3 in three separate models. The fitted logistic probabilities standardised to the combined severity mix differ by about \u221212.9 percentage points. The validation example averages 50% predicted and 42% observed."
+      },
+      teachingPrompts: [
+        {
+          level: "beginner",
+          prompt: "Why is Total needed for logistic regression?",
+          expectedReasoning: "It gives the number assessed in each group, including those without an event."
+        },
+        {
+          level: "intermediate",
+          prompt: "In the severe group, what risks go with OR 0.50?",
+          expectedReasoning: "The illustrative risks are 50% without the protocol and 33% with it."
+        },
+        {
+          level: "advanced",
+          prompt: "What if protocol interacts with severity?",
+          expectedReasoning: "Report a contrast by severity, on a stated scale. A single protocol coefficient uses reference severity under ordinary treatment coding."
+        }
+      ],
+      rProgression: {
+        menus: "Fit the four-stratum logistic model and inspect the coefficients.",
+        bridge: "Read the linear, logistic and Poisson output on the intended scales.",
+        coding: "Add protocol \xD7 severity to R's logistic formula and consider how little information remains to assess fit in a four-stratum dataset."
+      },
+      sources: [
+        {
+          id: "r-glm",
+          title: "R Core: fitting generalised linear models",
+          url: "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html",
+          scope: "Grouped outcomes, covariates and offsets.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "r-family",
+          title: "R Core: model families",
+          url: "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/family.html",
+          scope: "Links and dispersion.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "frca-research-data",
+          title: "RCoA Stage 1 Research and Managing Data examination syllabus",
+          url: "https://www.rcoa.ac.uk/documents/examination-syllabus-stage-1/research-managing-data-rd",
+          scope: "Statistics, regression and diagnostic accuracy in the explicit syllabus.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "respiratory-sce",
+          title: "Federation Respiratory Medicine SCE blueprint",
+          url: "https://www.thefederation.uk/sites/default/files/uploads/Respiratory%20Medicine2018.pdf",
+          scope: "Statistics is one element of the wider Other category.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        }
+      ],
+      assessmentIds: [
+        "REGMODEL-OR-01",
+        "REGMODEL-RATE-01",
+        "REGMODEL-CAL-01"
+      ],
+      practiceQuestions: [
+        {
+          id: "REGMODEL-OR-01",
+          version: 1,
+          track: "medicine",
+          topic: "Adjusted odds ratio",
+          objective: "Convert an odds ratio to risk at a stated baseline.",
+          stem: "A severity-adjusted logistic model gives OR 0.50 for reattendance with a new respiratory protocol. At the same severity profile, what new-protocol risk corresponds to an old-protocol risk of 50%?",
+          options: [
+            {
+              id: "A",
+              text: "25%",
+              feedback: "That halves probability rather than odds."
+            },
+            {
+              id: "B",
+              text: "33.3%",
+              feedback: "Old odds are 1. New odds are 0.5, giving risk 0.5/(1+0.5)."
+            },
+            {
+              id: "C",
+              text: "50%",
+              feedback: "An OR of 0.50 changes the odds at this profile."
+            },
+            {
+              id: "D",
+              text: "66.7%",
+              feedback: "That doubles old odds."
+            },
+            {
+              id: "E",
+              text: "75%",
+              feedback: "That corresponds to odds of 3."
+            }
+          ],
+          correct: "B",
+          hint: "Convert baseline risk to odds before applying the ratio.",
+          lesson: "Linear regression models a mean in the outcome's units, logistic regression models log odds for a binary outcome, and a Poisson model with a log exposure offset models a count rate. Adjust for selected covariates using the design and subject knowledge. Assess functional form, residuals, uncertainty and, for prediction, calibration beyond the development fit.",
+          explanation: "Multiply the old odds 1 by 0.50, then divide the new odds by one plus those odds. The resulting risk is 1/3.",
+          operation: "LogisticRegression",
+          help: "regression_and_correlation/logistic.htm",
+          lessonId: "regression-models",
+          sourceIds: [
+            "r-glm",
+            "respiratory-sce"
+          ],
+          difficulty: "intermediate",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "healthcareBusinessAnalyst"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "bf97fb67b1f61010d477267c7deeaa1b5bef1972e300ebfacc8e37c46908b1e8"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html",
+        "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/family.html",
+        "https://www.rcoa.ac.uk/documents/examination-syllabus-stage-1/research-managing-data-rd",
+        "https://www.thefederation.uk/sites/default/files/uploads/Respiratory%20Medicine2018.pdf"
+      ]
+    },
+    {
+      id: "measurement-agreement",
+      title: "Do two measurements agree?",
+      topic: "Bland\u2013Altman limits, kappa and intraclass correlation",
+      objective: "Choose an agreement measure for the scale, and decide what size of disagreement matters clinically.",
+      summary: "Correlation measures association. Two devices can rank patients almost identically and still give differences large enough to change care. For paired quantitative measures, inspect differences against their means and compare the limits of agreement with a prespecified acceptable range. For two categorical raters report the agreement table and observed agreement alongside Cohen's kappa. For quantitative reliability specify the ICC design, single or average rating, and whether absolute agreement or consistency matters.",
+      challenge: "Two paediatric respiratory devices have near-perfect correlation. What else would you need before replacing one with the other?",
+      steps: "In the fictional data, enter Reference reading and New reading from the same eight children. Select Analysis \u2192 Parametric \u2192 Paired t and request agreement analysis. With Reference selected first, StatsDirect uses Reference minus New: a mean of \u22122.5 units and limits around \u22124.84 and \u22120.16 units. The R script uses New minus Reference. Mean difference is +2.5 units and the usual 95% limits are about +0.16 and +4.84 units. The upper limit exceeds the example's prespecified \xB13 tolerance. The separate R examples use a classification table for Cohen's kappa and an ANOVA decomposition for two single-measure ICCs. The illustrative sample is too small for an interchangeability decision.",
+      operation: "TPaired",
+      help: "parametric_methods/paired_t.htm",
+      columns: [
+        {
+          title: "Reference reading",
+          values: [
+            19,
+            26,
+            31,
+            38,
+            43,
+            51,
+            57,
+            64
+          ]
+        },
+        {
+          title: "New reading",
+          values: [
+            20,
+            28,
+            34,
+            40,
+            47,
+            52,
+            60,
+            68
+          ]
+        }
+      ],
+      r: '# One fictional pair per child, on the same measurement scale.\nreference <- c(19,26,31,38,43,51,57,64)\nnew <- c(20,28,34,40,47,52,60,68)\nmid <- (new+reference)/2\ndifference <- new-reference\nbias <- mean(difference)\nloa <- bias+c(-1,1)*1.96*sd(difference)\nstopifnot(bias==2.5,all(abs(loa-c(.1573519,4.8426481))<1e-6),cor(reference,new)>.99)\nprint(c(correlation=cor(reference,new),bias=bias,lower=loa[1],upper=loa[2]))\nplot(mid,difference,pch=19,ylim=range(c(difference,loa,-3,3)),\n     xlab="Pair mean",ylab="New minus reference",main="Fictional device agreement")\nabline(h=bias)\nabline(h=loa,lty=2)\nabline(h=c(-3,3),lty=3)\nlegend("bottomright",c("Mean difference","Limits of agreement","Clinical tolerance"),lty=1:3,bty="n")\n\n# Separate nominal ratings from 100 fictional encounters.\nratings <- matrix(c(36,4,8,52),2,byrow=TRUE)\np_observed <- sum(diag(ratings))/sum(ratings)\np_expected <- sum(rowSums(ratings)*colSums(ratings))/sum(ratings)^2\nkappa <- (p_observed-p_expected)/(1-p_expected)\nstopifnot(p_observed==.88,abs(p_expected-.512)<1e-12,abs(kappa-(.88-.512)/(1-.512))<1e-12)\nprint(c(observed_agreement=p_observed,expected_agreement=p_expected,kappa=kappa))\n\n# Balanced two-way ANOVA, one reading per device for each child.\ny <- cbind(reference,new)\nn <- nrow(y); k <- ncol(y); grand <- mean(y)\nms_subject <- k*sum((rowMeans(y)-grand)^2)/(n-1)\nms_device <- n*sum((colMeans(y)-grand)^2)/(k-1)\nresidual <- sweep(sweep(y,1,rowMeans(y)),2,colMeans(y))+grand\nms_error <- sum(residual^2)/((n-1)*(k-1))\nicc_a <- (ms_subject-ms_error)/(ms_subject+(k-1)*ms_error+k*(ms_device-ms_error)/n)\nicc_c <- (ms_subject-ms_error)/(ms_subject+(k-1)*ms_error)\nstopifnot(abs(icc_a-.9854217)<1e-6,abs(icc_c-.9971900)<1e-6,icc_a<icc_c)\nprint(c(ICC_absolute_single=icc_a,ICC_consistency_single=icc_c))\n',
+      contentVersion: "2026-11-15-qaa294c3705c6",
+      knowledgeSchemaVersion: 1,
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "postgraduateAlliedHealth",
+        "mastersStatistics"
+      ],
+      learnerGoalNotes: "Paediatric and anaesthetic measurement examples. The RCPCH syllabus lists general statistical test selection and appraisal.",
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "85e0b34d00d708604f9aa9cd5f42bec61ea8823439e086c2bca02dbd1d98ef5f"
+      },
+      prerequisites: [
+        "paired",
+        "precision"
+      ],
+      learningObjectives: [
+        "Distinguish association, agreement and reliability.",
+        "Estimate systematic difference and limits of agreement in the measurement's units.",
+        "Interpret a kappa alongside its agreement table and choose an appropriate ICC."
+      ],
+      keyConcepts: [
+        {
+          term: "Limits of agreement",
+          explanation: "Mean difference \xB1 1.96 SD estimates an interval containing about 95% of individual differences when the differences are approximately normal and their spread is stable. Confidence intervals around the limits quantify uncertainty in their estimates."
+        },
+        {
+          term: "Inspect the plot",
+          explanation: "Look for proportional bias, changing spread and unusual pairs. Repeated measurements per person need analyses that account for their dependence. A clinically acceptable difference should be decided independently of the observed limits."
+        },
+        {
+          term: "Cohen's kappa",
+          explanation: "Compare observed agreement with agreement expected from the marginal category frequencies under independent classification. Kappa changes with category mix even at similar observed agreement. Show counts, agreement and uncertainty."
+        },
+        {
+          term: "ICC",
+          explanation: "Quantifies the proportion of variability attributable to differences among subjects under a specified model. Use consistency for ranking and absolute agreement when the values must match. Name one-way or two-way model, fixed or random raters as appropriate, single or average measurement and confidence interval. A broad subject range can produce a high ICC despite important differences in units."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "A high correlation means interchangeable devices.",
+          correction: "A shift in every value can leave correlation unchanged. Compare paired differences with a clinical tolerance."
+        },
+        {
+          claim: "The limits are a 95% confidence interval for bias.",
+          correction: "That interval concerns uncertainty in the mean difference. The limits describe the spread of individual differences."
+        },
+        {
+          claim: "A high ICC removes the need to check absolute differences.",
+          correction: "Inspect the measurement-unit differences and context. ICC depends on how heterogeneous the subjects are."
+        }
+      ],
+      workedExample: {
+        design: "Eight fictional independent children, one measurement by each device, both taken at the same visit. A separate two-rater categorical dataset supplies the agreement table.",
+        interpretation: "Correlation \u2248 0.998 and even the absolute-agreement single-measure ICC \u2248 0.985 are high in these widely dispersed measurements. The upper agreement limit still exceeds the example tolerance. In the categorical example, 88 of 100 ratings agree and unweighted kappa is approximately 0.75."
+      },
+      teachingPrompts: [
+        {
+          level: "beginner",
+          prompt: "If every new reading exceeds its paired reference by five units, what happens to correlation?",
+          expectedReasoning: "An additive shift does not lower correlation. The shift can still be clinically important."
+        },
+        {
+          level: "intermediate",
+          prompt: "Why compare agreement limits with \xB13 units?",
+          expectedReasoning: "The acceptable difference depends on clinical decisions. The estimated limits show how far individual comparisons may differ."
+        },
+        {
+          level: "advanced",
+          prompt: "Why might a consistency ICC exceed absolute-agreement ICC?",
+          expectedReasoning: "A systematic device offset is compatible with consistent ranking but reduces absolute agreement. Subject variability matters to both."
+        }
+      ],
+      rProgression: {
+        menus: "Run Paired t with its agreement analysis and check the subtraction direction.",
+        bridge: "Recreate the three analyses in base R. The categorical example can also be entered in the StatsDirect two-rater table.",
+        coding: "Narrow the range of the reference values while holding paired differences fixed. Check how correlation and ICC respond and describe which agreement plot features remain."
+      },
+      sources: [
+        {
+          id: "bland-altman",
+          title: "Bland and Altman's original clinical measurement paper",
+          url: "https://www-users.york.ac.uk/~mb55/meas/ba.htm",
+          scope: "Paired differences, limits of agreement and why correlation can mislead.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "cohen-kappa",
+          title: "Cohen's coefficient of agreement for nominal scales",
+          url: "https://journals.sagepub.com/doi/10.1177/001316446002000104",
+          scope: "Observed and marginal expected agreement.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "icc-selection",
+          title: "Shrout and Fleiss on intraclass correlation",
+          url: "https://pubmed.ncbi.nlm.nih.gov/18839484/",
+          scope: "Choice of ICC based on design and intended use.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "mrcpch-tas",
+          title: "RCPCH theory exam syllabi, Science of Practice",
+          url: "https://www.rcpch.ac.uk/sites/default/files/2026-02/MRCPCH-theory-exam-syllabi-2023-v3.pdf#page=60",
+          scope: "TAS explicitly includes test choice and appraisal. The agreement example applies those skills in paediatrics.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        }
+      ],
+      assessmentIds: [
+        "AGREE-BA-01",
+        "AGREE-KAPPA-01",
+        "AGREE-ICC-01"
+      ],
+      practiceQuestions: [
+        {
+          id: "AGREE-BA-01",
+          version: 1,
+          track: "medicine",
+          topic: "Limits and clinical tolerance",
+          objective: "Compare individual differences with a tolerance.",
+          stem: "A new paediatric monitor correlates 0.99 with the existing one. For new minus existing, mean bias is +2.5 units and estimated limits of agreement are +0.16 to +4.84. Differences above 3 units in either direction matter clinically. Which conclusion is best?",
+          options: [
+            {
+              id: "A",
+              text: "Correlation establishes interchangeability.",
+              feedback: "Ranking can agree even when paired differences are large."
+            },
+            {
+              id: "B",
+              text: "The estimated upper limit exceeds the tolerance. Assess uncertainty before deciding on replacement.",
+              feedback: "The point estimate exceeds +3 and the estimates have sampling uncertainty."
+            },
+            {
+              id: "C",
+              text: "A mean bias below 3 implies all individual differences are acceptable.",
+              feedback: "Mean bias summarises the average, rather than individual spread."
+            },
+            {
+              id: "D",
+              text: "The two limits are the confidence interval for mean bias.",
+              feedback: "Limits of agreement describe individual differences."
+            },
+            {
+              id: "E",
+              text: "Subtract the mean bias and declare all future readings safe.",
+              feedback: "A correction may reduce systematic bias, but residual spread and validation still matter."
+            }
+          ],
+          correct: "B",
+          hint: "Compare the limit estimates with the prespecified range.",
+          lesson: "Correlation measures association. Two devices can rank patients almost identically and still give differences large enough to change care. For paired quantitative measures, inspect differences against their means and compare the limits of agreement with a prespecified acceptable range. For two categorical raters report the agreement table and observed agreement alongside Cohen's kappa. For quantitative reliability specify the ICC design, single or average rating, and whether absolute agreement or consistency matters.",
+          explanation: "The limit at +4.84 exceeds +3. Review its uncertainty and the clinical consequences. High correlation and an average difference below 3 are insufficient evidence for replacing the device.",
+          operation: "TPaired",
+          help: "parametric_methods/paired_t.htm",
+          lessonId: "measurement-agreement",
+          sourceIds: [
+            "bland-altman",
+            "mrcpch-tas"
+          ],
+          difficulty: "intermediate",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "postgraduateAlliedHealth"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "d9ed377458cec9366ceff2a3e8e7671101eb74d1efcdb635479b4dbb64a68540"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www-users.york.ac.uk/~mb55/meas/ba.htm",
+        "https://journals.sagepub.com/doi/10.1177/001316446002000104",
+        "https://pubmed.ncbi.nlm.nih.gov/18839484/",
+        "https://www.rcpch.ac.uk/sites/default/files/2026-02/MRCPCH-theory-exam-syllabi-2023-v3.pdf#page=60"
+      ]
+    },
+    {
+      id: "audit-spc",
+      title: "Audit and monitoring improvement over time",
+      topic: "Clinical standards, control charts and case mix",
+      objective: "Choose a measure and chart for the service question, then respond appropriately to observed variation.",
+      summary: "An audit defines a standard, eligibility and a denominator, checks current care, acts on findings and remeasures. Quality improvement measures are followed in time order with a stable definition. A control chart estimates expected variation in a stable process. A p-chart models the proportion of eligible encounters with a binary outcome and its limits vary with denominator. Clinical targets, control limits and confidence intervals serve different purposes.",
+      challenge: "Two emergency department months each have 15% delayed reviews. One month has 100 eligible encounters and the other has 300. Could their statistical signals differ?",
+      steps: "In this fictional emergency department audit, the adverse outcome is a first clinical review recorded more than 60 minutes after arrival among eligible encounters with known review times. Review exclusions and quantify missing timestamps before comparing months. Enter the 14 chronological counts and eligible totals or run the supplied R script. Use only months 1\u201312 as the illustrative baseline and hold its 8% centre fixed. Under the simple binomial model the 3 SD upper limit is about 16.1% at n=100 and 12.7% at n=300. Both later months are at 15%, but only the larger month breaches its limit. Plot a separate 5% example service target. StatsDirect Graphics \u2192 Control illustrates fixed bands for a continuous series; use this R exercise for changing binomial limits.",
+      operation: "",
+      help: "graphics/control.htm",
+      columns: [
+        {
+          title: "Month",
+          values: [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ]
+        },
+        {
+          title: "Delayed reviews",
+          values: [
+            7,
+            11,
+            11,
+            10,
+            12,
+            9,
+            9,
+            13,
+            10,
+            14,
+            7,
+            15,
+            15,
+            45
+          ]
+        },
+        {
+          title: "Eligible with known time",
+          values: [
+            100,
+            125,
+            150,
+            100,
+            175,
+            125,
+            100,
+            150,
+            125,
+            175,
+            100,
+            175,
+            100,
+            300
+          ]
+        }
+      ],
+      r: '# Fictional ED audit. A patient encounter contributes at most one delayed review.\nmonth <- 1:14\neligible <- c(100,125,150,100,175,125,100,150,125,175,100,175,100,300)\ndelayed <- c(7,11,11,10,12,9,9,13,10,14,7,15,15,45)\nbaseline <- 1:12\np0 <- sum(delayed[baseline])/sum(eligible[baseline])\nobserved <- delayed/eligible\nband <- 3*sqrt(p0*(1-p0)/eligible)\nlcl <- pmax(0,p0-band); ucl <- pmin(1,p0+band)\nsignal <- observed>ucl | observed<lcl\nstopifnot(abs(p0-.08)<1e-12,all(abs(observed[13:14]-.15)<1e-12),\n          identical(which(signal),14L),ucl[13]>.15,ucl[14]<.15)\nprint(data.frame(month,eligible,delayed,observed,lcl,ucl,signal))\nplot(month,observed,type="o",ylim=c(0,max(ucl,observed)),pch=19,\n     xlab="Month",ylab="Delayed review proportion",main="Fictional ED p-chart")\nabline(h=p0,lty=2)\nabline(h=.05,lty=3)\nlines(month,lcl,lty=4); lines(month,ucl,lty=4)\nabline(v=12.5,lty=2,col="grey50")\npoints(month[signal],observed[signal],pch=19,col="red")\nlegend("bottomleft",c("Baseline centre","Service target","Control limits"),lty=2:4,bty="n")\n\n# Separate example: episodes during person-time, by frailty stratum.\n# Rows are sites and columns are low/high frailty. All rates per 1,000 days.\ncases <- rbind(A=c(1,18),B=c(8,8))\ndays <- rbind(A=c(1000,3000),B=c(4000,1000))\ncrude <- 1000*rowSums(cases)/rowSums(days)\nstandard <- drop(1000*(cases/days)%*%c(.5,.5))\nstopifnot(all.equal(unname(crude),c(4.75,3.2)),\n          all.equal(unname(standard),c(3.5,5)),crude[1]>crude[2],standard[1]<standard[2])\nprint(cbind(crude,standardised=standard))\n',
+      contentVersion: "2026-11-15-r2-q169a1502c8ba",
+      knowledgeSchemaVersion: 1,
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "healthcareBusinessAnalyst",
+        "mastersStatistics"
+      ],
+      learnerGoalNotes: "Emergency department example for FRCEM research and QI, public health and healthcare analysts.",
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "71ded60b5abadc14b559917b91f5e735749c3a800efd921f439863c1834b94bb"
+      },
+      prerequisites: [
+        "epidemiology",
+        "rates",
+        "precision"
+      ],
+      learningObjectives: [
+        "Define a reproducible process measure, denominator and audit standard.",
+        "Interpret changing p-chart limits under an explicit baseline.",
+        "Distinguish within-process variation, a clinical target and uncertainty about a rate.",
+        "Recognise case-mix effects and choose a constructive response to variation."
+      ],
+      keyConcepts: [
+        {
+          term: "Audit and remeasurement",
+          explanation: "Predefine eligibility, outcome, target and data source. Report missingness, compare performance with the standard, investigate causes, act and repeat. Monitor balancing measures such as review quality or staff burden."
+        },
+        {
+          term: "p-chart",
+          explanation: "With stable risk p and independent observations, limits are p \xB1 3\u221A[p(1\u2212p)/n], bounded by 0 and 1. Small counts, clustering or extra variability can require another method."
+        },
+        {
+          term: "Respond to variation",
+          explanation: "Check an unusual point against data quality, eligibility and local process changes before acting. Stable but inadequate performance calls for process redesign; repeatedly reacting to ordinary fluctuations can worsen variation. Annotate and revise the centre after evidence of a sustained change."
+        },
+        {
+          term: "Control limits versus other limits",
+          explanation: "Control limits describe expected variation of subgroup proportions under a stable baseline. Confidence intervals quantify uncertainty in an estimated parameter. The service target expresses the desired performance."
+        },
+        {
+          term: "Case mix",
+          explanation: "Compare strata and apply common standardisation weights when useful. An adjusted rate depends on the target mix and measured variables. Different ascertainment, missingness or sparse counts still matter. A stable chart does not prove that adjustment is adequate."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "A point beyond the control limit proves an intervention worked.",
+          correction: "It is a reason to investigate. Data definition, case mix, staffing and chance remain possible explanations."
+        },
+        {
+          claim: "All monthly percentages have the same precision.",
+          correction: "With different denominators their expected variability can differ markedly."
+        },
+        {
+          claim: "A point within its control limits meets the performance standard.",
+          correction: "The target can lie well below a stable but inadequate process."
+        },
+        {
+          claim: "A 95% confidence interval can replace a 3 SD control line.",
+          correction: "The interval and control line answer different questions."
+        }
+      ],
+      workedExample: {
+        design: "Twelve illustrative baseline months and two monitoring months. The two later proportions share a point estimate but have different denominators. A separate fictional comparison uses frailty-specific person-time rates at two sites.",
+        interpretation: "Month 13 lies within the illustrative baseline limits and month 14 exceeds them. Check data quality and identify what led to the signal. Both miss the example target of at most 5%. The separate two-site example reverses the crude ordering after both sites receive the same case-mix weights. Confirm comparability and quantify uncertainty before treating it as a performance ranking."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "How should the team respond to the month 14 point?",
+          expectedReasoning: "Check data completeness and changes in case mix and workflow. Investigate a possible special cause before crediting or blaming a change."
+        }
+      ],
+      rProgression: {
+        menus: "Use Graphics \u2192 Control help to understand fixed reference bands. The varying-denominator p-chart is calculated in the supplied R script.",
+        bridge: "Follow the denominator in each limit calculation and see how reference weights change the separate site comparison.",
+        coding: "Change one monitoring denominator without changing its proportion and predict the signal. Observe that baseline limits should stay based on baseline data."
+      },
+      sources: [
+        {
+          id: "nhs-spc",
+          title: "NHS England statistical process control tool",
+          url: "https://www.england.nhs.uk/publication/statistical-process-control-tool/",
+          scope: "Time-ordered monitoring, annotations and appropriate step changes.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "nist-p-chart",
+          title: "NIST Engineering Statistics Handbook: proportions control charts",
+          url: "https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc332.htm",
+          scope: "Binomial p-chart assumptions and denominator-dependent limits.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "nhs-direct-standardisation",
+          title: "NHS England IIF implementation guidance, September 2022",
+          url: "https://www.england.nhs.uk/wp-content/uploads/2022/03/B1963-iii-Network-contract-IIF-Implementation-Guidance-September-2022.pdf",
+          scope: "Section B.2 illustrates direct standardisation using a shared population structure.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        },
+        {
+          id: "frcem-research-qi",
+          title: "RCEM FRCEM Final regulations and examination blueprint",
+          url: "https://rcem.ac.uk/wp-content/uploads/2023/11/FRCEM_Regulations_and_Information_Pack.pdf#page=11",
+          scope: "SLO 11 includes measurement for improvement and methods of assessing variation.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading. Examples and questions are original."
+        }
+      ],
+      assessmentIds: [
+        "SPC-LIMIT-01",
+        "SPC-RESPONSE-01",
+        "SPC-STANDARD-01"
+      ],
+      practiceQuestions: [
+        {
+          id: "SPC-LIMIT-01",
+          version: 2,
+          track: "analyst",
+          topic: "p-chart limits",
+          objective: "Interpret equal proportions with unequal denominators.",
+          stem: "An emergency department's stable baseline is 8% delayed reviews. One later month has 15 delays among 100 eligible encounters, another has 45 among 300. Using a simple 3 SD binomial p-chart with baseline fixed, which statement is correct?",
+          options: [
+            {
+              id: "A",
+              text: "Both breach because both exceed 8%.",
+              feedback: "The centre line is not a control limit."
+            },
+            {
+              id: "B",
+              text: "Both must give the same signal because both equal 15%.",
+              feedback: "The denominator determines the width of the band."
+            },
+            {
+              id: "C",
+              text: "The smaller month breaches first because its estimate is noisier.",
+              feedback: "Expected variation is greater at smaller n, so the limit is wider."
+            },
+            {
+              id: "D",
+              text: "Only the 300-encounter month breaches the upper limit.",
+              feedback: "The two limits are about 16.1% and 12.7%."
+            },
+            {
+              id: "E",
+              text: "No control limit can be calculated without a clinical target.",
+              feedback: "The limits use the baseline proportion and denominator."
+            }
+          ],
+          correct: "D",
+          hint: "Calculate 0.08 + 3\u221A(0.08\xD70.92/n) in each month.",
+          lesson: "An audit defines a standard, eligibility and a denominator, checks current care, acts on findings and remeasures. Quality improvement measures are followed in time order with a stable definition. A control chart estimates expected variation in a stable process. A p-chart models the proportion of eligible encounters with a binary outcome and its limits vary with denominator. Clinical targets, control limits and confidence intervals serve different purposes.",
+          explanation: "At n=100 the limit is 16.1%, so 15% is within it. At n=300 it is 12.7%, so 15% breaches it. Verify the observation and investigate a potential special cause.",
+          operation: "",
+          help: "graphics/control.htm",
+          lessonId: "audit-spc",
+          sourceIds: [
+            "nist-p-chart",
+            "nhs-spc"
+          ],
+          difficulty: "intermediate",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "healthcareBusinessAnalyst",
+            "publicHealth"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "4a798ef816e08f89db9bb279143d69afdfd433dfc8d2a10f1ec39a97f7e649fe"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.england.nhs.uk/publication/statistical-process-control-tool/",
+        "https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc332.htm",
+        "https://www.england.nhs.uk/wp-content/uploads/2022/03/B1963-iii-Network-contract-IIF-Implementation-Guidance-September-2022.pdf",
+        "https://rcem.ac.uk/wp-content/uploads/2023/11/FRCEM_Regulations_and_Information_Pack.pdf#page=11"
+      ]
+    },
+    {
+      id: "clinical-abstract",
+      title: "Read a trial abstract: benefit and harm",
+      topic: "Clinical evidence",
+      objective: "Translate a study's relative effects into absolute benefit and harm over a stated time.",
+      summary: "Read the design and denominators before interpreting a headline. Give expected events per 1,000 people, with the outcome and follow-up for each comparison.",
+      challenge: "Explain both effects to a patient in natural frequencies. Say what the abstract leaves out.",
+      steps: "Compare the risks of admission and serious rash separately. Compute the absolute difference, relative risk and reciprocal of the absolute difference. Ask whether the enrolled population resembles the patient or service you advise.",
+      operation: "",
+      help: "clinical_epidemiology/nnt.htm",
+      columns: [
+        {
+          title: "Group (1 treatment, 0 usual care)",
+          values: [
+            1,
+            0
+          ]
+        },
+        {
+          title: "Participants",
+          values: [
+            500,
+            500
+          ]
+        },
+        {
+          title: "People admitted",
+          values: [
+            30,
+            50
+          ]
+        },
+        {
+          title: "People with serious rash",
+          values: [
+            15,
+            5
+          ]
+        }
+      ],
+      r: "n <- c(500, 500)\nadmission <- c(30, 50)/n\nrash <- c(15, 5)/n\nbenefit <- admission[2] - admission[1]\nharm <- rash[1] - rash[2]\nrr <- admission[1]/admission[2]\nlower_risk_benefit <- .025 * (1 - rr)\nstopifnot(isTRUE(all.equal(c(benefit,harm,rr,1/benefit,1/harm,lower_risk_benefit),\n                           c(.04,.02,.60,25,50,.01))))\nprint(round(c(fewer_admissions_per_1000=1000*benefit, extra_rashes_per_1000=1000*harm,\n              risk_ratio=rr, NNT=1/benefit, NNH=1/harm, NNT_lower_baseline=1/lower_risk_benefit),3))\n",
+      contentVersion: "2026-11-15-r2-qcdce19278059",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "b71e37d442cd19cef5cd6d4089ee25ef7a55717c7160a105ce081fa35cade984"
+      },
+      prerequisites: [
+        "risk",
+        "appraisal"
+      ],
+      learningObjectives: [
+        "Translate a study's relative effects into absolute benefit and harm over a stated time.",
+        "Explain both effects to a patient in natural frequencies. Say what the abstract leaves out."
+      ],
+      keyConcepts: [
+        {
+          term: "Absolute effects",
+          explanation: "Subtract risks with the same follow-up. Keep the direction and units clear. A reduction from 10% to 6% is 4 percentage points, or a relative reduction of 40%."
+        },
+        {
+          term: "Number needed to treat or harm",
+          explanation: "Use the reciprocal of the absolute risk reduction or increase for the specified outcome and duration. Here the reciprocals are integers. Keep confidence intervals and competing outcomes in view."
+        },
+        {
+          term: "Applicability",
+          explanation: "If the risk ratio were stable across settings, a lower untreated risk would imply less absolute benefit. That assumption and the harm rate both need evidence."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "A 40% relative reduction prevents 40 admissions per 100 patients.",
+          correction: "Here the estimate is 4 fewer admissions per 100. Start from the control risk."
+        },
+        {
+          claim: "Net benefit is NNH minus NNT.",
+          correction: "The two outcomes differ in importance; the same person can experience both. Consider severity, uncertainty and preferences."
+        }
+      ],
+      workedExample: {
+        design: "Fictional randomised trial. By 90 days, 30/500 on treatment and 50/500 on usual care had at least one admission. At least one serious rash affected 15/500 and 5/500, respectively. Complete follow-up is assumed.",
+        interpretation: "The point estimates per 1,000 treated are 40 fewer admissions and 20 more serious rashes over 90 days. One admission avoided per 25 treated and one extra serious rash per 50 treated are population averages. Uncertainty, subgroup applicability and severity are needed for a decision."
+      },
+      teachingPrompts: [
+        {
+          level: "beginner",
+          prompt: "Explain both effects to a patient in natural frequencies. Say what the abstract leaves out.",
+          expectedReasoning: "Use a common denominator, label both outcomes and time horizons, and separate relative and absolute effects. Ask for intervals and exclusions; avoid extrapolating a point estimate automatically."
+        }
+      ],
+      rProgression: {
+        menus: "Read the fictional counts; put one outcome at a time in a 2 \xD7 2 risk table.",
+        bridge: "In R label groups before subtracting risks.",
+        coding: "Change the control risk while holding the risk ratio fixed; state the assumption."
+      },
+      sources: [
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+          scope: "Interpretation of medical literature, including absolute and relative effect measures.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        },
+        {
+          id: "step3-items",
+          title: "USMLE Step 3: Formats and questions",
+          url: "https://www.usmle.org/exam-resources/step-3-materials/step-3-formats-questions",
+          scope: "Public examples of abstract and drug-advertisement prompts.",
+          checkedAt: "2026-11-15",
+          use: "Format inspiration only; trial and questions are original."
+        }
+      ],
+      difficulty: "beginner",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "publicHealth",
+        "usMedicalBoards"
+      ],
+      assessmentIds: [
+        "BIO-ABSTRACT-01",
+        "BIO-ABSTRACT-02",
+        "BIO-ABSTRACT-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-ABSTRACT-01",
+          version: 2,
+          track: "core",
+          topic: "Clinical evidence",
+          objective: "Calculate an absolute benefit.",
+          stem: "A 90-day trial reports that 30 of 500 people allocated to a new treatment and 50 of 500 allocated to usual care had at least one admission. How many fewer people per 1,000 allocated to the new treatment had at least one admission by day 90, compared with usual care?",
+          options: [
+            {
+              id: "A",
+              text: "20",
+              feedback: "Twenty is the raw difference between groups of 500."
+            },
+            {
+              id: "B",
+              text: "40",
+              feedback: "The absolute difference of 0.04 corresponds to 40 fewer people with at least one admission per 1,000."
+            },
+            {
+              id: "C",
+              text: "60",
+              feedback: "Sixty per 1,000 is the treatment risk."
+            },
+            {
+              id: "D",
+              text: "100",
+              feedback: "One hundred per 1,000 is the usual care risk."
+            },
+            {
+              id: "E",
+              text: "400",
+              feedback: "40% is the relative reduction in the risk of having at least one admission. The question asks for the absolute difference per 1,000 people."
+            }
+          ],
+          correct: "B",
+          hint: "Calculate the two risks before subtracting.",
+          lesson: "Report a common denominator and time.",
+          explanation: "The absolute difference is 50/500 \u2212 30/500 = 0.04. This estimates 40 fewer people with at least one admission per 1,000 allocated to the new treatment by day 90.",
+          help: "clinical_epidemiology/nnt.htm",
+          operation: "",
+          lessonId: "clinical-abstract",
+          difficulty: "beginner",
+          learnerGoals: [
+            "undergraduateMedicine",
+            "postgraduateMedicine",
+            "publicHealth",
+            "usMedicalBoards"
+          ],
+          sourceIds: [
+            "usmle-2026"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "bc0c3d6775c62558431e24dd32964c9ec969212766e3099f07393929377cb143"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+        "https://www.usmle.org/exam-resources/step-3-materials/step-3-formats-questions"
+      ]
+    },
+    {
+      id: "causal-adjustment",
+      title: "Causal comparisons and effect modification",
+      topic: "Causal inference",
+      objective: "Define a target comparison and distinguish confounding, mediation, selection and effect modification.",
+      summary: "Begin by imagining the trial you would run. Define eligibility, follow-up, the treatment strategies and the outcome. Then use a directed acyclic graph (DAG) to state which variables you assume cause others. Arrows point from cause to effect, and following them cannot bring you back to the same variable.",
+      challenge: "Which variables would you adjust for to estimate the total effect, and why? Explain what would make the adjusted result misleading.",
+      steps: "Draw the proposed DAG for the fictional cohort. A is age, T is treatment, Y is later admission, M is early improvement, F is a follow-up visit, and U is access to care. Draw A \u2192 T, A \u2192 Y, T \u2192 Y, T \u2192 M, M \u2192 Y, T \u2192 F, U \u2192 F and U \u2192 Y. Before checking the worked answer, mark the arrows that form an alternative path between treatment and admission. Choose which measured variable to adjust for. Then calculate the age-specific contrasts and use the same age weights for each treatment group.",
+      operation: "",
+      help: "basics/confounding.htm",
+      columns: [
+        {
+          title: "Age (0 younger, 1 older)",
+          values: [
+            0,
+            0,
+            1,
+            1
+          ]
+        },
+        {
+          title: "Treated",
+          values: [
+            1,
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          title: "People",
+          values: [
+            60,
+            160,
+            160,
+            60
+          ]
+        },
+        {
+          title: "Admitted",
+          values: [
+            3,
+            16,
+            24,
+            18
+          ]
+        }
+      ],
+      r: "risk_t <- c(3/60, 24/160)\nrisk_c <- c(16/160, 18/60)\nw <- c(.5,.5)\nstd_t <- sum(w*risk_t)\nstd_c <- sum(w*risk_c)\nstopifnot(isTRUE(all.equal(c(std_t,std_c,risk_t-risk_c,risk_t/risk_c),c(.10,.20,-.05,-.15,.5,.5))))\nprint(rbind(risk_ratio=risk_t/risk_c,risk_difference=risk_t-risk_c))\nprint(c(crude_t=27/220,crude_c=34/220,adjusted_t=std_t,adjusted_c=std_c))\n",
+      contentVersion: "2026-11-15-r2-q272569c336b6",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "9f659c042c4ace1b35c60d85d5edb3741a42dd19bd56bbd8a591e80ad2025710"
+      },
+      prerequisites: [
+        "causal",
+        "risk"
+      ],
+      learningObjectives: [
+        "Define a target comparison and distinguish confounding, mediation, selection and effect modification.",
+        "Which variables would you adjust for to estimate the total effect, and why? Explain what would make the adjusted result misleading."
+      ],
+      keyConcepts: [
+        {
+          term: "Identification assumptions",
+          explanation: "Measured covariates must suffice to make treatment groups comparable, each strategy must occur for the people being compared, and observed outcomes must correspond to the strategies as defined. Also consider measurement, follow-up and interference."
+        },
+        {
+          term: "Confounder, mediator, collider",
+          explanation: "A pre-treatment common cause of treatment and outcome can confound. A post-treatment intermediate can transmit part of the effect. Conditioning on a common effect of treatment and another cause of outcome can introduce bias."
+        },
+        {
+          term: "Reading a DAG",
+          explanation: "A \u2192 T and A \u2192 Y create the backdoor path T \u2190 A \u2192 Y. M carries part of the treatment effect. F is a collider on T \u2192 F \u2190 U \u2192 Y. Restricting to patients who return for follow-up can open this path even when access to care does not determine treatment."
+        },
+        {
+          term: "Effect modification",
+          explanation: "Differences in effect depend on the scale. A constant ratio can produce very different absolute benefits in populations with different baseline risks."
+        },
+        {
+          term: "Adjustment methods",
+          explanation: "Standardisation averages risks over a target population. Propensity weighting uses the probability of receiving observed treatment given measured baseline covariates. Look for poor overlap, extreme weights and imbalance. An adjusted estimate still depends on design and assumptions."
+        },
+        {
+          term: "Design before adjustment",
+          explanation: "Misaligning eligibility, treatment assignment and follow-up can give a group event-free time it had to survive to enter. A larger regression model alone does not fix this."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "Adjust for everything measured.",
+          correction: "Pick variables using the causal question and time ordering. Adjusting for intermediates or colliders can bias a total-effect estimate."
+        },
+        {
+          claim: "No interaction on the relative scale means equal absolute benefit.",
+          correction: "That conclusion does not follow when untreated risks differ."
+        }
+      ],
+      workedExample: {
+        design: "Fictional pneumonia service cohort. Younger patients have 3/60 admissions on treatment and 16/160 untreated. Older patients have 24/160 on treatment and 18/60 untreated. Age is measured before treatment. Standardise to equal proportions of younger and older people.",
+        interpretation: "For the total effect under the stated DAG, adjust for age to close T \u2190 A \u2192 Y. Leave early improvement unadjusted so the mediated effect stays in the comparison. Do not select only follow-up attendees, since F is a collider. Standardising to the same 50:50 age mix gives 10% treated and 20% untreated. The risk difference is \u221210 points. Each age-specific risk ratio is 0.5, while the risk differences are \u22125 and \u221215 points. The graph and estimates still rely on stated assumptions."
+      },
+      teachingPrompts: [
+        {
+          level: "advanced",
+          prompt: "Which variables would you adjust for to estimate the total effect, and why? Explain what would make the adjusted result misleading.",
+          expectedReasoning: "Trace T \u2190 A \u2192 Y, T \u2192 M \u2192 Y and T \u2192 F \u2190 U \u2192 Y. Adjust for age alone under this diagram. Explain the effect lost after adjusting for early improvement and the bias introduced by selecting follow-up attendees."
+        }
+      ],
+      rProgression: {
+        menus: "Tabulate events and people by age and treatment.",
+        bridge: "Compute within-age risks in R and apply identical weights.",
+        coding: "Change the target age mix and compare the absolute and relative contrasts."
+      },
+      sources: [
+        {
+          id: "what-if",
+          title: "Hern\xE1n and Robins: Causal Inference, What If",
+          url: "https://miguelhernan.org/whatifbook",
+          scope: "Causal identification, causal diagrams (Chapters 6\u20138), standardisation, weighting and target-trial principles.",
+          checkedAt: "2026-11-15",
+          use: "Methodological reference."
+        },
+        {
+          id: "abpm-ph",
+          title: "ABPM: Public Health and General Preventive Medicine",
+          url: "https://www.theabpm.org/become-certified/exam-content/public-health-and-general-preventive-medicine-content-outline/",
+          scope: "Bias, study design, causal reasoning and population-level interpretation.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        }
+      ],
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      assessmentIds: [
+        "BIO-CAUSAL-01",
+        "BIO-CAUSAL-02",
+        "BIO-CAUSAL-03",
+        "BIO-CAUSAL-04"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-CAUSAL-01",
+          version: 1,
+          track: "researcher",
+          topic: "Causal inference",
+          objective: "Recognise interaction on the absolute scale.",
+          stem: "A treatment halves event risk in both age strata. Untreated risks are 10% in younger people and 30% in older people. How do absolute benefits compare?",
+          options: [
+            {
+              id: "A",
+              text: "They are each 50 percentage points.",
+              feedback: "The ratio halves the stated baseline risk; it does not subtract 50 points."
+            },
+            {
+              id: "B",
+              text: "They must be identical.",
+              feedback: "An identical ratio need not produce an identical risk difference."
+            },
+            {
+              id: "C",
+              text: "5 points younger, 15 points older.",
+              feedback: "Halving the two baseline risks prevents different numbers of events per 100."
+            },
+            {
+              id: "D",
+              text: "15 points younger, 5 points older.",
+              feedback: "The higher baseline risk has the larger absolute benefit here."
+            },
+            {
+              id: "E",
+              text: "They cannot be calculated.",
+              feedback: "The baseline risks and the stratum-specific ratios suffice for these contrasts."
+            }
+          ],
+          correct: "C",
+          hint: "Halve each untreated risk and subtract.",
+          lesson: "Effect modification depends on the scale.",
+          explanation: "Risk moves from 10% to 5%, and from 30% to 15%. The absolute reduction is larger in the older group.",
+          help: "basics/confounding.htm",
+          operation: "",
+          lessonId: "causal-adjustment",
+          difficulty: "advanced",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "publicHealth",
+            "mastersStatistics",
+            "usMedicalBoards"
+          ],
+          sourceIds: [
+            "what-if"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "7328ba85ac120eedb7debc0ee42d8b062be8352d6b23080b0bfbc3cf8a52773d"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://miguelhernan.org/whatifbook",
+        "https://www.theabpm.org/become-certified/exam-content/public-health-and-general-preventive-medicine-content-outline/"
+      ]
+    },
+    {
+      id: "evidence-synthesis",
+      title: "Systematic reviews and certainty of evidence",
+      topic: "Evidence synthesis",
+      objective: "Read pooled effects, heterogeneity and prediction intervals alongside the certainty of the evidence.",
+      summary: "A systematic review follows a reproducible search and appraisal process. Pool studies only if their questions and effect measures can be sensibly combined. A forest plot shows individual study estimates and intervals alongside a pooled estimate when one is calculated.",
+      challenge: "An average effect favours the intervention but the prediction interval includes harm. How would you describe this to a service deciding whether to adopt it?",
+      steps: "Run the R example and read the forest plot for five fictional studies. Negative differences mean faster recovery with the intervention. Find the vertical null line at zero, then identify the first study's square and horizontal confidence interval. Compare the pooled diamond with the dashed prediction interval. Ask what might differ in a new setting and whether any studies share participants or comparator groups.",
+      operation: "",
+      help: "meta_analysis/summary.htm",
+      columns: [
+        {
+          title: "Difference (days)",
+          values: [
+            -4,
+            -3,
+            -2,
+            -1,
+            0
+          ]
+        },
+        {
+          title: "Standard error",
+          values: [
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        }
+      ],
+      r: 'y <- -4:0\nv <- rep(1, length(y))\nk <- length(y)\nw <- 1/v\nQ <- sum(w*(y-weighted.mean(y,w))^2)\ni2 <- max(0,(Q-(k-1))/Q)\n# Closed form of REML here because all within-study variances are equal.\ntau2 <- max(0,var(y)-v[1])\nwr <- 1/(v+tau2)\nestimate <- weighted.mean(y,wr)\n# HKSJ t interval and an approximate prediction interval (Cochrane handbook).\nhk_se <- sqrt(sum(wr*(y-estimate)^2)/(k-1)/sum(wr))\nci <- estimate+c(-1,1)*qt(.975,k-1)*hk_se\npi <- estimate+c(-1,1)*qt(.975,k-1)*sqrt(tau2+hk_se^2)\nstopifnot(isTRUE(all.equal(c(Q,i2,tau2,estimate),c(10,.6,1.5,-2))),\n          all(abs(ci-c(-3.96324,-.03676))<.0001),\n          all(abs(pi-c(-5.92649,1.92649))<.0001))\nprint(round(c(Q=Q,I2=i2,tau2=tau2,mean_effect=estimate,CI=ci,PI=pi),3))\nrow <- k:1\nlim <- qnorm(.975)*sqrt(v)\nplot(y,row,xlim=range(y-lim,y+lim,pi),ylim=c(-1.5,k+.5),\n     yaxt="n",ylab="",xlab="Difference in recovery time (days)",\n     main="Forest plot: fictional recovery-time studies",pch=15)\naxis(2,at=c(-1,0,row),labels=c("Prediction","Average",paste("Study",seq_len(k))),las=1)\nabline(v=0,lty=2)\nsegments(y-lim,row,y+lim,row)\npolygon(c(ci[1],estimate,ci[2],estimate),c(0,.25,0,-.25),col="grey30")\nsegments(pi[1],-1,pi[2],-1,lwd=2,lty=3)\n',
+      contentVersion: "2026-11-15-r2-qf8aead760fd7",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "f12ae2f09472e1a2419e0a06bf0ac7e3d6e5c5080e667243adee8b0071f831c8"
+      },
+      prerequisites: [
+        "appraisal",
+        "meta"
+      ],
+      learningObjectives: [
+        "Read pooled effects, heterogeneity and prediction intervals alongside the certainty of the evidence.",
+        "An average effect favours the intervention but the prediction interval includes harm. How would you describe this to a service deciding whether to adopt it?"
+      ],
+      keyConcepts: [
+        {
+          term: "Forest plot",
+          explanation: "A square shows a study estimate and its horizontal line shows a confidence interval. Square area can encode study weight. Here weights are equal. The centre of the diamond is the pooled estimate and its width is the pooled confidence interval. The separate dashed line shows the prediction interval."
+        },
+        {
+          term: "Between-study variability",
+          explanation: "Tau-squared estimates variance of underlying study effects on the analysis scale. I-squared estimates the share of observed variability attributed to heterogeneity rather than sampling error under the model; it is not the percentage of inconsistent studies."
+        },
+        {
+          term: "Two intervals",
+          explanation: "A confidence interval for the average effect concerns uncertainty about that mean. A prediction interval adds heterogeneity to describe the plausible true effect in a comparable new setting. Both depend on model assumptions and can be unstable with few studies."
+        },
+        {
+          term: "Funnel plots and small-study effects",
+          explanation: "Funnel asymmetry can reflect selective reporting, genuine differences, chance or methodological differences between smaller and larger studies. Visual and formal checks have limited power with few studies."
+        },
+        {
+          term: "Certainty for each outcome",
+          explanation: "Ask about risk of bias, inconsistency, indirectness, imprecision and publication bias. A very precise pooled estimate can still have low certainty."
+        },
+        {
+          term: "Effect measure and dependence",
+          explanation: "Use a mean difference for the same scale, a standardised mean difference for compatible constructs measured on different scales, and a log scale for ratios. Avoid double counting shared controls or cohorts."
+        },
+        {
+          term: "PRISMA reporting",
+          explanation: "Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) helps readers see what the reviewers searched, screened, excluded and included. A clear report allows appraisal. It cannot by itself establish low risk of bias or high certainty."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "Use a fixed-effect model whenever the heterogeneity P value is above 0.05.",
+          correction: "A test can miss real heterogeneity with few studies. Choose the model based on the question, design and clinical diversity before seeing the results."
+        },
+        {
+          claim: "A random-effects model solves information bias and makes any studies poolable.",
+          correction: "It models variation in true effects; it does not correct bias, non-comparable designs or dependent observations."
+        }
+      ],
+      workedExample: {
+        design: "Fictional five-study synthesis of an intervention's effect on recovery time. Differences are intervention minus usual care in days. Studies are independent. All have a reported SE of 1 day. Effects are \u22124, \u22123, \u22122, \u22121 and 0 days.",
+        interpretation: "The estimated average is \u22122 days. In this teaching calculation the mean-effect 95% interval is about \u22123.96 to \u22120.04 days and the prediction interval is about \u22125.93 to +1.93 days. An average reduction allows benefits or increases at individual sites. This small example cannot validate the model."
+      },
+      teachingPrompts: [
+        {
+          level: "advanced",
+          prompt: "An average effect favours the intervention but the prediction interval includes harm. How would you describe this to a service deciding whether to adopt it?",
+          expectedReasoning: "Name the outcome and what each interval estimates. Discuss applicability, statistical heterogeneity and independent bias appraisal before judging certainty."
+        }
+      ],
+      rProgression: {
+        menus: "In the basic meta-analysis lesson, inspect an estimate and confidence interval for each study.",
+        bridge: "Compare its common-effect calculation with this small random-effects example in R.",
+        coding: "Change one study's estimate and track I-squared, tau-squared and the prediction interval."
+      },
+      sources: [
+        {
+          id: "cochrane-meta",
+          title: "Cochrane Handbook: Meta-analysis",
+          url: "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-10",
+          scope: "Weights, heterogeneity, prediction intervals and small-study effects.",
+          checkedAt: "2026-11-15",
+          use: "Methods; the example explicitly identifies its estimator and interval choices."
+        },
+        {
+          id: "cochrane-grade",
+          title: "Cochrane Handbook: Certainty of the evidence",
+          url: "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-14",
+          scope: "Certainty is graded by outcome using several domains.",
+          checkedAt: "2026-11-15",
+          use: "Evidence appraisal."
+        },
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+          scope: "Systematic reviews, forest and funnel plots, risk of bias.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        },
+        {
+          id: "prisma-2020",
+          title: "PRISMA 2020 statement",
+          url: "https://www.prisma-statement.org/prisma-2020",
+          scope: "Checklist and flow diagram for transparent systematic review reporting.",
+          checkedAt: "2026-11-15",
+          use: "Reporting guidance."
+        },
+        {
+          id: "rcpsych-2027-reporting",
+          title: "MRCPsych Paper B syllabus from January 2027, section 13.12",
+          url: "https://www.rcpsych.ac.uk/docs/default-source/training/examinations/mrcpsych-syllabus-2027/mrcpsych-paper-b-syllabus-2027.pdf#page=43",
+          scope: "PRISMA and reporting guidelines.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        }
+      ],
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      assessmentIds: [
+        "BIO-SYNTH-01",
+        "BIO-SYNTH-02",
+        "BIO-SYNTH-03",
+        "BIO-SYNTH-04"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-SYNTH-01",
+          version: 1,
+          track: "researcher",
+          topic: "Evidence synthesis",
+          objective: "Distinguish the interval for a mean effect from an interval for a new setting.",
+          stem: "A meta-analysis estimates a 2-day average reduction in recovery time. Its 95% confidence interval for the mean excludes zero, but its prediction interval includes no reduction and some prolongation. Which interpretation is best?",
+          options: [
+            {
+              id: "A",
+              text: "Every setting should expect a shorter recovery.",
+              feedback: "A confidence interval for a mean does not describe every setting."
+            },
+            {
+              id: "B",
+              text: "The study outcomes must have been measured incorrectly.",
+              feedback: "The pattern can arise from real heterogeneity."
+            },
+            {
+              id: "C",
+              text: "The two results contradict each other.",
+              feedback: "They are intervals for different quantities."
+            },
+            {
+              id: "D",
+              text: "The result rules out increased recovery time in a new setting.",
+              feedback: "The prediction interval allows such an effect."
+            },
+            {
+              id: "E",
+              text: "The estimated average favours the intervention, but effects in comparable settings may differ.",
+              feedback: "The distinction matters when choosing whether to adopt the intervention."
+            }
+          ],
+          correct: "E",
+          hint: "Ask what each interval is intended to cover.",
+          lesson: "A pooled effect is a summary of study evidence, not a guaranteed local effect.",
+          explanation: "The mean-effect interval reflects uncertainty in the average. A prediction interval accounts for heterogeneity and allows no benefit or harm in a comparable setting under the model.",
+          help: "meta_analysis/summary.htm",
+          operation: "",
+          lessonId: "evidence-synthesis",
+          difficulty: "advanced",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "publicHealth",
+            "mastersStatistics",
+            "usMedicalBoards"
+          ],
+          sourceIds: [
+            "cochrane-meta"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "836616654efd6ebae9b15ae66a8ae1cdab93adf73fdd2e7f494fd6d3c779e48f"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-10",
+        "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-14",
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+        "https://www.prisma-statement.org/prisma-2020",
+        "https://www.rcpsych.ac.uk/docs/default-source/training/examinations/mrcpsych-syllabus-2027/mrcpsych-paper-b-syllabus-2027.pdf#page=43"
+      ]
+    },
+    {
+      id: "population-impact",
+      title: "Population impact and health economic measures",
+      topic: "Population health",
+      objective: "Distinguish individual risk, attributable burden, vaccine effectiveness and health economic comparisons.",
+      summary: "Give the target population, period and counterfactual. Group risk comparisons do not by themselves establish the outcomes that would change if an exposure or programme changed.",
+      challenge: "Explain the difference between the observed burden, the burden possibly avoidable under an intervention, and whether the intervention is affordable.",
+      steps: "Calculate a population risk difference and attributable fraction under the stated assumptions. Then compare the extra cost and extra quality-adjusted life years of two fictional strategies.",
+      operation: "",
+      help: "rates/direct_standardization.htm",
+      columns: [
+        {
+          title: "Exposed (1 yes, 0 no)",
+          values: [
+            1,
+            0
+          ]
+        },
+        {
+          title: "People",
+          values: [
+            1e3,
+            4e3
+          ]
+        },
+        {
+          title: "Events",
+          values: [
+            100,
+            200
+          ]
+        }
+      ],
+      r: "pop <- c(1000,4000)\nevents <- c(100,200)\nobs <- sum(events)/sum(pop)\nscenario <- .05\npaf <- (obs-scenario)/obs\nicer <- 50000/2\nstopifnot(isTRUE(all.equal(c(obs,sum(pop)*(obs-scenario),paf,icer),c(.06,50,1/6,25000))))\nprint(c(observed=obs,counterfactual=scenario,population_fraction=paf,extra_cost_per_QALY=icer))\n",
+      contentVersion: "2026-11-15-q37e007a8d809",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "946f0b835c1e2a0d697eedabd73df66efb59bd26cab4e6db04c646f09a00a6ed"
+      },
+      prerequisites: [
+        "epidemiology",
+        "rates",
+        "risk"
+      ],
+      learningObjectives: [
+        "Distinguish individual risk, attributable burden, vaccine effectiveness and health economic comparisons.",
+        "Explain the difference between the observed burden, the burden possibly avoidable under an intervention, and whether the intervention is affordable."
+      ],
+      keyConcepts: [
+        {
+          term: "Attributable fraction in the population",
+          explanation: "Compare the observed population risk with the risk under a specified intervention, divided by the observed risk. Using the unexposed risk for everyone requires strong causal and transport assumptions."
+        },
+        {
+          term: "Vaccine effectiveness",
+          explanation: "For a comparable risk comparison, 1 minus the risk ratio estimates relative risk reduction. Interpret relative to the outcome, follow-up and vaccination strategy. In observational data consider confounding, prior infection, selection and ascertainment."
+        },
+        {
+          term: "Population descriptors",
+          explanation: "Check the definitions and denominators of maternal, neonatal and perinatal measures. The standardised mortality ratio divides observed by expected events based on reference rates; state whether reported as a ratio or as a percentage."
+        },
+        {
+          term: "Health-adjusted measures",
+          explanation: "A QALY combines time and health utility. A DALY represents years of life lost plus years lived with disability. Years of potential life lost uses a stated age reference; these measures answer different questions."
+        },
+        {
+          term: "Incremental cost effectiveness",
+          explanation: "Divide the difference in costs by the difference in health benefits for the relevant comparator. Specify the perspective, horizon, discounting and uncertainty. Cost effectiveness does not establish affordability."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "A risk ratio of 2 means half of all cases in the population are attributable.",
+          correction: "Population impact depends on exposure distribution and the counterfactual risk."
+        },
+        {
+          claim: "Compare each programme's cost divided by its own total QALYs.",
+          correction: "Compare the extra costs to the extra benefits relative to the alternative."
+        }
+      ],
+      workedExample: {
+        design: "Fictional cohort: 1,000 exposed residents have 100 events; 4,000 unexposed have 200 events during the same year. If an intervention reduced exposed risk to 5% without other changes, the population would have 250 instead of 300 events. Separately, a new programme costs 50,000 more and produces 2 more QALYs in this exercise.",
+        interpretation: "Under the stated scenario the population risk changes from 6% to 5%: a relative reduction in population events of 50/300, about 16.7%. The crude exposed vs unexposed risk ratio is 2. The incremental programme cost is 25,000 per additional QALY."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "Explain the difference between the observed burden, the burden possibly avoidable under an intervention, and whether the intervention is affordable.",
+          expectedReasoning: "State the assumptions behind assigning everyone a 5% risk. Do not multiply a relative reduction by all events. Keep a separate budget and sensitivity analysis for the programme."
+        }
+      ],
+      rProgression: {
+        menus: "Tabulate people and events per group. Use a two-group risk comparison for the observed cohort.",
+        bridge: "In R compute the absolute and relative differences under an explicit hypothetical change.",
+        coding: "Vary exposure prevalence and the counterfactual risk; then vary programme cost and benefits independently."
+      },
+      sources: [
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+          scope: "Standardisation, reproductive health, population attributable burden and health-adjusted measures.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        },
+        {
+          id: "cdc-field",
+          title: "CDC Field Epidemiology Manual: Analyzing and Interpreting Data",
+          url: "https://www.cdc.gov/field-epi-manual/php/chapters/analyze-interpret-data.html",
+          scope: "Population attributable and prevented fractions.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference."
+        },
+        {
+          id: "nice-economic",
+          title: "NICE technology appraisal manual: Economic evaluation",
+          url: "https://www.nice.org.uk/process/pmg36/chapter/economic-evaluation-2",
+          scope: "Incremental cost utility and uncertainty in health economics.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference; example does not apply any policy threshold."
+        }
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      assessmentIds: [
+        "BIO-IMPACT-01",
+        "BIO-IMPACT-02",
+        "BIO-IMPACT-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-IMPACT-01",
+          version: 1,
+          track: "publicHealth",
+          topic: "Population health",
+          objective: "Calculate a population attributable fraction from a stated scenario.",
+          stem: "A population has 300 annual cases. A defined intervention is expected to prevent 50 of them without other changes. What proportion of the current population cases would it prevent?",
+          options: [
+            {
+              id: "A",
+              text: "1%",
+              feedback: "This might be a change in population risk if population size were known, not the proportion of current cases."
+            },
+            {
+              id: "B",
+              text: "6%",
+              feedback: "This is not the ratio of prevented to observed cases."
+            },
+            {
+              id: "C",
+              text: "16.7%",
+              feedback: "Fifty divided by 300 is one sixth."
+            },
+            {
+              id: "D",
+              text: "50%",
+              feedback: "The numerator is a count of 50 cases."
+            },
+            {
+              id: "E",
+              text: "83.3%",
+              feedback: "This is the fraction of cases expected to remain."
+            }
+          ],
+          correct: "C",
+          hint: "Use the total number of current cases as the denominator.",
+          lesson: "Keep population risk and fraction of cases distinct.",
+          explanation: "Under the assumptions the intervention would avert 50/300, or about 16.7% of current cases.",
+          help: "rates/direct_standardization.htm",
+          operation: "",
+          lessonId: "population-impact",
+          difficulty: "intermediate",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "publicHealth",
+            "mastersStatistics",
+            "usMedicalBoards"
+          ],
+          sourceIds: [
+            "cdc-field"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "2b4f7010c06dc9bc8037ede9ac1a9edd950ad80c229ac427e9d0e7a4e58ba07f"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+        "https://www.cdc.gov/field-epi-manual/php/chapters/analyze-interpret-data.html",
+        "https://www.nice.org.uk/process/pmg36/chapter/economic-evaluation-2"
+      ]
+    },
+    {
+      id: "uncertainty-sensitivity",
+      title: "Uncertainty, multiplicity and sensitivity analyses",
+      topic: "Statistical inference",
+      objective: "Assess how missing outcomes, multiple comparisons and alternative assumptions can change an analysis.",
+      summary: "Separate sampling error from bias and reporting choices. Be explicit about which questions are confirmatory. Show how conclusions change under plausible assumptions about data you cannot observe.",
+      challenge: "Describe why neither a P value nor a narrower confidence interval can resolve uncertainty about missing outcomes. Suggest a sensitivity analysis and a plan for primary and exploratory outcomes.",
+      steps: "Compute the probability of at least one false positive across 20 independent true nulls tested at 0.05. Then compute outcome bounds with missing follow-up in a randomised study.",
+      operation: "",
+      help: "basics/missing_data.htm",
+      columns: [
+        {
+          title: "Treated (1 yes, 0 no)",
+          values: [
+            1,
+            0
+          ]
+        },
+        {
+          title: "Randomised",
+          values: [
+            100,
+            100
+          ]
+        },
+        {
+          title: "Followed",
+          values: [
+            90,
+            90
+          ]
+        },
+        {
+          title: "Observed events",
+          values: [
+            8,
+            12
+          ]
+        }
+      ],
+      r: "fwer <- 1-(1-.05)^20\nsample_n <- c(100,100)\nobserved <- c(8,12)\nmissing <- c(10,10)\nlow <- observed/sample_n\nhigh <- (observed+missing)/sample_n\nrd_bound <- c(low[1]-high[2],high[1]-low[2])\nstopifnot(abs(fwer-.6415141)<1e-7,isTRUE(all.equal(rd_bound,c(-.14,.06))))\nprint(c(FWER=fwer,Bonferroni_cutoff=.05/20,min_RD=rd_bound[1],max_RD=rd_bound[2]))\n",
+      contentVersion: "2026-11-15-qaebe114b1c29",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "8407326ce9bf754654337f51caa85566a759afc0bedcf11a2b65d9a7dd731164"
+      },
+      prerequisites: [
+        "precision",
+        "missing",
+        "appraisal"
+      ],
+      learningObjectives: [
+        "Assess how missing outcomes, multiple comparisons and alternative assumptions can change an analysis.",
+        "Describe why neither a P value nor a narrower confidence interval can resolve uncertainty about missing outcomes. Suggest a sensitivity analysis and a plan for primary and exploratory outcomes."
+      ],
+      keyConcepts: [
+        {
+          term: "Multiplicity",
+          explanation: "The probability of at least one false positive can rise as more hypotheses are tested. When controlling familywise error, Bonferroni is valid without independence and can be conservative. False discovery rate controls a different quantity."
+        },
+        {
+          term: "Missing data assumptions",
+          explanation: "MCAR means missingness does not depend on observed or unobserved data. Under MAR it can depend on observed data but not the missing value after conditioning on them. Under MNAR it can depend on the missing value even after conditioning."
+        },
+        {
+          term: "Sensitivity and imputation",
+          explanation: "Multiple imputation pools uncertainty across plausible completed data sets under an explicit model. It does not repair poor measurement or prove MAR. Model-based sensitivity can vary assumptions about unobserved outcomes; bounds show what is possible without such assumptions."
+        },
+        {
+          term: "Resampling",
+          explanation: "A bootstrap can approximate sampling uncertainty if it reflects how data were collected. Resample independent units such as clusters or people, keeping related observations together. Resampling cannot correct systematic bias by itself."
+        },
+        {
+          term: "Audit trail",
+          explanation: "Prespecify primary outcomes and analysis where appropriate. Record denominator, exclusions, missingness, code, versions and sensitivity analyses without exposing identifiers."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "A non-significant result proves no effect.",
+          correction: "Read the effect estimates, intervals, power and assumptions; absence of evidence is not evidence of no meaningful effect."
+        },
+        {
+          claim: "Twenty significant-looking confidence intervals fix missing data.",
+          correction: "Intervals address a sampling model, and choosing among many analyses adds uncertainty rather than fixing the missing-outcome mechanism."
+        }
+      ],
+      workedExample: {
+        design: "Fictional trial: 8 events observed among 90 followed treated participants and 12 among 90 control; each group originally had 100. Separately, imagine 20 independent tests each with a true null.",
+        interpretation: "The chance of at least one false positive is about 64.2% in the stated family. The possible treated-minus-control risk difference is \u221214 to +6 percentage points under extreme missing outcomes. These are logical bounds, not confidence limits."
+      },
+      teachingPrompts: [
+        {
+          level: "advanced",
+          prompt: "Describe why neither a P value nor a narrower confidence interval can resolve uncertainty about missing outcomes. Suggest a sensitivity analysis and a plan for primary and exploratory outcomes.",
+          expectedReasoning: "Report the missing counts per group, reason about likely mechanisms, and show extremes and plausible alternatives. Match error control to the scientific decision; label exploratory results."
+        }
+      ],
+      rProgression: {
+        menus: "Use grouped counts to confirm the observed denominators before analysing.",
+        bridge: "Compute the familywise probability and missing-outcome bounds in R.",
+        coding: "Vary the number of unobserved events in each arm. Observe when the sign of the effect changes."
+      },
+      sources: [
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+          scope: "Chance, multiple comparisons, sample size and study interpretation.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        },
+        {
+          id: "rcpsych-b",
+          title: "RCPsych: Paper B syllabus from January 2027",
+          url: "https://www.rcpsych.ac.uk/docs/default-source/training/examinations/mrcpsych-syllabus-2027/mrcpsych-paper-b-syllabus-2027.pdf",
+          scope: "Research methods, missing data and multiple comparisons.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        },
+        {
+          id: "cochrane-missing",
+          title: "Cochrane Handbook: Missing outcome data",
+          url: "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-10",
+          scope: "Missing outcomes and sensitivity analyses.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference."
+        }
+      ],
+      difficulty: "advanced",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      assessmentIds: [
+        "BIO-UNCERT-01",
+        "BIO-UNCERT-02",
+        "BIO-UNCERT-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-UNCERT-01",
+          version: 1,
+          track: "researcher",
+          topic: "Statistical inference",
+          objective: "Calculate the familywise error probability under independent true nulls.",
+          stem: "Twenty independent tests all have true null hypotheses. Each rejects falsely with probability 0.05. What is the probability of at least one false rejection?",
+          options: [
+            {
+              id: "A",
+              text: "5%",
+              feedback: "This is the probability for a single test."
+            },
+            {
+              id: "B",
+              text: "36%",
+              feedback: "This is close to the probability of no false rejections."
+            },
+            {
+              id: "C",
+              text: "50%",
+              feedback: "The probability should be calculated from the complement."
+            },
+            {
+              id: "D",
+              text: "64%",
+              feedback: "The complement of 0.95 to the 20th power is about 0.642."
+            },
+            {
+              id: "E",
+              text: "100%",
+              feedback: "The expected number of false rejections is one; that does not mean at least one is certain."
+            }
+          ],
+          correct: "D",
+          hint: "Calculate the probability all 20 avoid a false rejection.",
+          lesson: "A familywise error rate concerns at least one error among a set of tests.",
+          explanation: "Under independence the probability is 1 \u2212 0.95^20 \u2248 64.2%. Under dependence this formula generally changes.",
+          help: "basics/missing_data.htm",
+          operation: "",
+          lessonId: "uncertainty-sensitivity",
+          difficulty: "advanced",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "publicHealth",
+            "mastersStatistics",
+            "usMedicalBoards"
+          ],
+          sourceIds: [
+            "usmle-2026"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "654abbc8e31a7aef5ae829cc467be418a2f28f75d2508f3069109118fdd21703"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+        "https://www.rcpsych.ac.uk/docs/default-source/training/examinations/mrcpsych-syllabus-2027/mrcpsych-paper-b-syllabus-2027.pdf",
+        "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-10"
+      ]
+    },
+    {
+      id: "study-designs",
+      title: "Choose a study design and comparison group",
+      topic: "Study design",
+      objective: "Identify what a study can estimate from how it sampled participants and measured outcomes.",
+      summary: "Start with a question and the source population. The design determines the comparison, useful denominator and threats to validity. Interviews and other qualitative methods can explain experiences that a risk estimate alone cannot.",
+      challenge: "Explain whom you would recruit as controls and what information you would need to estimate disease occurrence.",
+      steps: "For a fictional case-control study, calculate the exposure odds ratio using the cross-product. Decide what would happen if twice as many controls were sampled in the same exposure proportions.",
+      operation: "",
+      help: "basics/bias.htm",
+      columns: [
+        {
+          title: "Cases (1 yes, 0 control)",
+          values: [
+            1,
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          title: "Exposure (1 yes, 0 no)",
+          values: [
+            1,
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          title: "Count",
+          values: [
+            40,
+            20,
+            20,
+            40
+          ]
+        }
+      ],
+      r: "tab <- rbind(cases=c(exposed=40,unexposed=20),controls=c(exposed=20,unexposed=40))\nor <- function(x) x[1,1]*x[2,2]/(x[1,2]*x[2,1])\ndoubled <- tab\ndoubled[2,] <- 2*doubled[2,]\nstopifnot(or(tab)==4,or(doubled)==4,\n          isTRUE(all.equal(c(sum(tab[1,])/sum(tab),sum(doubled[1,])/sum(doubled)),c(.5,1/3))))\nprint(tab)\nprint(c(odds_ratio=or(tab),odds_ratio_more_controls=or(doubled)))\n",
+      contentVersion: "2026-11-15-qf1b33a38bb74",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "62b97f461c4934aa90729f8eee69a8a1e683fb215d0e92a13311142e0b0c53ec"
+      },
+      prerequisites: [
+        "appraisal",
+        "epidemiology"
+      ],
+      learningObjectives: [
+        "Identify what a study can estimate from how it sampled participants and measured outcomes.",
+        "Explain whom you would recruit as controls and what information you would need to estimate disease occurrence."
+      ],
+      keyConcepts: [
+        {
+          term: "Descriptive and observational designs",
+          explanation: "Case reports and series can generate hypotheses. Cross-sectional surveys measure status at a point or period. A cohort starts from a defined population or exposure and can estimate risk or rate if denominators and follow-up are known."
+        },
+        {
+          term: "Case-control designs",
+          explanation: "Controls represent the exposure experience of the source population that produced the cases, with exact requirements depending on sampling. In ordinary cumulative sampling the association is an odds ratio, which approximates a risk ratio under rare-outcome conditions. With risk-set sampling the appropriate odds-ratio analysis estimates a rate ratio without that assumption."
+        },
+        {
+          term: "Transient exposures",
+          explanation: "In a case-crossover study, compare exposure in a defined hazard window before an acute event with exposure during control windows for the same person. Time trends and choice of windows can bias the result."
+        },
+        {
+          term: "Policy evaluation",
+          explanation: "Interrupted time series examines level or trend changes against a projected baseline. Difference in differences compares pre/post changes against a comparison group; it relies on a credible parallel trend in the absence of intervention, among other assumptions."
+        },
+        {
+          term: "Qualitative and mixed methods",
+          explanation: "Interviews or observations can investigate mechanisms, experience and implementation. Sample for adequate depth and perspective. Mixed methods deliberately integrate qualitative and quantitative findings; qualitative themes are not population percentages."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "Any people without the disease can be controls.",
+          correction: "Controls should be chosen from people who could have produced a recorded case under the study definition."
+        },
+        {
+          claim: "Matching eliminates confounding automatically.",
+          correction: "Analyse the matching as designed and consider whether matching variables were appropriate. It does not address unmeasured confounding."
+        }
+      ],
+      workedExample: {
+        design: "Fictional case-control study of an acute reaction. Forty cases were exposed and 20 unexposed. Twenty sampled controls were exposed and 40 unexposed. The study chose the numbers of cases and controls.",
+        interpretation: "The exposure odds ratio is (40 \xD7 40)/(20 \xD7 20) = 4. Doubling both control counts still gives 4. The case fraction in the recruited sample changes from 1/2 to 1/3; neither fraction estimates population disease risk."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "Explain whom you would recruit as controls and what information you would need to estimate disease occurrence.",
+          expectedReasoning: "Identify the design from how participants entered. State who was eligible at the same sites and times and whether exposure was ascertained comparably. Name a likely source of bias before interpreting the odds ratio."
+        }
+      ],
+      rProgression: {
+        menus: "Compare case and control counts in a 2 \xD7 2 table. For matched cases use a method that respects pairing.",
+        bridge: "Use the cross-product in R to check the odds ratio, keeping the row and column labels.",
+        coding: "Change the fraction of controls sampled and explain why risks still cannot be read from these four cells."
+      },
+      sources: [
+        {
+          id: "cdc-design",
+          title: "CDC Field Epidemiology Manual: Designing analytic studies",
+          url: "https://www.cdc.gov/field-epi-manual/php/chapters/design-conduct-analyze-field-studies.html",
+          scope: "Design selection and source populations for controls.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference."
+        },
+        {
+          id: "nih-mixed",
+          title: "NIH OBSSR: Mixed methods research",
+          url: "https://obssr.od.nih.gov/research-resources/mixed-methods-research",
+          scope: "Integration of qualitative and quantitative questions and methods.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference."
+        },
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+          scope: "Observational and interventional designs, qualitative analysis and control selection.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        }
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "undergraduateMedicine",
+        "postgraduateMedicine",
+        "publicHealth",
+        "usMedicalBoards"
+      ],
+      assessmentIds: [
+        "BIO-DESIGN-01",
+        "BIO-DESIGN-02",
+        "BIO-DESIGN-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-DESIGN-01",
+          version: 1,
+          track: "core",
+          topic: "Study design",
+          objective: "Identify controls from the population that produced the cases.",
+          stem: "A clinic studies whether an exposure is associated with an acute condition using a case-control design. Cases are residents of its catchment who developed the condition during one year. Which criterion matters most for selecting controls?",
+          options: [
+            {
+              id: "A",
+              text: "They had no exposure of interest.",
+              feedback: "Selecting on exposure can distort the comparison."
+            },
+            {
+              id: "B",
+              text: "Their age exactly equals the mean age of the cases.",
+              feedback: "Source population membership is central. Matching is optional and does not mean selecting the case-group mean."
+            },
+            {
+              id: "C",
+              text: "They come from people who could have been identified as cases had they developed the condition that year.",
+              feedback: "Controls should reflect the relevant population and time at risk."
+            },
+            {
+              id: "D",
+              text: "They are from a different region with no access to the clinic.",
+              feedback: "The region may have a different exposure distribution and different case ascertainment."
+            },
+            {
+              id: "E",
+              text: "Their number equals the number of cases.",
+              feedback: "The number of controls concerns precision, not the fundamental selection criterion."
+            }
+          ],
+          correct: "C",
+          hint: "Ask where the cases came from before matching or counting controls.",
+          lesson: "Controls provide a comparison of exposure in a specified source population.",
+          explanation: "Controls should come from the source population that generated the cases under the study's eligibility and ascertainment rules.",
+          help: "basics/bias.htm",
+          operation: "",
+          lessonId: "study-designs",
+          difficulty: "intermediate",
+          learnerGoals: [
+            "undergraduateMedicine",
+            "postgraduateMedicine",
+            "publicHealth",
+            "usMedicalBoards"
+          ],
+          sourceIds: [
+            "cdc-design"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "527e9c8c6fb58b50a98de33736955ea544bd56bd7627960f867341f52ea9f6f3"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.cdc.gov/field-epi-manual/php/chapters/design-conduct-analyze-field-studies.html",
+        "https://obssr.od.nih.gov/research-resources/mixed-methods-research",
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37"
+      ]
+    },
+    {
+      id: "research-integrity",
+      title: "Interim analyses and reproducible research",
+      topic: "Research conduct",
+      objective: "Recognise why repeated looks need a plan, and identify what makes a statistical result reproducible and suitable to share.",
+      summary: "Prespecify the analysis and monitoring where appropriate. Record which data and code produced each result, explain departures and protect participants' privacy. Keep exploratory work clearly labelled. In drug development, use the study phase to identify its intended purpose, then judge what the design and results can support.",
+      challenge: "Explain how you would monitor harm, assess bias, and share the analysis without sending identifiable participant data.",
+      steps: "Compare one test at 0.05 with an illustration of two independent tests at 0.05. Actual interim analyses usually reuse accumulating data and are dependent. Plan monitoring with a statistician and an independent monitoring committee as appropriate.",
+      operation: "",
+      help: "basics/bias.htm",
+      columns: [
+        {
+          title: "Number of independent looks",
+          values: [
+            1,
+            2
+          ]
+        },
+        {
+          title: "Per-look error probability",
+          values: [
+            0.05,
+            0.05
+          ]
+        }
+      ],
+      r: "p <- .05\ntwice <- 1-(1-p)^2\nbonf <- 1-(1-p/2)^2\nstopifnot(isTRUE(all.equal(twice,2*p-p^2)),abs(twice-.0975)<1e-12,\n          abs(bonf-.049375)<1e-12)\nprint(c(one=p,two_independent=twice,two_independent_split=bonf))\n",
+      contentVersion: "2026-11-15-r2-q8879039ce0f7",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "6a59f25bb9bca080e71484f24c8a6566f7cfbb52f344a48ab52316962156da8d"
+      },
+      prerequisites: [
+        "appraisal",
+        "uncertainty-sensitivity"
+      ],
+      learningObjectives: [
+        "Recognise why repeated looks need a plan, and identify what makes a statistical result reproducible and suitable to share.",
+        "Explain how you would monitor harm, assess bias, and share the analysis without sending identifiable participant data.",
+        "Distinguish the typical purposes of drug trial phases from the evidence needed for a specific claim."
+      ],
+      keyConcepts: [
+        {
+          term: "Repeated analyses",
+          explanation: "Testing repeatedly and stopping at the first conventional P value can inflate the false-positive probability. Group-sequential designs prespecify looks and boundaries, for example using alpha spending. Their calculations account for planned information and dependence."
+        },
+        {
+          term: "Research oversight",
+          explanation: "An ethics committee or IRB reviews participant protections. A monitoring committee may review accruing confidential evidence and recommend continuing, modifying or stopping a trial under its charter. These roles are distinct."
+        },
+        {
+          term: "Research record",
+          explanation: "Register the study as appropriate, state recruitment and consent procedures, prespecify outcomes, exclusions and analyses, and report deviations and adverse events. Share code, definitions and a usable data description under the project's governance rules."
+        },
+        {
+          term: "Privacy and transparency",
+          explanation: "Collect only necessary data. Replacing names with codes does not by itself make data anonymous. Use synthetic data to demonstrate an analysis, and use authorised access for sensitive records. Disclose relevant conflicts and funding."
+        },
+        {
+          term: "Drug trial phases",
+          explanation: "Phase 1 usually examines tolerability, dose and how the body handles the drug. Phase 2 explores preliminary benefit, dosing and harms in people with the condition. Phase 3 typically evaluates efficacy and adverse effects more definitively. Phase 4 studies after approval can examine safety and effectiveness in wider or longer use."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "Stop as soon as the usual P < 0.05 appears at any look.",
+          correction: "Use a prespecified monitoring plan. Do not apply the single-look threshold to an arbitrary sequence of looks."
+        },
+        {
+          claim: "Removing names means all rows are safe to share.",
+          correction: "Dates, uncommon combinations, locations and free text can identify participants. Follow project data-sharing approvals."
+        }
+      ],
+      workedExample: {
+        design: "Teaching probability model with two independent opportunities to reject a true null at 5%. It illustrates repetition and is not a model of the dependence in an actual staged clinical trial.",
+        interpretation: "One rejection probability is 5%; at least one across two independent tests is 1 \u2212 0.95\xB2 = 9.75%. A Bonferroni split of 0.025 per test caps this two-test familywise probability at 5%; for this independent example it is about 4.94%. This is not a recommendation for trial boundaries."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "Explain how you would monitor harm, assess bias, and share the analysis without sending identifiable participant data.",
+          expectedReasoning: "Distinguish protocol and statistical analysis plan from independent monitoring and the ethics review. Explain what evidence would be examined, when and by whom. Share synthetic data, code and assumptions for practice."
+        },
+        {
+          level: "intermediate",
+          prompt: "A press release calls a small uncontrolled phase 2 study proof that a medicine prevents admission. What can you conclude?",
+          expectedReasoning: "Phase 2 can inform further evaluation. Look at the design, comparator, endpoint, follow-up, estimates and uncertainty before drawing conclusions about hospital admission."
+        }
+      ],
+      rProgression: {
+        menus: "Use the fictional calculation to discuss what is prespecified rather than to monitor a real trial.",
+        bridge: "Compute the complementary probability in base R and verify it against the two-test union rule.",
+        coding: "Change the per-test threshold, then explain why shared participants break the independent-tests calculation."
+      },
+      sources: [
+        {
+          id: "ich-e9",
+          title: "ICH E9: Statistical principles for clinical trials",
+          url: "https://www.fda.gov/media/71336/download",
+          scope: "Trial design, monitoring, bias and interim statistical assessment.",
+          checkedAt: "2026-11-15",
+          use: "Methodological guidance; not a protocol or regulatory interpretation for a specific study."
+        },
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+          scope: "Research ethics, privacy, interim analysis and drug development phases.",
+          checkedAt: "2026-11-15",
+          use: "Curriculum mapping."
+        },
+        {
+          id: "fda-drug-phases",
+          title: "FDA: Clinical research in the drug development process",
+          url: "https://www.fda.gov/patients/drug-development-process/step-3-clinical-research",
+          scope: "Typical objectives of phases 1\u20134 and the role of study design.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        }
+      ],
+      difficulty: "intermediate",
+      learnerGoals: [
+        "postgraduateMedicine",
+        "publicHealth",
+        "mastersStatistics",
+        "usMedicalBoards"
+      ],
+      assessmentIds: [
+        "BIO-INTEGRITY-01",
+        "BIO-INTEGRITY-02",
+        "BIO-INTEGRITY-03"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-INTEGRITY-01",
+          version: 1,
+          track: "researcher",
+          topic: "Research conduct",
+          objective: "Explain why single-test thresholds cannot be reused at every interim look.",
+          stem: "A study plans to inspect accumulating outcome data each month and stop for efficacy at the first unadjusted P < 0.05. What is the main statistical concern with this rule?",
+          options: [
+            {
+              id: "A",
+              text: "The repeated looks can inflate the chance of a false positive.",
+              feedback: "A planned sequential design can control this probability while allowing monitoring."
+            },
+            {
+              id: "B",
+              text: "Each look must be independent because a new month has passed.",
+              feedback: "The data commonly overlap across looks."
+            },
+            {
+              id: "C",
+              text: "The null hypothesis automatically changes with each look.",
+              feedback: "The same hypothesis may be tested repeatedly."
+            },
+            {
+              id: "D",
+              text: "A smaller P value always identifies the right treatment decision.",
+              feedback: "Results must account for monitoring and be interpreted alongside effects and harms."
+            },
+            {
+              id: "E",
+              text: "An ethics review alone adjusts the significance level.",
+              feedback: "Ethical and statistical oversight are related but distinct."
+            }
+          ],
+          correct: "A",
+          hint: "How many opportunities are there to stop by chance?",
+          lesson: "Specify how repeated looks and stopping rules affect inference before trial results are known.",
+          explanation: "Repeated stopping opportunities can inflate the false-positive probability. Use a prespecified group-sequential or other suitable monitoring method that accounts for dependence.",
+          help: "basics/bias.htm",
+          operation: "",
+          lessonId: "research-integrity",
+          difficulty: "intermediate",
+          learnerGoals: [
+            "postgraduateMedicine",
+            "publicHealth",
+            "mastersStatistics",
+            "usMedicalBoards"
+          ],
+          sourceIds: [
+            "ich-e9"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "28f95110e262783ba1d776c2eef802968a8f1073fd57f25c80471b1a7472b076"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.fda.gov/media/71336/download",
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+        "https://www.fda.gov/patients/drug-development-process/step-3-clinical-research"
+      ]
+    },
+    {
+      id: "independent-group-comparisons",
+      title: "Comparing three or more independent groups",
+      topic: "ANOVA, Kruskal\u2013Wallis and planned comparisons",
+      objective: "Choose and interpret an overall group test and comparisons that answer the study question.",
+      summary: "Start with one independent outcome per person and decide whether the question concerns means or a broader difference in distributions. Ordinary one-way ANOVA compares means using within-group variation to judge how far the group means differ. Its classical F test assumes independent errors, approximate within-group normality and a common variance. Inspect group plots and residuals in context. Welch one-way ANOVA compares means without imposing a common variance. Kruskal\u2013Wallis pools and ranks observations from independent groups. Its null concerns group distributions, and a location-shift interpretation needs comparable shapes. A small omnibus P value supports a difference somewhere. Report the direction, size and uncertainty for relevant contrasts. Define planned contrasts and the comparison family in advance, and account for multiplicity when drawing several inferences.",
+      challenge: "The overall test is significant. A colleague wants to claim the written group improved more than usual training. Which comparison and uncertainty would you report for that claim?",
+      steps: "Eight different staff in each of three fictional training groups complete a common scored simulation. Select the three columns and choose Analysis \u2192 Analysis of Variance \u2192 One Way. Mean improvement scores are 5.5, 7.0 and 9.0 points for usual, written and coached training. The ordinary overall F statistic is 10.79 with 2 and 21 degrees of freedom. The coached-minus-usual difference is 3.5 points, with an approximate Tukey 95% simultaneous interval of 1.59 to 5.41 points for all pairwise comparisons. In the One Way report use the equality-of-variance/Welch follow-on or run Welch in R. In a separate analysis of the same data, Kruskal\u2013Wallis yields H = 11.59 after adjusting for ties. Compare what the tests ask and what the effect estimates mean.",
+      help: "analysis_of_variance/one_way.htm",
+      operation: "OneWay",
+      columns: [
+        {
+          title: "Usual",
+          values: [
+            4,
+            7,
+            5,
+            6,
+            8,
+            3,
+            5,
+            6
+          ]
+        },
+        {
+          title: "Written",
+          values: [
+            6,
+            8,
+            9,
+            7,
+            5,
+            7,
+            8,
+            6
+          ]
+        },
+        {
+          title: "Coached",
+          values: [
+            7,
+            9,
+            11,
+            8,
+            9,
+            10,
+            7,
+            11
+          ]
+        }
+      ],
+      r: '# Fictional scores from different people, one outcome per participant.\nscores <- data.frame(Usual = c(4, 7, 5, 6, 8, 3, 5, 6),\n                     Written = c(6, 8, 9, 7, 5, 7, 8, 6),\n                     Coached = c(7, 9, 11, 8, 9, 10, 7, 11))\nlong <- stack(scores)\nnames(long) <- c("improvement", "training")\nordinary <- aov(improvement ~ training, data = long)\nordinary_table <- summary(ordinary)[[1]]\nwelch <- oneway.test(improvement ~ training, data = long, var.equal = FALSE)\nranks <- kruskal.test(improvement ~ training, data = long)\ncontrasts <- TukeyHSD(ordinary, conf.level = 0.95)$training\nprint(colMeans(scores))\nprint(ordinary_table)\nprint(welch)\nprint(ranks)\nprint(contrasts)\nstopifnot(all(colMeans(scores) == c(5.5, 7, 9)),\n          abs(ordinary_table[["F value"]][1] - 259/24) < 1e-10,\n          abs(unname(welch$statistic) - 9.169989182507) < 1e-9,\n          abs(unname(ranks$statistic) - 11.58812749889) < 1e-9,\n          abs(contrasts["Coached-Usual", "diff"] - 3.5) < 1e-12,\n          max(abs(contrasts["Coached-Usual", c("lwr","upr")] - c(1.594628, 5.405372))) < 1e-6)\nboxplot(improvement ~ training, data = long, ylab = "Improvement (points)",\n        main = "Fictional training groups")\nplot(fitted(ordinary), residuals(ordinary), xlab = "Fitted improvement",\n     ylab = "Residual", main = "Check within-group spread")\nabline(h = 0, col = "grey50")\n',
+      contentVersion: "2026-11-15",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "425de5cb00f42452e8fd5b9917c7abcd594d513894567a54bee87156b92c8e8d"
+      },
+      prerequisites: [
+        "choose-analysis",
+        "describe-data",
+        "uncertainty-sensitivity"
+      ],
+      learningObjectives: [
+        "Distinguish an overall equality-of-means test from a rank comparison.",
+        "Choose ordinary or Welch ANOVA using independence and group spread.",
+        "Interpret an omnibus result with prespecified contrasts or adjusted pairwise estimates.",
+        "Recognise when investigators are adjusting for a covariate or jointly comparing distinct outcomes."
+      ],
+      keyConcepts: [
+        {
+          term: "Omnibus test",
+          explanation: "A global test addresses all group means or distributions together under the chosen model."
+        },
+        {
+          term: "Multiplicity",
+          explanation: "Tukey intervals have simultaneous coverage for the family of all pairwise differences in the ordinary ANOVA setting. Other comparison plans can call for a different method."
+        },
+        {
+          term: "ANCOVA",
+          explanation: "For a continuous outcome, this compares groups after adjustment for covariates such as baseline score. A common-slope model assumes the group contrast is constant across the covariate range."
+        },
+        {
+          term: "MANOVA",
+          explanation: "This compares vectors of means for several outcomes jointly. A global result needs outcome-specific interpretation and follow-up appropriate to the study plan."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "A significant ANOVA proves every pair differs.",
+          correction: "The overall test supports at least one difference under the model. Each specific claim needs its own contrast and appropriate uncertainty."
+        },
+        {
+          claim: "Kruskal\u2013Wallis is an assumption-free test of medians.",
+          correction: "Independence and appropriate sampling still matter. Rank differences can reflect shape or spread as well as location."
+        },
+        {
+          claim: "Any three groups should be analysed with three unadjusted t tests.",
+          correction: "Use a comparison family aligned to the question. Several unadjusted tests inflate the chance of a false positive across the family."
+        }
+      ],
+      workedExample: {
+        design: "Fictional parallel comparison of three training formats. Different people contribute a single improvement score each. The worksheet columns are independent groups and rows need no matching.",
+        interpretation: "The ordinary and Welch analyses support a difference among means. The rank test gives evidence of a group difference on the rank scale. The Tukey interval estimates coached minus usual as 3.5 points with simultaneous 95% limits of about 1.59 and 5.41. The written-minus-usual Tukey interval includes zero."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "Why can an overall ANOVA P value be small when one pairwise interval crosses zero?",
+          expectedReasoning: "The global null requires all means to be equal. Evidence against it can be driven by some comparisons while others remain uncertain."
+        },
+        {
+          level: "advanced",
+          prompt: "If the coached group contains much more variable responses, what changes about your choice of method and reporting?",
+          expectedReasoning: "Inspect whether variability or outliers reflect plausible observations. Welch can target mean differences despite unequal variances. Report spreads and appropriate contrasts and intervals."
+        },
+        {
+          level: "intermediate",
+          prompt: "The three group distributions have similar medians but differ in shape and skew. If Kruskal\u2013Wallis is significant, what conclusion is supported?",
+          expectedReasoning: "There is evidence of a difference on the rank scale. Differences in shape make a pure location or median interpretation unwarranted."
+        }
+      ],
+      rProgression: {
+        menus: "Use Analysis \u2192 Analysis of Variance \u2192 One Way with the three group columns. Tukey and the Welch/equality-of-variance follow-on are separate analyses. Use Kruskal\u2013Wallis for the independent rank comparison.",
+        bridge: "Compare the ordinary F statistic and degrees of freedom with aov. Compare the tie-adjusted Kruskal\u2013Wallis result with kruskal.test. Compare Tukey differences using the same group order, confidence level and simultaneous method.",
+        coding: "Increase one coached score and inspect how the mean, spread and each overall result change. Explain which population contrast still answers the scientific question."
+      },
+      sources: [
+        {
+          id: "rcpsych-2027",
+          title: "RCPsych: MRCPsych Paper B syllabus from January 2027",
+          url: "https://www.rcpsych.ac.uk/docs/default-source/training/examinations/mrcpsych-syllabus-2027/mrcpsych-paper-b-syllabus-2027.pdf#page=40",
+          scope: "Paper B \xA713.9.4 names ANOVA, ANCOVA, MANOVA, Kruskal\u2013Wallis and post-hoc testing. \xA713.9.7 covers multiplicity.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "dfph-syllabus",
+          title: "Faculty of Public Health: DFPH knowledge syllabus",
+          url: "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+          scope: "Section 1b covers parametric and nonparametric comparisons of two or more groups and multiple comparisons.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "aba-interpretation",
+          title: "American Board of Anesthesiology: Initial certification outline",
+          url: "https://www.theaba.org/wp-content/uploads/2023/01/Initial_Certification_Content_Outline-4.pdf#page=25",
+          scope: "Interpreting data section covers ANOVA, statistical inference and correction for multiple comparisons.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "r-oneway.test",
+          title: "R stats: Test for equal means in a one-way layout",
+          url: "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/oneway.test.html",
+          scope: "Ordinary and Welch one-way tests and the variance assumption.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "r-kruskal.test",
+          title: "R stats: Kruskal\u2013Wallis rank sum test",
+          url: "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kruskal.test.html",
+          scope: "Independent rank comparison and location interpretation.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "r-tukeyhsd",
+          title: "R stats: Tukey's honest significant differences",
+          url: "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/TukeyHSD.html",
+          scope: "Family-wise interval coverage for pairwise comparisons of means.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        }
+      ],
+      assessmentIds: [
+        "MULTI-IND-01",
+        "MULTI-IND-02",
+        "MULTI-IND-03"
+      ],
+      practiceQuestions: []
+    },
+    {
+      id: "repeated-condition-comparisons",
+      title: "Comparing three or more repeated conditions",
+      topic: "Participant blocks, repeated-measures ANOVA and Friedman",
+      objective: "Use matching to compare conditions and recognise when a longitudinal model is needed.",
+      summary: "When every person contributes one result under each of several conditions, the person is a block. Dependence within a person is part of the design. A one-factor repeated-measures ANOVA addresses mean differences and assigns variability to participant and within-participant strata. The ordinary uncorrected F reference assumes independent participants, appropriate normal within-participant contrasts and sphericity for three or more conditions. Sphericity means equal variances of pairwise within-person differences. Friedman ranks conditions within independent complete blocks and asks whether the conditions systematically differ in rank. It does not estimate a mean difference. For related binary outcomes, Cochran Q compares response probabilities across matched conditions. Incomplete trajectories, irregular times or a treatment-by-time question need the appropriate longitudinal model and assumptions about missingness. Dropping incomplete rows can change who the analysis represents.",
+      challenge: "A follow-up study measures each person at baseline, 2 months and 6 months. Some people miss visits and the study asks whether the trajectory differs by care pathway. Why does a complete-block test answer a narrower question?",
+      steps: "In this fictional comparison, eight clinicians each complete comparable documentation tasks using three interfaces in counterbalanced order. Each worksheet row is one clinician and each column one interface. Select the three columns and choose Analysis \u2192 Analysis of Variance \u2192 Two Way for this complete additive participant-block example. Mean times are 51.50, 48.50 and 46.25 seconds. The condition F statistic is 22.2 with 2 and 14 degrees of freedom. Run Friedman on the same matched columns. Base R reports rank statistic 10.75 and a chi-square P value near 0.00463. The StatsDirect Friedman report uses an Iman\u2013Davenport F approximation for its P value. The R code prints both approximations. With only eight clinicians, an assignment-respecting exact or simulated rank test can be useful if exchangeability within blocks is justified. If C versus A was the single prespecified contrast, the mean within-clinician difference is \u22125.25 seconds with an ordinary paired 95% interval of about \u22127.19 to \u22123.31. An analysis of several paired contrasts needs an appropriate multiplicity plan.",
+      help: "analysis_of_variance/two_way.htm",
+      operation: "TwoWay",
+      columns: [
+        {
+          title: "Interface A",
+          values: [
+            52,
+            47,
+            54,
+            43,
+            62,
+            51,
+            55,
+            48
+          ]
+        },
+        {
+          title: "Interface B",
+          values: [
+            48,
+            45,
+            52,
+            38,
+            58,
+            47,
+            51,
+            49
+          ]
+        },
+        {
+          title: "Interface C",
+          values: [
+            45,
+            46,
+            49,
+            37,
+            55,
+            48,
+            47,
+            43
+          ]
+        }
+      ],
+      r: '# Fictional documentation times, one row per clinician and one column per interface.\ntimes <- cbind(A = c(52, 47, 54, 43, 62, 51, 55, 48),\n               B = c(48, 45, 52, 38, 58, 47, 51, 49),\n               C = c(45, 46, 49, 37, 55, 48, 47, 43))\nparticipants <- nrow(times)\nconditions <- ncol(times)\nlong <- data.frame(seconds = as.vector(times),\n                   interface = factor(rep(colnames(times), each = participants)),\n                   clinician = factor(rep(seq_len(participants), times = conditions)))\nfit <- aov(seconds ~ interface + Error(clinician/interface), data = long)\nwithin <- summary(fit)[["Error: clinician:interface"]][[1]]\nranks <- friedman.test(times)\nrank_statistic <- unname(ranks$statistic)\n# The StatsDirect Help specifies the Iman\u2013Davenport F reference for Friedman.\ndf1 <- conditions - 1\ndf2 <- (participants - 1)*df1\nrank_f <- (participants - 1)*rank_statistic/(participants*df1 - rank_statistic)\nrank_f_p <- pf(rank_f, df1, df2, lower.tail = FALSE)\nplanned <- t.test(times[, "C"] - times[, "A"])\nprint(colMeans(times))\nprint(summary(fit))\nprint(ranks)\nprint(c(Iman_Davenport_F = rank_f, Iman_Davenport_P = rank_f_p))\nprint(planned)\nstopifnot(all(colMeans(times) == c(51.5, 48.5, 46.25)),\n          all(within[["Df"]] == c(2, 14)),\n          abs(within[["F value"]][1] - 22.2) < 1e-10,\n          abs(rank_statistic - 10.75) < 1e-12,\n          abs(ranks$p.value - pchisq(10.75, 2, lower.tail = FALSE)) < 1e-12,\n          abs(rank_f - 43/3) < 1e-12,\n          abs(rank_f_p - 0.0004095201) < 1e-9,\n          abs(unname(planned$estimate) + 5.25) < 1e-12,\n          max(abs(planned$conf.int - c(-7.185012, -3.314988))) < 1e-6)\nmatplot(seq_len(conditions), t(times), type = "b", lty = 1, pch = 16,\n        col = "grey55", xaxt = "n", xlab = "Interface", ylab = "Time (seconds)")\naxis(1, at = seq_len(conditions), labels = colnames(times))\n',
+      contentVersion: "2026-11-15",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "feb805b8e52071824b5c5747ca3be577eaaca33d65b1e46215bbff27695e1b66"
+      },
+      prerequisites: [
+        "paired",
+        "dependent-samples",
+        "independent-group-comparisons"
+      ],
+      learningObjectives: [
+        "Recognise participant as the block and preserve row alignment across repeated conditions.",
+        "Distinguish a mean comparison by repeated-measures ANOVA from the within-block rank test.",
+        "Explain sphericity and choose a different model when design, follow-up or missingness requires it.",
+        "Select an analysis for matched binary outcomes."
+      ],
+      keyConcepts: [
+        {
+          term: "Subject block",
+          explanation: "A person contributes several observations but still represents one participant. Compare like conditions within each row."
+        },
+        {
+          term: "Sphericity",
+          explanation: "For an uncorrected univariate repeated-measures F test, the variance of the within-person difference is assumed to be the same for each pair of conditions. Corrections such as Greenhouse\u2013Geisser adjust reference degrees of freedom under departures."
+        },
+        {
+          term: "Complete-block rank analysis",
+          explanation: "Friedman ranks within each participant and requires a usable observation per condition for each included block. Inference still depends on sampling and design."
+        },
+        {
+          term: "Longitudinal estimand",
+          explanation: "Define the desired group difference or trajectory first. A suitable repeated-data model can incorporate correlation, visit times and covariates, under justified assumptions."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "An equal number of observations in each condition makes them independent groups.",
+          correction: "The data are related because the same people supplied each observation. A worksheet layout cannot change that design."
+        },
+        {
+          claim: "Friedman handles arbitrary missing visits or different visit schedules.",
+          correction: "The usual Friedman analysis compares complete matched blocks. Other missing-data designs require methods aligned to the outcome and study question."
+        },
+        {
+          claim: "Repeated-measures ANOVA and Friedman must give the same P value.",
+          correction: "They use different targets and statistics. Even for Friedman, different reference approximations can give different P values for the same set of ranks."
+        }
+      ],
+      workedExample: {
+        design: "Fictional eight-person, three-condition complete within-person example. Each person contributes one comparable task per interface and participants are independent. For interpretation assume the task and counterbalancing have controlled relevant order effects.",
+        interpretation: "The mean time is lowest for C. The paired C-minus-A contrast estimates 5.25 seconds shorter on average. The rank and mean analyses both indicate differences among interfaces under their respective assumptions. The sample and design do not establish general performance on other tasks."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "What would go wrong if you sorted the three columns independently before testing?",
+          expectedReasoning: "Rows would stop representing the same clinician, so paired differences and within-row ranks would no longer reflect the study design."
+        },
+        {
+          level: "advanced",
+          prompt: "Would a significant condition effect show that the learning curve differs across interfaces?",
+          expectedReasoning: "The test compares conditions in the stated blocked design. A learning-curve question requires an appropriate design and a model for interface, order or time and their interaction."
+        }
+      ],
+      rProgression: {
+        menus: "Run Analysis \u2192 Analysis of Variance \u2192 Two Way on the three condition columns. Then run Friedman on the same complete, aligned rows. The worksheet has no replicate observations within clinician\u2013interface cells.",
+        bridge: "Compare the condition F statistic against the within-participant ANOVA table. For Friedman, compare the within-row rank statistic and use the Iman\u2013Davenport line to match the application's P convention.",
+        coding: "Plot each clinician's three times in R. Calculate the standard deviations of the three within-person differences. Treat these eight observations as an illustration of sphericity, not a definitive diagnostic."
+      },
+      sources: [
+        {
+          id: "rcpsych-2027",
+          title: "RCPsych: MRCPsych Paper B syllabus from January 2027",
+          url: "https://www.rcpsych.ac.uk/docs/default-source/training/examinations/mrcpsych-syllabus-2027/mrcpsych-paper-b-syllabus-2027.pdf#page=40",
+          scope: "Paper B \xA713.9.4 includes parametric and nonparametric test selection, including Friedman. \xA713.10 includes multilevel regression.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "dfph-syllabus",
+          title: "Faculty of Public Health: DFPH knowledge syllabus",
+          url: "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+          scope: "Section 1 covers clustered data and the appropriate use of group comparison methods.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "r-aov",
+          title: "R stats: Fit an analysis of variance model",
+          url: "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/aov.html",
+          scope: "ANOVA models with separate error strata and practical cautions for unbalanced designs.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        },
+        {
+          id: "r-friedman.test",
+          title: "R stats: Friedman rank sum test",
+          url: "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/friedman.test.html",
+          scope: "Complete unreplicated blocks and the default chi-square approximation.",
+          checkedAt: "2026-11-15",
+          use: "Editorial reference and further reading."
+        }
+      ],
+      assessmentIds: [
+        "MULTI-REP-01",
+        "MULTI-REP-02",
+        "MULTI-REP-03"
+      ],
+      practiceQuestions: []
+    },
+    {
+      id: "complex-surveys",
+      title: "Estimating uncertainty in a complex survey",
+      topic: "Design weights and primary sampling units",
+      objective: "Estimate a population proportion and its design-based standard error in a stratified cluster sample.",
+      summary: "The sampling design determines the point estimate and its uncertainty. A design weight expands an observed unit by the inverse of its selection probability. In this example clinics are randomly sampled separately within two strata and everyone in a selected clinic is observed. Each clinic contains the same number of eligible people. The estimated stratum proportion is the average of its sampled clinic proportions. For each stratum, estimate the variance of that average from variation between sampled clinics, divided by the number sampled and multiplied by the finite population correction. Then add the independent stratum variances weighted by the square of each stratum's population share.",
+      steps: "A fictional survey frame contains 12 urban and 4 rural clinics, each serving 100 eligible people. Independently in each stratum, sample clinics by simple random sampling without replacement: 4 urban clinics with 10, 20, 30 and 40 people with the outcome, and 2 rural clinics with 40 and 80. The urban estimate is 25% and the rural estimate is 60%. The known population shares of 75% and 25% give an overall estimate of 33.75%, compared with the unweighted 36.67%. The design-based standard error is 5.30 percentage points. Only two rural clinics were sampled, so variance estimates and approximate intervals can be fragile.",
+      challenge: "Imagine a design that randomly samples people within each selected clinic as well. What extra information would you need to estimate uncertainty?",
+      help: "sample_size/population_survey.htm",
+      prerequisites: [
+        "dependent-samples"
+      ],
+      learningObjectives: [
+        "Identify the strata, primary sampling units and inclusion probabilities.",
+        "Compute a design-weighted proportion and use the finite population correction.",
+        "Explain why correct survey uncertainty needs the sample design as well as weights."
+      ],
+      keyConcepts: [
+        {
+          term: "Design weights",
+          explanation: "Here each urban respondent represents 12/4 = 3 people and each rural respondent represents 4/2 = 2 people. All enrolled people in selected clinics were observed."
+        },
+        {
+          term: "Design-based variance",
+          explanation: "The sampled clinics supply independent stratum estimates because each stratum was sampled separately. Within a stratum, use the sample variance of clinic proportions times (1 \u2212 n/N)/n, where N is the number of clinics on the frame and n the number sampled."
+        },
+        {
+          term: "Domain estimates",
+          explanation: "A subgroup such as younger people is a domain, rarely a separate probability sample. In general, retain the survey design and indicate domain membership when estimating uncertainty."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "The survey contains 600 independently selected people.",
+          correction: "The first-stage selections were six clinics. The independent-person standard error does not capture the design."
+        },
+        {
+          claim: "A table of final person weights is sufficient for the standard error.",
+          correction: "Use design strata and primary sampling units, with finite population information for this example. Some surveys instead provide replicate weights and instructions."
+        }
+      ],
+      workedExample: {
+        design: "Stratified single-stage cluster sample of equal-size clinics, with complete enumeration in selected clinics.",
+        interpretation: "Weighting estimates the proportion among the 1,600 people in the frame. The finite population correction accounts for sizable fractions of clinics sampled. The formula applies to this specific design and does not cover unequal clinic sizes, a second sampling stage, or missing responses."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "What changes if all rural clinics are observed?",
+          expectedReasoning: "There is no sampling variance from rural clinic selection because its sampling fraction equals one. The urban contribution remains."
+        }
+      ],
+      rProgression: {
+        menus: "Read the Population Survey help for simple sample-size planning. Use Explore in R for this design-based example.",
+        bridge: "Match each variance contribution in the output to its population share, clinic variability and sampling fraction.",
+        coding: "Set all observed rural clinic proportions equal and check how the estimated between-clinic variance contribution changes."
+      },
+      sources: [
+        {
+          id: "dfph-syllabus",
+          title: "Faculty of Public Health DFPH knowledge syllabus",
+          url: "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+          scope: "Section 1(a) names sampling from a population and analysis of clustered data.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        },
+        {
+          id: "nhanes-weighting",
+          title: "CDC NHANES weighting tutorial",
+          url: "https://wwwn.cdc.gov/nchs/nhanes/tutorials/weighting.aspx",
+          scope: "Selection weights and survey estimates.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        },
+        {
+          id: "nhanes-variance",
+          title: "CDC NHANES variance estimation tutorial",
+          url: "https://wwwn.cdc.gov/nchs/nhanes/tutorials/varianceestimation.aspx",
+          scope: "Survey design variables and domain analysis. The lesson uses a simpler finite-population design.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        }
+      ],
+      r: 'stratum <- rep(c("Urban","Rural"), c(4,2))\ncases <- c(10,20,30,40,40,80)\nclinic_size <- 100\nN <- c(Urban = 12, Rural = 4)\np_clinic <- split(cases/clinic_size, factor(stratum, levels = names(N)))\nn <- lengths(p_clinic)\nW <- N/sum(N)\nweight <- N[stratum]/n[stratum]\np_h <- vapply(p_clinic, mean, numeric(1))\ns2 <- vapply(p_clinic, var, numeric(1))\npieces <- W^2 * (1 - n/N) * s2/n\np <- sum(W*p_h)\nse <- sqrt(sum(pieces))\nstopifnot(abs(p - 0.3375) < 1e-10,\n          abs(p - weighted.mean(cases/clinic_size, weight)) < 1e-10,\n          abs(sum(pieces) - 0.0028125) < 1e-10,\n          abs(mean(cases/clinic_size) - 220/600) < 1e-10)\nprint(data.frame(population_share = W, estimate = p_h,\n                 sampling_fraction = n/N, variance_contribution = pieces))\nprint(c(weighted_proportion = p, unweighted_proportion = mean(cases/clinic_size),\n        design_standard_error_pp = 100*se))\n',
+      columns: [],
+      contentVersion: "2026-11-15-q6112f4f85eb5",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "57e36e3c8b91219b9b3a70cf11afa285f9faafc2a20e99d23ac76eebd1773203"
+      },
+      assessmentIds: [
+        "BIO-SURVEY-01",
+        "BIO-SURVEY-02"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-SURVEY-01",
+          version: 1,
+          track: "publicHealth",
+          topic: "Survey population weights",
+          objective: "Estimate a proportion with unequal sampling fractions.",
+          stem: "A fictional city has 800 eligible people in one stratum and 200 in another. Independent random samples of 100 from each yield 15 and 45 people with the outcome. What is the population-weighted proportion estimate?",
+          options: [
+            {
+              id: "A",
+              text: "12%",
+              feedback: "This is only the contribution from the larger stratum."
+            },
+            {
+              id: "B",
+              text: "21%",
+              feedback: "Weight 15% and 45% by the population shares 0.8 and 0.2."
+            },
+            {
+              id: "C",
+              text: "30%",
+              feedback: "This uses the equal sample sizes as weights."
+            },
+            {
+              id: "D",
+              text: "45%",
+              feedback: "This is only the estimate in the smaller stratum."
+            },
+            {
+              id: "E",
+              text: "60%",
+              feedback: "This sums the stratum estimates without weighting."
+            }
+          ],
+          correct: "B",
+          hint: "Use population shares, then add the two contributions.",
+          lesson: "Known population shares combine the stratum estimates.",
+          explanation: "0.8 \xD7 15% + 0.2 \xD7 45% = 21%.",
+          lessonId: "complex-surveys",
+          sourceIds: [
+            "nhanes-weighting"
+          ],
+          help: "sample_size/population_survey.htm",
+          difficulty: "intermediate",
+          learnerGoals: [
+            "publicHealth",
+            "mastersStatistics",
+            "healthcareBusinessAnalyst"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "86243ca487f161b2e485c408c4c5351de6ca79829cded5002f213b2f7e25d3bb"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+        "https://wwwn.cdc.gov/nchs/nhanes/tutorials/weighting.aspx",
+        "https://wwwn.cdc.gov/nchs/nhanes/tutorials/varianceestimation.aspx"
+      ]
+    },
+    {
+      id: "interrupted-time-series",
+      title: "Interpreting an interrupted time series",
+      topic: "Trends, intervention timing and count denominators",
+      objective: "Interpret immediate changes and trend changes in a rate after a defined intervention.",
+      summary: "An interrupted time series compares observations after an intervention with the projected pre-intervention trend. Choose the expected timing and shape of the change before looking at the outcome. The fitted model can give a level change at the first post-intervention month and a change in slope after that date. Seasonal variation and serial correlation are common. Compare like seasons, examine residuals and use a suitable model for inference. For count outcomes, use a rate with the population at risk or other appropriate exposure. A count regression can include log exposure as an offset.",
+      steps: "A fictional care network changes a reporting process at the start of month 13. It has 24 months of recorded incidents and visit totals. In Explore in R, display incidents per 1,000 visits. A descriptive segmented regression accounts for calendar quarter and gives more weight to months with more visits. The fitted pre-intervention trend rises by 0.69 incidents per 1,000 visits per month. At month 13 the fitted level falls by 2.45 per 1,000 visits relative to continuing the pre-intervention pattern. The slope changes by \u22121.98 per 1,000 visits per month, giving a post-intervention slope of \u22121.29. Four months after the change, the fitted contrast is \u221210.38 per 1,000 visits against the projected baseline. The programme may have changed what is recorded as well as the event frequency.",
+      challenge: "What if a new recording rule and a change in patient case mix took effect on the same date? What additional data could help interpret the apparent change?",
+      help: "regression_and_correlation/multiple_linear.htm",
+      prerequisites: [
+        "surveillance-outbreaks",
+        "regression-models"
+      ],
+      learningObjectives: [
+        "Distinguish a pre-intervention slope, immediate level change and change in slope.",
+        "Check whether changing denominators, measurement or seasons could explain a rate change.",
+        "Describe the role of serial correlation and a comparison series."
+      ],
+      keyConcepts: [
+        {
+          term: "Counterfactual trend",
+          explanation: "Project the fitted pre-intervention trend into the post-intervention period, including the seasonal terms. The contrast is meaningful only if that projection is credible under no intervention."
+        },
+        {
+          term: "Serial correlation",
+          explanation: "Nearby residuals can be related. If so, standard errors from an independent-error regression need not be reliable."
+        },
+        {
+          term: "Denominators",
+          explanation: "If more people are observed or the exposure time rises, an unchanged event rate can produce more events."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "The post-intervention slope is the slope-change coefficient.",
+          correction: "Add the slope-change coefficient to the original slope."
+        },
+        {
+          claim: "A fitted break establishes that the intervention caused it.",
+          correction: "Coincident events and measurement changes may create similar patterns. A suitable comparison series and design checks can strengthen interpretation."
+        }
+      ],
+      workedExample: {
+        design: "Fictional monthly rates and visits, one intervention date, seasonal quarter indicators, descriptive weighted least squares.",
+        interpretation: "The fitted contrast combines a level change and a slope change. Weights give more influence to larger visit totals. No confidence interval or causal claim is made from this model. In practice consider more time points, a pre-specified seasonal model, serial dependence and a defensible comparison series."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "Why is the effect four months later different from the first post-intervention month's contrast?",
+          expectedReasoning: "At the first post month, time since intervention is zero. Four months later the contrast also includes four months of the change in trend."
+        }
+      ],
+      rProgression: {
+        menus: "Read Multiple Linear Regression help for interpreting coefficients. Run this segmented rate example with Explore in R.",
+        bridge: "Compare the fitted line and the projected pre-intervention line on the plot.",
+        coding: "Set post and after to zero only in the prediction data. Explain why this retains the seasonal counterfactual."
+      },
+      sources: [
+        {
+          id: "dfph-syllabus",
+          title: "Faculty of Public Health DFPH knowledge syllabus",
+          url: "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+          scope: "Section 1(a) names time-trend analyses and time-series designs.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        },
+        {
+          id: "its-lopez-bernal",
+          title: "Lopez Bernal, Cummins and Gasparrini, interrupted time-series regression",
+          url: "https://doi.org/10.1093/ije/dyw098",
+          scope: "Segmented regression, impact models, seasonal variation and autocorrelation.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        }
+      ],
+      r: 'month <- 1:24\ntime <- month - 13\npost <- as.integer(time >= 0)\nafter <- pmax(time, 0)\nquarter <- factor(((month - 1) %% 12) %/% 3 + 1)\nvisits <- 1000 * (1 + month %% 5)\nevents <- c(44,66,88,110,24,46,66,96,115,28,56,84,\n            104,135,25,46,60,80,75,16,28,45,60,60)\nd <- data.frame(month, time, post, after, quarter, visits, events)\nd$rate <- 1000 * d$events / d$visits\nfit <- lm(rate ~ time + post + after + quarter, weights = visits, data = d)\nb <- coef(fit)\nno_change <- transform(d, post = 0L, after = 0)\nprojected <- predict(fit, newdata = no_change)\nprint(round(c(pre_slope = b[["time"]], level_change = b[["post"]],\n              slope_change = b[["after"]],\n              post_slope = b[["time"]] + b[["after"]],\n              contrast_month17 = b[["post"]] + 4*b[["after"]]), 2))\nstopifnot(abs(b[["post"]] + 2.4476868) < 1e-6,\n          abs(b[["time"]] + b[["after"]] + 1.2882036) < 1e-6,\n          abs(fitted(fit)[17] - projected[17] + 10.378659) < 1e-5)\nplot(d$month, d$rate, xlab = "Month", ylab = "Recorded incidents per 1,000 visits",\n     main = "Fictional intervention and monthly recorded incidents", pch = 16)\nlines(d$month, fitted(fit), col = "navy", lwd = 2)\nlines(d$month, projected, col = "firebrick", lty = 2)\nabline(v = 13, lty = 3)\nlegend("topleft", c("Fitted trend", "Projected without intervention"),\n       col = c("navy","firebrick"), lty = c(1,2), bty = "n", cex = 0.8)\n',
+      columns: [],
+      contentVersion: "2026-11-15-qc74402e02deb",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "ec75f1983a2653595c4dc87ef314a8f99e7786296d31863296ec52de2e83aa45"
+      },
+      assessmentIds: [
+        "BIO-ITS-01",
+        "BIO-ITS-02"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-ITS-01",
+          version: 1,
+          track: "publicHealth",
+          topic: "Level and trend change",
+          objective: "Combine model terms at a given post-intervention time.",
+          stem: "A segmented regression estimates an immediate change of \u22124 incidents per 1,000 visits and a slope change of \u22121.2 per 1,000 visits per month. Time since intervention is coded zero at the first post-intervention observation. What is the fitted contrast with continuing the baseline trend four months after that observation?",
+          options: [
+            {
+              id: "A",
+              text: "\u22128.8 per 1,000 visits",
+              feedback: "Add the immediate change and four months of slope change."
+            },
+            {
+              id: "B",
+              text: "\u22124.8 per 1,000 visits",
+              feedback: "This omits the immediate change."
+            },
+            {
+              id: "C",
+              text: "\u22124.0 per 1,000 visits",
+              feedback: "This is the contrast at the start of the post-intervention period."
+            },
+            {
+              id: "D",
+              text: "\u22121.2 per 1,000 visits",
+              feedback: "This is the slope change per month rather than the contrast after four months."
+            },
+            {
+              id: "E",
+              text: "+0.8 per 1,000 visits",
+              feedback: "This reverses the direction of the slope change."
+            }
+          ],
+          correct: "A",
+          hint: "At the first post-intervention observation, time since intervention is zero.",
+          lesson: "The contrast combines level change and elapsed time times slope change.",
+          explanation: "The contrast is \u22124 + 4 \xD7 (\u22121.2) = \u22128.8 per 1,000 visits.",
+          lessonId: "interrupted-time-series",
+          sourceIds: [
+            "its-lopez-bernal"
+          ],
+          help: "regression_and_correlation/multiple_linear.htm",
+          difficulty: "intermediate",
+          learnerGoals: [
+            "publicHealth",
+            "mastersStatistics",
+            "healthcareBusinessAnalyst"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "24e9a7e58004d1775496dbcdd51634f784e7d8b892683f0779a8b4b833f6c216"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+        "https://doi.org/10.1093/ije/dyw098"
+      ]
+    },
+    {
+      id: "small-area-rates",
+      title: "Reading small-area disease maps",
+      topic: "Maps, standardisation and uncertain local rates",
+      objective: "Choose a suitable denominator and interpret differences in area rates without overinterpreting rankings.",
+      summary: "A map of counts can show where services might face more demand. Comparing frequency across areas usually calls for rates based on comparable populations, periods and case definitions. If age distributions differ, compare age-specific rates or use the same standard population in every area. Small areas can have highly variable rates. Display uncertainty where possible and follow data disclosure rules. An area-level association does not establish an association for the individuals in those areas.",
+      steps: "In a fictional year, Area A records 46 first diagnoses among 10,000 residents at risk and Area B records 52 among 8,000. Their crude rates are 4.6 and 6.5 per 1,000. With complete follow-up and at most one first diagnosis per person, these are one-year risks per 1,000 residents. Standardise their age-specific rates to an equal split of younger and older residents. The age-standardised rates are 7.0 and 5.0 per 1,000, reversing their crude ranking. Area C records only two diagnoses among 150 residents. Its crude rate is 13.3 per 1,000, with a wide 95% Poisson interval of about 1.6 to 48.2. This interval assumes a fixed denominator and a Poisson count model. The R example displays counts and crude rates on schematic maps and gives the standardised rates in a table.",
+      challenge: "A district has a high recorded disease rate and more clinics per resident. How would you investigate differential detection before interpreting this pattern?",
+      help: "rates/direct_standardization.htm",
+      prerequisites: [
+        "rates",
+        "surveillance-outbreaks"
+      ],
+      learningObjectives: [
+        "Match the numerator, denominator, place and observation period.",
+        "Separate crude rates, standardised comparisons and statistical uncertainty.",
+        "Identify problems from small counts, map boundaries and ecological interpretation."
+      ],
+      keyConcepts: [
+        {
+          term: "Choosing a map measure",
+          explanation: "Counts may help with service planning. For contrasting places, rates account for differences in population size and can be standardised for age or another chosen factor."
+        },
+        {
+          term: "Unstable small-area estimates",
+          explanation: "With few diagnoses, one additional case can move the estimate considerably. Colour alone gives no sense of that uncertainty."
+        },
+        {
+          term: "Boundary and disclosure choices",
+          explanation: "Area definitions can change the pattern. Very small cells may risk identification, so apply the data provider's disclosure rules. Suppressed or missing values must remain distinguishable from zero."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "The darkest area necessarily has the highest true rate.",
+          correction: "The colour displays an estimated rate under chosen categories. Check the denominator, uncertainty and comparability before ranking areas."
+        },
+        {
+          claim: "A district-level association tells us which individuals are at risk.",
+          correction: "Area summaries can hide variation and do not identify individual exposures or effects."
+        }
+      ],
+      workedExample: {
+        design: "Four fictional areas with complete one-year follow-up and age-specific diagnosis counts. A 50:50 age mix is applied to every area.",
+        interpretation: "The crude rates summarise the observed populations. The age-standardised rates compare areas under a common age mix. The simple interval for Area C illustrates small-count uncertainty and does not account for ascertainment, spillover or spatial dependence."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "Area C has the highest crude rate and the fewest recorded diagnoses. Which map would help plan clinic workload and which would start a comparison of disease frequency?",
+          expectedReasoning: "Counts describe recorded burden. Rates with uncertainty compare frequency. Adjust age where appropriate and check whether detection differs."
+        }
+      ],
+      rProgression: {
+        menus: "Use Direct Standardisation help to review population weighting. Use Explore in R for the schematic maps.",
+        bridge: "Compare the two panels, then inspect the crude and age-standardised rates in the table.",
+        coding: "Change the common age weights once and use the same weights for all areas. Recheck the comparison."
+      },
+      sources: [
+        {
+          id: "dfph-syllabus",
+          title: "Faculty of Public Health DFPH knowledge syllabus",
+          url: "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+          scope: "Sections 1(a) and 3 cover distribution by place, geographical variation and standardisation.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        },
+        {
+          id: "cdc-gis",
+          title: "CDC Field Epidemiology Manual, Geographic Information System Data",
+          url: "https://www.cdc.gov/field-epi-manual/php/chapters/gis-data.html",
+          scope: "Choosing geographic units, thematic maps and interpreting spatial patterns.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        },
+        {
+          id: "abpm-phgpm",
+          title: "ABPM Public Health and General Preventive Medicine content outline",
+          url: "https://www.theabpm.org/become-certified/exam-content/public-health-and-general-preventive-medicine-content-outline/",
+          scope: "K3.29 explicitly names GIS mapping.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        }
+      ],
+      r: 'areas <- LETTERS[1:4]\npop <- rbind(A = c(9000,1000), B = c(2000,6000),\n             C = c(100,50), D = c(4000,1000))\ncount <- rbind(A = c(36,10), B = c(4,48), C = c(1,1), D = c(8,4))\ntotal <- rowSums(count)\ncrude <- 1000 * total / rowSums(pop)\nstandard <- drop(1000 * (count/pop) %*% c(.5,.5))\nC_interval <- 1000 * poisson.test(total["C"], T = sum(pop["C",]))$conf.int\nstopifnot(isTRUE(all.equal(unname(crude[1:2]), c(4.6,6.5))),\n          isTRUE(all.equal(unname(standard[1:2]), c(7,5))),\n          abs(crude["C"] - 1000*2/150) < 1e-10,\n          all(abs(C_interval - c(1.614729,48.164584)) < 1e-5))\nprint(data.frame(area = areas, diagnoses = total, residents = rowSums(pop),\n                 crude_per_1000 = round(crude,1), standard_per_1000 = round(standard,1)))\nprint(round(setNames(C_interval, c("C lower 95%", "C upper 95%")),1))\n# Equal rectangles are a schematic, without real boundaries or identifiers.\nmap <- function(value, heading, breaks, dp) {\n  plot.new()\n  plot.window(xlim = c(0,2), ylim = c(0,2), asp = 1)\n  cols <- c("#eef6fc", "#a7cae3", "#4b8ab9")\n  group <- cut(value, breaks, include.lowest = TRUE, labels = FALSE)\n  x <- c(0,1,0,1)\n  y <- c(1,1,0,0)\n  rect(x, y, x+1, y+1, col = cols[group], border = "white")\n  text(x+.5, y+.5, paste0(areas, "\\n", formatC(value, digits = dp, format = "f")))\n  title(main = heading, cex.main = 0.9)\n}\nold <- par(mfrow = c(1,2), mar = c(1,1,3,1))\nmap(total, "Recorded diagnoses", c(0,15,40,Inf), 0)\nmap(crude, "Crude per 1,000", c(0,4,8,Inf), 1)\npar(old)\n',
+      columns: [],
+      contentVersion: "2026-11-15-q0d01d6211bc5",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "1a800a281a33e809301e921e9fbae8d98e96a094a362bb34ebbb321bcdc61a8e"
+      },
+      assessmentIds: [
+        "BIO-SPATIAL-01",
+        "BIO-SPATIAL-02"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-SPATIAL-01",
+          version: 1,
+          track: "publicHealth",
+          topic: "Comparing rate and count maps",
+          objective: "Choose a measure appropriate for geographic comparison.",
+          stem: "Two districts have the same surveillance coverage and age mix. District A has 30 new diagnoses among 3,000 people at risk. District B has 80 among 20,000. Which interpretation is correct for this period?",
+          options: [
+            {
+              id: "A",
+              text: "District B has the higher observed risk because 80 is larger than 30",
+              feedback: "This compares counts only."
+            },
+            {
+              id: "B",
+              text: "Both risks are equal because they use the same case definition",
+              feedback: "Comparable case definitions do not make the risks equal."
+            },
+            {
+              id: "C",
+              text: "District A has the higher observed risk, although District B has more diagnoses",
+              feedback: "A has 10 per 1,000 and B has 4 per 1,000."
+            },
+            {
+              id: "D",
+              text: "Neither observed risk can be calculated until every district has the same number of residents",
+              feedback: "Different denominator sizes can be compared using proportions."
+            },
+            {
+              id: "E",
+              text: "There is proof of a causal effect of living in District A",
+              feedback: "These summaries cannot rule out other explanations for the geographic difference."
+            }
+          ],
+          correct: "C",
+          hint: "Divide each count by its own district denominator.",
+          lesson: "The rate or risk can rank places differently from a count.",
+          explanation: "The observed proportion is 1% in A and 0.4% in B. The case count is larger in B.",
+          lessonId: "small-area-rates",
+          sourceIds: [
+            "cdc-gis"
+          ],
+          help: "rates/direct_standardization.htm",
+          difficulty: "intermediate",
+          learnerGoals: [
+            "publicHealth",
+            "mastersStatistics",
+            "healthcareBusinessAnalyst"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "b31ef3b3b40ba6f4b2b205751b29c781e631750f5a0a1692588fbd214fbdeeee"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+        "https://www.cdc.gov/field-epi-manual/php/chapters/gis-data.html",
+        "https://www.theabpm.org/become-certified/exam-content/public-health-and-general-preventive-medicine-content-outline/"
+      ]
+    },
+    {
+      id: "health-economic-evaluation",
+      title: "Comparing costs and health outcomes",
+      topic: "Perspective, discounting and cost-effectiveness",
+      objective: "Compare two programmes using incremental costs and QALYs, and explain how assumptions affect the result.",
+      summary: "A cost-effectiveness model compares a programme with a relevant alternative, commonly current care. State whose costs the analysis counts and how long it follows costs and outcomes. An opportunity cost is the benefit forgone when resources cannot be used elsewhere. Discounting expresses future costs and health outcomes in present values using the rates specified for the exercise. The incremental cost-effectiveness ratio divides additional cost by additional health gain. Use sensitivity analysis to test important assumptions. Compare affordability, equity and implementation separately.",
+      steps: "A fictional care provider compares a new programme with current care over two years. Per participant, programme costs at years 0, 1 and 2 are \xA3800, \xA3160 and \xA3100. Current care costs \xA3400, \xA3100 and \xA3100. The programme yields 0.79 QALYs at the end of each of years 1 and 2, and current care 0.75 each year. Use an illustrative 3% annual discount rate for both costs and QALYs. The increments are about \xA3458 and 0.0765 QALYs, so the ratio is about \xA35,987 per additional QALY. If the annual gain is 0.02 QALYs instead of 0.04 and costs stay fixed, the ratio rises to about \xA311,974. This crosses the exercise's fictional \xA310,000 per QALY benchmark.",
+      challenge: "If unpaid family care falls under the new programme, how might the comparison change if the analysis takes a broader societal perspective?",
+      help: "",
+      prerequisites: [
+        "population-impact"
+      ],
+      learningObjectives: [
+        "Name the comparator, cost perspective and time horizon.",
+        "Discount the costs and QALYs and compute the incremental ratio when both increments are positive.",
+        "Use a sensitivity analysis and distinguish cost-effectiveness from a budget decision."
+      ],
+      keyConcepts: [
+        {
+          term: "Perspective and horizon",
+          explanation: "A care provider's perspective includes costs borne by that provider. A broader analysis may include other costs, such as patient time or unpaid care. A short horizon can miss downstream costs and benefits."
+        },
+        {
+          term: "Opportunity cost",
+          explanation: "Spending on this programme uses resources that could produce benefits elsewhere. A low ratio alone does not say how much budget is needed or displaced."
+        },
+        {
+          term: "Dominance",
+          explanation: "If an option costs more and produces worse outcomes than its alternative, it is dominated in this two-option comparison. Do not interpret a negative ratio by ranking it numerically."
+        }
+      ],
+      misconceptions: [
+        {
+          claim: "The new programme's total cost divided by its total QALYs is its incremental ratio.",
+          correction: "Use the difference in costs divided by the difference in QALYs relative to the comparator."
+        },
+        {
+          claim: "Discounting and sensitivity analysis are equivalent.",
+          correction: "Discounting accounts for timing. Sensitivity analysis changes a model assumption to see how much the result depends on it."
+        }
+      ],
+      workedExample: {
+        design: "A fictional two-year provider-perspective comparison. Costs and health outcomes are valued at the stated times. The discount rate and benchmark are invented for learning.",
+        interpretation: "The base case lies below the fictional benchmark. Halving the assumed health gain puts the estimate above it. Possible costs and health gains beyond year two, differential effects across groups and real budget impact are outside the model."
+      },
+      teachingPrompts: [
+        {
+          level: "intermediate",
+          prompt: "Why might options with similar ratios have very different budget impacts?",
+          expectedReasoning: "Budget impact also depends on eligible population, uptake and annual spending. An incremental ratio describes the cost per unit of gain."
+        }
+      ],
+      rProgression: {
+        menus: "Review the Population impact lesson to recall how QALYs combine survival and health-related quality. Use Explore in R to calculate the incremental comparison.",
+        bridge: "Compare the discounted cost and QALY increment to the ratio and the fictional benchmark.",
+        coding: "Vary the assumed annual QALY gain and find where the ratio crosses the benchmark."
+      },
+      sources: [
+        {
+          id: "dfph-syllabus",
+          title: "Faculty of Public Health DFPH knowledge syllabus",
+          url: "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+          scope: "Section 4(d) names opportunity cost, discounting, cost-effectiveness and QALYs.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        },
+        {
+          id: "nice-economic-evaluation",
+          title: "NICE technology appraisal manual, economic evaluation",
+          url: "https://www.nice.org.uk/process/pmg36/chapter/economic-evaluation-2/",
+          scope: "Perspective, incremental analysis, time horizon, discounting and sensitivity. The lesson uses fictional assumptions.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        },
+        {
+          id: "usmle-2026",
+          title: "USMLE content outline (2026), pp. 36\u201338",
+          url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37",
+          scope: "QALYs as population-impact measures. Full economic evaluation is an extension.",
+          checkedAt: "2026-11-15",
+          use: "Methods reference and further reading."
+        }
+      ],
+      r: "year <- 0:2\ndiscount <- 1 / (1.03^year)\nusual_cost <- c(400,100,100)\nprogramme_cost <- c(800,160,100)\nusual_qaly <- c(0,.75,.75)\nprogramme_qaly <- c(0,.79,.79)\ndc <- sum((programme_cost-usual_cost)*discount)\ndq <- sum((programme_qaly-usual_qaly)*discount)\ndq_lower <- sum(c(0,.02,.02)*discount)\nbenchmark <- 10000\nicer <- dc/dq\nicer_lower_qaly <- dc/dq_lower\nstopifnot(abs(dc - 458.2524272) < 1e-6,\n          abs(dq - 0.07653879) < 1e-8,\n          abs(icer - 5987.192118) < 0.01,\n          icer < benchmark, icer_lower_qaly > benchmark)\nprint(round(c(cost_increment = dc, QALY_increment = dq,\n              cost_per_QALY = icer,\n              cost_per_QALY_smaller_gain = icer_lower_qaly), 4))\n",
+      columns: [],
+      contentVersion: "2026-11-15-qbc5c2e91f941",
+      knowledgeSchemaVersion: 1,
+      review: {
+        status: "Reviewed for release",
+        date: "2026-11-15",
+        reviewer: "Codex review; Iain Buchan release approval",
+        notes: "Worked explanation, bindings and R example checked.",
+        contentSha256: "f8faba79fe22bd65b83dff855d39394600d47c71aacf3fa643daa2fe4f7404a1"
+      },
+      assessmentIds: [
+        "BIO-ECON-01",
+        "BIO-ECON-02"
+      ],
+      practiceQuestions: [
+        {
+          id: "BIO-ECON-01",
+          version: 1,
+          track: "publicHealth",
+          topic: "Incremental cost per QALY",
+          objective: "Use the comparator to calculate an incremental ratio.",
+          stem: "After discounting, a fictional new programme costs \xA32,400 and yields 1.60 QALYs per person. Current care costs \xA32,000 and yields 1.55 QALYs over the same horizon. What is the incremental cost per additional QALY?",
+          options: [
+            {
+              id: "A",
+              text: "\xA3250",
+              feedback: "This divides the \xA3400 increment by the new programme's total QALYs."
+            },
+            {
+              id: "B",
+              text: "\xA3400",
+              feedback: "This is the incremental cost per person."
+            },
+            {
+              id: "C",
+              text: "\xA31,500",
+              feedback: "This divides the new programme's total cost by its total QALYs."
+            },
+            {
+              id: "D",
+              text: "\xA38,000",
+              feedback: "Divide the \xA3400 difference in cost by the 0.05 difference in QALYs."
+            },
+            {
+              id: "E",
+              text: "\xA348,000",
+              feedback: "This divides the new programme's total cost by the incremental QALYs."
+            }
+          ],
+          correct: "D",
+          hint: "Compute differences in both columns before dividing.",
+          lesson: "Incremental comparisons use differences in both costs and outcomes.",
+          explanation: "The increment is (\xA32,400 \u2212 \xA32,000)/(1.60 \u2212 1.55) = \xA38,000 per additional QALY.",
+          lessonId: "health-economic-evaluation",
+          sourceIds: [
+            "dfph-syllabus",
+            "nice-economic-evaluation"
+          ],
+          help: "",
+          difficulty: "intermediate",
+          learnerGoals: [
+            "publicHealth",
+            "healthcareBusinessAnalyst",
+            "mastersStatistics"
+          ],
+          review: {
+            status: "Reviewed for release",
+            date: "2026-11-15",
+            reviewer: "Codex review; Iain Buchan release approval",
+            notes: "Answer key, distractors and feedback independently checked.",
+            contentSha256: "d914ae0cf066150a9d29868fc978c3e1f1c208dce9b8c7cc33e021560473b639"
+          }
+        }
+      ],
+      readingURLs: [
+        "https://www.fph.org.uk/media/tqsp3ovp/oct-2016-diplomate-examination-syllabus_reviewed-2022.pdf",
+        "https://www.nice.org.uk/process/pmg36/chapter/economic-evaluation-2/",
+        "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37"
       ]
     }
   ];

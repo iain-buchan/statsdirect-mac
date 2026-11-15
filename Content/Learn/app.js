@@ -20279,7 +20279,7 @@ ${content}</tr>
   function recordHTML(r2) {
     const section = (title, body2) => `<section><h2>${e(title)}</h2>${body2}</section>`;
     const para = (s) => `<p>${e(s)}</p>`;
-    const attempts = r2.attempts.map((a) => `<h3>${e(a.course?.title ?? a.track)} \xB7 ${e(a.status)}</h3>${para(a.result ? `Provisional score: ${a.result.score}/${a.result.total}` : "Attempt not completed")}` + a.questionSnapshots.map((q) => {
+    const attempts = r2.attempts.map((a) => `<h3>${e(a.course?.title ?? (a.questionSet === "all" ? "All questions" : a.track))} \xB7 ${e(a.status)}</h3>${para(a.result ? `Provisional score: ${a.result.score}/${a.result.total}` : "Attempt not completed")}` + a.questionSnapshots.map((q) => {
       const ans = a.answers.find((x) => x.questionId === q.id);
       return `<h4>${e(q.topic)}</h4>${para(q.stem)}<ol type="A">${q.options.map((o) => `<li>${e(o.text)}</li>`).join("")}</ol>${para(`First answer: ${ans?.choice ?? "\u2014"} \xB7 Key: ${q.correct ?? "withheld"} \xB7 Confidence: ${ans?.confidence ?? "\u2014"}`)}${para("Reasoning: " + (ans?.reasoning ?? "\u2014"))}${para("Reflection: " + (ans?.reflection ?? "\u2014"))}${para(q.explanation ?? "Feedback withheld until the attempt ends")}`;
     }).join("")).join("");
@@ -22235,9 +22235,10 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
   // Learn/Upstream/Learning/quiz.mjs
   var { bankVersion: bankVersion2, questions: questions2, tracks: tracks2 } = bank_exports;
   var bankPublication2 = Reflect.get(bank_exports, "bankPublication") ?? null;
-  function createSession(track, mode, id = crypto.randomUUID(), providerPack = null) {
+  function createSession(track, mode, id = crypto.randomUUID(), providerPack = null, allQuestions = false) {
     if (!tracks2[track] || !["learn", "test"].includes(mode)) throw new Error("Choose a valid learning path and mode.");
-    const selected = providerPack?.questions ?? questions2.filter((q) => q.track === track || q.track === "core");
+    const useAllQuestions = allQuestions && !providerPack;
+    const selected = providerPack?.questions ?? (useAllQuestions ? questions2 : questions2.filter((q) => q.track === track || q.track === "core"));
     if (!selected.length) throw Error("This course has no practice questions.");
     return {
       id,
@@ -22248,6 +22249,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
       course: providerPack?.course ?? null,
       startedAt: (/* @__PURE__ */ new Date()).toISOString(),
       completedAt: null,
+      ...useAllQuestions ? { questionSet: "all" } : {},
       questionIds: selected.map((q) => q.id),
       questionSnapshots: structuredClone(selected),
       answers: [],
@@ -22426,6 +22428,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     const lines = ["STATSDIRECT \u2014 LEARNING RECORD", "External review request", `Prepared: ${record.exportedAt}`, `Record: ${record.portfolioID}`, `Started: ${record.startedAt}`, "", `Learner: ${record.learner.name || "(not supplied)"}`, `Reply email: ${record.learner.email || "(not supplied)"}`, `Learning goal: ${record.learner.goal || "(not supplied)"}`, `Pathway: ${record.pathway}`, `Statistical skills: ${statisticalSkills[record.learningOptions?.statisticalSkills] || "Not recorded"}`, `R experience: ${record.rExperience}`, `Exams / qualifications: ${record.learningOptions?.qualifications || "(not supplied)"}`, `Learning needs: ${record.learningOptions?.needs || "(not supplied)"}`, `Prior knowledge: ${record.learningOptions?.priorKnowledge || "(not supplied)"}`, `Target date: ${record.learningOptions?.targetDate || "(not supplied)"}`, `Focus: ${(record.learningOptions?.focus || []).join(", ")}`, `Preferred teaching style: ${record.learningOptions?.style || ""}`, "", record.questionSource, record.marking, record.reviewStatus, "", "PRACTICE ATTEMPTS"];
     for (const a of record.attempts) {
       if (a.course) lines.push(`Provider assessment: ${a.course.title} \xB7 ${a.course.provider} \xB7 version ${a.course.version}`);
+      if (a.questionSet === "all") lines.push("Question set: All questions");
       lines.push("", `${tracks[a.track].title} \u2014 ${a.mode === "test" ? "Independent practice (unsupervised)" : "Supported practice"} \u2014 ${a.status}`, `Started: ${a.startedAt} | Completed: ${a.completedAt || "not completed"}`, a.result ? `Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted` : `Answered: ${a.answers.length}/${a.questionIds.length}`);
       for (const q of a.questionSnapshots) {
         const answer = a.answers.find((x) => x.questionId === q.id);
@@ -22458,12 +22461,32 @@ Teaching rationale: ${item.explanation}` : "";
   }
 
   // Learn/Upstream/Learning/exam-sources.mjs
-  var examSources = [
-    { title: "MRCP(UK): official Part 1 sample examination", url: "https://www.thefederation.uk/examinations/part-1/part-1-sample-questions", note: "Official best-of-five practice access. Registration is required; the questions behind that step were not reviewed for this build." },
-    { title: "MRCP-style diagnostic questions: published practice examples", url: "https://www.pastpaperhero.com/resources/rcp-mrcp-statistics-epidemiology-and-evidence-based-medicine-sensitivity-specificity-and-predictive-values?content=article", note: "Independent publisher, not a Royal College source. Public questions cover diagnostic denominators, prevalence and threshold changes. Used for topic inspiration only." },
-    { title: "MRCGP AKT: official sample questions and answers", url: "https://www.rcgp.org.uk/getmedia/dca96621-2599-4e6e-9a99-7a1ab2affff9/AKT-Example-Questions-(with-answers)-November-2025.pdf", note: "November 2025 samples include chart interpretation, event risk and uncertainty (questions 3, 10, 20, 24 and 41). The app uses new fictional examples." },
-    { title: "DFPH: official specimen papers and marking schemes", url: "https://www.fph.org.uk/training-careers/the-diplomate-dfph-and-final-membership-examination-mfph/the-diplomate-examination-dfph/the-diplomate-examination-dfph-preparation/", note: "Written interpretation and critical appraisal are important. The published Paper B includes interpretation of length of stay and case mix. Preparation also needs written appraisal and interpretation; the examination is not solely MCQ-based." },
-    { title: "MFPH: final membership assessment", url: "https://www.fph.org.uk/training-careers/the-diplomate-dfph-and-final-membership-examination-mfph/the-faculty-of-public-health-final-membership-examination/marking-results-and-feedback/", note: "Final membership assesses practical competencies across six stations. Use the conversational explanation exercise below alongside MCQ practice." }
+  var examGroups = [
+    { title: "UK medical school and postgraduate exams", sources: [
+      { title: "Medical Licensing Assessment: practice papers", url: "https://www.medschools.ac.uk/for-students/medical-licensing-assessment/practice-exam-for-the-ms-akt/", note: "Practise interpreting results and making clinical decisions from data. The public papers show the single-best-answer format." },
+      { title: "MRCP(UK) Part 1: blueprint", url: "https://www.thefederation.uk/examinations/part-1/format", note: "The combined topic covers statistics, epidemiology and evidence-based medicine. The official Part 1 sample requires registration." },
+      { title: "MRCGP AKT: preparation and sample questions", url: "https://www.rcgp.org.uk/mrcgp-exams/applied-knowledge-test/akt-preparing", note: "Practise risk, charts and evidence interpretation in primary care." },
+      { title: "MRCPsych: Paper B syllabus and Critical Review", url: "https://www.rcpsych.ac.uk/training/exams/preparing-for-exams", note: "Appraise study design, statistical methods and reporting. Check the syllabus for your sitting, especially the January 2027 change." },
+      { title: "MRCOG: syllabus and knowledge requirements", url: "https://www.rcog.org.uk/media/yeqbkfrw/mrcog-syllabus-and-knowledge-requirements-v10.pdf", note: "Practise screening, maternal and perinatal denominators, trial design and appraisal." },
+      { title: "MRCS: candidate guidance", url: "https://www.intercollegiatemrcsexams.org.uk/about-the-mrcs/candidate-guidance/", note: "The Part A blueprint includes data interpretation and audit." },
+      { title: "MRCPCH: theory syllabi", url: "https://www.rcpch.ac.uk/sites/default/files/2026-02/MRCPCH-theory-exam-syllabi-2023-v3.pdf#page=60", note: "Theory and Science addresses methods and screening. Applied Knowledge includes interpretation of evidence." },
+      { title: "FRCA: Research and Managing Data", url: "https://www.rcoa.ac.uk/documents/examination-syllabus-stage-1/research-managing-data-rd", note: "Practise distributions, inference, power, accuracy and regression. For Final FRCA, add appraisal of trials and reviews." },
+      { title: "FRCEM: official journal appraisal exercise", url: "https://rcem.ac.uk/wp-content/uploads/2022/08/FRCEM_OSCE_Sample_Journal_Article_and_Questions.pdf", note: "Rehearse explaining selection, masking, accuracy and applicability. MRCEM Primary additionally names statistics and research methods." },
+      { title: "FFICM: exam syllabus", url: "https://www.ficm.ac.uk/sites/ficm/files/documents/2022-03/FFICM%20Exam%20Syllabus%20v1.0%20March%202022.pdf", note: "Practise estimation, test choice, clinical study design and evidence synthesis. Check the examination format for your sitting." },
+      { title: "Specialty Certificate Examinations: specialty blueprints", url: "https://www.thefederation.uk/examinations/specialty-certificate-examinations/specialties", note: "Use your specialty\u2019s documents. The statistical content and assessment categories differ by specialty." },
+      { title: "MSRA: Clinical Problem Solving", url: "https://medical.hee.nhs.uk/medical-training-recruitment/medical-specialty-training/multi-specialty-recruitment-assessment-msra/whats-in-the-msra/clinical-problem-solving-paper", note: "This is a recruitment assessment. The published remit does not identify a separate statistics section." }
+    ] },
+    { title: "Public health exams", sources: [
+      { title: "DFPH: specimen papers and marking schemes", url: "https://www.fph.org.uk/training-careers/the-diplomate-dfph-and-final-membership-examination-mfph/the-diplomate-examination-dfph/the-diplomate-examination-dfph-preparation/", note: "Combine calculations with interpretation of tables and graphs, critical appraisal and short written responses." },
+      { title: "MFPH: practice stations", url: "https://www.fph.org.uk/training-careers/the-diplomate-dfph-and-final-membership-examination-mfph/the-faculty-of-public-health-final-membership-examination/practice/", note: "Practise explaining evidence and uncertainty in a role-play with a defined audience." },
+      { title: "ABPM: Public Health and General Preventive Medicine", url: "https://www.theabpm.org/become-certified/exam-content/public-health-and-general-preventive-medicine-content-outline/", note: "The specialty outline gives separate percentages for epidemiology, biostatistics and informatics in one combined domain." }
+    ] },
+    { title: "US medical licensure and board certification", sources: [
+      { title: "USMLE: common content outline", url: "https://www.usmle.org/sites/default/files/2022-01/USMLE_Content_Outline_0.pdf#page=37", note: "Use the biostatistics, epidemiology, population health and medical literature section. Each Step has its own specifications." },
+      { title: "USMLE Step 3: formats and sample questions", url: "https://www.usmle.org/exam-resources/step-3-materials/step-3-formats-questions", note: "Practise interpreting abstracts, relative and absolute risks, and evidence claims in drug advertisements." },
+      { title: "ABMS: specialty and subspecialty certificates", url: "https://abms.org/member-boards/specialty-subspecialty-certificates/", note: "Find the board for your specialty and check its initial certification blueprint. USMLE is a licensing exam; board certification has separate requirements." },
+      { title: "ABIM: internal medicine and subspecialty blueprints", url: "https://www.abim.org/about/abim-exams/blueprints/", note: "Choose the certification blueprint that applies to your assessment. Clinical epidemiology and prognosis may be tested within clinical scenarios." }
+    ] }
   ];
   var communicationPrompt = "Practise a short public-health communication scenario with me. You are a fictional service manager asking whether a clinic with longer average waiting times is performing poorly. Give me a small original data example, ask me to explain it in plain language, and wait for my reply. Then give formative feedback on interpretation, case mix, uncertainty and clarity. Do not assign an official examination grade.";
 
@@ -24289,21 +24312,34 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   function welcome() {
     if (!state.conversation.length) transcriptEntry(state, "assistant", "Welcome. We can start with a clinical, service or research question, work through an example in StatsDirect, then connect each step to R when you are ready.\n\nFirst, tell me the population and question you want to understand. Are you describing what happens, predicting an outcome, or asking whether something causes it?", "Study guide");
   }
+  function practiceQuestionSet(source) {
+    const quiz = state.quiz;
+    if (quiz) {
+      const title = quiz.course?.title ?? (quiz.questionSet === "all" ? "All questions" : tracks[quiz.track].title);
+      return { title, count: quiz.questionIds.length };
+    }
+    const providerCount = coursePack?.questions?.length ?? 0;
+    if (providerCount && (source === void 0 || source === "course")) {
+      return { title: coursePack.title, count: providerCount };
+    }
+    if (source === "all") return { title: "All questions", count: questions.length };
+    const count = questions.filter((q) => q.track === state.profile || q.track === "core").length;
+    return { title: tracks[state.profile].title, count };
+  }
+  function updatePracticeCount({ count } = practiceQuestionSet()) {
+    $("practiceNav").querySelector("span").textContent = count;
+  }
   function render3() {
     document.body.classList.toggle("study-mode", state.view === "study");
     document.body.classList.toggle("conversation-focus", state.view === "study" && state.conversationFocus === true);
     $("workspaceContext").hidden = state.view !== "study";
-    $("profile").innerHTML = Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc3(t.title)}</option>`).join("");
-    $("stage").innerHTML = Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc3(t)}</option>`).join("");
-    $("profile").disabled = Boolean(state.quiz && !state.quiz.completedAt) || Boolean(pending);
-    $("stage").disabled = independent() || Boolean(pending);
     $("lessons").innerHTML = allLessons().map((l, i) => `<button data-lesson="${esc3(l.id)}" class="${state.view === "study" && state.lesson === l.id ? "current" : ""}" ${independent() || pending ? "disabled" : ""}>${i + 1}. ${esc3(l.title)}</button>`).join("");
     $("practiceNav").classList.toggle("current", state.view === "practice");
     $("practiceNav").disabled = Boolean(pending);
     $("recordNav").classList.toggle("current", state.view === "record");
     $("sourcesNav").classList.toggle("current", state.view === "sources");
     $("sourcesNav").disabled = independent();
-    $("practiceNav").querySelector("span").textContent = state.quiz?.questionIds.length ?? (courseQuestions(coursePack).length || questions.filter((q) => q.track === state.profile || q.track === "core").length);
+    updatePracticeCount();
     $("options").disabled = independent() || Boolean(pending);
     $("settings").disabled = Boolean(pending) || Boolean(settings.disabled);
     if (state.view === "options") renderOptions();
@@ -24482,10 +24518,16 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     render3();
     post({ action: "ask", id: pending, userMessageID: entry.id, lesson: lesson().id, profile: tracks[state.profile].title, stage: stages[state.stage], practiceContext: practiceContext(state), learningGoals: state.learning, messages: conversationForTutor(state) });
   }
-  function startQuiz(mode, provider = false) {
+  function startQuiz(mode, source) {
     if (pending || state.quiz && !state.quiz.completedAt) return;
+    const provider = source === "course" ? {
+      version: coursePack.version,
+      questions: courseQuestions(coursePack),
+      course: { key: courseKey(coursePack), title: coursePack.title, version: coursePack.version, provider: coursePack.provider.name }
+    } : null;
+    const quiz = createSession(state.profile, mode, crypto.randomUUID(), provider, source === "all");
     if (state.quiz) state.attempts.push(state.quiz);
-    state.quiz = createSession(state.profile, mode, crypto.randomUUID(), provider ? { version: coursePack.version, questions: courseQuestions(coursePack), course: { key: courseKey(coursePack), title: coursePack.title, version: coursePack.version, provider: coursePack.provider.name } } : null);
+    state.quiz = quiz;
     feedback = null;
     state.view = "practice";
     activity(`Started ${mode === "test" ? "independent" : "supported"} practice for ${tracks[state.profile].title}`);
@@ -24493,15 +24535,26 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   }
   function renderPractice() {
     const qz = state.quiz;
-    $("main").innerHTML = `<div class="eyebrow">PRACTICE WITH PURPOSE</div><h1>Put your understanding to work</h1><p class="subtle"><span id="questionSetSummary">${esc3(qz?.course?.title || (!qz && courseQuestions(coursePack).length ? coursePack.title : tracks[state.profile].title))} \xB7 ${qz?.questionIds.length ?? (courseQuestions(coursePack).length || questions.filter((q2) => q2.track === state.profile || q2.track === "core").length)} questions.</span> These short practice sets do not establish exam readiness.</p>`;
+    const summary = ({ title, count }) => `${title} \xB7 ${count} questions.`;
+    $("main").innerHTML = `<div class="eyebrow">PRACTICE WITH PURPOSE</div><h1>Put your understanding to work</h1><p class="subtle"><span id="questionSetSummary">${esc3(summary(practiceQuestionSet()))}</span> These practice sets do not establish exam readiness.</p>`;
     if (!qz) {
-      $("main").insertAdjacentHTML("beforeend", `<section class="card"><h2>Choose how to practise</h2><p>Supported practice gives feedback after each answer. Independent practice pauses the tutor and withholds feedback until the end.</p>${courseQuestions(coursePack).length ? `<label for="questionSource">Question set</label><select id="questionSource"><option value="course">${esc3(coursePack.title)} \u2014 provider questions</option><option value="builtin">StatsDirect foundation / pathway questions</option></select>` : ""}<div class="actions"><button class="primary" id="supported">Supported practice</button><button id="independent">Independent practice</button></div><p class="small">First answers are retained. Confidence and reasoning help you reflect; they do not alter the score.</p></section>`);
-      $("supported").onclick = () => startQuiz("learn", $("questionSource")?.value === "course");
-      $("independent").onclick = () => startQuiz("test", $("questionSource")?.value === "course");
-      if ($("questionSource")) $("questionSource").onchange = () => {
-        const course = $("questionSource").value === "course", count = course ? courseQuestions(coursePack).length : questions.filter((q2) => q2.track === state.profile || q2.track === "core").length;
-        $("practiceNav").querySelector("span").textContent = count;
-        $("questionSetSummary").textContent = (course ? coursePack.title : tracks[state.profile].title) + " \xB7 " + count + " questions.";
+      $("main").insertAdjacentHTML("beforeend", `<section class="card">
+      <h2>Choose how to practise</h2>
+      <p>Supported practice gives feedback after each answer. Independent practice pauses the tutor and withholds feedback until the end.</p>
+      <label for="questionSource">Question set</label><select id="questionSource">
+        ${coursePack?.questions?.length ? `<option value="course">${esc3(coursePack.title)} \u2014 provider questions</option>` : ""}
+        <option value="builtin">My study context</option><option value="all">All questions</option>
+      </select>
+      <div class="actions"><button class="primary" id="supported">Supported practice</button><button id="independent">Independent practice</button></div>
+      <p class="small">First answers are retained. Confidence and reasoning help you reflect. They do not alter the score.</p>
+    </section>`);
+      const source = $("questionSource");
+      $("supported").onclick = () => startQuiz("learn", source.value);
+      $("independent").onclick = () => startQuiz("test", source.value);
+      source.onchange = () => {
+        const selected = practiceQuestionSet(source.value);
+        updatePracticeCount(selected);
+        $("questionSetSummary").textContent = summary(selected);
       };
       return;
     }
@@ -24634,13 +24687,19 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   }
   function renderOptions() {
     const o = state.learning;
+    const profileDisabled = state.quiz && !state.quiz.completedAt || pending;
+    const stageDisabled = independent() || pending;
     $("main").innerHTML = `<div class="eyebrow">LEARNING OPTIONS</div><h1>Make learning work for you</h1>
   <section class="card"><h2>Your experience level and goals</h2>
-  <div class="form-row"><div><label for="statisticalSkills">Statistical skills</label><select id="statisticalSkills">${Object.entries(statisticalSkills).map(([id, title]) => `<option value="${id}" ${o.statisticalSkills === id ? "selected" : ""}>${title}</option>`).join("")}</select></div><div><label for="optionStage">Confidence with R</label><select id="optionStage">${Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc3(t)}</option>`).join("")}</select></div></div>
+  <div class="form-row">
+    <div><label for="optionProfile">Professional or study context</label><select id="optionProfile" ${profileDisabled ? "disabled" : ""}>${Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc3(t.title)}</option>`).join("")}</select></div>
+    <div><label for="optionStage">Your next step with R</label><select id="optionStage" ${stageDisabled ? "disabled" : ""}>${Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc3(t)}</option>`).join("")}</select></div>
+  </div>
+  <p class="small">Your study context guides the examples and practice topics. Your statistical skills and next step with R guide the tutor\u2019s explanations.</p>
+  <label for="statisticalSkills">Statistical skills</label><select id="statisticalSkills">${Object.entries(statisticalSkills).map(([id, title]) => `<option value="${id}" ${o.statisticalSkills === id ? "selected" : ""}>${title}</option>`).join("")}</select>
   <label for="qualifications">Exams or courses you are studying for</label><textarea id="qualifications" rows="2" maxlength="1200" placeholder="For example: MRCP Part 1, MRCGP AKT, DFPH/MFPH, MPH, an undergraduate module, or a professional qualification">${esc3(o.qualifications)}</textarea>
   <label for="needs">Your learning goals</label><textarea id="needs" rows="2" maxlength="2500" placeholder="What would you like to understand or be able to do?">${esc3(o.needs)}</textarea>
   <details class="option-details"><summary>More learning preferences</summary>
-  <label for="optionProfile">Professional or study context</label><p class="small">Chooses examples and practice topics. Statistical skills sets the depth; confidence with R sets how much code the tutor explains.</p><select id="optionProfile" ${state.quiz && !state.quiz.completedAt ? "disabled" : ""}>${Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc3(t.title)}</option>`).join("")}</select>
   <label for="priorKnowledge">Previous experience with statistics and epidemiology</label><textarea id="priorKnowledge" rows="2" maxlength="1500">${esc3(o.priorKnowledge)}</textarea>
   <label for="targetDate">Target exam or completion date</label><input id="targetDate" type="date" value="${esc3(o.targetDate)}">
   <p class="small">The target date helps the tutor suggest a study plan when you ask; it does not schedule reminders.</p><p class="small">Epidemiology and causal inference are included in every pathway.</p><div class="focus-grid">${[["epidemiology", "Epidemiology and study design"], ["causal", "Causal inference and bias"], ["interpretation", "Interpreting results and uncertainty"], ["methods", "Choosing and checking statistical methods"], ["r", "R coding and reproducible analysis"], ["communication", "Explaining evidence to others"]].map(([id, title]) => `<label class="option"><input type="checkbox" name="focus" value="${id}" ${o.focus.includes(id) ? "checked" : ""} ${["epidemiology", "causal"].includes(id) ? "disabled" : ""}><span>${title}</span></label>`).join("")}</div>
@@ -24651,15 +24710,14 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
       o[id] = $(id).value;
       save();
     };
-    $("optionProfile").onchange = () => {
-      state.profile = $("optionProfile").value;
-      $("profile").value = state.profile;
-      save();
+    $("optionProfile").onchange = (event) => {
+      state.profile = event.target.value;
+      activity("Learning pathway changed to " + tracks[state.profile].title);
+      updatePracticeCount();
     };
-    $("optionStage").onchange = () => {
-      state.stage = $("optionStage").value;
-      $("stage").value = state.stage;
-      save();
+    $("optionStage").onchange = (event) => {
+      state.stage = event.target.value;
+      activity("R learning stage changed to " + stages[state.stage]);
     };
     document.querySelectorAll("[name=focus]").forEach((el) => el.onchange = () => {
       o.focus = Array.from(document.querySelectorAll("[name=focus]:checked")).map((x) => x.value);
@@ -24680,7 +24738,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     };
   }
   function renderSources() {
-    $("main").innerHTML = `<div class="eyebrow">EXAMINATION EXAMPLES</div><h1>Learn from the way questions are asked</h1><p class="subtle">Published examples inform our choice of topics and question styles. Our practice questions use original wording and fictional data; they are not endorsed by the examining bodies.</p><section class="card">${examSources.map((source) => `<div class="review-line"><h2><a href="${esc3(source.url)}" target="_blank" rel="noopener">${esc3(source.title)} \u2197</a></h2><p>${esc3(source.note)}</p></div>`).join("")}</section><section class="card"><h2>Practise explaining a result</h2><p>For public-health examinations, build the ability to discuss evidence with a colleague or member of the public as well as answering knowledge questions. The tutor can role-play a fictional service manager and give formative feedback.</p><button id="communication" class="primary">Prepare a conversation exercise</button></section>`;
+    $("main").innerHTML = `<div class="eyebrow">EXAMINATION EXAMPLES</div><h1>Find sample questions and study guidance</h1><p class="subtle">Choose the published specification or sample questions for your exam and sitting. Our practice questions use original wording and fictional data; they are not endorsed by the examining bodies.</p>${examGroups.map((group) => `<details class="card"><summary>${esc3(group.title)}</summary>${group.sources.map((source) => `<div class="review-line"><h2><a href="${esc3(source.url)}" target="_blank" rel="noopener">${esc3(source.title)} \u2197</a></h2><p>${esc3(source.note)}</p></div>`).join("")}</details>`).join("")}<section class="card"><h2>Practise explaining a result</h2><p>For public-health examinations, build the ability to discuss evidence with a colleague or member of the public as well as answering knowledge questions. The tutor can role-play a fictional service manager and give formative feedback.</p><button id="communication" class="primary">Prepare a conversation exercise</button></section>`;
     $("communication").onclick = () => {
       state.draft = communicationPrompt;
       state.lesson = "precision";
@@ -24713,19 +24771,10 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     state.view = view;
     save();
     render3();
+    if (view === "options") window.scrollTo(0, 0);
   }
   $("settings").onclick = configure;
   $("options").onclick = () => navigate("options");
-  $("profile").onchange = () => {
-    state.profile = $("profile").value;
-    activity("Learning pathway changed to " + tracks[state.profile].title);
-    render3();
-  };
-  $("stage").onchange = () => {
-    state.stage = $("stage").value;
-    activity("R learning stage changed to " + stages[state.stage]);
-    render3();
-  };
   $("lessons").onclick = (e2) => {
     const button = e2.target.closest("[data-lesson]");
     if (!button || button.disabled) return;

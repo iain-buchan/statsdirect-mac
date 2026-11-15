@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/iain-buchan/statisticalhelp",
-  "commit": "4850ab2f357a95b0f686787e0c7b18ebac0ee6b4",
-  "tag": "learning-v1.1.0",
+  "commit": "ac74ce886394dab3070a38f5277c3f48314ff091",
+  "tag": "learning-v1.1.1",
   "hostContract": 1,
   "files": {
     ".gitattributes": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9",
@@ -22,7 +22,7 @@
     "lesson-context.mjs": "3fa3b84690be9e0e2c16af600f9485ec29e8755e8d2250830fe092afa53ea985",
     "lesson-context.test.mjs": "4e1096ea2846848ade6985528677e85835894d791435106a945add28a57c8bfe",
     "lesson-guide.mjs": "43c3a81351ddb2852cb5b98b033c21d75c37c22cf44c2484cf8749041b66e45c",
-    "library.test.mjs": "b58e8921a1bf9e2690f0230c0f6bcf98a02c0259498dd17501819f74a6fc2da5",
+    "library.test.mjs": "9d378aa2ce31b8fe40565f2eddd1fcdb2a4124967f7828167c1e8b0c72958175",
     "package.json": "f2b2f712744835563f28aafdb3dcbe1be82d29989fdc37b4b73a3de22803b9c1",
     "pnpm-lock.yaml": "1d035a93f1a40979a7bff91e7e4c34950f0d65a00b286ef9f48d8e0400ca5db9",
     "portfolio.mjs": "2ba625969b59ded9898003ee18e9c33eaf23152e18b1c16648f5b35491441ffe",

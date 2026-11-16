@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """A split-frame stdio protocol fixture. No OpenAI calls or credentials."""
-import json, os, sys, time, threading
+import json, os, re, sys, time, threading
 from pathlib import Path
 assert os.environ['CODEX_HOME'].endswith('chatgpt-mock')
 assert 'OPENAI_API_KEY' not in os.environ
@@ -27,11 +27,31 @@ def bundled_lesson(lesson_id):
     lessons = json.loads((Path(__file__).resolve().parents[1]/'Content/Learn/lessons.json').read_text())
     return next(lesson for lesson in lessons if lesson['id'] == lesson_id)
 
+def compact(value): return json.dumps(value, ensure_ascii=False, separators=(',', ':'), sort_keys=True)
+
+def curated_fields():
+    """The fields LearningLibrary sends, read from its source so that the two lists cannot drift apart."""
+    source = (Path(__file__).resolve().parents[1]/'Sources/LearningLibrary.swift').read_text()
+    return re.findall(r'"(\w+)"', re.search(r'static let fields = \[(.*?)\]', source, re.S)[1])
+
+def method_catalogue():
+    operations = json.loads((Path(__file__).resolve().parents[1]/'Content/analysis-menu.json').read_text())['operations']
+    return '\n'.join(key + ': ' + (operations[key].get('title') or key) for key in sorted(operations))
+
+def lesson_allowance(context):
+    """What LearnHost allows the curated record: what the learner's own text, the workspace summary (6,000 at most), the
+    method catalogue and the headings leave of the 32,000-character reference context; 9,000 at most, 6,500 at least."""
+    heading = 'COURSE, LESSON AND LEARNING CONTEXT (separate from open data):\n'
+    assert context.startswith(heading)
+    learner = len(context.split('\nCURATED STATSDIRECT LESSON (', 1)[0]) - len(heading)
+    return min(9000, max(6500, 32000 - (learner + 6000 + len(method_catalogue()) + 600)))
+
 def curated_lesson(context):
     marker = 'CURATED STATSDIRECT LESSON (original teaching material; references are editorial links, not pages fetched during this conversation):\n'
     payload = next(line for line in context.split(marker, 1)[1].splitlines() if line.startswith('{'))
-    assert len(payload) <= 6500
-    assert 'METHOD CATALOGUE:' in context and len(context) < 32000
+    assert len(payload) <= lesson_allowance(context), (len(payload), lesson_allowance(context))
+    # The reference context is cut at 32,000 characters: the method catalogue, which comes last, must have arrived whole.
+    assert len(context) < 32000 and context.split('\nMETHOD CATALOGUE:\n', 1)[1] == method_catalogue()
     return json.loads(payload)
 
 for line in sys.stdin:
@@ -70,7 +90,7 @@ for line in sys.stdin:
         assert signed_in
         assert params['environments'] == []
         assert params['sandboxPolicy'] == {'type':'readOnly','networkAccess':False}
-        text = params['input'][0]['text']; thread = params['threadId']; turn = 'turn-' + thread
+        text = params['input'][0]['text']; thread = params['threadId']; turn = 'turn-' + thread; checked = ''
         latest = json.loads(text.split('\n',1)[1])['conversation'][-1]['text']
         if 'PRIVATE_EVENT_TEST' in latest:
             notify('PRIVATE_SENTINEL_event_name',{'private':'PRIVATE_SENTINEL_body'})
@@ -93,21 +113,31 @@ for line in sys.stdin:
             assert lesson['practiceQuestions'][0]['correct'] == 'D'
             assert '17.5' in lesson['workedExample']['interpretation']
             assert lesson['sources'][0]['url'] == 'https://stefvanbuuren.name/fimd/sec-MCAR.html'
-        if latest.startswith('LONG_LESSON_CONTEXT_TEST '):
+        # The page puts '[Lesson context: <title>]' before the learner's words, so the mark is looked for inside the message.
+        for mark in ('LONG_LESSON_CONTEXT_TEST ', 'TIGHT_LESSON_CONTEXT_TEST '):
+            if mark not in latest: continue
             context = json.loads(text.split('\n',1)[1])['referenceContext']
-            expected = bundled_lesson(latest.removeprefix('LONG_LESSON_CONTEXT_TEST '))
+            expected = bundled_lesson(latest.split(mark, 1)[1].split()[0])
+            whole = {key: expected[key] for key in curated_fields() if key in expected}
             lesson = curated_lesson(context)
-            for key in ('id', 'contentVersion', 'assessmentIds', 'learningObjectives', 'keyConcepts',
-                        'workedExample', 'misconceptions', 'rProgression', 'sources'):
-                assert lesson[key] == expected[key], key
-            if 'teachingPrompts' in lesson:
-                assert lesson['teachingPrompts'] == expected['teachingPrompts']
-            else:
-                with_prompts = {**lesson, 'teachingPrompts': expected['teachingPrompts']}
-                assert len(json.dumps(with_prompts, ensure_ascii=False, separators=(',', ':'))) > 6500
-            assert lesson['review'] == {key: value for key, value in expected['review'].items() if key != 'notes'}
-            assert 'practiceQuestions' not in lesson
             assert expected['r'] in context
+            if mark.startswith('LONG'):
+                # As on Windows, the tutor is given the whole lesson: a record longer than the 6,500 characters of
+                # StatsDirect 1.1.3 keeps its embedded practice question and its review notes.
+                assert len(compact(whole)) > 6500 and lesson == whole, sorted(set(whole) - set(lesson))
+                assert 'omitted for length' not in context
+            else:
+                # The learner's own text is long here, so the lesson has less room than it needs: the embedded practice
+                # question and the review notes go first, then the teaching prompts if it is still too long.
+                allowance = lesson_allowance(context)
+                assert len(compact(whole)) > allowance + 100, (len(compact(whole)), allowance)
+                shortened = {key: value for key, value in whole.items() if key != 'practiceQuestions'}
+                shortened['review'] = {key: value for key, value in whole['review'].items() if key != 'notes'}
+                if len(compact(shortened)) > allowance: del shortened['teachingPrompts']
+                assert lesson == shortened, sorted(set(shortened) ^ set(lesson))
+                assert 'Embedded practice questions and detailed review notes have been omitted for length.' in context
+            # The reply says which check ran, so that the driver can tell a check that passed from one that was skipped.
+            checked = ' Checked %s %s.' % (mark.split('_')[0], expected['id'])
         if 'RESOURCE_TEST' in latest:
             context = json.loads(text.split('\n',1)[1])['referenceContext']
             assert 'https://example.org/course-cohort' in context
@@ -140,8 +170,8 @@ for line in sys.stdin:
         if 'LIMIT_TEST' in text:
             notify('turn/completed',{'threadId':thread,'turn':{'id':turn,'status':'failed','error':{'message':'Usage limit SECRET TOKEN'}}}); continue
         notify('item/agentMessage/delta',{'threadId':thread,'turnId':turn,'itemId':'answer','delta':'Analyse within-person '})
-        notify('item/agentMessage/delta',{'threadId':thread,'turnId':turn,'itemId':'answer','delta':'differences.'})
-        notify('item/completed',{'threadId':thread,'turnId':turn,'item':{'id':'answer','type':'agentMessage','text':'Analyse within-person differences.'}})
+        notify('item/agentMessage/delta',{'threadId':thread,'turnId':turn,'itemId':'answer','delta':'differences.' + checked})
+        notify('item/completed',{'threadId':thread,'turnId':turn,'item':{'id':'answer','type':'agentMessage','text':'Analyse within-person differences.' + checked}})
         notify('turn/completed',{'threadId':thread,'turn':{'id':turn,'status':'completed'}}); continue
     elif method in ['turn/interrupt','thread/unsubscribe','account/login/cancel']: pass
     else: raise AssertionError('Unexpected call: ' + str(method))

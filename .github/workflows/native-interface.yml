@@ -104,7 +104,7 @@ jobs:
               node Learn/build.mjs
               git diff --exit-code -- Content/Learn Content/AI
               swiftc -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache Sources/LearningLibrary.swift Tests/learning-library-test.swift -o .build/learning-library-test
-              .build/learning-library-test Content/Learn/lessons.json
+              .build/learning-library-test Content/Learn/lessons.json Content/analysis-menu.json
               Scripts/test-help-pane.sh "$PWD/StatsDirect.app"
               Scripts/test-provider-learning.sh "$PWD/StatsDirect.app"
               ;;

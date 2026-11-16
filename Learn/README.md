@@ -48,7 +48,7 @@ The generated `Content/Learn/app.js` is committed, like the existing grid assets
 ```
 STATSDIRECT_CONTENT_ROOT="$PWD/Content" STATSDIRECT_LEARN_ARCHIVE="$PWD/Docs/Learn/bank.mjs" node --import ./Learn/test-register.mjs --test Learn/Upstream/Learning/*.test.mjs Learn/*.test.mjs Grid/tutor-data.test.mjs
 swiftc Sources/LearningLibrary.swift Tests/learning-library-test.swift -o .build/learning-library-test
-.build/learning-library-test Content/Learn/lessons.json
+.build/learning-library-test Content/Learn/lessons.json Content/analysis-menu.json
 Scripts/test-tutor-runtime.sh
 Scripts/test-tutor-protocol.sh
 Scripts/test-tutor-setup.sh

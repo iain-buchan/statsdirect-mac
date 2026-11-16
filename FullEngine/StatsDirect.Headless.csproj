@@ -7,6 +7,12 @@
     <EnableDefaultAntlrItems>false</EnableDefaultAntlrItems>
     <SourceRoot>Upstream/StatsDirectUI</SourceRoot>
     <NoWarn>CA1416;CS3021</NoWarn>
+    <!-- As the Windows project does: the symbols travel inside StatsDirect.Headless.dll, so the stack traces that error messages show keep
+         their line numbers with no separate .pdb in the app, and source files are named from the repository (the engine's as Windows names
+         them) instead of from the build Mac's folders. Source Link would write those folders back into the symbols, so it is off. -->
+    <DebugType>embedded</DebugType>
+    <PathMap>$(MSBuildProjectDirectory)/Upstream/StatsDirectUI=StatsDirectUI,$(MSBuildProjectDirectory)=FullEngine</PathMap>
+    <EnableSourceLink>false</EnableSourceLink>
   </PropertyGroup>
   <Target Name="RequireEngineSubmodule" BeforeTargets="PrepareForBuild">
     <Error Condition="!Exists('$(SourceRoot)/UI/OperationTestHost.cs')" Text="Engine source is missing. Run: git submodule update --init --recursive" />

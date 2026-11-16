@@ -4,8 +4,9 @@
 #
 #   Scripts/package-release.sh <app> <symbols folder> <version> <output folder> [--unsigned]
 #
-# With --unsigned the application ZIP is named -unsigned and BUILD-INFO.txt says so: the holder of the Developer ID
-# then signs and notarises it by SIGNING.md and replaces the ZIP on the draft release.
+# With --unsigned the application ZIP is named -unsigned and BUILD-INFO.txt says so: this is the tested package that
+# SIGNING.md step 2 keeps for comparison. The published ZIP is made from the signed app in SIGNING.md step 5.
+# Both ZIPs are made without resource forks, extended attributes or access control lists, which the in-app installer refuses.
 set -euo pipefail
 APP=${1:?app bundle}; SYMBOLS=${2:?symbols folder}; VERSION=${3:?version}; OUT=${4:?output folder}; shift 4
 SUFFIX=""; STATE="Developer ID signed, notarised and stapled."
@@ -15,7 +16,7 @@ mkdir -p "$OUT"
 ZIP="$OUT/StatsDirect-$VERSION-macOS-arm64$SUFFIX.zip"
 SYMZIP="$OUT/StatsDirect-$VERSION-macOS-arm64-symbols.zip"
 rm -f "$ZIP" "$SYMZIP"
-ditto -c -k --keepParent "$APP" "$ZIP"
+ditto -c -k --norsrc --noextattr --keepParent "$APP" "$ZIP"
 ditto -c -k "$SYMBOLS" "$SYMZIP"
 PLIST="$APP/Contents/Info.plist"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" == "$VERSION" ]] || { echo "the app's version is not $VERSION" >&2; exit 1; }

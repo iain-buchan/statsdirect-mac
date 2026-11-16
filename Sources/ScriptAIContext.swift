@@ -117,8 +117,7 @@ import Cocoa
             return result
         case "statsdirect_method_help":
             guard let operation=arguments["operation"] as? String, let path=viewer.analysisCatalog[operation]?["help"] as? String else { throw ChatGPTTutor.Failure(message:"Choose a documented StatsDirect method.") }
-            let file=viewer.root.appendingPathComponent(path).standardizedFileURL
-            guard file.path.hasPrefix(viewer.root.appendingPathComponent("Help").path+"/") else { throw ChatGPTTutor.Failure(message:"The method help is unavailable.") }
+            guard let file = viewer.bundledMethodHelpFile(path) else { throw ChatGPTTutor.Failure(message:"The method help is unavailable.") }
             return ["operation":operation,"text":LearningWorkspace.plain(try String(contentsOf:file,encoding:.utf8)),"boundedExcerpt":true]
         default: throw ChatGPTTutor.Failure(message:"Unknown AI action.")
         }

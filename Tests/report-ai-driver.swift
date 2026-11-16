@@ -65,6 +65,28 @@ import Darwin
         try await wait("report AI dock") { ai.visible && ai.scriptID==report.id }
         try await wait("introductory HTML") { (await text(ai)).contains("what your results mean") }
         try check((await text(ai)).contains("what your results mean") && v.workspaceSplit.arrangedSubviews.count==2 && ai.shareScript.title=="Share this report","AI opens beside the report with interpretation guidance and report sharing")
+        try FileManager.default.createDirectory(at:work,withIntermediateDirectories:true)
+        let contentAlias=work.appendingPathComponent("Content alias",isDirectory:true)
+        try FileManager.default.createSymbolicLink(at:contentAlias,withDestinationURL:v.root)
+        do {
+            let aliasedTranscript=AIConversationView(root:contentAlias)
+            let aliasWindow=NSWindow(contentRect:NSRect(x:100,y:100,width:420,height:180),
+                                     styleMask:[.titled],backing:.buffered,defer:false)
+            aliasWindow.isReleasedWhenClosed=false
+            aliasWindow.contentView=aliasedTranscript.view
+            aliasWindow.orderFront(nil)
+            defer { aliasedTranscript.shutdown();aliasWindow.close() }
+            try await wait("aliased AI transcript page") {
+                (try? await aliasedTranscript.web.evaluateJavaScript("typeof window.StatsDirectAIConversation==='object'")) as? Bool == true
+            }
+            aliasedTranscript.render(["generation":"alias", "messages":[["id":"reply","role":"assistant","text":"Local alias test reply"]], "introduction":""])
+            try await wait("aliased AI transcript") {
+                let text=(try? await aliasedTranscript.web.evaluateJavaScript("document.body.innerText")) as? String ?? ""
+                return text.contains("Local alias test reply")
+            }
+            let trustedPage=v.root.resolvingSymlinksInPath().appendingPathComponent("AI/index.html").standardizedFileURL
+            try check(aliasedTranscript.web.url?.standardizedFileURL==trustedPage,"AI transcript loads through a resource-directory alias while retaining its exact local page")
+        }
         try check(ai.shareScript.state == .off && ai.shareWorkbook.state == .off && !requests().contains("thread/start"),"opening the dock sends no report, worksheet or question and sharing starts off")
         // The workbook offered for sharing follows the result's record, as the Windows pane offers it (Iain's finding on the installed
         // build): opened on a result whose record names another open workbook than the session's data document, the pane selects that
@@ -120,12 +142,38 @@ import Darwin
             try await wait("native code copy") { board.string(forType:.string)?.contains("x <- c(1, 2, 3)")==true }
             try check(board.string(forType:.string)?.contains("mean(x)")==true,"the WebView Copy button copies the actual R code through the native bridge")
         }
-        let beforeRecovery=ai.transcript.web!
         let turnsBeforeRecovery=requests().components(separatedBy:"\"method\": \"turn/start\"").count
+        _=try await js(ai,"window.fixtureRichRender=window.StatsDirectAIConversation.render;window.StatsDirectAIConversation.render=()=>{throw new Error('Fixture renderer failure')};true")
+        ai.open(report,reportResultID:"paired-fixture")
+        try await wait("plain conversation after formatting error") { (await text(ai)).contains("Rich formatting is unavailable.") }
+        try check((await text(ai)).contains("mean paired difference") &&
+            requests().components(separatedBy:"\"method\": \"turn/start\"").count==turnsBeforeRecovery,
+            "a formatting error shows the saved reply as text in WebKit without sending again")
+        _=try await js(ai,"window.StatsDirectAIConversation.render=window.fixtureRichRender;delete window.fixtureRichRender;true")
+        ai.open(report,reportResultID:"paired-fixture")
+        try await wait("rich conversation after formatting recovers") { (try? await js(ai,"!!document.querySelector('[data-code=r]')")) as? Bool == true }
+        let stalledRenderer=ai.transcript.web!
+        _=try await js(ai,"window.StatsDirectAIConversation.render=()=>new Promise(()=>{});true")
+        ai.open(report,reportResultID:"paired-fixture")
+        try await wait("stalled AI render recovery") {
+            guard ai.transcript.web !== stalledRenderer else { return false }
+            return (await text(ai)).contains("mean paired difference")
+        }
+        let beforeRecovery=ai.transcript.web!
         let pid=(beforeRecovery.value(forKey:"_webProcessIdentifier") as? NSNumber)?.int32Value ?? 0
         try check(pid>1 && pid != getpid(),"isolated AI renderer identified for recovery test")
         _=kill(pid,SIGKILL)
-        try await wait("AI renderer recovery") { guard ai.transcript.web !== beforeRecovery else { return false };return (await text(ai)).contains("mean paired difference") }
+        func reloadButton() -> NSButton? {
+            ai.transcript.view.subviews.compactMap{$0 as? NSStackView}.filter{!$0.isHidden}
+                .flatMap(\.arrangedSubviews).compactMap{$0 as? NSButton}.first{$0.title=="Reload Conversation"}
+        }
+        try await wait("visible conversation reload after a second failure") { reloadButton() != nil }
+        try check(ai.transcript.web === beforeRecovery,"display recovery stops after one automatic reload")
+        reloadButton()?.performClick(nil)
+        try await wait("AI renderer manual reload") {
+            guard ai.transcript.web !== beforeRecovery else { return false }
+            return (await text(ai)).contains("mean paired difference")
+        }
         try check(requests().components(separatedBy:"\"method\": \"turn/start\"").count==turnsBeforeRecovery && ai.conversations[report.id]?.messages.count==6,"renderer recovery restores conversation without resending")
         let restrictions=try await ai.transcript.web.callAsyncJavaScript("let blocked=false;try{await fetch('https://example.invalid/blocked')}catch{blocked=true}return blocked",arguments:[:],in:nil,contentWorld:.page)
         try check(restrictions as? Bool==true,"AI conversation cannot fetch external resources")

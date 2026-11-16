@@ -151,6 +151,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var helpKeyMonitor: Any?
     let documentTabs = NSStackView()
     let documentTabScroll = NSScrollView()
+    private let documentMenuBar = NSStackView()
+    private var standardChromeEdges: [NSLayoutConstraint] = []
+    private var learningChromeEdges: [NSLayoutConstraint] = []
     var status: NSTextField!
     var documents: [Document] = []
     var finishedLaunching = false
@@ -210,7 +213,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         window.delegate = self
         window.minSize = NSSize(width: 850, height: 520)
         let container = NSView(); window.contentView = container
-        let bar = NSStackView(); bar.orientation = .horizontal; bar.spacing = 4
+        let bar = documentMenuBar; bar.orientation = .horizontal; bar.spacing = 4
         let symbol = NSImageView(); symbol.image = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")); symbol.imageScaling = .scaleProportionallyUpOrDown
         symbol.setAccessibilityLabel("StatsDirect"); symbol.widthAnchor.constraint(equalToConstant:26).isActive = true; symbol.heightAnchor.constraint(equalToConstant:26).isActive = true; bar.addArrangedSubview(symbol)
         for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "Window", "Help"] {
@@ -250,13 +253,20 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             if event.keyCode == 122 { self?.currentMethodHelp(); return nil }; return event
         }
         for view in [bar, documentTabScroll, workspaceSplit, status!] { view.translatesAutoresizingMaskIntoConstraints = false; container.addSubview(view) }
-        NSLayoutConstraint.activate([
+        standardChromeEdges = [
+            documentTabScroll.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 2),
+            status.topAnchor.constraint(equalTo: workspaceSplit.bottomAnchor, constant: 7)
+        ]
+        learningChromeEdges = [
+            documentTabScroll.topAnchor.constraint(equalTo: container.topAnchor, constant: 4),
+            workspaceSplit.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
+        ]
+        NSLayoutConstraint.activate(standardChromeEdges + [
             bar.heightAnchor.constraint(equalToConstant: 32), status.heightAnchor.constraint(equalToConstant: 16),
             bar.topAnchor.constraint(equalTo: container.topAnchor, constant: 4), bar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
-            documentTabScroll.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 2),
             documentTabScroll.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), documentTabScroll.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8), documentTabScroll.heightAnchor.constraint(equalToConstant: 36),
             workspaceSplit.topAnchor.constraint(equalTo: documentTabScroll.bottomAnchor, constant: 2), workspaceSplit.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), workspaceSplit.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-            status.topAnchor.constraint(equalTo: workspaceSplit.bottomAnchor, constant: 7), status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16), status.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16), status.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
+            status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16), status.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16), status.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
         ])
         if let icon = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")) { NSApp.applicationIconImage = icon }
         setupMenu()
@@ -483,6 +493,13 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         tabs.selectTabViewItem(documents[(index + delta + documents.count) % documents.count].item)
     }
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        let learningIsActive = active?.kind == "learn"
+        if documentMenuBar.isHidden != learningIsActive {
+            NSLayoutConstraint.deactivate(learningIsActive ? standardChromeEdges : learningChromeEdges)
+            documentMenuBar.isHidden = learningIsActive
+            status.isHidden = learningIsActive
+            NSLayoutConstraint.activate(learningIsActive ? learningChromeEdges : standardChromeEdges)
+        }
         if let doc = active {
             if doc.kind == "grid" { analysisSourceID=doc.id;selectAIDataDocument(doc.id) }
             scriptAI.activeDocumentChanged(doc)

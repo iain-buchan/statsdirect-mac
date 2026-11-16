@@ -91,6 +91,10 @@ import WebKit
         let gridOrder=try await js(grid,"[...document.querySelector('.sd-toolbar-row').children].map(x=>x.dataset.command).slice(0,7)") as? [String]
         try check(gridOrder==common,"worksheet common command order")
         try await fit(grid)
+        try check(try await js(grid,"""
+            (()=>{const more=document.querySelector('[data-command=more]');more.click();
+                return more.hidden&&getComputedStyle(more).display==='none'&&more.getAttribute('aria-expanded')==='false'&&document.getElementById('grid-more-tools').hidden;})()
+            """) as? Bool == true,"worksheet More stays hidden and cannot open an empty popup when commands fit")
         _=try await js(grid,"window.statsDirectGrid.editCommand('cut','')")
         try await Task.sleep(nanoseconds:150_000_000)
         try check(try await js(grid,"window.statsDirectGrid.csvData().includes('Alpha')") as? Bool == true,"Cut without a worksheet selection leaves cells unchanged")
@@ -121,7 +125,7 @@ import WebKit
         v.helpLibrary();v.workspaceSplit.setPosition(330,ofDividerAt:0);v.window.contentView!.layoutSubtreeIfNeeded()
         try await Task.sleep(nanoseconds:200_000_000);try await fit(grid)
         try await click(grid,"more")
-        try check(try await js(grid,"!document.getElementById('grid-more-tools').hidden && !!document.querySelector('.sd-toolbar-overflow [data-command=addColumn]')") as? Bool == true,"worksheet secondary commands move into More")
+        try check(try await js(grid,"getComputedStyle(document.querySelector('[data-command=more]')).display!=='none' && !document.getElementById('grid-more-tools').hidden && !!document.querySelector('.sd-toolbar-overflow [data-command=addColumn]')") as? Bool == true,"worksheet More is visible and contains secondary commands in a narrow view")
         try await click(grid,"addColumn")
         try await wait { (try? await js(grid,"document.querySelector('footer').textContent.includes('9 columns')")) as? Bool == true }
         try check(true,"worksheet More invokes the live command")

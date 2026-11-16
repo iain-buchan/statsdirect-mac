@@ -110,6 +110,11 @@ export function selectedPicture() {
   if(!selection?.rangeCount)return null;
   return fromRange(selection.getRangeAt(0));
 }
+function sourceSpace(node) {
+  if(node?.nodeType!==Node.TEXT_NODE||node.textContent.trim())return false;
+  const text=document.createRange();text.selectNodeContents(node);
+  return ![...text.getClientRects()].some(r=>r.width>0&&r.height>0);
+}
 // Protected pictures cannot be split by the browser's paragraph editing. Enter
 // beside one supplies a normal text paragraph in the same result, including
 // when the picture is its final block. Text carets keep the browser's behavior.
@@ -118,11 +123,6 @@ function paragraphAfterPicture() {
   if(!root||!selection?.rangeCount)return false;
   const range=selection.getRangeAt(0);
   if(!inRegion(range.startContainer)||!inRegion(range.endContainer))return false;
-  function sourceSpace(node) {
-    if(node?.nodeType!==Node.TEXT_NODE||node.textContent.trim())return false;
-    const text=document.createRange();text.selectNodeContents(node);
-    return ![...text.getClientRects()].some(r=>r.width>0&&r.height>0);
-  }
   function lastPicture(node) {
     while(sourceSpace(node))node=node.previousSibling;
     if(node?.nodeType!==Node.ELEMENT_NODE)return null;
@@ -141,7 +141,11 @@ function paragraphAfterPicture() {
       } else media=lastPicture(node.childNodes[range.startOffset-1]);
     }
   }
-  const entry=entryOf(media);if(!entry)return false;
+  return insertTextAfterPicture(media);
+}
+export function insertTextAfterPicture(media) {
+  const entry=entryOf(media);
+  if(!editing||!media?.matches('.report-media')||media.hidden||!entry||!inRegion(entry))return false;
   let after=media;
   // Exit a protected chart container, and picture-only paragraph wrappers.
   const protectedParent=media.parentElement.closest('[contenteditable="false"]');

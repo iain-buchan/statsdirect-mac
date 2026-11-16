@@ -67,6 +67,10 @@ export function layoutHandle(wrapper) {
   const handle=wrapper.querySelector(':scope>.'+HANDLE),picture=pictureIn(wrapper);
   if(!handle||!picture)return;
   const box=picture.getBoundingClientRect(),parent=wrapper.getBoundingClientRect();
+  wrapper.style.setProperty('--picture-left',`${box.left-parent.left}px`);
+  wrapper.style.setProperty('--picture-top',`${box.top-parent.top}px`);
+  wrapper.style.setProperty('--picture-width',`${box.width}px`);
+  wrapper.style.setProperty('--picture-height',`${box.height}px`);
   const right=pictureAlignment(picture)==='right';
   handle.style.left=`${Math.round((right?box.left:box.right)-parent.left-10)}px`;handle.style.top=`${Math.round(box.bottom-parent.top-10)}px`;
   handle.style.cursor=right?'nesw-resize':'nwse-resize';

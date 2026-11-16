@@ -14,6 +14,10 @@
   // selection. The private fragment keeps report sizing/alignment on paste;
   // the public SVG is prepared by the existing chart export routine.
   window.StatsDirectMacReportChart = {
+    insertTextAfter() {
+      const wrapper = contextPicture?.closest('.report-media');
+      return !!wrapper && StatsDirectReportEditor.insertTextAfterPicture(wrapper);
+    },
     async image(format, scale) {
       const picture = contextPicture, wrapper = picture?.closest('.report-media');
       if (!wrapper?.isConnected || !root.contains(wrapper)) throw new Error('This chart is no longer available.');

@@ -132,8 +132,7 @@ import WebKit
             return value
         case "statsdirect_method_help":
             guard let operation = arguments["operation"] as? String, let path = viewer.analysisCatalog[operation]?["help"] as? String else { throw ChatGPTTutor.Failure(message:"Choose a method ID from the catalogue.") }
-            let file = viewer.root.appendingPathComponent(path).standardizedFileURL
-            guard file.path.hasPrefix(viewer.root.appendingPathComponent("Help").path + "/") else { throw ChatGPTTutor.Failure(message:"The bundled method page is unavailable.") }
+            guard let file = viewer.bundledMethodHelpFile(path) else { throw ChatGPTTutor.Failure(message:"The bundled method page is unavailable.") }
             let raw = try String(contentsOf:file,encoding:.utf8)
             remember("StatsDirect help · " + operation)
             return ["operation":operation,"text":Self.plain(raw),"boundedExcerpt":true]

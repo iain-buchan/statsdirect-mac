@@ -67,7 +67,7 @@ extension Viewer {
                 if let state = doc.learningState { learningScript(doc,"restore",state) }
                 else if FileManager.default.fileExists(atPath:url.path) {
                     let data = try Data(contentsOf:url)
-                    guard data.count <= 10_000_000 else { throw LearningTutor.Failure(message:"The saved learning record is too large to open. Export a copy from the Learning folder.") }
+                    guard data.count <= LearningRecordFile.maximumBytes else { throw LearningTutor.Failure(message:"The saved learning record is too large to open. Export a copy from the Learning folder.") }
                     let saved = try JSONSerialization.jsonObject(with:data)
                     doc.learningRContexts = (saved as? [String:Any])?["rContexts"] as? [String:[String:String]] ?? [:]
                     learningScript(doc,"restore",saved)
@@ -85,7 +85,7 @@ extension Viewer {
             } catch { learningScript(doc,"loadError",error.localizedDescription) }
         case "save":
             guard let state = body["state"] as? [String:Any], state["schemaVersion"] as? Int == 2,
-                  let data = try? JSONSerialization.data(withJSONObject:state,options:[.prettyPrinted,.sortedKeys]), data.count <= 10_000_000 else { learningScript(doc,"notice","The learning record could not be saved. Export it before closing."); return }
+                  LearningRecordFile.fits(state) else { learningScript(doc,"notice","The learning record could not be saved. Export it before closing."); return }
             do {
                 try persistLearningState(doc,state)
                 if let event = doc.learningReplyEvent, event["action"] as? String != "partial",
@@ -240,7 +240,11 @@ extension Viewer {
         var courseSources: [[String:String]] = []
         // Reserve space for complete curated material, workspace metadata and the method catalogue.
         if context.count > 8000 { context = String(context.prefix(7900)) + "\n[Course/lesson context is a bounded excerpt.]\n" }
-        if let curated = LearningLibrary.context(for:lesson) {
+        // The whole reference context is cut at 32,000 characters. The curated lesson gets what the text above, the workspace
+        // summary (6,000 at most), the method catalogue and the section headings leave, so nothing after it is cut short.
+        // Course excerpts then take what is left under the same sum.
+        let methods = analysisCatalog.keys.sorted().map { $0 + ": " + (analysisCatalog[$0]?["title"] as? String ?? $0) }.joined(separator:"\n")
+        if let curated = LearningLibrary.context(for:lesson,limit:LearningLibrary.limit(learnerText:context.count,catalogue:methods.count)) {
             context += curated
             courseSources.append(LearningLibrary.source(for:lesson))
         }
@@ -256,7 +260,7 @@ extension Viewer {
             context += "\nRETRIEVED COURSE/WEB EXCERPTS (only these extracts have been read; cite source IDs, URLs and page titles):\n"
             for excerpt in excerpts {
                 let block = "[Course: \(excerpt.id)] \(excerpt.title)\nURL: \(excerpt.url ?? "local course pack")\nRetrieved: \(excerpt.retrievedAt ?? "local import")\n\(excerpt.text)\n\n"
-                guard context.count + block.count <= 15500 else { break }
+                guard context.count + block.count <= LearningLibrary.learningContextLimit(catalogue:methods.count) else { break }
                 context += block
                 courseSources.append(["id":excerpt.id,"title":excerpt.title,"url":excerpt.url ?? "","retrievedAt":excerpt.retrievedAt ?? ""])
             }
@@ -278,10 +282,9 @@ extension Viewer {
                 keepRContext()
                 let overview = try await workspace.overview()
                 let metadata = String(decoding:try JSONSerialization.data(withJSONObject:overview,options:[.sortedKeys]),as:UTF8.self)
-                let methods = self.analysisCatalog.keys.sorted().map { $0 + ": " + (self.analysisCatalog[$0]?["title"] as? String ?? $0) }.joined(separator:"\n")
                 let tools = TutorTools.definitions.filter { !workspace.allowed.isEmpty || ["statsdirect_method_help","statsdirect_workspace"].contains($0["name"] as? String ?? "") }
                 try workspace.check()
-                let result = try await self.chatGPTTutor.converse(context:"COURSE, LESSON AND LEARNING CONTEXT (separate from open data):\n" + context + "\nCURRENT STATSDIRECT WORKSPACE (metadata, not cell values):\n" + String(metadata.prefix(6000)) + "\nMETHOD CATALOGUE:\n" + methods,messages:messages,tools:tools,progress:{ [weak self,weak doc] text in
+                let result = try await self.chatGPTTutor.converse(context:"COURSE, LESSON AND LEARNING CONTEXT (separate from open data):\n" + context + "\nCURRENT STATSDIRECT WORKSPACE (metadata, not cell values):\n" + String(metadata.prefix(LearningLibrary.workspaceLimit)) + "\nMETHOD CATALOGUE:\n" + methods,messages:messages,tools:tools,progress:{ [weak self,weak doc] text in
                     guard let self,let doc,doc.learningRequestID==id else { return }
                     self.learningScript(doc,"partial",["id":id,"text":text])
                 },toolHandler:{ name, arguments in
@@ -349,8 +352,13 @@ extension Viewer {
         doc.operationName = operation; doc.initialOperationSource = source
     }
     func exportLearningRecord(_ doc: Document, body: [String:Any], email: Bool) {
-        guard let text = body["text"] as? String, text.utf8.count <= 10_000_000, let record = body["record"] as? [String:Any],
-              let json = try? JSONSerialization.data(withJSONObject:record,options:[.prettyPrinted,.sortedKeys]), json.count <= 10_000_000 else { return }
+        guard let text = body["text"] as? String, let record = body["record"] as? [String:Any] else { return }
+        // The limit is the saved record's, on the same compact form (as Windows applies it): what can be saved can be
+        // exported. The exported copy itself is indented for reading.
+        guard text.utf8.count <= LearningRecordFile.maximumBytes, LearningRecordFile.fits(record),
+              let json = try? JSONSerialization.data(withJSONObject:record,options:[.prettyPrinted,.sortedKeys]) else {
+            learningScript(doc,"notice","The learning record is too large to export."); return
+        }
         let filename = "StatsDirect-learning-" + ISO8601DateFormatter().string(from:Date()).replacingOccurrences(of:":",with:"-")
         if email {
             guard let recipient = body["recipient"] as? String, LearningLinks.email(recipient) else { learningScript(doc,"notice","Enter a single valid review email address."); return }

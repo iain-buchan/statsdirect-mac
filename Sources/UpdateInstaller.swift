@@ -61,10 +61,19 @@ enum UpdateInstaller {
         }
     }
 
+    /// Whether this account can exchange the installed app for another. It must be able to change the folder the app is in
+    /// and the app's own folder: the exchange moves the app to the staging folder, and moving a folder to another parent is
+    /// refused ("Permission denied") for an account that cannot write to it. An administrator using a copy that another
+    /// account put in Applications is in that position, and is shown View Update rather than an Install Now that would
+    /// fail after the download.
+    static func accountMayExchange(_ target: URL) -> Bool {
+        FileManager.default.isWritableFile(atPath: target.deletingLastPathComponent().path) &&
+            FileManager.default.isWritableFile(atPath: target.path)
+    }
+
     static var canInstall: Bool {
         let target = Bundle.main.bundleURL.resolvingSymlinksInPath()
-        return FileManager.default.isWritableFile(atPath: target.deletingLastPathComponent().path) &&
-            (try? runningInstallation()) != nil
+        return accountMayExchange(target) && (try? runningInstallation()) != nil
     }
 
     static func prepare(_ release: PublishedUpdate) async throws -> StagedUpdate {

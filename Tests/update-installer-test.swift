@@ -8,6 +8,7 @@ import Foundation
 
         try checkArchivePaths(in: folder)
         try checkReplacement(in: folder)
+        try checkExchangePermission(in: folder)
         try checkAttributes(in: folder)
         checkSupportedSystem()
         try checkStaleStaging(in: folder)
@@ -150,6 +151,37 @@ import Foundation
         precondition(manager.fileExists(atPath: other.path))
         precondition(manager.fileExists(atPath: app.path))
         print("PASS: a staging folder left by an interrupted update is removed after a day; recent ones and other folders are kept")
+    }
+
+    // An account that may change the folder the app is in, but not the app itself, cannot exchange it: the position of an
+    // administrator using a copy another account installed. Install Now must not be offered then, because the exchange
+    // itself is refused. The staging folder is beside the app, as in a real installation, so the app changes parent.
+    private static func checkExchangePermission(in folder: URL) throws {
+        let manager = FileManager.default
+        let applications = folder.appendingPathComponent("Applications")
+        let target = applications.appendingPathComponent("Installed.app")
+        let candidate = applications.appendingPathComponent(".StatsDirect-update-test/extracted/Installed.app")
+        try manager.createDirectory(at: target, withIntermediateDirectories: true)
+        try manager.createDirectory(at: candidate, withIntermediateDirectories: true)
+        let old = target.appendingPathComponent("old")
+        try Data().write(to: old)
+        try Data().write(to: candidate.appendingPathComponent("new"))
+        func mode(_ url: URL, _ value: Int) throws { try manager.setAttributes([.posixPermissions: value], ofItemAtPath: url.path) }
+        precondition(UpdateInstaller.accountMayExchange(target))
+        try mode(target, 0o555)                       // readable and searchable by everyone, as an installed app is; not ours to change
+        defer { try? mode(target, 0o755) }
+        precondition(!UpdateInstaller.accountMayExchange(target))
+        var relaunched = false
+        reject { try UpdateInstaller.replace(target, with: candidate) { relaunched = true } }
+        precondition(!relaunched && manager.fileExists(atPath: old.path) && manager.fileExists(atPath: candidate.appendingPathComponent("new").path))
+        try mode(target, 0o755)
+        try mode(applications, 0o555)                 // or the folder the app is in is not ours to change
+        precondition(!UpdateInstaller.accountMayExchange(target))
+        try mode(applications, 0o755)
+        precondition(UpdateInstaller.accountMayExchange(target))
+        try UpdateInstaller.replace(target, with: candidate) { relaunched = true }
+        precondition(relaunched && manager.fileExists(atPath: target.appendingPathComponent("new").path))
+        print("PASS: an account that cannot change the app's own folder, or the folder it is in, is not offered installation; the exchange is refused for it and leaves the app as it was")
     }
 
     private static func checkReplacement(in folder: URL) throws {

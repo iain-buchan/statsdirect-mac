@@ -132,7 +132,43 @@ import Cocoa
             }
             let reply = (d.learningState!["conversation"] as! [[String:Any]]).last!
             try check((reply["courseSources"] as! [[String:String]]).contains { $0["id"] == "library:" + lessonID })
-            print("PASS: compact teaching context and review identity reach the native tutor for \(lessonID)")
+            try check((reply["text"] as? String)?.hasSuffix("Checked LONG \(lessonID).") == true)
+            print("PASS: the whole lesson, with its practice question and review notes, reaches the native tutor for \(lessonID)")
+        }
+        // With long learner text the lesson has less room than it needs: the tutor is sent it shortened, and the method
+        // catalogue after it still arrives whole (the fixture checks both; LearningLibrary.limit(reserving:) is the rule).
+        func curatedSize(_ lesson:[String:Any]) -> Int {
+            let curated = lesson.filter { LearningLibrary.fields.contains($0.key) }
+            return (try? JSONSerialization.data(withJSONObject:curated,options:[.sortedKeys,.withoutEscapingSlashes])).map { String(decoding:$0,as:UTF8.self).count } ?? 0
+        }
+        // What decides it is the record's size together with the lesson's own text, which LearnHost puts in the learner text.
+        func ownText(_ lesson:[String:Any]) -> Int {
+            ["title":200,"objective":1500,"summary":1500,"challenge":1500,"steps":1500,"r":4000].reduce(0) { $0 + min((lesson[$1.key] as? String ?? "").count, $1.value) }
+        }
+        let longest = lessons.max(by:{ curatedSize($0) + ownText($0) < curatedSize($1) + ownText($1) })
+        try check(longest.map(curatedSize) ?? 0 > 7500)
+        if let longest, let lessonID = longest["id"] as? String {
+            func learnerText(_ values:[String:String]) async throws {
+                v.openLearningOptions()
+                try await wait { (try? await v.learningJavaScript(d,"({ok:!!document.getElementById('needs')})"))?["ok"] as? Bool == true }
+                let json = String(decoding:try JSONSerialization.data(withJSONObject:values),as:UTF8.self)
+                _ = try await v.learningJavaScript(d,"({ok:(Object.entries(\(json)).forEach(([id,text])=>{const field=document.getElementById(id);field.value=text;field.dispatchEvent(new Event('input'))}),true)})")
+                try await wait { values.allSatisfy { ((d.learningState?["learning"] as? [String:Any])?[$0.key] as? String) == $0.value } }
+            }
+            let long = String(repeating:"A long account of earlier study. ",count:32)
+            try await learnerText(["needs":long,"qualifications":long,"priorKnowledge":long])
+            let previousReply = (d.learningState?["conversation"] as? [[String:Any]])?.last?["id"] as? String
+            _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-lesson=\"\(lessonID)\"]').click()===undefined})")
+            _ = try await v.learningJavaScript(d,"({ok:(document.getElementById('question').value='TIGHT_LESSON_CONTEXT_TEST \(lessonID)',document.getElementById('send').click(),true)})")
+            try await wait {
+                let latest = (d.learningState?["conversation"] as? [[String:Any]])?.last
+                return latest?["model"] as? String == "fixture-model" && latest?["id"] as? String != previousReply
+            }
+            let reply = (d.learningState!["conversation"] as! [[String:Any]]).last!
+            try check((reply["courseSources"] as! [[String:String]]).contains { $0["id"] == "library:" + lessonID })
+            try check((reply["text"] as? String)?.hasSuffix("Checked TIGHT \(lessonID).") == true)
+            try await learnerText(["needs":"","qualifications":"","priorKnowledge":"Prior epidemiology module"])
+            print("PASS: with long learner text \(lessonID) reaches the tutor shortened, and the method catalogue after it arrives whole")
         }
         var pack = try JSONSerialization.jsonObject(with:JSONEncoder().encode(v.loadCoursePack()!)) as! [String:Any]
         pack["documents"] = [["id":"cohort","title":"Cohort population","text":"retrieved-cohort-evidence: A cohort follows people at risk over time.","url":"https://example.org/course-cohort","retrievedAt":"2026-10-01"]]

@@ -23,8 +23,12 @@ else
   HOST_HEADERS="$DOTNET_ROOT_DIR/packs/Microsoft.NETCore.App.Host.osx-arm64/$RUNTIME_VERSION/runtimes/osx-arm64/native"
   ENGINE_DOTNET="$DOTNET_BIN"
 fi
+# The engine's symbols are embedded in StatsDirect.Headless.dll (as on Windows). No separate symbol file goes into the app:
+# not one a package brought, and not one an earlier build or the container's publish step left in this folder.
+find FullEngine/publish -iname '*.pdb' -type f -delete
 clang++ "${STATSDIRECT_NATIVE_FLAGS[@]}" -std=c++17 -dynamiclib -arch arm64 FullEngine/TextMetrics.cpp -o FullEngine/publish/libStatsDirectText.dylib -framework CoreText -framework CoreFoundation
 statsdirect_store_symbols FullEngine/publish/libStatsDirectText.dylib.dSYM "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION/libStatsDirectText.dylib.dSYM"
+statsdirect_strip_debug_map FullEngine/publish/libStatsDirectText.dylib
 codesign --force --sign - FullEngine/publish/libStatsDirectText.dylib
 "$ENGINE_DOTNET" FullEngine/publish/StatsDirect.Headless.dll
 cp FullEngine/publish/test-operations-results.txt Tests/test-operations-results.txt
@@ -34,7 +38,11 @@ mkdir -p FullEngine/publish/dotnet/shared/Microsoft.NETCore.App
 # ditto replaces files without nesting duplicate runtime folders on repeat builds.
 ditto "$DOTNET_ROOT_DIR/shared/Microsoft.NETCore.App/$RUNTIME_VERSION" "FullEngine/publish/dotnet/shared/Microsoft.NETCore.App/$RUNTIME_VERSION"
 cp "$DOTNET_ROOT_DIR/host/fxr/$RUNTIME_VERSION/libhostfxr.dylib" FullEngine/publish/dotnet/
-clang++ "${STATSDIRECT_NATIVE_FLAGS[@]}" -std=c++17 -dynamiclib -arch arm64 -I "$HOST_HEADERS" FullEngine/bridge.cpp -o FullEngine/publish/StatsDirectEngine.dylib
+# The .NET host's headers are named from the SDK, not from the folder the SDK happens to be in on the build Mac.
+BRIDGE_FLAGS=("${STATSDIRECT_NATIVE_FLAGS[@]}")
+if [[ "$STATSDIRECT_CONFIGURATION" == Release ]]; then BRIDGE_FLAGS+=("-ffile-prefix-map=$HOST_HEADERS=dotnet-host"); fi
+clang++ "${BRIDGE_FLAGS[@]}" -std=c++17 -dynamiclib -arch arm64 -I "$HOST_HEADERS" FullEngine/bridge.cpp -o FullEngine/publish/StatsDirectEngine.dylib
 statsdirect_store_symbols FullEngine/publish/StatsDirectEngine.dylib.dSYM "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION/StatsDirectEngine.dylib.dSYM"
+statsdirect_strip_debug_map FullEngine/publish/StatsDirectEngine.dylib
 codesign --force --sign - FullEngine/publish/StatsDirectEngine.dylib
 if [[ "${STATSDIRECT_RUN_TESTS:-0}" == "1" ]]; then ./test.sh; fi

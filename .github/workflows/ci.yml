@@ -63,7 +63,8 @@ jobs:
           python3 Scripts/check-content-imports.py
           mkdir -p .build/swift-cache
           swiftc -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache Sources/LearningLibrary.swift Tests/learning-library-test.swift -o .build/learning-library-test
-          .build/learning-library-test Content/Learn/lessons.json
+          .build/learning-library-test Content/Learn/lessons.json Content/analysis-menu.json
+          python3 Tests/test_app_bundle_check.py
       - name: Build the application
         run: DOTNET="$(command -v dotnet)" ./build.sh
       - name: Committed bundles match their sources

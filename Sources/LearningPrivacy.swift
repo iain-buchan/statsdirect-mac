@@ -48,8 +48,8 @@ extension Viewer {
         guard state["schemaVersion"] as? Int == 2 else { throw ChatGPTTutor.Failure(message:"The learning record is not ready. Reopen Learning and try again.") }
         var state = state
         state["rContexts"] = doc.learningRContexts
-        let data = try JSONSerialization.data(withJSONObject:state,options:[.prettyPrinted,.sortedKeys])
-        guard data.count <= 10_000_000 else { throw ChatGPTTutor.Failure(message:"The learning record is too large to save. Export a copy before continuing.") }
+        let data = try LearningRecordFile.data(state)
+        guard data.count <= LearningRecordFile.maximumBytes else { throw ChatGPTTutor.Failure(message:"The learning record is too large to save. Export a copy before continuing.") }
         // Keep the latest validated snapshot even if a disk write fails; renderer
         // recovery must not replace it with an older file.
         doc.learningState = state

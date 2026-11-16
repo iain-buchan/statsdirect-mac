@@ -37,7 +37,9 @@ ditto Content "$CONTENT_SNAPSHOT/Content"
 mkdir -p "$CONTENT_SNAPSHOT/Learn"
 ditto Learn/AuthoredTutor "$CONTENT_SNAPSHOT/Learn/AuthoredTutor"
 cp Learn/lessons.json "$CONTENT_SNAPSHOT/Learn/lessons.json"
-cp "$CONTENT_RECORD" "$CONTENT_SNAPSHOT/content-build-input.json"
+# mktemp made the record readable by its owner alone. Packaged like that, no other account on a Mac can read it: the
+# signature check then fails for them ("Permission denied") and their copy cannot install an update by itself.
+install -m 644 "$CONTENT_RECORD" "$CONTENT_SNAPSHOT/content-build-input.json"
 python3 Scripts/check-content-imports.py --root "$CONTENT_SNAPSHOT"
 python3 - "$CONTENT_SNAPSHOT" <<'PY'
 from pathlib import Path
@@ -52,7 +54,7 @@ if help['repository'] == 'https://github.com/iain-buchan/statisticalhelp':
     if record['revision'] not in bundle or record['publicationManifestSHA256'] not in bundle:
         raise SystemExit('Learning bundle does not match the captured publication; regenerate it and retry the build.')
 PY
-cp "$CONTENT_SNAPSHOT/content-build-input.json" "$BUILD_WORK/content-build-input.json"
+install -m 644 "$CONTENT_SNAPSHOT/content-build-input.json" "$BUILD_WORK/content-build-input.json"
 if [[ "${STATSDIRECT_ENGINE_PREBUILT:-0}" != "1" ]]; then
 DOTNET_BIN="${DOTNET:-$(command -v dotnet || true)}"
 if [[ -z "$DOTNET_BIN" && -x "$PWD/../../work/dotnet/dotnet" ]]; then DOTNET_BIN="$PWD/../../work/dotnet/dotnet"; fi
@@ -78,6 +80,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Framewor
 swiftc "${STATSDIRECT_SWIFT_FLAGS[@]}" -emit-executable -module-name StatsDirect -emit-module-path "$BUILD_WORK/native/$STATSDIRECT_CONFIGURATION/StatsDirect.swiftmodule" -target arm64-apple-macosx14.0 -module-cache-path "$BUILD_WORK/swift-cache" Sources/*.swift -o "$APP/Contents/MacOS/StatsDirect" -framework Cocoa -framework WebKit -framework PDFKit -framework Security
 # The compiler links the dSYM while its temporary object files still exist.
 statsdirect_store_symbols "$APP/Contents/MacOS/StatsDirect.dSYM" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION/StatsDirect.app.dSYM"
+statsdirect_strip_debug_map "$APP/Contents/MacOS/StatsDirect"
 # R remains an optional first-use installation for users. The small console
 # helper is built against the build Mac's R headers and loads R at runtime.
 /bin/bash Scripts/build-r-console-worker.sh "$APP/Contents/MacOS/RConsoleWorker"
@@ -85,6 +88,7 @@ WORKER_SYMBOLS="$BUILD_WORK/native/$STATSDIRECT_CONFIGURATION/RConsoleWorker.dSY
 rm -rf "$WORKER_SYMBOLS"
 xcrun dsymutil "$APP/Contents/MacOS/RConsoleWorker" -o "$WORKER_SYMBOLS"
 statsdirect_store_symbols "$WORKER_SYMBOLS" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION/RConsoleWorker.dSYM"
+statsdirect_strip_debug_map "$APP/Contents/MacOS/RConsoleWorker"
 cp FullEngine/publish/StatsDirectEngine.dylib "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
 # Replace the engine as a unit so that a runtime or file no longer in the publish folder cannot linger in the app.
 rm -rf "$APP/Contents/Resources/Engine"
@@ -99,9 +103,21 @@ cp STATSDIRECT-LICENSE.txt STATISTICALHELP-LICENSE.txt DOTNET-LICENSE.txt DOTNET
 # Replace the generated help as a unit so removed upstream assets cannot linger.
 rm -rf "$APP/Contents/Resources/Content/Help"
 ditto "$CONTENT_SNAPSHOT/Content" "$APP/Contents/Resources/Content"
-cp "$CONTENT_SNAPSHOT/content-build-input.json" "$APP/Contents/Resources/content-build-input.json"
+install -m 644 "$CONTENT_SNAPSHOT/content-build-input.json" "$APP/Contents/Resources/content-build-input.json"
 codesign --force --sign - "$APP/Contents/Frameworks/StatsDirectEngine.dylib"
 codesign --force --sign - "$APP/Contents/MacOS/RConsoleWorker"
 codesign --force --sign - "$APP"
 python3 Scripts/verify-symbols.py "$APP" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION"
+# Every account must be able to read the whole app, and a release must not name the build Mac's folders or account.
+BUNDLE_CHECK=()
+# This build's symbols only: the folder also keeps those of earlier local builds.
+for name in StatsDirect.app StatsDirectEngine.dylib libStatsDirectText.dylib RConsoleWorker; do
+  BUNDLE_CHECK+=(--symbols "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION/$name.dSYM")
+done
+if [[ "$STATSDIRECT_CONFIGURATION" == Release ]]; then
+  BUNDLE_CHECK+=(--private "$STATSDIRECT_SOURCE_ROOT" --private "$PWD" --private "$BUILD_WORK")
+  # A hosted runner's account is the service's own, and other vendors' files built on such runners name it too.
+  if [[ -z "${GITHUB_ACTIONS:-}" ]]; then BUNDLE_CHECK+=(--home "$HOME"); fi
+fi
+python3 Scripts/check-app-bundle.py "$APP" "${BUNDLE_CHECK[@]}"
 printf 'Built %s (%s); symbols: %s\n' "$APP" "$STATSDIRECT_CONFIGURATION" "$BUILD_WORK/symbols/$STATSDIRECT_CONFIGURATION"

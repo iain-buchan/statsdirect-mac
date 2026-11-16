@@ -64,10 +64,15 @@ workflows holds a certificate or a password.
 1. In the fresh clone, install the JavaScript dependencies from the lockfiles (`pnpm install --frozen-lockfile` in
    `Grid`, `Report` and `Learn`), build with `./build.sh`, and run the release tests on the built app, as CI does.
    Rebuilding the bundles must leave the tree unchanged. The app bundles the .NET runtime of the SDK that built it:
-   use the SDK whose runtime matches the security update the Windows setup ships.
+   use the SDK whose runtime matches the security update the Windows setup ships. The build ends with
+   `Scripts/check-app-bundle.py`, which stops it unless every account can read every file of the app, the app holds no
+   separate .NET symbol file (the engine's symbols are embedded in its assembly, as on Windows), and neither the app
+   nor its symbols name the build Mac's folders or account.
 2. Package the tested, unsigned build with
    `Scripts/package-release.sh <app> <symbols folder> <version> <output folder> --unsigned` and keep it and its
-   symbols: the signed app is compared with it file by file in step 4.
+   symbols: the signed app is compared with it file by file in step 4. The script checks the app's permissions
+   again, takes only this build's symbols (it refuses a symbols folder that also holds an earlier build's), and makes
+   both ZIPs without resource forks or extended attributes.
 3. Expand the unsigned ZIP of step 2 into a new folder and work on that copy, so that the tested build stays as it
    is. Sign every Mach-O inside the bundle and then the bundle, with the hardened runtime, the entitlements and a
    secure timestamp, submit to Apple, wait for the verdict, staple the ticket and validate it, in one command
@@ -99,7 +104,11 @@ workflows holds a certificate or a password.
 
 5. Package the signed app once and record its hash. The ZIP must carry no resource forks, extended attributes or
    access control lists: the in-app installer refuses an update that arrives with any, as it refuses symbolic links,
-   hard links, files other users may write and set-user bits.
+   hard links, files other users may write and set-user bits. Every file must also be readable by every account
+   (step 1's check): a signature check fails with "Permission denied" for an account that cannot read a file, and
+   versions 1.1.2 and 1.1.3 shipped one such file (`Contents/Resources/content-build-input.json`, mode 0600). Install
+   Now is for the account that can exchange the app: it must be able to change the folder the app is in and the app's
+   own folder, so in practice the account that installed the copy. Any other account is shown View Update.
 
    ```sh
    ditto -c -k --norsrc --noextattr --keepParent StatsDirect.app StatsDirect-<version>-macOS-arm64.zip

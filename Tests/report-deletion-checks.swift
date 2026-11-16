@@ -49,8 +49,16 @@ extension ReportExportTests {
         precondition(report.reportUndo.count == 1)
         // A real Edit menu undo must route to the same history.
         let menu = NSMenuItem(title: "Undo", action: #selector(Viewer.editCommand(_:)), keyEquivalent: "z"); menu.representedObject = "undo"
-        v.editCommand(menu); try await settled(report)
-        try await check("document.getElementById('delete-svg').style.width==='240px'", "Menu undo did not restore SVG sizing")
+        v.editCommand(menu)
+        // The native menu posts to the editor, and the host then sends the restored entry back to WebKit.
+        let restoredSVG = "document.getElementById('delete-svg')?.style.width==='240px'"
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            if report.reportUndo.isEmpty, try await js(restoredSVG) as? Bool == true { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        try await check(restoredSVG, "Menu undo did not restore SVG sizing")
+        precondition(report.reportUndo.isEmpty && report.reportRedo.count == 1, "Menu undo did not update the report history")
         try await redo(); try await undo()
         try await click("#delete-raster"); try await key("Delete")
         try await check("!document.getElementById('delete-raster')", "Forward Delete did not remove raster")

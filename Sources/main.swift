@@ -345,6 +345,17 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             populateOperationMenu(operations)   // the Windows menu places the Calculator in its own section before Options
         }
         windowsMenu = menu("Window")
+        windowsMenu.addItem(NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
+        windowsMenu.addItem(NSMenuItem(title: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: ""))
+        windowsMenu.addItem(.separator())
+        for (name, action, key) in [("Next Document", #selector(nextTab), "]"), ("Previous Document", #selector(previousTab), "[")] {
+            let item = NSMenuItem(title: name, action: action, keyEquivalent: key)
+            item.target = self
+            item.keyEquivalentModifierMask = [.command, .shift]
+            windowsMenu.addItem(item)
+        }
+        windowsMenu.addItem(.separator())
+        add(windowsMenu, "Bring All to Front", #selector(NSApplication.arrangeInFront(_:)), target: NSApp)
         let help = menu("Help")
         add(help, "Learning", #selector(openLearning))
         add(help, "Learning Options…", #selector(openLearningOptions))
@@ -358,6 +369,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         help.addItem(.separator())
         add(help, "About StatsDirect…", #selector(showAbout))
         NSApp.mainMenu = main
+        NSApp.windowsMenu = windowsMenu
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -397,15 +409,17 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func updateWindowMenu() {
         updateDocumentTabs()
-        windowsMenu.removeAllItems()
-        for (name, action, key) in [("Next Document", #selector(nextTab), "]"), ("Previous Document", #selector(previousTab), "[")] {
-            let item = NSMenuItem(title: name, action: action, keyEquivalent: key); item.target = self
-            item.keyEquivalentModifierMask = [.command, .shift]; windowsMenu.addItem(item)
+        let selectDocumentAction = #selector(selectDocument(_:))
+        for item in windowsMenu.items where item.action == selectDocumentAction {
+            windowsMenu.removeItem(item)
         }
-        windowsMenu.addItem(.separator())
-        for doc in documents {
-            let item = NSMenuItem(title: doc.title, action: #selector(selectDocument(_:)), keyEquivalent: "")
-            item.target = self; item.representedObject = doc.id; item.state = active === doc ? .on : .off; windowsMenu.addItem(item)
+        guard let previous = windowsMenu.items.firstIndex(where: { $0.action == #selector(previousTab) }) else { return }
+        for (offset, doc) in documents.enumerated() {
+            let item = NSMenuItem(title: doc.title, action: selectDocumentAction, keyEquivalent: "")
+            item.target = self
+            item.representedObject = doc.id
+            item.state = active === doc ? .on : .off
+            windowsMenu.insertItem(item, at: previous + 1 + offset)
         }
     }
     func updateDocumentTabs() {
@@ -457,7 +471,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if let doc = documents.first(where: { $0.id == sender.identifier?.rawValue }) { closeDocument(doc) }
     }
     @objc func selectDocument(_ sender: NSMenuItem) {
-        if let doc = documents.first(where: { $0.id == sender.representedObject as? String }) { tabs.selectTabViewItem(doc.item) }
+        guard let doc = documents.first(where: { $0.id == sender.representedObject as? String }) else { return }
+        tabs.selectTabViewItem(doc.item)
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        window.makeKeyAndOrderFront(nil)
     }
     @objc func nextTab() { cycleTab(1) }
     @objc func previousTab() { cycleTab(-1) }

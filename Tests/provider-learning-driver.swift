@@ -37,6 +37,10 @@ import Cocoa
         let versions = lessons.compactMap { $0["contentVersion"] as? String }
         try check(!versions.isEmpty && versions.count == lessons.count)
         try check(v.learningDiagnostics["libraryVersion"] as? String == versions.max())
+        guard let worksheet = v.documents.first(where: { $0.kind == "grid" }) else {
+            throw LearningTutor.Failure(message:"A worksheet is required for the Learning layout check.")
+        }
+        v.tabs.selectTabViewItem(worksheet.item)
         v.window.contentView?.layoutSubtreeIfNeeded()
         let worksheetHeight = v.workspaceSplit.frame.height
         try check(!v.status.isHidden)
@@ -58,8 +62,8 @@ import Cocoa
         _ = try await v.learningJavaScript(d,"({ok:(document.getElementById('courseAnswer').value='Mean reduction 2 minutes; eight paired staff. The before-after comparison alone cannot isolate a training effect.',document.getElementById('saveCourseWork').click(),true)})")
         try await wait { (d.learningState?["courseWork"] as? [Any])?.count == 1 }
         _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-action=r]').click()===undefined})")
-        try await wait { v.documents.contains{$0.kind == "r"} }
-        let r = v.documents.last{$0.kind == "r"}!
+        try await wait { v.active?.kind == "r" }
+        let r = v.active!
         v.window.contentView?.layoutSubtreeIfNeeded()
         try check(!v.status.isHidden && v.workspaceSplit.frame.height == worksheetHeight)
         try await wait { r.rConsolePane?.session.state == "ready" }

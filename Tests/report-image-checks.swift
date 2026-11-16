@@ -109,6 +109,49 @@ extension ReportExportTests {
         try await settled(report); try await check("\(paragraph)?.tagName==='P'", "Non-keyboard paragraph input works")
         print("PASS: native WebKit Enter/typing, selected SVG/PNG, protected and terminal pictures, picture paragraphs/table cells, Command-Z/Shift-Command-Z, guards and metadata save/reopen"); fflush(stdout)
 
+        try await reset(svg + "<p>First chart note</p>" + svg + "<p>Second chart note</p>")
+        v.tabs.selectTabViewItem(report.item)
+        _ = try await js("""
+            const pictures=document.querySelectorAll('#result-image-result svg');
+            pictures[0].dispatchEvent(new MouseEvent('click',{bubbles:true}));
+            pictures[1].dispatchEvent(new MouseEvent('contextmenu',{bubbles:true}));
+            """)
+        try await settled(report)
+        let chartMenu=NSMenu();v.extendReportMenu(chartMenu,for:report)
+        let insert=chartMenu.items.first{$0.title=="Insert Text after Chart"}
+        precondition(insert != nil && NSApp.sendAction(insert!.action!,to:insert!.target,from:insert!),"native chart context sends Insert Text")
+        try await settled(report);try await native("X",code:7)
+        try await check("""
+            (()=>{const media=document.querySelectorAll('#result-image-result .report-media');
+                const p=media[1].nextElementSibling;
+                return media[0].nextElementSibling.textContent==='First chart note'&&
+                    p.textContent==='X'&&p.nextElementSibling.textContent==='Second chart note';})()
+            ""","chart context inserts editable prose after the right-clicked chart while retaining existing text")
+        precondition(report.reportEntries![1].record==record && report.reportUndo.count==2 &&
+            !report.reportEntries![1].editedBody!.contains("--picture-"),"chart geometry remains transient and both edits use Undo")
+        try await reset(svg)
+        try await clickPicture("#result-image-result svg")
+        _ = try await js("StatsDirectReportEditor.command('pictureWidth','320')")
+        try await settled(report)
+        let chartBox = try await js("""
+            (()=>{const s=document.querySelector('#result-image-result svg');
+                s.scrollIntoView({block:'center'});
+                const b=s.getBoundingClientRect();
+                return {x:b.x,y:b.y,width:b.width};})()
+            """) as! [String:Double]
+        let selectionSnapshot=WKSnapshotConfiguration()
+        selectionSnapshot.rect=NSRect(x:chartBox["x"]!,y:chartBox["y"]!,width:chartBox["width"]!,height:5)
+        let repaint=try await report.web.takeSnapshot(configuration:selectionSnapshot)
+        let pixels=NSBitmapImageRep(data:repaint.tiffRepresentation!)!
+        func selectionColour(at fraction: Double) -> Bool {
+            (0..<pixels.pixelsHigh).contains { row in
+                guard let color=pixels.colorAt(x:Int(Double(pixels.pixelsWide)*fraction),y:row)?.usingColorSpace(.deviceRGB) else { return false }
+                return color.redComponent<0.3 && color.greenComponent>0.4 && color.greenComponent<0.7 && color.blueComponent>0.3
+            }
+        }
+        precondition(selectionColour(at:0.25) && selectionColour(at:0.85),
+            "WebKit paints the selection across the enlarged chart's top edge, including beyond its original bounds")
+
         let board = NSPasteboard.withUniqueName(); defer { board.releaseGlobally() }
         let doctype = "<?xml version='1.0'?><!DOCTYPE svg PUBLIC '-//W3C//DTD SVG 1.1//EN' 'https://invalid.example/svg.dtd'>" + svg
         let variants: [(String, NSPasteboard.PasteboardType, Data)] = [

@@ -37,7 +37,17 @@ import Cocoa
         let versions = lessons.compactMap { $0["contentVersion"] as? String }
         try check(!versions.isEmpty && versions.count == lessons.count)
         try check(v.learningDiagnostics["libraryVersion"] as? String == versions.max())
+        guard let worksheet = v.documents.first(where: { $0.kind == "grid" }) else {
+            throw LearningTutor.Failure(message:"A worksheet is required for the Learning layout check.")
+        }
+        v.tabs.selectTabViewItem(worksheet.item)
+        v.window.contentView?.layoutSubtreeIfNeeded()
+        let worksheetHeight = v.workspaceSplit.frame.height
+        try check(!v.status.isHidden)
         v.openLearningOptions(); let d = v.documents.first{$0.kind == "learn"}!
+        v.window.contentView?.layoutSubtreeIfNeeded()
+        try check(v.status.isHidden && v.workspaceSplit.frame.height >= worksheetHeight + 50)
+        try check(NSApp.mainMenu?.items.contains(where: { $0.submenu?.title == "Help" }) == true)
         try await wait { guard d.learningState != nil else { return false }; return (try? await v.learningJavaScript(d,"({ok:!!document.getElementById('statisticalSkills')})"))?["ok"] as? Bool == true }
         var rows = try await v.learningJavaScript(d,"({count:document.querySelectorAll('main>.card').length,resources:!!document.getElementById('resourceURLs'),pack:!!document.querySelector('#trainingProvider #importCourse'),recipient:document.getElementById('reviewEmail').value,details:document.querySelector('.option-details').open,assessment:document.getElementById('assessmentType').value})")
         try check(rows["count"] as? Int == 2 && rows["resources"] as? Bool == false && rows["pack"] as? Bool == true && rows["details"] as? Bool == false)
@@ -52,8 +62,10 @@ import Cocoa
         _ = try await v.learningJavaScript(d,"({ok:(document.getElementById('courseAnswer').value='Mean reduction 2 minutes; eight paired staff. The before-after comparison alone cannot isolate a training effect.',document.getElementById('saveCourseWork').click(),true)})")
         try await wait { (d.learningState?["courseWork"] as? [Any])?.count == 1 }
         _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-action=r]').click()===undefined})")
-        try await wait { v.documents.contains{$0.kind == "r"} }
-        let r = v.documents.last{$0.kind == "r"}!
+        try await wait { v.active?.kind == "r" }
+        let r = v.active!
+        v.window.contentView?.layoutSubtreeIfNeeded()
+        try check(!v.status.isHidden && v.workspaceSplit.frame.height == worksheetHeight)
         try await wait { r.rConsolePane?.session.state == "ready" }
         try check(r.rConsolePane?.hasWorkspace == false && r.rConsolePane?.isBusy == false && r.rConsolePane!.sourceText.contains("paired=TRUE"))
         v.captureLearningEvidence(d,documentID:r.id)

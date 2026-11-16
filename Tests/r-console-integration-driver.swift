@@ -673,8 +673,13 @@ import WebKit
 
         try await console(doc, "cat('PALETTE_STDOUT\\n'); warning('PALETTE_WARNING', immediate.=TRUE); stop('PALETTE_ERROR')")
         try await expectOutput(doc, "PALETTE_ERROR")
-        try await wait("rendered palette stdout, warning and error") {
-            (try await evaluate(doc, "Array.from(document.querySelectorAll('.output-entry.stdout')).some(x=>x.textContent.includes('PALETTE_STDOUT')) && Array.from(document.querySelectorAll('.output-entry.stderr')).some(x=>x.textContent.includes('PALETTE_WARNING') && x.textContent.includes('PALETTE_ERROR'))")) as? Bool == true
+        // The console model can be ready before the next animation frame enables the input.
+        try await wait("rendered palette output and enabled command prompt") {
+            (try await evaluate(doc, """
+            !document.getElementById('console-input').disabled && document.getElementById('prompt').textContent.trim() === '>' &&
+            Array.from(document.querySelectorAll('.output-entry.stdout')).some(x=>x.textContent.includes('PALETTE_STDOUT')) &&
+            Array.from(document.querySelectorAll('.output-entry.stderr')).some(x=>x.textContent.includes('PALETTE_WARNING') && x.textContent.includes('PALETTE_ERROR'))
+            """)) as? Bool == true
         }
         let palette = try await evaluate(doc, """
         (() => {
@@ -698,6 +703,10 @@ import WebKit
           };
         })()
         """) as? [String:Any] ?? [:]
+        if palette["blue"] as? Bool != true || palette["stdout"] as? Bool != true ||
+            palette["stderr"] as? Bool != true || palette["notice"] as? Bool != true {
+            print("INFO: R console palette: \(palette["colors"] ?? [:])")
+        }
         try check(palette["blue"] as? Bool == true,
                   "echoed R code, replies, prompts, current input and Script editor use the shared dark-blue code color")
         try check(palette["stdout"] as? Bool == true && palette["stderr"] as? Bool == true && palette["notice"] as? Bool == true,

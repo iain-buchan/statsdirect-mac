@@ -350,7 +350,7 @@ import WebKit
             ["id":row["id"] ?? "", "role":row["role"] ?? "assistant", "text":row["text"] ?? "", "context":row["context"] ?? ""]
         }
         if !partial.isEmpty { rows.append(["id":replyID,"role":"assistant","text":partial,"pending":true]) }
-        let intro=isReport ? "Ask what your results mean, how the method works, or which assumptions to check."
+        let intro=isReport ? "Ask what your results mean, how the method works, or which assumptions to check. Report sharing includes text and chart labels. Describe any visual details you want to discuss."
             : "Ask for help understanding, improving or debugging your R script."
         transcript.render(["generation":conversation?.generation ?? "", "messages":rows,
             "introduction":intro+"\n\nChoose whether to share documents or ask a question without them. Nothing is sent until you press Send."])

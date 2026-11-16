@@ -320,6 +320,7 @@ extension Viewer {
         if let id { add("Select Result", "selectResult", id) }
         add("Select All Results", "selectAll")
         if context["picture"] as? Bool == true, doc.reportEditing {
+            add("Insert Text after Chart", "textAfterChart")
             add("Fit Chart to Width", "pictureFit")
             add("Chart Width…", "pictureWidth")
         }
@@ -398,6 +399,12 @@ extension Viewer {
         case "r": continueResultInR(doc, id: value)
         case "selectResult": doc.web.evaluateJavaScript("StatsDirectReportEditor.selectResult(\(jsString(value)))")
         case "selectAll": doc.web.evaluateJavaScript("StatsDirectReportEditor.selectAll()")
+        case "textAfterChart":
+            guard active === doc, doc.reportEditing, !doc.web.isLoading,
+                  info["revision"] == String(doc.reportRevision),
+                  let token = info["context"], !token.isEmpty,
+                  doc.reportContext["nativeContextToken"] as? String == token else { return }
+            doc.web.evaluateJavaScript("StatsDirectMacReportChart.insertTextAfter()")
         case "pictureFit": doc.web.evaluateJavaScript("StatsDirectReportEditor.command('pictureFit')")
         case "saveChart": saveReportChart(doc, format: value)
         case "pictureWidth": doc.web.evaluateJavaScript("(()=>{const more=document.getElementById('report-more-tools'),toggle=document.getElementById('report-more-toggle');if(more&&toggle){more.hidden=false;toggle.setAttribute('aria-expanded','true');}document.querySelector('[data-format=pictureWidth]')?.focus();})()")

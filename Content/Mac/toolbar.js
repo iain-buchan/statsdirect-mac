@@ -20,7 +20,8 @@
     const items=[...row.children].filter(x=>x!==toggle);
     let updating=false, widths=new Map();
     const close=()=>{popup.hidden=true;toggle.setAttribute('aria-expanded','false');};
-    toggle.onclick=()=>{popup.hidden=!popup.hidden;toggle.setAttribute('aria-expanded',String(!popup.hidden));};
+    toggle.hidden=true;
+    toggle.onclick=()=>{if(toggle.hidden)return;popup.hidden=!popup.hidden;toggle.setAttribute('aria-expanded',String(!popup.hidden));};
     toggle.title='More commands';toggle.setAttribute('aria-label','More commands');toggle.setAttribute('aria-controls',popup.id);toggle.setAttribute('aria-expanded','false');
     toggle.innerHTML=icon('more');toggle.classList.add('sd-icon');
     function layout() {

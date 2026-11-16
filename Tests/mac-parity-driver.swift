@@ -88,7 +88,11 @@ import PDFKit
         let item=NSMenuItem(title:"Paired t",action:nil,keyEquivalent:"");item.representedObject="TPaired"
         v.openAnalysisOperation(item);let paired=v.active!
         try await wait { try await yes(paired,"!!document.querySelector('input[name=paired-agreement]')") }
-        _=try await js(paired,"document.querySelector('label.source input[type=checkbox]').click();document.querySelector('input[name=paired-agreement]').click();document.querySelector('.paired-inputs button[type=submit]').click()")
+        try check(try await yes(paired,"""
+            (()=>{const input=document.getElementById('analysis-repeat'),row=input.closest('.analysis-repeat'),hint=document.getElementById(input.getAttribute('aria-describedby'));
+                return !input.checked&&hint.textContent.includes('new data')&&row.getBoundingClientRect().bottom<document.querySelector('.paired-inputs').getBoundingClientRect().top;})()
+            """),"repeat starts off, explains the next run and has room above the analysis form")
+        _=try await js(paired,"document.getElementById('analysis-repeat').click();document.querySelector('input[name=paired-agreement]').click();document.querySelector('.paired-inputs button[type=submit]').click()")
         try await wait { report.reportEntries!.count == 2 && paired.analysisJobID != nil && paired.completedJobID == nil }
         try check(paired.repeatAnalysis && report.reportEntries!.last!.body.contains("<svg"),"repeat mode keeps the agreement result in the active report and starts another acquisition")
         try check(try await yes(grid,"statsDirectGrid.analysisSource().selection.length===0"),"repeat mode clears the previous worksheet selection")

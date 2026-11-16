@@ -8,6 +8,7 @@
 .sd-toolbar svg { width:20px; height:20px; flex-shrink:0; }
 .sd-toolbar button:hover:not(:disabled) { background:#edf4f1; border-color:#c9d5d2; }
 .sd-toolbar button:disabled { opacity:.4; }
+.sd-toolbar button[hidden] { display:none!important; }
 .sd-toolbar button:focus-visible { outline:2px solid #23695f; outline-offset:1px; }
 .sd-toolbar button[aria-pressed=true] { background:#d5eae6; border-color:#37897b; color:#145d51; }
 .sd-toolbar [data-group-start] { margin-left:6px; }

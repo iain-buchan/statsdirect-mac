@@ -2,6 +2,10 @@
 .settings .field{margin:22px 0}.settings select{display:block;margin-top:8px;min-width:180px}.settings .hint{margin-left:0}
 .options-page{height:100vh;display:flex;flex-direction:column}.options-page header{flex-shrink:0}.settings-form{flex:1;min-height:0;padding:0;overflow:hidden}.settings-form>fieldset{height:100%;display:flex;flex-direction:column}.settings-form .prompt-body{flex:1;min-height:0;overflow-y:scroll;scrollbar-gutter:stable;padding:24px}.settings-form .actions{flex-shrink:0;margin:0;padding:16px 24px;border-top:1px solid #d8e0e4;background:white}
 
+.analysis-repeat{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;width:fit-content;max-width:100%;margin-bottom:16px;padding:10px 15px;background:#edf5f2;border:1px solid #b9c8ce;border-radius:6px}
+.analysis-repeat input{margin:2px 0 0}
+.analysis-repeat .hint{margin-top:3px;color:#536570;line-height:1.4}
+
 .follow-on .choices{flex-direction:row;flex-wrap:wrap;gap:10px}
 .follow-on p{color:#50626b;margin:4px 0 12px}
 

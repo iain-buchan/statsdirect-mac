@@ -34334,14 +34334,17 @@ if (FALSE) {
   function trainingHTML(state2, pack) {
     const t = state2.training;
     return `
-<section class="card" id="trainingProvider"><h2>Your training provider</h2><p class="small">Optional: the tutor, university or organisation delivering your course and reviewing your work. Choosing an exam does not enrol you with its examining body.</p>
-<label for="courseTitle">Course</label><input id="courseTitle" maxlength="200" value="${esc2(t.courseTitle)}" placeholder="For example: www.statisticalhelp.org/help">
-<div class="form-row"><div><label for="reviewEmail">Assessment email address</label><input id="reviewEmail" type="email" maxlength="254" value="${esc2(t.reviewEmail)}" placeholder="support@statisticalhelp.org"></div><div><label for="assessmentType">Assessment type</label><select id="assessmentType">${Object.entries(assessmentTypes).map(([id, title]) => `<option value="${id}" ${t.assessmentType === id ? "selected" : ""}>${esc2(title)}</option>`).join("")}</select></div></div>
-<p class="small" id="assessmentNote">${esc2(assessmentNotes[t.assessmentType])}</p>
+<section class="card" id="trainingProvider"><h2>Your training provider</h2><p class="small">Optional. Use this section if a tutor or organisation provides your course or reviews your work.</p>
+<label for="courseTitle">Course name</label><input id="courseTitle" maxlength="200" value="${esc2(t.courseTitle)}" placeholder="For example: www.statisticalhelp.org/help">
+<div class="form-row"><div><label for="reviewEmail">Assessment email address</label><input id="reviewEmail" type="email" maxlength="254" value="${esc2(t.reviewEmail)}" placeholder="support@statisticalhelp.org"></div><div><label for="assessmentType">Assessment type</label><select id="assessmentType" aria-describedby="assessmentNote">${Object.entries(assessmentTypes).map(([id, title]) => `<option value="${id}" ${t.assessmentType === id ? "selected" : ""}>${esc2(title)}</option>`).join("")}</select><p class="small" id="assessmentNote">${esc2(assessmentNotes[t.assessmentType])}</p></div></div>
 <div class="course-pack"><h3>A course pack from your tutor</h3>
-<p>${pack ? `<strong>${esc2(pack.title)}</strong> \xB7 ${pack.documents.length} document(s) or pages` : "Add course notes, lessons, examples or practice questions."}</p>
+${pack ? `<p><strong>${esc2(pack.title)}</strong></p><p class="small">${[
+      [pack.lessons?.length ?? 0, "lesson", "lessons"],
+      [pack.questions?.length ?? 0, "practice question", "practice questions"],
+      [pack.documents.length, "document or page", "documents or pages"]
+    ].filter(([count]) => count > 0).map(([count, singular, plural]) => count === 1 ? `1 ${singular}` : `${count} ${plural}`).join(" \xB7 ")}</p>` : "<p>Import lessons, practice questions or notes from your trainer.</p>"}
 <div class="actions"><button id="importCourse">${pack ? "Replace course pack\u2026" : "Import course pack\u2026"}</button><button id="exampleCourse" class="link-button">Try example course</button></div>
-<p class="small">PDF, Markdown, text or a StatsDirect course pack. Relevant extracts accompany questions you send to OpenAI. Only import materials you are permitted to share with that service.</p>
+<p class="small">Course packs add their own lessons and questions alongside StatsDirect\u2019s built-in ones. PDF, Markdown and text files supply notes. The tutor can send relevant extracts to OpenAI with your question. Import only material you have permission to share.</p>
 ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map((d) => `<li>${esc2(d.title)}</li>`).join("")}</ul></details>` : ""}</div>
 <details class="option-details"><summary>Provider details and assessment conditions</summary>
 <div class="form-row"><div><label for="providerName">Provider or university</label><input id="providerName" maxlength="200" value="${esc2(t.providerName)}"></div><div><label for="courseVersion">Course version</label><input id="courseVersion" maxlength="80" value="${esc2(t.courseVersion)}"></div></div>
@@ -34416,13 +34419,18 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   };
   var allLessons = () => [...lessons_default, ...courseLessons(coursePack)];
   var lesson = () => allLessons().find((x) => x.id === state.lesson) ?? lessons_default[0];
-  var privacyText = () => settings.disabled ? `The online tutor is disabled by ${words().computer}\u2019s learning policy. Local lessons, practice, help and R examples remain available.` : settings.configured ? "Send shares learning context and up to 40 recent messages with OpenAI. Document sharing requires confirmation for each question. Earlier shared content can remain in the conversation. Do not include person identifiers." : "Connect your ChatGPT account to talk with the tutor here. No API key is needed. Your account\u2019s Codex access and usage allowance apply.";
+  function privacyText() {
+    if (settings.disabled) return `The online tutor is disabled by ${words().computer}\u2019s learning policy. Local lessons, practice, help and R examples remain available.`;
+    if (settings.configured) return "Sending shares learning context and up to 40 recent messages with OpenAI. Use Tutor context to choose which open StatsDirect documents to share. Earlier shared content can remain in the conversation. Do not include person identifiers.";
+    return "Connect your ChatGPT account to use the tutor. Codex is included with ChatGPT Free. Your plan\u2019s usage limits apply.";
+  }
   var sendLabel = () => settings.disabled ? "Online tutor disabled" : settings.configured ? "Send" : settings.signingIn ? "Finish sign-in" : "Use my ChatGPT";
   var independent = () => state.quiz?.mode === "test" && !state.quiz.completedAt;
-  var notice = (text3) => {
+  function notice(text3) {
     $("notice").textContent = text3;
-    $("notice").hidden = !text3;
-  };
+    $("noticeBanner").hidden = !text3;
+  }
+  $("dismissNotice").onclick = () => notice("");
   function save() {
     if (!loaded) return;
     state.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
@@ -34470,7 +34478,9 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     document.body.classList.toggle("study-mode", state.view === "study");
     document.body.classList.toggle("conversation-focus", state.view === "study" && state.conversationFocus === true);
     $("workspaceContext").hidden = state.view !== "study";
-    $("lessons").innerHTML = allLessons().map((l, i) => `<button data-lesson="${esc3(l.id)}" class="${state.view === "study" && state.lesson === l.id ? "current" : ""}" ${independent() || pending ? "disabled" : ""}>${i + 1}. ${esc3(l.title)}</button>`).join("");
+    const provider = courseLessons(coursePack);
+    const lessonButton = (l, i) => `<button data-lesson="${esc3(l.id)}" class="${state.view === "study" && state.lesson === l.id ? "current" : ""}" ${independent() || pending ? "disabled" : ""}>${i + 1}. ${esc3(l.title)}</button>`;
+    $("lessons").innerHTML = (provider.length ? '<p class="lesson-group">StatsDirect lessons</p>' : "") + lessons_default.map(lessonButton).join("") + (provider.length ? '<p class="lesson-group">Provider course</p>' + provider.map(lessonButton).join("") : "");
     $("practiceNav").classList.toggle("current", state.view === "practice");
     $("practiceNav").disabled = Boolean(pending);
     $("recordNav").classList.toggle("current", state.view === "record");
@@ -34494,7 +34504,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   var composerPlaceholder = () => {
     const last = visibleLessonConversation(state).at(-1);
     if (!awaitingAnswer(last)) return "For example: why do we analyse the differences?";
-    return optionLetters(last.text).length >= 3 ? "For example: C, because \u2026" : "Type your answer, then press Send";
+    return optionLetters(last.text).length >= 3 ? "For example: C, because \u2026" : "Type your answer here";
   };
   var quickAnswersHTML = (entry) => {
     const letters2 = optionLetters(entry.text);
@@ -34504,8 +34514,22 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     const l = lesson();
     if (ensureLessonPrompt(state, allLessons())) save();
     const key = state.id + ":" + l.id, reading = renderedStudy === key ? conversationReading($("messages")) : null;
+    const previousMaterial = renderedStudy === key ? document.querySelector(".lesson-material") : null;
     renderedStudy = key;
-    $("main").innerHTML = `<section class="intro"><div class="eyebrow">${esc3(l.topic)}</div><h1>${esc3(l.title)}</h1></section><div class="actions">${l.operation ? '<button class="primary" data-action="example">Try in StatsDirect</button>' : ""}${l.r ? '<button data-action="r">Explore in R</button>' : ""}${l.help ? '<button class="link-button" data-action="help">Read help \u2197</button>' : ""}</div><details class="lesson-guide"><summary>Lesson guide and worked example</summary>${lessonGuideHTML(l, allLessons(), esc3, safeURL)}</details>${courseWorkHTML(state, l)}<section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><button id="focusConversation" class="link-button">${state.conversationFocus ? "Show lesson controls" : "Expand conversation"}</button><span id="tutorBadge" class="badge">${esc3(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">${esc3(composerLabel())}</label><textarea id="question" rows="2" maxlength="4000" placeholder="${esc3(composerPlaceholder())}" ${pending ? "disabled" : ""}>${esc3(state.draft)}</textarea><div class="composer-bottom"><small id="connectionPrivacy">${esc3(privacyText())}</small><button id="send" class="primary" ${pending || settings.disabled ? "disabled" : ""}>${esc3(sendLabel())}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div></section><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div>`;
+    const materialScroll = previousMaterial?.scrollTop ?? 0;
+    const detailState = Array.from(previousMaterial?.querySelectorAll("details") ?? [], (detail) => ({
+      open: detail.open,
+      scrollTop: detail.scrollTop
+    }));
+    $("main").innerHTML = `<section class="lesson-material" aria-label="Lesson materials"><section class="intro"><div class="eyebrow">${esc3(l.topic)}</div><h1>${esc3(l.title)}</h1>${l.providerCourse ? `<p class="small">From ${esc3(coursePack.title)}</p>` : ""}</section><div class="actions">${l.operation ? '<button class="primary" data-action="example">Try in StatsDirect</button>' : ""}${l.r ? '<button data-action="r">Explore in R</button>' : ""}${l.help ? '<button class="link-button" data-action="help">Read help \u2197</button>' : ""}</div><details class="lesson-guide"><summary>Lesson guide and worked example</summary>${lessonGuideHTML(l, allLessons(), esc3, safeURL)}</details>${courseWorkHTML(state, l)}</section>
+  <section class="chat"><div class="chat-heading"><strong>Your biostatistics tutor</strong><button id="focusConversation" class="link-button">${state.conversationFocus ? "Show lesson controls" : "Expand conversation"}</button><span id="tutorBadge" class="badge">${esc3(settings.label)}</span></div><div id="messages" class="messages" role="log" aria-label="Learning conversation"></div><div class="composer"><label for="question">${esc3(composerLabel())}</label><textarea id="question" rows="2" maxlength="4000" aria-describedby="composerKeys connectionPrivacy" placeholder="${esc3(composerPlaceholder())}" ${pending ? "disabled" : ""}>${esc3(state.draft)}</textarea><div class="composer-bottom"><div><small id="composerKeys">Enter sends. Shift+Enter adds a line.</small><small id="connectionPrivacy">${esc3(privacyText())}</small></div><button id="send" class="primary" ${pending || settings.disabled ? "disabled" : ""}>${esc3(sendLabel())}</button>${pending ? '<button id="stop">Stop</button>' : ""}</div><p class="small" id="chatStatus" role="status">${pending ? "The tutor is thinking\u2026" : ""}</p></div><div class="suggestions"><button data-prompt="Explain this without assuming I know any statistics.">Explain simply</button><button data-prompt="Ask me one original exam-style question on this topic, then wait for my answer.">Test my understanding</button><button data-prompt="Walk me through the bundled R example line by line, and suggest one small change I can try.">Help me learn R</button></div></section>`;
+    const material = document.querySelector(".lesson-material");
+    material.querySelectorAll("details").forEach((detail, index) => {
+      if (!detailState[index]) return;
+      detail.open = detailState[index].open;
+      detail.scrollTop = detailState[index].scrollTop;
+    });
+    material.scrollTop = materialScroll;
     const thread = visibleLessonConversation(state), last = thread.at(-1);
     $("messages").innerHTML = thread.map((c) => {
       const guide = guidePresentation(c, l);
@@ -34542,11 +34566,10 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
       state.draft = $("question").value;
       save();
     };
-    $("question").onkeydown = (e2) => {
-      if (e2.key === "Enter" && (e2.metaKey || e2.ctrlKey)) {
-        e2.preventDefault();
-        send();
-      }
+    $("question").onkeydown = (event) => {
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+      event.preventDefault();
+      if (!event.repeat) send();
     };
     $("send").onclick = () => settings.configured ? send() : configure();
     if ($("stop")) $("stop").onclick = () => {
@@ -34555,13 +34578,18 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
       window.statsDirectLearn.tutorError({ id, message: "Reply stopped. You can send another question." });
     };
     document.querySelectorAll("[data-action]").forEach((b) => b.onclick = () => openActivity(b.dataset.action));
-    document.querySelectorAll("[data-prompt]").forEach((b) => {
-      b.disabled = Boolean(pending);
-      b.onclick = () => {
-        state.draft = b.dataset.prompt;
-        save();
-        renderStudy();
-        $("question").focus();
+    document.querySelectorAll("[data-prompt]").forEach((button) => {
+      button.disabled = Boolean(pending) || Boolean(settings.disabled);
+      button.onclick = () => {
+        if (settings.configured) send(button.dataset.prompt);
+        else {
+          const question = $("question");
+          if (!question.value.trim()) {
+            question.value = state.draft = button.dataset.prompt;
+            save();
+          }
+          configure();
+        }
       };
     });
     document.querySelectorAll("[data-answer]").forEach((b) => {
@@ -34638,17 +34666,18 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     else if (action === "help") window.open("../Help/" + l.help, "_blank");
     else notice(`Open this learning window in ${words().application} to start the ` + (action === "r" ? "R session" : "StatsDirect analysis") + ".");
   }
-  function send() {
+  function send(prompt) {
     if (pending || independent() || settings.disabled) return;
-    const text3 = $("question")?.value.trim() || state.draft.trim();
+    const text3 = (prompt ?? $("question")?.value ?? state.draft).trim();
     if (!text3) return;
     if (!settings.configured) {
       configure();
       return;
     }
     teachingSupport();
-    const entry = transcriptEntry(state, "user", text3, "Learner", { lessonId: lesson().id, lessonTitle: lesson().title });
-    state.draft = "";
+    const current = lesson();
+    const entry = transcriptEntry(state, "user", text3, "Learner", { lessonId: current.id, lessonTitle: current.title });
+    if (prompt === void 0) state.draft = "";
     pending = crypto.randomUUID();
     streamedText = "";
     save();
@@ -34682,6 +34711,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
         ${coursePack?.questions?.length ? `<option value="course">${esc3(coursePack.title)} \u2014 provider questions</option>` : ""}
         <option value="builtin">My study context</option><option value="all">All questions</option>
       </select>
+      ${coursePack?.questions?.length ? '<p class="small">My study context and All questions use the built-in StatsDirect question bank.</p>' : ""}
       <div class="actions"><button class="primary" id="supported">Supported practice</button><button id="independent">Independent practice</button></div>
       <p class="small">First answers are retained. Confidence and reasoning help you reflect. They do not alter the score.</p>
     </section>`);
@@ -34824,22 +34854,25 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
   }
   function renderOptions() {
     const o = state.learning;
-    const profileDisabled = state.quiz && !state.quiz.completedAt || pending;
+    const unfinishedPractice = Boolean(state.quiz && !state.quiz.completedAt);
+    const profileDisabled = unfinishedPractice || Boolean(pending);
     const stageDisabled = independent() || pending;
-    $("main").innerHTML = `<div class="eyebrow">LEARNING OPTIONS</div><h1>Make learning work for you</h1>
+    $("main").innerHTML = `<h1>Learning options</h1>
   <section class="card"><h2>Your experience level and goals</h2>
   <div class="form-row">
-    <div><label for="optionProfile">Professional or study context</label><select id="optionProfile" ${profileDisabled ? "disabled" : ""}>${Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc3(t.title)}</option>`).join("")}</select></div>
+    <div><label for="optionProfile">Professional or study context</label><select id="optionProfile" ${profileDisabled ? 'disabled aria-describedby="profileUnavailable"' : ""}>${Object.entries(tracks).map(([id, t]) => `<option value="${id}" ${state.profile === id ? "selected" : ""}>${esc3(t.title)}</option>`).join("")}</select></div>
     <div><label for="optionStage">Your next step with R</label><select id="optionStage" ${stageDisabled ? "disabled" : ""}>${Object.entries(stages).map(([id, t]) => `<option value="${id}" ${state.stage === id ? "selected" : ""}>${esc3(t)}</option>`).join("")}</select></div>
   </div>
-  <p class="small">Your study context guides the examples and practice topics. Your statistical skills and next step with R guide the tutor\u2019s explanations.</p>
+  ${profileDisabled ? `<p class="small" id="profileUnavailable">${pending ? "Wait for the tutor\u2019s reply before changing your study context." : 'Finish or end your current practice attempt to change your study context. <button type="button" class="link-button" id="returnToPractice">Return to practice</button>'}</p>` : ""}
+  <p class="small">Your study context guides the tutor and selects topics for \u201CMy study context\u201D practice. Your R choice tells the tutor how much code to use.</p>
   <label for="statisticalSkills">Statistical skills</label><select id="statisticalSkills">${Object.entries(statisticalSkills).map(([id, title]) => `<option value="${id}" ${o.statisticalSkills === id ? "selected" : ""}>${title}</option>`).join("")}</select>
-  <label for="qualifications">Exams or courses you are studying for</label><textarea id="qualifications" rows="2" maxlength="1200" placeholder="For example: MRCP Part 1, MRCGP AKT, DFPH/MFPH, MPH, an undergraduate module, or a professional qualification">${esc3(o.qualifications)}</textarea>
-  <label for="needs">Your learning goals</label><textarea id="needs" rows="2" maxlength="2500" placeholder="What would you like to understand or be able to do?">${esc3(o.needs)}</textarea>
+  <label for="needs">What would you like help with?</label><textarea id="needs" rows="2" maxlength="2500" placeholder="For example, interpreting clinical trials or learning R for a research project">${esc3(o.needs)}</textarea>
   <details class="option-details"><summary>More learning preferences</summary>
+  <p class="small">These optional details help the tutor adapt its explanations and suggest a study plan.</p>
+  <label for="qualifications">Exams or courses you are studying for</label><textarea id="qualifications" rows="2" maxlength="1200" placeholder="For example, MRCP Part 1, MRCGP AKT, DFPH/MFPH or an undergraduate module">${esc3(o.qualifications)}</textarea>
   <label for="priorKnowledge">Previous experience with statistics and epidemiology</label><textarea id="priorKnowledge" rows="2" maxlength="1500">${esc3(o.priorKnowledge)}</textarea>
   <label for="targetDate">Target exam or completion date</label><input id="targetDate" type="date" value="${esc3(o.targetDate)}">
-  <p class="small">The target date helps the tutor suggest a study plan when you ask; it does not schedule reminders.</p><p class="small">Epidemiology and causal inference are included in every pathway.</p><div class="focus-grid">${[["epidemiology", "Epidemiology and study design"], ["causal", "Causal inference and bias"], ["interpretation", "Interpreting results and uncertainty"], ["methods", "Choosing and checking statistical methods"], ["r", "R coding and reproducible analysis"], ["communication", "Explaining evidence to others"]].map(([id, title]) => `<label class="option"><input type="checkbox" name="focus" value="${id}" ${o.focus.includes(id) ? "checked" : ""} ${["epidemiology", "causal"].includes(id) ? "disabled" : ""}><span>${title}</span></label>`).join("")}</div>
+  <p class="small">The tutor uses this date when you ask for a study plan.</p><p class="small">Epidemiology and causal inference are included in every pathway.</p><div class="focus-grid">${[["epidemiology", "Epidemiology and study design"], ["causal", "Causal inference and bias"], ["interpretation", "Interpreting results and uncertainty"], ["methods", "Choosing and checking statistical methods"], ["r", "R coding and reproducible analysis"], ["communication", "Explaining evidence to others"]].map(([id, title]) => `<label class="option"><input type="checkbox" name="focus" value="${id}" ${o.focus.includes(id) ? "checked" : ""} ${["epidemiology", "causal"].includes(id) ? "disabled" : ""}><span>${title}</span></label>`).join("")}</div>
   <label for="style">How would you like the tutor to help?</label><select id="style">${["Worked examples and questions", "Step-by-step explanations", "Exam-style questions with feedback", "Discuss my reasoning", "Connect StatsDirect to R"].map((t) => `<option ${o.style === t ? "selected" : ""}>${t}</option>`).join("")}</select></details></section>
   ${trainingHTML(state, coursePack)}
   <div class="actions"><button id="applyOptions" class="primary">Return to learning</button><span id="optionSaved" class="small" role="status">Changes are saved as you edit.</span></div>`;
@@ -34847,6 +34880,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
       o[id] = $(id).value;
       save();
     };
+    if ($("returnToPractice")) $("returnToPractice").onclick = () => navigate("practice");
     $("optionProfile").onchange = (event) => {
       state.profile = event.target.value;
       activity("Learning pathway changed to " + tracks[state.profile].title);
@@ -34971,6 +35005,9 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
         $("send").disabled = Boolean(pending) || Boolean(value.disabled);
       }
       if ($("connectionPrivacy")) $("connectionPrivacy").textContent = privacyText();
+      document.querySelectorAll("[data-prompt]").forEach((button) => {
+        button.disabled = Boolean(pending) || Boolean(value.disabled);
+      });
       renderWorkspace();
       if (wasSigningIn && !value.signingIn) notice(value.configured ? "Connected to ChatGPT. Send your question when you are ready." : value.label);
     },

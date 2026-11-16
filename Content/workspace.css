@@ -33,11 +33,16 @@ body.report-editing{padding-top:14px}.report-editing .report-body{outline:1px da
 /* The corner marker at a chart's bottom right while editing: drag it to resize the chart. */
 .report-chart-resize{position:absolute;display:none;width:14px;height:14px;padding:0;margin:0;box-sizing:border-box;border:2px solid #278a7c;border-radius:2px;background:#fff;cursor:nwse-resize;z-index:2}
 .report-editing .report-media>.report-chart-resize{display:block}.report-chart-resize:focus-visible{outline:2px solid #23695f;outline-offset:2px}
-.report-media.report-resizing>svg,.report-media.report-resizing>img{outline:2px solid #278a7c}
+/* Paint the selection in the wrapper, independently of WebKit's SVG repaint bounds. */
+.report-editing .report-media:is(.report-media-selected,.report-resizing,:focus)::after {
+  content:"";position:absolute;left:var(--picture-left);top:var(--picture-top);
+  width:var(--picture-width);height:var(--picture-height);box-sizing:border-box;border:2px solid #278a7c;
+  z-index:1;pointer-events:none;
+}
 @media print{.report-chart-resize{display:none!important}}
-@media print{.report-media>svg,.report-media>img{outline:none!important}}
-.report-picture-tools{display:inline-flex;align-items:center;gap:4px;padding-left:6px;border-left:1px solid #d7e6e2}.report-picture-tools[hidden]{display:none}.report-picture-tools input[data-format=pictureWidth]{width:58px}.report-media:focus{outline:2px solid #278a7c;outline-offset:3px}
-.report-editing .report-media-selected>svg,.report-editing .report-media-selected>img{outline:2px solid #278a7c;background:#f2faf7}.report-media-selected{cursor:grab}.report-drop-caret{position:absolute;width:2px;margin:0;background:#16776b;pointer-events:none;z-index:15}
+@media print{.report-media>svg,.report-media>img{outline:none!important}.report-editing .report-media::after{display:none}}
+.report-picture-tools{display:inline-flex;align-items:center;gap:4px;padding-left:6px;border-left:1px solid #d7e6e2}.report-picture-tools[hidden]{display:none}.report-picture-tools input[data-format=pictureWidth]{width:58px}.report-editing .report-media:focus{outline:none}
+.report-editing .report-media-selected>svg,.report-editing .report-media-selected>img{background:#f2faf7}.report-media-selected{cursor:grab}.report-drop-caret{position:absolute;width:2px;margin:0;background:#16776b;pointer-events:none;z-index:15}
 /* Mac shell: always-editable report, with all commands outside its content. */
 .report-editing #report-results { min-height: 55vh; outline: none; }
 

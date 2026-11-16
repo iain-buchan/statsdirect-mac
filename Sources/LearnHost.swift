@@ -163,10 +163,11 @@ extension Viewer {
             guard self.documents.contains(where:{$0 === doc}), !TutorPolicy.disabled else { return }
             let tutor = self.chatGPTTutor
             let alert = NSAlert()
+            let accountUse = "StatsDirect AI uses the Codex allowance on your ChatGPT plan, including Free. Usage limits and workspace settings still apply. Lessons and practice are available without signing in."
             if let account = tutor.account {
                 alert.messageText = "Connected to ChatGPT"
                 let identity = account.email.isEmpty ? "Your ChatGPT account" : account.email
-                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\nStatsDirect AI uses this account's Codex access and usage allowance. Each Send shares your question and recent conversation with OpenAI. Learning also includes relevant learning options and course excerpts. Document sharing starts off. When you accept sharing, that acceptance applies across Report, Script and Learning for this app session. Restarting StatsDirect or selecting another data document requires fresh confirmation. Only the context you select is sent with each question. The learning tutor can read approved documents and request engine calculations. Report and script assistance have read-only access to the chosen report, workbook or script/output; they cannot run analyses, run R or edit documents.\n\nSigning out here leaves your local learning record and your other apps unchanged."
+                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\n\(accountUse)\n\nEach Send shares your question and recent conversation with OpenAI. Learning also includes relevant learning options and course excerpts. Share documents only by selecting their context and confirming. This confirmation applies across Report, Script and Learning until you restart StatsDirect or select another data document. The Learning tutor can request StatsDirect calculations. Report and Script assistance can read selected context.\n\nYour learning record stays on this Mac when you sign out."
                 alert.addButton(withTitle:"Done"); alert.addButton(withTitle:"Sign Out")
                 alert.beginSheetModal(for:self.window) { response in
                     if response == .alertSecondButtonReturn {
@@ -186,7 +187,7 @@ extension Viewer {
                 }
             } else {
                 alert.messageText = "Use my ChatGPT"
-                alert.informativeText = "Sign in with your own ChatGPT account in your browser. No API key is needed.\n\nStatsDirect AI uses the Codex access and usage allowance included with your account, subject to your plan and workspace settings. It works inside StatsDirect; your existing ChatGPT chats are not imported.\n\nWhen you press Send, your question and recent conversation are shared with OpenAI. Learning also includes learning options and relevant course excerpts. Open documents are excluded unless you choose document context and accept sharing for this app session. Restarting StatsDirect or selecting a different data document requires fresh confirmation. Do not include person identifiers in questions, conversations or course packs."
+                alert.informativeText = "Sign in with your ChatGPT account in your browser. No API key is needed.\n\n\(accountUse)\n\nSend shares your question and recent conversation with OpenAI. Learning also includes relevant learning options and course excerpts. Share documents only by selecting their context and confirming. This confirmation applies across Report, Script and Learning until you restart StatsDirect or select another data document. Keep person-identifiable data out of questions, documents and course packs."
                 alert.addButton(withTitle:"Use my ChatGPT"); alert.addButton(withTitle:"Not Now")
                 alert.beginSheetModal(for:self.window) { response in
                     guard response == .alertFirstButtonReturn else { return }

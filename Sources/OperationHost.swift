@@ -129,6 +129,13 @@ extension Viewer {
         if let operation = doc.operationName, let path = analysisCatalog[operation]?["help"] as? String { return path }
         return doc.followOnDefinition?["help"] as? String
     }
+    func bundledMethodHelpFile(_ path: String) -> URL? {
+        let resources = root.resolvingSymlinksInPath().standardizedFileURL
+        let help = resources.appendingPathComponent("Help", isDirectory: true)
+        let file = resources.appendingPathComponent(path).resolvingSymlinksInPath().standardizedFileURL
+        guard file.path.hasPrefix(help.path + "/") else { return nil }
+        return file
+    }
     // Help topics are numbered as in the Windows help file; the bundled help's alias table maps them to pages.
     static var helpAliases: [String: String] = [:]
     func helpPath(forTopic id: String) -> String? {

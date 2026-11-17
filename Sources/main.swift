@@ -151,9 +151,8 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var helpKeyMonitor: Any?
     let documentTabs = NSStackView()
     let documentTabScroll = NSScrollView()
-    private let documentMenuBar = NSStackView()
-    private var standardChromeEdges: [NSLayoutConstraint] = []
-    private var learningChromeEdges: [NSLayoutConstraint] = []
+    private var workspaceAboveStatus: NSLayoutConstraint!
+    private var workspaceBottomEdge: NSLayoutConstraint!
     var status: NSTextField!
     var documents: [Document] = []
     var finishedLaunching = false
@@ -213,18 +212,6 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         window.delegate = self
         window.minSize = NSSize(width: 850, height: 520)
         let container = NSView(); window.contentView = container
-        let bar = documentMenuBar; bar.orientation = .horizontal; bar.spacing = 4
-        let symbol = NSImageView(); symbol.image = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")); symbol.imageScaling = .scaleProportionallyUpOrDown
-        symbol.setAccessibilityLabel("StatsDirect"); symbol.widthAnchor.constraint(equalToConstant:26).isActive = true; symbol.heightAnchor.constraint(equalToConstant:26).isActive = true; bar.addArrangedSubview(symbol)
-        for title in ["File", "Edit", "Format", "Data", "Analysis", "Graphics", "Window", "Help"] {
-            let button = NSButton(title: title + " ▾", target: self, action: #selector(showDropdown(_:)))
-            button.identifier = NSUserInterfaceItemIdentifier(title)
-            button.isBordered = false; button.refusesFirstResponder = true
-            button.font = .systemFont(ofSize: 13)
-            button.setAccessibilityLabel(title + " menu")
-            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 54).isActive = true
-            bar.addArrangedSubview(button)
-        }
         tabs = NSTabView(); tabs.tabViewType = .noTabsNoBorder; tabs.delegate = self
         documentTabs.orientation = .horizontal; documentTabs.alignment = .centerY; documentTabs.spacing = 4
         documentTabScroll.documentView = documentTabs
@@ -252,21 +239,25 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
                let self, event.window === self.window, self.scriptAI.isFocused { self.scriptAI.send(); return nil }
             if event.keyCode == 122 { self?.currentMethodHelp(); return nil }; return event
         }
-        for view in [bar, documentTabScroll, workspaceSplit, status!] { view.translatesAutoresizingMaskIntoConstraints = false; container.addSubview(view) }
-        standardChromeEdges = [
-            documentTabScroll.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 2),
-            status.topAnchor.constraint(equalTo: workspaceSplit.bottomAnchor, constant: 7)
-        ]
-        learningChromeEdges = [
+        for view in [documentTabScroll, workspaceSplit, status!] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(view)
+        }
+        workspaceAboveStatus = status.topAnchor.constraint(equalTo: workspaceSplit.bottomAnchor, constant: 7)
+        workspaceBottomEdge = workspaceSplit.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
+        NSLayoutConstraint.activate([
             documentTabScroll.topAnchor.constraint(equalTo: container.topAnchor, constant: 4),
-            workspaceSplit.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
-        ]
-        NSLayoutConstraint.activate(standardChromeEdges + [
-            bar.heightAnchor.constraint(equalToConstant: 32), status.heightAnchor.constraint(equalToConstant: 16),
-            bar.topAnchor.constraint(equalTo: container.topAnchor, constant: 4), bar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
-            documentTabScroll.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), documentTabScroll.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8), documentTabScroll.heightAnchor.constraint(equalToConstant: 36),
-            workspaceSplit.topAnchor.constraint(equalTo: documentTabScroll.bottomAnchor, constant: 2), workspaceSplit.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8), workspaceSplit.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-            status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16), status.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16), status.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
+            documentTabScroll.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+            documentTabScroll.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+            documentTabScroll.heightAnchor.constraint(equalToConstant: 36),
+            workspaceSplit.topAnchor.constraint(equalTo: documentTabScroll.bottomAnchor, constant: 2),
+            workspaceSplit.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+            workspaceSplit.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
+            workspaceAboveStatus,
+            status.heightAnchor.constraint(equalToConstant: 16),
+            status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
+            status.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+            status.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
         ])
         if let icon = NSImage(contentsOf: root.appendingPathComponent("Brand/statsdirect.png")) { NSApp.applicationIconImage = icon }
         setupMenu()
@@ -277,13 +268,6 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         let requested = pendingOpenURLs; pendingOpenURLs = []
         openDocumentURLs(requested)
         if !InteractiveRConsolePrototype.enabled { startUpdateChecks() }
-    }
-    @objc func showDropdown(_ sender: NSButton) {
-        guard let title = sender.identifier?.rawValue,
-              let source = NSApp.mainMenu?.items.first(where: { $0.submenu?.title == title })?.submenu,
-              let menu = source.copy() as? NSMenu else { return }
-        // Copy at opening so document names, selection and command validation stay current.
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.isFlipped ? sender.bounds.maxY + 4 : sender.bounds.minY - 4), in: sender)
     }
     func setupMenu() {
         let main = NSMenu()
@@ -494,11 +478,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         let learningIsActive = active?.kind == "learn"
-        if documentMenuBar.isHidden != learningIsActive {
-            NSLayoutConstraint.deactivate(learningIsActive ? standardChromeEdges : learningChromeEdges)
-            documentMenuBar.isHidden = learningIsActive
+        if status.isHidden != learningIsActive {
+            (learningIsActive ? workspaceAboveStatus : workspaceBottomEdge)?.isActive = false
             status.isHidden = learningIsActive
-            NSLayoutConstraint.activate(learningIsActive ? learningChromeEdges : standardChromeEdges)
+            (learningIsActive ? workspaceBottomEdge : workspaceAboveStatus)?.isActive = true
         }
         if let doc = active {
             if doc.kind == "grid" { analysisSourceID=doc.id;selectAIDataDocument(doc.id) }

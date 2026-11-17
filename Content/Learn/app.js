@@ -20279,9 +20279,10 @@ ${content}</tr>
   function recordHTML(r2) {
     const section = (title, body2) => `<section><h2>${e(title)}</h2>${body2}</section>`;
     const para = (s) => `<p>${e(s)}</p>`;
-    const attempts = r2.attempts.map((a) => `<h3>${e(a.course?.title ?? (a.questionSet === "all" ? "All questions" : a.track))} \xB7 ${e(a.status)}</h3>${para(a.result ? `Provisional score: ${a.result.score}/${a.result.total}` : "Attempt not completed" + (a.status === "ended early" ? ` \xB7 ${a.answers.length}/${a.questionIds.length} answered; unanswered questions are not listed` : ""))}` + a.questionSnapshots.map((q) => {
-      const ans = a.answers.find((x) => x.questionId === q.id);
-      return `<h4>${e(q.topic)}</h4>${para(q.stem)}<ol type="A">${q.options.map((o) => `<li>${e(o.text)}</li>`).join("")}</ol>${para(`First answer: ${ans?.choice ?? "\u2014"} \xB7 Key: ${q.correct ?? "withheld"} \xB7 Confidence: ${ans?.confidence ?? "\u2014"}`)}${para("Reasoning: " + (ans?.reasoning ?? "\u2014"))}${para("Reflection: " + (ans?.reflection ?? "\u2014"))}${para(q.explanation ?? "Feedback withheld until the attempt ends")}`;
+    const numbered = r2.attempts.some((a) => a.questionSnapshots.some((q) => q.sameAsAttempt !== void 0));
+    const attempts = r2.attempts.map((a, i) => `<h3>${numbered ? `Attempt ${i + 1} \xB7 ` : ""}${e(a.course?.title ?? (a.questionSet === "all" ? "All questions" : a.track))} \xB7 ${e(a.status)}${numbered ? ` \xB7 started ${e(a.startedAt)}` : ""}</h3>${para(a.result ? `Provisional score: ${a.result.score}/${a.result.total}` : "Attempt not completed" + (a.status === "ended early" ? ` \xB7 ${a.answers.length}/${a.questionIds.length} answered; unanswered questions are not listed` : ""))}` + a.questionSnapshots.map((entry) => {
+      const repeat = entry.sameAsAttempt !== void 0, q = repeat ? r2.attempts[entry.sameAsAttempt].questionSnapshots.find((x) => x.id === entry.id && x.sameAsAttempt === void 0) : entry, ans = a.answers.find((x) => x.questionId === q.id);
+      return `<h4>${numbered ? e(`${q.id} v${q.version} \u2014 `) : ""}${e(q.topic)}</h4>${repeat ? para(`Question, options and feedback as in attempt ${entry.sameAsAttempt + 1}.`) : para(q.stem) + `<ol type="A">${q.options.map((o) => `<li>${e(o.text)}</li>`).join("")}</ol>`}${para(`First answer: ${ans?.choice ?? "\u2014"} \xB7 Key: ${q.correct ?? "withheld"} \xB7 Confidence: ${ans?.confidence ?? "\u2014"}`)}${para("Reasoning: " + (ans?.reasoning ?? "\u2014"))}${para("Reflection: " + (ans?.reflection ?? "\u2014"))}${repeat ? "" : para(q.explanation ?? "Feedback withheld until the attempt ends")}`;
     }).join("")).join("");
     const body = `<h1>StatsDirect learning record</h1>${para(r2.learner.name || "Learner")}${para(r2.learner.email || "")}${para(`Prepared ${r2.exportedAt}`)}${para(r2.pathway + " \xB7 " + r2.rExperience)}${para(r2.learner.goal || r2.learningOptions.needs || "")}${para(r2.marking)}${para(r2.reviewStatus)}` + section("Practice attempts", attempts || para("No practice attempts")) + section("Document sharing confirmations", (r2.sharingConsents ?? []).map((c) => para(`${c.at} \xB7 question ${c.requestID} \xB7 ${c.policyVersion}`) + para(c.statement) + para(c.documents.map((d) => `${d.title} (${d.kind}) \xB7 revision ${d.version}`).join("; "))).join("") || para("No document sharing confirmed")) + section("Learning conversation", r2.conversation.map((c) => `<article><h3>${c.role === "user" ? "Learner" : "Tutor"} \xB7 ${e(c.lessonTitle ?? c.source)}</h3><small>${e(c.at)}</small>${exportRichText(c.text)}${(c.courseSources ?? []).length ? para("Lesson context supplied: " + c.courseSources.map((s) => s.title + (s.url ? " \u2014 " + s.url : "")).join("; ")) : ""}${(c.workspaceSources ?? []).length ? para("StatsDirect context: " + c.workspaceSources.join("; ")) : ""}</article>`).join("")) + section("Course and assessment", Object.entries(r2.training).map(([k, v]) => para(k + ": " + v)).join("")) + section("Practical submissions", r2.courseWork.map((w) => `<h3>${e(w.lessonTitle)}</h3>${para(w.text)}`).join("")) + section("Analysis evidence", r2.evidence.map((x) => `<h3>${e(x.title)}</h3><pre>${e(x.text)}</pre>`).join("")) + section("Provider responses", r2.providerReviews.map((x) => para(`${x.provider}: ${x.decision}
 ${x.feedback}
@@ -27461,28 +27462,44 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     state2.conversation.push(entry);
     return entry;
   }
+  function recordQuestion(record, entry) {
+    return entry.sameAsAttempt === void 0 ? entry : record.attempts[entry.sameAsAttempt].questionSnapshots.find((q) => q.id === entry.id && q.sameAsAttempt === void 0);
+  }
   function reviewRecord(state2) {
-    const attempts = [...state2.attempts, ...state2.quiz ? [state2.quiz] : []].map((session) => ({
-      ...structuredClone(session),
-      answers: session.answers.map((a) => {
-        const copy = structuredClone(a);
-        if (session.mode === "test" && !session.completedAt && !session.endedAt) delete copy.correct;
-        return copy;
-      }),
-      result: session.completedAt ? learnerResult(session) : null,
-      questionSnapshots: (session.endedAt && !session.completedAt ? session.questionIds.slice(0, session.answers.length) : session.questionIds).map((id) => {
-        const q = structuredClone(sessionQuestion(session, id));
-        if (session.mode === "test" && !session.completedAt && !session.endedAt) {
-          delete q.correct;
-          delete q.explanation;
-          delete q.hint;
-          delete q.lesson;
-          q.options = q.options.map(({ id: id2, text: text3 }) => ({ id: id2, text: text3 }));
-        }
-        return q;
-      }),
-      status: session.completedAt ? "completed" : session.endedAt ? "ended early" : "in progress"
-    }));
+    const seenQuestions = /* @__PURE__ */ new Map(), seenPublications = /* @__PURE__ */ new Map();
+    const attempts = [...state2.attempts, ...state2.quiz ? [state2.quiz] : []].map((session, index) => {
+      const { questionSnapshots: inMemory, ...rest } = session;
+      const copy = {
+        ...structuredClone(rest),
+        answers: session.answers.map((a) => {
+          const copy2 = structuredClone(a);
+          if (session.mode === "test" && !session.completedAt && !session.endedAt) delete copy2.correct;
+          return copy2;
+        }),
+        result: session.completedAt ? learnerResult(session) : null,
+        questionSnapshots: (session.endedAt && !session.completedAt ? session.questionIds.slice(0, session.answers.length) : session.questionIds).map((id) => {
+          const q = structuredClone(sessionQuestion(session, id));
+          if (session.mode === "test" && !session.completedAt && !session.endedAt) {
+            delete q.correct;
+            delete q.explanation;
+            delete q.hint;
+            delete q.lesson;
+            q.options = q.options.map(({ id: id2, text: text3 }) => ({ id: id2, text: text3 }));
+          }
+          const key = canonical(q), first = seenQuestions.get(key);
+          if (first !== void 0) return { id: q.id, sameAsAttempt: first };
+          seenQuestions.set(key, index);
+          return q;
+        }),
+        status: session.completedAt ? "completed" : session.endedAt ? "ended early" : "in progress"
+      };
+      if (copy.contentPublication !== null && typeof copy.contentPublication === "object") {
+        const key = canonical(copy.contentPublication), first = seenPublications.get(key);
+        if (first !== void 0) copy.contentPublication = { sameAsAttempt: first };
+        else seenPublications.set(key, index);
+      }
+      return copy;
+    });
     return {
       schemaVersion: 2,
       exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
@@ -27506,18 +27523,20 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
       attempts,
       conversation: structuredClone(state2.conversation),
       activities: structuredClone(state2.activities),
-      reflection: state2.reflection
+      reflection: state2.reflection,
+      ...attempts.some((a) => a.questionSnapshots.some((q) => q.sameAsAttempt !== void 0) || a.contentPublication?.sameAsAttempt !== void 0) ? { repeatedContent: "An entry {id, sameAsAttempt: n} in an attempt's questionSnapshots, or {sameAsAttempt: n} as its contentPublication, stands for the same content given in full in attempts[n]." } : {}
     };
   }
   function reviewText(record) {
     const lines = ["STATSDIRECT \u2014 LEARNING RECORD", "External review request", `Prepared: ${record.exportedAt}`, `Record: ${record.portfolioID}`, `Started: ${record.startedAt}`, "", `Learner: ${record.learner.name || "(not supplied)"}`, `Reply email: ${record.learner.email || "(not supplied)"}`, `Learning goal: ${record.learner.goal || "(not supplied)"}`, `Pathway: ${record.pathway}`, `Statistical skills: ${statisticalSkills[record.learningOptions?.statisticalSkills] || "Not recorded"}`, `R experience: ${record.rExperience}`, `Exams / qualifications: ${record.learningOptions?.qualifications || "(not supplied)"}`, `Learning needs: ${record.learningOptions?.needs || "(not supplied)"}`, `Prior knowledge: ${record.learningOptions?.priorKnowledge || "(not supplied)"}`, `Target date: ${record.learningOptions?.targetDate || "(not supplied)"}`, `Focus: ${(record.learningOptions?.focus || []).join(", ")}`, `Preferred teaching style: ${record.learningOptions?.style || ""}`, "", record.questionSource, record.marking, record.reviewStatus, "", "PRACTICE ATTEMPTS"];
-    for (const a of record.attempts) {
+    const numbered = record.attempts.some((a) => a.questionSnapshots.some((q) => q.sameAsAttempt !== void 0));
+    for (const [i, a] of record.attempts.entries()) {
       if (a.course) lines.push(`Provider assessment: ${a.course.title} \xB7 ${a.course.provider} \xB7 version ${a.course.version}`);
       if (a.questionSet === "all") lines.push("Question set: All questions");
-      lines.push("", `${tracks[a.track].title} \u2014 ${a.mode === "test" ? "Independent practice (unsupervised)" : "Supported practice"} \u2014 ${a.status}`, `Started: ${a.startedAt} | Completed: ${a.completedAt || "not completed"}`, a.result ? `Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted` : `Answered: ${a.answers.length}/${a.questionIds.length}${a.status === "ended early" ? "; unanswered questions are not listed" : ""}`);
-      for (const q of a.questionSnapshots) {
-        const answer = a.answers.find((x) => x.questionId === q.id);
-        lines.push("", `${q.id} v${q.version} \u2014 ${q.topic}`, q.stem, ...q.options.map((o) => `${o.id}. ${o.text}`), `First answer: ${answer?.choice || "not answered"} | Key: ${q.correct || "withheld until the attempt ends"}`, `Confidence: ${answer?.confidence || "not recorded"} | Assisted: ${answer?.assisted ?? false}`, `Reasoning before answer: ${answer?.reasoning || "(none)"}`, `Reflection after feedback: ${answer?.reflection || "(none)"}`, `Feedback: ${q.explanation || "withheld until the attempt ends"}`, q.help ? `Help: https://www.statsdirect.com/help/${q.help}` : "");
+      lines.push("", `${numbered ? `Attempt ${i + 1} \u2014 ` : ""}${tracks[a.track].title} \u2014 ${a.mode === "test" ? "Independent practice (unsupervised)" : "Supported practice"} \u2014 ${a.status}`, `Started: ${a.startedAt} | Completed: ${a.completedAt || "not completed"}`, a.result ? `Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted` : `Answered: ${a.answers.length}/${a.questionIds.length}${a.status === "ended early" ? "; unanswered questions are not listed" : ""}`);
+      for (const entry of a.questionSnapshots) {
+        const q = recordQuestion(record, entry), repeat = entry.sameAsAttempt !== void 0, answer = a.answers.find((x) => x.questionId === q.id);
+        lines.push("", `${q.id} v${q.version} \u2014 ${q.topic}`, ...repeat ? [`Question, options and feedback as in attempt ${entry.sameAsAttempt + 1}.`] : [q.stem, ...q.options.map((o) => `${o.id}. ${o.text}`)], `First answer: ${answer?.choice || "not answered"} | Key: ${q.correct || "withheld until the attempt ends"}`, `Confidence: ${answer?.confidence || "not recorded"} | Assisted: ${answer?.assisted ?? false}`, `Reasoning before answer: ${answer?.reasoning || "(none)"}`, `Reflection after feedback: ${answer?.reflection || "(none)"}`, ...repeat ? [] : [`Feedback: ${q.explanation || "withheld until the attempt ends"}`, q.help ? `Help: https://www.statsdirect.com/help/${q.help}` : ""]);
       }
     }
     lines.push("", "DOCUMENT SHARING CONFIRMATIONS");

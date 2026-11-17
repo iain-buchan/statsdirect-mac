@@ -133,6 +133,7 @@ def atomic_json(path, value, exclusive=False):
             json.dump(value, stream, indent=2); stream.write("\n"); stream.flush(); os.fsync(stream.fileno())
     else:
         fd, temporary = tempfile.mkstemp(prefix="." + path.name + "-", dir=path.parent)
+        os.fchmod(fd, 0o644)    # mkstemp makes it private; a record that reaches the app must be readable by every account
         try:
             with os.fdopen(fd, "w") as stream:
                 json.dump(value, stream, indent=2); stream.write("\n"); stream.flush(); os.fsync(stream.fileno())

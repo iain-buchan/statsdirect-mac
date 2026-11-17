@@ -20,6 +20,10 @@ test('published JSON is the question bank and retains every earlier question/pat
   assert.equal(bankVersion,json('./AuthoredTutor/manifest.json').bankVersion);
   assert.equal(bankPublication.commit,json('../Content/learning-manifest.json').commit);
   assert.equal(bankPublication.reviewProofBinding,'authoring-source-before-generated-sync-v1');
+  // Each practice attempt, saved or exported, carries this record: it identifies the publication and does not copy its lists.
+  assert.ok(JSON.stringify(bankPublication).length<4000&&bankPublication.publication.reviewIssues===undefined&&bankPublication.publication.reviewedChangedItems===undefined);
+  assert.equal(bankPublication.publication.bankVersion,bankVersion);assert.equal(bankPublication.publication.reviewGatePassed,true);
+  assert.equal(bankPublication.publication.reviewedChangedItemCount,json('./AuthoredTutor/manifest.json').reviewedChangedItems.length);
   for(const q of earlierQuestions)assert.ok(questions.some(item=>item.id===q.id),q.id);
   for(const id of ['foundation','medicine','publicHealth','analyst','researcher'])assert.ok(tracks[id]);
   assert.ok(questions.every(q=>!q.id.startsWith('course:')));

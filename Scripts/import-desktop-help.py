@@ -350,6 +350,7 @@ def install_bundle(source, destination, manifest_path, manifest):
         require(manifest["sha256"] == {name: item["sha256"] for name, item in inventory(staged).items()},
                 "Staged help differs from validated input")
         fd, name = tempfile.mkstemp(prefix=".help-manifest-", dir=manifest_path.parent)
+        os.fchmod(fd, 0o644)    # mkstemp makes it private; the manifest is packaged with the app, which every account must read
         temporary_manifest = Path(name)
         with os.fdopen(fd, "w") as stream:
             stream.write(json.dumps(manifest, indent=2) + "\n");stream.flush();os.fsync(stream.fileno())
@@ -407,6 +408,13 @@ def read_git_bundle(repository, revision, source, temporary):
                      member.isdir() and source.startswith(name + "/")),
                     "Unsafe help archive entry: " + member.name)
         bundle.extractall(temporary)
+    # git archive marks files group-writable (0664). git stores no such bit, so a clone has them 0644, but an app built
+    # from the working tree straight after this import would carry them as extracted, and the in-app installer refuses
+    # an update with a file that others may write. Give the help the modes a clone gives it.
+    for folder, _, files in os.walk(temporary):
+        os.chmod(folder, 0o755)
+        for name in files:
+            os.chmod(os.path.join(folder, name), 0o644)
     return Path(temporary) / source
 
 

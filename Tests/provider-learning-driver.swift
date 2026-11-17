@@ -191,12 +191,25 @@ import Cocoa
         let text = review["text"] as! String
         try check(text.contains("cohort-evidence") == false && text.contains(resource.url) && text.contains("Mean reduction 2 minutes") && text.contains("t.test(") && text.contains("Further work requested"))
         let saved = try Data(contentsOf:v.learningFolder.appendingPathComponent("portfolio.json"))
-        v.learningScript(d,"restore",try JSONSerialization.jsonObject(with:saved))
+        // The saved form (Learning HOST-CONTRACT.md, "Saved record"): each question is stored once in sharedContent and the
+        // practice attempts refer to it. The host carries that form as it comes, through its own save, a restore and a reload.
+        func sharedQuestions(_ record:[String:Any]?) -> Int { ((record?["sharedContent"] as? [String:Any])?["questions"] as? [Any])?.count ?? 0 }
+        func attempts(_ record:[String:Any]?) -> [[String:Any]] { (record?["attempts"] as? [[String:Any]] ?? []) + [record?["quiz"] as? [String:Any]].compactMap{$0} }
+        let savedRecord = try JSONSerialization.jsonObject(with:saved) as! [String:Any]
+        let savedShared = sharedQuestions(savedRecord)
+        try check(!attempts(savedRecord).isEmpty && savedShared > 0)
+        try check(attempts(savedRecord).allSatisfy { $0["questionRefs"] is [Any] && $0["questionSnapshots"] == nil && $0["questionIds"] == nil })
+        try check(sharedQuestions(d.learningState) == savedShared && String(decoding:saved,as:UTF8.self).contains("\n") == false)
+        v.learningScript(d,"restore",savedRecord)
         try await wait { (d.learningState?["courseWork"] as? [Any])?.count == 1 }
         try check(review["recipient"] as? String == "support@statisticalhelp.org")
         try check((d.learningState?["learning"] as? [String:Any])?["priorKnowledge"] as? String == "Prior epidemiology module")
         try check((d.learningState?["training"] as? [String:Any])?["assessmentType"] as? String == "self")
         v.openLearningOptions()
+        // After the restore and every later save by the page, the file still holds the saved form with the same questions.
+        let finalRecord = try JSONSerialization.jsonObject(with:Data(contentsOf:v.learningFolder.appendingPathComponent("portfolio.json"))) as! [String:Any]
+        try check(sharedQuestions(finalRecord) == savedShared && attempts(finalRecord).count == attempts(savedRecord).count && attempts(finalRecord).allSatisfy { $0["questionRefs"] is [Any] && $0["questionSnapshots"] == nil })
+        print("PASS: the saved learning record keeps each practice question once, and the host carries that form through its own save and a restore (\(savedShared) questions for \(attempts(savedRecord).count) attempt(s))")
         print("PASS: skills, assessment preference and imported course reference reach the tutor request; retired web caches excluded; cited reply, practical work, evidence and external response survive export and restore. No email sent, no live AI reply claimed.")
     }
 }

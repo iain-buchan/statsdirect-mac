@@ -240,14 +240,29 @@ import WebKit
         ai.newConversation()
         try check(ai.contextPanel.isHidden,"a new conversation reuses the accepted app session")
         try check(ai.conversations[first.id]?.messages.isEmpty==true && ai.shareScript.state == .off && ai.shareWorkbook.state == .off,"New conversation removes prior context from subsequent prompts")
-        v.window.makeFirstResponder(ai.input);v.closeTab()
+        let nativeMenus=NSApp.mainMenu!.items.compactMap(\.submenu)
+        let menuTitles=nativeMenus.map(\.title)
+        try check(menuTitles==["StatsDirect","File","Edit","Format","Data","Analysis","Graphics","Window","Help"],
+                  "the macOS menu bar retains every application menu, with Window before Help")
+        let file=nativeMenus.first{$0.title=="File"}!
+        let close=file.items.first{$0.action==#selector(Viewer.closeTab)}!
+        try check(close.keyEquivalent=="w" && close.keyEquivalentModifierMask == .command,
+                  "the native File menu retains Command-W")
+        v.window.makeFirstResponder(ai.input)
+        try check(NSApp.sendAction(close.action!,to:close.target,from:close),"the native File menu invokes Close Document")
         try check(!ai.visible && v.documents.contains(where:{$0===first}),"Command-W closes a focused AI dock without closing the script")
         ai.open(first);v.remove(first)
         try check(!ai.visible && ai.scriptID==nil && ai.conversations[first.id]==nil,"closing a script closes its AI dock and releases its conversation")
-        let help=NSApp.mainMenu!.items.first{$0.submenu?.title=="Help"}!.submenu!
-        let lastMenus=NSApp.mainMenu!.items.suffix(2).compactMap{$0.submenu?.title}
-        let menuButtons=buttons(v.window.contentView!).filter{["Window","Help"].contains($0.identifier?.rawValue ?? "")}.sorted{$0.frame.minX < $1.frame.minX}
-        try check(lastMenus==["Window","Help"] && menuButtons.map{$0.identifier?.rawValue}==["Window","Help"],"Window precedes Help in both the macOS menu bar and the in-window menu row")
+        let content=v.window.contentView!
+        content.layoutSubtreeIfNeeded()
+        let tabFrame=v.documentTabScroll.frame
+        let tabTopGap=content.isFlipped ? tabFrame.minY-content.bounds.minY : content.bounds.maxY-tabFrame.maxY
+        let duplicateMenus=buttons(content).filter{menuTitles.contains($0.identifier?.rawValue ?? "")}
+        try check((0...8).contains(tabTopGap) && tabFrame.height>0 &&
+                  v.documentTabScroll.documentView === v.documentTabs &&
+                  v.documentTabs.arrangedSubviews.count==v.documents.count && duplicateMenus.isEmpty,
+                  "the top row in the window contains document tabs and no duplicate application menus")
+        let help=nativeMenus.first{$0.title=="Help"}!
         let example=help.items.first{$0.action==#selector(Viewer.openExampleWorkbook)}!
         let helpSections=help.items.suffix(6).map{$0.isSeparatorItem ? "|" : $0.title}
         try check(helpSections==["|","Example workbook","|","Check for Updates…","|","About StatsDirect…"] && help.items.last?.action==#selector(Viewer.showAbout),"Example workbook has its own section before updates, with About last in Help")

@@ -41,12 +41,18 @@ import Cocoa
             throw LearningTutor.Failure(message:"A worksheet is required for the Learning layout check.")
         }
         v.tabs.selectTabViewItem(worksheet.item)
-        v.window.contentView?.layoutSubtreeIfNeeded()
-        let worksheetHeight = v.workspaceSplit.frame.height
-        try check(!v.status.isHidden)
+        let content = v.window.contentView!
+        content.layoutSubtreeIfNeeded()
+        let worksheetFrame = v.workspaceSplit.frame, tabFrame = v.documentTabScroll.frame
+        let statusFrame = v.status.frame
+        let statusAllocation = content.isFlipped ? statusFrame.maxY - worksheetFrame.maxY : worksheetFrame.minY - statusFrame.minY
+        let tabTopGap = content.isFlipped ? tabFrame.minY - content.bounds.minY : content.bounds.maxY - tabFrame.maxY
+        try check(!v.status.isHidden && statusFrame.height > 0 && statusAllocation >= statusFrame.height)
+        try check((0...8).contains(tabTopGap))
         v.openLearningOptions(); let d = v.documents.first{$0.kind == "learn"}!
-        v.window.contentView?.layoutSubtreeIfNeeded()
-        try check(v.status.isHidden && v.workspaceSplit.frame.height >= worksheetHeight + 50)
+        content.layoutSubtreeIfNeeded()
+        try check(v.status.isHidden && abs(v.workspaceSplit.frame.height - worksheetFrame.height - statusAllocation) < 1)
+        try check(v.documentTabScroll.frame == tabFrame)
         try check(NSApp.mainMenu?.items.contains(where: { $0.submenu?.title == "Help" }) == true)
         try await wait { guard d.learningState != nil else { return false }; return (try? await v.learningJavaScript(d,"({ok:!!document.getElementById('statisticalSkills')})"))?["ok"] as? Bool == true }
         var rows = try await v.learningJavaScript(d,"({count:document.querySelectorAll('main>.card').length,resources:!!document.getElementById('resourceURLs'),pack:!!document.querySelector('#trainingProvider #importCourse'),recipient:document.getElementById('reviewEmail').value,details:document.querySelector('.option-details').open,assessment:document.getElementById('assessmentType').value})")
@@ -64,8 +70,8 @@ import Cocoa
         _ = try await v.learningJavaScript(d,"({ok:document.querySelector('[data-action=r]').click()===undefined})")
         try await wait { v.active?.kind == "r" }
         let r = v.active!
-        v.window.contentView?.layoutSubtreeIfNeeded()
-        try check(!v.status.isHidden && v.workspaceSplit.frame.height == worksheetHeight)
+        content.layoutSubtreeIfNeeded()
+        try check(!v.status.isHidden && v.workspaceSplit.frame == worksheetFrame && v.documentTabScroll.frame == tabFrame)
         try await wait { r.rConsolePane?.session.state == "ready" }
         try check(r.rConsolePane?.hasWorkspace == false && r.rConsolePane?.isBusy == false && r.rConsolePane!.sourceText.contains("paired=TRUE"))
         v.captureLearningEvidence(d,documentID:r.id)

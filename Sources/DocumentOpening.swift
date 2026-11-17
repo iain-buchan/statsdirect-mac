@@ -32,7 +32,7 @@ extension Viewer: NSMenuDelegate {
         refreshRecentDocumentsMenu(recent)
     }
     func menuNeedsUpdate(_ menu: NSMenu) {
-        // The in-window menu is a copy of the menu-bar menu.
+        // Filled each time the menu opens, so the list is current.
         if menu.title == "Open Recent" { refreshRecentDocumentsMenu(menu) }
     }
     func refreshRecentDocumentsMenu(_ menu: NSMenu) {

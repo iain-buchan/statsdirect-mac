@@ -98,6 +98,11 @@ class DesktopHelpImportTests(unittest.TestCase):
         result = help_import.verify_import(self.destination, self.manifest)
         self.assertEqual(result["format"], "legacy-flare")
         self.assertEqual(result["commit"], revision)
+        # git archive marks files group-writable; the import gives them the modes a clone has, so that an app built from
+        # this working tree holds no file that others may write (the in-app installer refuses such an update).
+        imported = [path for path in self.destination.rglob("*")]
+        self.assertTrue(imported and all(path.stat().st_mode & 0o022 == 0 for path in imported))
+        self.assertEqual(self.manifest.stat().st_mode & 0o777, 0o644)    # written through a private temporary file
         result.pop("schemaVersion")
         self.manifest.write_text(json.dumps(result))
         help_import.verify_import(self.destination, self.manifest)

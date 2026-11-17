@@ -20279,7 +20279,7 @@ ${content}</tr>
   function recordHTML(r2) {
     const section = (title, body2) => `<section><h2>${e(title)}</h2>${body2}</section>`;
     const para = (s) => `<p>${e(s)}</p>`;
-    const attempts = r2.attempts.map((a) => `<h3>${e(a.course?.title ?? (a.questionSet === "all" ? "All questions" : a.track))} \xB7 ${e(a.status)}</h3>${para(a.result ? `Provisional score: ${a.result.score}/${a.result.total}` : "Attempt not completed")}` + a.questionSnapshots.map((q) => {
+    const attempts = r2.attempts.map((a) => `<h3>${e(a.course?.title ?? (a.questionSet === "all" ? "All questions" : a.track))} \xB7 ${e(a.status)}</h3>${para(a.result ? `Provisional score: ${a.result.score}/${a.result.total}` : "Attempt not completed" + (a.status === "ended early" ? ` \xB7 ${a.answers.length}/${a.questionIds.length} answered; unanswered questions are not listed` : ""))}` + a.questionSnapshots.map((q) => {
       const ans = a.answers.find((x) => x.questionId === q.id);
       return `<h4>${e(q.topic)}</h4>${para(q.stem)}<ol type="A">${q.options.map((o) => `<li>${e(o.text)}</li>`).join("")}</ol>${para(`First answer: ${ans?.choice ?? "\u2014"} \xB7 Key: ${q.correct ?? "withheld"} \xB7 Confidence: ${ans?.confidence ?? "\u2014"}`)}${para("Reasoning: " + (ans?.reasoning ?? "\u2014"))}${para("Reflection: " + (ans?.reflection ?? "\u2014"))}${para(q.explanation ?? "Feedback withheld until the attempt ends")}`;
     }).join("")).join("");
@@ -26159,7 +26159,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     schemaVersion: 1,
     format: "statsdirect-builtin-tutor",
     publisher: "StatsDirectHelpEditor",
-    publishedAtUtc: "2026-11-15T16:16:12.7074717+00:00",
+    publishedAtUtc: "2026-11-17T08:43:56.6959233+00:00",
     sourceCourseId: "statsdirect-health-foundations",
     sourceCourseVersion: "2026-11-15-biostatistics",
     sourceCourseSha256: "b27b30aefa1142dc9409daa891549098c8462320df3be5e009cba3bfbc71cfc5",
@@ -26191,7 +26191,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
         bytes: 249443
       }
     ],
-    readmeSha256: "827c9ec40a349c7fe351c97b556fe32f6d8d379b35030800044f127513647ea1",
+    readmeSha256: "d1882f2adea41402cb0e661534eb8b4be05752ec60b9f5e3fe6598d2532e87b4",
     reviewIssues: [
       {
         severity: "Warning",
@@ -27225,11 +27225,11 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     schemaVersion: 1,
     format: "statsdirect-builtin-tutor-import",
     repository: "https://github.com/iain-buchan/statisticalhelp",
-    commit: "3197200654594d81d84cf730646ed46bdc08b379",
+    commit: "d05f868b1f062e32f244f624ffdd8cbee38804c4",
     source: "Published/Tutor",
     publisher: "StatsDirectHelpEditor",
     producerSchemaVersion: 1,
-    producerManifestSHA256: "7afdd1a7ce7bad7988fa0649bc8c6438ffe58dccc10d5db3042bde0726cfe010",
+    producerManifestSHA256: "3d1579ae986c0e641dbae914b3c47cb3540f407a498201145c2377be3d7f5018",
     sourceCourseId: "statsdirect-health-foundations",
     sourceCourseVersion: "2026-11-15-biostatistics",
     bankVersion: "2026-11-15-biostatistics-cc2d92a4dc90",
@@ -27237,16 +27237,16 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     reviewWarningCount: 47,
     sha256: {
       "Content/Learn/lessons.json": "2b4c12848181707cc616bc1ec2ef6189aa40355bb3b3c657a7ef26a6c4808424",
-      "Content/learning-source-manifest.json": "d55643a527c39f43a793bba76c2d65b81bcf089675ec9d0f4fbb580e635bedf0",
-      "Learn/AuthoredTutor/README.md": "827c9ec40a349c7fe351c97b556fe32f6d8d379b35030800044f127513647ea1",
+      "Content/learning-source-manifest.json": "bdf513763911ac1f4f44e795a2a6b77618f66ecfa30e7c82ac525978f06aee1b",
+      "Learn/AuthoredTutor/README.md": "d1882f2adea41402cb0e661534eb8b4be05752ec60b9f5e3fe6598d2532e87b4",
       "Learn/AuthoredTutor/bank.mjs": "f7a8616ef676737e836ce85270309f8ee02e3cb8e90817c26f22b86c4b9a2800",
       "Learn/AuthoredTutor/lessons.json": "2b4c12848181707cc616bc1ec2ef6189aa40355bb3b3c657a7ef26a6c4808424",
-      "Learn/AuthoredTutor/manifest.json": "7afdd1a7ce7bad7988fa0649bc8c6438ffe58dccc10d5db3042bde0726cfe010",
+      "Learn/AuthoredTutor/manifest.json": "3d1579ae986c0e641dbae914b3c47cb3540f407a498201145c2377be3d7f5018",
       "Learn/AuthoredTutor/questions.json": "c3340cd7cd055ad399e499a18529c7f6b20c8c3a3ea040e0d5c18fd89ab0c5ea",
       "Learn/AuthoredTutor/tracks.json": "4d55754bb0de19338402aca455546d77dad4c09eb7edefff70478d342c88bdd2",
       "Learn/lessons.json": "2b4c12848181707cc616bc1ec2ef6189aa40355bb3b3c657a7ef26a6c4808424"
     },
-    publicationManifestSHA256: "d55643a527c39f43a793bba76c2d65b81bcf089675ec9d0f4fbb580e635bedf0",
+    publicationManifestSHA256: "bdf513763911ac1f4f44e795a2a6b77618f66ecfa30e7c82ac525978f06aee1b",
     publicationManifestPath: "Published/content-manifest.json",
     publicationTutorReviewProofBinding: "authoring-source-before-generated-sync-v1"
   };
@@ -27255,6 +27255,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
   var bankVersion = manifest_default.bankVersion;
   var tracks = tracks_default;
   var questions = questions_default;
+  var { reviewIssues, reviewedChangedItems, unreviewedChangedItems, ...publicationSummary } = manifest_default;
   var bankPublication = {
     repository: learning_manifest_default.repository,
     commit: learning_manifest_default.commit,
@@ -27262,7 +27263,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     producerManifestSHA256: learning_manifest_default.producerManifestSHA256,
     publicationManifestSHA256: learning_manifest_default.publicationManifestSHA256 ?? null,
     reviewProofBinding: learning_manifest_default.publicationTutorReviewProofBinding ?? "authoring-source-before-generated-sync-v1",
-    publication: manifest_default
+    publication: { ...publicationSummary, reviewedChangedItemCount: reviewedChangedItems.length, unreviewedChangedItemCount: unreviewedChangedItems.length }
   };
 
   // Learn/Upstream/Learning/quiz.mjs
@@ -27385,7 +27386,58 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
   function newPortfolio() {
     return { schemaVersion: 2, id: crypto.randomUUID(), startedAt: (/* @__PURE__ */ new Date()).toISOString(), profile: "foundation", stage: "menus", lesson: "epidemiology", view: "study", identity: { name: "", email: "", goal: "" }, learning: { statisticalSkills: "beginner", needs: "", qualifications: "", priorKnowledge: "", targetDate: "", focus: ["epidemiology", "causal"], style: "Worked examples and questions" }, training: trainingDefaults(), courseKey: "", courseWork: [], workDrafts: {}, providerReviews: [], evidence: [], conversation: [], sharingConsents: [], activities: [], attempts: [], quiz: null, reflection: "", draft: "" };
   }
+  var canonical = (v) => Array.isArray(v) ? "[" + v.map((x) => x === void 0 ? "null" : canonical(x)).join(",") + "]" : v !== null && typeof v === "object" ? "{" + Object.keys(v).filter((k) => v[k] !== void 0).sort().map((k) => JSON.stringify(k) + ":" + canonical(v[k])).join(",") + "}" : JSON.stringify(v);
+  function packPortfolio(state2) {
+    const questions3 = [], publications = [], seen = /* @__PURE__ */ new Map();
+    const intern = (list, kind, value) => {
+      const key = kind + canonical(value);
+      if (!seen.has(key)) {
+        seen.set(key, list.length);
+        list.push(value);
+      }
+      return seen.get(key);
+    };
+    const pack = (session) => {
+      const { questionSnapshots, contentPublication, questionIds, ...rest } = session;
+      if (Array.isArray(questionSnapshots) && Array.isArray(questionIds) && questionSnapshots.length === questionIds.length && questionSnapshots.every((q, i) => q?.id === questionIds[i])) rest.questionRefs = questionSnapshots.map((q) => intern(questions3, "q", q));
+      else {
+        rest.questionIds = questionIds;
+        if (questionSnapshots !== void 0) rest.questionSnapshots = questionSnapshots;
+      }
+      if (contentPublication !== null && typeof contentPublication === "object") rest.publicationRef = intern(publications, "p", contentPublication);
+      else if (contentPublication !== void 0) rest.contentPublication = contentPublication;
+      return rest;
+    };
+    return { ...state2, attempts: state2.attempts.map(pack), quiz: state2.quiz ? pack(state2.quiz) : null, sharedContent: { questions: questions3, publications } };
+  }
+  function unpackPortfolio(value) {
+    const shared = value?.sharedContent;
+    if (shared === void 0) return value;
+    const fail = () => {
+      throw new Error("The saved learning record is incompatible. It has not been overwritten.");
+    };
+    const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+    if (!object(shared) || !Array.isArray(shared.questions) || !Array.isArray(shared.publications) || !Array.isArray(value.attempts)) fail();
+    const at = (list, i) => Number.isInteger(i) && i >= 0 && i < list.length ? structuredClone(list[i]) : fail();
+    const unpack = (session) => {
+      if (!object(session)) return session;
+      const { questionRefs, publicationRef, ...rest2 } = session;
+      if (questionRefs !== void 0) {
+        if (!Array.isArray(questionRefs) || rest2.questionSnapshots !== void 0 || rest2.questionIds !== void 0) fail();
+        rest2.questionSnapshots = questionRefs.map((i) => at(shared.questions, i));
+        rest2.questionIds = rest2.questionSnapshots.map((q) => q?.id);
+      }
+      if (publicationRef !== void 0) {
+        if (rest2.contentPublication !== void 0) fail();
+        rest2.contentPublication = at(shared.publications, publicationRef);
+      }
+      return rest2;
+    };
+    const { sharedContent, ...rest } = value;
+    return { ...rest, attempts: value.attempts.map(unpack), quiz: object(value.quiz) ? unpack(value.quiz) : value.quiz };
+  }
   function restorePortfolio(value) {
+    value = unpackPortfolio(value);
     const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
     const strings = (v, keys) => object(v) && keys.every((k) => typeof v[k] === "string");
     const validQuestion = (q) => strings(q, ["id", "topic", "stem", "correct", "explanation", "hint", "lesson", "help"]) && Array.isArray(q.options) && q.options.length >= 2 && q.options.length <= 8 && q.options.every((o) => strings(o, ["id", "text", "feedback"])) && q.options.filter((o) => o.id === q.correct).length === 1;
@@ -27418,7 +27470,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
         return copy;
       }),
       result: session.completedAt ? learnerResult(session) : null,
-      questionSnapshots: session.questionIds.map((id) => {
+      questionSnapshots: (session.endedAt && !session.completedAt ? session.questionIds.slice(0, session.answers.length) : session.questionIds).map((id) => {
         const q = structuredClone(sessionQuestion(session, id));
         if (session.mode === "test" && !session.completedAt && !session.endedAt) {
           delete q.correct;
@@ -27462,7 +27514,7 @@ ${x.verification}`)).join("")) + section("Reflection", para(r2.reflection || "No
     for (const a of record.attempts) {
       if (a.course) lines.push(`Provider assessment: ${a.course.title} \xB7 ${a.course.provider} \xB7 version ${a.course.version}`);
       if (a.questionSet === "all") lines.push("Question set: All questions");
-      lines.push("", `${tracks[a.track].title} \u2014 ${a.mode === "test" ? "Independent practice (unsupervised)" : "Supported practice"} \u2014 ${a.status}`, `Started: ${a.startedAt} | Completed: ${a.completedAt || "not completed"}`, a.result ? `Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted` : `Answered: ${a.answers.length}/${a.questionIds.length}`);
+      lines.push("", `${tracks[a.track].title} \u2014 ${a.mode === "test" ? "Independent practice (unsupervised)" : "Supported practice"} \u2014 ${a.status}`, `Started: ${a.startedAt} | Completed: ${a.completedAt || "not completed"}`, a.result ? `Provisional score: ${a.result.score}/${a.result.total}; ${a.result.assisted} answers flagged as assisted` : `Answered: ${a.answers.length}/${a.questionIds.length}${a.status === "ended early" ? "; unanswered questions are not listed" : ""}`);
       for (const q of a.questionSnapshots) {
         const answer = a.answers.find((x) => x.questionId === q.id);
         lines.push("", `${q.id} v${q.version} \u2014 ${q.topic}`, q.stem, ...q.options.map((o) => `${o.id}. ${o.text}`), `First answer: ${answer?.choice || "not answered"} | Key: ${q.correct || "withheld until the attempt ends"}`, `Confidence: ${answer?.confidence || "not recorded"} | Assisted: ${answer?.assisted ?? false}`, `Reasoning before answer: ${answer?.reasoning || "(none)"}`, `Reflection after feedback: ${answer?.reflection || "(none)"}`, `Feedback: ${q.explanation || "withheld until the attempt ends"}`, q.help ? `Help: https://www.statsdirect.com/help/${q.help}` : "");
@@ -34437,10 +34489,10 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
     revision++;
     reviewApproved = false;
     $("saveStatus").textContent = "Saving\u2026";
-    if (native) post({ action: "save", state, revision });
+    if (native) post({ action: "save", state: packPortfolio(state), revision });
     else {
       try {
-        localStorage.setItem("statsdirect-learning-preview", JSON.stringify(state));
+        localStorage.setItem("statsdirect-learning-preview", JSON.stringify(packPortfolio(state)));
         $("saveStatus").textContent = "Saved in this browser";
       } catch {
         $("saveStatus").textContent = "Not saved \u2014 export before closing";
@@ -35015,7 +35067,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
       if (!loaded) throw Error("The learning record is not ready. No document context was shared.");
       state.sharingConsents.push(value);
       save();
-      return { state };
+      return { state: packPortfolio(state) };
     },
     workspace(value) {
       workspace = value;

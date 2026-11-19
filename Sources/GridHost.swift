@@ -20,7 +20,18 @@ extension Viewer: WKScriptMessageHandler {
               let body = message.body as? [String: Any], let action = body["action"] as? String else { return }
         switch action {
         case "ready":
+            if let commands = try? JSONEncoder().encode(worksheetCommands) {
+                web.evaluateJavaScript("window.statsDirectGrid.setWorksheetCommands(\(String(decoding: commands, as: UTF8.self)))")
+            }
             if doc.pendingCSV != nil { loadPendingCSV(doc) } else { loadPendingWorkbook(doc) }
+        case "worksheetCommand":
+            if let id = body["id"] as? String { openWorksheetCommand(id, source: doc) }
+        case "worksheetHelp":
+            guard active === doc else { return }
+            openHelp(root.appendingPathComponent("Help/basics/worksheet.htm"), title: "Workbook")
+        case "worksheetR":
+            guard active === doc, window.attachedSheet == nil else { return }
+            openWorksheetSelectionInR(doc)
         case "openCSV": openCSV()
         case "openRData": openRData()
         case "saveRDS": saveRData(doc, format: "rds")

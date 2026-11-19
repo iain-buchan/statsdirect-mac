@@ -6,9 +6,9 @@ import WebKit
         guard value else { throw NSError(domain:"ToolbarChecks",code:1,userInfo:[NSLocalizedDescriptionKey:reason]) }
         print("PASS: " + reason); fflush(stdout)
     }
-    @MainActor static func wait(_ condition: () async throws -> Bool) async throws {
+    @MainActor static func wait(_ reason: String = "UI did not settle", _ condition: () async throws -> Bool) async throws {
         for _ in 0..<150 { if try await condition() { return }; try await Task.sleep(nanoseconds:100_000_000) }
-        throw NSError(domain:"ToolbarChecks",code:2,userInfo:[NSLocalizedDescriptionKey:"UI did not settle"])
+        throw NSError(domain:"ToolbarChecks",code:2,userInfo:[NSLocalizedDescriptionKey:reason])
     }
     @MainActor static func main() {
         let app=NSApplication.shared; app.setActivationPolicy(.regular)
@@ -21,7 +21,7 @@ import WebKit
                 viewer.closeApproved=true; app.terminate(nil)
             }
         }
-        DispatchQueue.global().asyncAfter(deadline:.now()+90) { print("FAIL: toolbar checks timed out"); fflush(stdout); exit(1) }
+        DispatchQueue.global().asyncAfter(deadline:.now()+120) { print("FAIL: toolbar checks timed out"); fflush(stdout); exit(1) }
         app.run()
     }
     @MainActor static func run(_ v: Viewer) async throws {
@@ -93,8 +93,17 @@ import WebKit
         try await fit(grid)
         try check(try await js(grid,"""
             (()=>{const more=document.querySelector('[data-command=more]');more.click();
-                return more.hidden&&getComputedStyle(more).display==='none'&&more.getAttribute('aria-expanded')==='false'&&document.getElementById('grid-more-tools').hidden;})()
-            """) as? Bool == true,"worksheet More stays hidden and cannot open an empty popup when commands fit")
+                const popup=document.getElementById('grid-more-tools');
+                return !more.hidden&&getComputedStyle(more).display!=='none'&&!popup.hidden&&
+                    ['addRows','addColumn'].every(id=>popup.querySelector(`[data-command=${id}]`))&&
+                    !document.querySelector('.sd-toolbar-row [data-command=addRows],.sd-toolbar-row [data-command=addColumn]');})()
+            """) as? Bool == true,"worksheet More always keeps Add 100 rows and Add column off the normal toolbar")
+        try await click(grid,"addRows")
+        try await wait { (try? await js(grid,"document.querySelector('footer').textContent.includes('200 rows')")) as? Bool == true }
+        try await click(grid,"undo")
+        try await wait { (try? await js(grid,"document.querySelector('footer').textContent.includes('100 rows')")) as? Bool == true }
+        try check(true,"Add 100 rows remains available in More and uses worksheet undo")
+        _=try await js(grid,"if(!document.getElementById('grid-more-tools').hidden)document.querySelector('[data-command=more]').click()")
         _=try await js(grid,"window.statsDirectGrid.editCommand('cut','')")
         try await Task.sleep(nanoseconds:150_000_000)
         try check(try await js(grid,"window.statsDirectGrid.csvData().includes('Alpha')") as? Bool == true,"Cut without a worksheet selection leaves cells unchanged")
@@ -125,7 +134,7 @@ import WebKit
         v.helpLibrary();v.workspaceSplit.setPosition(330,ofDividerAt:0);v.window.contentView!.layoutSubtreeIfNeeded()
         try await Task.sleep(nanoseconds:200_000_000);try await fit(grid)
         try await click(grid,"more")
-        try check(try await js(grid,"getComputedStyle(document.querySelector('[data-command=more]')).display!=='none' && !document.getElementById('grid-more-tools').hidden && !!document.querySelector('.sd-toolbar-overflow [data-command=addColumn]')") as? Bool == true,"worksheet More is visible and contains secondary commands in a narrow view")
+        try check(try await js(grid,"getComputedStyle(document.querySelector('[data-command=more]')).display!=='none' && !document.getElementById('grid-more-tools').hidden && ['addRows','addColumn'].every(id=>document.querySelector('#grid-more-tools [data-command='+id+']')) && !document.querySelector('.sd-toolbar-row [data-command=addRows],.sd-toolbar-row [data-command=addColumn]')") as? Bool == true,"worksheet More retains Add 100 rows and Add column alongside overflow in a narrow view")
         try await click(grid,"addColumn")
         try await wait { (try? await js(grid,"document.querySelector('footer').textContent.includes('9 columns')")) as? Bool == true }
         try check(true,"worksheet More invokes the live command")
@@ -136,5 +145,116 @@ import WebKit
         try check((v.window.attachedSheet as? NSSavePanel)?.nameFieldStringValue.hasSuffix(".csv")==true,"worksheet Save preserves the document's CSV format")
         (v.window.attachedSheet as? NSSavePanel)?.cancel(nil)
         try await wait { v.window.attachedSheet == nil }
+        try await worksheetTools(v, grid: grid, js: js, click: click, fit: fit, snapshot: snapshot)
+    }
+
+    @MainActor static func worksheetTools(_ v: Viewer, grid: Document,
+        js: (Document, String) async throws -> Any?,
+        click: (Document, String) async throws -> Void,
+        fit: (Document) async throws -> Void,
+        snapshot: (WKWebView, String) async throws -> Void) async throws {
+        v.window.setContentSize(NSSize(width:1180,height:800))
+        v.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true)
+        v.tabs.selectTabViewItem(grid.item)
+        v.window.contentView!.layoutSubtreeIfNeeded()
+        _=try await grid.web.callAsyncJavaScript("""
+            await statsDirectGrid.loadWorkbook({name:'Toolbar selection',sheets:[{name:'Measurements',rows:100,columns:8,headerRow:true,cells:[
+                {col:0,row:0,text:'Before',kind:'text'},{col:1,row:0,text:'After',kind:'text'},
+                ...[1201,1202,1203,1204].map((n,i)=>({col:0,row:i+1,text:String(n),kind:'number'})),
+                ...[8001,8002,8003,8004].map((n,i)=>({col:1,row:i+1,text:String(n),kind:'number'})),
+                {col:5,row:99,text:'999999',kind:'number'}]}]});return true;
+            """, arguments:[:],in:nil,contentWorld:.page)
+        try await wait { (try? await js(grid,"statsDirectGrid.analysisSource().name==='Toolbar selection / Measurements'")) as? Bool == true }
+        v.window.makeFirstResponder(grid.web)
+        try await wait {
+            guard v.window.isKeyWindow && NSApp.isActive else { return false }
+            return (try? await js(grid,"document.hasFocus()")) as? Bool == true
+        }
+        // A rectangle gesture selects A/B, rows 2–4. Searching for a command
+        // must preserve this source range instead of analysing entire columns.
+        _=try await grid.web.callAsyncJavaScript("""
+            await new Promise(resolve=>setTimeout(resolve,100));
+            const b=document.querySelector('canvas').getBoundingClientRect(),x=c=>b.x+48+c*178+89,y=r=>b.y+36+r*29+14;
+            const send=(type,c,r,buttons,shiftKey=false)=>{
+                const target=document.elementFromPoint(x(c),y(r));if(!target)throw new Error('Worksheet selection has no hit target');
+                target.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,clientX:x(c),clientY:y(r),button:0,buttons,shiftKey}));
+            };
+            send('mousemove',0,1,0);send('mousedown',0,1,1);await new Promise(resolve=>setTimeout(resolve,65));send('mouseup',0,1,0);
+            send('mousedown',1,3,1,true);await new Promise(resolve=>setTimeout(resolve,65));send('mouseup',1,3,0,true);return true;
+            """, arguments:[:],in:nil,contentWorld:.page)
+        let selected="(()=>{const s=statsDirectGrid.analysisSource();return JSON.stringify(s.selection)==='[0,1]'&&s.range?.first===2&&s.range?.last===4})()"
+        try await wait("Worksheet gesture did not select A/B, rows 2–4") { (try? await js(grid,selected)) as? Bool == true }
+        try await fit(grid)
+        try check(try await js(grid,"document.querySelector('[data-command=analyse]').textContent.trim()==='Analyse' && !!document.querySelector('[data-command=worksheetHelp]') && !!document.querySelector('[data-command=worksheetR]')") as? Bool == true,"worksheet exposes labelled Analyse, Help and R commands")
+
+        let originalCount=v.documents.count
+        try await click(grid,"analyse")
+        try await wait("Analyse chooser did not populate or focus search") { (try? await js(grid,"document.activeElement.id==='worksheet-analysis-search'&&document.querySelectorAll('[data-worksheet-command]').length>0")) as? Bool == true }
+        // Read the native menu hierarchy independently of the chooser's backing
+        // list, preserving duplicate labels in different branches. Analyse puts
+        // Analysis first, then the unchanged Data and Graphics groups.
+        var nativeRows=[[String:Any]]()
+        func append(_ menu: NSMenu, _ path:[String]) {
+            for item in menu.items {
+                if let submenu=item.submenu { append(submenu,path+[item.title]); continue }
+                let id=item.representedObject as? String ?? (item.action == #selector(Viewer.showCalculator) ? "calculator" : nil)
+                guard let id else { continue }
+                let disabled=id != "calculator" && (v.analysisCatalog[id] == nil || v.analysisCatalog[id]?["unavailable"] != nil)
+                nativeRows.append(["id":id,"label":item.title,"path":path.joined(separator:" › "),"disabled":disabled])
+            }
+        }
+        for title in ["Analysis","Data","Graphics"] {
+            if let menu=NSApp.mainMenu!.items.first(where:{$0.submenu?.title == title})?.submenu { append(menu,[title]) }
+        }
+        let chooserRows=try await js(grid,"""
+            (()=>{let path='';return [...document.getElementById('worksheet-analysis-results').children].flatMap(e=>{
+                if(e.classList.contains('worksheet-analysis-path')){path=e.textContent;return [];}
+                return e.dataset.worksheetCommand?[{id:e.dataset.worksheetCommand,label:e.textContent,path,disabled:e.disabled}]:[];
+            });})()
+            """) as? [[String:Any]] ?? []
+        try await snapshot(grid.web,"worksheet-analyse")
+        try check(!nativeRows.isEmpty && NSArray(array:chooserRows).isEqual(to:nativeRows),"Analyse chooser preserves native command grouping, labels, order and availability (\(chooserRows.count) chooser entries, \(nativeRows.count) native entries)")
+        _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))")
+        try await wait { (try? await js(grid,"!document.getElementById('worksheet-analysis-chooser')&&document.activeElement.dataset.command==='analyse'")) as? Bool == true }
+        let selectionAfterCancel=try await js(grid,selected) as? Bool == true
+        try check(v.documents.count == originalCount && selectionAfterCancel,"Escape cancels Analyse, returns toolbar focus and preserves the selected worksheet range")
+        try await click(grid,"analyse")
+        try await wait { (try? await js(grid,"document.activeElement.id==='worksheet-analysis-search'")) as? Bool == true }
+        _=try await js(grid,"""
+            (()=>{const field=document.getElementById('worksheet-analysis-search');
+                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,'paired t');
+                field.dispatchEvent(new Event('input',{bubbles:true}));})()
+            """)
+        try await wait { (try? await js(grid,"document.querySelectorAll('[data-worksheet-command]').length>0 && document.querySelector('[data-worksheet-command]')?.dataset.worksheetCommand==='TPaired'")) as? Bool == true }
+        _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}))")
+        try await wait { (try? await js(grid,"document.getElementById('worksheet-analysis-search').getAttribute('aria-activedescendant')==='worksheet-analysis-option-1'")) as? Bool == true }
+        _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}))")
+        try await wait { (try? await js(grid,"(()=>{const search=document.getElementById('worksheet-analysis-search'),option=document.getElementById(search.getAttribute('aria-activedescendant'));return document.activeElement===search&&option?.dataset.worksheetCommand==='TPaired'&&option.getAttribute('aria-selected')==='true'})()")) as? Bool == true }
+        try check(v.documents.count == originalCount,"Analyse supports keyboard search and arrow selection without launching an analysis")
+        _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))")
+        try await wait("Enter did not open paired t with a source snapshot") { v.active?.operationName == "TPaired" && v.active?.operationSourceSnapshot != nil }
+        let paired=v.active!
+        try await wait { (try? await js(paired,"!!document.querySelector('.paired-inputs button[type=submit]')")) as? Bool == true }
+        let source=paired.operationSourceSnapshot ?? [:]
+        try check(v.documents.count == originalCount+1 && paired.operationSourceID == grid.id && source["selection"] as? [Int] == [0,1] && source["range"] as? [String:Int] == ["first":2,"last":4],"Enter starts the paired t form with the exact originating worksheet, columns and selected rows")
+        try check(try await js(paired,"document.querySelector('.paired-inputs').textContent.includes('Before → After') && document.querySelector('.paired-inputs').textContent.includes('rows 2–4') && !document.querySelector('.column-chooser')") as? Bool == true,"paired t opens ready for Run without an extra column-selection step")
+        v.remove(paired);v.tabs.selectTabViewItem(grid.item)
+        try check(try await js(grid,selected) as? Bool == true,"Opening and closing the analysis form retains the worksheet highlight")
+
+        try await click(grid,"worksheetHelp")
+        try await wait("Worksheet Help did not open its topic in the existing dock") { v.helpPane.visible && v.helpPane.web.url?.path == "/basics/worksheet.htm" }
+        let selectionAfterHelp=try await js(grid,selected) as? Bool == true
+        try check(v.active === grid && v.documents.count == originalCount && selectionAfterHelp,"worksheet Help reuses the existing dock without creating a document or changing the selection")
+        v.helpPane.hide();v.window.contentView!.layoutSubtreeIfNeeded()
+        try await click(grid,"worksheetR")
+        try await wait("Worksheet R did not open an interactive script document") { v.active?.kind == "r" && v.active?.rConsolePane != nil }
+        let script=v.active!, console=script.rConsolePane!
+        try await wait { (try? await js(script,"window.StatsDirectRConsole?.snapshot().mode==='script' && document.getElementById('script-source').value.length>0 && !document.getElementById('script-source').disabled && !document.getElementById('script-source').readOnly")) as? Bool == true }
+        try await wait("The new R script did not reach an idle ready session") { console.session.state == "ready" }
+        let text=console.sourceText
+        try check(text.contains("data <-") && text.contains("Before") && text.contains("After") && ["1201","1202","1203","8001","8002","8003"].allSatisfy(text.contains) && !["1204","8004","999999"].contains(where:text.contains),"worksheet R opens an editable script containing only the selected columns and three selected data rows")
+        try check(!console.isBusy && !console.hasWorkspace && console.session.commandId == nil && console.outputText.isEmpty,"worksheet R starts ready without executing the generated data script")
+        try check(try await js(grid,selected) as? Bool == true,"Opening the R script preserves the original worksheet highlight")
+        v.remove(script)
     }
 }

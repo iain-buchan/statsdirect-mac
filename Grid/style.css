@@ -29,3 +29,24 @@ footer span:last-child { flex-shrink: 0; }
 .grid-find { display:flex; align-items:center; gap:6px; flex-shrink:0; }
 .grid-find input { flex:1; min-width:60px; font:inherit; padding:5px; }
 .sd-toolbar { z-index:5; }
+.sd-toolbar .sd-labelled > span, .sd-toolbar-permanent button > span { display:inline-flex; }
+.sd-toolbar-permanent { display:flex; flex-wrap:wrap; gap:6px; }
+.worksheet-analysis-chooser {
+  position:absolute; top:calc(100% + 4px); left:0; z-index:55;
+  width:470px; max-width:100%; padding:10px; background:white;
+  border:1px solid #c7d4db; border-radius:6px; box-shadow:0 4px 16px #0002;
+}
+.worksheet-analysis-heading { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
+.worksheet-analysis-heading label { font-weight:600; }
+.worksheet-analysis-chooser input {
+  width:100%; min-width:0; font:inherit; padding:7px 8px; margin-bottom:6px;
+  border:1px solid #bacbd0; border-radius:4px; background:#fff; color:#24353d;
+}
+#worksheet-analysis-results { max-height:min(245px,35vh); overflow:auto; overscroll-behavior:contain; }
+.worksheet-analysis-path { padding:8px 7px 3px; font-size:11px; color:#5b6c77; }
+.worksheet-analysis-chooser button[role=option] {
+  display:block; width:100%; height:auto; min-height:30px; padding:5px 8px;
+  text-align:left; white-space:normal;
+}
+.worksheet-analysis-chooser button[aria-selected=true] { background:#e5f1ee; border-color:#bed8d0; }
+.worksheet-analysis-count { margin:6px 7px 0; color:#5b6c77; font-size:11px; }

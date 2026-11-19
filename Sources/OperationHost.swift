@@ -1,41 +1,64 @@
 import Cocoa
 import WebKit
 
+struct WorksheetCommand: Encodable {
+    let id: String
+    let label: String
+    let title: String
+    let path: [String]
+    var disabled = false
+}
+
 extension Viewer {
     func populateOperationMenu(_ menu: NSMenu) {
         do {
             let catalog = try JSONSerialization.jsonObject(with: Data(contentsOf: root.appendingPathComponent("analysis-menu.json"))) as! [String: Any]
             analysisCatalog = catalog["operations"] as? [String: [String: Any]] ?? [:]
-            func append(_ nodes: [[String: Any]], to parent: NSMenu) {
+            func append(_ nodes: [[String: Any]], to parent: NSMenu, path: [String]) {
                 for node in nodes {
                     if node["separator"] as? Bool == true { parent.addItem(.separator()); continue }
                     let title = node["label"] as? String ?? "Analysis"
                     let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
                     if let children = node["children"] as? [[String: Any]] {
-                        let child = NSMenu(title: title); item.submenu = child; append(children, to: child)
+                        let child = NSMenu(title: title); item.submenu = child
+                        append(children, to: child, path: path + [title])
                     } else if node["command"] as? String == "calculator" {
                         // The Windows menu's own command item: the Mac's calculator pane, in the place Windows gives it (its own section before Options).
                         item.target = self; item.action = #selector(showCalculator)
+                        worksheetCommands.append(WorksheetCommand(id: "calculator", label: title, title: title, path: path))
                     } else if let operation = node["operation"] as? String {
                         item.toolTip = analysisCatalog[operation]?["unavailable"] as? String
                         item.target = self; item.action = #selector(openAnalysisOperation(_:)); item.representedObject = operation
                         if operation == "TPaired" { item.keyEquivalent = "t" }
                         if operation == "ExactChiRbyCScreen" { item.keyEquivalent = "4" }
+                        let definition = analysisCatalog[operation]
+                        worksheetCommands.append(WorksheetCommand(id: operation, label: title, title: definition?["title"] as? String ?? title,
+                                                                 path: path, disabled: definition == nil || definition?["unavailable"] != nil))
                     }
                     parent.addItem(item)
                 }
             }
             let tree = (catalog["menus"] as? [[String: Any]])?.first { $0["label"] as? String == menu.title }
-            append(tree?["children"] as? [[String: Any]] ?? [], to: menu)
+            append(tree?["children"] as? [[String: Any]] ?? [], to: menu, path: [menu.title])
         } catch { showError("The \(menu.title) menu could not be loaded: " + error.localizedDescription) }
     }
     @objc func openAnalysisOperation(_ sender: NSMenuItem) {
-        guard let operation = sender.representedObject as? String, let definition = analysisCatalog[operation] else { return }
-        if operation == "ExactChiRbyCScreen" { showChiSquare(); return }
-        let title = nextAnalysisTitle(definition["title"] as? String ?? sender.title)
+        guard let operation = sender.representedObject as? String else { return }
+        openAnalysisOperation(operation, label: sender.title, sourceID: analysisSourceID)
+    }
+    func openWorksheetCommand(_ id: String, source: Document) {
+        guard active === source, window.attachedSheet == nil,
+              let command = worksheetCommands.first(where: { $0.id == id && !$0.disabled }) else { return }
+        if command.id == "calculator" { showCalculator(); return }
+        openAnalysisOperation(command.id, label: command.label, sourceID: source.id)
+    }
+    private func openAnalysisOperation(_ operation: String, label: String, sourceID: String?) {
+        guard let definition = analysisCatalog[operation] else { return }
+        if operation == "ExactChiRbyCScreen" { showChiSquare(sourceID: sourceID); return }
+        let title = nextAnalysisTitle(definition["title"] as? String ?? label)
         let doc = newDocument(kind: "operation", title: title, url: root.appendingPathComponent("Grid/operation.html"))
         doc.operationName = operation
-        doc.operationSourceID = analysisSourceID
+        doc.operationSourceID = sourceID
     }
     func handleOperation(_ message: WKScriptMessage) {
         guard message.name == "statsDirectOperation", message.frameInfo.isMainFrame,

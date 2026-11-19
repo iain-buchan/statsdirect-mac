@@ -44,6 +44,8 @@ import Foundation
         let mixed="```python\nprint('not R')\n```\n~~~~Rscript\nx <- 2\n~~~\nx <- 3\n~~~~\n```r\nunclosed"
         let blocks=ConversationRScript.blocks(mixed)
         try check(blocks.count==1 && blocks[0].code=="x <- 2\n~~~\nx <- 3","fence parser excludes other languages, shorter closers and unfinished blocks")
+        let stepped=ConversationRScript.blocks("1. Take the differences:\n   ```r\n   d <- before - after\n     t.test(d)\n ok\n   ```\nDone.").map(\.code)
+        try check(stepped==["d <- before - after\n  t.test(d)\nok"],"a block fenced under a list item loses the fence's indent and no more, as on Windows")
         for index in [-2,9] { var rejected=false; do { _=try ConversationRScript.build(messages,messageIndex:1,blockIndex:index) } catch is ConversationRScript.Failure { rejected=true }; try check(rejected,"invalid block is rejected") }
         let special="quoted \"value\"\\path\nα\tline"
         let data:[String:Any]=["datasetId":"fixed-data","columns":[["index":7,"values":["1.5",NSNull(),"-2e1"]],["index":2,"values":[special,NSNull(),"x'); stop('INJECTED') #"]]]]

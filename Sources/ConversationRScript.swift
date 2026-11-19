@@ -9,15 +9,20 @@ enum ConversationRScript {
     struct Block { let code: String; let endLine: Int }
     static func blocks(_ markdown: String) -> [Block] {
         let lines = markdown.replacingOccurrences(of:"\r\n",with:"\n").replacingOccurrences(of:"\r",with:"\n").components(separatedBy:"\n")
-        let opening = try! NSRegularExpression(pattern:"^ {0,3}(`{3,}|~{3,})[ \\t]*([\\w+#.-]*)[ \\t]*$")
+        let opening = try! NSRegularExpression(pattern:"^( {0,3})(`{3,}|~{3,})[ \\t]*([\\w+#.-]*)[ \\t]*$")
         var result: [Block] = [], i = 0
         while i < lines.count {
             let line = lines[i] as NSString
             guard let match = opening.firstMatch(in:lines[i],range:NSRange(location:0,length:line.length)) else { i += 1; continue }
-            let fence = line.substring(with:match.range(at:1)), language = line.substring(with:match.range(at:2)).lowercased()
+            let indent = match.range(at:1).length, fence = line.substring(with:match.range(at:2)), language = line.substring(with:match.range(at:3)).lowercased()
             let closing = try! NSRegularExpression(pattern:"^ {0,3}" + NSRegularExpression.escapedPattern(for:String(fence.first!)) + "{\(fence.count),}[ \\t]*$")
             var code: [String] = []; i += 1
-            while i < lines.count && closing.firstMatch(in:lines[i],range:NSRange(location:0,length:(lines[i] as NSString).length)) == nil { code.append(lines[i]); i += 1 }
+            while i < lines.count && closing.firstMatch(in:lines[i],range:NSRange(location:0,length:(lines[i] as NSString).length)) == nil {
+                // A block fenced under a list item loses the fence's indent and no more, as Windows' CompletedCodeBlocks reads it.
+                let text = lines[i] as NSString; var trim = 0
+                while trim < min(indent,text.length) && text.character(at:trim) == 32 { trim += 1 }
+                code.append(text.substring(from:trim)); i += 1
+            }
             // Never offer an unfinished streamed block as complete code.
             if i < lines.count && ["r","rscript"].contains(language) { result.append(Block(code:code.joined(separator:"\n"),endLine:i)) }
             i += 1

@@ -32,6 +32,7 @@ import WebKit
     let stopButton=NSButton(title:"Stop",target:nil,action:nil)
     let contextButton=NSButton(title:"Sharing for this session ▾",target:nil,action:nil)
     let contextPanel=NSStackView()
+    let copyCodeButton=NSButton(title:"Copy R code",target:nil,action:nil)
     let openCodeButton=NSButton(title:"Open R code",target:nil,action:nil)
     private var activeContext: ScriptAIContext?
     private(set) var visible=false
@@ -108,7 +109,12 @@ import WebKit
         // or taking away the conversation's minimum reading area.
         openCodeButton.target=self;openCodeButton.action=#selector(openLastCode);openCodeButton.controlSize = .small
         openCodeButton.toolTip="Open the latest reply with its original data and preceding R code; review before running"
-        let stack=NSStackView(views:[header,sourceLabel,controlsScroll,conversationLabel,history,openCodeButton])
+        copyCodeButton.target=self;copyCodeButton.action=#selector(copyLastCode);copyCodeButton.controlSize = .small
+        copyCodeButton.toolTip="Copy the latest reply's R code for pasting elsewhere"
+        // Copy then Open under the conversation, as the Windows pane orders them.
+        let replyActions=NSStackView(views:[copyCodeButton,openCodeButton])
+        replyActions.orientation = .horizontal;replyActions.spacing=8;replyActions.setHuggingPriority(.required,for:.vertical)
+        let stack=NSStackView(views:[header,sourceLabel,controlsScroll,conversationLabel,history,replyActions])
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=7;stack.detachesHiddenViews=true
         stack.translatesAutoresizingMaskIntoConstraints=false;view.addSubview(stack)
         for child in [header,sourceLabel,controlsScroll,conversationLabel,history] {
@@ -329,6 +335,15 @@ import WebKit
         guard let chat=conversation, let index=chat.messages.lastIndex(where:{$0["role"]=="assistant"}), let id=chat.messages[index]["id"] else { return }
         openCode(generation:chat.generation,messageID:id)
     }
+    /// Copy R code, as the Windows pane has it: the latest reply's completed R blocks alone, a blank line between them.
+    @objc func copyLastCode() {
+        let reply=conversation?.messages.last(where:{$0["role"]=="assistant"})?["text"] ?? ""
+        let code=ConversationRScript.blocks(reply).map(\.code).joined(separator:"\n\n")
+        guard !code.isEmpty else { showNotice("The last reply contains no R code block.");return }
+        // Windows' limit of 100,000 UTF-16 units, without leaving half a character at the cut.
+        let limited=String(code.utf16.prefix(100000)) ?? String(code.utf16.prefix(99999)) ?? ""
+        NSPasteboard.general.clearContents();NSPasteboard.general.setString(limited,forType:.string)
+    }
     func openCode(generation: String,messageID: String,blockIndex: Int = -1) {
         guard let chat=conversation, chat.generation==generation else { return }
         guard let index=chat.messages.firstIndex(where:{$0["id"]==messageID}) else { showNotice("Wait for the reply to finish before opening its R code.");return }
@@ -345,7 +360,8 @@ import WebKit
     }
     private func render() {
         let messages=conversation?.messages ?? []
-        openCodeButton.isEnabled = messages.last(where:{$0["role"]=="assistant"}).map{!ConversationRScript.blocks($0["text"] ?? "").isEmpty} ?? false
+        let hasCode = messages.last(where:{$0["role"]=="assistant"}).map{!ConversationRScript.blocks($0["text"] ?? "").isEmpty} ?? false
+        openCodeButton.isEnabled=hasCode;copyCodeButton.isEnabled=hasCode
         var rows: [[String:Any]]=messages.map { row in
             ["id":row["id"] ?? "", "role":row["role"] ?? "assistant", "text":row["text"] ?? "", "context":row["context"] ?? ""]
         }

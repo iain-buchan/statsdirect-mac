@@ -153,6 +153,13 @@ import WebKit
         v.window.setContentSize(NSSize(width:980,height:620));v.window.contentView!.layoutSubtreeIfNeeded()
         ai.view.layoutSubtreeIfNeeded()
         try check(ai.view.bounds.width>=340 && ai.input.enclosingScrollView!.frame.height>=80 && ai.transcript.view.frame.height>=95,"composer, context and conversation fit the minimum docked window")
+        let copyFrame=frame(ai.copyCodeButton),openFrame=frame(ai.openCodeButton),replyRow=frame(ai.copyCodeButton.superview!),conversationFrame=frame(ai.transcript.view)
+        // The row spaces the buttons' alignment rectangles; their frames may overlap by the bezel's margin, which differs between macOS versions.
+        func aligned(_ view:NSView) -> NSRect { ai.view.convert(view.alignmentRect(forFrame:view.frame),from:view.superview) }
+        try check(ai.copyCodeButton.title=="Copy R code" && ai.openCodeButton.title=="Open R code" && copyFrame.minX>=0 && aligned(ai.copyCodeButton).maxX<=aligned(ai.openCodeButton).minX
+                  && openFrame.maxX<=ai.view.bounds.width && abs(copyFrame.midY-openFrame.midY)<1 && replyRow.height<=max(copyFrame.height,openFrame.height)+1
+                  && (ai.view.isFlipped ? replyRow.minY>=conversationFrame.maxY : replyRow.maxY<=conversationFrame.minY),
+                  "Copy R code then Open R code share one row under the conversation in the minimum docked window, as on Windows")
         let controls=ai.contextButton.superview!,controlsScroll=controls.enclosingScrollView!
         let composerBox=controls.convert(ai.input.enclosingScrollView!.bounds,from:ai.input.enclosingScrollView!)
         controls.scrollToVisible(composerBox)
@@ -282,6 +289,15 @@ import WebKit
         ai.input.string="PEFR_CONTEXT";ai.sendButton.performClick(nil)
         try await wait { (await text(ai)).contains("wilcox.test") }
         let chat=ai.conversations[first.id]!,reply=chat.messages.last!,generation=chat.generation
+        let board=NSPasteboard.general
+        let saved=board.pasteboardItems?.map { item in item.types.reduce(into:[NSPasteboard.PasteboardType:Data]()){$0[$1]=item.data(forType:$1)} } ?? []
+        func restoreBoard() { board.clearContents();board.writeObjects(saved.map { data in let item=NSPasteboardItem();for(type,value) in data {item.setData(value,forType:type)};return item }) }
+        board.clearContents();ai.copyCodeButton.performClick(nil)
+        let copiedReply=board.string(forType:.string) ?? "",replyBlocks=ConversationRScript.blocks(reply["text"]!).map(\.code)
+        restoreBoard()
+        try check(ai.copyCodeButton.isEnabled && replyBlocks.count==2 && copiedReply==replyBlocks.joined(separator:"\n\n") && copiedReply.hasPrefix("d <- before - after\n\nt.test(")
+                  && copiedReply.contains("wilcox.test") && !copiedReply.contains("Then analyse") && !copiedReply.contains("AI suggestion") && !copiedReply.contains("before <- c(312"),
+                  "bottom Copy R code copies the last reply's R blocks alone, a blank line between them, as on Windows")
         first.rPane!.editor.string="before <- 999\nafter <- 1"
         ai.openCodeButton.performClick(nil)
         let full=v.active!.rPane!.editor.string
@@ -294,6 +310,10 @@ import WebKit
         ai.open(first);ai.shareScript.state = .off;ai.shareWorkbook.state = .off;ai.sharingChanged()
         ai.input.string="PEFR_FOLLOWUP";ai.sendButton.performClick(nil)
         try await wait { (await text(ai)).contains("length(d)==9") }
+        board.clearContents();ai.copyCodeButton.performClick(nil)
+        let copiedFollowUp=board.string(forType:.string)
+        restoreBoard()
+        try check(copiedFollowUp=="stopifnot(length(d)==9)\nmean(d)","Copy R code takes the latest reply only, without earlier replies' code")
         ai.openCodeButton.performClick(nil)
         try check(v.active!.rPane!.editor.string.contains("before <- c(312") && v.active!.rPane!.editor.string.contains("d <- before - after"),"question-only follow-up retains earlier approved R dependencies locally")
         ai.open(first)
@@ -303,6 +323,11 @@ import WebKit
         let count=v.documents.count
         ai.openCode(generation:generation,messageID:reply["id"]!,blockIndex:1)
         try check(v.documents.count==count && !ai.openCodeButton.isEnabled,"queued code click from an old conversation is rejected")
+        let noticeBefore=ai.notice.stringValue
+        board.clearContents();board.setString("unchanged",forType:.string);ai.copyCodeButton.performClick(nil);ai.copyLastCode()
+        let afterEmpty=board.string(forType:.string),emptyNotice=ai.notice.stringValue
+        restoreBoard();ai.showNotice(noticeBefore)
+        try check(!ai.copyCodeButton.isEnabled && afterEmpty=="unchanged" && emptyNotice=="The last reply contains no R code block.","with no R code in the last reply Copy R code is unavailable and leaves the clipboard alone")
         let context=ScriptAIContext(viewer:v,script:nil,workbook:workbook,active:{true})
         let read=try await context.call("statsdirect_read_data",["documentId":workbook.id,"columns":[0,1],"firstRow":2,"lastRow":4])
         try check((read["rCode"] as? String)?.contains("column_1")==true && context.rData.contains("10, 20, 30"),"read_data supplies explicit R bindings from the exact bounded worksheet read")

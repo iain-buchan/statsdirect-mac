@@ -190,46 +190,101 @@ import WebKit
         let originalCount=v.documents.count
         try await click(grid,"analyse")
         try await wait("Analyse chooser did not populate or focus search") { (try? await js(grid,"document.activeElement.id==='worksheet-analysis-search'&&document.querySelectorAll('[data-worksheet-command]').length>0")) as? Bool == true }
-        // Read the native menu hierarchy independently of the chooser's backing
-        // list, preserving duplicate labels in different branches. Analyse puts
-        // Analysis first, then the unchanged Data and Graphics groups.
+        // Read the native hierarchy independently of the chooser's backing
+        // records. Compare every branch and leaf, even those hidden by a
+        // collapsed ancestor, with Analysis first and Data/Graphics following.
         var nativeRows=[[String:Any]]()
         func append(_ menu: NSMenu, _ path:[String]) {
             for item in menu.items {
-                if let submenu=item.submenu { append(submenu,path+[item.title]); continue }
+                if let submenu=item.submenu {
+                    nativeRows.append(["kind":"branch","id":"","label":item.title,"path":path.joined(separator:" › "),"disabled":false])
+                    append(submenu,path+[item.title]); continue
+                }
                 let id=item.representedObject as? String ?? (item.action == #selector(Viewer.showCalculator) ? "calculator" : nil)
                 guard let id else { continue }
                 let disabled=id != "calculator" && (v.analysisCatalog[id] == nil || v.analysisCatalog[id]?["unavailable"] != nil)
-                nativeRows.append(["id":id,"label":item.title,"path":path.joined(separator:" › "),"disabled":disabled])
+                nativeRows.append(["kind":"leaf","id":id,"label":item.title,"path":path.joined(separator:" › "),"disabled":disabled])
             }
         }
         for title in ["Analysis","Data","Graphics"] {
-            if let menu=NSApp.mainMenu!.items.first(where:{$0.submenu?.title == title})?.submenu { append(menu,[title]) }
+            if let menu=NSApp.mainMenu!.items.first(where:{$0.submenu?.title == title})?.submenu {
+                nativeRows.append(["kind":"branch","id":"","label":title,"path":"","disabled":false])
+                append(menu,[title])
+            }
         }
         let chooserRows=try await js(grid,"""
-            (()=>{let path='';return [...document.getElementById('worksheet-analysis-results').children].flatMap(e=>{
-                if(e.classList.contains('worksheet-analysis-path')){path=e.textContent;return [];}
-                return e.dataset.worksheetCommand?[{id:e.dataset.worksheetCommand,label:e.textContent,path,disabled:e.disabled}]:[];
-            });})()
+            (()=>{const tree=document.getElementById('worksheet-analysis-results');
+                return [...tree.querySelectorAll('[role=treeitem]')].map(node=>{
+                    const ancestors=[];let parent=node.parentElement.closest('[data-worksheet-branch]');
+                    while(parent){ancestors.unshift(parent.querySelector(':scope > .worksheet-tree-row .worksheet-tree-label').textContent);parent=parent.parentElement.closest('[data-worksheet-branch]');}
+                    return {kind:node.hasAttribute('data-worksheet-branch')?'branch':'leaf',id:node.dataset.worksheetCommand||'',
+                        label:node.querySelector(':scope > .worksheet-tree-row .worksheet-tree-label').textContent,
+                        path:ancestors.join(' › '),disabled:node.getAttribute('aria-disabled')==='true'};
+                });})()
             """) as? [[String:Any]] ?? []
+        try check(!nativeRows.isEmpty && NSArray(array:chooserRows).isEqual(to:nativeRows),"Analyse tree preserves the complete native hierarchy, labels, order and availability (\(chooserRows.count) tree nodes, \(nativeRows.count) native nodes)")
+        try check(try await js(grid,"""
+            (()=>{const tree=document.getElementById('worksheet-analysis-results'),nodes=[...tree.querySelectorAll('[role=treeitem]')],branches=[...tree.querySelectorAll('[data-worksheet-branch]')];
+                return tree.getAttribute('role')==='tree'&&document.getElementById('worksheet-analysis-search').getAttribute('aria-haspopup')==='tree'&&
+                    branches.length>3&&branches.every(node=>node.getAttribute('aria-expanded')==='false'&&node.querySelector(':scope > [role=group]').hidden)&&
+                    nodes.filter(node=>node.getClientRects().length).map(node=>node.dataset.worksheetBranch).join('|')==='Analysis|Data|Graphics'&&
+                    nodes.every(node=>node.id)&&new Set(nodes.map(node=>node.id)).size===nodes.length;
+            })()
+            """) as? Bool == true,"Analyse initially shows only three collapsed accessible menu roots with unique stable node IDs")
+        func key(_ value:String) async throws {
+            _=try await js(grid,"document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'"+value+"',bubbles:true,cancelable:true}))")
+        }
+        func query(_ value:String) async throws {
+            let encoded=String(data:try JSONSerialization.data(withJSONObject:[value]),encoding:.utf8)!
+            _=try await js(grid,"(()=>{const field=document.getElementById('worksheet-analysis-search');field.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,"+encoded+"[0]);field.dispatchEvent(new Event('input',{bubbles:true}));})()")
+        }
+        let activeBranch="document.activeElement.dataset.worksheetBranch"
+        try await key("ArrowDown")
+        try await wait("ArrowDown did not choose the first Analyse root") { try await js(grid,activeBranch) as? String == "Analysis" }
+        try await key("ArrowRight")
+        try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=Analysis]').getAttribute('aria-expanded')==='true' && !document.querySelector('[data-worksheet-branch=Analysis] > [role=group]').hidden")) as? Bool == true }
+        try await key("ArrowRight")
+        try await wait("Right on an expanded branch did not select its child") { try await js(grid,activeBranch) as? String == "Analysis › Exact Tests on Counts" }
+        try await key("ArrowLeft")
+        try await wait { try await js(grid,activeBranch) as? String == "Analysis" }
+        try await key("ArrowLeft")
+        try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=Analysis]').getAttribute('aria-expanded')==='false' && document.querySelector('[data-worksheet-branch=Analysis] > [role=group]').hidden")) as? Bool == true }
+        try await key("Enter")
+        try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=Analysis]').getAttribute('aria-expanded')==='true'")) as? Bool == true }
+        try check(v.documents.count == originalCount,"Analyse browse keys expand, enter, return to and collapse menu branches without launching an analysis")
+        _=try await js(grid,"document.querySelector('[data-worksheet-branch=\"Analysis › Parametric\"] > .worksheet-tree-row').click()")
+        try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=\"Analysis › Parametric\"]').getAttribute('aria-expanded')==='true'")) as? Bool == true }
+        _=try await js(grid,"document.querySelector('[data-worksheet-branch=\"Analysis › Parametric\"] > .worksheet-tree-row').click()")
+        try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=\"Analysis › Parametric\"]').getAttribute('aria-expanded')==='false'")) as? Bool == true }
+        _=try await js(grid,"window.__worksheetBrowseExpanded=[...document.querySelectorAll('[data-worksheet-branch][aria-expanded=true]')].map(node=>node.dataset.worksheetBranch)")
+        try await query("paired t")
+        try await wait("Search did not reveal paired t inside its menu branches") { (try? await js(grid,"""
+            (()=>{const leaf=document.querySelector('[data-worksheet-command=TPaired]');
+                if(!leaf?.getClientRects().length)return false;
+                for(let parent=leaf.parentElement.closest('[data-worksheet-branch]');parent;parent=parent.parentElement.closest('[data-worksheet-branch]'))
+                    if(parent.getAttribute('aria-expanded')!=='true'||parent.querySelector(':scope > [role=group]').hidden)return false;
+                return !document.querySelector('[data-worksheet-branch="Analysis › Descriptive"]')?.getClientRects().length;
+            })()
+            """)) as? Bool == true }
+        try check(true,"Search opens matching ancestor branches and hides unrelated menu groups")
+        try await query("")
+        try await wait("Clearing search did not restore prior browse expansion") { (try? await js(grid,"JSON.stringify([...document.querySelectorAll('[data-worksheet-branch][aria-expanded=true]')].map(node=>node.dataset.worksheetBranch))===JSON.stringify(window.__worksheetBrowseExpanded) && !document.querySelector('[data-worksheet-command=TPaired]').getClientRects().length")) as? Bool == true }
+        try check(v.documents.count == originalCount,"Clearing search restores the learner's expanded Analysis and collapsed Parametric branches")
         try await snapshot(grid.web,"worksheet-analyse")
-        try check(!nativeRows.isEmpty && NSArray(array:chooserRows).isEqual(to:nativeRows),"Analyse chooser preserves native command grouping, labels, order and availability (\(chooserRows.count) chooser entries, \(nativeRows.count) native entries)")
         _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))")
         try await wait { (try? await js(grid,"!document.getElementById('worksheet-analysis-chooser')&&document.activeElement.dataset.command==='analyse'")) as? Bool == true }
         let selectionAfterCancel=try await js(grid,selected) as? Bool == true
         try check(v.documents.count == originalCount && selectionAfterCancel,"Escape cancels Analyse, returns toolbar focus and preserves the selected worksheet range")
         try await click(grid,"analyse")
         try await wait { (try? await js(grid,"document.activeElement.id==='worksheet-analysis-search'")) as? Bool == true }
-        _=try await js(grid,"""
-            (()=>{const field=document.getElementById('worksheet-analysis-search');
-                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,'paired t');
-                field.dispatchEvent(new Event('input',{bubbles:true}));})()
-            """)
-        try await wait { (try? await js(grid,"document.querySelectorAll('[data-worksheet-command]').length>0 && document.querySelector('[data-worksheet-command]')?.dataset.worksheetCommand==='TPaired'")) as? Bool == true }
-        _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}))")
-        try await wait { (try? await js(grid,"document.getElementById('worksheet-analysis-search').getAttribute('aria-activedescendant')==='worksheet-analysis-option-1'")) as? Bool == true }
-        _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}))")
-        try await wait { (try? await js(grid,"(()=>{const search=document.getElementById('worksheet-analysis-search'),option=document.getElementById(search.getAttribute('aria-activedescendant'));return document.activeElement===search&&option?.dataset.worksheetCommand==='TPaired'&&option.getAttribute('aria-selected')==='true'})()")) as? Bool == true }
+        try check(try await js(grid,"JSON.stringify([...document.querySelectorAll('[data-worksheet-branch][aria-expanded=true]')].map(node=>node.dataset.worksheetBranch))===JSON.stringify(window.__worksheetBrowseExpanded)") as? Bool == true,"Reopening Analyse retains the worksheet's manual branch expansion")
+        try await query("paired t")
+        try await wait { (try? await js(grid,"(()=>{const field=document.getElementById('worksheet-analysis-search'),leaf=document.getElementById(field.getAttribute('aria-activedescendant'));return leaf?.dataset.worksheetCommand==='TPaired'&&leaf.getClientRects().length>0})()")) as? Bool == true }
+        _=try await js(grid,"window.__worksheetFirstMatch=document.getElementById('worksheet-analysis-search').getAttribute('aria-activedescendant')")
+        try await key("ArrowDown")
+        try await wait { (try? await js(grid,"(()=>{const field=document.getElementById('worksheet-analysis-search'),leaf=document.getElementById(field.getAttribute('aria-activedescendant'));return field.getAttribute('aria-activedescendant')!==window.__worksheetFirstMatch&&!!leaf?.dataset.worksheetCommand&&leaf.getClientRects().length>0})()")) as? Bool == true }
+        try await key("ArrowUp")
+        try await wait { (try? await js(grid,"(()=>{const search=document.getElementById('worksheet-analysis-search'),leaf=document.getElementById(search.getAttribute('aria-activedescendant'));return document.activeElement===search&&leaf?.dataset.worksheetCommand==='TPaired'&&leaf.getAttribute('aria-selected')==='true'&&leaf.id===window.__worksheetFirstMatch})()")) as? Bool == true }
         try check(v.documents.count == originalCount,"Analyse supports keyboard search and arrow selection without launching an analysis")
         _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))")
         try await wait("Enter did not open paired t with a source snapshot") { v.active?.operationName == "TPaired" && v.active?.operationSourceSnapshot != nil }

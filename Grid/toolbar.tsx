@@ -1,20 +1,26 @@
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {WorksheetAnalysis, type WorksheetCommand} from './WorksheetAnalysis';
-import icons from '../Content/Mac/toolbar-icons.json';
-import '../Content/Mac/toolbar.js';
+import {statsDirectToolbar} from './toolbar-assets';
 import '../Content/Mac/toolbar.css';
-(window as any).StatsDirectToolbarIcons=icons;
 export type ToolbarAction={id:string,label:string,icon:string,run?:()=>void,disabled?:boolean,priority?:number,group?:boolean,text?:string};
-export function Toolbar({actions, moreActions, commands, runAnalysis}: {
+export function Toolbar({actions, moreActions, commands, runAnalysis, searchHelp}: {
   actions: ToolbarAction[];
   moreActions: ToolbarAction[];
   commands: WorksheetCommand[];
   runAnalysis: (id: string) => void;
+  searchHelp: (query: string) => void;
 }) {
   const host=useRef<HTMLDivElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [analysisPosition, setAnalysisPosition] = useState({anchor: 35, width: 0});
   const [expandedBranches, setExpandedBranches] = useState<ReadonlySet<string>>(() => new Set());
+  function showAnalysis() {
+    const popup = host.current?.querySelector<HTMLElement>('#grid-more-tools');
+    if (popup) popup.hidden = true;
+    host.current?.querySelector('[data-command=more]')?.setAttribute('aria-expanded', 'false');
+    setAnalysisOpen(true);
+    host.current?.querySelector<HTMLInputElement>('#worksheet-analysis-search')?.focus();
+  }
   function closeAnalysis(returnFocus = true) {
     setAnalysisOpen(false);
     if (returnFocus) {
@@ -24,14 +30,12 @@ export function Toolbar({actions, moreActions, commands, runAnalysis}: {
     }
   }
   function toggleAnalysis() {
-    const popup = host.current?.querySelector<HTMLElement>('#grid-more-tools');
-    if (popup) popup.hidden = true;
-    host.current?.querySelector('[data-command=more]')?.setAttribute('aria-expanded', 'false');
-    setAnalysisOpen(open => !open);
+    if (analysisOpen) closeAnalysis();
+    else showAnalysis();
   }
   useEffect(()=>{
     const el=host.current!;
-    return (window as any).StatsDirectToolbar.overflow(el.querySelector('.sd-toolbar-row'),el.querySelector('[data-command=more]'),el.querySelector('.sd-toolbar-popup'),el);
+    return statsDirectToolbar.overflow(el.querySelector('.sd-toolbar-row'),el.querySelector('[data-command=more]'),el.querySelector('.sd-toolbar-popup'),el);
   },[]);
   useLayoutEffect(() => {
     const toolbar = host.current;
@@ -54,7 +58,11 @@ export function Toolbar({actions, moreActions, commands, runAnalysis}: {
       if (!host.current?.contains(event.target as Node)) closeAnalysis(false);
     };
     document.addEventListener('pointerdown', dismiss);
-    return () => document.removeEventListener('pointerdown', dismiss);
+    window.addEventListener('statsdirect-open-worksheet-commands', showAnalysis);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      window.removeEventListener('statsdirect-open-worksheet-commands', showAnalysis);
+    };
   }, []);
   return <div ref={host} className="sd-toolbar" role="toolbar" aria-label="Worksheet commands"
     onClickCapture={event => {
@@ -70,7 +78,7 @@ export function Toolbar({actions, moreActions, commands, runAnalysis}: {
             if (a.id === 'analyse') toggleAnalysis();
             else { closeAnalysis(false); a.run?.(); }
           }}>
-          <span aria-hidden="true" dangerouslySetInnerHTML={{__html:(window as any).StatsDirectToolbar.icon(a.icon)}}/>{a.text}
+          <span aria-hidden="true" dangerouslySetInnerHTML={{__html:statsDirectToolbar.icon(a.icon)}}/>{a.text}
         </button>)}
       <button type="button" data-command="more"/>
     </div>
@@ -78,11 +86,11 @@ export function Toolbar({actions, moreActions, commands, runAnalysis}: {
       <div className="sd-toolbar-permanent">
         {moreActions.map(a => <button key={a.id} type="button" data-command={a.id} disabled={a.disabled}
           aria-label={a.label} title={a.label} onMouseDown={event => event.preventDefault()} onClick={a.run}>
-          <span aria-hidden="true" dangerouslySetInnerHTML={{__html:(window as any).StatsDirectToolbar.icon(a.icon)}}/>{a.label}
+          <span aria-hidden="true" dangerouslySetInnerHTML={{__html:statsDirectToolbar.icon(a.icon)}}/>{a.label}
         </button>)}
       </div>
     </div>
-    {analysisOpen && <WorksheetAnalysis commands={commands} run={runAnalysis} close={closeAnalysis}
+    {analysisOpen && <WorksheetAnalysis commands={commands} run={runAnalysis} searchHelp={searchHelp} close={closeAnalysis}
       position={analysisPosition} expanded={expandedBranches} setExpanded={setExpandedBranches}/>}
   </div>;
 }

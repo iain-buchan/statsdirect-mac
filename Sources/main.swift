@@ -339,6 +339,12 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         for title in ["Data", "Analysis", "Graphics"] {
             let operations = menu(title)
             populateOperationMenu(operations)   // the Windows menu places the Calculator in its own section before Options
+            if title == "Analysis" {
+                let search=NSMenuItem(title:"Search Worksheet Commands…",action:#selector(searchWorksheetCommands),keyEquivalent:"A")
+                search.target=self;search.keyEquivalentModifierMask=[.command,.shift]
+                operations.insertItem(search,at:0)
+                operations.insertItem(.separator(),at:1)
+            }
         }
         windowsMenu = menu("Window")
         windowsMenu.addItem(NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
@@ -369,6 +375,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(searchWorksheetCommands) {
+            return active?.kind == "grid" && active?.web.isLoading == false && window.attachedSheet == nil && NSApp.modalWindow == nil
+        }
         if menuItem.action == #selector(saveDocument), NSApp.keyWindow?.windowController is RConsoleSVGWindow {
             menuItem.title = "Save SVG…"; return true
         }

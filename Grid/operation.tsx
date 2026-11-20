@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import DataEditor,{GridCellKind,CompactSelection,type GridSelection,type DataEditorRef} from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
 import './operation.css';
+import {MethodHelpButton} from './MethodHelpButton';
 import {ResultPreview} from './ResultPreview';
 import {InstantAnswers} from './instant-answers.mjs';
 import {columnName,MAX_ROWS} from './store.mjs';
@@ -231,7 +232,7 @@ function App(){
     }).catch((e:Error)=>{setError(e.message);setBusy(false);});
   },[state,source,busy,config.id]);
   const isActive=['input','running'].includes(state.state),isSettings=['AnalysisOptions','MetaCalculationOptions','MetaPlotOptions'].includes(config.id);
-  return <main className={isSettings?'options-page':undefined} data-operation-token={state.token} data-operation-state={state.state}><header><div><div className="eyebrow">ANALYSIS / STATSDIRECT</div><h1>{config.title}</h1><p>{isSettings?"Review all defaults below, then save them together.":"Results collect in the active report. Use File → New Report to start another."}</p></div><button onClick={()=>native('help')}>Method help ↗</button></header>
+  return <main className={isSettings?'options-page':undefined} data-operation-token={state.token} data-operation-state={state.state}><header><div><div className="eyebrow">ANALYSIS / STATSDIRECT</div><h1>{config.title}</h1><p>{isSettings?"Review all defaults below, then save them together.":"Results collect in the active report. Use File → New Report to start another."}</p></div><MethodHelpButton onClick={()=>native('help')}/></header>
     {!isSettings&&!config.instant&&state.prompt?.kind==='grid'&&<div className="analysis-repeat">
       <input type="checkbox" id="analysis-repeat" aria-describedby="analysis-repeat-hint" checked={repeat} onChange={e=>{setRepeat(e.target.checked);native('repeat',{enabled:e.target.checked});}}/>
       <div><label htmlFor="analysis-repeat">Start another run after this one</label><div id="analysis-repeat-hint" className="hint">StatsDirect will ask for new data.</div></div>

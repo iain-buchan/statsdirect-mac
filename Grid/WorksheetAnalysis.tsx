@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {matchingWorksheetCommands} from './worksheet-commands.mjs';
+import {worksheetCommandsWithSharedLabels, worksheetSearchMatches} from './worksheet-commands.mjs';
+import {pairedStudyMethods} from './worksheet-study-design.mjs';
 
 export type WorksheetCommand = {
   id: string;
@@ -7,6 +8,7 @@ export type WorksheetCommand = {
   path: string[];
   disabled?: boolean;
   title?: string;
+  helpKeywords?: string[];
 };
 
 type OutlineItem = {
@@ -16,6 +18,13 @@ type OutlineItem = {
   children: OutlineItem[];
   command?: WorksheetCommand;
 };
+
+function commandItem(command: WorksheetCommand, parent?: OutlineItem): OutlineItem {
+  return {
+    key: JSON.stringify(['command', command.path, command.id, command.label]),
+    label: command.label, parent, children: [], command
+  };
+}
 
 function buildOutline(commands: WorksheetCommand[]) {
   const roots: OutlineItem[] = [];
@@ -34,19 +43,32 @@ function buildOutline(commands: WorksheetCommand[]) {
       }
       parent = branch;
     }
-    parent?.children.push({
-      key: JSON.stringify(['command', command.path, command.id, command.label]),
-      label: command.label, parent, children: [], command
-    });
+    parent?.children.push(commandItem(command, parent));
+  }
+  return roots;
+}
+
+function searchOutline(exact: WorksheetCommand[], related: WorksheetCommand[], other: WorksheetCommand[]) {
+  const roots = buildOutline(other);
+  for (const [key, label, entries] of [
+    ['related', 'Related methods', related],
+    ['exact', 'Exact matches', exact]
+  ] as const) {
+    if (!entries.length) continue;
+    const group: OutlineItem = {key, label, children: []};
+    group.children = entries.map(command => commandItem(command, group));
+    if (key === 'exact') roots.unshift(group);
+    else roots.push(group);
   }
   return roots;
 }
 
 const itemID = (item: OutlineItem) => 'worksheet-analysis-item-' + encodeURIComponent(item.key);
 
-export function WorksheetAnalysis({commands, run, close, position, expanded, setExpanded}: {
+export function WorksheetAnalysis({commands, run, searchHelp, close, position, expanded, setExpanded}: {
   commands: WorksheetCommand[];
   run: (id: string) => void;
+  searchHelp: (query: string) => void;
   close: (returnFocus?: boolean) => void;
   position: {anchor: number; width: number};
   expanded: ReadonlySet<string>;
@@ -58,15 +80,18 @@ export function WorksheetAnalysis({commands, run, close, position, expanded, set
   const [focusedKey, setFocusedKey] = useState<string>();
   const search = useRef<HTMLInputElement>(null);
   const searching = query.trim().length > 0;
-  const commandsFound: WorksheetCommand[] = useMemo(() => matchingWorksheetCommands(commands, query), [commands, query]);
-  const roots = useMemo(() => buildOutline(commandsFound), [commandsFound]);
+  const found = useMemo(() => worksheetSearchMatches(commands, query), [commands, query]);
+  const foundCount = found.exact.length + found.related.length + found.other.length;
+  const designSearch = found.related.length > 0;
+  const roots = useMemo(() => searchOutline(found.exact, found.related, found.other), [found]);
+  const sharedLabels = useMemo(() => worksheetCommandsWithSharedLabels(commands), [commands]);
   const isExpanded = (item: OutlineItem) => searching ? !closedMatches.has(item.key) : expanded.has(item.key);
   function visibleItems(items: OutlineItem[]): OutlineItem[] {
     return items.flatMap(item => [item, ...(!item.command && isExpanded(item) ? visibleItems(item.children) : [])]);
   }
   const visible = visibleItems(roots);
   const matches = searching ? visible.filter(item => item.command && !item.command.disabled) : [];
-  const match = matches.find(item => item.key === matchingKey) ?? matches[0];
+  const match = matches.find(item => item.key === matchingKey) ?? (designSearch ? undefined : matches[0]);
   const tabStop = visible.find(item => item.key === focusedKey) ?? visible[0];
 
   useEffect(() => { search.current?.focus(); }, []);
@@ -113,8 +138,8 @@ export function WorksheetAnalysis({commands, run, close, position, expanded, set
       event.preventDefault();
       const down = event.key === 'ArrowDown';
       if (!searching) focusItem(down ? visible[0] : visible.at(-1));
-      else if (match) {
-        const index = matches.indexOf(match) + (down ? 1 : -1);
+      else if (matches.length) {
+        const index = match ? matches.indexOf(match) + (down ? 1 : -1) : down ? 0 : matches.length - 1;
         setMatchingKey(matches[Math.max(0, Math.min(matches.length - 1, index))]?.key);
       }
     }
@@ -145,7 +170,12 @@ export function WorksheetAnalysis({commands, run, close, position, expanded, set
   function renderItems(items: OutlineItem[], path: string[] = []): React.ReactNode {
     return items.map(item => {
       const itemPath = [...path, item.label];
-      return <div key={item.key} id={itemID(item)} role="treeitem" aria-label={item.label}
+      const method = designSearch && item.command ? pairedStudyMethods[item.command.id] : undefined;
+      const menuPath = item.command && searching && (method || item.parent?.key === 'exact' || sharedLabels.has(item.command))
+        ? item.command.path.join(' › ') : '';
+      const purpose = method ? [method.outcome, method.purpose].join(' · ') : '';
+      return <div key={item.key} id={itemID(item)} role="treeitem"
+        aria-label={[item.label, menuPath, purpose].filter(Boolean).join(', ')}
         aria-expanded={item.command ? undefined : isExpanded(item)}
         aria-disabled={item.command?.disabled || undefined}
         aria-selected={item.command && searching ? match === item : undefined}
@@ -160,7 +190,11 @@ export function WorksheetAnalysis({commands, run, close, position, expanded, set
         }}>
         <div className="worksheet-tree-row">
           <span aria-hidden="true" className={item.command ? 'worksheet-tree-inset' : 'worksheet-tree-disclosure'}/>
-          <span className="worksheet-tree-label">{item.label}</span>
+          <span className="worksheet-tree-text">
+            <span className="worksheet-tree-label">{item.label}</span>
+            {purpose && <span className="worksheet-tree-purpose">{purpose}</span>}
+            {menuPath && <span className="worksheet-tree-path">{menuPath}</span>}
+          </span>
         </div>
         {!item.command && <div role="group" hidden={!isExpanded(item)}>{renderItems(item.children, itemPath)}</div>}
       </div>;
@@ -192,9 +226,15 @@ export function WorksheetAnalysis({commands, run, close, position, expanded, set
     <div id="worksheet-analysis-results" role="tree" aria-label="Worksheet commands" onKeyDown={treeKeyDown}>
       {renderItems(roots)}
     </div>
-    {(searching || commands.length === 0) && <p className="worksheet-analysis-count" role="status">
-      {commands.length === 0 ? 'Loading worksheet commands…' : commandsFound.length === 0 ? 'No matching commands.' :
-        commandsFound.length + (commandsFound.length === 1 ? ' command' : ' commands')}
-    </p>}
+    {(searching || commands.length === 0) && <div className="worksheet-analysis-footer">
+      <p className="worksheet-analysis-count" role="status">
+        {commands.length === 0 ? 'Loading worksheet commands…' : foundCount === 0 ? 'No matching commands.' :
+          designSearch && !match ? 'Choose a method for your data.' : foundCount + (foundCount === 1 ? ' command' : ' commands')}
+      </p>
+      {searching && <button type="button" id="worksheet-analysis-search-help" onClick={() => {
+        close(false);
+        searchHelp(query.trim());
+      }}>Search Help</button>}
+    </div>}
   </section>;
 }

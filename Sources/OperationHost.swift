@@ -7,6 +7,7 @@ struct WorksheetCommand: Encodable {
     let title: String
     let path: [String]
     var disabled = false
+    var helpKeywords: [String]?
 }
 
 extension Viewer {
@@ -32,8 +33,13 @@ extension Viewer {
                         if operation == "TPaired" { item.keyEquivalent = "t" }
                         if operation == "ExactChiRbyCScreen" { item.keyEquivalent = "4" }
                         let definition = analysisCatalog[operation]
+                        let help = definition?["help"] as? String
+                        let keywords = help.flatMap { path in
+                            path.hasPrefix("Help/") ? helpPane.keywords(forTopic:String(path.dropFirst(5))) : nil
+                        } ?? []
                         worksheetCommands.append(WorksheetCommand(id: operation, label: title, title: definition?["title"] as? String ?? title,
-                                                                 path: path, disabled: definition == nil || definition?["unavailable"] != nil))
+                                                                 path: path, disabled: definition == nil || definition?["unavailable"] != nil,
+                                                                 helpKeywords: keywords.isEmpty ? nil : keywords))
                     }
                     parent.addItem(item)
                 }

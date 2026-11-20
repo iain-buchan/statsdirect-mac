@@ -56,6 +56,8 @@ footer span:last-child { flex-shrink: 0; }
   overflow-wrap:anywhere;
 }
 [data-worksheet-branch] > .worksheet-tree-row { font-weight:600; }
+.worksheet-tree-path, .worksheet-tree-purpose { display:block; margin-top:2px; color:#5b6c77; font-size:11px; }
+.worksheet-tree-purpose { color:#34454d; }
 .worksheet-tree-disclosure, .worksheet-tree-inset { flex:0 0 9px; height:9px; }
 .worksheet-tree-disclosure { background:#617079; clip-path:polygon(24% 8%, 82% 50%, 24% 92%); }
 [aria-expanded=true] > .worksheet-tree-row .worksheet-tree-disclosure { transform:rotate(90deg); }
@@ -65,4 +67,6 @@ footer span:last-child { flex-shrink: 0; }
   background:#e5f1ee; border-color:#73a598;
 }
 [role=treeitem][aria-disabled=true] > .worksheet-tree-row { color:#6a767e; }
-.worksheet-analysis-count { margin:6px 7px 0; color:#5b6c77; font-size:11px; }
+.worksheet-analysis-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:5px; }
+.worksheet-analysis-count { margin:0 0 0 6px; color:#5b6c77; font-size:11px; }
+.sd-toolbar #worksheet-analysis-search-help { color:#215f58; text-decoration:underline; cursor:pointer; }

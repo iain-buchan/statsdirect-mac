@@ -166,6 +166,7 @@ function App() {
   useEffect(() => {
     window.statsDirectGrid = {
       setWorksheetCommands: (commands: unknown) => setCommandCatalogue(worksheetCommands(commands)),
+      showWorksheetCommands: () => window.dispatchEvent(new Event('statsdirect-open-worksheet-commands')),
       worksheetRSelection: () => worksheetRSelection(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
       editCommand: (command: string, clipboard: string) => {
         const focused = document.activeElement as HTMLElement | null;
@@ -322,13 +323,14 @@ function App() {
     {id:'paste',label:'Paste (⌘V)',icon:'paste',priority:10,run:()=>native('paste')},
     {id:'find',label:'Find (⌘F)',icon:'find',priority:20,group:true,run:showFind},
     {id:'clear',label:'Clear selected cells',icon:'clear',priority:40,group:true,disabled:!selected,run:()=>attempt(clear)},
-    {id:'analyse',label:'Analyse worksheet',text:'Analyse',icon:'analyse',priority:5,group:true},
+    {id:'analyse',label:'Analyse worksheet (⇧⌘A)',text:'Analyse',icon:'analyse',priority:5,group:true},
     {id:'worksheetHelp',label:'Worksheet help',icon:'help',priority:25,run:()=>native('worksheetHelp')},
     {id:'worksheetR',label:'Open selected data in R',icon:'r',priority:25,disabled:!selected,run:()=>native('worksheetR')}
   ]} moreActions={[
     {id:'addRows',label:'Add 100 rows',icon:'addRows',priority:60,disabled:store.rows>=MAX_ROWS,run:()=>attempt(()=>{if(store.apply([],Math.min(MAX_ROWS,store.rows+100)))changed();})},
     {id:'addColumn',label:'Add column',icon:'addColumn',priority:60,disabled:store.columns.length>=MAX_COLS,run:()=>attempt(()=>{if(store.apply([],store.rows,store.columns.length+1))changed();})}
-  ]} commands={commandCatalogue} runAnalysis={id=>native('worksheetCommand',{id})}/>
+  ]} commands={commandCatalogue} runAnalysis={id=>native('worksheetCommand',{id})}
+    searchHelp={query=>native('worksheetSearchHelp',{query})}/>
   {findOpen&&<div className="grid-find" role="search" aria-label="Find in worksheet">
     <label htmlFor="grid-find-text">Find</label><input ref={findInput} id="grid-find-text" value={findText} onChange={e=>setFindText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();findNext(e.shiftKey);}if(e.key==='Escape'){setFindOpen(false);grid.current?.focus();}}}/>
     <button onClick={()=>findNext(true)}>Previous</button><button onClick={()=>findNext()}>Next</button><button aria-label="Close Find" onClick={()=>{setFindOpen(false);grid.current?.focus();}}>Close</button>

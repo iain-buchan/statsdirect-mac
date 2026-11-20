@@ -257,13 +257,97 @@ import WebKit
         _=try await js(grid,"document.querySelector('[data-worksheet-branch=\"Analysis › Parametric\"] > .worksheet-tree-row').click()")
         try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=\"Analysis › Parametric\"]').getAttribute('aria-expanded')==='false'")) as? Bool == true }
         _=try await js(grid,"window.__worksheetBrowseExpanded=[...document.querySelectorAll('[data-worksheet-branch][aria-expanded=true]')].map(node=>node.dataset.worksheetBranch)")
+        try await query("Z Score")
+        try await wait("The Data Z Score exact command was not ranked ahead of partial Analysis matches") { (try? await js(grid,"""
+            (()=>{const tree=document.getElementById('worksheet-analysis-results'),exact=tree.querySelector(':scope > [data-worksheet-branch="Exact matches"]'),leaves=[...tree.querySelectorAll('[data-worksheet-command]')].filter(node=>node.getClientRects().length),field=document.getElementById('worksheet-analysis-search');
+                return exact===tree.firstElementChild&&leaves[0]?.dataset.worksheetCommand==='TransformZSD'&&
+                    document.getElementById(field.getAttribute('aria-activedescendant'))===leaves[0]&&
+                    exact.querySelector(':scope > [role=group]').contains(leaves[0]);
+            })()
+            """)) as? Bool == true }
+        try check(try await js(grid,"""
+            (()=>{const tree=document.getElementById('worksheet-analysis-results'),exact=tree.querySelector(':scope > [data-worksheet-branch="Exact matches"]'),z=[...tree.querySelectorAll('[data-worksheet-command=TransformZSD]')],partial=[...tree.querySelectorAll('[data-worksheet-command=ChildGrowth]')].filter(node=>node.getClientRects().length),path=z[0]?.querySelector(':scope > .worksheet-tree-row .worksheet-tree-path');
+                return z.length===1&&path?.textContent==='Data › Transforming and Deriving › Common Transforms'&&path.getClientRects().length>0&&
+                    partial.length>0&&partial.every(node=>!exact.contains(node));
+            })()
+            """) as? Bool == true,"Search puts the exact Data Z Score first with a visible menu path, keeps Growth Charts partial matches below, and shows the exact command once")
+        try await snapshot(grid.web,"worksheet-analyse-exact-search")
+        try await query("Normal")
+        let expectedNormal=nativeRows.filter { $0["kind"] as? String == "leaf" && $0["label"] as? String == "Normal" }.map { ["id":$0["id"] as! String,"path":$0["path"] as! String] }
+        try await wait("Normal search did not display every exact duplicate with its path") { (try? await js(grid,"document.querySelector('[data-worksheet-branch=\"Exact matches\"] > [role=group]')?.querySelectorAll('[data-worksheet-command]').length===3")) as? Bool == true }
+        let normalRows=try await js(grid,"""
+            (()=>{const exact=document.querySelector('[data-worksheet-branch="Exact matches"] > [role=group]');
+                return [...exact.querySelectorAll(':scope > [data-worksheet-command]')].map(node=>{
+                    const path=node.querySelector(':scope > .worksheet-tree-row .worksheet-tree-path');
+                    return {id:node.dataset.worksheetCommand,path:path?.getClientRects().length?path.textContent:''};
+                });})()
+            """) as? [[String:String]] ?? []
+        func ordered(_ rows:[[String:String]]) -> [[String:String]] { rows.sorted { ($0["path"] ?? "") < ($1["path"] ?? "") } }
+        try check(expectedNormal.count==3 && normalRows.count==3 && ordered(normalRows)==ordered(expectedNormal),"Duplicate Normal exact commands retain their distinct Analysis, Data and Graphics menu paths")
+        try check(try await js(grid,"['DistributionNormal','RndNormal','NormalPlot'].every(id=>document.querySelectorAll('[data-worksheet-command='+id+']').length===1)") as? Bool == true,"Exact Normal commands are removed from the remaining partial-match outline")
+        try await snapshot(grid.web,"worksheet-analyse-matches")
+        try check(v.documents.count==originalCount,"Comparing exact and duplicate search matches leaves the worksheet and open documents unchanged")
+        try await query("Bland Altman plot")
+        try await wait("The authored Help keyword did not find Paired t") { (try? await js(grid,"document.querySelector('[data-worksheet-command=TPaired]')?.getClientRects().length>0")) as? Bool == true }
+        try check(true,"Analyse uses authored Help keyword aliases to find methods with different menu names")
+        try await query("paired")
+        try await wait("Paired search did not show Graphics Ladder Plot before reviewed related methods") { (try? await js(grid,"""
+            (()=>{const tree=document.getElementById('worksheet-analysis-results'),graphics=tree.querySelector(':scope > [data-worksheet-branch=Graphics]'),related=tree.querySelector(':scope > [data-worksheet-branch="Related methods"]');
+                return graphics?.querySelector('[data-worksheet-command=LadderPlot]')?.getClientRects().length>0&&
+                    related?.querySelector('[data-worksheet-command=Wilcoxon]')?.getClientRects().length>0&&
+                    related?.querySelector('[data-worksheet-command=ExactMcNamarChi]')?.getClientRects().length>0&&
+                    !!(graphics.compareDocumentPosition(related)&Node.DOCUMENT_POSITION_FOLLOWING);
+            })()
+            """)) as? Bool == true }
+        try check(true,"Paired search shows the Graphics Ladder Plot before Related methods while retaining the reviewed paired tests")
+        try await query("paired tests")
+        try await wait("Broad paired tests search did not reveal its reviewed related methods") { (try? await js(grid,"""
+            (()=>{const related=document.querySelector('[data-worksheet-branch="Related methods"]');
+                return related?.getClientRects().length>0&&related.querySelector('[data-worksheet-command=Wilcoxon]')?.getClientRects().length>0&&
+                    related.querySelector('[data-worksheet-command=ExactMcNamarChi]')?.getClientRects().length>0;
+            })()
+            """)) as? Bool == true }
+        try check(try await js(grid,"!document.querySelector('#worksheet-analysis-results [data-worksheet-command=LadderPlot]')") as? Bool == true,"Paired tests search excludes Ladder Plot while retaining the reviewed statistical tests")
+        try check(try await js(grid,"""
+            (()=>{const related=document.querySelector('[data-worksheet-branch="Related methods"]'),leaves=[...document.querySelectorAll('#worksheet-analysis-results [data-worksheet-command]')].filter(node=>node.getClientRects().length),reviewed=[...related.querySelectorAll('[data-worksheet-command]')];
+                return reviewed.length>=2&&reviewed.every(node=>{
+                    const purpose=node.querySelector(':scope > .worksheet-tree-row .worksheet-tree-purpose');
+                    return purpose?.getClientRects().length>0&&purpose.textContent.trim().length>15;
+                })&&leaves.every(node=>!['TUnpaired','TUnpairedSummary','ZUnpaired','MannWhitney','Chi2by2'].includes(node.dataset.worksheetCommand));
+            })()
+            """) as? Bool == true,"Broad paired tests includes Wilcoxon and McNemar with visible outcome/purpose guidance, excluding independent-sample and ordinary 2-by-2 tests")
+        try await key("Enter")
+        try await Task.sleep(nanoseconds:150_000_000)
+        let broadSelectionUnchanged=try await js(grid,selected) as? Bool == true
+        let broadChooserOpen=try await js(grid,"!!document.getElementById('worksheet-analysis-chooser')") as? Bool == true
+        try check(v.active === grid && v.documents.count==originalCount && broadSelectionUnchanged && broadChooserOpen,"Enter on a broad method query leaves the chooser open until the learner explicitly chooses a method")
+        try await key("ArrowDown")
+        try await wait("A deliberate arrow choice did not select a reviewed method") { (try? await js(grid,"(()=>{const field=document.getElementById('worksheet-analysis-search'),leaf=document.getElementById(field.getAttribute('aria-activedescendant'));return !!leaf?.dataset.worksheetCommand&&leaf.getAttribute('aria-selected')==='true'&&leaf.getClientRects().length>0})()")) as? Bool == true }
+        try check(v.documents.count==originalCount,"Arrow selection makes a broad method choice explicit without running an analysis")
+        try await snapshot(grid.web,"worksheet-analyse-related-methods")
+        _=try await js(grid,"document.getElementById('worksheet-analysis-search-help').click()")
+        func helpQuery(_ url:URL?) -> String? {
+            guard let url,let fragment=URLComponents(url:url,resolvingAgainstBaseURL:false)?.percentEncodedFragment else { return nil }
+            return URLComponents(string:"?"+fragment)?.queryItems?.first(where:{$0.name=="searchQuery"})?.value
+        }
+        try await wait("Search Help did not pass the unchanged broad query to the existing dock") { v.helpPane.visible && helpQuery(v.helpPane.web.url)=="paired tests" }
+        try await wait("The Help dock did not render the full paired-tests results") {
+            (try? await v.helpPane.web.evaluateJavaScript("!document.getElementById('results')?.hidden && !!document.querySelector('#results a[data-link=\"nonparametric_methods/wilcoxon_signed_ranks.htm\"]') && !!document.querySelector('#results a[data-link=\"methods/methods_paired_dichotomous.htm\"]')")) as? Bool == true
+        }
+        let selectionAfterSearchHelp=try await js(grid,selected) as? Bool == true
+        try check(v.helpPane.searchField.stringValue=="paired tests" && v.active === grid && v.documents.count==originalCount && selectionAfterSearchHelp,"Search Help uses the same paired tests query in the existing dock, retaining the worksheet, highlighted range and document count")
+        v.helpPane.hide();v.window.contentView!.layoutSubtreeIfNeeded()
+        if (try await js(grid,"!!document.getElementById('worksheet-analysis-chooser')")) as? Bool != true { try await click(grid,"analyse") }
+        try await wait { (try? await js(grid,"!!document.getElementById('worksheet-analysis-search')")) as? Bool == true }
         try await query("paired t")
         try await wait("Search did not reveal paired t inside its menu branches") { (try? await js(grid,"""
             (()=>{const leaf=document.querySelector('[data-worksheet-command=TPaired]');
                 if(!leaf?.getClientRects().length)return false;
                 for(let parent=leaf.parentElement.closest('[data-worksheet-branch]');parent;parent=parent.parentElement.closest('[data-worksheet-branch]'))
                     if(parent.getAttribute('aria-expanded')!=='true'||parent.querySelector(':scope > [role=group]').hidden)return false;
-                return !document.querySelector('[data-worksheet-branch="Analysis › Descriptive"]')?.getClientRects().length;
+                return leaf.parentElement.closest('[data-worksheet-branch]')?.dataset.worksheetBranch==='Exact matches'&&
+                    leaf.querySelector(':scope > .worksheet-tree-row .worksheet-tree-path')?.textContent==='Analysis › Parametric'&&
+                    !document.querySelector('[data-worksheet-branch="Analysis › Descriptive"]')?.getClientRects().length;
             })()
             """)) as? Bool == true }
         try check(true,"Search opens matching ancestor branches and hides unrelated menu groups")
@@ -272,14 +356,28 @@ import WebKit
         try check(v.documents.count == originalCount,"Clearing search restores the learner's expanded Analysis and collapsed Parametric branches")
         try await snapshot(grid.web,"worksheet-analyse")
         _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))")
-        try await wait { (try? await js(grid,"!document.getElementById('worksheet-analysis-chooser')&&document.activeElement.dataset.command==='analyse'")) as? Bool == true }
+        try await Task.sleep(nanoseconds:150_000_000)
+        try await wait("Escape did not dismiss Analyse and keep focus on its toolbar button after layout") { (try? await js(grid,"!document.getElementById('worksheet-analysis-chooser')&&document.activeElement.dataset.command==='analyse'")) as? Bool == true }
         let selectionAfterCancel=try await js(grid,selected) as? Bool == true
         try check(v.documents.count == originalCount && selectionAfterCancel,"Escape cancels Analyse, returns toolbar focus and preserves the selected worksheet range")
-        try await click(grid,"analyse")
-        try await wait { (try? await js(grid,"document.activeElement.id==='worksheet-analysis-search'")) as? Bool == true }
-        try check(try await js(grid,"JSON.stringify([...document.querySelectorAll('[data-worksheet-branch][aria-expanded=true]')].map(node=>node.dataset.worksheetBranch))===JSON.stringify(window.__worksheetBrowseExpanded)") as? Bool == true,"Reopening Analyse retains the worksheet's manual branch expansion")
+        let analysisMenu=NSApp.mainMenu!.items.first(where:{$0.submenu?.title=="Analysis"})!.submenu!
+        let shortcut=analysisMenu.items.first(where:{$0.action == #selector(Viewer.searchWorksheetCommands)})
+        try check(shortcut?.keyEquivalent=="A" && shortcut?.keyEquivalentModifierMask == [.command,.shift],"Analysis exposes the native Command-Shift-A worksheet search shortcut")
+        func openWithShortcut() throws {
+            let event=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:[.command,.shift],timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:v.window.windowNumber,context:nil,characters:"A",charactersIgnoringModifiers:"A",isARepeat:false,keyCode:0)!
+            try check(NSApp.mainMenu!.performKeyEquivalent(with:event),"The native menu dispatches Command-Shift-A from the worksheet WebView")
+        }
+        v.window.makeFirstResponder(grid.web)
+        let responder=v.window.firstResponder as? NSView
+        try check(responder === grid.web || responder?.isDescendant(of:grid.web)==true,"Worksheet content is the native first responder before its search shortcut")
+        try openWithShortcut()
+        try await wait("Command-Shift-A did not open and focus worksheet command search") { (try? await js(grid,"document.activeElement.id==='worksheet-analysis-search'")) as? Bool == true }
+        try check(try await js(grid,"JSON.stringify([...document.querySelectorAll('[data-worksheet-branch][aria-expanded=true]')].map(node=>node.dataset.worksheetBranch))===JSON.stringify(window.__worksheetBrowseExpanded)") as? Bool == true,"Reopening Analyse with its native shortcut retains the worksheet's manual branch expansion")
         try await query("paired t")
         try await wait { (try? await js(grid,"(()=>{const field=document.getElementById('worksheet-analysis-search'),leaf=document.getElementById(field.getAttribute('aria-activedescendant'));return leaf?.dataset.worksheetCommand==='TPaired'&&leaf.getClientRects().length>0})()")) as? Bool == true }
+        try openWithShortcut()
+        try await wait { (try? await js(grid,"document.activeElement.id==='worksheet-analysis-search'&&document.activeElement.value==='paired t'")) as? Bool == true }
+        try check(try await js(grid,selected) as? Bool == true,"The native shortcut refocuses an open search without resetting its query or worksheet selection")
         _=try await js(grid,"window.__worksheetFirstMatch=document.getElementById('worksheet-analysis-search').getAttribute('aria-activedescendant')")
         try await key("ArrowDown")
         try await wait { (try? await js(grid,"(()=>{const field=document.getElementById('worksheet-analysis-search'),leaf=document.getElementById(field.getAttribute('aria-activedescendant'));return field.getAttribute('aria-activedescendant')!==window.__worksheetFirstMatch&&!!leaf?.dataset.worksheetCommand&&leaf.getClientRects().length>0})()")) as? Bool == true }
@@ -296,6 +394,25 @@ import WebKit
         v.remove(paired);v.tabs.selectTabViewItem(grid.item)
         try check(try await js(grid,selected) as? Bool == true,"Opening and closing the analysis form retains the worksheet highlight")
 
+        let sharedHelpSVG=try await js(grid,"document.querySelector('[data-command=worksheetHelp] svg')?.innerHTML") as? String ?? ""
+        try check(!sharedHelpSVG.isEmpty,"The worksheet supplies the shared question-mark SVG for method-help controls")
+        for (operation,topic,name) in [("ExactSign","/exact_tests_on_counts/sign.htm","Sign Test"),("ExactChiRbyCScreen","/chi_square_tests/rc.htm","screen R × C")] {
+            v.openWorksheetCommand(operation,source:grid)
+            let form=v.active!
+            try check(form !== grid,"\(name) opens its actual analysis form")
+            try await wait("\(name) did not show its header help icon") { (try? await js(form,"!!document.querySelector('header button[data-command=methodHelp] svg')")) as? Bool == true }
+            try check(try await js(form,"(()=>{const button=document.querySelector('header button[data-command=methodHelp]'),svg=button.querySelector('svg');return button.title==='Method help'&&button.getAttribute('aria-label')==='Method help'&&button.textContent.trim()===''&&svg.innerHTML===\(v.jsString(sharedHelpSVG));})()") as? Bool == true,"\(name) uses the shared icon-only question mark with the exact Method help tooltip and accessible label")
+            try await click(form,"methodHelp")
+            try await wait("\(name) header help did not reach its existing native help route") { v.helpPane.visible && v.helpPane.web.url?.path == topic }
+            try check(v.active === form && v.documents.count==originalCount+1,"\(name) Method help opens the correct topic in the existing dock")
+            v.helpPane.hide()
+            if form.kind=="operation", form.analysisJobID != nil {
+                try await wait { form.operationReady && !form.operationStarting }
+                _=try await js(form,"document.querySelector('.cancel button')?.click()")
+                try await wait { form.analysisJobID == nil }
+            }
+            v.remove(form);v.tabs.selectTabViewItem(grid.item);v.window.contentView!.layoutSubtreeIfNeeded()
+        }
         try await click(grid,"worksheetHelp")
         try await wait("Worksheet Help did not open its topic in the existing dock") { v.helpPane.visible && v.helpPane.web.url?.path == "/basics/worksheet.htm" }
         let selectionAfterHelp=try await js(grid,selected) as? Bool == true

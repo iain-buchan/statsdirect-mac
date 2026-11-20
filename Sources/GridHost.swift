@@ -3,6 +3,12 @@ import WebKit
 import UniformTypeIdentifiers
 
 extension Viewer: WKScriptMessageHandler {
+    @objc func searchWorksheetCommands() {
+        guard let doc=active,doc.kind=="grid",!doc.web.isLoading,
+              window.attachedSheet==nil,NSApp.modalWindow==nil else { return }
+        window.makeFirstResponder(doc.web)
+        doc.web.evaluateJavaScript("window.statsDirectGrid?.showWorksheetCommands()")
+    }
     @objc func newWorksheet() {
         worksheetNumber += 1
         let title = worksheetNumber == 1 ? "Untitled" : "Untitled \(worksheetNumber)"
@@ -29,6 +35,11 @@ extension Viewer: WKScriptMessageHandler {
         case "worksheetHelp":
             guard active === doc else { return }
             openHelp(root.appendingPathComponent("Help/basics/worksheet.htm"), title: "Workbook")
+        case "worksheetSearchHelp":
+            guard active === doc, window.attachedSheet == nil, NSApp.modalWindow == nil,
+                  let query = body["query"] as? String, query.count <= 1000,
+                  !query.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else { return }
+            helpPane.searchHelp(query)
         case "worksheetR":
             guard active === doc, window.attachedSheet == nil else { return }
             openWorksheetSelectionInR(doc)

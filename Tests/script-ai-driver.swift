@@ -244,6 +244,7 @@ import WebKit
         try await v.chatGPTTutor.refreshAccount()
         ai.updateConnection()
         try await checkRReplay(v,first,workbook)
+        try await checkFenceLanguageReplay(v,first)
         ai.newConversation()
         try check(ai.contextPanel.isHidden,"a new conversation reuses the accepted app session")
         try check(ai.conversations[first.id]?.messages.isEmpty==true && ai.shareScript.state == .off && ai.shareWorkbook.state == .off,"New conversation removes prior context from subsequent prompts")
@@ -331,6 +332,39 @@ import WebKit
         let context=ScriptAIContext(viewer:v,script:nil,workbook:workbook,active:{true})
         let read=try await context.call("statsdirect_read_data",["documentId":workbook.id,"columns":[0,1],"firstRow":2,"lastRow":4])
         try check((read["rCode"] as? String)?.contains("column_1")==true && context.rData.contains("10, 20, 30"),"read_data supplies explicit R bindings from the exact bounded worksheet read")
+    }
+
+    @MainActor static func checkFenceLanguageReplay(_ v:Viewer,_ first:Document) async throws {
+        let ai=v.scriptAI
+        let firstCode="fence_first_r <- c(17, 23, 41)"
+        let pythonCode="PYTHON_FENCE_ONLY = [101, 103, 107]"
+        let selectedCode="fence_selected_third <- sum(fence_first_r)"
+        let reply="""
+        ```r echo=FALSE
+        \(firstCode)
+        ```
+        ```python
+        \(pythonCode)
+        ```
+        ```r
+        \(selectedCode)
+        ```
+        """
+        let messageID="fence-language-"+UUID().uuidString
+        // Load the completed fixture through retained native conversation state,
+        // just as a restored reply is rendered; keep the real WebView bridge.
+        ai.conversations[first.id]!.messages.append(["id":messageID,"role":"assistant","text":reply])
+        ai.open(first)
+        let row="document.querySelector('[data-message-id=\""+messageID+"\"]')"
+        try await wait { (try? await js(ai,"(()=>{const row=\(row);return row?.querySelectorAll('.code-block').length===3&&row.querySelectorAll('[data-code=r]:not(:disabled)').length===2})()")) as? Bool == true }
+        try check(try await js(ai,"(()=>{const cards=[...\(row).querySelectorAll('.code-block')];return !!cards[0].querySelector('[data-code=r]')&&!cards[1].querySelector('[data-code=r]')&&!!cards[2].querySelector('[data-code=r]')})()") as? Bool == true,"A native-loaded r echo=FALSE, Python and plain r reply has exactly two Open in R controls on its R blocks")
+        let count=v.documents.count
+        _=try await js(ai,"\(row).querySelectorAll('[data-code=r]')[1].click();true")
+        try await wait { v.documents.count==count+1 && v.active?.rPane != nil && v.active !== first }
+        let opened=v.active!,pane=opened.rPane!,source=pane.editor.string
+        try check(source.contains(firstCode) && source.hasSuffix(selectedCode+"\n") && !source.contains(pythonCode) && !source.contains("PYTHON_FENCE_ONLY"),"The second DOM Open in R click reaches the native host and selects the third fenced block, retaining earlier R context and excluding Python")
+        try check(pane.editor.isEditable && !pane.isRunning,"Opening the metadata-fenced R suggestion leaves an editable script and runs nothing")
+        v.remove(opened);v.tabs.selectTabViewItem(first.item);ai.open(first)
     }
 
 }

@@ -46,6 +46,41 @@ import Foundation
         try check(blocks.count==1 && blocks[0].code=="x <- 2\n~~~\nx <- 3","fence parser excludes other languages, shorter closers and unfinished blocks")
         let stepped=ConversationRScript.blocks("1. Take the differences:\n   ```r\n   d <- before - after\n     t.test(d)\n ok\n   ```\nDone.").map(\.code)
         try check(stepped==["d <- before - after\n  t.test(d)\nok"],"a block fenced under a list item loses the fence's indent and no more, as on Windows")
+        for info in ["r", "R", "Rscript", "r title=\"Description\"", "rscript\tcaption=\"Example\"", "  R\tmore metadata  "] {
+            let tagged=ConversationRScript.blocks("```" + info + "\nvalue <- 17\n```")
+            try check(tagged.map(\.code)==["value <- 17"],"the first language word identifies a completed R block: " + info)
+        }
+        for info in ["", "python", "{r}", "{r echo=FALSE}", "r-extra", "rscripted", "r\u{00a0}metadata", "r title=`invalid`"] {
+            try check(ConversationRScript.blocks("```" + info + "\nignored <- TRUE\n```").isEmpty,
+                      "non-R language labels and invalid backtick info are excluded: " + info)
+        }
+        let orderedReply = """
+        ```r
+        first_value <- 2
+        ```
+        ```python
+        ignored <- TRUE
+        ```
+        ~~~~Rscript title="Second block"
+        second_value <- first_value + 3
+        ~~~~
+           ```R\tcaption="Third block"
+           third_value <- second_value * 2
+           ```
+        ```r unfinished
+        never_complete <- TRUE
+        """
+        let ordered=ConversationRScript.blocks(orderedReply)
+        try check(ordered.map(\.code)==["first_value <- 2", "second_value <- first_value + 3", "third_value <- second_value * 2"],
+                  "mixed metadata, fence characters and list indentation retain the three completed R blocks in order")
+        let otherCloser=ConversationRScript.blocks("~~~~r title=`example`\nvalue <- 1\n```\n~~~~")
+        try check(otherCloser.map(\.code)==["value <- 1\n```"],"metadata does not permit a different fence character to end a block")
+        let replayMessages=[["role":"assistant","text":orderedReply]]
+        let second=try ConversationRScript.build(replayMessages,messageIndex:0,blockIndex:1)
+        try check(second.contains("first_value <- 2") && second.contains("second_value <- first_value + 3") && !second.contains("third_value <-"),
+                  "selecting the metadata-bearing second block includes earlier R dependencies and excludes later blocks")
+        try runR(ConversationRScript.build(replayMessages,messageIndex:0,blockIndex:2),"metadata-blocks",
+                 "stopifnot(first_value==2, second_value==5, third_value==10, !exists('ignored'), !exists('never_complete'))")
         for index in [-2,9] { var rejected=false; do { _=try ConversationRScript.build(messages,messageIndex:1,blockIndex:index) } catch is ConversationRScript.Failure { rejected=true }; try check(rejected,"invalid block is rejected") }
         let special="quoted \"value\"\\path\nα\tline"
         let data:[String:Any]=["datasetId":"fixed-data","columns":[["index":7,"values":["1.5",NSNull(),"-2e1"]],["index":2,"values":[special,NSNull(),"x'); stop('INJECTED') #"]]]]
@@ -57,6 +92,6 @@ import Foundation
         rejected=false; do { _=try ConversationRScript.build([["role":"assistant","rSource":String(repeating:"x",count:2_000_001),"text":"```r\nx\n```"]],messageIndex:0) } catch is ConversationRScript.Failure { rejected=true }; try check(rejected,"oversized replay is rejected")
         let long=String(repeating:"# full local source\n",count:1000) + source
         try runR(ConversationRScript.build([["role":"user","text":"Long source","rSource":long],["role":"assistant","text":"```r\nd <- before-after\n```"]],messageIndex:1),"full-local-source","stopifnot(length(d)==9)")
-        print("PASS: \(checks) conversation R checks, including six fresh real-R executions")
+        print("PASS: \(checks) conversation R checks, including seven fresh real-R executions")
     }
 }

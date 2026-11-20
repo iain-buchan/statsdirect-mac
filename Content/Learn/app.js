@@ -20230,8 +20230,9 @@ ${content}</tr>
   var math2 = (text3, displayMode) => katex.renderToString(text3, { displayMode, throwOnError: false, trust: false, strict: "ignore", maxExpand: 500, maxSize: 20 });
   var renderer = new marked.Renderer();
   renderer.html = esc;
-  renderer.code = (code, language = "") => {
-    const isR = /^(r|rscript)$/i.test(language.trim());
+  renderer.code = (code, info = "") => {
+    const language = info.trim().split(/[ \t]+/, 1)[0].toLowerCase();
+    const isR = language === "r" || language === "rscript";
     return `<div class="code-block"><div class="code-actions"><span>${isR ? "R" : "Code"}</span><button type="button" data-code="copy">Copy</button>${isR ? '<button type="button" data-code="r">Open in R</button>' : ""}</div><pre><code>${isR ? core_default.highlight(code, { language: "r" }).value : esc(code)}</code></pre></div>`;
   };
   marked.use({ renderer, mangle: false, headerIds: false, extensions: [

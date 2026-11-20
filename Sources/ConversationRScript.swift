@@ -9,12 +9,14 @@ enum ConversationRScript {
     struct Block { let code: String; let endLine: Int }
     static func blocks(_ markdown: String) -> [Block] {
         let lines = markdown.replacingOccurrences(of:"\r\n",with:"\n").replacingOccurrences(of:"\r",with:"\n").components(separatedBy:"\n")
-        let opening = try! NSRegularExpression(pattern:"^( {0,3})(`{3,}|~{3,})[ \\t]*([\\w+#.-]*)[ \\t]*$")
+        let opening = try! NSRegularExpression(pattern:"^( {0,3})(`{3,}(?=[^`]*$)|~{3,})[ \\t]*([^\\n]*)$")
         var result: [Block] = [], i = 0
         while i < lines.count {
             let line = lines[i] as NSString
             guard let match = opening.firstMatch(in:lines[i],range:NSRange(location:0,length:line.length)) else { i += 1; continue }
-            let indent = match.range(at:1).length, fence = line.substring(with:match.range(at:2)), language = line.substring(with:match.range(at:3)).lowercased()
+            let indent = match.range(at:1).length, fence = line.substring(with:match.range(at:2))
+            let info = line.substring(with:match.range(at:3)).trimmingCharacters(in:.whitespacesAndNewlines)
+            let language = info.split(maxSplits:1,whereSeparator:{$0 == " " || $0 == "\t"}).first?.lowercased() ?? ""
             let closing = try! NSRegularExpression(pattern:"^ {0,3}" + NSRegularExpression.escapedPattern(for:String(fence.first!)) + "{\(fence.count),}[ \\t]*$")
             var code: [String] = []; i += 1
             while i < lines.count && closing.firstMatch(in:lines[i],range:NSRange(location:0,length:(lines[i] as NSString).length)) == nil {

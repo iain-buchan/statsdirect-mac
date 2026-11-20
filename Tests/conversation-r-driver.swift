@@ -45,7 +45,7 @@ import Foundation
         let blocks=ConversationRScript.blocks(mixed)
         try check(blocks.count==1 && blocks[0].code=="x <- 2\n~~~\nx <- 3","fence parser excludes other languages, shorter closers and unfinished blocks")
         let stepped=ConversationRScript.blocks("1. Take the differences:\n   ```r\n   d <- before - after\n     t.test(d)\n ok\n   ```\nDone.").map(\.code)
-        try check(stepped==["d <- before - after\n  t.test(d)\nok"],"a block fenced under a list item loses the fence's indent and no more, as on Windows")
+        try check(stepped==["d <- before - after\n  t.test(d)\n ok"],"a block fenced under a list item loses the fence's indent from each line that has it, and a shallower line stays as the page shows it")
         for info in ["r", "R", "Rscript", "r title=\"Description\"", "rscript\tcaption=\"Example\"", "  R\tmore metadata  "] {
             let tagged=ConversationRScript.blocks("```" + info + "\nvalue <- 17\n```")
             try check(tagged.map(\.code)==["value <- 17"],"the first language word identifies a completed R block: " + info)
@@ -75,6 +75,28 @@ import Foundation
                   "mixed metadata, fence characters and list indentation retain the three completed R blocks in order")
         let otherCloser=ConversationRScript.blocks("~~~~r title=`example`\nvalue <- 1\n```\n~~~~")
         try check(otherCloser.map(\.code)==["value <- 1\n```"],"metadata does not permit a different fence character to end a block")
+        // The shared examples of the Learning package: this reader and matcher must give what the reference gives.
+        let examples=try JSONSerialization.jsonObject(with:Data(contentsOf:URL(fileURLWithPath:"Learn/Upstream/Learning/code-block-examples.json"))) as! [String:Any]
+        let cases=examples["cases"] as! [[String:Any]], clicks=examples["matches"] as! [[String:Any]]
+        func units(_ text: String) -> [UInt16] { Array(text.utf16) }
+        var wrong: [String]=[]
+        for item in cases {
+            let expected=(item["blocks"] as! [[String:Any]]).map { ($0["r"] as! Bool,units($0["shown"] as! String),units($0["text"] as? String ?? $0["shown"] as! String)) }
+            let read=ConversationRScript.readBlocks(item["markdown"] as! String).map { ($0.r,units($0.shown),units($0.text)) }
+            if read.count != expected.count || zip(read,expected).contains(where:{ $0.0 != $1.0 || $0.1 != $1.1 || $0.2 != $1.2 }) { wrong.append(item["name"] as! String) }
+        }
+        try check(cases.count>=36 && wrong.isEmpty,"the reader returns the shared examples' blocks for all \(cases.count) replies" + (wrong.isEmpty ? "" : "; wrong: " + wrong.joined(separator:" | ")))
+        wrong=[]
+        for item in clicks {
+            let reply=cases.first { $0["name"] as? String == item["case"] as? String }!["markdown"] as! String
+            let found=ConversationRScript.findBlock(ConversationRScript.readBlocks(reply),position:item["position"] as! Int,shown:item["shown"] as! String,rOnly:item["rOnly"] as! Bool)
+            if found != item["expect"] as! Int { wrong.append(item["name"] as! String) }
+        }
+        try check(clicks.count>=9 && wrong.isEmpty,"a click is matched to a block as the shared examples say for all \(clicks.count) clicks" + (wrong.isEmpty ? "" : "; wrong: " + wrong.joined(separator:" | ")))
+        let tabbed=ConversationRScript.readBlocks("```r\nf <- function(x) {\n\tx + 1\n}\n```")
+        try check(tabbed.count==1 && tabbed[0].shown=="f <- function(x) {\n    x + 1\n}" && tabbed[0].text=="f <- function(x) {\n\tx + 1\n}"
+                  && ConversationRScript.blocks("```r\nf <- function(x) {\n\tx + 1\n}\n```").map(\.code)==[tabbed[0].text],
+                  "a Tab-indented line is matched as the page shows it, four spaces, and opened or copied with its tab")
         let replayMessages=[["role":"assistant","text":orderedReply]]
         let second=try ConversationRScript.build(replayMessages,messageIndex:0,blockIndex:1)
         try check(second.contains("first_value <- 2") && second.contains("second_value <- first_value + 3") && !second.contains("third_value <-"),

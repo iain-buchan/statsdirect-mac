@@ -20257,11 +20257,12 @@ ${content}</tr>
       if (button.dataset.code === "r") {
         const message = button.closest("[data-message-id]");
         openR(code, { messageID: message?.dataset.messageId, blockIndex: message ? Array.from(message.querySelectorAll("[data-code=r]")).indexOf(button) : -1 });
-      } else {
-        copy(code);
+      } else Promise.resolve(copy(code)).then((copied) => {
+        if (copied === false) return;
         button.textContent = "Copied";
         setTimeout(() => button.textContent = "Copy", 1500);
-      }
+      }, () => {
+      });
     });
   }
 
@@ -20318,6 +20319,10 @@ ${content}</tr>
   var messages = document.getElementById("messages");
   var generation = null;
   var post = (value) => window.webkit?.messageHandlers.statsDirectAI.postMessage(value);
+  var copyInHost = (value) => {
+    const handler2 = window.webkit?.messageHandlers.statsDirectAICopy;
+    return handler2 ? handler2.postMessage(value).then((copied) => copied === true, () => false) : false;
+  };
   function render3(state) {
     const reading = state.generation === generation ? conversationReading(messages) : null;
     generation = state.generation;
@@ -20352,9 +20357,10 @@ ${content}</tr>
       article.append(body);
       fragment.append(article);
       const approvedGeneration = state.generation;
-      bindRichText(body, { copy: () => {
-      }, openR: (_code, info) => post({ action: "openR", generation: approvedGeneration, messageID: info.messageID, blockIndex: info.blockIndex }) });
-      body.querySelectorAll("[data-code=copy]").forEach((button, index) => button.onclick = () => post({ action: "copyCode", generation: approvedGeneration, messageID: row.id, code: button.closest(".code-block").querySelector("code").textContent }));
+      bindRichText(body, {
+        copy: (code) => copyInHost({ generation: approvedGeneration, messageID: row.id, code }),
+        openR: (code, info) => post({ action: "openR", generation: approvedGeneration, messageID: info.messageID, blockIndex: info.blockIndex, code })
+      });
       if (row.pending) body.querySelectorAll("[data-code]").forEach((button) => button.disabled = true);
     }
     messages.replaceChildren(fragment);

@@ -56,8 +56,8 @@ import WebKit
 
     init(viewer: Viewer) {
         self.viewer=viewer;transcript=AIConversationView(root:viewer.root);super.init()
-        transcript.openR = { [weak self] generation,id,index in self?.openCode(generation:generation,messageID:id,blockIndex:index) }
-        transcript.copyCode = { [weak self] generation,id,code in self?.copyCode(generation:generation,messageID:id,code:code) }
+        transcript.openR = { [weak self] generation,id,index,shown in self?.openCode(generation:generation,messageID:id,blockIndex:index,shown:shown) }
+        transcript.copyCode = { [weak self] generation,id,code in self?.copyCode(generation:generation,messageID:id,code:code) ?? false }
         heading.font = .systemFont(ofSize:13,weight:.semibold)
         heading.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
         let close=NSButton(title:"×",target:self,action:#selector(hide));close.setAccessibilityLabel("Close AI assistance")
@@ -344,19 +344,33 @@ import WebKit
         let limited=String(code.utf16.prefix(100000)) ?? String(code.utf16.prefix(99999)) ?? ""
         NSPasteboard.general.clearContents();NSPasteboard.general.setString(limited,forType:.string)
     }
-    func openCode(generation: String,messageID: String,blockIndex: Int = -1) {
+    /// `shown` is the clicked block's code as the page shows it. With it, the block opened is the one this pane reads
+    /// at that place with that text, or the first with that text, and never another (ConversationRScript.findBlock).
+    func openCode(generation: String,messageID: String,blockIndex: Int = -1,shown: String? = nil) {
         guard let chat=conversation, chat.generation==generation else { return }
         guard let index=chat.messages.firstIndex(where:{$0["id"]==messageID}) else { showNotice("Wait for the reply to finish before opening its R code.");return }
+        var block=blockIndex
+        if let shown {
+            block=ConversationRScript.findBlock(ConversationRScript.readBlocks(chat.messages[index]["text"] ?? ""),position:blockIndex,shown:shown)
+            guard block>=0 else { showNotice(ConversationRScript.unmatchedNotice);return }
+        }
         do {
-            let code=try ConversationRScript.build(chat.messages,messageIndex:index,blockIndex:blockIndex)
+            let code=try ConversationRScript.build(chat.messages,messageIndex:index,blockIndex:block)
             viewer.makeRScript(script:code,title:"AI suggestion",saved:false)
             viewer.status.stringValue="Review the source, earlier examples and suggested R code before choosing Run"
         } catch { showNotice(error.localizedDescription) }
     }
-    private func copyCode(generation: String,messageID: String,code: String) {
+    /// Copy on a block of the conversation: the page sends the code as it shows it, and what is copied is this pane's
+    /// own reading of that block, with the reply's own tabs. Answers whether anything was copied; when the block
+    /// cannot be matched it says so and copies nothing.
+    private func copyCode(generation: String,messageID: String,code: String) -> Bool {
         guard let chat=conversation,chat.generation==generation,code.utf8.count<=200000,
-              let row=chat.messages.first(where:{$0["id"]==messageID}),row["text"]?.contains(code)==true else { return }
-        NSPasteboard.general.clearContents();NSPasteboard.general.setString(code,forType:.string)
+              let row=chat.messages.first(where:{$0["id"]==messageID}) else { return false }
+        let blocks=ConversationRScript.readBlocks(row["text"] ?? "")
+        let found=ConversationRScript.findBlock(blocks,position:-1,shown:code,rOnly:false)
+        guard found>=0 else { showNotice(ConversationRScript.unmatchedNotice);return false }
+        NSPasteboard.general.clearContents();NSPasteboard.general.setString(blocks[found].text,forType:.string)
+        return true
     }
     private func render() {
         let messages=conversation?.messages ?? []

@@ -124,7 +124,8 @@ extension Viewer {
                   let messageID=body["messageID"] as? String, let blockIndex=body["blockIndex"] as? Int,
                   let lessonID=body["lessonID"] as? String, lessonID == doc.learningState?["lesson"] as? String else { return }
             do {
-                let code=try learningRScript(doc,messageID:messageID,lessonID:lessonID,blockIndex:blockIndex)
+                // The page's own text for the clicked block (learning-v1.1.6); a page that sends none goes by position, as before.
+                let code=try learningRScript(doc,messageID:messageID,lessonID:lessonID,blockIndex:blockIndex,shown:body["code"] as? String)
                 makeRScript(script:code,title:"Tutor example",saved:false)
                 status.stringValue="Review the source, earlier examples and suggested R code before choosing Run"
             } catch { learningScript(doc,"notice",error.localizedDescription) }
@@ -133,7 +134,7 @@ extension Viewer {
         default: learningScript(doc,"notice","StatsDirect does not understand the Learning page's request \"\(action)\". The Learning package and this StatsDirect may be out of step.")
         }
     }
-    func learningRScript(_ doc: Document,messageID: String,lessonID: String,blockIndex: Int) throws -> String {
+    func learningRScript(_ doc: Document,messageID: String,lessonID: String,blockIndex: Int,shown: String? = nil) throws -> String {
         let rows=(doc.learningState?["conversation"] as? [[String:Any]] ?? []).filter{$0["lessonId"] as? String == lessonID || ($0["lessonId"] == nil && lessonID == "epidemiology")}
         let messages: [[String:String]]=rows.map { row in
             var result=["id":row["id"] as? String ?? "","role":row["role"] as? String ?? "","text":row["text"] as? String ?? ""]
@@ -142,7 +143,12 @@ extension Viewer {
             return result
         }
         guard let index=messages.firstIndex(where:{$0["id"]==messageID}) else { throw ConversationRScript.Failure(message:"That conversation has changed. Select its R code again.") }
-        return try ConversationRScript.build(messages,messageIndex:index,blockIndex:blockIndex)
+        var block=blockIndex
+        if let shown {
+            block=ConversationRScript.findBlock(ConversationRScript.readBlocks(messages[index]["text"] ?? ""),position:blockIndex,shown:shown)
+            guard block>=0 else { throw ConversationRScript.Failure(message:ConversationRScript.unmatchedNotice) }
+        }
+        return try ConversationRScript.build(messages,messageIndex:index,blockIndex:block)
     }
     func configureLearningAI(_ doc: Document) {
         func notice(_ text: String) {

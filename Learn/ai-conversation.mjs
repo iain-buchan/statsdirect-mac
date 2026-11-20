@@ -4,6 +4,8 @@ import {conversationReading,restoreConversationReading} from './Upstream/Learnin
 const messages=document.getElementById('messages');
 let generation=null;
 const post=value=>window.webkit?.messageHandlers.statsDirectAI.postMessage(value);
+// Copy answers: the host copies its own text for the block shown, or says that it could not match it.
+const copyInHost=value=>{const handler=window.webkit?.messageHandlers.statsDirectAICopy;return handler?handler.postMessage(value).then(copied=>copied===true,()=>false):false;};
 function render(state){
  const reading=state.generation===generation?conversationReading(messages):null;
  generation=state.generation;
@@ -17,9 +19,9 @@ function render(state){
   if(row.role==='assistant')body.innerHTML=richText(row.text);else {body.classList.add('user-text');body.textContent=row.text;}
   article.append(body);fragment.append(article);
   const approvedGeneration=state.generation;
-  bindRichText(body,{copy:()=>{},openR:(_code,info)=>post({action:'openR',generation:approvedGeneration,messageID:info.messageID,blockIndex:info.blockIndex})});
-  // Bind Copy to a native lookup, never a script-provided code payload.
-  body.querySelectorAll('[data-code=copy]').forEach((button,index)=>button.onclick=()=>post({action:'copyCode',generation:approvedGeneration,messageID:row.id,code:button.closest(".code-block").querySelector("code").textContent}));
+  // Both buttons send the block's text as shown; the host uses only its own reading of the saved reply (code-blocks.mjs).
+  bindRichText(body,{copy:code=>copyInHost({generation:approvedGeneration,messageID:row.id,code}),
+   openR:(code,info)=>post({action:'openR',generation:approvedGeneration,messageID:info.messageID,blockIndex:info.blockIndex,code})});
   if(row.pending)body.querySelectorAll('[data-code]').forEach(button=>button.disabled=true);
  }
  messages.replaceChildren(fragment);

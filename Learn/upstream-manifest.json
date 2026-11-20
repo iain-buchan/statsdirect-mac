@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/iain-buchan/statisticalhelp",
-  "commit": "0397dbae6d318e9692755f691703e03d100c3e7c",
-  "tag": "learning-v1.1.4",
+  "commit": "d72815cba9f44a81bb8855cb6636505f29a386ae",
+  "tag": "learning-v1.1.5",
   "hostContract": 1,
   "files": {
     ".gitattributes": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9",
@@ -30,8 +30,8 @@
     "provider-course.test.mjs": "533d00e17c64083845726d24055ec8794bfc635bae77158d22303f5688d6ed5b",
     "quiz.mjs": "caab5b20ecbef29da804af2b9f540955edefef08e6fc3d03678eb0b35f049cf7",
     "record-html.mjs": "785bc475fa88bcd13883b3cdb449e9f24d1f34260ee18b87c4959221377da2af",
-    "rich-text.mjs": "be951c69b6cccb33f66e5fff720635bf1232379883244378619523685c9f5a20",
-    "rich-text.test.mjs": "7fe4e0c69c028d64086c32f83c29c8cd0fe9688c69a8951886c6b9935f41234a",
+    "rich-text.mjs": "e21570551c19585e837719e994053b5496c2bfbc8dd5f52b247891af0bd0a484",
+    "rich-text.test.mjs": "eab3550c43051b7873db9b605be5c379d81a1cc3531eb7f64b55aa695b3734d7",
     "test-config.mjs": "15cfbfa87380fde82d74d9af4bedc8e7dd1ae746a20ab3bc53693a4959c5440b"
   }
 }

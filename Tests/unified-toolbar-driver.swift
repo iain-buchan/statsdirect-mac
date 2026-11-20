@@ -6,9 +6,9 @@ import WebKit
         guard value else { throw NSError(domain:"ToolbarChecks",code:1,userInfo:[NSLocalizedDescriptionKey:reason]) }
         print("PASS: " + reason); fflush(stdout)
     }
-    @MainActor static func wait(_ condition: () async throws -> Bool) async throws {
+    @MainActor static func wait(_ reason: String = "UI did not settle", _ condition: () async throws -> Bool) async throws {
         for _ in 0..<150 { if try await condition() { return }; try await Task.sleep(nanoseconds:100_000_000) }
-        throw NSError(domain:"ToolbarChecks",code:2,userInfo:[NSLocalizedDescriptionKey:"UI did not settle"])
+        throw NSError(domain:"ToolbarChecks",code:2,userInfo:[NSLocalizedDescriptionKey:reason])
     }
     @MainActor static func main() {
         let app=NSApplication.shared; app.setActivationPolicy(.regular)
@@ -21,7 +21,7 @@ import WebKit
                 viewer.closeApproved=true; app.terminate(nil)
             }
         }
-        DispatchQueue.global().asyncAfter(deadline:.now()+90) { print("FAIL: toolbar checks timed out"); fflush(stdout); exit(1) }
+        DispatchQueue.global().asyncAfter(deadline:.now()+120) { print("FAIL: toolbar checks timed out"); fflush(stdout); exit(1) }
         app.run()
     }
     @MainActor static func run(_ v: Viewer) async throws {
@@ -93,8 +93,17 @@ import WebKit
         try await fit(grid)
         try check(try await js(grid,"""
             (()=>{const more=document.querySelector('[data-command=more]');more.click();
-                return more.hidden&&getComputedStyle(more).display==='none'&&more.getAttribute('aria-expanded')==='false'&&document.getElementById('grid-more-tools').hidden;})()
-            """) as? Bool == true,"worksheet More stays hidden and cannot open an empty popup when commands fit")
+                const popup=document.getElementById('grid-more-tools');
+                return !more.hidden&&getComputedStyle(more).display!=='none'&&!popup.hidden&&
+                    ['addRows','addColumn'].every(id=>popup.querySelector(`[data-command=${id}]`))&&
+                    !document.querySelector('.sd-toolbar-row [data-command=addRows],.sd-toolbar-row [data-command=addColumn]');})()
+            """) as? Bool == true,"worksheet More always keeps Add 100 rows and Add column off the normal toolbar")
+        try await click(grid,"addRows")
+        try await wait { (try? await js(grid,"document.querySelector('footer').textContent.includes('200 rows')")) as? Bool == true }
+        try await click(grid,"undo")
+        try await wait { (try? await js(grid,"document.querySelector('footer').textContent.includes('100 rows')")) as? Bool == true }
+        try check(true,"Add 100 rows remains available in More and uses worksheet undo")
+        _=try await js(grid,"if(!document.getElementById('grid-more-tools').hidden)document.querySelector('[data-command=more]').click()")
         _=try await js(grid,"window.statsDirectGrid.editCommand('cut','')")
         try await Task.sleep(nanoseconds:150_000_000)
         try check(try await js(grid,"window.statsDirectGrid.csvData().includes('Alpha')") as? Bool == true,"Cut without a worksheet selection leaves cells unchanged")
@@ -125,7 +134,7 @@ import WebKit
         v.helpLibrary();v.workspaceSplit.setPosition(330,ofDividerAt:0);v.window.contentView!.layoutSubtreeIfNeeded()
         try await Task.sleep(nanoseconds:200_000_000);try await fit(grid)
         try await click(grid,"more")
-        try check(try await js(grid,"getComputedStyle(document.querySelector('[data-command=more]')).display!=='none' && !document.getElementById('grid-more-tools').hidden && !!document.querySelector('.sd-toolbar-overflow [data-command=addColumn]')") as? Bool == true,"worksheet More is visible and contains secondary commands in a narrow view")
+        try check(try await js(grid,"getComputedStyle(document.querySelector('[data-command=more]')).display!=='none' && !document.getElementById('grid-more-tools').hidden && ['addRows','addColumn'].every(id=>document.querySelector('#grid-more-tools [data-command='+id+']')) && !document.querySelector('.sd-toolbar-row [data-command=addRows],.sd-toolbar-row [data-command=addColumn]')") as? Bool == true,"worksheet More retains Add 100 rows and Add column alongside overflow in a narrow view")
         try await click(grid,"addColumn")
         try await wait { (try? await js(grid,"document.querySelector('footer').textContent.includes('9 columns')")) as? Bool == true }
         try check(true,"worksheet More invokes the live command")
@@ -136,5 +145,288 @@ import WebKit
         try check((v.window.attachedSheet as? NSSavePanel)?.nameFieldStringValue.hasSuffix(".csv")==true,"worksheet Save preserves the document's CSV format")
         (v.window.attachedSheet as? NSSavePanel)?.cancel(nil)
         try await wait { v.window.attachedSheet == nil }
+        try await worksheetTools(v, grid: grid, js: js, click: click, fit: fit, snapshot: snapshot)
+    }
+
+    @MainActor static func worksheetTools(_ v: Viewer, grid: Document,
+        js: (Document, String) async throws -> Any?,
+        click: (Document, String) async throws -> Void,
+        fit: (Document) async throws -> Void,
+        snapshot: (WKWebView, String) async throws -> Void) async throws {
+        v.window.setContentSize(NSSize(width:1180,height:800))
+        v.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps:true)
+        v.tabs.selectTabViewItem(grid.item)
+        v.window.contentView!.layoutSubtreeIfNeeded()
+        _=try await grid.web.callAsyncJavaScript("""
+            await statsDirectGrid.loadWorkbook({name:'Toolbar selection',sheets:[{name:'Measurements',rows:100,columns:8,headerRow:true,cells:[
+                {col:0,row:0,text:'Before',kind:'text'},{col:1,row:0,text:'After',kind:'text'},
+                ...[1201,1202,1203,1204].map((n,i)=>({col:0,row:i+1,text:String(n),kind:'number'})),
+                ...[8001,8002,8003,8004].map((n,i)=>({col:1,row:i+1,text:String(n),kind:'number'})),
+                {col:5,row:99,text:'999999',kind:'number'}]}]});return true;
+            """, arguments:[:],in:nil,contentWorld:.page)
+        try await wait { (try? await js(grid,"statsDirectGrid.analysisSource().name==='Toolbar selection / Measurements'")) as? Bool == true }
+        v.window.makeFirstResponder(grid.web)
+        try await wait {
+            guard v.window.isKeyWindow && NSApp.isActive else { return false }
+            return (try? await js(grid,"document.hasFocus()")) as? Bool == true
+        }
+        // A rectangle gesture selects A/B, rows 2–4. Searching for a command
+        // must preserve this source range instead of analysing entire columns.
+        _=try await grid.web.callAsyncJavaScript("""
+            await new Promise(resolve=>setTimeout(resolve,100));
+            const b=document.querySelector('canvas').getBoundingClientRect(),x=c=>b.x+48+c*178+89,y=r=>b.y+36+r*29+14;
+            const send=(type,c,r,buttons,shiftKey=false)=>{
+                const target=document.elementFromPoint(x(c),y(r));if(!target)throw new Error('Worksheet selection has no hit target');
+                target.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,clientX:x(c),clientY:y(r),button:0,buttons,shiftKey}));
+            };
+            send('mousemove',0,1,0);send('mousedown',0,1,1);await new Promise(resolve=>setTimeout(resolve,65));send('mouseup',0,1,0);
+            send('mousedown',1,3,1,true);await new Promise(resolve=>setTimeout(resolve,65));send('mouseup',1,3,0,true);return true;
+            """, arguments:[:],in:nil,contentWorld:.page)
+        let selected="(()=>{const s=statsDirectGrid.analysisSource();return JSON.stringify(s.selection)==='[0,1]'&&s.range?.first===2&&s.range?.last===4})()"
+        try await wait("Worksheet gesture did not select A/B, rows 2–4") { (try? await js(grid,selected)) as? Bool == true }
+        try await fit(grid)
+        try check(try await js(grid,"document.querySelector('[data-command=analyse]').textContent.trim()==='Analyse' && !!document.querySelector('[data-command=worksheetHelp]') && !!document.querySelector('[data-command=worksheetR]')") as? Bool == true,"worksheet exposes labelled Analyse, Help and R commands")
+
+        let originalCount=v.documents.count
+        try await click(grid,"analyse")
+        try await wait("Analyse chooser did not populate or focus search") { (try? await js(grid,"document.activeElement.id==='worksheet-analysis-search'&&document.querySelectorAll('[data-worksheet-command]').length>0")) as? Bool == true }
+        // Read the native hierarchy independently of the chooser's backing
+        // records. Compare every branch and leaf, even those hidden by a
+        // collapsed ancestor, with Analysis first and Data/Graphics following.
+        var nativeRows=[[String:Any]]()
+        func append(_ menu: NSMenu, _ path:[String]) {
+            for item in menu.items {
+                if let submenu=item.submenu {
+                    nativeRows.append(["kind":"branch","id":"","label":item.title,"path":path.joined(separator:" › "),"disabled":false])
+                    append(submenu,path+[item.title]); continue
+                }
+                let id=item.representedObject as? String ?? (item.action == #selector(Viewer.showCalculator) ? "calculator" : nil)
+                guard let id else { continue }
+                let disabled=id != "calculator" && (v.analysisCatalog[id] == nil || v.analysisCatalog[id]?["unavailable"] != nil)
+                nativeRows.append(["kind":"leaf","id":id,"label":item.title,"path":path.joined(separator:" › "),"disabled":disabled])
+            }
+        }
+        for title in ["Analysis","Data","Graphics"] {
+            if let menu=NSApp.mainMenu!.items.first(where:{$0.submenu?.title == title})?.submenu {
+                nativeRows.append(["kind":"branch","id":"","label":title,"path":"","disabled":false])
+                append(menu,[title])
+            }
+        }
+        let chooserRows=try await js(grid,"""
+            (()=>{const tree=document.getElementById('worksheet-analysis-results');
+                return [...tree.querySelectorAll('[role=treeitem]')].map(node=>{
+                    const ancestors=[];let parent=node.parentElement.closest('[data-worksheet-branch]');
+                    while(parent){ancestors.unshift(parent.querySelector(':scope > .worksheet-tree-row .worksheet-tree-label').textContent);parent=parent.parentElement.closest('[data-worksheet-branch]');}
+                    return {kind:node.hasAttribute('data-worksheet-branch')?'branch':'leaf',id:node.dataset.worksheetCommand||'',
+                        label:node.querySelector(':scope > .worksheet-tree-row .worksheet-tree-label').textContent,
+                        path:ancestors.join(' › '),disabled:node.getAttribute('aria-disabled')==='true'};
+                });})()
+            """) as? [[String:Any]] ?? []
+        try check(!nativeRows.isEmpty && NSArray(array:chooserRows).isEqual(to:nativeRows),"Analyse tree preserves the complete native hierarchy, labels, order and availability (\(chooserRows.count) tree nodes, \(nativeRows.count) native nodes)")
+        try check(try await js(grid,"""
+            (()=>{const tree=document.getElementById('worksheet-analysis-results'),nodes=[...tree.querySelectorAll('[role=treeitem]')],branches=[...tree.querySelectorAll('[data-worksheet-branch]')];
+                return tree.getAttribute('role')==='tree'&&document.getElementById('worksheet-analysis-search').getAttribute('aria-haspopup')==='tree'&&
+                    branches.length>3&&branches.every(node=>node.getAttribute('aria-expanded')==='false'&&node.querySelector(':scope > [role=group]').hidden)&&
+                    nodes.filter(node=>node.getClientRects().length).map(node=>node.dataset.worksheetBranch).join('|')==='Analysis|Data|Graphics'&&
+                    nodes.every(node=>node.id)&&new Set(nodes.map(node=>node.id)).size===nodes.length;
+            })()
+            """) as? Bool == true,"Analyse initially shows only three collapsed accessible menu roots with unique stable node IDs")
+        func key(_ value:String) async throws {
+            _=try await js(grid,"document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'"+value+"',bubbles:true,cancelable:true}))")
+        }
+        func query(_ value:String) async throws {
+            let encoded=String(data:try JSONSerialization.data(withJSONObject:[value]),encoding:.utf8)!
+            _=try await js(grid,"(()=>{const field=document.getElementById('worksheet-analysis-search');field.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,"+encoded+"[0]);field.dispatchEvent(new Event('input',{bubbles:true}));})()")
+        }
+        let activeBranch="document.activeElement.dataset.worksheetBranch"
+        try await key("ArrowDown")
+        try await wait("ArrowDown did not choose the first Analyse root") { try await js(grid,activeBranch) as? String == "Analysis" }
+        try await key("ArrowRight")
+        try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=Analysis]').getAttribute('aria-expanded')==='true' && !document.querySelector('[data-worksheet-branch=Analysis] > [role=group]').hidden")) as? Bool == true }
+        try await key("ArrowRight")
+        try await wait("Right on an expanded branch did not select its child") { try await js(grid,activeBranch) as? String == "Analysis › Exact Tests on Counts" }
+        try await key("ArrowLeft")
+        try await wait { try await js(grid,activeBranch) as? String == "Analysis" }
+        try await key("ArrowLeft")
+        try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=Analysis]').getAttribute('aria-expanded')==='false' && document.querySelector('[data-worksheet-branch=Analysis] > [role=group]').hidden")) as? Bool == true }
+        try await key("Enter")
+        try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=Analysis]').getAttribute('aria-expanded')==='true'")) as? Bool == true }
+        try check(v.documents.count == originalCount,"Analyse browse keys expand, enter, return to and collapse menu branches without launching an analysis")
+        _=try await js(grid,"document.querySelector('[data-worksheet-branch=\"Analysis › Parametric\"] > .worksheet-tree-row').click()")
+        try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=\"Analysis › Parametric\"]').getAttribute('aria-expanded')==='true'")) as? Bool == true }
+        _=try await js(grid,"document.querySelector('[data-worksheet-branch=\"Analysis › Parametric\"] > .worksheet-tree-row').click()")
+        try await wait { (try? await js(grid,"document.querySelector('[data-worksheet-branch=\"Analysis › Parametric\"]').getAttribute('aria-expanded')==='false'")) as? Bool == true }
+        _=try await js(grid,"window.__worksheetBrowseExpanded=[...document.querySelectorAll('[data-worksheet-branch][aria-expanded=true]')].map(node=>node.dataset.worksheetBranch)")
+        try await query("Z Score")
+        try await wait("The Data Z Score exact command was not ranked ahead of partial Analysis matches") { (try? await js(grid,"""
+            (()=>{const tree=document.getElementById('worksheet-analysis-results'),exact=tree.querySelector(':scope > [data-worksheet-branch="Exact matches"]'),leaves=[...tree.querySelectorAll('[data-worksheet-command]')].filter(node=>node.getClientRects().length),field=document.getElementById('worksheet-analysis-search');
+                return exact===tree.firstElementChild&&leaves[0]?.dataset.worksheetCommand==='TransformZSD'&&
+                    document.getElementById(field.getAttribute('aria-activedescendant'))===leaves[0]&&
+                    exact.querySelector(':scope > [role=group]').contains(leaves[0]);
+            })()
+            """)) as? Bool == true }
+        try check(try await js(grid,"""
+            (()=>{const tree=document.getElementById('worksheet-analysis-results'),exact=tree.querySelector(':scope > [data-worksheet-branch="Exact matches"]'),z=[...tree.querySelectorAll('[data-worksheet-command=TransformZSD]')],partial=[...tree.querySelectorAll('[data-worksheet-command=ChildGrowth]')].filter(node=>node.getClientRects().length),path=z[0]?.querySelector(':scope > .worksheet-tree-row .worksheet-tree-path');
+                return z.length===1&&path?.textContent==='Data › Transforming and Deriving › Common Transforms'&&path.getClientRects().length>0&&
+                    partial.length>0&&partial.every(node=>!exact.contains(node));
+            })()
+            """) as? Bool == true,"Search puts the exact Data Z Score first with a visible menu path, keeps Growth Charts partial matches below, and shows the exact command once")
+        try await snapshot(grid.web,"worksheet-analyse-exact-search")
+        try await query("Normal")
+        let expectedNormal=nativeRows.filter { $0["kind"] as? String == "leaf" && $0["label"] as? String == "Normal" }.map { ["id":$0["id"] as! String,"path":$0["path"] as! String] }
+        try await wait("Normal search did not display every exact duplicate with its path") { (try? await js(grid,"document.querySelector('[data-worksheet-branch=\"Exact matches\"] > [role=group]')?.querySelectorAll('[data-worksheet-command]').length===3")) as? Bool == true }
+        let normalRows=try await js(grid,"""
+            (()=>{const exact=document.querySelector('[data-worksheet-branch="Exact matches"] > [role=group]');
+                return [...exact.querySelectorAll(':scope > [data-worksheet-command]')].map(node=>{
+                    const path=node.querySelector(':scope > .worksheet-tree-row .worksheet-tree-path');
+                    return {id:node.dataset.worksheetCommand,path:path?.getClientRects().length?path.textContent:''};
+                });})()
+            """) as? [[String:String]] ?? []
+        func ordered(_ rows:[[String:String]]) -> [[String:String]] { rows.sorted { ($0["path"] ?? "") < ($1["path"] ?? "") } }
+        try check(expectedNormal.count==3 && normalRows.count==3 && ordered(normalRows)==ordered(expectedNormal),"Duplicate Normal exact commands retain their distinct Analysis, Data and Graphics menu paths")
+        try check(try await js(grid,"['DistributionNormal','RndNormal','NormalPlot'].every(id=>document.querySelectorAll('[data-worksheet-command='+id+']').length===1)") as? Bool == true,"Exact Normal commands are removed from the remaining partial-match outline")
+        try await snapshot(grid.web,"worksheet-analyse-matches")
+        try check(v.documents.count==originalCount,"Comparing exact and duplicate search matches leaves the worksheet and open documents unchanged")
+        try await query("Bland Altman plot")
+        try await wait("The authored Help keyword did not find Paired t") { (try? await js(grid,"document.querySelector('[data-worksheet-command=TPaired]')?.getClientRects().length>0")) as? Bool == true }
+        try check(true,"Analyse uses authored Help keyword aliases to find methods with different menu names")
+        try await query("paired")
+        try await wait("Paired search did not show Graphics Ladder Plot before reviewed related methods") { (try? await js(grid,"""
+            (()=>{const tree=document.getElementById('worksheet-analysis-results'),graphics=tree.querySelector(':scope > [data-worksheet-branch=Graphics]'),related=tree.querySelector(':scope > [data-worksheet-branch="Related methods"]');
+                return graphics?.querySelector('[data-worksheet-command=LadderPlot]')?.getClientRects().length>0&&
+                    related?.querySelector('[data-worksheet-command=Wilcoxon]')?.getClientRects().length>0&&
+                    related?.querySelector('[data-worksheet-command=ExactMcNamarChi]')?.getClientRects().length>0&&
+                    !!(graphics.compareDocumentPosition(related)&Node.DOCUMENT_POSITION_FOLLOWING);
+            })()
+            """)) as? Bool == true }
+        try check(true,"Paired search shows the Graphics Ladder Plot before Related methods while retaining the reviewed paired tests")
+        try await query("paired tests")
+        try await wait("Broad paired tests search did not reveal its reviewed related methods") { (try? await js(grid,"""
+            (()=>{const related=document.querySelector('[data-worksheet-branch="Related methods"]');
+                return related?.getClientRects().length>0&&related.querySelector('[data-worksheet-command=Wilcoxon]')?.getClientRects().length>0&&
+                    related.querySelector('[data-worksheet-command=ExactMcNamarChi]')?.getClientRects().length>0;
+            })()
+            """)) as? Bool == true }
+        try check(try await js(grid,"!document.querySelector('#worksheet-analysis-results [data-worksheet-command=LadderPlot]')") as? Bool == true,"Paired tests search excludes Ladder Plot while retaining the reviewed statistical tests")
+        try check(try await js(grid,"""
+            (()=>{const related=document.querySelector('[data-worksheet-branch="Related methods"]'),leaves=[...document.querySelectorAll('#worksheet-analysis-results [data-worksheet-command]')].filter(node=>node.getClientRects().length),reviewed=[...related.querySelectorAll('[data-worksheet-command]')];
+                return reviewed.length>=2&&reviewed.every(node=>{
+                    const purpose=node.querySelector(':scope > .worksheet-tree-row .worksheet-tree-purpose');
+                    return purpose?.getClientRects().length>0&&purpose.textContent.trim().length>15;
+                })&&leaves.every(node=>!['TUnpaired','TUnpairedSummary','ZUnpaired','MannWhitney','Chi2by2'].includes(node.dataset.worksheetCommand));
+            })()
+            """) as? Bool == true,"Broad paired tests includes Wilcoxon and McNemar with visible outcome/purpose guidance, excluding independent-sample and ordinary 2-by-2 tests")
+        try await key("Enter")
+        try await Task.sleep(nanoseconds:150_000_000)
+        let broadSelectionUnchanged=try await js(grid,selected) as? Bool == true
+        let broadChooserOpen=try await js(grid,"!!document.getElementById('worksheet-analysis-chooser')") as? Bool == true
+        try check(v.active === grid && v.documents.count==originalCount && broadSelectionUnchanged && broadChooserOpen,"Enter on a broad method query leaves the chooser open until the learner explicitly chooses a method")
+        try await key("ArrowDown")
+        try await wait("A deliberate arrow choice did not select a reviewed method") { (try? await js(grid,"(()=>{const field=document.getElementById('worksheet-analysis-search'),leaf=document.getElementById(field.getAttribute('aria-activedescendant'));return !!leaf?.dataset.worksheetCommand&&leaf.getAttribute('aria-selected')==='true'&&leaf.getClientRects().length>0})()")) as? Bool == true }
+        try check(v.documents.count==originalCount,"Arrow selection makes a broad method choice explicit without running an analysis")
+        try await snapshot(grid.web,"worksheet-analyse-related-methods")
+        _=try await js(grid,"document.getElementById('worksheet-analysis-search-help').click()")
+        func helpQuery(_ url:URL?) -> String? {
+            guard let url,let fragment=URLComponents(url:url,resolvingAgainstBaseURL:false)?.percentEncodedFragment else { return nil }
+            return URLComponents(string:"?"+fragment)?.queryItems?.first(where:{$0.name=="searchQuery"})?.value
+        }
+        try await wait("Search Help did not pass the unchanged broad query to the existing dock") { v.helpPane.visible && helpQuery(v.helpPane.web.url)=="paired tests" }
+        try await wait("The Help dock did not render the full paired-tests results") {
+            (try? await v.helpPane.web.evaluateJavaScript("!document.getElementById('results')?.hidden && !!document.querySelector('#results a[data-link=\"nonparametric_methods/wilcoxon_signed_ranks.htm\"]') && !!document.querySelector('#results a[data-link=\"methods/methods_paired_dichotomous.htm\"]')")) as? Bool == true
+        }
+        let selectionAfterSearchHelp=try await js(grid,selected) as? Bool == true
+        try check(v.helpPane.searchField.stringValue=="paired tests" && v.active === grid && v.documents.count==originalCount && selectionAfterSearchHelp,"Search Help uses the same paired tests query in the existing dock, retaining the worksheet, highlighted range and document count")
+        v.helpPane.hide();v.window.contentView!.layoutSubtreeIfNeeded()
+        if (try await js(grid,"!!document.getElementById('worksheet-analysis-chooser')")) as? Bool != true { try await click(grid,"analyse") }
+        try await wait { (try? await js(grid,"!!document.getElementById('worksheet-analysis-search')")) as? Bool == true }
+        try await query("paired t")
+        try await wait("Search did not reveal paired t inside its menu branches") { (try? await js(grid,"""
+            (()=>{const leaf=document.querySelector('[data-worksheet-command=TPaired]');
+                if(!leaf?.getClientRects().length)return false;
+                for(let parent=leaf.parentElement.closest('[data-worksheet-branch]');parent;parent=parent.parentElement.closest('[data-worksheet-branch]'))
+                    if(parent.getAttribute('aria-expanded')!=='true'||parent.querySelector(':scope > [role=group]').hidden)return false;
+                return leaf.parentElement.closest('[data-worksheet-branch]')?.dataset.worksheetBranch==='Exact matches'&&
+                    leaf.querySelector(':scope > .worksheet-tree-row .worksheet-tree-path')?.textContent==='Analysis › Parametric'&&
+                    !document.querySelector('[data-worksheet-branch="Analysis › Descriptive"]')?.getClientRects().length;
+            })()
+            """)) as? Bool == true }
+        try check(true,"Search opens matching ancestor branches and hides unrelated menu groups")
+        try await query("")
+        try await wait("Clearing search did not restore prior browse expansion") { (try? await js(grid,"JSON.stringify([...document.querySelectorAll('[data-worksheet-branch][aria-expanded=true]')].map(node=>node.dataset.worksheetBranch))===JSON.stringify(window.__worksheetBrowseExpanded) && !document.querySelector('[data-worksheet-command=TPaired]').getClientRects().length")) as? Bool == true }
+        try check(v.documents.count == originalCount,"Clearing search restores the learner's expanded Analysis and collapsed Parametric branches")
+        try await snapshot(grid.web,"worksheet-analyse")
+        _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))")
+        try await Task.sleep(nanoseconds:150_000_000)
+        try await wait("Escape did not dismiss Analyse and keep focus on its toolbar button after layout") { (try? await js(grid,"!document.getElementById('worksheet-analysis-chooser')&&document.activeElement.dataset.command==='analyse'")) as? Bool == true }
+        let selectionAfterCancel=try await js(grid,selected) as? Bool == true
+        try check(v.documents.count == originalCount && selectionAfterCancel,"Escape cancels Analyse, returns toolbar focus and preserves the selected worksheet range")
+        let analysisMenu=NSApp.mainMenu!.items.first(where:{$0.submenu?.title=="Analysis"})!.submenu!
+        let shortcut=analysisMenu.items.first(where:{$0.action == #selector(Viewer.searchWorksheetCommands)})
+        try check(shortcut?.keyEquivalent=="A" && shortcut?.keyEquivalentModifierMask == [.command,.shift],"Analysis exposes the native Command-Shift-A worksheet search shortcut")
+        func openWithShortcut() throws {
+            let event=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:[.command,.shift],timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:v.window.windowNumber,context:nil,characters:"A",charactersIgnoringModifiers:"A",isARepeat:false,keyCode:0)!
+            try check(NSApp.mainMenu!.performKeyEquivalent(with:event),"The native menu dispatches Command-Shift-A from the worksheet WebView")
+        }
+        v.window.makeFirstResponder(grid.web)
+        let responder=v.window.firstResponder as? NSView
+        try check(responder === grid.web || responder?.isDescendant(of:grid.web)==true,"Worksheet content is the native first responder before its search shortcut")
+        try openWithShortcut()
+        try await wait("Command-Shift-A did not open and focus worksheet command search") { (try? await js(grid,"document.activeElement.id==='worksheet-analysis-search'")) as? Bool == true }
+        try check(try await js(grid,"JSON.stringify([...document.querySelectorAll('[data-worksheet-branch][aria-expanded=true]')].map(node=>node.dataset.worksheetBranch))===JSON.stringify(window.__worksheetBrowseExpanded)") as? Bool == true,"Reopening Analyse with its native shortcut retains the worksheet's manual branch expansion")
+        try await query("paired t")
+        try await wait { (try? await js(grid,"(()=>{const field=document.getElementById('worksheet-analysis-search'),leaf=document.getElementById(field.getAttribute('aria-activedescendant'));return leaf?.dataset.worksheetCommand==='TPaired'&&leaf.getClientRects().length>0})()")) as? Bool == true }
+        try openWithShortcut()
+        try await wait { (try? await js(grid,"document.activeElement.id==='worksheet-analysis-search'&&document.activeElement.value==='paired t'")) as? Bool == true }
+        try check(try await js(grid,selected) as? Bool == true,"The native shortcut refocuses an open search without resetting its query or worksheet selection")
+        _=try await js(grid,"window.__worksheetFirstMatch=document.getElementById('worksheet-analysis-search').getAttribute('aria-activedescendant')")
+        try await key("ArrowDown")
+        try await wait { (try? await js(grid,"(()=>{const field=document.getElementById('worksheet-analysis-search'),leaf=document.getElementById(field.getAttribute('aria-activedescendant'));return field.getAttribute('aria-activedescendant')!==window.__worksheetFirstMatch&&!!leaf?.dataset.worksheetCommand&&leaf.getClientRects().length>0})()")) as? Bool == true }
+        try await key("ArrowUp")
+        try await wait { (try? await js(grid,"(()=>{const search=document.getElementById('worksheet-analysis-search'),leaf=document.getElementById(search.getAttribute('aria-activedescendant'));return document.activeElement===search&&leaf?.dataset.worksheetCommand==='TPaired'&&leaf.getAttribute('aria-selected')==='true'&&leaf.id===window.__worksheetFirstMatch})()")) as? Bool == true }
+        try check(v.documents.count == originalCount,"Analyse supports keyboard search and arrow selection without launching an analysis")
+        _=try await js(grid,"document.getElementById('worksheet-analysis-search').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))")
+        try await wait("Enter did not open paired t with a source snapshot") { v.active?.operationName == "TPaired" && v.active?.operationSourceSnapshot != nil }
+        let paired=v.active!
+        try await wait { (try? await js(paired,"!!document.querySelector('.paired-inputs button[type=submit]')")) as? Bool == true }
+        let source=paired.operationSourceSnapshot ?? [:]
+        try check(v.documents.count == originalCount+1 && paired.operationSourceID == grid.id && source["selection"] as? [Int] == [0,1] && source["range"] as? [String:Int] == ["first":2,"last":4],"Enter starts the paired t form with the exact originating worksheet, columns and selected rows")
+        try check(try await js(paired,"document.querySelector('.paired-inputs').textContent.includes('Before → After') && document.querySelector('.paired-inputs').textContent.includes('rows 2–4') && !document.querySelector('.column-chooser')") as? Bool == true,"paired t opens ready for Run without an extra column-selection step")
+        v.remove(paired);v.tabs.selectTabViewItem(grid.item)
+        try check(try await js(grid,selected) as? Bool == true,"Opening and closing the analysis form retains the worksheet highlight")
+
+        let sharedHelpSVG=try await js(grid,"document.querySelector('[data-command=worksheetHelp] svg')?.innerHTML") as? String ?? ""
+        try check(!sharedHelpSVG.isEmpty,"The worksheet supplies the shared question-mark SVG for method-help controls")
+        for (operation,topic,name) in [("ExactSign","/exact_tests_on_counts/sign.htm","Sign Test"),("ExactChiRbyCScreen","/chi_square_tests/rc.htm","screen R × C")] {
+            v.openWorksheetCommand(operation,source:grid)
+            let form=v.active!
+            try check(form !== grid,"\(name) opens its actual analysis form")
+            try await wait("\(name) did not show its header help icon") { (try? await js(form,"!!document.querySelector('header button[data-command=methodHelp] svg')")) as? Bool == true }
+            try check(try await js(form,"(()=>{const button=document.querySelector('header button[data-command=methodHelp]'),svg=button.querySelector('svg');return button.title==='Method help'&&button.getAttribute('aria-label')==='Method help'&&button.textContent.trim()===''&&svg.innerHTML===\(v.jsString(sharedHelpSVG));})()") as? Bool == true,"\(name) uses the shared icon-only question mark with the exact Method help tooltip and accessible label")
+            try await click(form,"methodHelp")
+            try await wait("\(name) header help did not reach its existing native help route") { v.helpPane.visible && v.helpPane.web.url?.path == topic }
+            try check(v.active === form && v.documents.count==originalCount+1,"\(name) Method help opens the correct topic in the existing dock")
+            v.helpPane.hide()
+            if form.kind=="operation", form.analysisJobID != nil {
+                try await wait { form.operationReady && !form.operationStarting }
+                _=try await js(form,"document.querySelector('.cancel button')?.click()")
+                try await wait { form.analysisJobID == nil }
+            }
+            v.remove(form);v.tabs.selectTabViewItem(grid.item);v.window.contentView!.layoutSubtreeIfNeeded()
+        }
+        try await click(grid,"worksheetHelp")
+        try await wait("Worksheet Help did not open its topic in the existing dock") { v.helpPane.visible && v.helpPane.web.url?.path == "/basics/worksheet.htm" }
+        let selectionAfterHelp=try await js(grid,selected) as? Bool == true
+        try check(v.active === grid && v.documents.count == originalCount && selectionAfterHelp,"worksheet Help reuses the existing dock without creating a document or changing the selection")
+        v.helpPane.hide();v.window.contentView!.layoutSubtreeIfNeeded()
+        try await click(grid,"worksheetR")
+        try await wait("Worksheet R did not open an interactive script document") { v.active?.kind == "r" && v.active?.rConsolePane != nil }
+        let script=v.active!, console=script.rConsolePane!
+        try await wait { (try? await js(script,"window.StatsDirectRConsole?.snapshot().mode==='script' && document.getElementById('script-source').value.length>0 && !document.getElementById('script-source').disabled && !document.getElementById('script-source').readOnly")) as? Bool == true }
+        try await wait("The new R script did not reach an idle ready session") { console.session.state == "ready" }
+        let text=console.sourceText
+        try check(text.contains("data <-") && text.contains("Before") && text.contains("After") && ["1201","1202","1203","8001","8002","8003"].allSatisfy(text.contains) && !["1204","8004","999999"].contains(where:text.contains),"worksheet R opens an editable script containing only the selected columns and three selected data rows")
+        try check(!console.isBusy && !console.hasWorkspace && console.session.commandId == nil && console.outputText.isEmpty,"worksheet R starts ready without executing the generated data script")
+        try check(try await js(grid,selected) as? Bool == true,"Opening the R script preserves the original worksheet highlight")
+        v.remove(script)
     }
 }

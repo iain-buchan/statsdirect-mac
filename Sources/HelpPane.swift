@@ -111,6 +111,16 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
     private var stopped = false
     // Loaded once it succeeds; a missing or failed index is looked at again on the next Index, as on Windows.
     private var keywordIndex: HelpKeywordIndex?
+    private lazy var keywordsByTopic: [String:[String]] = {
+        guard let catalog = try? keywordIndex ?? HelpKeywordIndex.load(root:resources.root,aliases:HelpKeywordIndex.Aliases(aliasMaps)) else { return [:] }
+        keywordIndex = catalog
+        var grouped: [String:[String]] = [:]
+        for entry in catalog.entries {
+            let key = keywordTopicKey(entry.path)
+            if !grouped[key,default:[]].contains(entry.term) { grouped[key,default:[]].append(entry.term) }
+        }
+        return grouped
+    }()
     /// The system's Keyboard navigation setting; the native driver replaces it to check both behaviours.
     static var keyboardNavigation: () -> Bool = { NSApp.isFullKeyboardAccessEnabled }
     // Injectable only for native verification; normal clicks use the system browser.
@@ -492,9 +502,21 @@ final class HelpPane: NSObject, WKNavigationDelegate, WKUIDelegate, NSSplitViewD
         contents?.completion?(false)
         index?.completion?(false)
     }
-    @objc func search() {
-        let query = searchField.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)
+    /// Curated keywords for the same packaged topic, including aliases and
+    /// case/fragment variants. Loading once shares the native Help index cache.
+    func keywords(forTopic topic: String) -> [String] {
+        guard let path = topics.resolve(topic) else { return [] }
+        return keywordsByTopic[keywordTopicKey(path)] ?? []
+    }
+    private func keywordTopicKey(_ path: String) -> String {
+        let page = String(path.split(separator:"#",maxSplits:1).first ?? "")
+        return (page.removingPercentEncoding ?? page).lowercased()
+    }
+    @objc func search() { searchHelp(searchField.stringValue) }
+    func searchHelp(_ text: String) {
+        let query = text.trimmingCharacters(in:.whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+        searchField.stringValue = query
         let encoded = query.addingPercentEncoding(withAllowedCharacters:.alphanumerics) ?? ""
         open(URL(string:"index.html#searchQuery=" + encoded,relativeTo:HelpResources.origin)!.absoluteURL)
     }

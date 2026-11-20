@@ -5,6 +5,9 @@ import DataEditor, { CompactSelection, GridCellKind, type GridCell, type GridSel
 import '@glideapps/glide-data-grid/dist/index.css';
 import './style.css';
 import {Toolbar} from './toolbar';
+import {worksheetCommands} from './worksheet-commands.mjs';
+import {worksheetRSelection} from './worksheet-r.mjs';
+import type {WorksheetCommand} from './WorksheetAnalysis';
 import {findCell} from './find.mjs';
 import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { rDataTables } from './r-data.mjs';
@@ -63,6 +66,7 @@ function App() {
   selectionRef.current = selection;
   const pendingCut = useRef<any>(null);
   const [findOpen,setFindOpen]=useState(false), [findText,setFindText]=useState('');
+  const [commandCatalogue, setCommandCatalogue] = useState<WorksheetCommand[]>([]);
   const findInput=useRef<HTMLInputElement>(null), lastFind=useRef('');
   // Focus after React mounts the field; WebKit can suspend animation frames
   // while switching documents or returning from a native save sheet.
@@ -161,6 +165,9 @@ function App() {
   };
   useEffect(() => {
     window.statsDirectGrid = {
+      setWorksheetCommands: (commands: unknown) => setCommandCatalogue(worksheetCommands(commands)),
+      showWorksheetCommands: () => window.dispatchEvent(new Event('statsdirect-open-worksheet-commands')),
+      worksheetRSelection: () => worksheetRSelection(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
       editCommand: (command: string, clipboard: string) => {
         const focused = document.activeElement as HTMLElement | null;
         if (focused?.matches('input,textarea,select') || focused?.isContentEditable) return false;
@@ -316,9 +323,14 @@ function App() {
     {id:'paste',label:'Paste (⌘V)',icon:'paste',priority:10,run:()=>native('paste')},
     {id:'find',label:'Find (⌘F)',icon:'find',priority:20,group:true,run:showFind},
     {id:'clear',label:'Clear selected cells',icon:'clear',priority:40,group:true,disabled:!selected,run:()=>attempt(clear)},
+    {id:'analyse',label:'Analyse worksheet (⇧⌘A)',text:'Analyse',icon:'analyse',priority:5,group:true},
+    {id:'worksheetHelp',label:'Worksheet help',icon:'help',priority:25,run:()=>native('worksheetHelp')},
+    {id:'worksheetR',label:'Open selected data in R',icon:'r',priority:25,disabled:!selected,run:()=>native('worksheetR')}
+  ]} moreActions={[
     {id:'addRows',label:'Add 100 rows',icon:'addRows',priority:60,disabled:store.rows>=MAX_ROWS,run:()=>attempt(()=>{if(store.apply([],Math.min(MAX_ROWS,store.rows+100)))changed();})},
     {id:'addColumn',label:'Add column',icon:'addColumn',priority:60,disabled:store.columns.length>=MAX_COLS,run:()=>attempt(()=>{if(store.apply([],store.rows,store.columns.length+1))changed();})}
-  ]}/>
+  ]} commands={commandCatalogue} runAnalysis={id=>native('worksheetCommand',{id})}
+    searchHelp={query=>native('worksheetSearchHelp',{query})}/>
   {findOpen&&<div className="grid-find" role="search" aria-label="Find in worksheet">
     <label htmlFor="grid-find-text">Find</label><input ref={findInput} id="grid-find-text" value={findText} onChange={e=>setFindText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();findNext(e.shiftKey);}if(e.key==='Escape'){setFindOpen(false);grid.current?.focus();}}}/>
     <button onClick={()=>findNext(true)}>Previous</button><button onClick={()=>findNext()}>Next</button><button aria-label="Close Find" onClick={()=>{setFindOpen(false);grid.current?.focus();}}>Close</button>
@@ -382,7 +394,7 @@ function App() {
   <div className="worksheet-options"><label><input type="checkbox" checked={store.headerRow} onChange={e => {
           store.headerRow = e.target.checked;
           refresh(n => n + 1);
-        }} />First row has column names</label><span>Choose a method from Analysis to analyse these data.</span></div>
+        }} />First row has column names</label></div>
   <footer><span role="status">{message}</span><span>{store.rows.toLocaleString()} rows × {store.columns.length} columns · {store.count().toLocaleString()} filled cells</span></footer>
   {workbook.formulaCount > 0 && <p className="formula-note">{workbook.formulaCount} formula cells show results from the last Excel save and are read-only. Formulas are retained on export and recalculate in Excel. {workbook.edited ? "After editing, reopen the recalculated file before analysing formula cells." : ""}</p>}
   {workbook.importNotice && <p className="formula-note">{workbook.importNotice}</p>}

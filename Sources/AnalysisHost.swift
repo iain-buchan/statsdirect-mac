@@ -6,9 +6,9 @@ private typealias AnalysisFunction = @convention(c) (UnsafePointer<CChar>?) -> U
 private typealias AnalysisFreeFunction = @convention(c) (UnsafeMutablePointer<CChar>?) -> Void
 
 extension Viewer {
-    @objc func showChiSquare() {
+    func showChiSquare(sourceID: String?) {
         let doc = newDocument(kind: "analysis", title: nextAnalysisTitle("Chi-square · R × C"), url: root.appendingPathComponent("Grid/chi-square.html"))
-        doc.operationSourceID = analysisSourceID
+        doc.operationSourceID = sourceID
     }
     @objc func chiSquareHelp() { openHelp(root.appendingPathComponent("Help/chi_square_tests/rc.htm"), title: "R × C contingency table") }
     func handleAnalysis(_ message: WKScriptMessage) {

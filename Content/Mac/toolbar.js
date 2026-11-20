@@ -30,7 +30,13 @@
       // Do not detach a focused input: resizing must not discard a pending edit.
       const focus=document.activeElement;
       if((popup.contains(focus)||host.contains(focus)&&focus.matches('input,select,textarea'))&&focus!==document.body){updating=false;return;}
-      for(const item of items) row.insertBefore(item,toggle);
+      // Restore row order around the focused control. Moving it within the
+      // same parent still drops keyboard focus in WebKit.
+      let before=toggle;
+      for(const item of items.slice().reverse()) {
+        if(!(item.parentElement===row&&item.contains(focus))&&item.nextElementSibling!==before) row.insertBefore(item,before);
+        before=item;
+      }
       const candidates=items.filter(x=>!x.hidden&&getComputedStyle(x).display!=='none');
       const gap=4, available=row.clientWidth;
       for(const item of candidates){const style=getComputedStyle(item);widths.set(item,item.getBoundingClientRect().width+(parseFloat(style.marginLeft)||0)+(parseFloat(style.marginRight)||0));}

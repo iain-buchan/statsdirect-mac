@@ -197,6 +197,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     var active: Document? { documents.first { $0.item === tabs.selectedTabViewItem } }
     var worksheetNumber = 0
     var analysisCatalog: [String: [String: Any]] = [:]
+    var worksheetCommands: [WorksheetCommand] = []
     var analysisSourceID: String?
     func nextAnalysisTitle(_ title: String) -> String {
         let openTitles = Set(documents.filter { $0.kind == "operation" || $0.kind == "analysis" }.map(\.title))
@@ -334,9 +335,16 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         add(edit, "Replace…", #selector(showReportReplace), "f"); edit.items.last?.keyEquivalentModifierMask = [.command, .option]
         add(edit, "Use Selection for Find", #selector(useReportSelectionForFind), "e")
         populateReportFormatMenu(menu("Format"))
+        worksheetCommands.removeAll()
         for title in ["Data", "Analysis", "Graphics"] {
             let operations = menu(title)
             populateOperationMenu(operations)   // the Windows menu places the Calculator in its own section before Options
+            if title == "Analysis" {
+                let search=NSMenuItem(title:"Search Worksheet Commands…",action:#selector(searchWorksheetCommands),keyEquivalent:"A")
+                search.target=self;search.keyEquivalentModifierMask=[.command,.shift]
+                operations.insertItem(search,at:0)
+                operations.insertItem(.separator(),at:1)
+            }
         }
         windowsMenu = menu("Window")
         windowsMenu.addItem(NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
@@ -367,6 +375,9 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         updateWindowMenu()
     }
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(searchWorksheetCommands) {
+            return active?.kind == "grid" && active?.web.isLoading == false && window.attachedSheet == nil && NSApp.modalWindow == nil
+        }
         if menuItem.action == #selector(saveDocument), NSApp.keyWindow?.windowController is RConsoleSVGWindow {
             menuItem.title = "Save SVG…"; return true
         }

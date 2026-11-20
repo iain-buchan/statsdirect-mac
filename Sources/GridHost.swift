@@ -3,6 +3,12 @@ import WebKit
 import UniformTypeIdentifiers
 
 extension Viewer: WKScriptMessageHandler {
+    @objc func searchWorksheetCommands() {
+        guard let doc=active,doc.kind=="grid",!doc.web.isLoading,
+              window.attachedSheet==nil,NSApp.modalWindow==nil else { return }
+        window.makeFirstResponder(doc.web)
+        doc.web.evaluateJavaScript("window.statsDirectGrid?.showWorksheetCommands()")
+    }
     @objc func newWorksheet() {
         worksheetNumber += 1
         let title = worksheetNumber == 1 ? "Untitled" : "Untitled \(worksheetNumber)"
@@ -20,7 +26,23 @@ extension Viewer: WKScriptMessageHandler {
               let body = message.body as? [String: Any], let action = body["action"] as? String else { return }
         switch action {
         case "ready":
+            if let commands = try? JSONEncoder().encode(worksheetCommands) {
+                web.evaluateJavaScript("window.statsDirectGrid.setWorksheetCommands(\(String(decoding: commands, as: UTF8.self)))")
+            }
             if doc.pendingCSV != nil { loadPendingCSV(doc) } else { loadPendingWorkbook(doc) }
+        case "worksheetCommand":
+            if let id = body["id"] as? String { openWorksheetCommand(id, source: doc) }
+        case "worksheetHelp":
+            guard active === doc else { return }
+            openHelp(root.appendingPathComponent("Help/basics/worksheet.htm"), title: "Workbook")
+        case "worksheetSearchHelp":
+            guard active === doc, window.attachedSheet == nil, NSApp.modalWindow == nil,
+                  let query = body["query"] as? String, query.count <= 1000,
+                  !query.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else { return }
+            helpPane.searchHelp(query)
+        case "worksheetR":
+            guard active === doc, window.attachedSheet == nil else { return }
+            openWorksheetSelectionInR(doc)
         case "openCSV": openCSV()
         case "openRData": openRData()
         case "saveRDS": saveRData(doc, format: "rds")

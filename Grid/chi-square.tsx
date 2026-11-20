@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import DataEditor, { CompactSelection, GridCellKind, type GridCell, type GridSelection, type Item, type DataEditorRef } from '@glideapps/glide-data-grid';
 import '@glideapps/glide-data-grid/dist/index.css';
 import './chi-square.css';
+import {MethodHelpButton} from './MethodHelpButton';
 import { ContingencyTable, example, validate } from './contingency.mjs';
 import {ResultPreview} from './ResultPreview';
 import {screenSelection} from './operation-data.mjs';
@@ -76,7 +77,7 @@ function App() {
   const countRows = table.state.counts.length, countCols = table.state.counts[0].length;
   const total = table.state.counts.flat().reduce((a,v) => a + (v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : 0),0);
   return <main>
-    <header><div><div className="eyebrow">ANALYSIS / CHI-SQUARE / SCREEN DATA</div><h1>R × C contingency table</h1><p>Enter a count for each combination of categories.</p></div><button onClick={()=>native('help')}>Method help ↗</button></header>
+    <header><div><div className="eyebrow">ANALYSIS / CHI-SQUARE / SCREEN DATA</div><h1>R × C contingency table</h1><p>Enter a count for each combination of categories.</p></div><MethodHelpButton onClick={()=>native('help')}/></header>
     <ResultPreview result={result} busy={busy} onKeep={()=>native('keepResult',{id:result.id})}/>
     <div className="layout"><section className="data-panel" aria-label="Observed counts">
       <div className="section-title"><h2>Observed counts</h2><span>{countRows} rows × {countCols} columns</span></div>

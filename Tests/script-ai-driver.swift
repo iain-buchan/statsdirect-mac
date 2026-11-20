@@ -245,6 +245,7 @@ import WebKit
         ai.updateConnection()
         try await checkRReplay(v,first,workbook)
         try await checkFenceLanguageReplay(v,first)
+        try await checkCodeBlockMatching(v,first)
         ai.newConversation()
         try check(ai.contextPanel.isHidden,"a new conversation reuses the accepted app session")
         try check(ai.conversations[first.id]?.messages.isEmpty==true && ai.shareScript.state == .off && ai.shareWorkbook.state == .off,"New conversation removes prior context from subsequent prompts")
@@ -365,6 +366,59 @@ import WebKit
         try check(source.contains(firstCode) && source.hasSuffix(selectedCode+"\n") && !source.contains(pythonCode) && !source.contains("PYTHON_FENCE_ONLY"),"The second DOM Open in R click reaches the native host and selects the third fenced block, retaining earlier R context and excluding Python")
         try check(pane.editor.isEditable && !pane.isRunning,"Opening the metadata-fenced R suggestion leaves an editable script and runs nothing")
         v.remove(opened);v.tabs.selectTabViewItem(first.item);ai.open(first)
+    }
+
+    /// A click on a block's own buttons uses only the block this pane reads in the saved reply (the shared rule,
+    /// Learning/code-blocks.mjs): the page's text finds the block, the reply's own text is what is copied or opened.
+    @MainActor static func checkCodeBlockMatching(_ v:Viewer,_ first:Document) async throws {
+        let ai=v.scriptAI
+        let stepped="stepped_value <- 4"
+        let tabbed="tab_fn <- function(x) {\n\tx + 1\n}"
+        let python="PY_BLOCK_ONLY = [2, 3, 5]"
+        // A fence four spaces under a numbered step, a Tab-indented line, another language, and a block with no closing fence.
+        let reply="Steps:\n\n1. Define it:\n    ```r\n    \(stepped)\n    ```\n\n```r\n\(tabbed)\n```\n\n```python\n\(python)\n```\n\n```r\nunfinished_block <- TRUE"
+        let messageID="code-blocks-"+UUID().uuidString
+        ai.conversations[first.id]!.messages.append(["id":messageID,"role":"assistant","text":reply])
+        ai.open(first)
+        let row="document.querySelector('[data-message-id=\""+messageID+"\"]')"
+        func shownBlocks() async throws { try await wait { (try? await js(ai,"(()=>{const row=\(row);return row?.querySelectorAll('.code-block').length===4&&row.querySelectorAll('[data-code=r]:not(:disabled)').length===3})()")) as? Bool == true } }
+        func copyButton(_ index: Int) -> String { "\(row).querySelectorAll('.code-block')[\(index)].querySelector('[data-code=copy]')" }
+        try await shownBlocks()
+        let board=NSPasteboard.general
+        let saved=board.pasteboardItems?.map { item in item.types.reduce(into:[NSPasteboard.PasteboardType:Data]()){$0[$1]=item.data(forType:$1)} } ?? []
+        func restoreBoard() { board.clearContents();board.writeObjects(saved.map { data in let item=NSPasteboardItem();for(type,value) in data {item.setData(value,forType:type)};return item }) }
+        let noticeBefore=ai.notice.stringValue
+        board.clearContents();board.setString("unchanged",forType:.string)
+        _=try await js(ai,copyButton(1)+".click();true")
+        try await wait { (try? await js(ai,copyButton(1)+".textContent==='Copied'")) as? Bool == true }
+        let copiedTab=board.string(forType:.string)
+        _=try await js(ai,copyButton(2)+".click();true")
+        try await wait { (try? await js(ai,copyButton(2)+".textContent==='Copied'")) as? Bool == true }
+        let copiedPython=board.string(forType:.string)
+        try check(copiedTab==tabbed,"Copy on a block with a Tab-indented line copies the reply's own text, tab included, and the page then says Copied")
+        try check(copiedPython==python,"Copy on a block in another language copies that block")
+        let count=v.documents.count
+        _=try await js(ai,"\(row).querySelectorAll('[data-code=r]')[0].click();true")
+        try await wait { v.documents.count==count+1 && v.active?.rPane != nil && v.active !== first }
+        let opened=v.active!,source=opened.rPane!.editor.string
+        try check(source.hasSuffix(stepped+"\n") && !source.contains("tab_fn") && opened.rPane!.editor.isEditable && !opened.rPane!.isRunning,
+                  "Open in R on a block fenced four spaces under a numbered step opens that block for review and runs nothing")
+        v.remove(opened);v.tabs.selectTabViewItem(first.item);ai.open(first)
+        try await shownBlocks()
+        board.clearContents();board.setString("unchanged",forType:.string);ai.showNotice("")
+        _=try await js(ai,copyButton(3)+".click();true")
+        try await wait { ai.notice.stringValue==ConversationRScript.unmatchedNotice }
+        try await Task.sleep(nanoseconds:300_000_000)
+        let label=try await js(ai,copyButton(3)+".textContent") as? String
+        let afterUnmatched=board.string(forType:.string)
+        ai.showNotice("")
+        let before=v.documents.count
+        _=try await js(ai,"\(row).querySelectorAll('[data-code=r]')[2].click();true")
+        try await wait { ai.notice.stringValue==ConversationRScript.unmatchedNotice }
+        let openedNothing=v.documents.count==before
+        restoreBoard();ai.showNotice(noticeBefore)
+        try check(afterUnmatched=="unchanged" && label=="Copy","Copy on a block the pane cannot match (no closing fence) copies nothing, says so, and the page does not say Copied")
+        try check(openedNothing,"Open in R on a block the pane cannot match opens nothing and says so")
     }
 
 }

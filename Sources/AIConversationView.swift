@@ -3,7 +3,7 @@ import WebKit
 
 /// A local, read-only HTML transcript. Native state survives WebKit termination;
 /// recreating this view never resubmits a question or grants document access.
-@MainActor final class AIConversationView: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+@MainActor final class AIConversationView: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply {
     let view=NSView()
     private(set) var web: WKWebView!
     private let root: URL
@@ -15,8 +15,10 @@ import WebKit
     private var displayTimeout: Task<Void,Never>?
     private var state: [String:Any]=[:]
     private var failureNotice: NSStackView!
-    var openR: ((String,String,Int)->Void)?
-    var copyCode: ((String,String,String)->Void)?
+    /// Open in R on a block: generation, message, the block's place among the message's R blocks, and the code as the page shows it.
+    var openR: ((String,String,Int,String?)->Void)?
+    /// Copy on a block: generation, message and the code as the page shows it. Answers whether anything was copied.
+    var copyCode: ((String,String,String)->Bool)?
     init(root: URL) {
         // WebKit checks the requested file against its read-access directory.
         // Use the same path spelling for both (including /private/var aliases).
@@ -38,13 +40,16 @@ import WebKit
         displayTimeout?.cancel();renderInFlight=false
         if let web {
             web.navigationDelegate=nil;web.uiDelegate=nil;web.stopLoading()
-            web.configuration.userContentController.removeScriptMessageHandler(forName:"statsDirectAI");web.removeFromSuperview()
+            web.configuration.userContentController.removeScriptMessageHandler(forName:"statsDirectAI")
+            web.configuration.userContentController.removeScriptMessageHandler(forName:"statsDirectAICopy",contentWorld:.page);web.removeFromSuperview()
         }
         ready=false;failureNotice.isHidden=true
         let config=WKWebViewConfiguration();config.websiteDataStore = .nonPersistent()
         config.preferences.javaScriptCanOpenWindowsAutomatically=false
         config.mediaTypesRequiringUserActionForPlayback = .all
         config.userContentController.add(self,name:"statsDirectAI")
+        // Copy answers the page, so that "Copied" is shown only when something was copied.
+        config.userContentController.addScriptMessageHandler(self,contentWorld:.page,name:"statsDirectAICopy")
         web=WKWebView(frame:.zero,configuration:config);web.navigationDelegate=self;web.uiDelegate=self
         web.setAccessibilityLabel("AI conversation");web.translatesAutoresizingMaskIntoConstraints=false;web.isHidden = !state.isEmpty
         view.addSubview(web,positioned:.below,relativeTo:failureNotice)
@@ -134,8 +139,14 @@ import WebKit
               let body=message.body as? [String:Any],let action=body["action"] as? String else { return }
         if action=="ready" { displayReady(web);return }
         guard let generation=body["generation"] as? String,let id=body["messageID"] as? String else { return }
-        if action=="openR",let index=body["blockIndex"] as? Int,index>=0 { openR?(generation,id,index) }
-        else if action=="copyCode",let code=body["code"] as? String { copyCode?(generation,id,code) }
+        // A click sends the block's text; a page that sent none could only go by a real position.
+        if action=="openR",let index=body["blockIndex"] as? Int,body["code"] is String || index>=0 { openR?(generation,id,index,body["code"] as? String) }
+    }
+    func userContentController(_ controller: WKUserContentController,didReceive message: WKScriptMessage,replyHandler: @escaping @MainActor @Sendable (Any?,String?)->Void) {
+        guard message.name=="statsDirectAICopy",message.webView === web,message.frameInfo.isMainFrame,message.frameInfo.request.url?.standardizedFileURL == page,
+              let body=message.body as? [String:Any],let generation=body["generation"] as? String,let id=body["messageID"] as? String,
+              let code=body["code"] as? String else { replyHandler(false,nil);return }
+        replyHandler(copyCode?(generation,id,code) ?? false,nil)
     }
     func webView(_ webView: WKWebView,decidePolicyFor action: WKNavigationAction,decisionHandler: @escaping (WKNavigationActionPolicy)->Void) {
         guard let url=action.request.url else { decisionHandler(.cancel);return }
@@ -151,5 +162,5 @@ import WebKit
     func webView(_ webView: WKWebView,didFail navigation: WKNavigation!,withError error: Error) { recoverDisplay(webView) }
     func webView(_ webView: WKWebView,didFailProvisionalNavigation navigation: WKNavigation!,withError error: Error) { recoverDisplay(webView) }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { recoverDisplay(webView) }
-    func shutdown() { stopped=true;ready=false;displayTimeout?.cancel();web.navigationDelegate=nil;web.uiDelegate=nil;web.stopLoading();web.configuration.userContentController.removeScriptMessageHandler(forName:"statsDirectAI") }
+    func shutdown() { stopped=true;ready=false;displayTimeout?.cancel();web.navigationDelegate=nil;web.uiDelegate=nil;web.stopLoading();web.configuration.userContentController.removeScriptMessageHandler(forName:"statsDirectAI");web.configuration.userContentController.removeScriptMessageHandler(forName:"statsDirectAICopy",contentWorld:.page) }
 }

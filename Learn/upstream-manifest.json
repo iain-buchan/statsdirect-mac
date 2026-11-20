@@ -1,13 +1,16 @@
 {
   "repository": "https://github.com/iain-buchan/statisticalhelp",
-  "commit": "d72815cba9f44a81bb8855cb6636505f29a386ae",
-  "tag": "learning-v1.1.5",
+  "commit": "f5954e96fd20d57be1d46862c9f254493b6fe1c1",
+  "tag": "learning-v1.1.6",
   "hostContract": 1,
   "files": {
     ".gitattributes": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9",
-    "HOST-CONTRACT.md": "ecf1cceab16212dc9f5615aba8b547cfae85134de7d6bd86a1810b7aec981b60",
-    "README.md": "2fd4f2f83d9f36f9bf4bcbfd26ef49458f69c7a4635e302583caf8d87ff05c0c",
-    "app.mjs": "a8737be115186bd676b6a8c7a6e49281971b788bb6508180e0b69c0672f37347",
+    "HOST-CONTRACT.md": "42544fd1b2006e29092c5be9ddb08452675accbf9f7fd48d14b37c86105be3ef",
+    "README.md": "e156f0e5b298529e2cfd1d7525b9d082c2d08b83cb39e9051a32f00d5b6dc1d6",
+    "app.mjs": "fd4fd8d6fb7642b29e0feccb5e53d90c32026b52304d80d5ae9a38a24b726113",
+    "code-block-examples.json": "2b490f6f4ad4e5a31a08ee254c968d365cfed76b09fca776884a4fdfeb2e692a",
+    "code-blocks.mjs": "17e898f39400130e9be43147be62e5b386399bc469e222d54b4bd11ed1fd0654",
+    "code-blocks.test.mjs": "bb9ea8addf93e7524837d0f0882e62dafb7e0b95f635aa0acf6644f46b52c052",
     "content-audit.test.mjs": "00c4ed2ecb5262b6d0bdb1e5afc28e8fcdda5354cd061036a0734e0d0db37017",
     "conversation-view.mjs": "6abd6fb911b717ae8b9fe07ed48ff819d52a26ee3b15a6a091b0118c176bc1ea",
     "course-ui.mjs": "c22870bf9eb40b7d4c6d7439443ed32fca7a6972b8b2e66dbb37f1dc2cb8a4f9",
@@ -30,8 +33,8 @@
     "provider-course.test.mjs": "533d00e17c64083845726d24055ec8794bfc635bae77158d22303f5688d6ed5b",
     "quiz.mjs": "caab5b20ecbef29da804af2b9f540955edefef08e6fc3d03678eb0b35f049cf7",
     "record-html.mjs": "785bc475fa88bcd13883b3cdb449e9f24d1f34260ee18b87c4959221377da2af",
-    "rich-text.mjs": "e21570551c19585e837719e994053b5496c2bfbc8dd5f52b247891af0bd0a484",
-    "rich-text.test.mjs": "eab3550c43051b7873db9b605be5c379d81a1cc3531eb7f64b55aa695b3734d7",
+    "rich-text.mjs": "2eadecdc273e977df0cd56435dd41e098883ff053a641525a82a78aae60d15d5",
+    "rich-text.test.mjs": "a3184251b287f3cbd8266ca7fb3bb474c65e3d33956d578ff6df77c0b99693af",
     "test-config.mjs": "15cfbfa87380fde82d74d9af4bedc8e7dd1ae746a20ab3bc53693a4959c5440b"
   }
 }

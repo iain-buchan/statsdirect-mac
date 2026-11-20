@@ -20261,11 +20261,12 @@ ${content}</tr>
       if (button.dataset.code === "r") {
         const message = button.closest("[data-message-id]");
         openR(code, { messageID: message?.dataset.messageId, blockIndex: message ? Array.from(message.querySelectorAll("[data-code=r]")).indexOf(button) : -1 });
-      } else {
-        copy(code);
+      } else Promise.resolve(copy(code)).then((copied) => {
+        if (copied === false) return;
         button.textContent = "Copied";
         setTimeout(() => button.textContent = "Copy", 1500);
-      }
+      }, () => {
+      });
     });
   }
 
@@ -34684,7 +34685,7 @@ ${pack ? `<details><summary>Included materials</summary><ul>${pack.documents.map
         else navigator.clipboard.writeText(code).catch(() => notice("Select the code and copy it."));
       },
       openR: (code, position) => {
-        if (native) post({ action: "openRCode", generation, lessonID, ...position });
+        if (native) post({ action: "openRCode", generation, lessonID, ...position, code });
         else notice(`Open ${words().app} to review and run this code in an R session.`);
       }
     });

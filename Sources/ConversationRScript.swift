@@ -6,30 +6,119 @@ enum ConversationRScript {
         let message: String
         var errorDescription: String? { message }
     }
-    struct Block { let code: String; let endLine: Int }
-    static func blocks(_ markdown: String) -> [Block] {
-        let lines = markdown.replacingOccurrences(of:"\r\n",with:"\n").replacingOccurrences(of:"\r",with:"\n").components(separatedBy:"\n")
-        let opening = try! NSRegularExpression(pattern:"^( {0,3})(`{3,}(?=[^`]*$)|~{3,})[ \\t]*([^\\n]*)$")
-        var result: [Block] = [], i = 0
+    /// What a host says when a clicked block is not in its own reading of the saved reply (HOST-CONTRACT.md, Code blocks).
+    static let unmatchedNotice = "StatsDirect could not match that code block to the saved reply. Select the code in the conversation and copy it instead."
+    /// A completed fenced block of a reply: whether its language is R, the code as the page shows it (leading tabs
+    /// as spaces), which is what a click sends, and the code as the reply has it, which is what is opened or copied.
+    struct CodeBlock: Equatable { let r: Bool; let shown: String; let text: String }
+    struct Block { let code: String }
+    /// The completed R blocks of a reply, as they are opened or copied.
+    static func blocks(_ markdown: String) -> [Block] { readBlocks(markdown).filter(\.r).map { Block(code:$0.text) } }
+
+    // The reader below mirrors the shared reference, Learning/code-blocks.mjs in the Learning package, line for line;
+    // Learning/code-block-examples.json holds the replies that the page, the reference and this reader are tested against.
+    // It works on UTF-16 units, as the reference does.
+    private typealias Units = [UInt16]
+    private static let space: UInt16 = 32, tab: UInt16 = 9, backtick: UInt16 = 96, tilde: UInt16 = 126
+    /// marked expands a line's leading tabs before it reads the line: leading spaces, then a run of tabs, four spaces each.
+    private static func expandTabs(_ line: Units) -> Units {
+        var spaces = 0; while spaces < line.count && line[spaces] == space { spaces += 1 }
+        var end = spaces; while end < line.count && line[end] == tab { end += 1 }
+        guard end > spaces else { return line }
+        return Units(repeating:space,count:spaces + 4 * (end - spaces)) + line[end...]
+    }
+    /// Removes up to `limit` block-quote markers (spaces, ">", one optional space or tab) from the start of a line.
+    private static func unquote(_ line: Units, limit: Int = .max) -> (line: Units, depth: Int) {
+        var start = 0, depth = 0
+        while depth < limit {
+            var i = start; while i < line.count && line[i] == space { i += 1 }
+            guard i < line.count && line[i] == 62 else { break }
+            i += 1; if i < line.count && (line[i] == space || line[i] == tab) { i += 1 }
+            start = i; depth += 1
+        }
+        return (Units(line[start...]), depth)
+    }
+    private struct Opener { let indent: Int; let fence: Units; let language: String }
+    /// An opening fence: any spaces, then three or more backticks with no backtick in the rest of the line, or three or
+    /// more tildes with anything after. It may also sit on a list marker's own line ("- ```r", "1. ```r"); the marker and
+    /// the one to four spaces after it then count as indent. The language is the first word of the label.
+    private static func opener(_ line: Units) -> Opener? {
+        var i = 0; while i < line.count && line[i] == space { i += 1 }
+        var marker = i
+        if marker < line.count && [45, 42, 43].contains(line[marker]) { marker += 1 }          // - * +
+        else {
+            var digits = 0; while marker < line.count && digits < 9 && line[marker] >= 48 && line[marker] <= 57 { marker += 1; digits += 1 }
+            if digits > 0 && marker < line.count && (line[marker] == 46 || line[marker] == 41) { marker += 1 } else { marker = i }   // . )
+        }
+        if marker > i {
+            var after = marker; while after < line.count && line[after] == space { after += 1 }
+            let gap = after - marker
+            if gap >= 1 && gap <= 4 && after < line.count && (line[after] == backtick || line[after] == tilde) { i = after }
+        }
+        guard i < line.count, line[i] == backtick || line[i] == tilde else { return nil }
+        let mark = line[i]; var end = i; while end < line.count && line[end] == mark { end += 1 }
+        guard end - i >= 3 else { return nil }
+        let label = line[end...]
+        // The label runs to the end of the line, whatever it holds; a backtick fence's label may not hold a backtick.
+        guard !(mark == backtick && label.contains(backtick)) else { return nil }
+        // trim() and split(/[ \t]+/, 1) as JavaScript has them.
+        let blank: (UInt16) -> Bool = { [9, 10, 11, 12, 13, 32, 0xA0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF].contains($0) || (0x2000...0x200A).contains($0) }
+        var first = label.startIndex, last = label.endIndex
+        while first < last && blank(label[first]) { first += 1 }
+        while last > first && blank(label[last - 1]) { last -= 1 }
+        var word = first; while word < last && label[word] != space && label[word] != tab { word += 1 }
+        return Opener(indent:i,fence:Units(line[i..<end]),language:String(decoding:label[first..<word],as:UTF16.self).lowercased())
+    }
+    /// A closing fence, as marked reads it: spaces (at most three more than the opener's indent), the opener's own
+    /// fence, any further backticks or tildes, then only spaces.
+    private static func closes(_ line: Units,_ open: Opener) -> Bool {
+        var spaces = 0; while spaces < line.count && line[spaces] == space { spaces += 1 }
+        guard spaces <= open.indent + 3, line[spaces...].starts(with:open.fence) else { return false }
+        var i = spaces + open.fence.count
+        while i < line.count && (line[i] == backtick || line[i] == tilde) { i += 1 }
+        while i < line.count && line[i] == space { i += 1 }
+        return i == line.count
+    }
+    /// The completed fenced blocks of a reply, in order. A block with no closing fence is not returned:
+    /// an unfinished streamed block is never offered as complete code.
+    static func readBlocks(_ markdown: String) -> [CodeBlock] {
+        let original = markdown.replacingOccurrences(of:"\r\n",with:"\n").replacingOccurrences(of:"\r",with:"\n").components(separatedBy:"\n").map { Units($0.utf16) }
+        let lines = original.map(expandTabs)
+        var blocks: [CodeBlock] = [], i = 0
         while i < lines.count {
-            let line = lines[i] as NSString
-            guard let match = opening.firstMatch(in:lines[i],range:NSRange(location:0,length:line.length)) else { i += 1; continue }
-            let indent = match.range(at:1).length, fence = line.substring(with:match.range(at:2))
-            let info = line.substring(with:match.range(at:3)).trimmingCharacters(in:.whitespacesAndNewlines)
-            let language = info.split(maxSplits:1,whereSeparator:{$0 == " " || $0 == "\t"}).first?.lowercased() ?? ""
-            let closing = try! NSRegularExpression(pattern:"^ {0,3}" + NSRegularExpression.escapedPattern(for:String(fence.first!)) + "{\(fence.count),}[ \\t]*$")
-            var code: [String] = []; i += 1
-            while i < lines.count && closing.firstMatch(in:lines[i],range:NSRange(location:0,length:(lines[i] as NSString).length)) == nil {
-                // A block fenced under a list item loses the fence's indent and no more, as Windows' CompletedCodeBlocks reads it.
-                let text = lines[i] as NSString; var trim = 0
-                while trim < min(indent,text.length) && text.character(at:trim) == 32 { trim += 1 }
-                code.append(text.substring(from:trim)); i += 1
+            let quoted = unquote(lines[i])
+            guard let open = opener(quoted.line) else { i += 1; continue }
+            var shown: [Units] = [], text: [Units] = [], closed = false
+            i += 1
+            while i < lines.count {
+                // A line inside the block loses as many quote markers as its opener had, then the opener's indent,
+                // but only when it begins with at least that many spaces; a line indented less is left as it is.
+                let rest = unquote(lines[i],limit:quoted.depth).line
+                if closes(rest,open) { closed = true; break }
+                let indented = rest.count >= open.indent && !rest[..<open.indent].contains { $0 != space }
+                let code = indented ? Units(rest[open.indent...]) : rest
+                let removed = lines[i].count - code.count
+                shown.append(code)
+                // The reply's own characters when the removed prefix is literally there; otherwise the shown line.
+                text.append(original[i].starts(with:lines[i][..<removed]) ? Units(original[i][removed...]) : code)
+                i += 1
             }
-            // Never offer an unfinished streamed block as complete code.
-            if i < lines.count && ["r","rscript"].contains(language) { result.append(Block(code:code.joined(separator:"\n"),endLine:i)) }
+            let join: ([Units]) -> String = { $0.map { String(decoding:$0,as:UTF16.self) }.joined(separator:"\n") }
+            if closed { blocks.append(CodeBlock(r:open.language == "r" || open.language == "rscript",shown:join(shown),text:join(text))) }
             i += 1
         }
-        return result
+        return blocks
+    }
+    /// Which block a click means. `position` is the block's place among the page's buttons (among R blocks when
+    /// `rOnly`, among all blocks otherwise) and `shown` is the code text the page sent with the click. Returns the
+    /// index in that same list, or -1. The block at the position wins when its shown text is the page's text;
+    /// otherwise the first block with that text; otherwise there is no match, and no other block is used.
+    static func findBlock(_ blocks: [CodeBlock], position: Int, shown: String, rOnly: Bool = true) -> Int {
+        let list = rOnly ? blocks.filter(\.r) : blocks
+        // Unit for unit, as the reference compares them; Swift's own == would also accept canonically equivalent text.
+        let wanted = Array(shown.utf16)
+        if list.indices.contains(position) && list[position].shown.utf16.elementsEqual(wanted) { return position }
+        return list.firstIndex { $0.shown.utf16.elementsEqual(wanted) } ?? -1
     }
     static func build(_ messages: [[String:String]], messageIndex: Int, blockIndex: Int = -1) throws -> String {
         guard messages.indices.contains(messageIndex), ["user","assistant"].contains(messages[messageIndex]["role"] ?? "") else {

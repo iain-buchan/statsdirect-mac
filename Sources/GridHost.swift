@@ -41,8 +41,9 @@ extension Viewer: WKScriptMessageHandler {
                   !query.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else { return }
             helpPane.searchHelp(query)
         case "worksheetR":
-            guard active === doc, window.attachedSheet == nil else { return }
-            openWorksheetSelectionInR(doc)
+            guard active === doc, window.attachedSheet == nil, NSApp.modalWindow == nil,
+                  let external = body["external"] as? Bool else { return }
+            openWorksheetInR(doc, external: external)
         case "openCSV": openCSV()
         case "openRData": openRData()
         case "saveRDS": saveRData(doc, format: "rds")

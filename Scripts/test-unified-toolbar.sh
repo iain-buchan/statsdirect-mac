@@ -7,6 +7,10 @@ BASE="${1:-$ROOT/StatsDirect.app}"
 TEST_WORK="$(mktemp -d "$ROOT/.build/unified-toolbar.XXXXXX")"
 trap 'rm -rf "$TEST_WORK"' EXIT   # the driver, its copy of the app and its module cache are not kept after the run
 TEST_APP="$TEST_WORK/StatsDirect Toolbar Test.app"
+R_SCRIPT="${R_SCRIPT:-$(command -v Rscript)}"
+swiftc -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache \
+  Sources/ConversationRScript.swift Sources/WorksheetRScript.swift Tests/worksheet-r-driver.swift -o "$TEST_WORK/worksheet-r-driver"
+"$TEST_WORK/worksheet-r-driver" "$R_SCRIPT"
 python3 - "$TEST_WORK" <<'PY'
 from pathlib import Path
 import sys

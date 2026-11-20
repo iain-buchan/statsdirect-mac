@@ -413,17 +413,21 @@ enum InteractiveRConsole {
 extension Viewer {
     @discardableResult func openConsoleInExternalR(_ doc: Document) -> URL? {
         guard documents.contains(where: { $0 === doc }), let pane = doc.rConsolePane else { return nil }
-        let url: URL, source = pane.sourceText
-        do { url = try RExternalScript.save(source, name: pane.scriptName) }
+        let folder = pane.session.workingDirectory ?? InteractiveRConsole.supportFolder.appendingPathComponent("R Sessions")
+        return openScriptInExternalR(pane.sourceText, name: pane.scriptName, workingDirectory: folder, document: doc)
+    }
+    @discardableResult func openScriptInExternalR(_ source: String, name: String,
+                                                   workingDirectory: URL, document: Document) -> URL? {
+        let url: URL
+        do { url = try RExternalScript.save(source, name: name) }
         catch { showError("Open in R failed: \(error.localizedDescription)"); return nil }
         guard RExternalScript.opensExternally else {
             status.stringValue = "Saved \(url.lastPathComponent) in R Scripts"; return url
         }
-        let launch: () -> Void = { [weak self, weak doc] in
-            guard let self, let doc, self.documents.contains(where: { $0 === doc }) else { return }
-            let folder = pane.session.workingDirectory ?? InteractiveRConsole.supportFolder.appendingPathComponent("R Sessions")
-            RExternalScript.launch(url, source: source, workingDirectory: folder) { [weak self, weak doc] text in
-                guard let self, let doc, self.documents.contains(where: { $0 === doc }) else { return }
+        let launch: () -> Void = { [weak self, weak document] in
+            guard let self, let document, self.documents.contains(where: { $0 === document }) else { return }
+            RExternalScript.launch(url, source: source, workingDirectory: workingDirectory) { [weak self, weak document] text in
+                guard let self, let document, self.documents.contains(where: { $0 === document }) else { return }
                 self.status.stringValue = text
             }
         }

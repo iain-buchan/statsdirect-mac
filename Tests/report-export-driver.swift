@@ -1181,8 +1181,8 @@ extension ReportExportTests {
         print("PASS: a record pointing at more cells than can be read leaves the frame unread with the reason, and the script still opens");fflush(stdout)
         // 10. A workbook whose formula cells lose their saved results: a run on a formula column with its results saved, the file then
         //     edited outside the run's columns and saved by this program through its streaming patcher (which keeps the formulas and
-        //     drops their results for Excel to recalculate; the fixture's worksheet extension routes the save there, as every workbook
-        //     Excel for Mac saves does) and the grid closed: the record's columns cannot be read from the file, as the grid refuses such
+        //     drops their results for Excel to recalculate; the fixture's worksheet extension list routes the save there, as any
+        //     worksheet extension list does) and the grid closed: the record's columns cannot be read from the file, as the grid refuses such
         //     cells, so the script says so rather than reading blanks and noting that the column changed. Unedited, a save has nothing
         //     to merge and copies the workbook as opened, with its saved results.
         let formulaFixture=URL(fileURLWithPath:FileManager.default.currentDirectoryPath).appendingPathComponent("Tests/Fixtures/Excel/formula-column.xlsx")

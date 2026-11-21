@@ -78,22 +78,27 @@ import CryptoKit
         formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "yyyy-MM-dd HHmmss"
         let stem = (fileName(name) as NSString).deletingPathExtension + " " + formatter.string(from: date)
-        let data = Data(source.utf8)
+        // Write to our own private file first. A failed open or write never touches any candidate's path, and no reader
+        // can see a partial script at the chosen name. The temporary file is on the same volume as its destination.
+        let template = folder.appendingPathComponent(".statsdirect-r-XXXXXX")
+        guard var temporary = template.withUnsafeFileSystemRepresentation({ path in
+            path.map { Array(UnsafeBufferPointer(start: $0, count: strlen($0) + 1)) }
+        }) else { throw CocoaError(.fileWriteInvalidFileName) }
+        let descriptor = mkstemp(&temporary)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        var published = false
+        defer { if !published { unlink(temporary) } }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        try handle.write(contentsOf: Data(source.utf8))
+        try handle.close()
         for number in 1...1000 {
             let url = folder.appendingPathComponent(stem + (number == 1 ? "" : " \(number)") + ".R")
-            do { try data.write(to: url, options: .withoutOverwriting); return url }
-            // The name is taken, by a file, a folder or a link (a broken one too), in any letter case or form of its
-            // accents that the disk takes for the same name.
-            catch CocoaError.fileWriteFileExists { continue }
-            catch {
-                // Writing failed for another reason, such as a full disk. Foundation creates the file before writing it
-                // and leaves it, empty or cut short: remove it, a plain file only, never a folder or a link.
-                url.withUnsafeFileSystemRepresentation { path in
-                    var info = stat()
-                    if let path, lstat(path, &info) == 0, info.st_mode & S_IFMT == S_IFREG { unlink(path) }
-                }
-                throw error
+            let result = try url.withUnsafeFileSystemRepresentation { path in
+                guard let path else { throw CocoaError(.fileWriteInvalidFileName) }
+                return renamex_np(temporary, path, UInt32(RENAME_EXCL)) == 0 ? 0 : errno
             }
+            if result == 0 { published = true; return url }
+            if result != EEXIST { throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EIO) }
         }
         throw CocoaError(.fileWriteFileExists)
     }
@@ -263,7 +268,11 @@ import CryptoKit
             for (name, digest) in launch.files.sorted(by: { $0.key < $1.key }) where RExternalLaunchRecord.isPlainName(name) {
                 let file = folder.appendingPathComponent(name)
                 var info = stat()
-                guard lstat(file.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG || info.st_mode & S_IFMT == S_IFLNK else { continue }
+                guard lstat(file.path, &info) == 0 else {
+                    if errno != ENOENT { kept = true }
+                    continue
+                }
+                guard info.st_mode & S_IFMT == S_IFREG || info.st_mode & S_IFMT == S_IFLNK else { continue }
                 // A file that cannot be read now may still be what this launch wrote: it stays, and keeps the record, so
                 // that a later run looks at it again. One that is no longer what the launch wrote is the user's: a script
                 // copy they saved changes to in R.app's editor, or their own file under that name.

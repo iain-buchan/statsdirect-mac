@@ -633,6 +633,7 @@ import Darwin
         try longNames(work: work.appendingPathComponent("long", isDirectory: true), date: date)
         try clashes(work: work.appendingPathComponent("clashes", isDirectory: true), date: date)
         try failedWrites(work: work.appendingPathComponent("write fails", isDirectory: true), date: date)
+        try failedOpenKeepsExisting(work: work.appendingPathComponent("no descriptors", isDirectory: true), date: date)
     }
 
     /// No file in R Scripts is hidden: Finder, RStudio's Files pane and R's list.files() do not show a name that starts with ".".
@@ -774,9 +775,8 @@ import Darwin
     /// Any other failure is reported as it is, and leaves nothing behind.
     @MainActor static func failedWrites(work: URL, date: Date) throws {
         let place = try folder(work), script = String(repeating: "x <- 1\n", count: 1200)
-        // An 8 KiB import stops at a 4 KiB file-size limit, as it would on a full disk. Foundation leaves the file it created,
-        // cut short; were that taken for a name in use, each attempt would leave one more and move on, to " 2", " 3" and so
-        // on, and after 1000 report that the name was taken. RStudio's imports and every worksheet fallback save this way.
+        // An 8 KiB import stops at a 4 KiB file-size limit, as it would on a full disk. Neither the incomplete temporary
+        // file nor a script with a reserved name should be left behind. RStudio's imports and worksheet fallbacks save this way.
         let (unique, fallback) = try withFileSizeLimit(4096) {
             (Result { try RExternalScript.saveUnique(script, name: "Sheet1 Worksheet", date: date, in: place) },
              Result { try RExternalScript.saveFallback(script, name: "Sheet1 Worksheet", echo: false, date: date, in: place) })
@@ -794,6 +794,37 @@ import Darwin
         let saved = try RExternalScript.saveUnique(script, name: "Sheet1 Worksheet", date: date, in: place)
         try check(saved.lastPathComponent == "Sheet1 Worksheet 2026-11-21 101530.R" && text(saved) == script,
                   "after a failed save, the next import takes the first name")
+    }
+
+    @MainActor static func failedOpenKeepsExisting(work: URL, date: Date) throws {
+        let place = try folder(work), original = "# an existing user script\n", name = "Sheet1 Worksheet"
+        let existing = try RExternalScript.saveUnique(original, name: name, date: date, in: place)
+        let before = try entries(place)
+        let result: Result<URL, Error>
+        do {
+            var saved = rlimit()
+            guard getrlimit(RLIMIT_NOFILE, &saved) == 0 else { throw Failure(description: "could not read the descriptor limit") }
+            var limit = saved
+            limit.rlim_cur = min(limit.rlim_cur, 64)
+            guard setrlimit(RLIMIT_NOFILE, &limit) == 0 else { throw Failure(description: "could not set the descriptor limit") }
+            var descriptors: [Int32] = []
+            defer {
+                for descriptor in descriptors { close(descriptor) }
+                setrlimit(RLIMIT_NOFILE, &saved)
+            }
+            while true {
+                let descriptor = open("/dev/null", O_RDONLY)
+                if descriptor < 0 { break }
+                descriptors.append(descriptor)
+            }
+            guard errno == EMFILE else { throw Failure(description: "could not exhaust file descriptors in the test process") }
+            result = Result { try RExternalScript.saveFallback("x <- 42\n", name: name, echo: false, date: date, in: place) }
+        }
+        guard case .failure(let error) = result else { throw Failure(description: "the save succeeded without a file descriptor") }
+        let outer = error as NSError, cause = outer.userInfo[NSUnderlyingErrorKey] as? NSError ?? outer
+        try check(cause.domain == NSPOSIXErrorDomain && cause.code == Int(EMFILE)
+                  && text(existing) == original && (try entries(place)) == before,
+                  "an open failure preserves the existing script and leaves no new file", error.localizedDescription)
     }
 
     // MARK: Process identity
@@ -965,6 +996,30 @@ import Darwin
         try check(paths(removedOnceReadable) == paths([unreadable.script, unreadable.record]) && !exists(unreadable.script) && !exists(unreadable.record)
                   && exists(unreadable.directory.appendingPathComponent("user.csv")),
                   "once it can be read, the copy and its record go", removedOnceReadable.map(\.path).joined(separator: "\n"))
+
+        let aclDenied = try launch(in: root, app: ended, host: nil)
+        func changeACL(_ arguments: [String]) throws {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/chmod")
+            process.arguments = arguments + [aclDenied.script.path]
+            process.standardError = FileHandle.nullDevice
+            try process.run(); process.waitUntilExit()
+            guard process.terminationStatus == 0 else { throw Failure(description: "could not change the test script's ACL") }
+        }
+        try changeACL(["+a", "user:\(NSUserName()) deny read,readattr,readextattr"])
+        defer { try? changeACL(["-N"]) }
+        var info = stat()
+        guard lstat(aclDenied.script.path, &info) == -1, errno == EACCES else {
+            throw Failure(description: "the test ACL did not deny access to the script's attributes")
+        }
+        let removedWhileDenied = RExternalScript.removeLeftovers(in: [root], rAppRunning: { false })
+        try check(paths(removedWhileDenied) == paths([aclDenied.profile]) && exists(aclDenied.record),
+                  "a file whose attributes cannot be read keeps the launch record")
+        try changeACL(["-N"])
+        let removedOnceAllowed = RExternalScript.removeLeftovers(in: [root], rAppRunning: { false })
+        try check(paths(removedOnceAllowed) == paths([aclDenied.script, aclDenied.record])
+                  && !exists(aclDenied.script) && !exists(aclDenied.record),
+                  "after access is restored, the unchanged script and its launch record go")
     }
 
     // MARK: Console private folders (6.2, at start)

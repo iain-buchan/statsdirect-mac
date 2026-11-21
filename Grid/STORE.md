@@ -69,7 +69,9 @@ changes at each calculation (TODAY, RAND), is always streamed, as is one where C
 differs from Excel (a structured reference to a table on another sheet, ROUND(1.005,2)).
 With inserted columns, which remove the saved results of the formulas they move, the
 comparison is made on the workbook as opened. A workbook saved with no edited cell and no
-inserted column is copied as opened, with the results and calculation settings Excel saved.
+inserted column is copied as opened, with the results and calculation settings Excel saved;
+the copy, like the private copy taken at open, is a new file with the same bytes, not a copy
+that carries the original's date, read-only permission or Finder lock.
 
 The prototype's 500,000-cell, 50 MB, 256 MB and 128-sheet limits are gone. Measured through
 the native driver on the 1,048,576-row × 4-column probe workbook (35 MB):

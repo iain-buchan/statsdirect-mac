@@ -227,7 +227,17 @@ public static partial class WorkbookIO {
         var sheets = new List<Sheet>();
         var written = new List<string>();
         try {
-        using (var zip = ZipFile.OpenRead(path)) {
+        // The original is kept as a private copy so later edits on disk do not change what is patched. The copy is taken
+        // first and the cells are read from it, so the grid and the copy hold the same workbook even when the file is
+        // replaced while it is read (by a sync client, or Excel's AutoSave).
+        string copy = null;
+        if (!dataCopy) {
+            if (snapshotDir != null) Directory.CreateDirectory(snapshotDir);
+            copy = System.IO.Path.Combine(snapshotDir ?? System.IO.Path.GetTempPath(), $"statsdirect-workbook-{id}.xlsx");
+            written.Add(copy);
+            CopyContents(path, copy);
+        }
+        using (var zip = ZipFile.OpenRead(copy ?? path)) {
             var package = new Package(zip);
             int index = 0;
             foreach (var info in package.Sheets) {
@@ -254,12 +264,16 @@ public static partial class WorkbookIO {
             return new { id, name = System.IO.Path.GetFileName(path), sheets, formulaCount = 0,
                 cellCount = sheets.Sum(s => (long)s.Count), dataCopy = true, importNotice = DataCopyNotice };
         }
-        // The original is kept as a private copy so later edits on disk do not change what is patched.
-        var copy = System.IO.Path.Combine(snapshotDir ?? System.IO.Path.GetTempPath(), $"statsdirect-workbook-{id}.xlsx");
-        written.Add(copy);
-        File.Copy(path, copy, true); originals[id] = (copy, sheets.Sum(x => (long)x.Count));
+        originals[id] = (copy, sheets.Sum(x => (long)x.Count));
         return new { id, name = System.IO.Path.GetFileName(path), sheets, formulaCount = sheets.Sum(s => s.FormulaCount), cellCount = sheets.Sum(s => s.Count) };
         } catch { foreach (var file in written) { try { File.Delete(file); } catch { } } throw; }
+    }
+    // A new file holding the source's bytes. A file-system copy would also give it the source's modification time,
+    // read-only permission and Finder lock, and a locked copy can be neither patched nor removed.
+    static void CopyContents(string source, string target) {
+        using var input = File.OpenRead(source);
+        using var output = File.Create(target);
+        input.CopyTo(output);
     }
 
     sealed class SheetInfo { public string Name; public string Entry; public bool Hidden; }
@@ -730,7 +744,7 @@ public static partial class WorkbookIO {
             else {
                 long edits = sheets.Sum(s => s.Columns.Values.Sum(c => (long)c.Rows.Count));
                 if (edits == 0 && inserts.Count == 0) {
-                    File.Copy(source, temporary, true);
+                    CopyContents(source, temporary);
                     recalculated = false;
                 } else {
                     string opened = source;
@@ -743,7 +757,7 @@ public static partial class WorkbookIO {
                     if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source) && ClosedXmlCalculates(source)) {
                         // Inserting columns removes the saved result of every formula it writes, so ClosedXML's results
                         // are then compared with Excel's in the workbook as opened, whose formulas are the same ones.
-                        if (insertedSource == null || ClosedXmlReproduces(opened)) { File.Copy(source, temporary, true); patched = PatchWithClosedXml(temporary, source, sheets, insertedSource == null); }
+                        if (insertedSource == null || ClosedXmlReproduces(opened)) { CopyContents(source, temporary); patched = PatchWithClosedXml(temporary, source, sheets, insertedSource == null); }
                     }
                     if (!patched) { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 }

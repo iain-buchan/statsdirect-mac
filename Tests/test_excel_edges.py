@@ -497,6 +497,31 @@ try:
             for r, (value, _, text, kind) in enumerate(ISO): assert (got[(0, r)]['text'], got[(0, r)]['kind']) == (text, kind), (date1904, value, got[(0, r)])
             assert request(action='close', id=opened['id'])['ok']
         print('PASS: ISO 8601 cells keep the clock time written, whatever the zone, and a time with no date is a time of day')
+        # 15. A source that is old, read-only and locked in the Finder. The private copy taken at open and every saved file are
+        #     new files holding the workbook's bytes, not file-system copies that carry the date, the permission and the lock:
+        #     no save fails or leaves a locked temporary file, and a saved file is dated now and can be written to.
+        import shutil, stat, time
+        locked = folder/'locked.xlsx'; shutil.copyfile(verified, locked)
+        os.utime(locked, (978350400, 978350400)); os.chmod(locked, 0o444); os.chflags(locked, stat.UF_IMMUTABLE)
+        try:
+            copies = folder/'locked-snapshots'
+            opened = request(action='open', path=str(locked), snapshot=str(copies)); assert 'error' not in opened, opened
+            private = list(copies.glob('statsdirect-workbook-*.xlsx'))
+            assert len(private) == 1 and not private[0].stat().st_flags & stat.UF_IMMUTABLE and private[0].stat().st_mode & 0o200, private
+            edit = [{'name': 'Values', 'cells': [{'col': 9, 'row': 30, 'text': '5', 'kind': 'number'}]}]
+            unchanged = [{'name': 'Values', 'cells': []}]
+            for label, cells, stream in (('unedited', unchanged, False), ('edited', edit, False), ('edited-stream', edit, True)):
+                out = folder/f'locked-{label}.xlsx'
+                result = request(action='save', id=opened['id'], path=str(out), sheets=cells, stream=stream)
+                assert result.get('ok'), (label, result)
+                made = out.stat()
+                assert not made.st_flags & stat.UF_IMMUTABLE and made.st_mode & 0o200 and made.st_mtime > time.time() - 600, (label, made)
+                if label == 'unedited': assert out.read_bytes() == locked.read_bytes()
+            assert not list(folder.glob('*.tmp*')), list(folder.glob('*.tmp*'))
+            assert request(action='close', id=opened['id'])['ok'] and not list(copies.glob('statsdirect-workbook-*.xlsx'))
+        finally:
+            os.chflags(locked, 0); os.chmod(locked, 0o644)
+        print('PASS: an old, read-only, Finder-locked workbook opens and saves, unedited and edited, as new unlocked files dated now')
         # Formula-region caches must also stay safe through Save As/reopen, not only the initial import.
         from excel_formula_region_save import check_formula_region_saves
         check_formula_region_saves(request, sys.argv[2], folder)

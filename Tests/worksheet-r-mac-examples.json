@@ -1,0 +1,83 @@
+{
+ "about": "The Mac's own worksheet R examples, in the schema of the shared Learn/Upstream/WorksheetR/examples.json, for what only the Mac's grid and loader can show: number cells that keep their typed text, formula cells refused once the workbook has been edited (RULES.md section 7), the 1904 date system (rule 3.9: each loader's date system is tested separately), two answers agreed with Windows on 21 November 2026, after learning-v1.1.7 (date-times anchor the any-case missing words, and Excel's built-in formats 45 and 47 are times of day), and text the loader reads from Excel's _xHHHH_ escapes. Tests/test_worksheet_r_examples.py runs these with the shared cases.",
+ "version": 1,
+ "schema": {
+  "extends": "the schema of Learn/Upstream/WorksheetR/examples.json, with the three additions below",
+  "typed": "a cell {\"typed\": \"<text>\"} is not in the file: it is typed into the grid once the workbook is open, through the grid's own edit path (store.apply, then workbook.changed(), as onCellsEdited does). A number typed so keeps its text (\" 13\", \"1.50\"), and the workbook then counts as edited, so its formula results may be out of date",
+  "dateSystem": "1904: the workbook uses the 1904 date system (workbookPr date1904), and the case's serials are serials of that system",
+  "refusedNaming": "left out when the refusal names no cell"
+ },
+ "cases": [
+  {
+   "name": "Number cells keep their typed text and count as their numbers",
+   "rules": ["3.4", "3.7", "7"],
+   "cells": {"A1": {"text": "n"}, "A2": {"typed": " 13"}, "A3": {"typed": "1.50"}, "A4": {"typed": "5."}, "B1": {"text": "c"}, "B2": {"typed": "1.50"}, "B3": {"text": "x"}, "B4": {"typed": " 13"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"entire": "Entire worksheet — A1:B4 (4 rows × 2 columns)", "headingsSuggested": true, "r": "structure(list(c(13, 1.5, 5), c(\"1.5\", \"x\", \"13\")), names = c(\"n\", \"c\"), row.names = c(NA_integer_, -3L), class = \"data.frame\")"},
+   "note": "The Mac grid stores typed \" 13\", \"1.50\" and \"5.\" as number cells that keep the text typed, where Excel would hold 13, 1.5 and 5. Rule 3.4 reads each as its number; in a character column a number cell is its rule 3.7 text, String(x)."
+  },
+  {
+   "name": "A typed number used as a heading is its number's text",
+   "rules": ["4.5", "3.7"],
+   "cells": {"A1": {"typed": "2.50"}, "A2": {"number": "1"}, "B1": {"text": "b"}, "B2": {"number": "2"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": true, "friendly": false},
+   "expect": {"headingsSuggested": false, "r": "structure(list(c(1), c(2)), names = c(\"2.5\", \"b\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"}
+  },
+  {
+   "name": "An edited workbook refuses formula cells",
+   "rules": ["7", "3.11"],
+   "cells": {"A1": {"text": "Dose"}, "A2": {"number": "2"}, "A3": {"formula": "=A2*2", "value": {"number": "4"}}, "C1": {"typed": "edited"}},
+   "select": {"range": "A1:A3"},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"selected": "Selected cells — A1:A3 (3 rows × 1 column)", "headingsSuggested": true, "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.", "r": null},
+   "note": "C1, outside the selection, is typed once the workbook is open. The Mac cannot recalculate, so after any edit, in any cell of any sheet, a formula's saved result may be out of date."
+  },
+  {
+   "name": "An unedited workbook sends a formula's saved result",
+   "rules": ["7", "3.11"],
+   "cells": {"A1": {"text": "Dose"}, "A2": {"number": "2"}, "A3": {"formula": "=A2*2", "value": {"number": "4"}}},
+   "select": {"range": "A1:A3"},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"selected": "Selected cells — A1:A3 (3 rows × 1 column)", "headingsSuggested": true, "r": "structure(list(c(2, 4)), names = c(\"Dose\"), row.names = c(NA_integer_, -2L), class = \"data.frame\")"}
+  },
+  {
+   "name": "The 1904 date system: dates from 1904-01-01, times of day and date-times",
+   "rules": ["3.9", "5.5"],
+   "dateSystem": 1904,
+   "cells": {"A1": {"text": "Date"}, "A2": {"date": "0", "format": "yyyy-mm-dd"}, "A3": {"date": "60", "format": "yyyy-mm-dd"}, "B1": {"text": "Time"}, "B2": {"time": "0.6041666666666666", "format": "h:mm"}, "B3": {"time": "0.25", "format": "h:mm"}, "C1": {"text": "When"}, "C2": {"datetime": "0.5", "format": "yyyy-mm-dd hh:mm"}, "C3": {"datetime": "60.75", "format": "yyyy-mm-dd hh:mm"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(structure(c(-24107, -24047), class = \"Date\"), c(\"14:30:00\", \"06:00:00\"), c(\"1904-01-01 12:00:00\", \"1904-03-01 18:00:00\")), names = c(\"Date\", \"Time\", \"When\"), row.names = c(NA_integer_, -2L), class = \"data.frame\")"},
+   "note": "In the 1904 system serial 0 is 1904-01-01, and serial 60 is 1904-03-01, an ordinary day."
+  },
+  {
+   "name": "Date-times anchor the any-case missing words; times of day do not",
+   "rules": ["3.2", "3.9"],
+   "cells": {"A1": {"text": "When"}, "A2": {"datetime": "46347.416666666664", "format": "yyyy-mm-dd hh:mm"}, "A3": {"text": "na"}, "B1": {"text": "At"}, "B2": {"time": "0.6041666666666666", "format": "hh:mm:ss"}, "B3": {"text": "na"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"2026-11-21 10:00:00\", NA), c(\"14:30:00\", \"na\")), names = c(\"When\", \"At\"), row.names = c(NA_integer_, -2L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.7: date-times, as well as numbers, Booleans and dates, anchor the any-case words of rule 3.2. A time of day does not."
+  },
+  {
+   "name": "Excel's built-in formats 45 (mm:ss) and 47 (mmss.0) are times of day; only [h], [m] and [s] make a duration",
+   "rules": ["3.9"],
+   "cells": {"A1": {"text": "mm:ss"}, "A2": {"time": "0.6041666666666666", "format": "mm:ss"}, "A3": {"time": "1.0833333333333333", "format": "mm:ss"}, "A4": {"time": "-0.041666666666666664", "format": "mm:ss"}, "B1": {"text": "mmss.0"}, "B2": {"time": "0.6041724537037036", "format": "mmss.0"}, "B3": {"time": "1.0833333333333333", "format": "mmss.0"}, "B4": {"time": "-0.041666666666666664", "format": "mmss.0"}, "C1": {"text": "[h]:mm:ss"}, "C2": {"duration": "0.6041666666666666", "format": "[h]:mm:ss"}, "C3": {"duration": "1.0833333333333333", "format": "[h]:mm:ss"}, "C4": {"duration": "-0.041666666666666664", "format": "[h]:mm:ss"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"14:30:00\", \"1900-01-01 02:00:00\", \"-0.041666666666666664\"), c(\"14:30:00.5\", \"1900-01-01 02:00:00\", \"-0.041666666666666664\"), c(\"14:30:00\", \"26:00:00\", \"-01:00:00\")), names = c(\"mm:ss\", \"mmss.0\", \"[h]:mm:ss\"), row.names = c(NA_integer_, -3L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.7. Built-ins 45 and 47 wrap at the hour, so a value below one day is a time of day; from one day it is a date-time, and below zero a number, as for any time-of-day format. Built-in 46, [h]:mm:ss, is a duration: 26:00:00 and -01:00:00."
+  },
+  {
+   "name": "Text Excel stores with _xHHHH_ escapes arrives exactly",
+   "rules": ["3.10"],
+   "cells": {"A1": {"text": "a\r\nb"}, "A2": {"text": "x\u0001y\u001f"}, "A3": {"text": "￾￿"}, "A4": {"text": "_x0041_ and _x005F_"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": false, "friendly": false},
+   "expect": {"headingsSuggested": true, "r": "structure(list(c(\"a\\r\\nb\", \"x\\u0001y\\u001f\", \"\\ufffe\\uffff\", \"_x0041_ and _x005F_\")), names = c(\"A\"), row.names = c(NA_integer_, -4L), class = \"data.frame\")"},
+   "note": "The file holds CR, C0 controls and U+FFFE and U+FFFF as Excel writes them, _x000D_, _x0001_ and so on, and the text _x0041_ as _x005F_x0041_; the Mac's loader reads each back as the character."
+  }
+ ]
+}

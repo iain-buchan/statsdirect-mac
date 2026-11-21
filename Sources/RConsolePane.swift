@@ -422,7 +422,7 @@ extension Viewer {
                                                    document: Document, echo: Bool = true) -> URL? {
         let save: (Viewer, String) -> URL? = { viewer, note in
             do {
-                let url = try RExternalScript.save(source, name: name)
+                let url = try RExternalScript.saveFallback(source, name: name, echo: echo)
                 viewer.status.stringValue = "Saved \(url.path)" + note; return url
             } catch { viewer.showError("Open in R failed: \(error.localizedDescription)"); return nil }
         }

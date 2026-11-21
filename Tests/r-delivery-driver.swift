@@ -21,6 +21,10 @@ import Darwin
     @MainActor static func main() async {
         do {
             let arguments = CommandLine.arguments
+            if arguments.count == 3, arguments[1] == "file-names" {
+                try fileNames(work: URL(fileURLWithPath: arguments[2], isDirectory: true))
+                return
+            }
             if arguments.count == 7, arguments[1] == "host" {
                 try await host(worker: URL(fileURLWithPath: arguments[2]), bootstrap: URL(fileURLWithPath: arguments[3]),
                                sessions: URL(fileURLWithPath: arguments[4]), temporary: URL(fileURLWithPath: arguments[5]),
@@ -572,7 +576,28 @@ import Darwin
         let saved = try RExternalScript.save("old <- 1\n", name: "Sheet1 Worksheet", in: scripts)
         let again = try RExternalScript.save("new <- 2\n", name: "Sheet1 Worksheet", in: scripts)
         try check(saved == again && saved.lastPathComponent == "Sheet1 Worksheet.R" && text(again) == "new <- 2\n",
-                  "without RStudio or R.app the script is saved in R Scripts under its own name, as before")
+                  "explicit script Save can still replace the earlier save of the same name")
+
+        // The same production fallback handles no GUI, a failed R.app launch, and a declined R installation. Each
+        // quiet worksheet source must remain separate, including when the title and timestamp collide with files
+        // already saved by the user. No R application is launched by these checks.
+        let fallbacks = try ["no GUI", "failed R.app launch", "declined installation"].enumerated().map { index, reason in
+            try RExternalScript.saveFallback("# \(reason)\nworksheet_data <- \(index + 1)\n",
+                                             name: "Sheet1 Worksheet", echo: false, date: date, in: scripts)
+        }
+        try check(fallbacks.map(\.lastPathComponent) == ["Sheet1 Worksheet 2026-11-21 101530 4.R",
+                                                       "Sheet1 Worksheet 2026-11-21 101530 5.R",
+                                                       "Sheet1 Worksheet 2026-11-21 101530 6.R"]
+                  && Set(fallbacks).count == 3
+                  && fallbacks.enumerated().allSatisfy { text($0.element)?.contains("worksheet_data <- \($0.offset + 1)\n") == true },
+                  "worksheet fallbacks retain each same-title import, numbering existing timestamp collisions")
+        try check(text(saved) == "new <- 2\n" && text(first) == "first <- 1\n" && text(second) == "second <- 2\n"
+                  && text(third) == "third <- 3\n",
+                  "worksheet fallbacks never replace the user's plain filename or any earlier dated import")
+        let consoleFallback = try RExternalScript.saveFallback("console <- 9\n", name: "Console", echo: true, date: date, in: scripts)
+        let consoleAgain = try RExternalScript.saveFallback("console <- 10\n", name: "Console", echo: true, date: date, in: scripts)
+        try check(consoleFallback == consoleAgain && consoleAgain.lastPathComponent == "Console.R" && text(consoleAgain) == "console <- 10\n",
+                  "console fallback keeps its established named-script behavior, independently of worksheet imports")
     }
 
     // MARK: Process identity

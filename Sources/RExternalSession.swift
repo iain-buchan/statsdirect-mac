@@ -10,7 +10,7 @@ import CryptoKit
 ///   (a copy the user has saved changes to is theirs). A launch record beside them lets StatsDirect do the same for an
 ///   R.app that did not end normally, when StatsDirect quits or next starts. The folder always stays: users save files
 ///   there.
-/// - With neither installed, the script is saved in R Scripts under its own name.
+/// - With neither installed, a worksheet import gets a new file in R Scripts; a console script keeps its own name.
 @MainActor enum RExternalScript {
     nonisolated(unsafe) static var opensExternally = true
     static var scriptsFolder: URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Viewer/R Scripts", isDirectory: true) }
@@ -66,6 +66,15 @@ import CryptoKit
             catch { if !FileManager.default.fileExists(atPath: url.path) { throw error } }
         }
         throw CocoaError(.fileWriteFileExists)
+    }
+
+    /// Every worksheet fallback keeps a separate import, as the RStudio path does: a failed or declined external
+    /// launch must not replace an earlier worksheet or a user's file. `echo` is the existing source distinction:
+    /// worksheet imports are quiet, while console scripts keep the script pane's established save-by-name behavior.
+    /// Explicit Save continues to use `save` or a save panel and may replace the file the user chose.
+    static func saveFallback(_ source: String, name: String, echo: Bool, date: Date = Date(), in folder: URL? = nil) throws -> URL {
+        if !echo { return try saveUnique(source, name: name, date: date, in: folder) }
+        return try save(source, name: name, in: folder)
     }
 
     /// Each external window receives immutable source, even when another tab
@@ -136,12 +145,12 @@ import CryptoKit
                 let session = try RExternalSession(data: Data(source.utf8), name: fileName(name), directory: launchFolder(in: workingDirectory), echo: echo)
                 start(session, with: r, status: status) { reason in
                     // R.app did not start: keep the script for the user, as when no R application is installed.
-                    if let saved = try? save(source, name: name) { status("Open in R failed: \(reason). Your script is saved as \(saved.path).") }
+                    if let saved = try? saveFallback(source, name: name, echo: echo) { status("Open in R failed: \(reason). Your script is saved as \(saved.path).") }
                     else { status("Open in R failed: \(reason).") }
                 }
                 return session.script
             }
-            let saved = try save(source, name: name)
+            let saved = try saveFallback(source, name: name, echo: echo)
             status("Saved \(saved.path); install RStudio or R to open it")
             return saved
         } catch {

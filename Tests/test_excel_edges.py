@@ -457,5 +457,8 @@ try:
             for r, (value, _, text, kind) in enumerate(ISO): assert (got[(0, r)]['text'], got[(0, r)]['kind']) == (text, kind), (date1904, value, got[(0, r)])
             assert request(action='close', id=opened['id'])['ok']
         print('PASS: ISO 8601 cells keep the clock time written, whatever the zone, and a time with no date is a time of day')
+        # Formula-region caches must also stay safe through Save As/reopen, not only the initial import.
+        from excel_formula_region_save import check_formula_region_saves
+        check_formula_region_saves(request, sys.argv[2], folder)
 finally:
     driver.stdin.close(); driver.wait(timeout=15)

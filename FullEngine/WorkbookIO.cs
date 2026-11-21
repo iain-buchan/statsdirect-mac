@@ -1020,6 +1020,69 @@ public static partial class WorkbookIO {
     // Each worksheet part is copied through an XmlReader/XmlWriter pair, merging the edited
     // cells in place. Cached formula results are removed and Excel recalculates on load,
     // because this path never evaluates formulas; the count is reported to the caller.
+    // Result regions are read before any cells are patched: an array/spill or data-table child has no <f> of its own,
+    // and can be absent from the XML altogether. The lookup keeps rectangles compact, caching merged row spans only
+    // for columns actually visited while saving.
+    static List<FormulaRegion> ReadFormulaResultRegions(ZipArchiveEntry entry, out bool requiresExcel) {
+        var regions = new List<FormulaRegion>();
+        requiresExcel = false;
+        using var stream = entry.Open();
+        using var reader = XmlReader.Create(stream);
+        int sheetDataDepth = -1;
+        bool inRow = false, inCell = false;
+        while (reader.Read()) {
+            if (reader.NodeType == XmlNodeType.EndElement && sheetDataDepth >= 0 && reader.Depth == sheetDataDepth) {
+                sheetDataDepth = -1; inRow = false; inCell = false;
+            }
+            if (reader.NodeType != XmlNodeType.Element) continue;
+            if (reader.LocalName == "extLst") requiresExcel = true;
+            if (reader.Depth == 1 && reader.LocalName == "sheetData" && reader.NamespaceURI == MainNs) {
+                sheetDataDepth = reader.IsEmptyElement ? -1 : reader.Depth;
+                continue;
+            }
+            if (sheetDataDepth < 0) continue;
+            if (reader.Depth == sheetDataDepth + 1) {
+                inRow = reader.LocalName == "row" && reader.NamespaceURI == MainNs;
+                inCell = false;
+                continue;
+            }
+            if (reader.Depth == sheetDataDepth + 2) {
+                inCell = inRow && reader.LocalName == "c" && reader.NamespaceURI == MainNs;
+                continue;
+            }
+            if (reader.Depth != sheetDataDepth + 3 || !inCell || reader.LocalName != "f" || reader.NamespaceURI != MainNs
+                || reader.GetAttribute("t") is not ("array" or "dataTable")) continue;
+            requiresExcel = true;
+            var region = FormulaResultRegion(reader.GetAttribute("ref"));
+            if (region != null) regions.Add(region);
+        }
+        return regions;
+    }
+    static Func<int, int, bool> FormulaResultCoverage(ZipArchiveEntry entry) {
+        var regions = ReadFormulaResultRegions(entry, out _);
+        if (regions.Count == 0) return (_, _) => false;
+        var columns = new Dictionary<int, List<(int first, int last)>>();
+        bool Contains(int row, int column) {
+            if (!columns.TryGetValue(column, out var spans)) {
+                spans = new List<(int first, int last)>();
+                foreach (var region in regions.Where(r => r.FirstColumn <= column && column <= r.LastColumn).OrderBy(r => r.FirstRow)) {
+                    if (spans.Count > 0 && region.FirstRow <= spans[^1].last + 1)
+                        spans[^1] = (spans[^1].first, Math.Max(spans[^1].last, region.LastRow));
+                    else spans.Add((region.FirstRow, region.LastRow));
+                }
+                columns[column] = spans;
+            }
+            int first = 0, last = spans.Count - 1;
+            while (first <= last) {
+                int middle = first + (last - first) / 2;
+                if (row < spans[middle].first) last = middle - 1;
+                else if (row > spans[middle].last) first = middle + 1;
+                else return true;
+            }
+            return false;
+        }
+        return Contains;
+    }
     static int PatchStreaming(string sourcePath, string targetPath, List<SheetData> sheets) {
         var edits = sheets.ToDictionary(s => s.Name, s => s);
         int uncached = 0;
@@ -1052,7 +1115,8 @@ public static partial class WorkbookIO {
             using var from = entry.Open();
             if (sheetParts.TryGetValue(entry.FullName, out var info)) {
                 edits.TryGetValue(info.Name, out var sheet);
-                StreamSheet(from, into, sheet, info.Name, dateStyle, durationStyle, package.Date1904, ref uncached);
+                var formulaResult = FormulaResultCoverage(entry);
+                StreamSheet(from, into, sheet, info.Name, dateStyle, durationStyle, package.Date1904, formulaResult, ref uncached);
             } else from.CopyTo(into);
         }
         return uncached;
@@ -1061,8 +1125,13 @@ public static partial class WorkbookIO {
     // Throws when an edit targets a formula cell. The reader advances exactly once per node:
     // XmlWriter.WriteNode leaves it on the node after the one copied, so nothing reads again
     // after it, and whitespace between rows and cells is dropped rather than copied.
-    static void StreamSheet(Stream input, Stream output, SheetData sheet, string sheetName, int dateStyle, int durationStyle, bool date1904, ref int uncached) {
+    static void StreamSheet(Stream input, Stream output, SheetData sheet, string sheetName, int dateStyle, int durationStyle, bool date1904,
+                            Func<int, int, bool> formulaResult, ref int uncached) {
         var pending = sheet == null ? new List<(int row, List<(int col, ColumnData data, int i)> cells)>() : RowsOf(sheet).ToList();
+        foreach (var (row, cells) in pending) foreach (var (col, _, _) in cells) {
+            if (formulaResult(row, col))
+                throw new Exception($"{sheetName}!{ColumnName(col + 1)}{row + 1}: formula cells are read-only in this prototype.");
+        }
         int pendingAt = 0, uncachedHere = 0;
         using var reader = XmlReader.Create(input, new XmlReaderSettings { IgnoreWhitespace = false });
         using var writer = XmlWriter.Create(output, new XmlWriterSettings { Encoding = new UTF8Encoding(false), OmitXmlDeclaration = false });
@@ -1105,7 +1174,8 @@ public static partial class WorkbookIO {
                         if (address != null) { var (_, c) = ParseAddress(address); colNumber = c; } else colNumber++;
                         if (rowEdits != null) while (editAt < rowEdits.Count && rowEdits[editAt].col + 1 < colNumber) { WriteNewCell(rowNumber - 1, rowEdits[editAt].col, rowEdits[editAt].data, rowEdits[editAt].i); editAt++; }
                         var edit = rowEdits != null && editAt < rowEdits.Count && rowEdits[editAt].col + 1 == colNumber ? rowEdits[editAt++] : default;
-                        CopyCell(reader, writer, rowNumber, colNumber, edit.data, edit.i, styleFor, date1904, ref uncachedHere, sheetName);
+                        CopyCell(reader, writer, rowNumber, colNumber, edit.data, edit.i, styleFor, date1904,
+                                 formulaResult(rowNumber - 1, colNumber - 1), ref uncachedHere, sheetName);
                         inner = reader.Read();
                     } else if (IsWhitespace()) inner = reader.Read();
                     else { writer.WriteNode(reader, false); inner = !reader.EOF; }
@@ -1173,7 +1243,8 @@ public static partial class WorkbookIO {
     }
     // Copy one <c> element. With an edit, the value is replaced (style kept). Formula cells
     // lose their cached value so Excel recalculates; an edit on a formula cell is refused.
-    static void CopyCell(XmlReader reader, XmlWriter writer, int rowNumber, int colNumber, ColumnData edit, int editIndex, Func<ColumnData, int, string, string> styleFor, bool date1904, ref int uncached, string sheetName) {
+    static void CopyCell(XmlReader reader, XmlWriter writer, int rowNumber, int colNumber, ColumnData edit, int editIndex,
+                         Func<ColumnData, int, string, string> styleFor, bool date1904, bool formulaResult, ref int uncached, string sheetName) {
         bool empty = reader.IsEmptyElement;
         var attributes = new List<(string prefix, string name, string ns, string value)>();
         if (reader.MoveToFirstAttribute()) { do attributes.Add((reader.Prefix, reader.LocalName, reader.NamespaceURI, reader.Value)); while (reader.MoveToNextAttribute()); reader.MoveToElement(); }
@@ -1192,8 +1263,9 @@ public static partial class WorkbookIO {
             }
         }
         bool hasFormula = children.Any(c => c.name == "f");
+        bool invalidate = hasFormula || formulaResult;
         var address = ColumnName(colNumber) + rowNumber.ToString(CultureInfo.InvariantCulture);
-        if (edit != null && hasFormula) throw new Exception($"{sheetName}!{address}: formula cells are read-only in this prototype.");
+        if (edit != null && invalidate) throw new Exception($"{sheetName}!{address}: formula cells are read-only in this prototype.");
         writer.WriteStartElement("c", MainNs);
         string style = attributes.FirstOrDefault(a => a.name == "s" && a.ns.Length == 0).value;
         if (edit != null) {
@@ -1204,16 +1276,16 @@ public static partial class WorkbookIO {
         } else {
             foreach (var a in attributes) {
                 if (a.ns.Length == 0 && a.name == "r") { writer.WriteAttributeString("r", address); continue; }
-                if (hasFormula && a.ns.Length == 0 && a.name == "t") continue;
+                if (invalidate && a.ns.Length == 0 && a.name == "t") continue;
                 writer.WriteAttributeString(a.prefix, a.name, a.ns, a.value);
             }
             if (attributes.All(a => a.name != "r")) writer.WriteAttributeString("r", address);
             foreach (var c in children) {
-                if (hasFormula && (c.name == "v" || c.name == "is")) continue;
+                if (invalidate && (c.name == "v" || c.name == "is")) continue;
                 if (c.text != null) { writer.WriteStartElement(c.name, MainNs); foreach (var a in c.attrs) writer.WriteAttributeString(a.prefix, a.name, a.ns, a.value); writer.WriteString(c.text); writer.WriteEndElement(); }
                 else writer.WriteRaw(c.innerXml);
             }
-            if (hasFormula) uncached++;
+            if (invalidate) uncached++;
         }
         writer.WriteEndElement();
     }

@@ -154,12 +154,13 @@ try:
             ('h:mm AM/PM', 'time'), ('h:mm:ss AM/PM', 'time'), ('h:mm', 'time'), ('h:mm:ss', 'time'),
             ('mm:ss', 'time'), ('[h]:mm:ss', 'elapsed'), ('mmss.0', 'time'),
             ('mm-dd-yy', 'date'), ('d-mmm', 'date'), ('m/d/yy h:mm', 'date'), ('General', 'number'), ('0.00', 'number'),
-            # Custom codes: m is minutes after an h or before an s, otherwise the month, and never across a ;. Quoted text,
+            # Custom codes: m is minutes after an h or before an s, otherwise the month, and never across a ; (each value takes
+            # the section that applies to it: h;mm is a time of day for 14:30 and 26 hours, and a month, so a number, for -1 hour). Quoted text,
             # \ escapes, _ and * padding and [...] blocks are not tokens, except [h], [m] and [s].
             ('hh:mm:ss.000', 'time'), ('mm:ss.0', 'time'), ('m:ss', 'time'), ('h:m', 'time'), ('[$-409]h:mm AM/PM;@', 'time'),
             ('[$-F400]h:mm:ss\\ AM/PM', 'time'), ('AM/PM', 'time'), ('"d"h:mm', 'time'), ('\\dh:mm', 'time'), ('*mh:mm', 'time'), ('_mh:mm', 'time'),
             ('[mm]:ss', 'elapsed'), ('[ss].00', 'elapsed'), ('[Red][h]:mm', 'elapsed'),
-            ('yyyy-mm-dd', 'date'), ('yyyy-mm-dd hh:mm:ss', 'date'), ('mmmm yyyy', 'date'), ('mm', 'date'), ('mm/dd', 'date'), ('h;mm', 'date'), ('dddd', 'date'),
+            ('yyyy-mm-dd', 'date'), ('yyyy-mm-dd hh:mm:ss', 'date'), ('mmmm yyyy', 'date'), ('mm', 'date'), ('mm/dd', 'date'), ('h;mm', 'time'), ('dddd', 'date'),
             ('0.000', 'number'), ('"h:mm"0.0', 'number'), ('0.0\\h', 'number'), ('[Red]0.00;[Blue]-0.00', 'number'), ('#,##0_);[Red]\\(#,##0\\)', 'number'), ('0.00E+00', 'number'),
             # Amendment 3.9: only a bracket holding one of h, m or s alone, repeated, makes a duration, in any case and after a
             # colour. Colours ([Magenta] and [Red] among them), locales and conditions are not tokens, nor is a bracket of two
@@ -409,6 +410,27 @@ try:
         back = request(action='open', path=str(out)); assert cells(back)[(1, 0)]['text'] == '7' and len(cells(back)) == len(MALFORMED) + 1, back
         assert request(action='close', id=back['id'])['ok'] and request(action='close', id=opened['id'])['ok']
         print('PASS: number formats ending in an unclosed [ open, class their cells and save')
+        # 13b. Only the section of a number format that applies to the value counts (RULES 3.9, amendment 1): with a condition
+        #     in the first or second section, the first section whose condition holds, else the first without one; without
+        #     conditions, the first for a positive value, the second for a negative one, the third for zero, where they exist.
+        SECTIONS = [(46123, '[Magenta]yyyy-mm-dd;[h]:mm', '2026-04-11 00:00:00', 'datetime'),   # Codex's case: [h] is only the negative section
+                    (-1.5, '[h]:mm;yyyy-mm-dd', '-1.5', 'number'),                             # a negative value in a date section
+                    (1.5, '[h]:mm;yyyy-mm-dd', '1.12:00:00', 'timespan'),
+                    (0, 'yyyy-mm-dd;0.00;[h]:mm', '00:00:00', 'timespan'),                     # zero takes the third section
+                    (0, '[h]:mm;0.00', '00:00:00', 'timespan'),                                # with no third, zero takes the first
+                    (-0.25, 'h:mm', '-0.25', 'number'),                                        # with no second, a negative takes the first
+                    (150, '[>=100]yyyy-mm-dd;0.00', '1900-05-29 00:00:00', 'datetime'),        # its condition holds
+                    (50, '[>=100]yyyy-mm-dd;0.00', '50', 'number'),                            # it does not: the first section without one
+                    (-5, '[<0][h]:mm;yyyy-mm-dd', '-5.00:00:00', 'timespan'),
+                    (0.25, '"a;b" h:mm;yyyy-mm-dd', '06:00:00', 'timespan'),                   # a quoted ; does not end a section
+                    (0.25, 'h\\;mm;yyyy-mm-dd', '06:00:00', 'timespan')]                       # nor does an escaped one
+        book = folder/'sections.xlsx'
+        write_xlsx(book, [('Sections', [(r, 0, value, code) for r, (value, code, _, _) in enumerate(SECTIONS)])])
+        opened = request(action='open', path=str(book)); assert 'error' not in opened, opened
+        got = cells(opened)
+        for r, (value, code, text, kind) in enumerate(SECTIONS): assert (got[(0, r)]['text'], got[(0, r)]['kind']) == (text, kind), (value, code, got[(0, r)])
+        assert request(action='close', id=opened['id'])['ok']
+        print(f'PASS: {len(SECTIONS)} values class by the section of their number format that applies to them')
         # 14. ISO 8601 cells (t="d"), as SheetJS writes dates with cellDates and openpyxl with iso_dates: the clock time is the
         #     one written, a trailing Z or an offset read as UTC and never moved into this Mac's zone (the driver runs in
         #     Asia/Kolkata), rounded to the millisecond; a time with no date is a time of day (RULES 3.9), and other text stays

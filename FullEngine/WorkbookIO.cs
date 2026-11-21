@@ -257,7 +257,7 @@ public static partial class WorkbookIO {
     sealed class Package {
         public readonly List<SheetInfo> Sheets = new();
         public readonly List<string> SharedStrings = new();
-        public readonly List<byte> StyleKinds = new();   // per cellXfs index, FormatKind's class of its number format
+        public readonly List<NumberFormat> StyleFormats = new();   // per cellXfs index, its number format's sections and their classes
         public bool Date1904;
         public Package(ZipArchive zip, bool structureOnly = false) {
             XDocument Read(string name) { var entry = Entry(zip, name) ?? throw new Exception("The workbook is missing " + name + "."); using var s = entry.Open(); return XDocument.Load(s); }
@@ -293,7 +293,7 @@ public static partial class WorkbookIO {
                 custom[(int)f.Attribute("numFmtId")] = (string)f.Attribute("formatCode") ?? "";
             foreach (var xf in styles.Root.Element(S + "cellXfs")?.Elements(S + "xf") ?? Enumerable.Empty<XElement>()) {
                 int id = (int?)xf.Attribute("numFmtId") ?? 0;
-                StyleKinds.Add(FormatKind(id, custom.TryGetValue(id, out var code) ? code : null));
+                StyleFormats.Add(ParseFormat(id, custom.TryGetValue(id, out var code) ? code : null));
             }
         }
     }
@@ -311,21 +311,76 @@ public static partial class WorkbookIO {
     // and Thai date formats (71 to 74, 77 and 81) are dates. ExcelDataReader names each built-in
     // by a code that this function classes as it classes the id, so a legacy file classes as an
     // .xlsx does (WorkbookImport.cs).
-    public static byte FormatKind(int id, string code) {
-        if (code == null) {
-            if (id is 46 or 79) return FormatElapsed;   // [h]:mm:ss
-            if (id is (>= 18 and <= 21) or 32 or 33 or 45 or 47 or 75 or 76 or 78 or 80) return FormatTime;   // 45 mm:ss and 47 mmss.0 wrap at the hour, as times of day do
-            if (id is (>= 14 and <= 22) or (>= 27 and <= 36) or (>= 50 and <= 58) or (>= 71 and <= 81)) return FormatDate;
-            return FormatNumber;
+    // A number format's sections, separated by ; outside quotes, escapes and brackets, each with its class and any condition
+    // ([<0], [>=100]); a built-in format without a code has one section. Only the section that applies to a value counts
+    // (RULES 3.9, amendment 1): with a condition in the first or second section, the first section whose condition holds, else
+    // the first without one; without conditions, the first for a positive value, the second for a negative one and the third
+    // for zero, where they exist (Excel shows zero with the first when there is no third, and a negative with the first when
+    // there is no second).
+    public sealed class NumberFormat {
+        readonly List<(byte kind, Func<double, bool> condition)> sections;
+        internal NumberFormat(List<(byte kind, Func<double, bool> condition)> sections) { this.sections = sections; }
+        public byte KindFor(double value) {
+            if (sections.Count == 0) return FormatNumber;
+            if (sections[0].condition != null || sections.Count > 1 && sections[1].condition != null) {
+                foreach (var (kind, condition) in sections) if (condition != null && condition(value)) return kind;
+                foreach (var (kind, condition) in sections) if (condition == null) return kind;
+                return FormatNumber;
+            }
+            int index = value < 0 ? 1 : value == 0 ? 2 : 0;
+            return (index < sections.Count && index < 3 ? sections[index] : sections[0]).kind;
         }
-        // y, d, h, s; m for m or mm, M for mmm and longer (always the month), a for AM/PM or A/P,
-        // and ; between sections, which a minute's neighbours never cross.
+        // Whether any section is a date, time or duration format.
+        public bool DateLike => sections.Any(s => s.kind != FormatNumber);
+    }
+    static readonly Regex Condition = new(@"^\s*(<=|>=|<>|<|>|=)\s*([+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)\s*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    public static NumberFormat ParseFormat(int id, string code) {
+        if (code == null) return new NumberFormat(new() { (BuiltInKind(id), null) });
+        var sections = new List<(byte kind, Func<double, bool> condition)>();
+        int start = 0;
+        Func<double, bool> condition = null;
+        for (int i = 0; i <= code.Length; i++) {
+            if (i == code.Length || code[i] == ';') {
+                sections.Add((SectionKind(code.Substring(start, i - start)), condition));
+                start = i + 1; condition = null; continue;
+            }
+            char ch = code[i];
+            if (ch == '"') { int close = code.IndexOf('"', i + 1); i = close < 0 ? code.Length - 1 : close; continue; }
+            if (ch is '\\' or '_' or '*') { if (i + 1 < code.Length) i++; continue; }   // never past the last section's end
+            if (ch == '[') {
+                int close = code.IndexOf(']', i); if (close < 0) close = code.Length;
+                var m = Condition.Match(code.Substring(i + 1, close - i - 1));
+                if (m.Success && condition == null && double.TryParse(m.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var bound)) {
+                    string op = m.Groups[1].Value;
+                    condition = op switch {
+                        "<" => v => v < bound, ">" => v => v > bound, "=" => v => v == bound,
+                        "<=" => v => v <= bound, ">=" => v => v >= bound, _ => v => v != bound };
+                }
+                i = Math.Min(close, code.Length - 1);   // on the ], or on the last character of an unclosed bracket
+                continue;
+            }
+        }
+        return new NumberFormat(sections);
+    }
+    // The class of a value in this format: the class of the section that applies to it.
+    public static byte FormatKind(int id, string code, double value) => ParseFormat(id, code).KindFor(value);
+    // The class of a positive value, for callers that have no value.
+    public static byte FormatKind(int id, string code) => ParseFormat(id, code).KindFor(1);
+    static byte BuiltInKind(int id) {
+        if (id is 46 or 79) return FormatElapsed;   // [h]:mm:ss
+        if (id is (>= 18 and <= 21) or 32 or 33 or 45 or 47 or 75 or 76 or 78 or 80) return FormatTime;   // 45 mm:ss and 47 mmss.0 wrap at the hour, as times of day do
+        if (id is (>= 14 and <= 22) or (>= 27 and <= 36) or (>= 50 and <= 58) or (>= 71 and <= 81)) return FormatDate;
+        return FormatNumber;
+    }
+    // The class of one section: y, d, h, s; m for m or mm, M for mmm and longer (always the month), a for AM/PM or A/P; m or mm
+    // is the minute after an h or before an s, otherwise the month. Quoted text, \x escapes, _x and *x padding and [...]
+    // blocks (colours, conditions, locales) are not tokens, except [h], [m] and [s] repeated, which make an elapsed time.
+    static byte SectionKind(string code) {
         var tokens = new List<char>();
         for (int i = 0; i < code.Length; i++) {
             char ch = code[i];
             if (ch == '"') { int end = code.IndexOf('"', i + 1); i = end < 0 ? code.Length : end; continue; }
             if (ch is '\\' or '_' or '*') { i++; continue; }
-            if (ch == ';') { tokens.Add(';'); continue; }
             if (ch == '[') {
                 // A code ending in an unclosed [ (another program can write "0.00[") must not fail the whole workbook.
                 int end = code.IndexOf(']', i); if (end < 0) end = code.Length;
@@ -411,7 +466,8 @@ public static partial class WorkbookIO {
                 // them as non-finite doubles, which the grid would show as blank cells).
                 if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out num) || !double.IsFinite(num)) { kind = 2; cellText = value; num = double.NaN; }
                 else {
-                    byte format = style != null && int.TryParse(style, NumberStyles.None, CultureInfo.InvariantCulture, out var sx) && sx < package.StyleKinds.Count ? package.StyleKinds[sx] : FormatNumber;
+                    // Only the section of the number format that applies to this value counts (RULES 3.9, amendment 1).
+                    byte format = style != null && int.TryParse(style, NumberStyles.None, CultureInfo.InvariantCulture, out var sx) && sx < package.StyleFormats.Count ? package.StyleFormats[sx].KindFor(num) : FormatNumber;
                     kind = 1; cellText = "";
                     // A number with date/time formatting can exceed that format's
                     // representable range. Keep the numeric value readable instead

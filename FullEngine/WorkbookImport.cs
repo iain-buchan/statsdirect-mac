@@ -64,7 +64,7 @@ public static partial class WorkbookIO {
             using var file = File.OpenRead(path);
             using var reader = ExcelReaderFactory.CreateReader(file, new ExcelReaderConfiguration { Password = password, SinglePassMode = singlePass });
             bool date1904 = ReaderDate1904(reader);
-            var formatKinds = new Dictionary<int, byte>();   // FormatKind of each number format the workbook uses
+            var formats = new Dictionary<int, NumberFormat>();   // each number format the workbook uses, by its sections
             LegacyNumbers own = null;                        // the file's own numbers, read once a date or time needs them
             do {
                 var data = new SheetData { Name = reader.Name ?? $"Sheet {sheets.Count + 1}" };
@@ -83,10 +83,12 @@ public static partial class WorkbookIO {
                         else switch (value) {
                             case double or int or DateTime or TimeSpan:
                                 int formatId = reader.GetNumberFormatIndex(col);
-                                if (!formatKinds.TryGetValue(formatId, out var format)) formatKinds[formatId] = format = FormatKind(formatId, reader.GetNumberFormatString(col));
+                                if (!formats.TryGetValue(formatId, out var numberFormat)) formats[formatId] = numberFormat = ParseFormat(formatId, reader.GetNumberFormatString(col));
                                 double? exact = null;
                                 if (value is DateTime or TimeSpan) exact = (own ??= LegacyNumbers.Read(path, password)).Find(sheets.Count, reader.Name, row, col);
-                                ClassifyNumber(exact ?? ReaderSerial(value, date1904), format, date1904, out kind, out num, out text);
+                                double serial = exact ?? ReaderSerial(value, date1904);
+                                // Only the section of the format that applies to the value counts (RULES 3.9, amendment 1).
+                                ClassifyNumber(serial, double.IsFinite(serial) ? numberFormat.KindFor(serial) : FormatNumber, date1904, out kind, out num, out text);
                                 break;
                             case bool b: kind = 5; text = b ? "TRUE" : "FALSE"; break;
                             case string s: kind = 2; text = s; break;
@@ -185,7 +187,7 @@ public static partial class WorkbookIO {
         // Whether a number in this format can be a date, time or duration: by FormatKind, or by ExcelDataReader's own parser,
         // which also takes [Magenta] and other codes for one (a built-in format without a code is one for both or for neither).
         static bool DateLike(int id, string code) {
-            if (FormatKind(id, code) != FormatNumber) return true;
+            if (ParseFormat(id, code).DateLike) return true;
             if (code == null) return false;
             try { var parsed = new ExcelDataReader.Core.NumberFormat.NumberFormatString(code); return parsed.IsDateTimeFormat || parsed.IsTimeSpanFormat; }
             catch (Exception) { return true; }

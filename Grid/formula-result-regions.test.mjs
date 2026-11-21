@@ -11,6 +11,7 @@ import {planWriteBack} from './write-back.mjs';
 // loader reports as regions ({firstRow, lastRow, firstColumn, lastColumn}, zero-based) beside the cells it read.
 const RECALCULATE = 'Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.';
 const READ_ONLY = 'Formula cells are read-only. Edit their formulas in Excel.';
+const DATA_COPY = 'Recalculate formula results in Excel before exporting an Excel 97–2003 data copy.';
 const cell = (col, row, text, kind = 'number', extra = {}) => ({col, row, text, kind, ...extra});
 function book(cells, formulaRegions, {columns = 10, rows = 20, headerRow = false} = {}) {
   const w = new WorkbookStore();
@@ -150,4 +151,34 @@ test('a whole-column analysis takes in trailing results without saved values, as
   const read = analyse(fresh);
   assert.deepEqual([read.end, read.first, read.last, read.run()], [8, 2, 8, ['11', '12', '13', '14', '2', '4', '6']]);
   assert.deepEqual(worksheetRImport(fresh, 0, {columns: [2]}, 'selected', {headings: true}).columns[0].values, ['11', '12', '13', '14', '2', '4', '6']);
+});
+
+test('the Excel 97-2003 data copy refuses formula results that may be out of date or were never saved, as R data does', () => {
+  // A1:B1 is {=E1+{0,1}} from A1 and F1 is =E1*2, saved with E1 = 2 as 2, 3 and 4.
+  const array = () => book([cell(0, 0, '2', 'number', {formula: 'E1+{0,1}'}), cell(1, 0, '3'), cell(4, 0, '2'), cell(5, 0, '4', 'number', {formula: 'E1*2'})],
+    [{firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 1}]);
+  const copy = w => w.exportColumns(true).sheets[0].columns.map(c => [c.col, Array.from(c.rows), Array.from(c.nums)]);
+  assert.deepEqual(copy(array()), [[0, [0], [2]], [1, [0], [3]], [4, [0], [2]], [5, [0], [4]]]);
+  // Edited, every result may be out of date: the data copy is refused, as the R data export is; the Excel save is not.
+  const edited = array();
+  assert.ok(edited.sheets[0].store.apply([[4, 0, '10']]));
+  edited.changed();
+  assert.throws(() => edited.exportColumns(true), {message: DATA_COPY});
+  assert.throws(() => rDataTables(edited, 0), {message: 'Recalculate formula results in Excel before saving this table as R data.'});
+  assert.deepEqual(edited.exportColumns().sheets[0].columns.map(c => c.col), [4]);
+  // Unedited, an array result, a spill result absent from the file, or a formula the file saved no result for is refused.
+  const unsaved = [
+    book([cell(0, 0, '2', 'number', {formula: 'E1+{0,1}'}), cell(1, 0, ''), cell(4, 0, '2')], [{firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 1}]),
+    book([cell(0, 0, '1', 'number', {formula: '_xlfn.SEQUENCE(2,2)'}), cell(1, 0, '2'), cell(0, 1, '3')], [{firstRow: 0, lastRow: 1, firstColumn: 0, lastColumn: 1}]),
+    book([cell(0, 0, '1', 'number', {formula: '_xlfn.SEQUENCE(1000000)'})], [{firstRow: 0, lastRow: 999999, firstColumn: 0, lastColumn: 0}], {rows: 1000000}),
+    book([cell(0, 0, '2'), cell(5, 0, '', 'blank', {formula: 'E1*2'})], [])];
+  for (const w of unsaved) assert.throws(() => w.exportColumns(true), {message: DATA_COPY});
+  // A saved empty-text result is a blank cell, and a workbook without formulas is copied after any edit.
+  const empty = book([cell(0, 0, '', 'blank', {formula: 'IF(E1>0,{"",""},0)', savedEmpty: true}), cell(1, 0, '', 'blank', {savedEmpty: true}), cell(4, 0, '2')],
+    [{firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 1}]);
+  assert.deepEqual(copy(empty), [[4, [0], [2]]]);
+  const plain = book([cell(0, 0, '1'), cell(1, 0, '2')], []);
+  assert.ok(plain.sheets[0].store.apply([[0, 0, '5']]));
+  plain.changed();
+  assert.deepEqual(copy(plain), [[0, [0], [5]], [1, [0], [2]]]);
 });

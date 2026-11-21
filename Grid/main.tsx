@@ -212,7 +212,9 @@ function App() {
       snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),
       // The snapshot carries the cells; columns inserted before existing ones since the file was loaded travel beside it.
       excelSnapshot: async (allValues = false) => {
-        const sheets = workbook.exportColumns(allValues).sheets;
+        let sheets;
+        // A data copy's refusal (stale or missing formula results) is shown here too: the XLS export reports only that the grid could not be read.
+        try { sheets = workbook.exportColumns(allValues).sheets; } catch (error) { setMessage((error as Error).message); throw error; }
         const stored = await postSnapshot(sheets);
         return {...stored, inserts: sheets.filter((sh: any) => sh.inserts?.length).map((sh: any) => ({name: sh.name, inserts: sh.inserts}))};
       },

@@ -297,6 +297,23 @@ export class GridStore {
     if (!this.readOnly(c, r)) return false;
     return this.formulasStale || this.get(c, r) === '' && this.cols[c]?.extra.get(r)?.savedEmpty !== true;
   }
+  // The first formula or formula result cell whose value cannot be used, as [c, r], or null. Only stored cells are read: a
+  // result region's rows that the store holds no chunk for have no saved result.
+  firstUnavailableResult() {
+    for (let c = 0; c < this.cols.length; c++) for (const r of this.cols[c].formula.keys()) if (this.formulaUnavailable(c, r)) return [c, r];
+    for (let c = 0; c < this.columns.length; c++) {
+      const column = this.cols[c];
+      for (const {firstRow, lastRow} of this.formulaResultSpans(c)) {
+        if (this.formulasStale) return [c, firstRow];
+        for (let r = firstRow; r <= lastRow;) {
+          const ch = column?.chunks.get(r >> CHUNK_BITS), end = Math.min(lastRow, r | MASK);
+          if (!ch) return [c, r];
+          for (; r <= end; r++) if (ch.kind[r & MASK] === BLANK && column.extra.get(r)?.savedEmpty !== true) return [c, r];
+        }
+      }
+    }
+    return null;
+  }
   // The cell as loaded from a file (undefined for cells that were never loaded). For a cell
   // edited since loading, the values it had when loaded.
   loaded(c, r) {

@@ -51,7 +51,8 @@ import CryptoKit
     }
 
     /// A new file in R Scripts for each import, never replacing another: "Sheet1 Worksheet 2026-11-21 101530.R", then
-    /// " 2", " 3" and so on when that name is taken.
+    /// " 2", " 3" and so on when that name is taken. Only a name in use moves on to the next number: any other failure is
+    /// reported as it is, and leaves no file.
     static func saveUnique(_ source: String, name: String, date: Date = Date(), in folder: URL? = nil) throws -> URL {
         let folder = folder ?? scriptsFolder
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -63,7 +64,18 @@ import CryptoKit
         for number in 1...1000 {
             let url = folder.appendingPathComponent(stem + (number == 1 ? "" : " \(number)") + ".R")
             do { try data.write(to: url, options: .withoutOverwriting); return url }
-            catch { if !FileManager.default.fileExists(atPath: url.path) { throw error } }
+            // The name is taken, by a file, a folder or a link (a broken one too), in any letter case or form of its
+            // accents that the disk takes for the same name.
+            catch CocoaError.fileWriteFileExists { continue }
+            catch {
+                // Writing failed for another reason, such as a full disk. Foundation creates the file before writing it
+                // and leaves it, empty or cut short: remove it, a plain file only, never a folder or a link.
+                url.withUnsafeFileSystemRepresentation { path in
+                    var info = stat()
+                    if let path, lstat(path, &info) == 0, info.st_mode & S_IFMT == S_IFREG { unlink(path) }
+                }
+                throw error
+            }
         }
         throw CocoaError(.fileWriteFileExists)
     }

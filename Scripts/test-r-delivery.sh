@@ -2,9 +2,10 @@
 # R+ delivery (worksheet R rules 6.1 and 6.2, with amendment 1) without launching R.app, RStudio or StatsDirect: the
 # R.app start-up file under Rscript (the user's own profile, R_PROFILE_USER and .First; options(encoding) and
 # defaultPackages set by that profile; removal by exact paths, only while unchanged), script names that would take the
-# start-up file's or the record's, R+ file names, the leftover clean-up of fake folder trees with another StatsDirect
-# running, and a real console worker whose host is killed. The console worker needs the svglite package, which
-# Scripts/prepare-r-console-svg.sh prepares (it installs it only when it is missing).
+# start-up file's or the record's, R+ file names and saves (one cut short by a file-size limit among them), the leftover
+# clean-up of fake folder trees with another StatsDirect running, and a real console worker whose host is killed. The
+# console worker needs the svglite package, which Scripts/prepare-r-console-svg.sh prepares (it installs it only when it
+# is missing).
 # Usage: Scripts/test-r-delivery.sh [RConsoleWorker]   (built here when not given)
 set -euo pipefail
 cd "$(dirname "$0")/.."

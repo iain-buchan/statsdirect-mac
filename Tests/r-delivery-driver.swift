@@ -8,8 +8,10 @@ import Darwin
 ///   none. The script is read as written whatever the user's profile sets options(encoding) or defaultPackages to. When
 ///   R ends, the script copy and the start-up file go by their exact paths, each only while unchanged, then the record;
 /// - a script copy never takes the start-up file's or the launch record's name;
-/// - R+ file names, and the leftover clean-up of R.app launch folders and of console private folders, on fake trees,
-///   with another StatsDirect still running;
+/// - R+ file names and saves in R Scripts: numbered only when a name is in use, and nothing left by a save that fails (one
+///   cut short by a file-size limit);
+/// - the leftover clean-up of R.app launch folders and of console private folders, on fake trees, with another StatsDirect
+///   still running;
 /// - a real console worker whose host is killed leaves its private folder, which start-up removes once it has gone.
 /// Usage: r-delivery-driver Rscript work-folder RConsoleWorker console-bootstrap.R
 ///   (or, as the killed host: r-delivery-driver host RConsoleWorker console-bootstrap.R sessions-folder temporary-folder info-file)
@@ -626,6 +628,123 @@ import Darwin
         let consoleAgain = try RExternalScript.saveFallback("console <- 10\n", name: "Console", echo: true, date: date, in: scripts)
         try check(consoleFallback == consoleAgain && consoleAgain.lastPathComponent == "Console.R" && text(consoleAgain) == "console <- 10\n",
                   "console fallback keeps its established named-script behavior, independently of worksheet imports")
+
+        try clashes(work: work.appendingPathComponent("clashes", isDirectory: true), date: date)
+        try failedWrites(work: work.appendingPathComponent("write fails", isDirectory: true), date: date)
+    }
+
+    /// A file written under its name exactly as given, as R or a shell writes one, where Foundation would decompose its accents.
+    static func writeAsGiven(_ text: String, in folder: URL, name: String) throws {
+        let descriptor = open(folder.path + "/" + name, O_WRONLY | O_CREAT | O_EXCL, 0o644)
+        guard descriptor >= 0 else { throw Failure(description: "could not create \(name): errno \(errno)") }
+        defer { close(descriptor) }
+        let bytes = Array(text.utf8)
+        guard Darwin.write(descriptor, bytes, bytes.count) == bytes.count else { throw Failure(description: "could not write \(name)") }
+    }
+
+    /// What is in a folder, by name: each file's permissions and text, each link's destination.
+    static func entries(_ folder: URL) throws -> [String: String] {
+        var result: [String: String] = [:]
+        for name in try fm.contentsOfDirectory(atPath: folder.path) {
+            let url = folder.appendingPathComponent(name)
+            var info = stat()
+            guard lstat(url.path, &info) == 0 else { throw Failure(description: "cannot read \(name)") }
+            switch info.st_mode & S_IFMT {
+            case S_IFDIR: result[name] = "folder"
+            case S_IFLNK: result[name] = "link to " + (try fm.destinationOfSymbolicLink(atPath: url.path))
+            default: result[name] = "file " + String(info.st_mode & 0o777, radix: 8) + " " + (text(url) ?? "unreadable")
+            }
+        }
+        return result
+    }
+
+    /// Only a name in use moves on to the next number.
+    @MainActor static func clashes(work: URL, date: Date) throws {
+        let root = try folder(work)
+        let ignoresCase = try root.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey]).volumeSupportsCaseSensitiveNames != true
+        let first = "Caf\u{E9} Worksheet 2026-11-21 101530.R", user = "# the user's\n"
+        // Each of these takes the first name, and is left as it was: the name in capitals (on a disk that ignores case, as a
+        // Mac's does unless set up otherwise), the name with its accent precomposed or decomposed (as R or a shell may write
+        // it), a folder, a link to a file, a broken link and a read-only file.
+        for kind in ["letter case", "precomposed", "decomposed", "folder", "link to a file", "broken link", "read-only file"] {
+            let place = try folder(root.appendingPathComponent(kind, isDirectory: true)), taken = place.appendingPathComponent(first)
+            switch kind {
+            case "letter case": try writeAsGiven(user, in: place, name: "CAF\u{C9} WORKSHEET 2026-11-21 101530.R")
+            case "precomposed": try writeAsGiven(user, in: place, name: first)
+            case "decomposed": try writeAsGiven(user, in: place, name: "Cafe\u{301} Worksheet 2026-11-21 101530.R")
+            case "folder": try fm.createDirectory(at: taken, withIntermediateDirectories: false)
+            case "link to a file":
+                try writeAsGiven(user, in: place, name: "target.R")
+                try fm.createSymbolicLink(atPath: taken.path, withDestinationPath: "target.R")
+            case "broken link": try fm.createSymbolicLink(atPath: taken.path, withDestinationPath: "no such file.R")
+            default:
+                try writeAsGiven(user, in: place, name: first)
+                guard chmod(taken.path, 0o444) == 0 else { throw Failure(description: "could not make the file read-only") }
+            }
+            // The name is on the disk in the form it was written in: the accent precomposed (U+00E9) or decomposed (U+0301).
+            if kind == "precomposed" || kind == "decomposed" {
+                let accent: Unicode.Scalar = kind == "precomposed" ? "\u{E9}" : "\u{301}"
+                try check(try fm.contentsOfDirectory(atPath: place.path).contains { $0.unicodeScalars.contains(accent) },
+                          "the user's file is on the disk with its accent " + kind)
+            }
+            let before = try entries(place)
+            let saved = try RExternalScript.saveUnique("x <- 1\n", name: "Caf\u{E9} Worksheet", date: date, in: place)
+            var after = try entries(place)
+            let added = after.removeValue(forKey: saved.lastPathComponent)
+            // A disk that tells case apart has no clash in capitals.
+            let numbered = kind != "letter case" || ignoresCase
+            let expected = numbered ? "Caf\u{E9} Worksheet 2026-11-21 101530 2.R" : first
+            let what: String
+            switch kind {
+            case "letter case": what = "the name in capitals"
+            case "precomposed", "decomposed": what = "the name with its accent " + kind
+            default: what = "a " + kind
+            }
+            try check(saved.lastPathComponent == expected && added?.hasPrefix("file ") == true && text(saved) == "x <- 1\n" && after == before,
+                      "a name taken by " + what + (numbered ? " moves the import on to \" 2\"" : " is no clash on this disk") + ", and is left as it was",
+                      "\(saved.lastPathComponent)\nbefore: \(before)\nafter: \(after)")
+        }
+    }
+
+    /// `body` run while a write that takes a file beyond `bytes` fails with EFBIG, as a full disk fails one, rather than
+    /// raising SIGXFSZ, which would end the process. Nothing is printed meanwhile, in case the output is a file.
+    @MainActor static func withFileSizeLimit<T>(_ bytes: rlim_t, _ body: () -> T) throws -> T {
+        var limit = rlimit()
+        guard getrlimit(RLIMIT_FSIZE, &limit) == 0 else { throw Failure(description: "could not read the file-size limit") }
+        let saved = limit, handler = signal(SIGXFSZ, SIG_IGN)
+        defer { signal(SIGXFSZ, handler) }
+        fflush(stdout)
+        limit.rlim_cur = bytes
+        guard setrlimit(RLIMIT_FSIZE, &limit) == 0 else { throw Failure(description: "could not set a file-size limit") }
+        let result = body()
+        var restored = saved
+        guard setrlimit(RLIMIT_FSIZE, &restored) == 0 else { throw Failure(description: "could not restore the file-size limit") }
+        return result
+    }
+
+    /// Any other failure is reported as it is, and leaves nothing behind.
+    @MainActor static func failedWrites(work: URL, date: Date) throws {
+        let place = try folder(work), script = String(repeating: "x <- 1\n", count: 1200)
+        // An 8 KiB import stops at a 4 KiB file-size limit, as it would on a full disk. Foundation leaves the file it created,
+        // cut short; were that taken for a name in use, each attempt would leave one more and move on, to " 2", " 3" and so
+        // on, and after 1000 report that the name was taken. RStudio's imports and every worksheet fallback save this way.
+        let (unique, fallback) = try withFileSizeLimit(4096) {
+            (Result { try RExternalScript.saveUnique(script, name: "Sheet1 Worksheet", date: date, in: place) },
+             Result { try RExternalScript.saveFallback(script, name: "Sheet1 Worksheet", echo: false, date: date, in: place) })
+        }
+        func tooLarge(_ result: Result<URL, Error>) -> Bool {
+            guard case .failure(let error) = result else { return false }
+            let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? NSError
+            return (error as? CocoaError)?.code != .fileWriteFileExists && underlying?.domain == NSPOSIXErrorDomain && underlying?.code == Int(EFBIG)
+        }
+        let left = try fm.contentsOfDirectory(atPath: place.path)
+        try check(tooLarge(unique) && tooLarge(fallback) && left.isEmpty,
+                  "a save that fails for another reason, here a file-size limit, reports that error and leaves no file",
+                  "\(unique)\n\(fallback)\n\(left.count) files left")
+        // Once the write can succeed, the first name is free again.
+        let saved = try RExternalScript.saveUnique(script, name: "Sheet1 Worksheet", date: date, in: place)
+        try check(saved.lastPathComponent == "Sheet1 Worksheet 2026-11-21 101530.R" && text(saved) == script,
+                  "after a failed save, the next import takes the first name")
     }
 
     // MARK: Process identity

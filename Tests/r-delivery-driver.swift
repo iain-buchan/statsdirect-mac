@@ -77,6 +77,12 @@ import Darwin
         return result + "\""
     }
 
+    /// A string as R code from its UTF-8 bytes, rawToChar(as.raw(c(0x.., ...))), which R hands to the file system unchanged in
+    /// any locale: the form the start-up file must use for a path or name that a string literal would need an escape for.
+    static func rBytes(_ text: String) -> String {
+        "rawToChar(as.raw(c(" + text.utf8.map { String(format: "0x%02x", $0) }.joined(separator: ", ") + ")))"
+    }
+
     struct RRun {
         let status: Int32
         let output: String
@@ -163,12 +169,15 @@ import Darwin
                   && record.flatMap { UUID(uuidString: $0.id) } != nil && record.map { profileText.contains("\"\($0.id)\"") } == true,
                   "an R.app launch writes its script copy, \(profileName) and a launch record naming its StatsDirect, a SHA-256 for each file and the id the start-up file holds",
                   String(describing: record))
-        // Foundation gives the path's é decomposed, as e and a combining accent; the disk takes either form for the same name.
+        // The folder holds quotes, a backslash and a bidirectional-text control, which a string literal would need escapes for:
+        // each path in it is written as its UTF-8 bytes, and the id, which needs none, as a plain literal. Neither the bidi
+        // control nor the accented letter appears as a character (Foundation may give é decomposed, as e and U+0301).
         try check(String(data: profileData, encoding: .utf8) != nil
-                  && (profileText.contains("caf\u{e9}") || profileText.contains("cafe\u{301}"))
-                  && profileText.contains("\\u202e") && !profileText.unicodeScalars.contains { $0.value == 0x202E }
-                  && !profileText.unicodeScalars.contains { $0.value < 32 && $0.value != 10 } && !profileText.contains("unlink("),
-                  "the start-up file is UTF-8, with the folder's accented letter as written, its bidirectional-text control as an escape, no other control character, and never uses unlink()")
+                  && [main.directory.path, main.script.path, main.profile.path, main.record.path].allSatisfy { profileText.contains(rBytes($0)) }
+                  && record.map { profileText.contains("\"\($0.id)\"") } == true
+                  && !profileText.unicodeScalars.contains { $0.value == 0x202E || $0.value == 0xE9 || $0.value == 0x301 }
+                  && !profileText.contains("\\u") && !profileText.unicodeScalars.contains { $0.value < 32 && $0.value != 10 } && !profileText.contains("unlink("),
+                  "the start-up file is UTF-8, with every path in a folder holding quotes, a backslash and a bidirectional-text control as its bytes, no escape, no other control character, and never uses unlink()")
 
         // The user's profile and .First run as R would, and a child Rscript does not inherit StatsDirect's profile.
         let child = work.appendingPathComponent("child.R")
@@ -229,11 +238,30 @@ import Darwin
             + "utils::str(worksheet_data)\n"
         let cSession = try RExternalSession(data: Data(unicodeScript.utf8), name: "Sheet1 caf\u{e9} Worksheet.R",
                                             directory: RExternalScript.launchFolder(in: plain), echo: false)
+        let cProfile = String(decoding: fm.contents(atPath: cSession.profile.path) ?? Data(), as: UTF8.self)
         let cLocale = try runR(rscript, try checks(work, "clocale",
                                                    "stopifnot(identical(charToRaw(worksheet_data$Name[1]), as.raw(c(0x63, 0x61, 0x66, 0xc3, 0xa9))))"),
                                in: empty, home: empty, session: cSession, extra: ["LC_ALL": "C", "LANG": "C"])
         try check(cLocale.status == 0 && cLocale.output.contains("PARENT_CHECKS_PASSED") && !exists(cSession.script),
                   "in the C locale an accented launch folder and a script with curly quotes and accented data still run the import exactly, and the copy goes when R ends", cLocale.output)
+        try check(cProfile.contains("\"" + cSession.script.path + "\"") && cProfile.contains("\"" + cSession.directory.path + "\"") && !cProfile.contains("rawToChar"),
+                  "a path that needs no escape, an accented one among them, is written as a plain UTF-8 literal", cProfile)
+        // In the C locale R cannot translate a \u escape into the native encoding ("unable to translate ... to native
+        // encoding"), so a launch folder or a script name holding a character a literal must escape would fail there: here a
+        // bidirectional-text control in both, with quotes, a backslash, a C1 control and an accented letter in the folder.
+        // Written as raw bytes, R hands them to the file system unchanged, and the import runs and its copies go.
+        let awkward = try folder(work.appendingPathComponent("C locale \u{202E}x \" \\ \u{85} caf\u{e9}", isDirectory: true))
+        let bidi = try RExternalSession(data: Data(unicodeScript.utf8), name: "Sheet1 \u{202E}x Worksheet.R",
+                                        directory: RExternalScript.launchFolder(in: awkward), echo: false)
+        let bidiProfile = String(decoding: fm.contents(atPath: bidi.profile.path) ?? Data(), as: UTF8.self)
+        let bidiRun = try runR(rscript, try checks(work, "clocale-bidi", """
+            stopifnot(identical(charToRaw(worksheet_data$Name[1]), as.raw(c(0x63, 0x61, 0x66, 0xc3, 0xa9))))
+            stopifnot(identical(basename(getwd()), "\(bidi.directory.lastPathComponent)"), file.exists(\(rBytes(bidi.script.path))))
+            """), in: empty, home: empty, session: bidi, extra: ["LC_ALL": "C", "LANG": "C"])
+        try check(bidiRun.status == 0 && bidiRun.output.contains("PARENT_CHECKS_PASSED") && bidiRun.output.contains("StatsDirect: running Sheet1 ")
+                  && !bidiRun.output.contains("unable to translate") && !exists(bidi.script) && !exists(bidi.profile) && !exists(bidi.record)
+                  && bidiProfile.contains(rBytes(bidi.script.path)) && bidiProfile.contains(rBytes(bidi.directory.path)),
+                  "in the C locale a launch folder and a script name holding a bidirectional-text control are written as raw bytes, so the import runs in that folder and its copies go when R ends", bidiRun.output)
         // Echoed code is still the script's own text, comments included.
         let echoed = try RExternalSession(data: Data(unicodeScript.utf8), name: "Echoed Worksheet.R",
                                           directory: RExternalScript.launchFolder(in: root))

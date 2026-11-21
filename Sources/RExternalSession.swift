@@ -298,21 +298,21 @@ struct RExternalSession {
             ? "Script " + name : name
     }
 
-    /// An R string literal for a path or a name: UTF-8 as written, so that R hands the file system the same bytes in any
-    /// locale (an escape would make R translate the character into a non-UTF-8 locale, where an accented path then fails),
-    /// with quotes, backslashes, control characters and the bidirectional-text controls, for which R refuses the whole
-    /// file, written as escapes.
+    /// A path or a name as R code that gives R its exact UTF-8 bytes in any locale, which R hands to the file system
+    /// unchanged. Text a string literal can hold as it is goes in a plain literal, UTF-8 as written. Text it would need an
+    /// escape for (a quote, a backslash, a control character, or a bidirectional-text control, for which R refuses the whole
+    /// file) is written as its bytes, rawToChar(as.raw(c(0x.., ...))): an escape would make R mark the string UTF-8 and
+    /// translate it into the native encoding for the file system, which in the C locale cannot hold the character, so a
+    /// launch folder or script name with one would fail there.
     static func rLiteral(_ value: String) -> String {
-        var text = "\""
-        for scalar in value.unicodeScalars {
+        let plain = value.unicodeScalars.allSatisfy { scalar in
             switch scalar.value {
-            case 0x22: text += "\\\""
-            case 0x5C: text += "\\\\"
-            case 0..<0x20, 0x7F...0x9F, 0x202A...0x202E, 0x2066...0x2069: text += String(format: "\\u%04x", scalar.value)
-            default: text.unicodeScalars.append(scalar)
+            case 0x22, 0x5C, 0..<0x20, 0x7F...0x9F, 0x202A...0x202E, 0x2066...0x2069: return false
+            default: return true
             }
         }
-        return text + "\""
+        if plain { return "\"" + value + "\"" }
+        return "rawToChar(as.raw(c(" + value.utf8.map { String(format: "0x%02x", $0) }.joined(separator: ", ") + ")))"
     }
 
     init(script source: URL, directory: URL) throws {

@@ -418,8 +418,8 @@ extension Viewer {
     }
     /// R+ and the console's Open in R (rule 6.2): RStudio gets one new file in R Scripts, R.app runs a copy that goes
     /// when R ends, and with neither the script is saved in R Scripts. Returns the script file written now, if any.
-    @discardableResult func openScriptInExternalR(_ source: String, name: String,
-                                                   workingDirectory: URL, document: Document) -> URL? {
+    @discardableResult func openScriptInExternalR(_ source: String, name: String, workingDirectory: URL,
+                                                   document: Document, echo: Bool = true) -> URL? {
         let save: (Viewer, String) -> URL? = { viewer, note in
             do {
                 let url = try RExternalScript.save(source, name: name)
@@ -429,7 +429,7 @@ extension Viewer {
         guard RExternalScript.opensExternally else { return save(self, "") }
         let open: () -> URL? = { [weak self, weak document] in
             guard let self, let document, self.documents.contains(where: { $0 === document }) else { return nil }
-            return RExternalScript.open(source, name: name, workingDirectory: workingDirectory) { [weak self, weak document] text in
+            return RExternalScript.open(source, name: name, workingDirectory: workingDirectory, echo: echo) { [weak self, weak document] text in
                 guard let self, let document, self.documents.contains(where: { $0 === document }) else { return }
                 self.status.stringValue = text
             }

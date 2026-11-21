@@ -107,9 +107,18 @@ import CryptoKit
     }
 
     /// R+ from the worksheet, and Open in R from the console. Returns the script file written, if any.
-    @discardableResult static func open(_ source: String, name: String, workingDirectory: URL,
+    @discardableResult static func open(_ source: String, name: String, workingDirectory: URL, echo: Bool = true,
                                          status: @escaping @MainActor (String) -> Void) -> URL? {
         do {
+            if let rstudio, source.isEmpty {
+                // No data (rule 6.4): RStudio's own session, with no file to keep or remove.
+                status("Opening RStudio…")
+                NSWorkspace.shared.openApplication(at: rstudio, configuration: NSWorkspace.OpenConfiguration()) { application, error in
+                    let name = application?.localizedName, reason = error?.localizedDescription
+                    DispatchQueue.main.async { status(reason.map { "Open in R failed: \($0)." } ?? "Opened \(name ?? "RStudio")") }
+                }
+                return nil
+            }
             if let rstudio {
                 let file = try saveUnique(source, name: name)
                 status("Opening \(file.path) in RStudio…")
@@ -123,7 +132,7 @@ import CryptoKit
                 return file
             }
             if let r = NSWorkspace.shared.urlForApplication(withBundleIdentifier: rAppIdentifier) {
-                let session = try RExternalSession(data: Data(source.utf8), name: fileName(name), directory: launchFolder(in: workingDirectory))
+                let session = try RExternalSession(data: Data(source.utf8), name: fileName(name), directory: launchFolder(in: workingDirectory), echo: echo)
                 start(session, with: r, status: status) { reason in
                     // R.app did not start: keep the script for the user, as when no R application is installed.
                     if let saved = try? save(source, name: name) { status("Open in R failed: \(reason). Your script is saved as \(saved.path).") }
@@ -258,7 +267,9 @@ struct RExternalSession {
         try self.init(data: try Data(contentsOf: source), name: source.lastPathComponent, directory: directory)
     }
 
-    init(data: Data, name: String, directory: URL) throws {
+    /// `echo` shows each command in R.app's console as the script runs: wanted for a console or script pane's own code,
+    /// not for a worksheet import, whose data would fill the console before str() (rule 5.4).
+    init(data: Data, name: String, directory: URL, echo: Bool = true) throws {
         self.directory = directory
         script = directory.appendingPathComponent(name)
         profile = directory.appendingPathComponent("startup.R")
@@ -314,7 +325,7 @@ struct RExternalSession {
             setwd(\(try literal(directory.path)))
             file <- \(try literal(script.path))
             cat("\\nStatsDirect: running ", basename(file), "\\n", sep = "")
-            tryCatch(source(file, local = .GlobalEnv, echo = TRUE, print.eval = TRUE,
+            tryCatch(source(file, local = .GlobalEnv, echo = \(echo ? "TRUE" : "FALSE"), print.eval = TRUE,
                             max.deparse.length = Inf, spaced = FALSE, encoding = "UTF-8"),
                      error = function(e) message("StatsDirect script: ", conditionMessage(e)))
             if (interactive()) try(utils::file.edit(file), silent = TRUE)

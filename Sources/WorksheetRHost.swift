@@ -60,9 +60,10 @@ extension Viewer {
 
     private func openWorksheetRSession(_ source: String, title: String?, document: Document, external: Bool) {
         if external {
+            // No echo: R.app's console shows str(worksheet_data) (rule 5.4), not the data being read.
             openScriptInExternalR(source, name: title.map { $0 + " Worksheet" } ?? "New R Session",
                                   workingDirectory: InteractiveRConsole.supportFolder.appendingPathComponent("R Sessions"),
-                                  document: document)
+                                  document: document, echo: false)
         } else if InteractiveRConsole.enabled {
             makeRConsole(script: source, title: title, autoRun: !source.isEmpty)
         } else {

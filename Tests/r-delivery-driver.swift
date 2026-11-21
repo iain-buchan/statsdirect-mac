@@ -159,6 +159,16 @@ import Darwin
         try check(third.status == 0 && third.output.contains("PARENT_CHECKS_PASSED") && !third.output.contains("Error"),
                   "without a user profile the import runs and nothing else is reported", third.output)
 
+        // A worksheet import does not echo its data into R.app's console, so only str() shows (rule 5.4); a console or
+        // script pane's own code, the default, is still echoed command by command.
+        let quiet = try RExternalSession(data: Data(worksheetScript.utf8), name: "Quiet Worksheet.R",
+                                         directory: RExternalScript.launchFolder(in: root), echo: false)
+        let silent = try runR(rscript, try checks("quiet", "stopifnot(\(expectedData))"), in: empty, home: empty, profile: quiet.profile)
+        try check(silent.status == 0 && silent.output.contains("PARENT_CHECKS_PASSED") && silent.output.contains("'data.frame':")
+                  && !silent.output.contains("structure(list(c(1, 2))"),
+                  "a worksheet import shows str() in R.app's console without echoing its data", silent.output)
+        try check(first.output.contains("structure(list(c(1, 2))"), "a console script's commands are still echoed", first.output)
+
         // An error in the user's profile stops the rest of it, as in R; an error in their .First is reported; the
         // import still runs.
         let failing = try folder(work.appendingPathComponent("failing home", isDirectory: true))

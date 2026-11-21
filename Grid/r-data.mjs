@@ -8,6 +8,11 @@ import { kindIndex } from './store.mjs';
 // formatted text does not reproduce it exactly). The application turns the snapshot into
 // R's bulk exchange files; nothing is serialised per cell, so a table of Excel's full
 // height costs only its data.
+//
+// A datetime cell on 1900-02-29, the day Excel's 1900 date system counts (serial 60) but the
+// calendar does not have, is missing: an NA, marked rMissing so that a character column holds NA
+// rather than empty text. R cannot read that date, and the worksheet R import makes it NA too.
+const NONEXISTENT_DAY = '1900-02-29', MISSING = JSON.stringify({rMissing: true});
 export function rDataTables(workbook, currentSheet) {
   const sheets = currentSheet === undefined ? workbook.sheets : [workbook.sheets[currentSheet]];
   const tables = [], records = [];
@@ -24,13 +29,15 @@ export function rDataTables(workbook, currentSheet) {
         const r = i + start, text = store.get(c, r), kind = store.kind(c, r);
         if (store.formulaUnavailable(c, r)) throw new Error('Recalculate formula results in Excel before saving this table as R data.');
         rows[i] = i;
-        const k = text === '' ? 0 : kindIndex(kind);
+        const nonexistent = kind === 'datetime' && text.startsWith(NONEXISTENT_DAY);
+        const k = text === '' || nonexistent ? 0 : kindIndex(kind);
         kinds[i] = k;
         const num = k === 1 ? col.numAt(r) : NaN;
         nums[i] = num;
-        if (text !== '' && Number.isNaN(num)) texts.set(i, text);
-        if (text !== '') { seen.add(kind); if (kind === 'datetime' && /[ T]\d\d:/.test(text)) hasTime = true; }
-        if (markers) {
+        if (k !== 0 && Number.isNaN(num)) texts.set(i, text);
+        if (k !== 0) { seen.add(kind); if (kind === 'datetime' && /[ T]\d\d:/.test(text)) hasTime = true; }
+        if (nonexistent) extras.set(i, MISSING);
+        else if (markers) {
           const original = store.loaded(c, r);
           if (original && original.text === text && (original.rMissing === true || original.rRaw)) {
             const extra = {};

@@ -160,10 +160,11 @@ import Darwin
                   "an R.app launch writes its script copy, \(profileName) and a launch record naming its StatsDirect, a SHA-256 for each file and the id the start-up file holds",
                   String(describing: record))
         // Foundation gives the path's é decomposed, as e and a combining accent; the disk takes either form for the same name.
-        try check(profileData.allSatisfy { $0 == 10 || (32..<127).contains($0) }
-                  && (profileText.contains("caf\\u00e9") || profileText.contains("cafe\\u0301"))
-                  && profileText.contains("\\u202e") && !profileText.contains("unlink("),
-                  "the start-up file is printable ASCII, with the folder's accented letter and bidirectional-text control as escapes, and never uses unlink()")
+        try check(String(data: profileData, encoding: .utf8) != nil
+                  && (profileText.contains("caf\u{e9}") || profileText.contains("cafe\u{301}"))
+                  && profileText.contains("\\u202e") && !profileText.unicodeScalars.contains { $0.value == 0x202E }
+                  && !profileText.unicodeScalars.contains { $0.value < 32 && $0.value != 10 } && !profileText.contains("unlink("),
+                  "the start-up file is UTF-8, with the folder's accented letter as written, its bidirectional-text control as an escape, no other control character, and never uses unlink()")
 
         // The user's profile and .First run as R would, and a child Rscript does not inherit StatsDirect's profile.
         let child = work.appendingPathComponent("child.R")
@@ -214,6 +215,32 @@ import Darwin
                   && !silent.output.contains("structure(list(c(1, 2))"),
                   "a worksheet import shows str() in R.app's console without echoing its data", silent.output)
         try check(first.output.contains("structure(list(c(1, 2))"), "a console script's commands are still echoed", first.output)
+
+        // In a locale that is not UTF-8, R hands the file system the bytes of a path as written, so a launch folder and a
+        // script with an accented name still run the import (an escape would make R translate them, which fails there).
+        let plain = try folder(work.appendingPathComponent("C locale caf\u{e9}", isDirectory: true))
+        let cSession = try RExternalSession(data: Data(worksheetScript.utf8), name: "Sheet1 caf\u{e9} Worksheet.R",
+                                            directory: RExternalScript.launchFolder(in: plain), echo: false)
+        let cLocale = try runR(rscript, try checks(work, "clocale", "stopifnot(\(expectedData))"), in: empty, home: empty, session: cSession,
+                               extra: ["LC_ALL": "C", "LANG": "C"])
+        try check(cLocale.status == 0 && cLocale.output.contains("PARENT_CHECKS_PASSED") && !exists(cSession.script),
+                  "in the C locale an accented launch folder and script still run the import, and the copy goes when R ends", cLocale.output)
+
+        // A copy R cannot read when it ends keeps the launch record, so that StatsDirect's own clean-up finds it later.
+        let locked = try RExternalSession(data: Data(worksheetScript.utf8), name: "Locked Worksheet.R",
+                                          directory: RExternalScript.launchFolder(in: root), echo: false)
+        let lockedRun = try runR(rscript, try checks(work, "locked", "invisible(Sys.chmod(\(rString(locked.script.path)), \"000\"))"),
+                                 in: empty, home: empty, session: locked)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: locked.script.path)
+        try check(lockedRun.status == 0 && lockedRun.output.contains("PARENT_CHECKS_PASSED") && exists(locked.script) && exists(locked.record),
+                  "a copy R cannot read when it ends keeps its launch record", lockedRun.output)
+
+        // A StatsDirect start-up file passed on through an inherited R_PROFILE_USER is never taken for the user's own.
+        let inherited = try RExternalSession(data: Data(worksheetScript.utf8), name: "Inherited Worksheet.R",
+                                             directory: RExternalScript.launchFolder(in: root), echo: false)
+        let variables = inherited.configuration(environment: ["R_PROFILE_USER": main.profile.path]).environment
+        try check(variables[RExternalSession.userProfileVariable] == nil && variables["R_PROFILE_USER"] == inherited.profile.path,
+                  "an inherited StatsDirect start-up file in R_PROFILE_USER is not passed on as the user's own", String(describing: variables))
 
         // An error in the user's profile stops the rest of it, as in R; an error in their .First is reported; the
         // import still runs.

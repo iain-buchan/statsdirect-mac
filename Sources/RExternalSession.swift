@@ -286,17 +286,18 @@ struct RExternalSession {
             ? "Script " + name : name
     }
 
-    /// An R string literal in printable ASCII, with every other character as an escape: R reads it the same in any
-    /// locale, and never sees a raw bidirectional-text control, for which it refuses the whole file.
+    /// An R string literal for a path or a name: UTF-8 as written, so that R hands the file system the same bytes in any
+    /// locale (an escape would make R translate the character into a non-UTF-8 locale, where an accented path then fails),
+    /// with quotes, backslashes, control characters and the bidirectional-text controls, for which R refuses the whole
+    /// file, written as escapes.
     static func rLiteral(_ value: String) -> String {
         var text = "\""
         for scalar in value.unicodeScalars {
             switch scalar.value {
             case 0x22: text += "\\\""
             case 0x5C: text += "\\\\"
-            case 0x20..<0x7F: text.unicodeScalars.append(scalar)
-            case 0..<0x10000: text += String(format: "\\u%04x", scalar.value)
-            default: text += String(format: "\\U%08x", scalar.value)
+            case 0..<0x20, 0x7F...0x9F, 0x202A...0x202E, 0x2066...0x2069: text += String(format: "\\u%04x", scalar.value)
+            default: text.unicodeScalars.append(scalar)
             }
         }
         return text + "\""
@@ -328,7 +329,10 @@ struct RExternalSession {
             now <- tools::md5sum(files)
             unchanged <- !is.na(saved) & !is.na(now) & saved == now
             suppressWarnings(file.remove(files[unchanged]))
-            if (!any(file.exists(files[unchanged])) && length(grepRaw(\(literal(id)), readBin(record, "raw", 65536L), fixed = TRUE)))
+            # The record goes only when each file it lists is gone or is known to be the user's (changed); a file R cannot
+            # read keeps the record, so that StatsDirect's own clean-up finds it later.
+            changed <- !is.na(saved) & !is.na(now) & saved != now
+            if (all(!file.exists(files) | changed) && length(grepRaw(\(literal(id)), readBin(record, "raw", 65536L), fixed = TRUE)))
               suppressWarnings(file.remove(record))
           }, silent = TRUE), onexit = TRUE)
         }), silent = TRUE))
@@ -338,6 +342,8 @@ struct RExternalSession {
         local({
           user <- Sys.getenv("\(Self.userProfileVariable)", unset = NA)
           Sys.unsetenv("\(Self.userProfileVariable)")
+          # A StatsDirect start-up file is never the user's own, or it would run itself.
+          if (!is.na(user) && basename(user) == "\(Self.profileName)") user <- NA
           profile <- if (!is.na(user)) {
             Sys.setenv(R_PROFILE_USER = user)
             if (nzchar(user)) path.expand(user)
@@ -394,7 +400,10 @@ struct RExternalSession {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
         var variables = ["R_PROFILE_USER": profile.path]
-        if let user = environment["R_PROFILE_USER"] { variables[Self.userProfileVariable] = user }
+        // A StatsDirect start-up file passed on through an inherited R_PROFILE_USER is never taken for the user's own.
+        if let user = environment["R_PROFILE_USER"], (user as NSString).lastPathComponent != Self.profileName {
+            variables[Self.userProfileVariable] = user
+        }
         configuration.environment = variables
         return configuration
     }

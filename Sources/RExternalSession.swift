@@ -97,8 +97,8 @@ import CryptoKit
             opened = descriptor < 0 ? errno : 0
         }
         guard descriptor >= 0 else { throw failure(opened) }
-        var published = false
-        defer { if !published { unlink(temporary) } }
+        var published = false, removed = false
+        defer { if !published && !removed { unlink(temporary) } }
         let written = writeAll(descriptor, data), closed: Int32 = Darwin.close(descriptor) == 0 ? 0 : errno
         guard written == 0, closed == 0 else { throw failure(written != 0 ? written : closed) }
         var renames = true
@@ -114,6 +114,8 @@ import CryptoKit
                     // script is written straight to its name, which is made only if it is free.
                     guard result == ENOTSUP || result == EINVAL else { throw failure(result) }
                     renames = false
+                    // The private file has done its work, and would take room on the disk that the script may need.
+                    unlink(temporary); removed = true
                 }
                 return try !createExclusively(path, data, failure)
             }
@@ -131,9 +133,11 @@ import CryptoKit
             if code == EEXIST { return false }
             throw failure(code)
         }
+        let written = writeAll(descriptor, data)
+        // Which file this is, is asked after the write: on FAT and exFAT a file's number changes once it is written to.
         var made = stat()
         let known = fstat(descriptor, &made) == 0
-        let written = writeAll(descriptor, data), closed: Int32 = Darwin.close(descriptor) == 0 ? 0 : errno
+        let closed: Int32 = Darwin.close(descriptor) == 0 ? 0 : errno
         if written == 0 && closed == 0 { return true }
         var found = stat()
         if known, lstat(path, &found) == 0, found.st_dev == made.st_dev, found.st_ino == made.st_ino { unlink(path) }
@@ -479,6 +483,8 @@ struct RExternalSession {
             # read keeps the record, so that StatsDirect's own clean-up finds it later. The listing only proves absence
             # if it includes the record itself: an unreadable folder can return an empty listing. Match plain names
             # without case and other names by their ASCII letters and digits, so case and accent aliases keep the record.
+            # The name must also be gone for file.access, which asks the disk for the name alone, in whatever case and
+            # form of its accents the disk keeps it, where file.exists needs the file's attributes.
             changed <- !is.na(saved) & !is.na(now) & saved != now
             names <- list.files(dirname(record), all.files = TRUE, no.. = TRUE)
             ascii <- function(x) !grepl("[^ -~]", x, useBytes = TRUE)
@@ -489,7 +495,7 @@ struct RExternalSession {
             plain <- ascii(base)
             listed <- key(base) %in% key(names)
             listed[plain] <- fold(base[plain]) %in% plainNames
-            gone <- fold(basename(record)) %in% plainNames & !file.exists(files) & !listed
+            gone <- fold(basename(record)) %in% plainNames & !file.exists(files) & !listed & file.access(files, 0) != 0
             if (all(gone | changed) && length(grepRaw(\(literal(id)), readBin(record, "raw", 65536L), fixed = TRUE)))
               suppressWarnings(file.remove(record))
           }, silent = TRUE), onexit = TRUE)

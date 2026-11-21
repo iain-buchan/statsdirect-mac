@@ -20,10 +20,10 @@ import CryptoKit
             ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.rstudio.desktop")
     }
 
-    /// The file name for a script titled `name`: "/", ":", control characters and bidirectional-text controls as "_",
-    /// without surrounding spaces, with ".R" added unless it has an R extension, and short enough for a date and number
-    /// to be added: at most 200 of the 255 units the Mac's disks allow a name (`diskLength`), shortened on a character
-    /// boundary.
+    /// The file name for a script titled `name`: "/", ":", control characters and bidirectional-text controls as "_", and
+    /// a leading "." too, which would hide the file; without surrounding spaces; with ".R" added unless it has an R
+    /// extension; never empty; and short enough for a date and number to be added: at most 200 of the 255 units the Mac's
+    /// disks allow a name (`diskLength`), shortened on a character boundary.
     nonisolated static func fileName(_ name: String) -> String {
         var scalars = String.UnicodeScalarView()
         for scalar in name.unicodeScalars {
@@ -33,12 +33,16 @@ import CryptoKit
         }
         var file = String(scalars).trimmingCharacters(in: .whitespaces)
         if file.isEmpty { file = "Script" }
+        // Finder, RStudio's Files pane and R's list.files() do not show a file whose name starts with ".". The first
+        // scalar, not the first character: "." with an accent on it still starts the name with ".".
+        if file.unicodeScalars.first == "." { file.unicodeScalars.removeFirst(); file = "_" + file }
         if (file as NSString).pathExtension.lowercased() != "r" { file += ".R" }
         if diskLength(file) > 200 {
             // Each character takes at least one unit, so the first 198 hold all that can stay.
             var stem = String((file as NSString).deletingPathExtension.prefix(198))
             while diskLength(stem) > 198 { stem.removeLast() }
-            file = stem + ".R"
+            // Nothing stays of a title that is one character with a long run of accents on it.
+            file = (stem.isEmpty ? "Script" : stem) + ".R"
         }
         return file
     }

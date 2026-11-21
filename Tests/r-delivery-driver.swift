@@ -8,8 +8,8 @@ import Darwin
 ///   none. The script is read as written whatever the user's profile sets options(encoding) or defaultPackages to. When
 ///   R ends, the script copy and the start-up file go by their exact paths, each only while unchanged, then the record;
 /// - a script copy never takes the start-up file's or the launch record's name;
-/// - R+ file names and saves in R Scripts: within the disk's limit on a name however its accents decompose, numbered only
-///   when a name is in use, and nothing left by a save that fails (one cut short by a file-size limit);
+/// - R+ file names and saves in R Scripts: never hidden, within the disk's limit on a name however its accents decompose,
+///   numbered only when a name is in use, and nothing left by a save that fails (one cut short by a file-size limit);
 /// - the leftover clean-up of R.app launch folders and of console private folders, on fake trees, with another StatsDirect
 ///   still running;
 /// - a real console worker whose host is killed leaves its private folder, which start-up removes once it has gone.
@@ -629,9 +629,31 @@ import Darwin
         try check(consoleFallback == consoleAgain && consoleAgain.lastPathComponent == "Console.R" && text(consoleAgain) == "console <- 10\n",
                   "console fallback keeps its established named-script behavior, independently of worksheet imports")
 
+        try hiddenNames(work: work.appendingPathComponent("visible", isDirectory: true), date: date)
         try longNames(work: work.appendingPathComponent("long", isDirectory: true), date: date)
         try clashes(work: work.appendingPathComponent("clashes", isDirectory: true), date: date)
         try failedWrites(work: work.appendingPathComponent("write fails", isDirectory: true), date: date)
+    }
+
+    /// No file in R Scripts is hidden: Finder, RStudio's Files pane and R's list.files() do not show a name that starts with ".".
+    @MainActor static func hiddenNames(work: URL, date: Date) throws {
+        let accents = "a" + String(repeating: "\u{301}", count: 300)
+        // The "." becomes "_", as "/" and ":" do, also after spaces or with an accent on it. A title that shortening leaves
+        // empty, one character with 300 accents on it, is named Script.
+        try check(RExternalScript.fileName(".backup Worksheet") == "_backup Worksheet.R" && RExternalScript.fileName("  .Data") == "_Data.R"
+                  && RExternalScript.fileName(".") == "_.R" && RExternalScript.fileName(".\u{301}x.r") == "_\u{301}x.r"
+                  && RExternalScript.fileName(accents) == "Script.R",
+                  "a title starting with \".\" gives a file name starting with \"_\", and one that shortening leaves empty is named Script",
+                  [".backup Worksheet", "  .Data", ".", ".\u{301}x.r", accents].map { RExternalScript.fileName($0).debugDescription }.joined(separator: "\n"))
+        let place = try folder(work)
+        let saved = try [RExternalScript.saveFallback("x <- 1\n", name: ".backup Worksheet", echo: false, date: date, in: place),
+                         RExternalScript.saveFallback("x <- 2\n", name: accents, echo: false, date: date, in: place)]
+        let shown = try fm.contentsOfDirectory(at: place, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]).map(\.lastPathComponent)
+        try check(saved.map(\.lastPathComponent) == ["_backup Worksheet 2026-11-21 101530.R", "Script 2026-11-21 101530.R"]
+                  && Set(shown) == Set(saved.map(\.lastPathComponent))
+                  && saved.allSatisfy { (try? $0.resourceValues(forKeys: [.isHiddenKey]).isHidden) == false },
+                  "a worksheet named \".backup\", or one whose name shortening empties, is saved where Finder and R's list.files() show it",
+                  shown.joined(separator: "\n"))
     }
 
     /// The Mac's disks allow a name 255 UTF-16 units in the decomposed form Foundation hands them, which can be several times

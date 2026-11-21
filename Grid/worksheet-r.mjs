@@ -129,7 +129,8 @@ function classify(text, kind, value, i) {
 }
 
 // Rule 3.6, judged on the non-missing cells. The any-case words are missing, and the Inf words
-// numbers, only beside at least one number, Boolean or date with every other cell of that kind (A1).
+// numbers, only beside at least one number, Boolean, date or date-time with every other cell of that
+// kind (A1; a column of dates and date-times is character, and its words become NA in valueText).
 function columnType(n) {
   const numbers = n[Cell.number] + n[Cell.numberText], booleans = n[Cell.boolean] + n[Cell.booleanText], dates = n[Cell.date];
   if (n[Cell.dateTime] + n[Cell.time] + n[Cell.text] === 0) {
@@ -144,8 +145,10 @@ function columnType(n) {
 }
 // A date-time column: every non-missing cell a date or date-time, at least one with a time. Its
 // midnights keep 00:00:00, because as.POSIXct() drops the time from every value if one lacks it.
+// Date-times anchor the any-case words as dates do (agreed with Windows, 21 November 2026), so a
+// word there is missing; beside a time of day or a duration it stays text.
 const dateTimeColumn = n => n[Cell.dateTime] > 0 && n[Cell.number] + n[Cell.numberText] + n[Cell.boolean] + n[Cell.booleanText]
-  + n[Cell.time] + n[Cell.text] + n[Cell.word] + n[Cell.infinite] === 0;
+  + n[Cell.time] + n[Cell.text] + n[Cell.infinite] === 0;
 
 // Rule 3.7: a value in a character column, and a heading's name (4.5). A text cell keeps its exact text.
 function cellText(cls, x, text, dateTimes) {
@@ -163,7 +166,7 @@ function valueText(type, cls, x, text, dateTimes) {
     case 'double': return cls === Cell.number || cls === Cell.numberText ? rNumber(x) : cls === Cell.infinite ? (x > 0 ? 'Inf' : '-Inf') : null;
     case 'logical': return cls === Cell.boolean || cls === Cell.booleanText ? (x ? 'TRUE' : 'FALSE') : null;
     case 'Date': return cls === Cell.date ? rNumber(x) : null;
-    default: return cls > Cell.serial60 ? cellText(cls, x, text, dateTimes) : null;
+    default: return cls > Cell.serial60 && !(dateTimes && cls === Cell.word) ? cellText(cls, x, text, dateTimes) : null;
   }
 }
 
@@ -328,6 +331,16 @@ function rangeText(areas, limit = Infinity) {
 const summary = (store, plan) => ({range: rangeText(plan.areas, 3), rowCount: rowCount(plan), columnCount: plan.columns.length,
   suggestHeadings: suggestHeadings(store, plan)});
 
+// Rule 3.10: the refusal names the first cell holding a null character in sheet order, rows then
+// columns. The copying loop runs column by column, so it calls this only once it has met one.
+function firstNull(store, plan, rows) {
+  for (let i = 0; i < rows; i++) {
+    const r = rowAt(plan, i);
+    for (const c of plan.columns) if (store.get(c, r).includes('\0')) return columnName(c) + (r + 1);
+  }
+  return '';
+}
+
 // Without a scope: the prompt's preview, {sheet, entire, selected, selectedReason}. With "entire"
 // or "selected": the data, {sheet, range, rangeAll, rowCount, columnCount, names, columns, dates}.
 // options.headings takes the names from the first row (rule 4); rowCount still counts that row.
@@ -352,7 +365,7 @@ export function worksheetRImport(workbook, sheetIndex, selection = {}, scope, op
     for (let i = 0; i < rows; i++) {
       const r = rowAt(plan, i), text = store.get(c, r), kind = store.kind(c, r);
       if (store.formulaUnavailable(c, r)) throw new Error(RECALCULATE);
-      if (text.includes('\0')) throw new Error(`Cell ${columnName(c)}${r + 1} contains a null character, which R cannot hold. Remove it, then open the R import again.`);
+      if (text.includes('\0')) throw new Error(`Cell ${firstNull(store, plan, rows)} contains a null character, which R cannot hold. Remove it, then open the R import again.`);
       kinds[i] = classify(text, kind, numbers, i);
       if (i < start) continue;
       counts[kinds[i]]++;

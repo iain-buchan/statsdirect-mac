@@ -88,7 +88,7 @@ test('rule 3.1 trims Unicode White_Space only, and rule 3.4 reads finite ASCII d
   for (const text of ['0012', '-007', '00.5', '1e999', '0x10', 'Infinity', 'NaN', '1,000', '\u0661\u0662\u0663', ' 13', '', '.', 'e5']) assert.ok(Number.isNaN(numberValue(text)), text);
 });
 
-test('rule 3.2 and A1: missing markers, and the any-case words only beside numbers, Booleans or dates', () => {
+test('rule 3.2 and A1: missing markers, and the any-case words only beside numbers, Booleans, dates or date-times', () => {
   assert.deepEqual(column(['Na', 'K', 'Cl']), {type: 'character', values: ['Na', 'K', 'Cl']});
   assert.deepEqual(column(['1', 'na', '2']), {type: 'double', values: ['1', null, '2']});
   assert.deepEqual(column([1, 'na', 2]), {type: 'double', values: ['1', null, '2']});
@@ -97,6 +97,14 @@ test('rule 3.2 and A1: missing markers, and the any-case words only beside numbe
   assert.deepEqual(column([boolean('TRUE'), 'na']), {type: 'logical', values: ['TRUE', null]});
   assert.deepEqual(column(['TRUE', 'na']), {type: 'logical', values: ['TRUE', null]});
   assert.deepEqual(column([datetime('2026-11-21 00:00:00'), 'Null']), {type: 'Date', values: ['20778', null]});
+  // Date-times anchor the words too (agreed with Windows): the column is a date-time column and the
+  // word is NA. A time of day or a duration is no anchor, so the word stays text.
+  assert.deepEqual(column([datetime('2026-11-21 10:00:00'), 'na']), {type: 'character', values: ['2026-11-21 10:00:00', null]});
+  assert.deepEqual(column([datetime('2026-11-21 10:00:00'), datetime('2026-11-22 00:00:00'), 'Null']),
+    {type: 'character', values: ['2026-11-21 10:00:00', '2026-11-22 00:00:00', null]});
+  assert.deepEqual(column([timespan('14:30:00'), 'na']), {type: 'character', values: ['14:30:00', 'na']});
+  assert.deepEqual(column([timespan('1.02:00:00'), 'na']), {type: 'character', values: ['26:00:00', 'na']});
+  assert.deepEqual(column([datetime('2026-11-21 10:00:00'), 'na', 'x']), {type: 'character', values: ['2026-11-21 10:00:00', 'na', 'x']});
   // No anchor: the words and Inf stay text.
   assert.deepEqual(column(['Nan', 'Nan']), {type: 'character', values: ['Nan', 'Nan']});
   assert.deepEqual(column(['na']), {type: 'character', values: ['na']});
@@ -189,6 +197,11 @@ test('rule 3.10: text is exact, a lone surrogate becomes U+FFFD and a NUL is ref
     {message: 'Cell B7 contains a null character, which R cannot hold. Remove it, then open the R import again.'});
   const heading = workbook([cell(2, 0, '\0', 'text'), cell(2, 1, '1')]);
   assert.throws(() => worksheetRImport(heading, 0, {}, 'entire', {headings: true}), /^Error: Cell C1 contains a null character/);
+  // Several NULs: the first in sheet order, rows then columns (rule 3.10), although the copying loop
+  // reads column by column: B1 comes before A2.
+  const two = workbook([cell(0, 0, 'x', 'text'), cell(0, 1, 'a\0', 'text'), cell(1, 0, '\0b', 'text'), cell(1, 1, '2')]);
+  assert.throws(() => worksheetRImport(two, 0, {}, 'entire', {headings: false}),
+    {message: 'Cell B1 contains a null character, which R cannot hold. Remove it, then open the R import again.'});
 });
 
 test('rules 4.1 to 4.5: the heading suggestion, exact names and the column letters', () => {

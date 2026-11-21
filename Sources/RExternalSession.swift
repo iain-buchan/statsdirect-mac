@@ -476,16 +476,20 @@ struct RExternalSession {
             unchanged <- !is.na(saved) & !is.na(now) & saved == now
             suppressWarnings(file.remove(files[unchanged]))
             # The record goes only when each file it lists is gone or is known to be the user's (changed); a file R cannot
-            # read keeps the record, so that StatsDirect's own clean-up finds it later. Gone means the folder no longer
-            # lists it: a file whose attributes R may not read fails file.exists while it is still there. A plain name is
-            # looked for as it is; one with other characters by its letters and digits alone, as the disk lists it in
-            # another form of its accents (a like-named file can then keep the record, which the clean-up settles).
+            # read keeps the record, so that StatsDirect's own clean-up finds it later. The listing only proves absence
+            # if it includes the record itself: an unreadable folder can return an empty listing. Match plain names
+            # without case and other names by their ASCII letters and digits, so case and accent aliases keep the record.
             changed <- !is.na(saved) & !is.na(now) & saved != now
             names <- list.files(dirname(record), all.files = TRUE, no.. = TRUE)
+            ascii <- function(x) !grepl("[^ -~]", x, useBytes = TRUE)
+            fold <- function(x) chartr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", x)
+            plainNames <- fold(names[ascii(names)])
             key <- function(x) tolower(gsub("[^A-Za-z0-9]", "", iconv(x, "UTF-8", "ASCII", sub = "")))
-            plain <- !grepl("[^ -~]", basename(files), useBytes = TRUE)
-            listed <- ifelse(plain, basename(files) %in% names, key(basename(files)) %in% key(names))
-            gone <- !file.exists(files) & !listed
+            base <- basename(files)
+            plain <- ascii(base)
+            listed <- key(base) %in% key(names)
+            listed[plain] <- fold(base[plain]) %in% plainNames
+            gone <- fold(basename(record)) %in% plainNames & !file.exists(files) & !listed
             if (all(gone | changed) && length(grepRaw(\(literal(id)), readBin(record, "raw", 65536L), fixed = TRUE)))
               suppressWarnings(file.remove(record))
           }, silent = TRUE), onexit = TRUE)

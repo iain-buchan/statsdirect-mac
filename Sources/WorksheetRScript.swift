@@ -40,16 +40,20 @@ enum WorksheetRScript {
         for (index, column) in columns.enumerated() {
             guard let type = column["type"] as? String, ["double", "logical", "character", "Date"].contains(type),
                   let values = column["values"] as? [Any] else { throw unreadable }
-            // One value per data row: the rows sent, less the heading row when the first row names the columns.
-            guard dataRows < 0 || values.count == dataRows, values.count == rowCount || values.count == rowCount - 1 else {
-                throw ConversationRScript.Failure(message: "The worksheet selection is incomplete.")
+            let incomplete = ConversationRScript.Failure(message: "The worksheet selection is incomplete.")
+            if asList {
+                // A list holds only each column's non-missing values (rule 5.3), as the grid sends them: at most one for
+                // each row, and each one is written as it comes.
+                guard values.count <= rowCount else { throw incomplete }
+            } else {
+                // One value per data row: the rows sent, less the heading row when the first row names the columns.
+                guard dataRows < 0 || values.count == dataRows, values.count == rowCount || values.count == rowCount - 1 else { throw incomplete }
+                dataRows = values.count
             }
-            dataRows = values.count
             var parts: [String] = [], present = false
             for value in values {
                 let literal: String
-                if value is NSNull {
-                    if asList { continue }   // A list leaves missing values out (rule 5.3).
+                if value is NSNull, !asList {   // a missing value in a data frame; a list has none
                     literal = "NA"
                 } else if let text = value as? String {
                     literal = try self.literal(text, type: type)
@@ -77,6 +81,16 @@ enum WorksheetRScript {
         script += "utils::str(worksheet_data)\n"
         guard script.utf8.count <= maximumBytes else { throw ConversationRScript.Failure(message: sizeMessage) }
         return script
+    }
+
+    /// Whether the grid's columns hold the values the prompt's choice asks for, as WorksheetRHost checks them before it
+    /// writes the script: one value for each data row in every column of a data frame (the rows sent, less the first when
+    /// it names the columns), and in a list only each column's non-missing values, at most that many.
+    static func holdsDataRows(_ columns: [[String: Any]], dataRows: Int, asList: Bool) -> Bool {
+        columns.allSatisfy { column in
+            guard let count = (column["values"] as? [Any])?.count else { return false }
+            return asList ? count <= dataRows : count == dataRows
+        }
     }
 
     /// A value as R code: text quoted, and a number, TRUE or FALSE as the grid wrote it, once it is known to be one.

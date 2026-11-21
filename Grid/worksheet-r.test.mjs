@@ -26,6 +26,7 @@ const datetime = text => ({text, kind: 'datetime'}), timespan = text => ({text, 
 const boolean = text => ({text, kind: 'boolean'}), error = text => ({text, kind: 'error'});
 const span = (from, to) => Array.from({length: to - from + 1}, (_, i) => from + i);
 const TOO_LARGE = 'The selected data exceed the 8 MiB editable R script limit. Select a smaller range, or export the worksheet as RDS from File → Export.';
+const RECALCULATE = 'Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.';
 // What main.tsx hands worksheetRImport for a Glide GridSelection, and a CompactSelection built from pieces [from, to)
 // in the order given, as Glide adds them for a Command-click or Shift-click.
 const glide = ({columns = CompactSelection.empty(), rows = CompactSelection.empty(), current} = {}) =>
@@ -456,7 +457,7 @@ test('the 8 MiB check refuses only what no script could hold, before reading hug
   assert.equal(worksheetRImport(long, 0, {}, 'entire', {}, 11000).columns[0].values[1].length, 5000);
 });
 
-test('a list of vectors leaves out its missing values, so the 8 MiB check counts only its non-blank cells', () => {
+test('a list of vectors sends only its non-missing values, so the 8 MiB check counts only what it writes', () => {
   // The review's case: A holds 1,000,000 numbers and B and C 20 each, independent samples of different lengths. As a
   // data frame no script could hold them (3 columns × 1,000,000 rows × at least 3 bytes); as a list it is about 4 MB.
   const book = workbook([]), store = book.sheets[0].store, edits = [];
@@ -466,16 +467,15 @@ test('a list of vectors leaves out its missing values, so the 8 MiB check counts
   assert.throws(() => worksheetRImport(book, 0, {columns: [0, 1, 2]}, 'selected'), {message: TOO_LARGE});
   assert.throws(() => worksheetRImport(book, 0, {columns: [0, 1, 2]}, 'selected', {list: false}), {message: TOO_LARGE});
   const list = worksheetRImport(book, 0, {columns: [0, 1, 2]}, 'selected', {list: true});
-  assert.deepEqual([list.range, list.rowCount, list.columns.map(c => c.values.length), list.columns.map(c => c.values.filter(v => v !== null).length)],
-    ['A1:C1000000', 1000000, [1000000, 1000000, 1000000], [1000000, 20, 20]]);
-  assert.deepEqual([list.columns[0].values[999999], list.columns[2].values.slice(18, 21)], [String(999999 % 97), ['-18', '-19', null]]);
+  assert.deepEqual([list.range, list.rowCount, list.columns.map(c => c.values.length)], ['A1:C1000000', 1000000, [1000000, 20, 20]]);
+  assert.deepEqual([list.columns[0].values[999999], list.columns[2].values.slice(18)], [String(999999 % 97), ['-18', '-19']]);
   // Its second case: A to C hold 50 values each and D one stray value in row 800,000.
   const stray = workbook([...[0, 1, 2].flatMap(c => span(0, 49).map(r => cell(c, r, String(r)))), cell(3, 799999, '7')], {rows: 800000});
   assert.throws(() => worksheetRImport(stray, 0, {columns: [0, 1, 2, 3]}, 'selected'), {message: TOO_LARGE});
-  assert.deepEqual(worksheetRImport(stray, 0, {columns: [0, 1, 2, 3]}, 'selected', {list: true}).columns.map(c => c.values.filter(v => v !== null)),
+  assert.deepEqual(worksheetRImport(stray, 0, {columns: [0, 1, 2, 3]}, 'selected', {list: true}).columns.map(c => c.values),
     [span(0, 49).map(String), span(0, 49).map(String), span(0, 49).map(String), ['7']]);
-  // At least 3 bytes for each non-blank data cell, counted before any cell is read. A1 is n, and A2:A101 hold 1: as a
-  // list with headings, 100 values and the name make 303 bytes.
+  // A number cell is never missing, so each needs at least 3 bytes ("1, "), counted before any cell is read. A1 is n, and
+  // A2:A101 hold 1: as a list with headings, 100 values and the name make 303 bytes.
   const counted = workbook([cell(0, 0, 'n', 'text'), ...span(1, 100).map(r => cell(0, r, '1'))]), counts = counted.sheets[0].store;
   const read = counts.get.bind(counts);
   let reads = 0;
@@ -486,14 +486,82 @@ test('a list of vectors leaves out its missing values, so the 8 MiB check counts
     return reads === 0;
   };
   assert.equal(worksheetRImport(counted, 0, {columns: [0]}, 'selected', {list: true, headings: true}, 303).columns[0].values.length, 100);
-  assert.equal(refusedUnread({columns: [0]}, {list: true, headings: true}, 299), true);    // 100 cells need 300 bytes
+  assert.equal(refusedUnread({columns: [0]}, {list: true, headings: true}, 299), true);    // 100 numbers need 300 bytes
   assert.equal(refusedUnread({columns: [0]}, {list: true, headings: true}, 300), false);   // read, then 303 bytes are too many
-  assert.equal(refusedUnread({columns: [0]}, {list: true, headings: false}, 302), true);   // A1 is data too: 101 cells
+  // A1's text may be a missing value, which a list leaves out, so it is not counted before reading: the list is read and
+  // then refused, at 306 bytes with A1 as data and the name A.
+  assert.equal(refusedUnread({columns: [0]}, {list: true, headings: false}, 302), false);
+  assert.equal(worksheetRImport(counted, 0, {columns: [0]}, 'selected', {list: true, headings: false}, 306).columns[0].values.length, 101);
   // Of whole rows only the selected ones count: rows 1 to 51 and 101 are 51 data cells, not the 100 from A2 to A101.
   assert.equal(worksheetRImport(counted, 0, {rows: [...span(0, 50), 100]}, 'selected', {list: true, headings: true}, 160).columns[0].values.length, 51);
-  // A blank formula (its saved result empty text) is missing, so it does not count either.
+  // A blank formula (its saved result empty text) is missing, so it is not sent either.
   const formulas = workbook([cell(0, 0, '1'), ...span(1, 9).map(r => cell(0, r, '', 'blank', {formula: 'IF(1,"","")', savedEmpty: true}))]);
-  assert.deepEqual(worksheetRImport(formulas, 0, {columns: [0]}, 'selected', {list: true}, 12).columns[0].values, ['1', ...Array(9).fill(null)]);
+  assert.deepEqual(worksheetRImport(formulas, 0, {columns: [0]}, 'selected', {list: true}, 12).columns[0], {type: 'double', values: ['1']});
+  // Missing markers, errors and other cells a list leaves out cost nothing, however many: with a limit of 100 bytes, a
+  // thousand of them beside two numbers (as a data frame, 6,000 bytes at least) are a list of two values, 12 bytes.
+  const markers = workbook([...span(0, 999).map(r => cell(0, r, r % 2 ? '*' : 'NA', 'text')), ...span(0, 997).map(r => cell(2, r, '#N/A', 'error')),
+    cell(1, 5, '4'), cell(1, 999, '6')], {rows: 1000});
+  assert.throws(() => worksheetRImport(markers, 0, {columns: [0, 1, 2]}, 'selected', {}, 100), {message: TOO_LARGE});
+  assert.deepEqual(worksheetRImport(markers, 0, {columns: [0, 1, 2]}, 'selected', {list: true}, 100).columns,
+    [{type: 'logical', values: []}, {type: 'double', values: ['4', '6']}, {type: 'logical', values: []}]);
+});
+
+test('a list sends each column\'s non-missing values in sheet order, with the column types and names a data frame has', () => {
+  const columns = [[1, null, 'NA', 2, error('#N/A'), '*', 3], ['Name', null, null, 'x', ' ', 'na'], [null, 'na', 5, null, 'Inf'],
+    [datetime('2026-11-21 00:00:00'), datetime('1900-02-29'), 'Null', datetime('2026-11-22 10:00:00')], [null, null, null], [boolean('TRUE'), 'na', 'false']];
+  const frame = entire(columns), list = entire(columns, {list: true});
+  assert.deepEqual(list.columns, frame.columns.map(({type, values}) => ({type, values: values.filter(v => v !== null)})));
+  assert.deepEqual(list.columns, [{type: 'double', values: ['1', '2', '3']}, {type: 'character', values: ['Name', 'x', 'na']},
+    {type: 'double', values: ['5', 'Inf']}, {type: 'character', values: ['2026-11-21 00:00:00', '2026-11-22 10:00:00']},
+    {type: 'logical', values: []}, {type: 'logical', values: ['TRUE', 'FALSE']}]);
+  assert.deepEqual([list.names, list.rowCount, list.columnCount, list.dates], [frame.names, frame.rowCount, frame.columnCount, frame.dates]);
+  // With headings: a heading cell names its column and is not a value, and a blank one takes the column's letter.
+  const named = entire([['Dose', 1, null, 2], [null, 'a', null, 'b'], ['Empty']], {list: true, headings: true});
+  assert.deepEqual([named.names, named.columns], [['Dose', 'B', 'Empty'],
+    [{type: 'double', values: ['1', '2']}, {type: 'character', values: ['a', 'b']}, {type: 'logical', values: []}]]);
+  // Whole rows: only the selected ones, in order.
+  const book = sheet([[1, 2, 3, 4, 5, 6]]);
+  assert.deepEqual(worksheetRImport(book, 0, {rows: [1, 3, 5]}, 'selected', {list: true}).columns, [{type: 'double', values: ['2', '4', '6']}]);
+  // A NUL anywhere is refused with its cell, the first in sheet order, without reading the blank cells around it.
+  const nul = workbook([cell(3, 900000, 'a\0', 'text'), cell(9, 5, '\0', 'text'), cell(1, 5, 'b\0', 'text'), cell(0, 0, '1')], {columns: 10, rows: 1000000});
+  assert.throws(() => worksheetRImport(nul, 0, {}, 'entire', {list: true}),
+    {message: 'Cell B6 contains a null character, which R cannot hold. Remove it, then open the R import again.'});
+});
+
+test('a list refuses formula result cells it cannot use, as a data frame does, reading only what it must', () => {
+  // A1 is an array or spill formula over A1:A4, as the loader gives one: the anchor with its formula and saved result, the
+  // dependent cells with their saved results alone, and the region they cover.
+  const region = (cells, {stale = false, rows = 100} = {}) => {
+    const book = new WorkbookStore();
+    book.load({name: 'Regions.xlsx', sheets: [{name: 'Sheet1', headerRow: false, columns: 3, rows, cells,
+      formulaRegions: [{firstRow: 0, lastRow: 3, firstColumn: 0, lastColumn: 0}]}]});
+    book.sheets[0].store.formulasStale = stale;
+    return book;
+  };
+  const saved = [cell(0, 0, '1', 'number', {formula: 'SEQUENCE(4)'}), cell(0, 1, '2'), cell(0, 2, '3'), cell(0, 3, '4'), cell(1, 9, '9')];
+  const list = book => worksheetRImport(book, 0, {}, 'entire', {list: true});
+  assert.deepEqual(list(region(saved)).columns[0], {type: 'double', values: ['1', '2', '3', '4']});
+  // Once the workbook is edited, every result may be out of date; a dependent cell with no saved result is refused at once.
+  assert.throws(() => list(region(saved, {stale: true})), {message: RECALCULATE});
+  assert.throws(() => list(region(saved.filter(c => c.row !== 2))), {message: RECALCULATE});
+  // A saved empty-text result is missing, not a reason to refuse.
+  assert.deepEqual(list(region([...saved.filter(c => c.row !== 2), cell(0, 2, '', 'blank', {savedEmpty: true})])).columns[0],
+    {type: 'double', values: ['1', '2', '4']});
+  // Whole rows that leave out the dependent cell with no saved result do not refuse; rows that take it in do.
+  const missing = region(saved.filter(c => c.row !== 2));
+  assert.deepEqual(worksheetRImport(missing, 0, {rows: [0, 1, 3]}, 'selected', {list: true}).columns[0], {type: 'double', values: ['1', '2', '4']});
+  assert.throws(() => worksheetRImport(missing, 0, {rows: [2, 9]}, 'selected', {list: true}), {message: RECALCULATE});
+  // A data frame and a list refuse the same selections.
+  for (const book of [region(saved, {stale: true}), missing]) assert.throws(() => worksheetRImport(book, 0, {}, 'entire'), {message: RECALCULATE});
+  // A region without saved results at all, over a million rows, is refused from its first row, not read row by row.
+  const empty = new WorkbookStore();
+  empty.load({name: 'Regions.xlsx', sheets: [{name: 'Sheet1', headerRow: false, columns: 1, rows: 1048576,
+    cells: [cell(0, 0, '', 'blank', {formula: 'SEQUENCE(1048576)'})], formulaRegions: [{firstRow: 0, lastRow: 1048575, firstColumn: 0, lastColumn: 0}]}]});
+  const blank = empty.sheets[0].store, look = blank.formulaUnavailable.bind(blank);
+  let looks = 0;
+  blank.formulaUnavailable = (c, r) => { looks++; return look(c, r); };
+  assert.throws(() => list(empty), {message: RECALCULATE});
+  assert.ok(looks <= 4, `${looks} cells looked at`);
 });
 
 test('R import preview does not materialise huge sparse worksheet data', () => {
@@ -506,13 +574,16 @@ test('R import preview does not materialise huge sparse worksheet data', () => {
   assert.equal(worksheetRImport(book, 0, {range: {x: 0, y: 0, width: 16384, height: 1048576}}).selectedReason, null);
   reads = 0;
   assert.equal(worksheetRImport(book, 0, {rows: [5, 1048575]}).selected.range, 'XFD1048576');
-  assert.throws(() => worksheetRImport(book, 0, {}, 'entire'), /8 MiB/);
-  // A list of the same two cells would be a tiny script, but its values would hold an entry for each of the area's 17
-  // billion cells: a list may cover at most one cell for each byte of the limit, refused before any cell is read.
   reads = 0;
-  assert.throws(() => worksheetRImport(book, 0, {}, 'entire', {list: true}), {message: TOO_LARGE});
-  assert.throws(() => worksheetRImport(book, 0, {columns: [0, 1, 2, 3, 4, 5, 6, 7, 16383]}, 'selected', {list: true}), {message: TOO_LARGE});
-  assert.equal(reads, 0);
-  store.get = get;
-  assert.deepEqual(worksheetRImport(book, 0, {columns: [0, 16383]}, 'selected', {list: true}).columns.map(c => c.values.filter(v => v !== null)), [['1'], ['2']]);
+  assert.throws(() => worksheetRImport(book, 0, {}, 'entire'), /8 MiB/);
+  assert.equal(reads, 0, 'a data frame of 17 billion cells is refused before any is read');
+  // A list of the same two cells is a tiny script: it is not refused for its area, and it reads only the filled cells.
+  const names = span(0, 16383).map(columnName), empty = {type: 'logical', values: []};
+  for (const [selection, scope, columns] of [[{}, 'entire', names.map((_, c) => c)], [{columns: [0, 1, 2, 3, 4, 5, 6, 7, 16383]}, 'selected', [0, 1, 2, 3, 4, 5, 6, 7, 16383]]]) {
+    reads = 0;
+    const list = worksheetRImport(book, 0, selection, scope, {list: true});
+    assert.deepEqual([list.range, list.rowCount, list.columnCount, list.names], [scope === 'entire' ? 'A1:XFD1048576' : 'A1:H1048576,XFD1:XFD1048576', 1048576, columns.length, columns.map(c => names[c])]);
+    assert.deepEqual(list.columns, columns.map(c => c === 0 ? {type: 'double', values: ['1']} : c === 16383 ? {type: 'double', values: ['2']} : empty));
+    assert.ok(reads <= 8, `${reads} cells read`);
+  }
 });

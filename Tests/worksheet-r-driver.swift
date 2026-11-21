@@ -68,8 +68,8 @@ struct WorksheetRDriver {
             cases.append(Case(label: label, script: script, output: output, expected: expected, extra: extra))
             return source
         }
-        func expectFailure(_ label: String, _ data: [String: Any], _ text: String) throws {
-            do { _ = try WorksheetRScript.build(data) }
+        func expectFailure(_ label: String, _ data: [String: Any], _ text: String, asList: Bool = false) throws {
+            do { _ = try WorksheetRScript.build(data, asList: asList) }
             catch let failure as ConversationRScript.Failure {
                 try check(failure.message.contains(text), label + " is refused (" + failure.message + ")")
                 return
@@ -100,7 +100,7 @@ struct WorksheetRDriver {
             """, "the data frame script has the shared comments, base functions only and utils::str(worksheet_data)")
         let dated = grid([("Age group", "double", ["12", nil, "0x1.8000000000000p+0"]), ("Visit date", "Date", ["20778", nil, "-25567"])],
                          rowCount: 4, range: "A1:B4", dates: true)
-        let listText = try expect("a list with dates and R-friendly names is written exactly as the rules show it", dated,
+        let listText = try expect("a list with dates and R-friendly names is written exactly as the rules show it", list(dated),
                                   rFriendlyNames: true, asList: true, """
             structure(list(c(12, 1.5), structure(c(20778, -25567), class = "Date")), names = c("Age_group", "Visit_date"))
             """, extra: #"identical(x, list(Age_group = c(12, 1.5), Visit_date = as.Date(c("2026-11-21", "1900-01-01"))))"#)
@@ -136,13 +136,30 @@ struct WorksheetRDriver {
               D = as.Date(c("2026-11-21", NA, "1970-01-01", "1900-01-01")), E = NA, F = NA, G = NA, H = c(NA, 5, NA, NA))) &&
               is.double(x$A) && is.double(x$H) && is.logical(x$F) && is.character(x$C) && identical(x$C[4], "NA")
             """#)
-        try expect("a list leaves missing values out, and an all-missing column is logical(0)", types, asList: true, """
+        try expect("a list holds only each column's non-missing values, as the grid sends them, and an all-missing column is logical(0)", list(types), asList: true, """
             structure(list(c(12, Inf, -Inf), c(TRUE, FALSE, TRUE), c("a", "", "NA"), structure(c(20778, 0, -25567), class = "Date"),
               logical(0), logical(0), logical(0), 5), names = c("A", "B", "C", "D", "E", "F", "G", "H"))
             """, extra: #"""
             !is.data.frame(x) && identical(lengths(x), c(A = 3L, B = 3L, C = 3L, D = 3L, E = 0L, F = 0L, G = 0L, H = 1L)) &&
               identical(x$D, as.Date(c("2026-11-21", "1970-01-01", "1900-01-01")))
             """#)
+
+        // A list's columns hold only their non-missing values, at most one for each row, however many rows the area has:
+        // two values in three whole columns of the sheet, as the grid sends them, written as they come.
+        let sparse = grid([("A", "double", ["1"]), ("B", "logical", []), ("C", "double", ["0x1.8000000000000p+0"])], rowCount: 1_048_576,
+                          range: "A1:C1048576")
+        try expect("a sparse list of whole columns holds its two values, whatever its area", sparse, asList: true, """
+            structure(list(1, logical(0), 1.5), names = c("A", "B", "C"))
+            """, extra: #"identical(x, list(A = 1, B = logical(0), C = 1.5))"#)
+        try expectFailure("a list with a missing value, which the grid leaves out of a list", grid([("A", "double", ["1", nil])]), "could not be read", asList: true)
+        try expectFailure("a list column with more values than rows", grid([("A", "double", ["1", "2", "3"])], rowCount: 2), "incomplete", asList: true)
+        // WorksheetRHost's check of the grid's columns against the prompt's choice, which the examples harness uses too.
+        let shaped: [[String: Any]] = [["values": ["1", NSNull(), "2"]], ["values": [NSNull(), NSNull(), NSNull()]]]
+        let short: [[String: Any]] = [["values": ["1", "2"]], ["values": [Any]()]]
+        try check(WorksheetRScript.holdsDataRows(shaped, dataRows: 3, asList: false) && !WorksheetRScript.holdsDataRows(short, dataRows: 3, asList: false)
+                  && WorksheetRScript.holdsDataRows(short, dataRows: 3, asList: true) && WorksheetRScript.holdsDataRows(shaped, dataRows: 3, asList: true)
+                  && !WorksheetRScript.holdsDataRows(short, dataRows: 1, asList: true) && !WorksheetRScript.holdsDataRows([["values": "1"]], dataRows: 1, asList: true),
+                  "the host takes one value for each data row in a data frame, and at most that many, its non-missing ones, in a list")
 
         // Numbers arrive identical() to the worksheet's doubles: the rules' examples and a large random sample.
         // Typed values that a double cannot hold exactly are read as typed, to their nearest double.
@@ -340,6 +357,17 @@ struct WorksheetRDriver {
         ["sheet": sheet, "range": range, "rangeAll": range, "rowCount": rowCount ?? columns[0].2.count,
          "columnCount": columns.count, "names": columns.map(\.0), "dates": dates,
          "columns": columns.map { ["type": $0.1, "values": $0.2.map { (value: String?) -> Any in value ?? NSNull() }] as [String: Any] }]
+    }
+
+    /// The same object as the grid sends it for a list of vectors (rule 5.3): each column's non-missing values alone.
+    static func list(_ data: [String: Any]) -> [String: Any] {
+        var data = data
+        data["columns"] = (data["columns"] as! [[String: Any]]).map { column -> [String: Any] in
+            var column = column
+            column["values"] = (column["values"] as! [Any]).filter { !($0 is NSNull) }
+            return column
+        }
+        return data
     }
 
     /// A number in the grid's form (the contract's I4), written here independently: the shortest decimal when it has at

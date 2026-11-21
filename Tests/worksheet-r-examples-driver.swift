@@ -100,14 +100,15 @@ struct WorksheetRExamplesDriver {
             if let data = run["data"] as? [String: Any],
                let expected = choice.scope == .entire ? entire : choice.scope == .selected ? selected : nil {
                 // WorksheetRHost's checks before it writes the script: the sheet, range and counts the prompt showed, and
-                // one value per data row in every column.
+                // one value per data row in every column of a data frame, or only the non-missing ones in a list.
                 let dataRows = expected.rowCount - (choice.headings ? 1 : 0)
                 let columns = data["columns"] as? [[String: Any]]
                 if data["sheet"] as? String != sheet || data["range"] as? String != expected.range
                     || WorksheetRScript.integer(data["rowCount"]) != expected.rowCount
                     || WorksheetRScript.integer(data["columnCount"]) != expected.columnCount {
                     result["hostError"] = .string("The worksheet changed. Open the R import prompt again.")
-                } else if columns?.count != expected.columnCount || columns?.allSatisfy({ ($0["values"] as? [Any])?.count == dataRows }) != true {
+                } else if columns?.count != expected.columnCount
+                            || columns.map({ WorksheetRScript.holdsDataRows($0, dataRows: dataRows, asList: choice.asList) }) != true {
                     result["hostError"] = .string("The worksheet data could not be read.")
                 } else {
                     do { result["script"] = .string(try WorksheetRScript.build(data, rFriendlyNames: choice.rFriendlyNames, asList: choice.asList)) }

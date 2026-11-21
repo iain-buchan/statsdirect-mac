@@ -1,5 +1,5 @@
 {
- "about": "The Mac's own worksheet R examples, in the schema of the shared Learn/Upstream/WorksheetR/examples.json, for what only the Mac's grid and loader can show: number cells that keep their typed text, formula cells refused once the workbook has been edited (RULES.md section 7), the 1904 date system (rule 3.9: each loader's date system is tested separately), answers agreed with Windows on 21 November 2026, after learning-v1.1.7 (date-times anchor the any-case missing words, Excel's built-in formats 45 and 47 are times of day, and whole columns that are every column of the grid are the entire worksheet) and after learning-v1.1.9 (a time of day is judged on its value before it is rounded, a date after; a duration of more days than the last day's serial, of either sign, is a number; every rounding to the millisecond is half away from zero), and text the loader reads from Excel's _xHHHH_ escapes. Tests/test_worksheet_r_examples.py runs these with the shared cases.",
+ "about": "The Mac's own worksheet R examples, in the schema of the shared Learn/Upstream/WorksheetR/examples.json, for what only the Mac's grid and loader can show: number cells that keep their typed text, formula cells refused once the workbook has been edited (RULES.md section 7), the 1904 date system (rule 3.9: each loader's date system is tested separately), answers agreed with Windows on 21 November 2026, after learning-v1.1.7 (date-times anchor the any-case missing words, Excel's built-in formats 45 and 47 are times of day, and whole columns that are every column of the grid are the entire worksheet) and after learning-v1.1.9 (a time of day is judged on its value before it is rounded, a date after; a duration of more days than the last day's serial, of either sign, is a number; every rounding to the millisecond is half away from zero), text the loader reads from Excel's _xHHHH_ escapes, and a list of vectors, which the Mac's 8 MiB script limits by its values alone, never by its area. Tests/test_worksheet_r_examples.py runs these with the shared cases.",
  "version": 1,
  "schema": {
   "extends": "the schema of Learn/Upstream/WorksheetR/examples.json, with the three additions below",
@@ -124,6 +124,15 @@
    "options": {"format": "data frame", "headings": null, "friendly": false},
    "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"00:00:00.001\"), c(\"-00:00:00.001\"), c(\"00:00:00.001\"), c(\"00:00:00.003\")), names = c(\"Duration\", \"Negative\", \"Clock\", \"Two and a half\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"},
    "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.9. 5.787037037037037e-09 days is exactly half a millisecond in IEEE doubles (times 86,400,000 it is 0.5), and 2.8935185185185185e-08 days two and a half. Rounding half to even would give 00:00:00 for the first three and 00:00:00.002 for the last."
+  },
+  {
+   "name": "A list of vectors is not refused for its area when its values fit: two values in 9,437,184 cells",
+   "rules": ["5.3", "7"],
+   "cells": {"A1": {"number": "1"}, "I1048576": {"number": "2"}},
+   "select": {"entire": true},
+   "options": {"format": "list", "headings": false, "friendly": false},
+   "expect": {"entire": "Entire worksheet — A1:I1048576 (1,048,576 rows × 9 columns)", "headingsSuggested": false, "comments": ["# Missing values are removed separately from each vector."], "r": "structure(list(c(1), logical(0), logical(0), logical(0), logical(0), logical(0), logical(0), logical(0), c(2)), names = c(\"A\", \"B\", \"C\", \"D\", \"E\", \"F\", \"G\", \"H\", \"I\"))"},
+   "note": "Codex's review of the Mac candidate, 21 November 2026: the Mac writes the values into the script, at most 8 MiB (RULES.md section 7), and a list holds only its non-missing values (rule 5.3), so only they count. Here the grid sends the two values alone, read from the two cells that hold them; the 9,437,184 cells of the area, more than one for each byte of the limit, cost nothing. As a data frame the same area is refused, since each of its cells needs at least NA."
   }
  ]
 }

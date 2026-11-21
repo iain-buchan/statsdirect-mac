@@ -35,8 +35,8 @@ extension Viewer {
                                     choice: WorksheetRImportPrompt.Selection, external: Bool) {
         let changed = ConversationRScript.Failure(message: "The worksheet changed. Open the R import prompt again.")
         guard doc.gridVersion == version else { showWorksheetRError(changed, document: doc); return }
-        // The format goes too: a list of vectors leaves missing values out, so the grid's size check counts only its
-        // non-blank cells.
+        // The format goes too: a list of vectors holds only its non-missing values, which the grid reads from the cells
+        // that may hold one, so that a list is never refused for its area.
         doc.web.callAsyncJavaScript("return window.statsDirectGrid.worksheetRImport(scope, {headings: headings, list: list})",
                                     arguments: ["scope": choice.scope.rawValue, "headings": choice.headings, "list": choice.asList],
                                     in: nil, in: .page) { [weak self, weak doc] result in
@@ -48,10 +48,11 @@ extension Viewer {
                 guard data["sheet"] as? String == sheet, data["range"] as? String == expected.range,
                       WorksheetRScript.integer(data["rowCount"]) == expected.rowCount,
                       WorksheetRScript.integer(data["columnCount"]) == expected.columnCount else { throw changed }
-                // One value per data row: the rows sent, less the first when it names the columns.
+                // One value per data row in a data frame (the rows sent, less the first when it names the columns), and in
+                // a list only the non-missing ones.
                 let dataRows = expected.rowCount - (choice.headings ? 1 : 0)
                 guard let columns = data["columns"] as? [[String: Any]], columns.count == expected.columnCount,
-                      columns.allSatisfy({ ($0["values"] as? [Any])?.count == dataRows }) else { throw unreadable }
+                      WorksheetRScript.holdsDataRows(columns, dataRows: dataRows, asList: choice.asList) else { throw unreadable }
                 let source = try WorksheetRScript.build(data, rFriendlyNames: choice.rFriendlyNames, asList: choice.asList)
                 self.openWorksheetRSession(source, title: sheet, document: doc, external: external)
             } catch {

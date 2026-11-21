@@ -1,10 +1,11 @@
-import {columnName} from './store.mjs';
+import {columnName, kindIndex} from './store.mjs';
 
 // Worksheet data for R, by the rules shared with StatsDirect for Windows ("Worksheet data sent to
 // R" in the statisticalhelp repository; rule numbers below refer to it). The prompt's preview reads
 // only bounds and the first row. The import reads the confirmed cells and returns each column's R
 // type with its values as text: exact R numeric literals, TRUE/FALSE, day counts for Date, or the
-// raw strings of a character column, which the host quotes. null is a missing value.
+// raw strings of a character column, which the host quotes. null is a missing value in a data frame;
+// a list of vectors leaves its missing values out.
 
 const RECALCULATE = 'Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.';
 const TOO_LARGE = 'The selected data exceed the 8 MiB editable R script limit. Select a smaller range, or export the worksheet as RDS from File → Export.';
@@ -370,44 +371,87 @@ function rangeText(areas, limit = Infinity) {
 const summary = (store, plan) => ({range: rangeText(plan.areas, 3), rowCount: rowCount(plan), columnCount: plan.columns.length,
   suggestHeadings: suggestHeadings(store, plan)});
 
-// Rule 3.10: the refusal names the first cell holding a null character in sheet order, rows then
-// columns. The copying loop runs column by column, so it calls this only once it has met one.
-function firstNull(store, plan, rows) {
-  for (let i = 0; i < rows; i++) {
-    const r = rowAt(plan, i);
-    for (const c of plan.columns) if (store.get(c, r).includes('\0')) return columnName(c) + (r + 1);
-  }
-  return '';
+// For whole rows, a mark for each row from the plan's first to its last that is selected; null for the other plans,
+// whose rows run from first to last.
+function selectedRows(plan) {
+  if (!plan.rows) return null;
+  const first = plan.rows[0], marked = new Uint8Array(plan.rows.at(-1) - first + 1);
+  for (const r of plan.rows) marked[r - first] = 1;
+  return marked;
 }
 
-// The non-blank cells among a plan's data rows (those after the first `start`), counted from the store's chunks.
-function filledCells(store, plan, start) {
-  const first = rowAt(plan, start), last = rowAt(plan, rowCount(plan) - 1);
-  let marked = null, count = 0;
-  if (plan.rows) {   // whole rows: only the selected ones between first and last
-    marked = new Uint8Array(last - first + 1);
-    for (let i = start; i < plan.rows.length; i++) marked[plan.rows[i] - first] = 1;
+// Rule 3.10: the refusal names the first cell holding a null character in sheet order, rows then columns. The copying
+// loop runs column by column, so it calls this only once it has met one. Only the stored cells are read, never the blank
+// rows around them: a list may span the whole sheet.
+function firstNull(store, plan) {
+  const first = rowAt(plan, 0), last = rowAt(plan, rowCount(plan) - 1), selected = selectedRows(plan);
+  let row = Infinity, col = -1;
+  for (const c of plan.columns) {   // in sheet order, so of two in one row the first column found is kept
+    const column = store.cols[c];
+    if (column) forEachFilledRow(column, first, last, r => {
+      if (r < row && (!selected || selected[r - first]) && store.get(c, r).includes('\0')) { row = r; col = c; }
+    }, false);
   }
-  const visit = marked ? r => { count += marked[r - first]; } : () => { count++; };
-  for (const c of plan.columns) if (store.cols[c]) forEachFilledRow(store.cols[c], first, last, visit, false);
+  return col < 0 ? '' : columnName(col) + (row + 1);
+}
+
+// The number cells among a plan's data rows (those after the first `start`), counted from the store's chunks.
+const NUMBER = kindIndex('number');
+function numberCells(store, plan, start) {
+  const first = rowAt(plan, start), last = rowAt(plan, rowCount(plan) - 1), top = rowAt(plan, 0), selected = selectedRows(plan);
+  let count = 0;
+  for (const c of plan.columns) {
+    for (const [index, {kind}] of store.cols[c]?.chunks ?? []) {
+      const base = index * kind.length;
+      for (let r = Math.max(first, base), end = Math.min(last, base + kind.length - 1); r <= end; r++) {
+        if (kind[r - base] === NUMBER && (!selected || selected[r - top])) count++;
+      }
+    }
+  }
   return count;
 }
-// Whether no script could hold the plan's data rows, checked before they are read. A data frame writes every cell, so
-// it needs at least 3 bytes for each ("NA, "). A list leaves its missing values out (rule 5.3), so it needs at least 3
-// bytes only for each non-blank cell; but its values still come with one entry for each data row, as a data frame's
-// do, so a list may also cover at most one cell for each byte of the limit, which keeps a huge sparse area from being
-// read cell by cell.
+// Whether no script could hold the plan's data rows, checked before they are read. A data frame writes every cell, so it
+// needs at least 3 bytes for each ("NA, "). A list writes only its non-missing values (rule 5.3), however large its area,
+// so only the cells sure to be one count: a number cell is never missing, and needs at least 3 bytes ("1, "). Any other
+// cell may be a missing value (a marker, an error, white space), which costs a list nothing; the values it does hold are
+// counted as they are written.
 function tooLarge(store, plan, start, list, maximumBytes) {
-  const cells = plan.columns.length * (rowCount(plan) - start);
-  if (!list) return cells * 3 > maximumBytes;
-  return cells > maximumBytes || filledCells(store, plan, start) * 3 > maximumBytes;
+  if (list) return numberCells(store, plan, start) * 3 > maximumBytes;
+  return plan.columns.length * (rowCount(plan) - start) * 3 > maximumBytes;
+}
+
+// The first row of a formula result span that a list must read in column c: a cell the span covers whose saved result
+// cannot be used (rule 7), within the plan's rows, or -1. While the workbook is unedited, a covered cell holding a value is
+// read anyway, so the search ends at the first that holds none (a saved empty text is no reason to refuse); once it is
+// edited, every covered cell is out of date, so it ends at the first.
+function firstUnavailable(store, c, span, plan, selected) {
+  const top = rowAt(plan, 0), from = Math.max(span.firstRow, top), to = Math.min(span.lastRow, rowAt(plan, rowCount(plan) - 1));
+  for (let r = from; r <= to; r++) if ((!selected || selected[r - top]) && store.formulaUnavailable(c, r)) return r;
+  return -1;
+}
+// The rows of column c that a list reads, in sheet order: those holding a value or a formula, and the first formula result
+// cell it cannot use. Every other row of the plan is blank, so missing, and a list leaves it out (rule 5.3): a list reads
+// only the cells it may send, however large its area.
+function listRows(store, plan, c, selected) {
+  const top = rowAt(plan, 0), bottom = rowAt(plan, rowCount(plan) - 1), column = store.cols[c], found = [];
+  if (column) forEachFilledRow(column, top, bottom, r => { if (!selected || selected[r - top]) found.push(r); });
+  for (const span of store.formulaResultSpans(c)) {
+    const r = firstUnavailable(store, c, span, plan, selected);
+    if (r >= 0) found.push(r);
+  }
+  const sorted = Int32Array.from(found).sort();   // numeric order; a formula row may also hold a value
+  let n = 0;
+  for (let i = 0; i < sorted.length; i++) if (i === 0 || sorted[i] !== sorted[i - 1]) sorted[n++] = sorted[i];
+  return sorted.subarray(0, n);
 }
 
 // Without a scope: the prompt's preview, {sheet, entire, selected, selectedReason}. With "entire"
 // or "selected": the data, {sheet, range, rangeAll, rowCount, columnCount, names, columns, dates}.
 // options.headings takes the names from the first row (rule 4); rowCount still counts that row.
-// options.list says the host writes a list of vectors, which leaves missing values out, rather than a data frame; the
-// values are the same either way. The size check here only refuses what no script could hold (tooLarge, and each
+// options.list says the host writes a list of vectors, which leaves missing values out (rule 5.3), rather than a data
+// frame. A data frame's columns hold one value for each data row, null where it is missing; a list's hold only the
+// non-missing values, in sheet order, read from the cells that may hold one, so that a sparse list costs only its data.
+// The types are the same either way. The size check here only refuses what no script could hold (tooLarge, and each
 // value's own length); the host makes the exact check on the script it writes.
 export function worksheetRImport(workbook, sheetIndex, selection = {}, scope, options = {}, maximumBytes = 8 * 1024 * 1024) {
   const sheet = workbook.sheets[sheetIndex], store = sheet?.store;
@@ -419,29 +463,35 @@ export function worksheetRImport(workbook, sheetIndex, selection = {}, scope, op
   if (!['entire', 'selected'].includes(scope)) throw new Error('Choose the entire worksheet or selected cells.');
   const plan = scope === 'entire' ? entirePlan(store) : selectedPlan(store, selection);
   if (!plan || typeof plan === 'string') throw new Error(scope === 'entire' ? 'The worksheet contains no data.' : 'Select worksheet cells, columns or rows to import.');
-  const rows = rowCount(plan), headings = options?.headings === true && rows > 1, start = headings ? 1 : 0;
-  if (tooLarge(store, plan, start, options?.list === true, maximumBytes)) throw new Error(TOO_LARGE);
-  const kinds = new Uint8Array(rows), numbers = new Float64Array(rows), names = [], columns = [];
+  const rows = rowCount(plan), headings = options?.headings === true && rows > 1, list = options?.list === true;
+  if (tooLarge(store, plan, headings ? 1 : 0, list, maximumBytes)) throw new Error(TOO_LARGE);
+  const top = rowAt(plan, 0), selected = list ? selectedRows(plan) : null, names = [], columns = [];
   let bytes = 0, dates = false;
   for (const c of plan.columns) {
-    const counts = new Uint32Array(CLASSES);
-    for (let i = 0; i < rows; i++) {
-      const r = rowAt(plan, i), text = store.get(c, r), kind = store.kind(c, r);
+    // The rows read: every row of the plan for a data frame, and for a list only those that may hold a value.
+    const order = list ? listRows(store, plan, c, selected) : null, count = order ? order.length : rows;
+    const at = order ? k => order[k] : k => rowAt(plan, k);
+    // The heading row is the first row read, when it is read: always for a data frame, and for a list unless it is blank.
+    const start = headings && count > 0 && at(0) === top ? 1 : 0;
+    const kinds = new Uint8Array(count), numbers = new Float64Array(count), counts = new Uint32Array(CLASSES);
+    for (let k = 0; k < count; k++) {
+      const r = at(k), text = store.get(c, r), kind = store.kind(c, r);
       if (store.formulaUnavailable(c, r)) throw new Error(RECALCULATE);
-      if (text.includes('\0')) throw new Error(`Cell ${firstNull(store, plan, rows)} contains a null character, which R cannot hold. Remove it, then open the R import again.`);
-      kinds[i] = classify(text, kind, numbers, i);
-      if (i < start) continue;
-      counts[kinds[i]]++;
+      if (text.includes('\0')) throw new Error(`Cell ${firstNull(store, plan)} contains a null character, which R cannot hold. Remove it, then open the R import again.`);
+      kinds[k] = classify(text, kind, numbers, k);
+      if (k < start) continue;
+      counts[kinds[k]]++;
       if (kind === 'datetime' || kind === 'timespan') dates = true;   // A2
     }
-    const type = columnType(counts), dateTimes = type === 'character' && dateTimeColumn(counts), values = new Array(rows - start);
-    for (let i = start; i < rows; i++) {
-      const value = valueText(type, kinds[i], numbers[i], store.get(c, rowAt(plan, i)), dateTimes);
-      values[i - start] = value;
+    const type = columnType(counts), dateTimes = type === 'character' && dateTimeColumn(counts), values = list ? [] : new Array(count - start);
+    for (let k = start; k < count; k++) {
+      const value = valueText(type, kinds[k], numbers[k], store.get(c, at(k)), dateTimes);
+      if (list) { if (value !== null) values.push(value); }
+      else values[k - start] = value;
       if (value !== null && (bytes += value.length + 2) > maximumBytes) throw new Error(TOO_LARGE);
     }
-    const name = headings && ![Cell.blank, Cell.error, Cell.serial60].includes(kinds[0])
-      ? cellText(kinds[0], numbers[0], store.get(c, rowAt(plan, 0)), false) : columnName(c);
+    const name = start && ![Cell.blank, Cell.error, Cell.serial60].includes(kinds[0])
+      ? cellText(kinds[0], numbers[0], store.get(c, top), false) : columnName(c);
     if ((bytes += name.length + 2) > maximumBytes) throw new Error(TOO_LARGE);
     names.push(name);
     columns.push({type, values});

@@ -373,10 +373,15 @@ struct RExternalSession {
             setwd(\(literal(directory.path)))
             file <- \(literal(script.path))
             cat("\\nStatsDirect: running ", basename(file), "\\n", sep = "")
-            # The script is UTF-8, whatever the user's start-up file sets options(encoding) to.
-            tryCatch(source(file, local = .GlobalEnv, echo = \(echo ? "TRUE" : "FALSE"), print.eval = TRUE,
-                            max.deparse.length = Inf, spaced = FALSE, encoding = "UTF-8"),
-                     error = function(e) message("StatsDirect script: ", conditionMessage(e)))
+            # The script is UTF-8, whatever the locale or the user's options(encoding): its lines are read as they are, marked
+            # UTF-8 and parsed, so that no connection re-encodes them. In the C locale, source(file, encoding = "UTF-8") stops
+            # at the first character the locale cannot hold, such as the quotation marks in the script's first comment.
+            tryCatch({
+              connection <- file(file, "rb")
+              lines <- tryCatch(readLines(connection, warn = FALSE, encoding = "UTF-8"), finally = close(connection))
+              source(exprs = parse(text = lines, keep.source = TRUE, encoding = "UTF-8"), local = .GlobalEnv,
+                     echo = \(echo ? "TRUE" : "FALSE"), print.eval = TRUE, max.deparse.length = Inf, spaced = FALSE)
+            }, error = function(e) message("StatsDirect script: ", conditionMessage(e)))
             if (interactive()) try(utils::file.edit(file), silent = TRUE)
             invisible(NULL)
           }

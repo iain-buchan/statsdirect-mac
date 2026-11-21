@@ -219,12 +219,23 @@ import Darwin
         // In a locale that is not UTF-8, R hands the file system the bytes of a path as written, so a launch folder and a
         // script with an accented name still run the import (an escape would make R translate them, which fails there).
         let plain = try folder(work.appendingPathComponent("C locale caf\u{e9}", isDirectory: true))
-        let cSession = try RExternalSession(data: Data(worksheetScript.utf8), name: "Sheet1 caf\u{e9} Worksheet.R",
+        // The script itself holds what a worksheet import holds: curly quotation marks in its first comment and accented data.
+        let unicodeScript = "# Data copied from the worksheet \u{201C}Sheet1\u{201D}, A1:A2.\n"
+            + "worksheet_data <- structure(list(c(\"caf\u{e9}\", \"x\")), names = c(\"Name\"), row.names = c(NA_integer_, -2L), class = \"data.frame\")\n"
+            + "utils::str(worksheet_data)\n"
+        let cSession = try RExternalSession(data: Data(unicodeScript.utf8), name: "Sheet1 caf\u{e9} Worksheet.R",
                                             directory: RExternalScript.launchFolder(in: plain), echo: false)
-        let cLocale = try runR(rscript, try checks(work, "clocale", "stopifnot(\(expectedData))"), in: empty, home: empty, session: cSession,
-                               extra: ["LC_ALL": "C", "LANG": "C"])
+        let cLocale = try runR(rscript, try checks(work, "clocale",
+                                                   "stopifnot(identical(charToRaw(worksheet_data$Name[1]), as.raw(c(0x63, 0x61, 0x66, 0xc3, 0xa9))))"),
+                               in: empty, home: empty, session: cSession, extra: ["LC_ALL": "C", "LANG": "C"])
         try check(cLocale.status == 0 && cLocale.output.contains("PARENT_CHECKS_PASSED") && !exists(cSession.script),
-                  "in the C locale an accented launch folder and script still run the import, and the copy goes when R ends", cLocale.output)
+                  "in the C locale an accented launch folder and a script with curly quotes and accented data still run the import exactly, and the copy goes when R ends", cLocale.output)
+        // Echoed code is still the script's own text, comments included.
+        let echoed = try RExternalSession(data: Data(unicodeScript.utf8), name: "Echoed Worksheet.R",
+                                          directory: RExternalScript.launchFolder(in: root))
+        let echoRun = try runR(rscript, try checks(work, "echoed", "stopifnot(exists(\"worksheet_data\"))"), in: empty, home: empty, session: echoed)
+        try check(echoRun.status == 0 && echoRun.output.contains("PARENT_CHECKS_PASSED") && echoRun.output.contains("# Data copied from the worksheet"),
+                  "a console script is echoed as written, its comment included", echoRun.output)
 
         // A copy R cannot read when it ends keeps the launch record, so that StatsDirect's own clean-up finds it later.
         let locked = try RExternalSession(data: Data(worksheetScript.utf8), name: "Locked Worksheet.R",

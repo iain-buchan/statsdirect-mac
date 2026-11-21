@@ -1,4 +1,4 @@
-import {columnName, kindIndex} from './store.mjs';
+import {columnName, firstIndex, kindIndex} from './store.mjs';
 
 // Worksheet data for R, by the rules shared with StatsDirect for Windows ("Worksheet data sent to
 // R" in the statisticalhelp repository; rule numbers below refer to it). The prompt's preview reads
@@ -204,9 +204,8 @@ function columnBounds(store, c) {
     }
   }
   if (column) for (const row of column.formula.keys()) { first = Math.min(first, row); last = Math.max(last, row); }
-  for (const span of store.formulaResultSpans(c)) {
-    first = Math.min(first, span.firstRow); last = Math.max(last, span.lastRow);
-  }
+  const spans = store.formulaResultSpans(c);   // sorted by row
+  if (spans.length) { first = Math.min(first, spans[0].firstRow); last = Math.max(last, spans.at(-1).lastRow); }
   return Number.isFinite(first) ? {first, last} : null;
 }
 function populatedBounds(store, columns = null) {
@@ -231,7 +230,7 @@ function forEachFilledRow(column, first, last, visit, formulas = true) {
   if (formulas) for (const r of column.formula.keys()) if (r >= first && r <= last) visit(r);
 }
 function hasData(store, c, first, last) {
-  if (store.formulaResultSpans(c).some(span => span.firstRow <= last && span.lastRow >= first)) return true;
+  if (store.formulaResultIn(c, first, last)) return true;
   const column = store.cols[c];
   if (!column) return false;
   for (const r of column.formula.keys()) if (r >= first && r <= last) return true;
@@ -332,6 +331,30 @@ function columnsPlan(store, selected) {
   return {columns, first: bounds.first, last: bounds.last,
     areas: runs(columns).map(([left, right]) => ({left, right, first: bounds.first, last: bounds.last}))};
 }
+// The first and last of the selected rows (in order, at least one) that column c's formula result spans cover, or null.
+// The spans that meet the rows' range are searched for rows, or the rows for spans, whichever are fewer, each by binary
+// search, so that neither a long span nor many short ones costs more than O(log n) for each row or span looked at.
+function coveredRows(store, c, rows) {
+  const spans = store.formulaResultSpans(c);
+  if (!spans.length) return null;
+  const low = rows[0], high = rows.at(-1);
+  const from = firstIndex(spans.length, i => spans[i].lastRow >= low), to = firstIndex(spans.length, i => spans[i].firstRow > high);
+  if (from >= to) return null;
+  if (to - from > rows.length) {
+    const inside = r => store.formulaResult(c, r), top = rows.findIndex(inside);
+    return top < 0 ? null : [rows[top], rows[rows.findLastIndex(inside)]];
+  }
+  let top = -1, bottom = -1;
+  for (let i = from; i < to && top < 0; i++) {   // the first span that holds a selected row gives the first
+    const k = firstIndex(rows.length, j => rows[j] >= spans[i].firstRow);
+    if (k < rows.length && rows[k] <= spans[i].lastRow) top = rows[k];
+  }
+  for (let i = to - 1; i >= from && bottom < 0; i--) {   // and the last such span the last
+    const k = firstIndex(rows.length, j => rows[j] > spans[i].lastRow) - 1;
+    if (k >= 0 && rows[k] >= spans[i].firstRow) bottom = rows[k];
+  }
+  return top < 0 ? null : [top, bottom];
+}
 // C6: whole rows, from the first to the last selected row holding a non-blank cell (blank selected
 // rows between them stay), across from the first to the last non-blank column of those rows.
 function rowsPlan(store, selected) {
@@ -345,13 +368,11 @@ function rowsPlan(store, selected) {
   };
   store.cols.forEach((column, c) => forEachFilledRow(column, low, high, r => { if (marked[r]) visit(c, r); }));
   if (store.formulaRegions.length) {
+    const chosen = [];   // the selected rows, in order
+    for (let r = low; r <= high; r++) if (marked[r]) chosen.push(r);
     for (let c = 0; c < store.columns.length; c++) {
-      for (const span of store.formulaResultSpans(c)) {
-        const top = marked.indexOf(1, Math.max(low, span.firstRow));
-        if (top < 0 || top > span.lastRow) continue;
-        visit(c, top);
-        visit(c, marked.lastIndexOf(1, Math.min(high, span.lastRow)));
-      }
+      const covered = coveredRows(store, c, chosen);
+      if (covered) { visit(c, covered[0]); visit(c, covered[1]); }
     }
   }
   if (last < 0) return 'empty';
@@ -435,8 +456,9 @@ function firstUnavailable(store, c, span, plan, selected) {
 function listRows(store, plan, c, selected) {
   const top = rowAt(plan, 0), bottom = rowAt(plan, rowCount(plan) - 1), column = store.cols[c], found = [];
   if (column) forEachFilledRow(column, top, bottom, r => { if (!selected || selected[r - top]) found.push(r); });
-  for (const span of store.formulaResultSpans(c)) {
-    const r = firstUnavailable(store, c, span, plan, selected);
+  const spans = store.formulaResultSpans(c);   // sorted by row: only those that meet the plan's rows are read
+  for (let i = firstIndex(spans.length, k => spans[k].lastRow >= top); i < spans.length && spans[i].firstRow <= bottom; i++) {
+    const r = firstUnavailable(store, c, spans[i], plan, selected);
     if (r >= 0) found.push(r);
   }
   const sorted = Int32Array.from(found).sort();   // numeric order; a formula row may also hold a value

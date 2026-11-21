@@ -80,6 +80,39 @@ export function scanDelimited(text, delimiter, emit) {
   else if (!any) r = 0;
   return {rows: r, cols};
 }
+// The smallest index i below n for which after(i) holds, or n: a binary search over a condition that, once it holds, holds
+// for every later index.
+export function firstIndex(n, after) {
+  let low = 0, high = n;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (after(middle)) high = middle; else low = middle + 1;
+  }
+  return low;
+}
+// Formula result regions (the loader's {firstRow, lastRow, firstColumn, lastColumn}, inclusive and zero-based, in the file's
+// columns), indexed so that a cell is looked up in O(log n): the file's columns are cut wherever a region starts or ends, so
+// that the same regions cover every column of a piece, and each piece keeps their rows as spans sorted by row, with
+// overlapping or adjacent ones merged. A region adds itself to each piece it covers, so wide regions that share their
+// columns, such as one array formula across each row, cost one piece.
+function regionIndex(regions) {
+  const cuts = [...new Set(regions.flatMap(r => [r.firstColumn, r.lastColumn + 1]))].sort((a, b) => a - b);
+  const pieces = Array.from({length: Math.max(0, cuts.length - 1)}, () => []);
+  for (const region of regions) {
+    const end = firstIndex(cuts.length, i => cuts[i] > region.lastColumn);   // the cut after its last column
+    for (let p = firstIndex(cuts.length, i => cuts[i] >= region.firstColumn); p < end; p++) pieces[p].push(region);
+  }
+  const spans = pieces.map(list => {
+    const merged = [];
+    for (const {firstRow, lastRow} of list.sort((a, b) => a.firstRow - b.firstRow)) {
+      const last = merged.at(-1);
+      if (last && firstRow <= last.lastRow + 1) { if (lastRow > last.lastRow) last.lastRow = lastRow; }
+      else merged.push({firstRow, lastRow});
+    }
+    return merged;
+  });
+  return {regions, cuts, spans, byColumn: new Map()};
+}
 export function numeric(raw) {
   if (raw.trim() === '') return null;
   if (!NUMERIC.test(raw.trim())) throw new Error(`“${raw.slice(0, 30)}” is not a number.`);
@@ -203,8 +236,9 @@ export class GridStore {
     this.excelRows = false;
     this.csvRows = 0;
     this.formulasStale = false;
+    // The loader's array, spill and What-If Data Table result regions; formulaResultSpans indexes them when first asked.
     this.formulaRegions = [];
-    this.formulaSpansByColumn = new Map();
+    this.formulaIndex = null;
     if (example) {
       this.setLoaded(example.before.map((v, r) => ({col: 0, row: r, text: String(v), kind: 'number'})).concat(example.after.map((v, r) => ({col: 1, row: r, text: String(v), kind: 'number'}))), false);
     }
@@ -225,11 +259,15 @@ export class GridStore {
     const col = this.cols[c];
     return col ? col.formula.get(r) ?? '' : '';
   }
-  // Excel can save only the anchor expression for an array or data table. Keep the
-  // dependent rows as spans in the original worksheet rather than allocating cells.
+  // Excel can save only the anchor expression for an array or data table. Keep the dependent rows as spans in the
+  // original worksheet rather than allocating cells: column c's rows covered by a result region, as {firstRow, lastRow}
+  // spans sorted by row that neither overlap nor touch (shared, so not to be changed). Columns inserted since the file was
+  // loaded have none; the others keep their own.
   formulaResultSpans(c) {
     if (!this.formulaRegions.length) return NO_FORMULA_SPANS;
-    let spans = this.formulaSpansByColumn.get(c);
+    let index = this.formulaIndex;
+    if (index?.regions !== this.formulaRegions) index = this.formulaIndex = regionIndex(this.formulaRegions);
+    let spans = index.byColumn.get(c);
     if (spans) return spans;
     let original = c;
     for (let i = this.inserts.length - 1; i >= 0; i--) {
@@ -238,15 +276,22 @@ export class GridStore {
       if (original < col + count) { original = -1; break; }
       original -= count;
     }
-    spans = this.formulaRegions.filter(r => r.firstColumn <= original && original <= r.lastColumn);
-    this.formulaSpansByColumn.set(c, spans);
+    const piece = original < 0 ? -1 : firstIndex(index.cuts.length, i => index.cuts[i] > original) - 1;
+    spans = piece >= 0 && piece < index.spans.length ? index.spans[piece] : NO_FORMULA_SPANS;
+    index.byColumn.set(c, spans);
     return spans;
   }
+  // Whether a cell of column c from row first to row last lies in an array, spill or What-If Data Table result.
+  formulaResultIn(c, first, last) {
+    const spans = this.formulaResultSpans(c), i = firstIndex(spans.length, k => spans[k].lastRow >= first);
+    return i < spans.length && spans[i].firstRow <= last;
+  }
+  formulaResult(c, r) { return this.formulaResultIn(c, r, r); }
   // A formula cell whose value cannot be used: the workbook has been edited since it was opened, so
   // results may be out of date, or the file saved no result. A saved result of empty text (the
   // loader's savedEmpty flag) is a blank cell, not a missing result.
   formulaUnavailable(c, r) {
-    if (!this.formula(c, r) && !this.formulaResultSpans(c).some(span => span.firstRow <= r && r <= span.lastRow)) return false;
+    if (!this.formula(c, r) && !this.formulaResult(c, r)) return false;
     return this.formulasStale || this.get(c, r) === '' && this.cols[c]?.extra.get(r)?.savedEmpty !== true;
   }
   // The cell as loaded from a file (undefined for cells that were never loaded). For a cell
@@ -477,7 +522,7 @@ export class GridStore {
     if (step.inserts?.length) {
       if (forward) this.inserts.push(...step.inserts);
       else this.inserts.splice(-step.inserts.length);
-      this.formulaSpansByColumn.clear();
+      this.formulaIndex?.byColumn.clear();
     }
   }
   undo() {

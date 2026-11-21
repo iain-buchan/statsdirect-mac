@@ -1,5 +1,5 @@
 {
- "about": "The Mac's own worksheet R examples, in the schema of the shared Learn/Upstream/WorksheetR/examples.json, for what only the Mac's grid and loader can show: number cells that keep their typed text, formula cells refused once the workbook has been edited (RULES.md section 7), the 1904 date system (rule 3.9: each loader's date system is tested separately), two answers agreed with Windows on 21 November 2026, after learning-v1.1.7 (date-times anchor the any-case missing words, and Excel's built-in formats 45 and 47 are times of day), and text the loader reads from Excel's _xHHHH_ escapes. Tests/test_worksheet_r_examples.py runs these with the shared cases.",
+ "about": "The Mac's own worksheet R examples, in the schema of the shared Learn/Upstream/WorksheetR/examples.json, for what only the Mac's grid and loader can show: number cells that keep their typed text, formula cells refused once the workbook has been edited (RULES.md section 7), the 1904 date system (rule 3.9: each loader's date system is tested separately), answers agreed with Windows on 21 November 2026, after learning-v1.1.7 (date-times anchor the any-case missing words, Excel's built-in formats 45 and 47 are times of day, and whole columns that are every column of the grid are the entire worksheet), and text the loader reads from Excel's _xHHHH_ escapes. Tests/test_worksheet_r_examples.py runs these with the shared cases.",
  "version": 1,
  "schema": {
   "extends": "the schema of Learn/Upstream/WorksheetR/examples.json, with the three additions below",
@@ -78,6 +78,15 @@
    "options": {"format": "data frame", "headings": false, "friendly": false},
    "expect": {"headingsSuggested": true, "r": "structure(list(c(\"a\\r\\nb\", \"x\\u0001y\\u001f\", \"\\ufffe\\uffff\", \"_x0041_ and _x005F_\")), names = c(\"A\"), row.names = c(NA_integer_, -4L), class = \"data.frame\")"},
    "note": "The file holds CR, C0 controls and U+FFFE and U+FFFF as Excel writes them, _x000D_, _x0001_ and so on, and the text _x0041_ as _x005F_x0041_; the Mac's loader reads each back as the character."
+  },
+  {
+   "name": "Whole columns that are every column of the grid are the entire worksheet",
+   "rules": ["2.6", "2.3"],
+   "cells": {"B2": {"text": "a"}, "B3": {"number": "1"}, "C2": {"text": "b"}, "C4": {"number": "2"}},
+   "select": {"columns": ["C", "A", "B"]},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"entire": "Entire worksheet — B2:C4 (3 rows × 2 columns)", "selected": "Selected cells — B2:C4 (3 rows × 2 columns)", "headingsSuggested": true, "r": "structure(list(c(1, NA), c(NA, 2)), names = c(\"a\", \"b\"), row.names = c(NA_integer_, -2L), class = \"data.frame\")"},
+   "note": "Amendment 1 to rule 2.6, agreed with Windows on 21 November 2026. The Mac grid opens this file with columns A to C, so A, B and C, however they were selected (one drag, Shift-click, or Command-click pieces, which Glide's CompactSelection hands over as one list), are every column of the sheet: Entire worksheet, B2:C4. As ordinary whole columns (rule 2.3) they would be A2:C4, with A kept as NA."
   }
  ]
 }

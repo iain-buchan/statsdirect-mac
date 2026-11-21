@@ -5,8 +5,8 @@
 // This loads the snapshot into a WorkbookStore as the grid's loadWorkbook does (Grid/main.tsx), types the cells a Mac case
 // types (store.apply, then workbook.changed(), as the grid does for each edit), makes the case's selection as Glide and
 // main.tsx hand it to worksheetRImport, and calls the grid's own worksheetRImport: once for the prompt's preview, and once
-// for the data of the choice the case names, with headings = options.headings ?? that choice's suggestHeadings. Select
-// all runs in each form the Mac has.
+// for the data of the choice the case names, with headings = options.headings ?? that choice's suggestHeadings, and
+// list for a List of vectors, as WorksheetRHost passes them. Select all runs in each form the Mac has.
 import fs from 'node:fs';
 import {decodeSnapshot} from '../Grid/snapshot.mjs';
 import {MAX_ROWS} from '../Grid/store.mjs';
@@ -60,8 +60,9 @@ function selectionFor(select, store, form) {
 // The Mac grid ends at its own size (RULES.md section 7): a workbook opens with the columns its file uses, and at least
 // 100 rows, so a selection beyond them can be made only once the grid has grown. The grid's own Add column and Add 100
 // rows commands (main.tsx) grow it, as a user would, until the selection fits with a column and a row to spare, so that it
-// stays the case's selection and does not become every grid column or row, which the Mac takes as select all (rule 2.6).
-// Returns what was added, for the run's label.
+// stays the case's selection. A shared case assumes a grid as wide as Windows', where columns A and B are not every
+// column; on a grid of those two alone they would be, and every column is select all (rule 2.6), as a Mac case shows.
+// A selection that fits already is left as it is. Returns what was added, for the run's label.
 function makeRoom(select, workbook, store) {
   const areas = select.range ? [rectangle(select.range)] : select.areas ? select.areas.map(rectangle) : [];
   const right = Math.max(-1, ...areas.map(a => a.x + a.width - 1), ...(select.columns ?? []).map(columnIndex));
@@ -112,7 +113,7 @@ for (const c of plan.cases) {
       const option = run.preview[run.scope];
       run.headings = (c.options.headings ?? option?.suggestHeadings ?? false) === true;
       if (!option || c.labelsOnly) continue;
-      try { run.data = worksheetRImport(workbook, sheetIndex, chosen, run.scope, {headings: run.headings}); }
+      try { run.data = worksheetRImport(workbook, sheetIndex, chosen, run.scope, {headings: run.headings, list: c.options.format === 'list'}); }
       catch (error) { run.error = error.message; }
     } catch (error) {
       run.previewError = error.stack ?? String(error);

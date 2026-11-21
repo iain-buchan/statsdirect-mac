@@ -215,13 +215,14 @@ function populatedBounds(store, columns = null) {
   else store.cols.forEach((_column, c) => visit(c));
   return Number.isFinite(first) ? {first, last, left, right} : null;
 }
-// Every row from first to last of a column that holds a value or a formula.
-function forEachFilledRow(column, first, last, visit) {
+// Every row from first to last of a column that holds a value, then every formula row in that span (which can repeat a
+// row holding a value), unless formulas is false. Only the column's stored chunks are read, never its blank rows.
+function forEachFilledRow(column, first, last, visit, formulas = true) {
   for (const [index, {kind}] of column.chunks) {
     const base = index * kind.length;
     for (let r = Math.max(first, base), end = Math.min(last, base + kind.length - 1); r <= end; r++) if (kind[r - base] !== 0) visit(r);
   }
-  for (const r of column.formula.keys()) if (r >= first && r <= last) visit(r);
+  if (formulas) for (const r of column.formula.keys()) if (r >= first && r <= last) visit(r);
 }
 function hasData(store, c, first, last) {
   const column = store.cols[c];
@@ -244,13 +245,43 @@ function runs(sorted) {
   }
   return out;
 }
-// Whether a list of indices names every index below n.
+// Whether indices inside the grid name every index below n.
 function covers(list, n) {
   if (list.length < n) return false;
   const seen = new Uint8Array(n);
   let count = 0;
-  for (const i of list) if (Number.isInteger(i) && i >= 0 && i < n && !seen[i]) { seen[i] = 1; count++; }
+  for (const i of list) if (!seen[i]) { seen[i] = 1; count++; }
   return count === n;
+}
+
+// The selection as main.tsx hands it over: the columns and rows of Glide's CompactSelections (toArray(), which has
+// merged the pieces of a Command-click or Shift-click selection), the current rectangle, the rectangles a Command-click
+// stacked before it, and Edit ▸ Select All's marker. Glide can leave a selection reaching beyond the grid: its cursor
+// on the trailing "Add a row" row, or a row or column selected before Undo made the grid smaller. Such a selection is
+// clipped to the grid, the same way for the preview and the import, so that the prompt still opens and the import
+// sends what the preview showed; what is left may be nothing, "empty". Only what Glide never gives is refused:
+// positions that are not whole numbers from 0, an empty rectangle, or a column named twice.
+const MALFORMED = 'Select cells inside the worksheet.';
+const position = i => Number.isInteger(i) && i >= 0, extent = n => Number.isInteger(n) && n > 0;
+function clipped(store, selection) {
+  const columns = selection.columns ?? [], rows = selection.rows ?? [], range = selection.range;
+  const parts = (columns.length > 0) + (rows.length > 0) + !!range;
+  if (!parts) return 'none';
+  if (parts > 1 || selection.ranges?.length) return 'shape';
+  if (range) {
+    const {x, y, width, height} = range;
+    if (!position(x) || !position(y) || !extent(width) || !extent(height)) throw new Error(MALFORMED);
+    const right = Math.min(x + width, store.columns.length), bottom = Math.min(y + height, store.rows);
+    return x < right && y < bottom ? {range: {x, y, width: right - x, height: bottom - y}} : 'empty';
+  }
+  if (columns.length) {
+    if (!columns.every(position) || new Set(columns).size !== columns.length) throw new Error(MALFORMED);
+    const inside = columns.filter(c => c < store.columns.length);
+    return inside.length ? {columns: inside} : 'empty';
+  }
+  if (!rows.every(position)) throw new Error(MALFORMED);
+  const inside = rows.filter(r => r < store.rows);
+  return inside.length ? {rows: inside} : 'empty';
 }
 
 // A plan is the columns sent, their rows (first to last, or a sorted list for whole rows) and the
@@ -264,28 +295,24 @@ function entirePlan(store) {
   return bounds && {columns: span(bounds.left, bounds.right), first: bounds.first, last: bounds.last, areas: [bounds]};
 }
 function selectedPlan(store, selection) {
-  const columns = selection.columns ?? [], rows = selection.rows ?? [], range = selection.range;
-  const parts = (columns.length > 0) + (rows.length > 0) + !!range;
-  if (!parts) return 'none';
-  if (parts > 1 || selection.ranges?.length) return 'shape';
-  if (selectsAll(store, selection)) return entirePlan(store) ?? 'empty';
-  if (columns.length) return columnsPlan(store, columns);
-  if (rows.length) return rowsPlan(store, rows);
-  return rectanglePlan(store, range);
+  const chosen = clipped(store, selection);
+  if (typeof chosen === 'string') return chosen;
+  if (selection.all === true || selectsAll(store, chosen)) return entirePlan(store) ?? 'empty';
+  if (chosen.columns) return columnsPlan(store, chosen.columns);
+  if (chosen.rows) return rowsPlan(store, chosen.rows);
+  return rectanglePlan(store, chosen.range);
 }
-// Rule 2.6: select all is the same as Entire worksheet. That is the grid's Edit ▸ Select All
-// (`all`, set by main.tsx while that selection lasts), Glide's own Command-A (a rectangle over the
-// whole grid) and the corner (every grid row), and also every grid column.
-function selectsAll(store, {columns = [], rows = [], range, all}) {
-  if (all === true) return true;
+// Rule 2.6: select all is the same as Entire worksheet. That is Edit ▸ Select All (`all`, set by main.tsx while that
+// selection lasts), Glide's own Command-A (a rectangle over the whole grid) and the corner (every grid row). So are
+// whole columns that together are every grid column, and whole rows that together are every grid row (amendment 1),
+// however they were selected: one drag, Shift-click, or Command-click pieces such as A:M with N:XFD. Judged on the
+// clipped selection, so an index beyond the grid neither counts nor stops it.
+function selectsAll(store, {columns, rows, range}) {
   if (range) return range.x === 0 && range.y === 0 && range.width === store.columns.length && range.height === store.rows;
-  return rows.length ? covers(rows, store.rows) : covers(columns, store.columns.length);
+  return rows ? covers(rows, store.rows) : covers(columns, store.columns.length);
 }
 // Rule 2.2: a rectangle keeps its explicit bounds, if it holds any data.
 function rectanglePlan(store, {x, y, width, height}) {
-  if (![x, y, width, height].every(Number.isInteger) || x < 0 || y < 0 || width < 1 || height < 1 || x + width > store.columns.length || y + height > store.rows) {
-    throw new Error('Select cells inside the worksheet.');
-  }
   const columns = span(x, x + width - 1), last = y + height - 1;
   if (!columns.some(c => hasData(store, c, y, last))) return 'empty';
   return {columns, first: y, last, areas: [{left: x, right: x + width - 1, first: y, last}]};
@@ -293,9 +320,6 @@ function rectanglePlan(store, {x, y, width, height}) {
 // Rules 2.3 and C7: whole columns, in sheet order, from the first to the last non-blank row of those
 // columns. A selected column with no data stays, as a column of NA.
 function columnsPlan(store, selected) {
-  if (new Set(selected).size !== selected.length || selected.some(c => !Number.isInteger(c) || c < 0 || c >= store.columns.length)) {
-    throw new Error('Select cells inside the worksheet.');
-  }
   const columns = [...selected].sort((a, b) => a - b), bounds = populatedBounds(store, columns);
   if (!bounds) return 'empty';
   return {columns, first: bounds.first, last: bounds.last,
@@ -304,7 +328,6 @@ function columnsPlan(store, selected) {
 // C6: whole rows, from the first to the last selected row holding a non-blank cell (blank selected
 // rows between them stay), across from the first to the last non-blank column of those rows.
 function rowsPlan(store, selected) {
-  if (selected.some(r => !Number.isInteger(r) || r < 0 || r >= store.rows)) throw new Error('Select cells inside the worksheet.');
   const marked = new Uint8Array(store.rows);
   let low = Infinity, high = -1;
   for (const r of selected) { marked[r] = 1; low = Math.min(low, r); high = Math.max(high, r); }
@@ -341,11 +364,35 @@ function firstNull(store, plan, rows) {
   return '';
 }
 
+// The non-blank cells among a plan's data rows (those after the first `start`), counted from the store's chunks.
+function filledCells(store, plan, start) {
+  const first = rowAt(plan, start), last = rowAt(plan, rowCount(plan) - 1);
+  let marked = null, count = 0;
+  if (plan.rows) {   // whole rows: only the selected ones between first and last
+    marked = new Uint8Array(last - first + 1);
+    for (let i = start; i < plan.rows.length; i++) marked[plan.rows[i] - first] = 1;
+  }
+  const visit = marked ? r => { count += marked[r - first]; } : () => { count++; };
+  for (const c of plan.columns) if (store.cols[c]) forEachFilledRow(store.cols[c], first, last, visit, false);
+  return count;
+}
+// Whether no script could hold the plan's data rows, checked before they are read. A data frame writes every cell, so
+// it needs at least 3 bytes for each ("NA, "). A list leaves its missing values out (rule 5.3), so it needs at least 3
+// bytes only for each non-blank cell; but its values still come with one entry for each data row, as a data frame's
+// do, so a list may also cover at most one cell for each byte of the limit, which keeps a huge sparse area from being
+// read cell by cell.
+function tooLarge(store, plan, start, list, maximumBytes) {
+  const cells = plan.columns.length * (rowCount(plan) - start);
+  if (!list) return cells * 3 > maximumBytes;
+  return cells > maximumBytes || filledCells(store, plan, start) * 3 > maximumBytes;
+}
+
 // Without a scope: the prompt's preview, {sheet, entire, selected, selectedReason}. With "entire"
 // or "selected": the data, {sheet, range, rangeAll, rowCount, columnCount, names, columns, dates}.
 // options.headings takes the names from the first row (rule 4); rowCount still counts that row.
-// The size check here only refuses what no script could hold (at least 3 bytes per cell in a data
-// frame, and each value's own length); the host makes the exact check on the script it writes.
+// options.list says the host writes a list of vectors, which leaves missing values out, rather than a data frame; the
+// values are the same either way. The size check here only refuses what no script could hold (tooLarge, and each
+// value's own length); the host makes the exact check on the script it writes.
 export function worksheetRImport(workbook, sheetIndex, selection = {}, scope, options = {}, maximumBytes = 8 * 1024 * 1024) {
   const sheet = workbook.sheets[sheetIndex], store = sheet?.store;
   if (!store) throw new Error('Choose an open worksheet.');
@@ -357,7 +404,7 @@ export function worksheetRImport(workbook, sheetIndex, selection = {}, scope, op
   const plan = scope === 'entire' ? entirePlan(store) : selectedPlan(store, selection);
   if (!plan || typeof plan === 'string') throw new Error(scope === 'entire' ? 'The worksheet contains no data.' : 'Select worksheet cells, columns or rows to import.');
   const rows = rowCount(plan), headings = options?.headings === true && rows > 1, start = headings ? 1 : 0;
-  if (plan.columns.length * (rows - start) * 3 > maximumBytes) throw new Error(TOO_LARGE);
+  if (tooLarge(store, plan, start, options?.list === true, maximumBytes)) throw new Error(TOO_LARGE);
   const kinds = new Uint8Array(rows), numbers = new Float64Array(rows), names = [], columns = [];
   let bytes = 0, dates = false;
   for (const c of plan.columns) {

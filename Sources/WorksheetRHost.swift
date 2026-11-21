@@ -35,8 +35,10 @@ extension Viewer {
                                     choice: WorksheetRImportPrompt.Selection, external: Bool) {
         let changed = ConversationRScript.Failure(message: "The worksheet changed. Open the R import prompt again.")
         guard doc.gridVersion == version else { showWorksheetRError(changed, document: doc); return }
-        doc.web.callAsyncJavaScript("return window.statsDirectGrid.worksheetRImport(scope, {headings: headings})",
-                                    arguments: ["scope": choice.scope.rawValue, "headings": choice.headings],
+        // The format goes too: a list of vectors leaves missing values out, so the grid's size check counts only its
+        // non-blank cells.
+        doc.web.callAsyncJavaScript("return window.statsDirectGrid.worksheetRImport(scope, {headings: headings, list: list})",
+                                    arguments: ["scope": choice.scope.rawValue, "headings": choice.headings, "list": choice.asList],
                                     in: nil, in: .page) { [weak self, weak doc] result in
             guard let self, let doc, self.active === doc else { return }
             do {

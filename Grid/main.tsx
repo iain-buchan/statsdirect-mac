@@ -168,9 +168,9 @@ function App() {
     window.statsDirectGrid = {
       setWorksheetCommands: (commands: unknown) => setCommandCatalogue(worksheetCommands(commands)),
       showWorksheetCommands: () => window.dispatchEvent(new Event('statsdirect-open-worksheet-commands')),
-      // The R import prompt's preview (no arguments), then the chosen data ({headings} in options).
+      // The R import prompt's preview (no arguments), then the chosen data ({headings, list} in options).
       // Edit ▸ Select All, until the selection next changes, is the entire worksheet (rule 2.6).
-      worksheetRImport: (scope?: 'entire'|'selected', options?: {headings?: boolean}) => {
+      worksheetRImport: (scope?: 'entire'|'selected', options?: {headings?: boolean, list?: boolean}) => {
         const selection = selectionRef.current;
         return worksheetRImport(workbook, sheetIndex, {columns:selection.columns.toArray(), rows:selection.rows.toArray(),
           range:selection.current?.range, ranges:selection.current?.rangeStack ?? [], all:selection === selectedAll.current}, scope, options);

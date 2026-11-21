@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {CompactSelection} from '@glideapps/glide-data-grid';
 import {WorkbookStore} from './workbook.mjs';
 import {columnName} from './store.mjs';
 import {worksheetRImport, rNumber, numberValue, trimSpace} from './worksheet-r.mjs';
@@ -23,6 +24,13 @@ const entire = (columns, options = {}) => worksheetRImport(sheet(columns), 0, {}
 const column = (values, options) => entire([values], options).columns[0];
 const datetime = text => ({text, kind: 'datetime'}), timespan = text => ({text, kind: 'timespan'});
 const boolean = text => ({text, kind: 'boolean'}), error = text => ({text, kind: 'error'});
+const span = (from, to) => Array.from({length: to - from + 1}, (_, i) => from + i);
+const TOO_LARGE = 'The selected data exceed the 8 MiB editable R script limit. Select a smaller range, or export the worksheet as RDS from File → Export.';
+// What main.tsx hands worksheetRImport for a Glide GridSelection, and a CompactSelection built from pieces [from, to)
+// in the order given, as Glide adds them for a Command-click or Shift-click.
+const glide = ({columns = CompactSelection.empty(), rows = CompactSelection.empty(), current} = {}) =>
+  ({columns: columns.toArray(), rows: rows.toArray(), range: current?.range, ranges: current?.rangeStack ?? [], all: false});
+const pieces = (...ranges) => ranges.reduce((selection, range) => selection.add(range), CompactSelection.empty());
 
 // Reads an R numeric literal as R does, from the IEEE bits its hexadecimal form names.
 function readR(literal) {
@@ -305,15 +313,37 @@ test('C6: whole rows, from the first to the last selected row with data, across 
   assert.equal(worksheetRImport(book, 0, {rows: [5, 30]}).selected.range, 'D6:G6,D31:G31');
 });
 
-test('rule 2.6: select all is the entire worksheet, by the corner, Command-A or every column', () => {
-  const book = workbook([cell(2, 2, 'x', 'text'), cell(3, 4, '1')]);
-  const store = book.sheets[0].store, whole = worksheetRImport(book, 0).entire;
+test('rule 2.6: select all is the entire worksheet, by the corner, Command-A, or every column or row however selected', () => {
+  const book = workbook([cell(2, 2, 'x', 'text'), cell(3, 4, '1')]);   // C3 and D5, in a grid of 8 columns and 100 rows
+  const store = book.sheets[0].store, n = store.columns.length, whole = worksheetRImport(book, 0).entire;
   assert.deepEqual(whole, {range: 'C3:D5', rowCount: 3, columnCount: 2, suggestHeadings: true});
-  for (const selection of [{range: {x: 0, y: 0, width: store.columns.length, height: store.rows}},
-    {rows: Array.from({length: store.rows}, (_, r) => r)}, {columns: Array.from({length: store.columns.length}, (_, c) => c)}]) {
-    assert.deepEqual(worksheetRImport(book, 0, selection), {sheet: 'Measurements', entire: whole, selected: whole, selectedReason: null});
-    assert.deepEqual(worksheetRImport(book, 0, selection, 'selected'), worksheetRImport(book, 0, {}, 'entire'));
+  // Glide's CompactSelection merges adjacent pieces, so A:C with D:H reaches the import as one list.
+  assert.deepEqual(pieces([0, 3], [3, n]).items, [[0, n]]);
+  const forms = {
+    'the corner': glide({rows: pieces([0, store.rows])}),
+    'Command-A': glide({current: {cell: [0, 0], range: {x: 0, y: 0, width: n, height: store.rows}, rangeStack: []}}),
+    'one drag across every column header': glide({columns: pieces([0, n])}),
+    'a click on A, then Shift-click on H': glide({columns: pieces([0, 1]).add([0, n])}),
+    'Command-click pieces A:C with D:H': glide({columns: pieces([0, 3], [3, n])}),
+    'Command-click pieces D:H, then A:C': glide({columns: pieces([3, n], [0, 3])}),
+    'every column, one Command-click at a time': glide({columns: pieces(...span(0, n - 1).map(c => [c, c + 1]))}),
+    'two pieces handed over unmerged and out of order': {columns: [...span(3, n - 1), ...span(0, 2)]},
+    'rows 1:40 with 41:100': glide({rows: pieces([0, 40], [40, store.rows])}),
+    'rows 51:100, then Shift-click up to 1': glide({rows: pieces([50, store.rows], [0, 51])})};
+  for (const [form, selection] of Object.entries(forms)) {
+    assert.deepEqual(worksheetRImport(book, 0, selection), {sheet: 'Measurements', entire: whole, selected: whole, selectedReason: null}, form);
+    assert.deepEqual(worksheetRImport(book, 0, selection, 'selected'), worksheetRImport(book, 0, {}, 'entire'), form);
   }
+  // Fewer than every column stays whole columns (rule 2.3), with its blank selected columns kept as NA, whether in two
+  // pieces or one.
+  for (const [columns, range] of [[pieces([0, 3], [4, n]), 'A3:C3,E3:H3'], [pieces([0, n - 1]), 'A3:G5']]) {
+    const short = worksheetRImport(book, 0, glide({columns}), 'selected');
+    assert.deepEqual([short.range, short.columnCount, short.names], [range, 7, columns.toArray().map(columnName)]);
+    assert.ok(short.columns.every((c, i) => ['C', 'D'].includes(short.names[i]) || c.type === 'logical' && c.values.every(v => v === null)));
+  }
+  assert.deepEqual(worksheetRImport(book, 0, glide({columns: pieces([0, 3], [4, n])})).selected, {range: 'A3:C3,E3:H3', rowCount: 1, columnCount: 7, suggestHeadings: false});
+  // Every row but one is whole rows (C6), which here cut to the same cells.
+  assert.equal(worksheetRImport(book, 0, glide({rows: pieces([0, 40], [41, store.rows])})).selected.range, 'C3:D5');
   // Edit ▸ Select All selects the used rows, marked as select all; the same rectangle drawn by hand
   // keeps its own bounds.
   const menu = {range: {x: 0, y: 0, width: store.columns.length, height: store.usedRows()}};
@@ -334,14 +364,52 @@ test('C7: a multiple selection other than whole columns or whole rows is refused
   }
 });
 
-test('R import refuses selections outside the worksheet, unknown scopes and empty worksheets', () => {
+test('a selection reaching beyond the grid is clipped to it, so the prompt opens and the import sends what it showed', () => {
+  const book = workbook([cell(0, 0, 'Dose', 'text'), cell(0, 94, '5'), cell(7, 1, 'h', 'text')]);   // 8 columns, 100 rows
+  const store = book.sheets[0].store, whole = worksheetRImport(book, 0).entire, preview = selection => worksheetRImport(book, 0, selection);
+  // Glide's cursor on its trailing "Add a row" row, just below the grid (Command-End, or Down or Page Down past the end).
+  const trailing = {range: {x: 0, y: 100, width: 1, height: 1}};
+  assert.deepEqual(preview(trailing), {sheet: 'Measurements', entire: whole, selected: null, selectedReason: 'empty'});
+  assert.throws(() => worksheetRImport(book, 0, trailing, 'selected'), {message: 'Select worksheet cells, columns or rows to import.'});
+  // A rectangle running past the last row is cut at it, in the preview and the import alike.
+  const tail = {range: {x: 0, y: 90, width: 1, height: 60}};
+  assert.deepEqual(preview(tail).selected, {range: 'A91:A100', rowCount: 10, columnCount: 1, suggestHeadings: false});
+  const data = worksheetRImport(book, 0, tail, 'selected');
+  assert.deepEqual([data.range, data.rowCount, data.columns[0].values.filter(v => v !== null)], ['A91:A100', 10, ['5']]);
+  // Add 100 rows, select row 150, then Undo: Glide keeps the rows selected.
+  store.apply([], 200); store.undo();
+  assert.equal(store.rows, 100);
+  assert.equal(preview({rows: [149]}).selectedReason, 'empty');
+  assert.deepEqual(preview({rows: [94, 149]}).selected, {range: 'A95', rowCount: 1, columnCount: 1, suggestHeadings: false});
+  // Add column, select the new column, then Undo.
+  store.apply([], store.rows, 9); store.undo();
+  assert.equal(store.columns.length, 8);
+  assert.equal(preview({columns: [8]}).selectedReason, 'empty');
+  assert.deepEqual(worksheetRImport(book, 0, {columns: [7, 8]}, 'selected').columns, [{type: 'character', values: ['h']}]);
+  // Select all made before the grid shrank is still select all, once clipped: Command-A's rectangle, the corner's rows,
+  // and every column, here with one more beyond the grid.
+  for (const selection of [{range: {x: 0, y: 0, width: 9, height: 200}}, {rows: span(0, 199)}, {columns: span(0, 8)}]) {
+    assert.deepEqual(preview(selection).selected, whole);
+    assert.deepEqual(worksheetRImport(book, 0, selection, 'selected'), worksheetRImport(book, 0, {}, 'entire'));
+  }
+  // A selection wholly beyond a blank grid leaves nothing either.
+  const blank = workbook([]);
+  assert.deepEqual(worksheetRImport(blank, 0, {range: {x: 7, y: 0, width: 2, height: 1}}), {sheet: 'Measurements', entire: null, selected: null, selectedReason: 'empty'});
+  assert.equal(worksheetRImport(blank, 0, {rows: [100]}).selectedReason, 'empty');
+});
+
+test('R import refuses malformed selections, unknown scopes and empty worksheets', () => {
   const empty = workbook([]);
   assert.deepEqual(worksheetRImport(empty, 0), {sheet: 'Measurements', entire: null, selected: null, selectedReason: 'none'});
   assert.throws(() => worksheetRImport(empty, 0, {}, 'entire'), {message: 'The worksheet contains no data.'});
   assert.throws(() => worksheetRImport(empty, 0, {}, 'selected'), {message: 'Select worksheet cells, columns or rows to import.'});
-  assert.throws(() => worksheetRImport(empty, 0, {range: {x: 7, y: 0, width: 2, height: 1}}), /inside/);
-  assert.throws(() => worksheetRImport(empty, 0, {columns: [0, 0]}), /inside/);
-  assert.throws(() => worksheetRImport(empty, 0, {rows: [100]}), /inside/);
+  // What Glide never gives: positions that are not whole numbers from 0, an empty rectangle, a column named twice.
+  for (const selection of [{range: {x: -1, y: 0, width: 2, height: 1}}, {range: {x: 0.5, y: 0, width: 1, height: 1}}, {range: {x: '0', y: 0, width: 1, height: 1}},
+    {range: {x: 0, y: 0, width: 0, height: 1}}, {range: {x: 0, y: 0, width: 1}}, {columns: [0, 0]}, {columns: [-1]}, {columns: [1.5]}, {rows: [NaN]}, {rows: ['3']}]) {
+    for (const scope of [undefined, 'selected']) {
+      assert.throws(() => worksheetRImport(empty, 0, selection, scope), {message: 'Select cells inside the worksheet.'}, JSON.stringify(selection));
+    }
+  }
   assert.throws(() => worksheetRImport(empty, 0, {}, 'invalid'), /entire worksheet/);
   assert.throws(() => worksheetRImport(empty, 3), /open worksheet/);
   // The entire worksheet ignores a selection it does not use.
@@ -381,6 +449,46 @@ test('the 8 MiB check refuses only what no script could hold, before reading hug
   assert.equal(worksheetRImport(long, 0, {}, 'entire', {}, 11000).columns[0].values[1].length, 5000);
 });
 
+test('a list of vectors leaves out its missing values, so the 8 MiB check counts only its non-blank cells', () => {
+  // The review's case: A holds 1,000,000 numbers and B and C 20 each, independent samples of different lengths. As a
+  // data frame no script could hold them (3 columns × 1,000,000 rows × at least 3 bytes); as a list it is about 4 MB.
+  const book = workbook([]), store = book.sheets[0].store, edits = [];
+  for (let r = 0; r < 1000000; r++) edits.push([0, r, String(r % 97)]);
+  for (let r = 0; r < 20; r++) edits.push([1, r, String(r)], [2, r, String(-r)]);
+  store.apply(edits);
+  assert.throws(() => worksheetRImport(book, 0, {columns: [0, 1, 2]}, 'selected'), {message: TOO_LARGE});
+  assert.throws(() => worksheetRImport(book, 0, {columns: [0, 1, 2]}, 'selected', {list: false}), {message: TOO_LARGE});
+  const list = worksheetRImport(book, 0, {columns: [0, 1, 2]}, 'selected', {list: true});
+  assert.deepEqual([list.range, list.rowCount, list.columns.map(c => c.values.length), list.columns.map(c => c.values.filter(v => v !== null).length)],
+    ['A1:C1000000', 1000000, [1000000, 1000000, 1000000], [1000000, 20, 20]]);
+  assert.deepEqual([list.columns[0].values[999999], list.columns[2].values.slice(18, 21)], [String(999999 % 97), ['-18', '-19', null]]);
+  // Its second case: A to C hold 50 values each and D one stray value in row 800,000.
+  const stray = workbook([...[0, 1, 2].flatMap(c => span(0, 49).map(r => cell(c, r, String(r)))), cell(3, 799999, '7')], {rows: 800000});
+  assert.throws(() => worksheetRImport(stray, 0, {columns: [0, 1, 2, 3]}, 'selected'), {message: TOO_LARGE});
+  assert.deepEqual(worksheetRImport(stray, 0, {columns: [0, 1, 2, 3]}, 'selected', {list: true}).columns.map(c => c.values.filter(v => v !== null)),
+    [span(0, 49).map(String), span(0, 49).map(String), span(0, 49).map(String), ['7']]);
+  // At least 3 bytes for each non-blank data cell, counted before any cell is read. A1 is n, and A2:A101 hold 1: as a
+  // list with headings, 100 values and the name make 303 bytes.
+  const counted = workbook([cell(0, 0, 'n', 'text'), ...span(1, 100).map(r => cell(0, r, '1'))]), counts = counted.sheets[0].store;
+  const read = counts.get.bind(counts);
+  let reads = 0;
+  counts.get = (c, r) => { reads++; return read(c, r); };
+  const refusedUnread = (selection, options, bytes) => {
+    reads = 0;
+    assert.throws(() => worksheetRImport(counted, 0, selection, 'selected', options, bytes), {message: TOO_LARGE});
+    return reads === 0;
+  };
+  assert.equal(worksheetRImport(counted, 0, {columns: [0]}, 'selected', {list: true, headings: true}, 303).columns[0].values.length, 100);
+  assert.equal(refusedUnread({columns: [0]}, {list: true, headings: true}, 299), true);    // 100 cells need 300 bytes
+  assert.equal(refusedUnread({columns: [0]}, {list: true, headings: true}, 300), false);   // read, then 303 bytes are too many
+  assert.equal(refusedUnread({columns: [0]}, {list: true, headings: false}, 302), true);   // A1 is data too: 101 cells
+  // Of whole rows only the selected ones count: rows 1 to 51 and 101 are 51 data cells, not the 100 from A2 to A101.
+  assert.equal(worksheetRImport(counted, 0, {rows: [...span(0, 50), 100]}, 'selected', {list: true, headings: true}, 160).columns[0].values.length, 51);
+  // A blank formula (its saved result empty text) is missing, so it does not count either.
+  const formulas = workbook([cell(0, 0, '1'), ...span(1, 9).map(r => cell(0, r, '', 'blank', {formula: 'IF(1,"","")', savedEmpty: true}))]);
+  assert.deepEqual(worksheetRImport(formulas, 0, {columns: [0]}, 'selected', {list: true}, 12).columns[0].values, ['1', ...Array(9).fill(null)]);
+});
+
 test('R import preview does not materialise huge sparse worksheet data', () => {
   const book = workbook([cell(0, 0, '1'), cell(16383, 1048575, '2')], {columns: 16384, rows: 1048576});
   const store = book.sheets[0].store, get = store.get.bind(store);
@@ -392,4 +500,12 @@ test('R import preview does not materialise huge sparse worksheet data', () => {
   reads = 0;
   assert.equal(worksheetRImport(book, 0, {rows: [5, 1048575]}).selected.range, 'XFD1048576');
   assert.throws(() => worksheetRImport(book, 0, {}, 'entire'), /8 MiB/);
+  // A list of the same two cells would be a tiny script, but its values would hold an entry for each of the area's 17
+  // billion cells: a list may cover at most one cell for each byte of the limit, refused before any cell is read.
+  reads = 0;
+  assert.throws(() => worksheetRImport(book, 0, {}, 'entire', {list: true}), {message: TOO_LARGE});
+  assert.throws(() => worksheetRImport(book, 0, {columns: [0, 1, 2, 3, 4, 5, 6, 7, 16383]}, 'selected', {list: true}), {message: TOO_LARGE});
+  assert.equal(reads, 0);
+  store.get = get;
+  assert.deepEqual(worksheetRImport(book, 0, {columns: [0, 16383]}, 'selected', {list: true}).columns.map(c => c.values.filter(v => v !== null)), [['1'], ['2']]);
 });

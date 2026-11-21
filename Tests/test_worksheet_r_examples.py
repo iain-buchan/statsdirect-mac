@@ -17,9 +17,10 @@ without skip.mac goes through the Mac's own code, each part as the app runs it:
    typed snapshot that the app's grid reads.
 3. Node (Tests/worksheet-r-examples.mjs) loads the snapshot into a WorkbookStore as the grid's loadWorkbook does, types the
    cells a Mac case types, makes the case's selection as Glide and Grid/main.tsx give it, and calls the grid's own
-   worksheetRImport for the prompt's preview and for the data. Select all runs in each of its Mac forms. The Mac grid
-   opens a workbook with only the columns its file uses, so where a case selects beyond them the grid is first grown with
-   its own Add column command, as a user would have to, and the run's label says so.
+   worksheetRImport for the prompt's preview and for the data, with the options WorksheetRHost passes (headings, and list
+   for a List of vectors). Select all runs in each of its Mac forms. The Mac grid opens a workbook with only the columns
+   its file uses, so where a case selects beyond them the grid is first grown with its own Add column command, as a user
+   would have to, and the run's label says so.
 4. Swift (Tests/worksheet-r-examples-driver.swift, compiled as Scripts/test-unified-toolbar.sh compiles the prompt driver)
    builds the Mac's prompt from the preview, makes the case's choices in it, checks the data as WorksheetRHost does, and
    writes the script with WorksheetRScript.build.

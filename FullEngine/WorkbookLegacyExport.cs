@@ -31,8 +31,9 @@ public static partial class WorkbookIO {
                 switch (col.Kinds[i]) {
                     case 0: cell.SetCellType(CellType.Blank); break;
                     case 1: cell.SetCellValue(col.Nums[i]); break;
-                    // The loader's own readers: 1900-02-29 (serial 60) and R's UTC date-times keep their serials, and a
-                    // duration such as 26:00:00 is 26 hours, not 26 days.
+                    // The loader's own readers: 1900-02-29 (serial 60) and R's UTC date-times keep their serials, a date
+                    // before 1899-12-31 (which has none) is exported as its text, and a duration such as 26:00:00 is 26
+                    // hours, not 26 days.
                     case 3 when TryDateSerial(text, false, out var serial): cell.SetCellValue(serial); cell.CellStyle = date; break;
                     case 4 when TryDuration(text, out var span): cell.SetCellValue(span.TotalDays); cell.CellStyle = duration; break;
                     case 5 when bool.TryParse(text, out var flag): cell.SetCellValue(flag); break;

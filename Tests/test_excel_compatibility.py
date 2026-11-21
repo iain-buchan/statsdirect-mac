@@ -255,7 +255,12 @@ try:
             (2958465, 'yyyy-mm-dd', D('9999-12-31 00:00:00'), N('2958465')), (2958466, 'yyyy-mm-dd', *both(N('2958466'))),   # beyond 9999-12-31
             (3000000, '[h]:mm:ss', *both(N('3000000'))), (2957003, 'yyyy-mm-dd', D('9995-12-30 00:00:00'), D('9999-12-31 00:00:00')),
             (2957004, 'yyyy-mm-dd', D('9995-12-31 00:00:00'), N('2957004')), (2957004, '[h]:mm:ss', T('2957004.00:00:00'), N('2957004')),
-            (0.9999999999, 'h:mm:ss', D('1900-01-01 00:00:00'), D('1904-01-02 00:00:00')),
+            # As agreed with Windows on 21 November 2026: a duration of more days than the last day's serial, of either sign, is a
+            # number, judged on its value; a time of day is judged on its value, then rounded half away from zero; a date after.
+            (2958465.25, '[h]:mm:ss', *both(N('2958465.25'))), (-3000000, '[h]:mm:ss', *both(N('-3000000'))),
+            (-2958465, '[h]:mm:ss', T('-2958465.00:00:00'), N('-2958465')),
+            (0.9999999999, 'h:mm:ss', *both(T('1.00:00:00'))), (0.9999999999, 'yyyy-mm-dd hh:mm:ss', D('1900-01-01 00:00:00'), D('1904-01-02 00:00:00')),
+            (5.787037037037037e-09, '[h]:mm:ss', *both(T('00:00:00.0010000'))), (-5.787037037037037e-09, '[h]:mm:ss', *both(T('-00:00:00.0010000'))),
             (46347, '[Magenta]yyyy-mm-dd', D('2026-11-21 00:00:00'), D('2030-11-22 00:00:00')),          # colours make no duration
             (46348, '[magenta]dd/mm/yyyy', D('2026-11-22 00:00:00'), D('2030-11-23 00:00:00')),
             (46347.25, '[Red]yyyy-mm-dd hh:mm', D('2026-11-21 06:00:00'), D('2030-11-22 06:00:00')),
@@ -271,8 +276,10 @@ try:
             (('formula', 60.5), 'yyyy-mm-dd hh:mm', D('1900-02-29 12:00:00'), D('1904-03-01 12:00:00')),   # saved formula results
             (('formula', 0.75), 'h:mm', *both(T('18:00:00'))), (('formula', -2), 'yyyy-mm-dd', *both(N('-2')))]
         # Strict OOXML gives no numbers to read again, so ExcelDataReader's own values stand there: its day 60 reads as day 59,
-        # and it keeps a negative date or time only to the millisecond and a [Magenta] number only to the 100 ns tick.
+        # it keeps a negative date or time only to the millisecond and a [Magenta] number only to the 100 ns tick, and it has
+        # already rounded 0.9999999999 in h:mm:ss to a whole day, which is then a date-time.
         STRICT = {(False, (60, 'yyyy-mm-dd')): D('1900-02-28 00:00:00'), (False, (60.5, 22)): D('1900-02-28 12:00:00'),
+                  (False, (0.9999999999, 'h:mm:ss')): D('1900-01-01 00:00:00'), (True, (0.9999999999, 'h:mm:ss')): D('1904-01-02 00:00:00'),
                   (False, (('formula', 60.5), 'yyyy-mm-dd hh:mm')): D('1900-02-28 12:00:00'),
                   (False, (-0.123456789, 'yyyy-mm-dd hh:mm')): N('-0.12345679398148147'), (True, (-0.123456789, 'yyyy-mm-dd hh:mm')): N('-0.12345679398140419'),
                   (False, (3.14159265358979, '[Magenta]0.00')): N('3.1415926535891203'), (True, (3.14159265358979, '[Magenta]0.00')): N('3.1415926535891203')}
@@ -298,18 +305,21 @@ try:
         print(f'PASS: {len(LEGACY)} dates, times, durations and numbers load alike from .xlsx, .xlsm, .xltx, .xltm, .xls and .xlsb in both date systems, the last five as data copies (Strict OOXML differs only where ExcelDataReader rounds)')
 
         # Exported to .xls and opened again, dates, times and durations keep their text and kind: 1900-02-29 is Excel's day 60,
-        # a time of day and a duration come back to the millisecond, and a date before 1900-01-01, the 1900 system's first day, is saved as its text.
+        # a time of day and a duration come back to the millisecond, and a date before 1900-01-01, the 1900 system's first day,
+        # and a duration of more days than 9999-12-31's serial, of either sign, which would reopen as a number, are saved as their text.
         EXPORTED = [('1900-02-29', 'datetime', D('1900-02-29 00:00:00')), ('1900-02-29 06:00:00', 'datetime', D('1900-02-29 06:00:00')),
                     ('2026-11-21 10:00:00', 'datetime', D('2026-11-21 10:00:00')), ('1899-12-31', 'datetime', X('1899-12-31')), ('1900-01-01', 'datetime', D('1900-01-01 00:00:00')),
                     ('1899-12-30', 'datetime', X('1899-12-30')), ('1850-01-01', 'datetime', X('1850-01-01')),
                     ('14:30:00', 'timespan', T('14:30:00')), ('14:30:00.5000000', 'timespan', T('14:30:00.5000000')),
-                    ('1.02:00:00', 'timespan', T('1.02:00:00')), ('-01:00:00', 'timespan', T('-01:00:00'))]
+                    ('1.02:00:00', 'timespan', T('1.02:00:00')), ('-01:00:00', 'timespan', T('-01:00:00')),
+                    ('-3000000.00:00:00', 'timespan', X('-3000000.00:00:00')), ('2958465.06:00:00', 'timespan', X('2958465.06:00:00')),
+                    ('-2958465.00:00:00', 'timespan', T('-2958465.00:00:00'))]
         xls = folder / 'exported.xls'
         result = request(action='exportXls', path=str(xls), sheets=[{'name': 'Data', 'cells': [{'col': 0, 'row': r, 'text': text, 'kind': kind} for r, (text, kind, _) in enumerate(EXPORTED)]}])
         assert result.get('ok'), result
         reply = opened(xls); got = values(reply)
         for r, (text, kind, want) in enumerate(EXPORTED): assert got[(0, r)] == want, (text, kind, got[(0, r)], want)
         close(reply)
-        print('PASS: dates (1900-02-29 included), times of day and durations exported to .xls reopen as they were; dates before 1900-01-01 as text')
+        print('PASS: dates (1900-02-29 included), times of day and durations exported to .xls reopen as they were; dates before 1900-01-01 and durations beyond 9999-12-31 as text')
 finally:
     driver.stdin.close(); driver.wait(timeout=15)

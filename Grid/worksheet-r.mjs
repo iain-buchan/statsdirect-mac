@@ -48,9 +48,12 @@ export function rNumber(x) {
   return exponent ? `${sign}0x1.${fraction}p${exponent >= 1023 ? '+' : ''}${exponent - 1023}` : `${sign}0x0.${fraction}p-1022`;
 }
 
-// Rule 3.9: dates and times, rounded to the millisecond. A datetime cell's text is
+// Rule 3.9: dates and times, rounded to the millisecond, half away from zero (agreed with Windows on 21 November
+// 2026): the fraction's digits are the magnitude, rounded up from the half, and a duration's sign stays its own, so
+// 00:00:00.0005 is 00:00:00.001 and -00:00:00.0005 is -00:00:00.001. A datetime cell's text is
 // YYYY-MM-DD[ T]HH:MM[:SS[.f…]], with a final Z (UTC) from R data files; a timespan cell's is
-// .NET's "c" text, [-][d.]hh:mm:ss[.fffffff].
+// .NET's "c" text, [-][d.]hh:mm:ss[.fffffff]. The loader has judged each value's kind before rounding a time of day,
+// so a timespan of 1.00:00:00 from a time format is the time of day 24:00:00.
 const DATE_TIME = /^([0-9]{4})-([0-9]{2})-([0-9]{2})(?:[ T]([0-9]{2}):([0-9]{2})(?::([0-9]{2})(?:\.([0-9]+))?)?Z?)?$/;
 const DURATION = /^(-?)(?:([0-9]+)\.)?([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?$/;
 const milliseconds = (digits = '') => Number(digits.padEnd(3, '0').slice(0, 3)) + (digits[3] >= '5' ? 1 : 0);

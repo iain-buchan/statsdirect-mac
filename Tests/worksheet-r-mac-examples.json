@@ -1,5 +1,5 @@
 {
- "about": "The Mac's own worksheet R examples, in the schema of the shared Learn/Upstream/WorksheetR/examples.json, for what only the Mac's grid and loader can show: number cells that keep their typed text, formula cells refused once the workbook has been edited (RULES.md section 7), the 1904 date system (rule 3.9: each loader's date system is tested separately), answers agreed with Windows on 21 November 2026, after learning-v1.1.7 (date-times anchor the any-case missing words, Excel's built-in formats 45 and 47 are times of day, and whole columns that are every column of the grid are the entire worksheet), and text the loader reads from Excel's _xHHHH_ escapes. Tests/test_worksheet_r_examples.py runs these with the shared cases.",
+ "about": "The Mac's own worksheet R examples, in the schema of the shared Learn/Upstream/WorksheetR/examples.json, for what only the Mac's grid and loader can show: number cells that keep their typed text, formula cells refused once the workbook has been edited (RULES.md section 7), the 1904 date system (rule 3.9: each loader's date system is tested separately), answers agreed with Windows on 21 November 2026, after learning-v1.1.7 (date-times anchor the any-case missing words, Excel's built-in formats 45 and 47 are times of day, and whole columns that are every column of the grid are the entire worksheet) and after learning-v1.1.9 (a time of day is judged on its value before it is rounded, a date after; a duration of more days than the last day's serial, of either sign, is a number; every rounding to the millisecond is half away from zero), and text the loader reads from Excel's _xHHHH_ escapes. Tests/test_worksheet_r_examples.py runs these with the shared cases.",
  "version": 1,
  "schema": {
   "extends": "the schema of Learn/Upstream/WorksheetR/examples.json, with the three additions below",
@@ -87,6 +87,43 @@
    "options": {"format": "data frame", "headings": null, "friendly": false},
    "expect": {"entire": "Entire worksheet — B2:C4 (3 rows × 2 columns)", "selected": "Selected cells — B2:C4 (3 rows × 2 columns)", "headingsSuggested": true, "r": "structure(list(c(1, NA), c(NA, 2)), names = c(\"a\", \"b\"), row.names = c(NA_integer_, -2L), class = \"data.frame\")"},
    "note": "Amendment 1 to rule 2.6, agreed with Windows on 21 November 2026. The Mac grid opens this file with columns A to C, so A, B and C, however they were selected (one drag, Shift-click, or Command-click pieces, which Glide's CompactSelection hands over as one list), are every column of the sheet: Entire worksheet, B2:C4. As ordinary whole columns (rule 2.3) they would be A2:C4, with A kept as NA."
+  },
+  {
+   "name": "A time format below one day is a time of day, judged on its value and then rounded, so 0.999999999 is 24:00:00; a date is judged after rounding",
+   "rules": ["3.9"],
+   "cells": {"A1": {"text": "Clock"}, "A2": {"time": "0.999999999", "format": "h:mm:ss"}, "B1": {"text": "When"}, "B2": {"datetime": "0.9999999999", "format": "yyyy-mm-dd hh:mm:ss"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"24:00:00\"), structure(c(-25567), class = \"Date\")), names = c(\"Clock\", \"When\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.9. 0.999999999 is below one day, so in h:mm:ss it is a time of day, whatever it rounds to; rounded to the millisecond it is a whole day, written 24:00:00. A date or date-time is judged after rounding: 0.9999999999 in yyyy-mm-dd hh:mm:ss rounds to serial 1, the date 1900-01-01."
+  },
+  {
+   "name": "In the 1904 date system, 0.999999999 in a time format is 24:00:00 too, and a duration beyond its last day is a number",
+   "rules": ["3.9"],
+   "dateSystem": 1904,
+   "cells": {"A1": {"text": "Clock"}, "A2": {"time": "0.999999999", "format": "h:mm:ss"}, "B1": {"text": "When"}, "B2": {"datetime": "0.9999999999", "format": "yyyy-mm-dd hh:mm:ss"}, "C1": {"text": "Over"}, "C2": {"duration": "2957003.25", "format": "[h]:mm:ss"}, "D1": {"text": "Last"}, "D2": {"duration": "2957003", "format": "[h]:mm:ss"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"24:00:00\"), structure(c(-24106), class = \"Date\"), c(2957003.25), c(\"70968072:00:00\")), names = c(\"Clock\", \"When\", \"Over\", \"Last\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.9. In the 1904 system 0.9999999999 in yyyy-mm-dd hh:mm:ss rounds to serial 1, 1904-01-02, and the last day, 9999-12-31, is serial 2,957,003: a duration of 2,957,003.25 days is beyond it, so a number, and one of 2,957,003 days is 70968072:00:00."
+  },
+  {
+   "name": "A duration beyond the last day as a number of days, of either sign, is a number",
+   "rules": ["3.9"],
+   "cells": {"A1": {"text": "Over"}, "A2": {"duration": "2958465.25", "format": "[h]:mm:ss"}, "B1": {"text": "Negative"}, "B2": {"duration": "-3000000", "format": "[h]:mm:ss"}, "C1": {"text": "Longest"}, "C2": {"duration": "2958465", "format": "[h]:mm:ss"}, "D1": {"text": "Most negative"}, "D2": {"duration": "-2958465", "format": "[h]:mm:ss"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(2958465.25), c(-3000000), c(\"71003160:00:00\"), c(\"-71003160:00:00\")), names = c(\"Over\", \"Negative\", \"Longest\", \"Most negative\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.9: a duration is a number when its absolute value is beyond the last day of the date system, 2,958,465 in the 1900 system, judged on the value itself. So 2958465.25 and -3000000 are numbers, while 2958465 and -2958465 days are durations."
+  },
+  {
+   "name": "Rounding to the millisecond is half away from zero: half a millisecond is 00:00:00.001",
+   "rules": ["3.9"],
+   "cells": {"A1": {"text": "Duration"}, "A2": {"duration": "5.787037037037037e-09", "format": "[h]:mm:ss"}, "B1": {"text": "Negative"}, "B2": {"duration": "-5.787037037037037e-09", "format": "[h]:mm:ss"}, "C1": {"text": "Clock"}, "C2": {"time": "5.787037037037037e-09", "format": "h:mm:ss"}, "D1": {"text": "Two and a half"}, "D2": {"duration": "2.8935185185185185e-08", "format": "[h]:mm:ss"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"00:00:00.001\"), c(\"-00:00:00.001\"), c(\"00:00:00.001\"), c(\"00:00:00.003\")), names = c(\"Duration\", \"Negative\", \"Clock\", \"Two and a half\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.9. 5.787037037037037e-09 days is exactly half a millisecond in IEEE doubles (times 86,400,000 it is 0.5), and 2.8935185185185185e-08 days two and a half. Rounding half to even would give 00:00:00 for the first three and 00:00:00.002 for the last."
   }
  ]
 }

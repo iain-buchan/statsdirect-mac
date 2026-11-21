@@ -478,7 +478,7 @@ public static partial class WorkbookIO {
             else if (type == "str") { kind = 2; cellText = Unescape(value ?? ""); }
             else if (type == "b") { kind = 5; cellText = value == "1" ? "TRUE" : value == "0" ? "FALSE" : value ?? ""; if (cellText.Length == 0) kind = 0; }
             else if (type == "e") { kind = 6; cellText = value ?? ""; }
-            else if (type == "d") IsoDateText(value ?? "", package.Date1904, out kind, out cellText);
+            else if (type == "d") IsoDateText(value ?? "", out kind, out cellText);
             else if (string.IsNullOrEmpty(value)) { kind = 0; cellText = ""; }
             else {
                 // A value that is not a finite number keeps the file's text, NaN, INF and 1e999 included (.NET reads some of
@@ -555,55 +555,73 @@ public static partial class WorkbookIO {
     public static string ColumnName(int col) {  // 1-based
         var name = ""; while (col > 0) { col--; name = (char)('A' + col % 26) + name; col /= 26; } return name;
     }
-    // The kind and text of a number shown with a date or time format: a duration (kind 4) for an elapsed format; a time of day
-    // (kind 4) for a time format without a date and a value from 0 up to one day; otherwise a date-time (kind 3). False when the
-    // value stays a number (RULES 3.9), as Excel shows ##### for it: a value beyond 9999-12-31 as a number of days, in any of these
-    // formats, a negative one in a date or time format, and in the 1900 system one below a day in a date or date-time format,
-    // before the first day of its date system. Each is judged rounded to the millisecond, as its text is.
+    // The kind and text of a number shown with a date or time format (RULES 3.9, with the answers agreed with Windows on
+    // 21 November 2026): a duration (kind 4) for an elapsed format; a time of day (kind 4) for a time format without a date
+    // and a value from 0 up to one day; otherwise a date-time (kind 3). False when the value stays a number, as Excel shows
+    // ##### for it: a duration of more days, of either sign, than the serial of the last day of its date system (9999-12-31);
+    // a negative value in a date or time format; a date or date-time beyond that last day, or in the 1900 system before its
+    // first day, 1900-01-01. A duration and a time of day are judged on the value itself, and only then rounded to the
+    // millisecond, so 0.999999999 in h:mm:ss is a time of day that reads 1.00:00:00, which the grid writes as 24:00:00. A date or
+    // date-time is judged rounded to the millisecond, as its text is, so 0.9999999999 in yyyy-mm-dd hh:mm:ss is 1900-01-01.
     static bool TryDateTimeText(double serial, byte format, bool date1904, out byte kind, out string text) {
         kind = 4; text = null;
-        if (!double.IsFinite(serial) || BeyondLastDay(serial, date1904)) return false;
-        if (format == FormatElapsed) return (text = DurationText(serial)) != null;
+        if (!double.IsFinite(serial)) return false;
+        if (format == FormatElapsed) return !DurationBeyondLastDay(serial, date1904) && (text = DurationText(serial)) != null;
         if (serial < 0) return false;
-        if (format == FormatTime && Math.Round(serial * 86_400_000d) < 86_400_000d) return (text = DurationText(serial)) != null;
+        if (format == FormatTime && serial < 1) return (text = DurationText(serial)) != null;
+        double ms = Milliseconds(serial);
         // The 1900 system's first day is serial 1, 1900-01-01: Excel shows serial 0 as 1900-01-00, so a value below one day in a
         // date or date-time format is a number (amendment 1 of the shared rules). The 1904 system's first day is serial 0.
-        if (!date1904 && Math.Round(serial * 86_400_000d) < 86_400_000d) return false;
-        kind = 3;
-        try {
-            if (date1904 || serial >= 61) { text = DateText(DateTime.FromOADate(serial + (date1904 ? 1462 : 0))); return true; }
-            // Before 1 March 1900, Excel's serials are one more than OLE Automation dates: Excel's day 60 is 29 February 1900,
-            // which never existed. Excel shows that date, and so does the text; DateTime cannot hold it. FromOADate rounds to the
-            // millisecond, so a value just below day 60 or 61 belongs to the day it rounds to.
-            var date = DateTime.FromOADate(serial + 1);
-            var march1 = new DateTime(1900, 3, 1);
-            text = date < march1 ? DateText(date) : date < march1.AddDays(1) ? LeapDay1900 + DateText(date).Substring(10) : DateText(march1);
-            return true;
-        } catch (ArgumentException) { return false; }
+        if (ms >= (LastDay(date1904) + 1) * MillisecondsPerDay || !date1904 && ms < MillisecondsPerDay) return false;
+        kind = 3; text = SerialDateText((long)ms, date1904);
+        return true;
     }
     const string LeapDay1900 = "1900-02-29";
+    const double MillisecondsPerDay = 86_400_000d;
+    // A serial number of days in whole milliseconds, rounded half away from zero, as every date-time, time of day and duration
+    // is: half a millisecond is 00:00:00.001, and minus half a millisecond -00:00:00.001.
+    static double Milliseconds(double days) => Math.Round(days * MillisecondsPerDay, MidpointRounding.AwayFromZero);
     static string DateText(DateTime dt) => dt.ToString("yyyy-MM-dd HH:mm:ss.fffffff", CultureInfo.InvariantCulture).TrimEnd('0').TrimEnd('.');
-    // A duration or time of day in .NET's "c" form, [-][d.]hh:mm:ss[.fffffff], rounded to the millisecond as date-times are
-    // (TimeSpan.FromDays truncates to the 100 ns tick below, so 14:30 would read 14:29:59.9999999). Null beyond TimeSpan's range.
-    static string DurationText(double days) {
-        try { return TimeSpan.FromMilliseconds(Math.Round(days * 86_400_000d)).ToString("c", CultureInfo.InvariantCulture); }
-        catch (OverflowException) { return null; }
+    static readonly DateTime OleEpoch = new(1899, 12, 30), Epoch1900 = new(1899, 12, 31), Epoch1904 = new(1904, 1, 1);
+    // The date-time text of a whole number of milliseconds from serial 0, from the first day of the date system to its last.
+    // Before 1 March 1900, Excel's serials are one more than OLE Automation dates: Excel's day 60 is 29 February 1900, which
+    // never existed. Excel shows that date, and so does the text; DateTime cannot hold it. The day is the one the value rounds
+    // to, so a value just below day 60 or 61 belongs to the next day.
+    static string SerialDateText(long ms, bool date1904) {
+        const long perDay = 86_400_000;
+        if (date1904) return DateText(Epoch1904.AddTicks(ms * TimeSpan.TicksPerMillisecond));
+        long day = ms / perDay;
+        if (day == 60) return LeapDay1900 + DateText(new DateTime(1900, 3, 1).AddTicks((ms - 60 * perDay) * TimeSpan.TicksPerMillisecond)).Substring(10);
+        return DateText((day < 60 ? Epoch1900 : OleEpoch).AddTicks(ms * TimeSpan.TicksPerMillisecond));
     }
+    // A duration or time of day in .NET's "c" form, [-][d.]hh:mm:ss[.fffffff], rounded to the millisecond as date-times are
+    // (TimeSpan.FromDays truncates to the 100 ns tick below, so 14:30 would read 14:29:59.9999999), and made from whole ticks, so
+    // that a long duration keeps its exact milliseconds. Null beyond TimeSpan's range.
+    static string DurationText(double days) {
+        double ms = Milliseconds(days);
+        return Math.Abs(ms) <= TimeSpan.MaxValue.Ticks / TimeSpan.TicksPerMillisecond ? ClockText((long)ms) : null;
+    }
+    static string ClockText(long ms) => new TimeSpan(ms * TimeSpan.TicksPerMillisecond).ToString("c", CultureInfo.InvariantCulture);
     // 9999-12-31 is the last day of either date system: serial 2,958,465 in the 1900 system and 2,957,003 in the 1904 system.
     const double LastDay1900 = 2_958_465, LastDay1904 = 2_957_003;
-    static bool BeyondLastDay(double serial, bool date1904) =>
-        Math.Round(serial * 86_400_000d) >= ((date1904 ? LastDay1904 : LastDay1900) + 1) * 86_400_000d;
+    static double LastDay(bool date1904) => date1904 ? LastDay1904 : LastDay1900;
+    // A duration of more days than the last day's serial, of either sign, is a number (RULES 3.9), judged on the value itself:
+    // 2958465.25 and -3000000 in [h]:mm:ss are numbers, and 2958465 is 71003160:00:00. Duration text the grid holds beyond it is
+    // saved as its text, so that it reopens as it was written.
+    static bool DurationBeyondLastDay(double days, bool date1904) => Math.Abs(days) > LastDay(date1904);
     // An ISO 8601 cell (t="d", as SheetJS and openpyxl write): the clock time as written, with a trailing Z or an offset read as
-    // UTC, never moved into this Mac's time zone, and rounded to the millisecond as every other date-time is. A time with no date
-    // is a time of day, as a number below one day in a time format is. Text that is no date stays text.
+    // UTC, never moved into this Mac's time zone, and rounded to the millisecond, half away from zero, as every other date-time is.
+    // A time with no date is a time of day, as a number below one day in a time format is: it is below one day, and only then
+    // rounded, so 23:59:59.9996 is 1.00:00:00. Text that is no date stays text.
     static readonly Regex IsoTimeOnly = new(@"^\s*T?[0-9]{1,2}:[0-9]{2}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    static void IsoDateText(string value, bool date1904, out byte kind, out string text) {
+    static void IsoDateText(string value, out byte kind, out string text) {
         if (!DateTime.TryParse(value.Trim(), CultureInfo.InvariantCulture,
             DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal | DateTimeStyles.NoCurrentDateDefault, out var date)) {
             kind = 2; text = value; return;
         }
-        if (IsoTimeOnly.IsMatch(value) && TryDateTimeText(date.TimeOfDay.Ticks / (double)TimeSpan.TicksPerDay, FormatTime, date1904, out kind, out text)) return;
-        long ticks = (date.Ticks + TimeSpan.TicksPerMillisecond / 2) / TimeSpan.TicksPerMillisecond * TimeSpan.TicksPerMillisecond;
+        const long half = TimeSpan.TicksPerMillisecond / 2;
+        if (IsoTimeOnly.IsMatch(value)) { kind = 4; text = ClockText((date.TimeOfDay.Ticks + half) / TimeSpan.TicksPerMillisecond); return; }
+        long ticks = (date.Ticks + half) / TimeSpan.TicksPerMillisecond * TimeSpan.TicksPerMillisecond;
         kind = 3; text = DateText(ticks <= DateTime.MaxValue.Ticks ? new DateTime(ticks) : date);
     }
     // The serial number of date-time text as the grid holds it, in the workbook's date system (the inverse of TryDateTimeText).
@@ -618,7 +636,7 @@ public static partial class WorkbookIO {
             DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var date)) return false;
         serial = date.ToOADate();
         serial -= date1904 ? 1462 : leapDay || serial < 61 ? 1 : 0;
-        return Math.Round(serial * 86_400_000d) >= (date1904 ? 0 : 86_400_000d);
+        return Milliseconds(serial) >= (date1904 ? 0 : MillisecondsPerDay);
     }
     // Duration text as the grid holds it: .NET's "c" form, [-][d.]hh:mm:ss[.fffffff], or hours past 23 with no day count
     // (26:00:00), which TimeSpan.Parse reads as 26 days. False for any other text, which is then saved as text.
@@ -825,7 +843,7 @@ public static partial class WorkbookIO {
             case 6: w.WriteAttributeString("t", "e"); w.WriteElementString("v", MainNs, Escape(text)); return;
             // Date and duration text that Excel cannot hold as a number is saved as the text (default).
             case 3 when TryDateSerial(text, date1904, out var serial): w.WriteElementString("v", MainNs, serial.ToString("R", CultureInfo.InvariantCulture)); return;
-            case 4 when TryDuration(text, out var span) && !BeyondLastDay(span.TotalDays, date1904): w.WriteElementString("v", MainNs, span.TotalDays.ToString("R", CultureInfo.InvariantCulture)); return;
+            case 4 when TryDuration(text, out var span) && !DurationBeyondLastDay(span.TotalDays, date1904): w.WriteElementString("v", MainNs, span.TotalDays.ToString("R", CultureInfo.InvariantCulture)); return;
             default:
                 w.WriteAttributeString("t", "inlineStr");
                 w.WriteStartElement("is", MainNs); w.WriteStartElement("t", MainNs);
@@ -883,7 +901,7 @@ public static partial class WorkbookIO {
                     "number" => double.Parse(edit.Text, NumberStyles.Float, CultureInfo.InvariantCulture),
                     "boolean" => bool.Parse(edit.Text),
                     "datetime" => TryDateSerial(edit.Text, workbook.Use1904DateSystem, out var serial) ? (XLCellValue)serial : edit.Text,
-                    "timespan" => TryDuration(edit.Text, out var span) && !BeyondLastDay(span.TotalDays, workbook.Use1904DateSystem) ? (XLCellValue)span : edit.Text,
+                    "timespan" => TryDuration(edit.Text, out var span) && !DurationBeyondLastDay(span.TotalDays, workbook.Use1904DateSystem) ? (XLCellValue)span : edit.Text,
                     _ => XLCellValue.FromObject(edit.Text ?? "", CultureInfo.InvariantCulture)
                 };
                 if (edit.Kind == "datetime" && cell.Style.NumberFormat.NumberFormatId == 0) cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm:ss";

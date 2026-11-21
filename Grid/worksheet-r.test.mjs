@@ -178,6 +178,13 @@ test('rule 3.9 and A2: dates, date-times, times of day, durations and serial 60'
     {type: 'character', values: ['14:30:00', '26:00:00', '-01:00:00', '14:30:00.5', '00:00:00']});
   assert.deepEqual(column([timespan('-00:00:00.0004'), timespan('10675199.02:48:05.4775807'), timespan('23:59:59.9996')]),
     {type: 'character', values: ['00:00:00', '256204778:48:05.478', '24:00:00']});
+  // Rounding to the millisecond is half away from zero, for either sign (agreed with Windows, 21 November 2026), and a time
+  // of day that rounds to a whole day, as the loader gives 0.999999999 in h:mm:ss (1.00:00:00), is 24:00:00.
+  assert.deepEqual(column([timespan('00:00:00.0005'), timespan('-00:00:00.0005'), timespan('-1.00:00:00.0015'), timespan('00:00:00.0004999'),
+    timespan('1.00:00:00'), timespan('-23:59:59.9995'), timespan('-00:00:00.0010000')]),
+    {type: 'character', values: ['00:00:00.001', '-00:00:00.001', '-24:00:00.002', '00:00:00', '24:00:00', '-24:00:00', '-00:00:00.001']});
+  assert.deepEqual(column([datetime('2026-11-21 10:00:00.0005'), datetime('1950-01-01 23:59:59.9995'), datetime('1950-01-01 10:00:00.0004999')]),
+    {type: 'character', values: ['2026-11-21 10:00:00.001', '1950-01-02 00:00:00', '1950-01-01 10:00:00']});
   // Serial 60, the nonexistent 1900-02-29, is NA; beside dates the column is still Date.
   assert.deepEqual(column([datetime('1900-02-29'), datetime('1900-03-01 00:00:00')]), {type: 'Date', values: [null, '-25508']});
   assert.deepEqual(column([datetime('1900-02-29 06:00:00')]), {type: 'logical', values: [null]});

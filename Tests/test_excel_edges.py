@@ -146,7 +146,7 @@ try:
         #    elapsed time is always a duration; a date is always a date-time, and a number when negative.
         SIGNATURES = {
             'time': [('14:30:00', 'timespan'), ('1900-01-01 02:00:00', 'datetime'), (None, 'number')],
-            'date': [('1899-12-31 14:30:00', 'datetime'), ('1900-01-01 02:00:00', 'datetime'), (None, 'number')],
+            'date': [(None, 'number'), ('1900-01-01 02:00:00', 'datetime'), (None, 'number')],
             'elapsed': [('14:30:00', 'timespan'), ('1.02:00:00', 'timespan'), ('-01:00:00', 'timespan')],
             'number': [(None, 'number')] * 3}
         FORMATS = [
@@ -264,15 +264,19 @@ try:
         #     -Infinity (nor Infinity in a date cell), so that one is saved by the streaming patch instead of failing.
         TYPED = [  # (text typed into a cell of that kind, text and kind after reopening)
             ('26:00:00', 'timespan', '1.02:00:00', 'timespan'),
+            # A duration beyond 9999-12-31 as a number of days would reopen as a number (RULES 3.9), so it is saved as its text.
+            ('3000000.00:00:00', 'timespan', '3000000.00:00:00', 'text'),
+            ('2958465.00:00:00', 'timespan', '2958465.00:00:00', 'timespan'),
             ('-1.02:00:00.25', 'timespan', '-1.02:00:00.2500000', 'timespan'),
             ('1900-02-29 06:00:00', 'datetime', '1900-02-29 06:00:00', 'datetime'),
             ('1900-02-29', 'datetime', '1900-02-29 00:00:00', 'datetime'),
             ('2026-07-01T14:30:00.123456Z', 'datetime', '2026-07-01 14:30:00.123', 'datetime'),
             ('2026-02-30', 'datetime', '2026-02-30', 'text'),
             ('25:61:00', 'timespan', '25:61:00', 'text'),
-            # A date before the first day of the date system (serial 0, 1899-12-31) has no serial Excel shows as a date (a
-            # negative one reopens as a number, RULES 3.9), so it is saved as its text, an R Date from 1850 among them.
-            ('1899-12-31', 'datetime', '1899-12-31 00:00:00', 'datetime'),
+            # A date before the first day of the date system (1900-01-01, serial 1; Excel shows serial 0 as 1900-01-00) has no
+            # serial Excel shows as a date (it reopens as a number, RULES 3.9), so it is saved as its text, an R Date from 1850 among them.
+            ('1899-12-31', 'datetime', '1899-12-31', 'text'),
+            ('1900-01-01', 'datetime', '1900-01-01 00:00:00', 'datetime'),
             ('1899-12-30', 'datetime', '1899-12-30', 'text'),
             ('1899-12-30 12:00:00', 'datetime', '1899-12-30 12:00:00', 'text'),
             ('1850-01-01', 'datetime', '1850-01-01', 'text'),
@@ -314,7 +318,7 @@ try:
         recalculated = [('', 'blank', formula, True) if formula == FORMULA else (text, kind, formula, None) for _, text, kind, formula, _ in FORMULAS]
         check_round_trip(out, 'ClosedXML patch', moved, recalculated, READABLE)
         assert request(action='close', id=opened['id'])['ok']
-        print('PASS: dates (1900-02-29 included), times of day and durations keep their text and kind through all three save paths; typed 26:00:00, R date-times and impossible dates save correctly, and dates before 1899-12-31 as text; a workbook ClosedXML cannot load is saved by streaming')
+        print('PASS: dates (1900-02-29 included), times of day and durations keep their text and kind through all three save paths; typed 26:00:00, R date-times and impossible dates save correctly, and dates before 1900-01-01 and durations beyond 9999-12-31 as text; a workbook ClosedXML cannot load is saved by streaming')
         # 11. The 1904 date system: a time of day is still a time, serial 0 is 1904-01-01, 60 is an ordinary day, a negative date
         #     stays a number, and 1900-02-29 is no date at all. A workbook without saved empty results has no extras group.
         MAC = [(14.5 / 24, 'h:mm', '14:30:00', 'timespan'), (0, 'yyyy-mm-dd', '1904-01-01 00:00:00', 'datetime'),
@@ -362,7 +366,8 @@ try:
                     (2958465.9999999995, '[h]:mm:ss', '2958465.9999999995', 'number'),
                     (3000000, '[h]:mm:ss', '3000000', 'number'), (-3000000, '[h]:mm:ss', '-3000000.00:00:00', 'timespan'),
                     (-1, 'yyyy-mm-dd', '-1', 'number'), (-0.0000001, 'h:mm:ss', '-1e-7', 'number'),
-                    (0, 'yyyy-mm-dd', '1899-12-31 00:00:00', 'datetime'), (0.9999999999, 'h:mm:ss', '1900-01-01 00:00:00', 'datetime')],
+                    (0, 'yyyy-mm-dd', '0', 'number'), (0.5, 'yyyy-mm-dd hh:mm', '0.5', 'number'), (0.25, 'h:mm', '06:00:00', 'timespan'),
+                    (1, 'yyyy-mm-dd', '1900-01-01 00:00:00', 'datetime'), (0.9999999999, 'h:mm:ss', '1900-01-01 00:00:00', 'datetime')],
             True: [(2957003, 'yyyy-mm-dd', '9999-12-31 00:00:00', 'datetime'), (2957003.75, 'yyyy-mm-dd hh:mm', '9999-12-31 18:00:00', 'datetime'),
                    (2957003, '[h]:mm:ss', '2957003.00:00:00', 'timespan'), (2957004, 'yyyy-mm-dd', '2957004', 'number'),
                    (2957004, 'h:mm', '2957004', 'number'), (2957004, '[h]:mm:ss', '2957004', 'number'), (2958465, 'yyyy-mm-dd', '2958465', 'number'),
@@ -392,7 +397,7 @@ try:
         #     bracket runs to the end of the code. The workbook opens, classes each cell and saves through the streaming patch,
         #     which reads the styles again.
         MALFORMED = [('0.00[', '0.25', 'number'), ('[', '0.25', 'number'), ('h:mm[', '06:00:00', 'timespan'),
-                     ('yyyy-mm-dd[', '1899-12-31 06:00:00', 'datetime'), ('[h', '06:00:00', 'timespan'), ('[$-409', '0.25', 'number')]
+                     ('yyyy-mm-dd[', '0.25', 'number'), ('[h', '06:00:00', 'timespan'), ('[$-409', '0.25', 'number')]
         book = folder/'malformed.xlsx'
         write_xlsx(book, [('Codes', [(r, 0, 0.25, code) for r, (code, _, _) in enumerate(MALFORMED)])])
         opened = request(action='open', path=str(book)); assert 'error' not in opened, opened
@@ -411,7 +416,8 @@ try:
         ISO = [('2026-11-21T10:00:00.000Z', None, '2026-11-21 10:00:00', 'datetime'), ('2026-11-21T10:00:00', None, '2026-11-21 10:00:00', 'datetime'),
                ('2026-11-21T10:00:00+05:30', None, '2026-11-21 04:30:00', 'datetime'), ('2026-11-21', 'yyyy-mm-dd', '2026-11-21 00:00:00', 'datetime'),
                ('2026-07-01T14:30:00.1234567Z', None, '2026-07-01 14:30:00.123', 'datetime'), ('1850-01-01', 'yyyy-mm-dd', '1850-01-01 00:00:00', 'datetime'),
-               ('14:30:00', 'hh:mm:ss', '14:30:00', 'timespan'), ('14:30:00.5', 'hh:mm:ss', '14:30:00.5000000', 'timespan'), ('not a date', None, 'not a date', 'text')]
+               ('14:30:00', 'hh:mm:ss', '14:30:00', 'timespan'), ('14:30:00.5', 'hh:mm:ss', '14:30:00.5000000', 'timespan'), ('not a date', None, 'not a date', 'text'),
+               ('0001-01-01T10:00:00', None, '0001-01-01 10:00:00', 'datetime'), ('0001-01-01', 'yyyy-mm-dd', '0001-01-01 00:00:00', 'datetime')]
         for date1904 in (False, True):
             book = folder/f'iso-{date1904}.xlsx'
             write_xlsx(book, [('Iso', [(r, 0, ('iso', value), code) for r, (value, code, _, _) in enumerate(ISO)])], date1904=date1904)

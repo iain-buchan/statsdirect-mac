@@ -298,9 +298,9 @@ try:
         print(f'PASS: {len(LEGACY)} dates, times, durations and numbers load alike from .xlsx, .xlsm, .xltx, .xltm, .xls and .xlsb in both date systems, the last five as data copies (Strict OOXML differs only where ExcelDataReader rounds)')
 
         # Exported to .xls and opened again, dates, times and durations keep their text and kind: 1900-02-29 is Excel's day 60,
-        # a time of day and a duration come back to the millisecond, and a date before 1899-12-31 is saved as its text.
+        # a time of day and a duration come back to the millisecond, and a date before 1900-01-01, the 1900 system's first day, is saved as its text.
         EXPORTED = [('1900-02-29', 'datetime', D('1900-02-29 00:00:00')), ('1900-02-29 06:00:00', 'datetime', D('1900-02-29 06:00:00')),
-                    ('2026-11-21 10:00:00', 'datetime', D('2026-11-21 10:00:00')), ('1899-12-31', 'datetime', D('1899-12-31 00:00:00')),
+                    ('2026-11-21 10:00:00', 'datetime', D('2026-11-21 10:00:00')), ('1899-12-31', 'datetime', X('1899-12-31')), ('1900-01-01', 'datetime', D('1900-01-01 00:00:00')),
                     ('1899-12-30', 'datetime', X('1899-12-30')), ('1850-01-01', 'datetime', X('1850-01-01')),
                     ('14:30:00', 'timespan', T('14:30:00')), ('14:30:00.5000000', 'timespan', T('14:30:00.5000000')),
                     ('1.02:00:00', 'timespan', T('1.02:00:00')), ('-01:00:00', 'timespan', T('-01:00:00'))]
@@ -310,6 +310,6 @@ try:
         reply = opened(xls); got = values(reply)
         for r, (text, kind, want) in enumerate(EXPORTED): assert got[(0, r)] == want, (text, kind, got[(0, r)], want)
         close(reply)
-        print('PASS: dates (1900-02-29 included), times of day and durations exported to .xls reopen as they were; dates before 1899-12-31 as text')
+        print('PASS: dates (1900-02-29 included), times of day and durations exported to .xls reopen as they were; dates before 1900-01-01 as text')
 finally:
     driver.stdin.close(); driver.wait(timeout=15)

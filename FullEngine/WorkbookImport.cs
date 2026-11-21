@@ -166,8 +166,10 @@ public static partial class WorkbookIO {
         return false;
     }
 
-    // The numbers a legacy workbook stores in its date, time and duration cells, read straight from the file: an Excel
-    // 97-2003 workbook (BIFF8, encrypted ones included) through NPOI's record reader, and an .xlsb through its cell records.
+    // The numbers a legacy workbook stores in its date, time and duration cells, read straight from the file: an unencrypted
+    // Excel 97-2003 workbook (BIFF8) through NPOI's record reader, and an .xlsb through its cell records. NPOI's record reader
+    // cannot read an encrypted .xls (RC4, as the Issue242 fixture), which then keeps ExcelDataReader's own values, as Strict
+    // and encrypted .xlsx do.
     // Only cells whose number format ExcelDataReader or FormatKind takes for a date, time or duration are kept, keyed by
     // sheet, row and column. Any other file, or one these cannot read, gives none.
     sealed class LegacyNumbers {

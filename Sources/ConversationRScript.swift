@@ -145,17 +145,20 @@ enum ConversationRScript {
         }
         return result
     }
+    /// Text as an R string literal (worksheet R rules, 3.10). R strings cannot hold NUL, so it is refused, scalar by scalar.
+    /// Control characters, and the bidi controls U+202A to U+202E and U+2066 to U+2069, which R refuses raw in a string
+    /// ("bidi formatting not allowed"), are written as \u escapes; R reads every escape back as the same character.
     static func quote(_ text: String) throws -> String {
-        guard !text.contains("\0") else { throw Failure(message:"The worksheet contains a null character that R strings cannot represent.") }
         var result = "\""
         for c in text.unicodeScalars {
             switch c.value {
+            case 0: throw Failure(message:"The worksheet contains a null character that R strings cannot represent.")
             case 34: result += "\\\""
             case 92: result += "\\\\"
             case 10: result += "\\n"
             case 13: result += "\\r"
             case 9: result += "\\t"
-            case 0..<32, 127: result += String(format:"\\u%04x",c.value)
+            case 1..<32, 127...159, 0x202A...0x202E, 0x2066...0x2069: result += String(format:"\\u%04x",c.value)
             default: result.unicodeScalars.append(c)
             }
         }

@@ -19,6 +19,8 @@ const KIND_INDEX = new Map(KINDS.map((k, i) => [k, i]));
 const BLANK = 0, NUMBER = 1, TEXT = 2;
 export function kindIndex(name) { return KIND_INDEX.get(name) ?? TEXT; }
 const LOADED = 1, MODIFIED = 2;
+// The snapshot extra the loader writes for a formula whose saved result is empty text, exactly as WorkbookIO.cs writes it.
+const SAVED_EMPTY_TEXT = '{"savedEmpty":true}', SAVED_EMPTY = Object.freeze({savedEmpty: true});
 const UNDO_STEPS = 50,
   UNDO_BYTES = 256 * 1024 * 1024;
 const DATETIME = /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/,
@@ -292,7 +294,9 @@ export class GridStore {
     }
   }
   // Bulk load typed column records as decoded from a snapshot file (see snapshot.mjs):
-  // {col, rows, kinds, nums, texts: Map<ordinal, text>, formulas: Map<ordinal, text>}.
+  // {col, rows, kinds, nums, texts: Map<ordinal, text>, formulas: Map<ordinal, text>, extras: Map<ordinal, JSON text>}.
+  // The loader's commonest extra, a formula's saved empty-text result, is matched by its text and shares one frozen
+  // object, rather than being parsed into a new object for each cell (a column of them can fill the sheet).
   setLoadedColumns(columns) {
     let maxRow = -1, maxCol = -1;
     for (const b of columns) {
@@ -311,8 +315,10 @@ export class GridStore {
         }
         const formula = b.formulas?.get(i), extra = b.extras?.get(i);
         if (formula) col.formula.set(r, formula);
-        if (extra) { try { col.extra.set(r, JSON.parse(extra)); } catch { /* malformed loader metadata is ignored */ } }
-        else if (!formula && kind === BLANK) continue;
+        if (extra) {
+          if (extra === SAVED_EMPTY_TEXT) col.extra.set(r, SAVED_EMPTY);
+          else { try { col.extra.set(r, JSON.parse(extra)); } catch { /* malformed loader metadata is ignored */ } }
+        } else if (!formula && kind === BLANK) continue;
         col.setFlags(r, LOADED);
         if (r > maxRow) maxRow = r;
       }

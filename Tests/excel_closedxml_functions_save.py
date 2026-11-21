@@ -8,7 +8,10 @@ function it lacks that result is #NAME?, and IFERROR, ISERROR or IFNA turn it in
 workbook would send R a result Excel never computed. Such a workbook must take the streaming patcher instead: its
 formulas keep their expressions and lose their saved results, which Excel recalculates, and the reopened cells are
 refused for R until then; unedited, there is nothing to patch, and the Save As copies the workbook with Excel's saved
-results. A defined name a formula uses counts as that formula. A workbook whose functions ClosedXML
+results. A defined name a formula uses counts as that formula. So does a workbook ClosedXML cannot calculate whole: one
+that links to another workbook, or one with any formula ClosedXML fails to evaluate (a reference to a workbook it has no
+link for, a circular reference). Such a failure stops ClosedXML's calculation part way and leaves later formulas with
+their old results and no error, so a stale value would reach R after an edit. A workbook whose functions ClosedXML
 implements keeps the ClosedXML path and its recalculated results, even with such a name in a string literal, in a quoted
 sheet name, or in a defined name nothing uses.
 Every source is real OOXML with Excel's saved results; the actual grid model makes the edit, exports its edit snapshot
@@ -62,9 +65,23 @@ FIXTURES = {
                         ('C4', 'ROUND(1.005,2)', '1.01', None),
                         ('D1', 'E1*2', '4', None)],
               'names': {'Dyn': 'OFFSET(Data!$A$1,0,0,COUNTA(Data!$A:$A),1)'}, 'streams': False},
-    'external': {'cells': [('C1', 'IFERROR([1]Sheet!A1,0)', '97', None),
+    # The linked formula reads the edited E1 and comes after a local formula that ClosedXML reaches first: kept, its old
+    # 99 would go to R where Excel gives 97 + 10 = 107.
+    'external': {'cells': [('C1', 'E1*3', '6', None),
+                           ('C2', 'IFERROR([1]Sheet!A1+E1,0)', '99', None),
                            ('D1', 'E1*2', '4', None)],
-                 'names': {}, 'streams': False, 'external': True},
+                 'names': {}, 'streams': True, 'external': True},
+    # The same formulas with no link part: only ClosedXML's failure to evaluate C2 shows that its results cannot be kept.
+    'unlinked': {'cells': [('C1', 'E1*3', '6', None),
+                           ('C2', 'IFERROR([1]Sheet!A1+E1,0)', '99', None),
+                           ('D1', 'E1*2', '4', None)],
+                 'names': {}, 'streams': True},
+    # A circular reference, which ClosedXML cannot evaluate either; Excel saved 0 for both cells.
+    'circular': {'cells': [('C1', 'E1*3', '6', None),
+                           ('C2', 'C3+1', '0', None),
+                           ('C3', 'C2+1', '0', None),
+                           ('D1', 'E1*2', '4', None)],
+                 'names': {}, 'streams': True},
 }
 
 
@@ -178,15 +195,11 @@ def check_closedxml_function_saves(request, node, folder):
                               label + ': the reopened results are Excel\'s saved ones: ' + json.dumps([cells[ref] for ref in refs]))
                     elif spec['streams']:
                         check(saved.get('recalculated') is False and saved.get('uncachedFormulas') == len(refs),
-                              label + ': a function ClosedXML lacks sends the workbook to the streaming patcher: ' + json.dumps(saved))
+                              label + ': a formula ClosedXML cannot calculate sends the workbook to the streaming patcher: ' + json.dumps(saved))
                         check(all(new_xml[ref].find(S + 'v') is None and 't' not in new_xml[ref].attrib for ref in refs),
                               label + ': no formula keeps a saved result: no #NAME?, no IFERROR or ISERROR fallback, no stale value')
                         check(all(cells[ref]['text'] == '' and cells[ref]['unavailable'] is True and cells[ref].get('error') == REFUSAL for ref in refs),
                               label + ': every reopened formula result is refused for R until Excel recalculates it: ' + json.dumps([cells[ref] for ref in refs]))
-                    elif spec.get('external'):
-                        check(saved.get('uncachedFormulas') == 1 and new_xml['C1'].find(S + 'v') is None
-                              and cells['C1'].get('error') == REFUSAL and cells['D1'].get('values') == ['20'],
-                              label + ': the edited linked result is unavailable while the local formula recalculates')
                     else:
                         expected = {'C1': ['21'], 'C2': ['NORM.S.INV(x)'], 'C3': ['14'], 'D1': ['20']}
                         check(saved.get('recalculated') is True and saved.get('uncachedFormulas') == 0,

@@ -54,12 +54,14 @@ the cells as JSON, or, when the request names a `snapshot` directory, writes one
 columnar file per sheet (`snapshot.mjs` documents the format) that the grid fetches into
 typed arrays. A new workbook is written by a streaming XML writer with inline strings. An
 opened workbook is patched: through ClosedXML, which recalculates formulas and preserves
-styles, when the original plus the edits hold at most one million cells, and otherwise by
-streaming each worksheet part and merging the edited cells, in which case formula cells keep
-their expressions, lose their cached results and the workbook is marked for recalculation
-when Excel opens it (`uncachedFormulas` in the reply tells the user). A workbook saved with no
-edited cell and no inserted column has nothing to stream and is copied as opened, with the
-results Excel saved.
+styles, when the original plus the edits hold at most one million cells and ClosedXML can
+calculate every formula, and otherwise by streaming each worksheet part and merging the edited
+cells, in which case formula cells keep their expressions, lose their cached results and the
+workbook is marked for recalculation when Excel opens it (`uncachedFormulas` in the reply tells
+the user). ClosedXML cannot calculate a function it lacks, a link to another workbook, or any
+formula whose evaluation fails, which stops its calculation part way with other results stale.
+A workbook saved with no edited cell and no inserted column is copied as opened, with the
+results and calculation settings Excel saved.
 
 The prototype's 500,000-cell, 50 MB, 256 MB and 128-sheet limits are gone. Measured through
 the native driver on the 1,048,576-row × 4-column probe workbook (35 MB):

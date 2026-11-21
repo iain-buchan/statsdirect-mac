@@ -25,8 +25,9 @@ using ClosedXML.Excel;
 // Saving writes a new workbook with a streaming XML writer. An unchanged source workbook
 // is copied with its original calculation settings and cached results. Edits are patched:
 // small workbooks through ClosedXML (which recalculates formulas and preserves styles),
-// large ones by streaming each worksheet part and merging the edited cells, leaving Excel
-// to recalculate formulas when it opens the file.
+// others by streaming each worksheet part and merging the edited cells, leaving Excel to
+// recalculate formulas when it opens the file: large ones, and any whose formulas ClosedXML
+// cannot all calculate (a function it lacks, a link to another workbook, a failed evaluation).
 public static partial class WorkbookIO {
     // Above this many cells (original plus edits) a patch streams instead of loading ClosedXML.
     public const int ClosedXmlCells = 1000000;
@@ -978,9 +979,18 @@ public static partial class WorkbookIO {
         workbook.ForceFullCalculation = true;
         return PatchOriginal(temporary, workbook, patches);
     }
-    static int PatchOriginal(string path, XLWorkbook workbook, List<Patch> patches) {
+    // The number of formula results left for Excel to recalculate, or null when ClosedXML's results cannot be trusted.
+    static int? PatchOriginal(string path, XLWorkbook workbook, List<Patch> patches) {
         foreach (var worksheet in workbook.Worksheets)
             foreach (var cell in worksheet.CellsUsed(XLCellsUsedOptions.Contents).Where(c => c.HasFormula)) cell.InvalidateFormula();
+        // A formula ClosedXML cannot evaluate (a reference to a workbook it cannot read, a circular reference) stops its
+        // calculation part way, and formulas it has not reached keep their old results with no error, so a stale value
+        // would be saved as Excel's. Then no result of this calculation is trusted: the caller saves by streaming instead,
+        // which leaves every formula for Excel to recalculate. The file is not touched before this point.
+        foreach (var worksheet in workbook.Worksheets)
+            foreach (var cell in worksheet.CellsUsed(XLCellsUsedOptions.Contents).Where(c => c.HasFormula)) {
+                try { _ = cell.Value; } catch { return null; }
+            }
         XNamespace s = S, rel = Rel, packageRel = PackageRel;
         using var zip = ZipFile.Open(path, ZipArchiveMode.Update);
         XDocument Read(string name) { using var stream = Entry(zip, name).Open(); return XDocument.Load(stream); }

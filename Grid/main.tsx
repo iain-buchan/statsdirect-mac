@@ -6,7 +6,7 @@ import '@glideapps/glide-data-grid/dist/index.css';
 import './style.css';
 import {Toolbar} from './toolbar';
 import {worksheetCommands} from './worksheet-commands.mjs';
-import {worksheetRSelection} from './worksheet-r.mjs';
+import {worksheetRImport} from './worksheet-r.mjs';
 import type {WorksheetCommand} from './WorksheetAnalysis';
 import {findCell} from './find.mjs';
 import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
@@ -62,7 +62,8 @@ function App() {
     [message, setMessage] = useState('Ready'),
     [value, setValue] = useState('');
   const grid = useRef<DataEditorRef>(null),
-    selectionRef = useRef(selection);
+    selectionRef = useRef(selection),
+    selectedAll = useRef<GridSelection | null>(null);
   selectionRef.current = selection;
   const pendingCut = useRef<any>(null);
   const [findOpen,setFindOpen]=useState(false), [findText,setFindText]=useState('');
@@ -167,7 +168,13 @@ function App() {
     window.statsDirectGrid = {
       setWorksheetCommands: (commands: unknown) => setCommandCatalogue(worksheetCommands(commands)),
       showWorksheetCommands: () => window.dispatchEvent(new Event('statsdirect-open-worksheet-commands')),
-      worksheetRSelection: () => worksheetRSelection(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
+      // The R import prompt's preview (no arguments), then the chosen data ({headings, list} in options).
+      // Edit ▸ Select All, until the selection next changes, is the entire worksheet (rule 2.6).
+      worksheetRImport: (scope?: 'entire'|'selected', options?: {headings?: boolean, list?: boolean}) => {
+        const selection = selectionRef.current;
+        return worksheetRImport(workbook, sheetIndex, {columns:selection.columns.toArray(), rows:selection.rows.toArray(),
+          range:selection.current?.range, ranges:selection.current?.rangeStack ?? [], all:selection === selectedAll.current}, scope, options);
+      },
       editCommand: (command: string, clipboard: string) => {
         const focused = document.activeElement as HTMLElement | null;
         if (focused?.matches('input,textarea,select') || focused?.isContentEditable) return false;
@@ -178,9 +185,12 @@ function App() {
             case 'copy': native('copy', {text: copy()}); break;
             case 'cut': cut(); break;
             case 'paste': paste(clipboard); break;
-            case 'selectAll':
-              setSelection({...empty, current: {cell: [0, 0], range: {x: 0, y: 0, width: store.columns.length, height: Math.max(1, store.usedRows())}, rangeStack: []}});
+            case 'selectAll': {
+              const all: GridSelection = {...empty, current: {cell: [0, 0], range: {x: 0, y: 0, width: store.columns.length, height: Math.max(1, store.usedRows())}, rangeStack: []}};
+              selectedAll.current = all;
+              setSelection(all);
               break;
+            }
           }
         });
         return true;
@@ -324,8 +334,9 @@ function App() {
     {id:'find',label:'Find (⌘F)',icon:'find',priority:20,group:true,run:showFind},
     {id:'clear',label:'Clear selected cells',icon:'clear',priority:40,group:true,disabled:!selected,run:()=>attempt(clear)},
     {id:'analyse',label:'Analyse worksheet (⇧⌘A)',text:'Analyse',icon:'analyse',priority:5,group:true},
-    {id:'worksheetHelp',label:'Worksheet help',icon:'help',priority:25,run:()=>native('worksheetHelp')},
-    {id:'worksheetR',label:'Open selected data in R',icon:'r',priority:25,disabled:!selected,run:()=>native('worksheetR')}
+    {id:'worksheetR',label:'Open in StatsDirect R',icon:'r',priority:25,run:()=>native('worksheetR',{external:false})},
+    {id:'worksheetRPlus',label:'Open in R or RStudio',icon:'rPlus',priority:25,run:()=>native('worksheetR',{external:true})},
+    {id:'worksheetHelp',label:'Worksheet help',icon:'help',priority:25,group:true,run:()=>native('worksheetHelp')}
   ]} moreActions={[
     {id:'addRows',label:'Add 100 rows',icon:'addRows',priority:60,disabled:store.rows>=MAX_ROWS,run:()=>attempt(()=>{if(store.apply([],Math.min(MAX_ROWS,store.rows+100)))changed();})},
     {id:'addColumn',label:'Add column',icon:'addColumn',priority:60,disabled:store.columns.length>=MAX_COLS,run:()=>attempt(()=>{if(store.apply([],store.rows,store.columns.length+1))changed();})}

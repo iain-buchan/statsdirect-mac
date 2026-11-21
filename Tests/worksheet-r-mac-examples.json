@@ -1,0 +1,138 @@
+{
+ "about": "The Mac's own worksheet R examples, in the schema of the shared Learn/Upstream/WorksheetR/examples.json, for what only the Mac's grid and loader can show: number cells that keep their typed text, formula cells refused once the workbook has been edited (RULES.md section 7), the 1904 date system (rule 3.9: each loader's date system is tested separately), answers agreed with Windows on 21 November 2026, after learning-v1.1.7 (date-times anchor the any-case missing words, Excel's built-in formats 45 and 47 are times of day, and whole columns that are every column of the grid are the entire worksheet) and after learning-v1.1.9 (a time of day is judged on its value before it is rounded, a date after; a duration of more days than the last day's serial, of either sign, is a number; every rounding to the millisecond is half away from zero), text the loader reads from Excel's _xHHHH_ escapes, and a list of vectors, which the Mac's 8 MiB script limits by its values alone, never by its area. Tests/test_worksheet_r_examples.py runs these with the shared cases.",
+ "version": 1,
+ "schema": {
+  "extends": "the schema of Learn/Upstream/WorksheetR/examples.json, with the three additions below",
+  "typed": "a cell {\"typed\": \"<text>\"} is not in the file: it is typed into the grid once the workbook is open, through the grid's own edit path (store.apply, then workbook.changed(), as onCellsEdited does). A number typed so keeps its text (\" 13\", \"1.50\"), and the workbook then counts as edited, so its formula results may be out of date",
+  "dateSystem": "1904: the workbook uses the 1904 date system (workbookPr date1904), and the case's serials are serials of that system",
+  "refusedNaming": "left out when the refusal names no cell"
+ },
+ "cases": [
+  {
+   "name": "Number cells keep their typed text and count as their numbers",
+   "rules": ["3.4", "3.7", "7"],
+   "cells": {"A1": {"text": "n"}, "A2": {"typed": " 13"}, "A3": {"typed": "1.50"}, "A4": {"typed": "5."}, "B1": {"text": "c"}, "B2": {"typed": "1.50"}, "B3": {"text": "x"}, "B4": {"typed": " 13"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"entire": "Entire worksheet — A1:B4 (4 rows × 2 columns)", "headingsSuggested": true, "r": "structure(list(c(13, 1.5, 5), c(\"1.5\", \"x\", \"13\")), names = c(\"n\", \"c\"), row.names = c(NA_integer_, -3L), class = \"data.frame\")"},
+   "note": "The Mac grid stores typed \" 13\", \"1.50\" and \"5.\" as number cells that keep the text typed, where Excel would hold 13, 1.5 and 5. Rule 3.4 reads each as its number; in a character column a number cell is its rule 3.7 text, String(x)."
+  },
+  {
+   "name": "A typed number used as a heading is its number's text",
+   "rules": ["4.5", "3.7"],
+   "cells": {"A1": {"typed": "2.50"}, "A2": {"number": "1"}, "B1": {"text": "b"}, "B2": {"number": "2"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": true, "friendly": false},
+   "expect": {"headingsSuggested": false, "r": "structure(list(c(1), c(2)), names = c(\"2.5\", \"b\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"}
+  },
+  {
+   "name": "An edited workbook refuses formula cells",
+   "rules": ["7", "3.11"],
+   "cells": {"A1": {"text": "Dose"}, "A2": {"number": "2"}, "A3": {"formula": "=A2*2", "value": {"number": "4"}}, "C1": {"typed": "edited"}},
+   "select": {"range": "A1:A3"},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"selected": "Selected cells — A1:A3 (3 rows × 1 column)", "headingsSuggested": true, "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.", "r": null},
+   "note": "C1, outside the selection, is typed once the workbook is open. The Mac cannot recalculate, so after any edit, in any cell of any sheet, a formula's saved result may be out of date."
+  },
+  {
+   "name": "An unedited workbook sends a formula's saved result",
+   "rules": ["7", "3.11"],
+   "cells": {"A1": {"text": "Dose"}, "A2": {"number": "2"}, "A3": {"formula": "=A2*2", "value": {"number": "4"}}},
+   "select": {"range": "A1:A3"},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"selected": "Selected cells — A1:A3 (3 rows × 1 column)", "headingsSuggested": true, "r": "structure(list(c(2, 4)), names = c(\"Dose\"), row.names = c(NA_integer_, -2L), class = \"data.frame\")"}
+  },
+  {
+   "name": "The 1904 date system: dates from 1904-01-01, times of day and date-times",
+   "rules": ["3.9", "5.5"],
+   "dateSystem": 1904,
+   "cells": {"A1": {"text": "Date"}, "A2": {"date": "0", "format": "yyyy-mm-dd"}, "A3": {"date": "60", "format": "yyyy-mm-dd"}, "B1": {"text": "Time"}, "B2": {"time": "0.6041666666666666", "format": "h:mm"}, "B3": {"time": "0.25", "format": "h:mm"}, "C1": {"text": "When"}, "C2": {"datetime": "0.5", "format": "yyyy-mm-dd hh:mm"}, "C3": {"datetime": "60.75", "format": "yyyy-mm-dd hh:mm"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(structure(c(-24107, -24047), class = \"Date\"), c(\"14:30:00\", \"06:00:00\"), c(\"1904-01-01 12:00:00\", \"1904-03-01 18:00:00\")), names = c(\"Date\", \"Time\", \"When\"), row.names = c(NA_integer_, -2L), class = \"data.frame\")"},
+   "note": "In the 1904 system serial 0 is 1904-01-01, and serial 60 is 1904-03-01, an ordinary day."
+  },
+  {
+   "name": "Date-times anchor the any-case missing words; times of day do not",
+   "rules": ["3.2", "3.9"],
+   "cells": {"A1": {"text": "When"}, "A2": {"datetime": "46347.416666666664", "format": "yyyy-mm-dd hh:mm"}, "A3": {"text": "na"}, "B1": {"text": "At"}, "B2": {"time": "0.6041666666666666", "format": "hh:mm:ss"}, "B3": {"text": "na"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"2026-11-21 10:00:00\", NA), c(\"14:30:00\", \"na\")), names = c(\"When\", \"At\"), row.names = c(NA_integer_, -2L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.7: date-times, as well as numbers, Booleans and dates, anchor the any-case words of rule 3.2. A time of day does not."
+  },
+  {
+   "name": "Excel's built-in formats 45 (mm:ss) and 47 (mmss.0) are times of day; only [h], [m] and [s] make a duration",
+   "rules": ["3.9"],
+   "cells": {"A1": {"text": "mm:ss"}, "A2": {"time": "0.6041666666666666", "format": "mm:ss"}, "A3": {"time": "1.0833333333333333", "format": "mm:ss"}, "A4": {"time": "-0.041666666666666664", "format": "mm:ss"}, "B1": {"text": "mmss.0"}, "B2": {"time": "0.6041724537037036", "format": "mmss.0"}, "B3": {"time": "1.0833333333333333", "format": "mmss.0"}, "B4": {"time": "-0.041666666666666664", "format": "mmss.0"}, "C1": {"text": "[h]:mm:ss"}, "C2": {"duration": "0.6041666666666666", "format": "[h]:mm:ss"}, "C3": {"duration": "1.0833333333333333", "format": "[h]:mm:ss"}, "C4": {"duration": "-0.041666666666666664", "format": "[h]:mm:ss"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"14:30:00\", \"1900-01-01 02:00:00\", \"-0.041666666666666664\"), c(\"14:30:00.5\", \"1900-01-01 02:00:00\", \"-0.041666666666666664\"), c(\"14:30:00\", \"26:00:00\", \"-01:00:00\")), names = c(\"mm:ss\", \"mmss.0\", \"[h]:mm:ss\"), row.names = c(NA_integer_, -3L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.7. Built-ins 45 and 47 wrap at the hour, so a value below one day is a time of day; from one day it is a date-time, and below zero a number, as for any time-of-day format. Built-in 46, [h]:mm:ss, is a duration: 26:00:00 and -01:00:00."
+  },
+  {
+   "name": "Text Excel stores with _xHHHH_ escapes arrives exactly",
+   "rules": ["3.10"],
+   "cells": {"A1": {"text": "a\r\nb"}, "A2": {"text": "x\u0001y\u001f"}, "A3": {"text": "￾￿"}, "A4": {"text": "_x0041_ and _x005F_"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": false, "friendly": false},
+   "expect": {"headingsSuggested": true, "r": "structure(list(c(\"a\\r\\nb\", \"x\\u0001y\\u001f\", \"\\ufffe\\uffff\", \"_x0041_ and _x005F_\")), names = c(\"A\"), row.names = c(NA_integer_, -4L), class = \"data.frame\")"},
+   "note": "The file holds CR, C0 controls and U+FFFE and U+FFFF as Excel writes them, _x000D_, _x0001_ and so on, and the text _x0041_ as _x005F_x0041_; the Mac's loader reads each back as the character."
+  },
+  {
+   "name": "Whole columns that are every column of the grid are the entire worksheet",
+   "rules": ["2.6", "2.3"],
+   "cells": {"B2": {"text": "a"}, "B3": {"number": "1"}, "C2": {"text": "b"}, "C4": {"number": "2"}},
+   "select": {"columns": ["C", "A", "B"]},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"entire": "Entire worksheet — B2:C4 (3 rows × 2 columns)", "selected": "Selected cells — B2:C4 (3 rows × 2 columns)", "headingsSuggested": true, "r": "structure(list(c(1, NA), c(NA, 2)), names = c(\"a\", \"b\"), row.names = c(NA_integer_, -2L), class = \"data.frame\")"},
+   "note": "Amendment 1 to rule 2.6, agreed with Windows on 21 November 2026. The Mac grid opens this file with columns A to C, so A, B and C, however they were selected (one drag, Shift-click, or Command-click pieces, which Glide's CompactSelection hands over as one list), are every column of the sheet: Entire worksheet, B2:C4. As ordinary whole columns (rule 2.3) they would be A2:C4, with A kept as NA."
+  },
+  {
+   "name": "A time format below one day is a time of day, judged on its value and then rounded, so 0.999999999 is 24:00:00; a date is judged after rounding",
+   "rules": ["3.9"],
+   "cells": {"A1": {"text": "Clock"}, "A2": {"time": "0.999999999", "format": "h:mm:ss"}, "B1": {"text": "When"}, "B2": {"datetime": "0.9999999999", "format": "yyyy-mm-dd hh:mm:ss"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"24:00:00\"), structure(c(-25567), class = \"Date\")), names = c(\"Clock\", \"When\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.9. 0.999999999 is below one day, so in h:mm:ss it is a time of day, whatever it rounds to; rounded to the millisecond it is a whole day, written 24:00:00. A date or date-time is judged after rounding: 0.9999999999 in yyyy-mm-dd hh:mm:ss rounds to serial 1, the date 1900-01-01."
+  },
+  {
+   "name": "In the 1904 date system, 0.999999999 in a time format is 24:00:00 too, and a duration beyond its last day is a number",
+   "rules": ["3.9"],
+   "dateSystem": 1904,
+   "cells": {"A1": {"text": "Clock"}, "A2": {"time": "0.999999999", "format": "h:mm:ss"}, "B1": {"text": "When"}, "B2": {"datetime": "0.9999999999", "format": "yyyy-mm-dd hh:mm:ss"}, "C1": {"text": "Over"}, "C2": {"duration": "2957003.25", "format": "[h]:mm:ss"}, "D1": {"text": "Last"}, "D2": {"duration": "2957003", "format": "[h]:mm:ss"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"24:00:00\"), structure(c(-24106), class = \"Date\"), c(2957003.25), c(\"70968072:00:00\")), names = c(\"Clock\", \"When\", \"Over\", \"Last\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.9. In the 1904 system 0.9999999999 in yyyy-mm-dd hh:mm:ss rounds to serial 1, 1904-01-02, and the last day, 9999-12-31, is serial 2,957,003: a duration of 2,957,003.25 days is beyond it, so a number, and one of 2,957,003 days is 70968072:00:00."
+  },
+  {
+   "name": "A duration beyond the last day as a number of days, of either sign, is a number",
+   "rules": ["3.9"],
+   "cells": {"A1": {"text": "Over"}, "A2": {"duration": "2958465.25", "format": "[h]:mm:ss"}, "B1": {"text": "Negative"}, "B2": {"duration": "-3000000", "format": "[h]:mm:ss"}, "C1": {"text": "Longest"}, "C2": {"duration": "2958465", "format": "[h]:mm:ss"}, "D1": {"text": "Most negative"}, "D2": {"duration": "-2958465", "format": "[h]:mm:ss"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(2958465.25), c(-3000000), c(\"71003160:00:00\"), c(\"-71003160:00:00\")), names = c(\"Over\", \"Negative\", \"Longest\", \"Most negative\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.9: a duration is a number when its absolute value is beyond the last day of the date system, 2,958,465 in the 1900 system, judged on the value itself. So 2958465.25 and -3000000 are numbers, while 2958465 and -2958465 days are durations."
+  },
+  {
+   "name": "Rounding to the millisecond is half away from zero: half a millisecond is 00:00:00.001",
+   "rules": ["3.9"],
+   "cells": {"A1": {"text": "Duration"}, "A2": {"duration": "5.787037037037037e-09", "format": "[h]:mm:ss"}, "B1": {"text": "Negative"}, "B2": {"duration": "-5.787037037037037e-09", "format": "[h]:mm:ss"}, "C1": {"text": "Clock"}, "C2": {"time": "5.787037037037037e-09", "format": "h:mm:ss"}, "D1": {"text": "Two and a half"}, "D2": {"duration": "2.8935185185185185e-08", "format": "[h]:mm:ss"}},
+   "select": {"entire": true},
+   "options": {"format": "data frame", "headings": null, "friendly": false},
+   "expect": {"headingsSuggested": true, "comments": ["# Dates without a time of day are R Date values; other dates and times are text."], "r": "structure(list(c(\"00:00:00.001\"), c(\"-00:00:00.001\"), c(\"00:00:00.001\"), c(\"00:00:00.003\")), names = c(\"Duration\", \"Negative\", \"Clock\", \"Two and a half\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"},
+   "note": "Agreed with Windows on 21 November 2026, after learning-v1.1.9. 5.787037037037037e-09 days is exactly half a millisecond in IEEE doubles (times 86,400,000 it is 0.5), and 2.8935185185185185e-08 days two and a half. Rounding half to even would give 00:00:00 for the first three and 00:00:00.002 for the last."
+  },
+  {
+   "name": "A list of vectors is not refused for its area when its values fit: two values in 9,437,184 cells",
+   "rules": ["5.3", "7"],
+   "cells": {"A1": {"number": "1"}, "I1048576": {"number": "2"}},
+   "select": {"entire": true},
+   "options": {"format": "list", "headings": false, "friendly": false},
+   "expect": {"entire": "Entire worksheet — A1:I1048576 (1,048,576 rows × 9 columns)", "headingsSuggested": false, "comments": ["# Missing values are removed separately from each vector."], "r": "structure(list(c(1), logical(0), logical(0), logical(0), logical(0), logical(0), logical(0), logical(0), c(2)), names = c(\"A\", \"B\", \"C\", \"D\", \"E\", \"F\", \"G\", \"H\", \"I\"))"},
+   "note": "Codex's review of the Mac candidate, 21 November 2026: the Mac writes the values into the script, at most 8 MiB (RULES.md section 7), and a list holds only its non-missing values (rule 5.3), so only they count. Here the grid sends the two values alone, read from the two cells that hold them; the 9,437,184 cells of the area, more than one for each byte of the limit, cost nothing. As a data frame the same area is refused, since each of its cells needs at least NA."
+  }
+ ]
+}

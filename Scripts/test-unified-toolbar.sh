@@ -7,6 +7,14 @@ BASE="${1:-$ROOT/StatsDirect.app}"
 TEST_WORK="$(mktemp -d "$ROOT/.build/unified-toolbar.XXXXXX")"
 trap 'rm -rf "$TEST_WORK"' EXIT   # the driver, its copy of the app and its module cache are not kept after the run
 TEST_APP="$TEST_WORK/StatsDirect Toolbar Test.app"
+R_SCRIPT="${R_SCRIPT:-$(command -v Rscript)}"
+swiftc -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache \
+  Sources/ConversationRScript.swift Sources/WorksheetRScript.swift Tests/worksheet-r-driver.swift -o "$TEST_WORK/worksheet-r-driver"
+"$TEST_WORK/worksheet-r-driver" "$R_SCRIPT"
+swiftc -target arm64-apple-macosx14.0 -module-cache-path .build/swift-cache \
+  Sources/WorksheetRImportPrompt.swift Tests/worksheet-r-prompt-driver.swift -o "$TEST_WORK/worksheet-r-prompt-driver" -framework Cocoa
+# The prompt is built but never shown. In German, a locale-following count would read 1.048.576 instead of 1,048,576.
+"$TEST_WORK/worksheet-r-prompt-driver" -AppleLocale de_DE
 python3 - "$TEST_WORK" <<'PY'
 from pathlib import Path
 import sys

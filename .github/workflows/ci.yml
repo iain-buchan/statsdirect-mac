@@ -102,6 +102,12 @@ jobs:
           python3 Tests/test_excel_structures.py .build/workbook-driver
           python3 Tests/test_excel_compatibility.py .build/workbook-driver "$(command -v node)"
           python3 Tests/test_data_files.py .build/data-file-driver "$(command -v node)"
+      - name: Worksheet R import rules and examples
+        # The shared rules' values in R, then every shared and Mac example from an Excel file through the loader, the grid,
+        # the prompt and the script to R. The workbook driver is the one the step above built.
+        run: |
+          node Tests/worksheet-r-rules.mjs "$(command -v Rscript)"
+          python3 Tests/test_worksheet_r_examples.py .build/workbook-driver "$(command -v node)" "$(command -v Rscript)"
       - name: Offline HTML5 help
         run: |
           python3 Tests/test_desktop_help.py
@@ -133,6 +139,11 @@ jobs:
           R_BIN="$(command -v R)" R_SCRIPT="$(command -v Rscript)" python3 Tests/test_worker_signing.py StatsDirect.app/Contents/MacOS/RConsoleWorker
           swiftc -target arm64-apple-macosx14.0 Sources/RInstallation.swift Tests/r-runtime-architecture-checks.swift -o .build/r-runtime-architecture-checks -framework CryptoKit
           .build/r-runtime-architecture-checks
+      - name: R+ delivery
+        # Worksheet R rules 6.1 and 6.2 without launching R.app or RStudio: the start-up file under Rscript, R+ file names
+        # and leftover clean-up on fake folders, and the app's own console worker after its host is killed. R_SCRIPT also
+        # reaches Scripts/prepare-r-console-svg.sh, which the script runs, as in the step above.
+        run: R_SCRIPT="$(command -v Rscript)" bash Scripts/test-r-delivery.sh "$PWD/StatsDirect.app/Contents/MacOS/RConsoleWorker"
       - name: Interactive R console and vector charts
         # The failing check and the runner's environment become annotations, which the public API shows without the job log.
         run: |

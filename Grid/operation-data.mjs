@@ -45,7 +45,8 @@ export function worksheetInput(source, selected, first, last, layout) {
   if (layout) throw new Error('Groups by identifier need an open worksheet.');
   const indices = new Set(selected), cells = source.cells.filter(c=>indices.has(c.col) && c.row >= first-1 && c.row < last);
   if (cells.some(c=>c.kind==='error')) throw new Error('The selection contains Excel errors. Correct them in Excel and reopen the workbook.');
-  if (cells.some(c=>c.formula && (source.formulasStale || !c.text))) throw new Error('Recalculate and save this workbook in Excel, then reopen it before analysing formula cells.');
+  // As store.formulaUnavailable, for cells copied from a worksheet: a saved empty-text result is blank.
+  if (cells.some(c=>c.formula && (source.formulasStale || !c.text && c.savedEmpty!==true))) throw new Error('Recalculate and save this workbook in Excel, then reopen it before analysing formula cells.');
   return {source:source.name+` · rows ${first}–${last}`, range:{firstRow:first,lastRow:last,columns:selected}, preserveRows:true, columns:selected.map(col=>{
     if (!source.columns[col]) throw new Error('That column is no longer available. Refresh the worksheet.');
     const values = Array.from({length:last-first+1},()=> '');

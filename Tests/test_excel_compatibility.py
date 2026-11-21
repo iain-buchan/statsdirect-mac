@@ -89,7 +89,11 @@ try:
         assert values(binary)[(1, 5)] == ('2019-11-01 00:00:00', 'datetime')
         assert {k:v for k,v in values(legacy).items() if k != (1,5)} == {k:v for k,v in values(binary).items() if k != (1,5)}
         assert values(legacy)[(1, 1)] == ('2009-05-01 00:00:00', 'datetime')
-        assert values(legacy)[(4, 2)][0].endswith('11:00:00')
+        # Its times are times of day (RULES 3.9), as the same cells in its .xlsx are, not date-times on 1899-12-31.
+        assert values(legacy)[(4, 2)] == ('11:00:00', 'timespan') and values(legacy)[(5, 3)] == ('11:01:02', 'timespan')
+        current = opened(FIXTURES / 'EncodingFormulaDate1520.xlsx')
+        assert {k: v for k, v in values(current).items() if v[1] == 'timespan'} == {k: v for k, v in values(legacy).items() if v[1] == 'timespan'}
+        close(current)
         for reply in [legacy, binary]: close(reply)
         for fmt in [2, 3, 4, 5]:
             reply = opened(FIXTURES / f'as3xls_BIFF{fmt}.xls')
@@ -225,5 +229,97 @@ try:
             failed = request(action='open', path=str(bad), snapshot=str(snaps))
             assert 'error' in failed and failed.get('code') != 'workbookPassword'
         print('PASS: mislabeled files are detected; corrupt files fail without partial worksheets, leftover snapshots or spurious password prompts')
+
+        # Dates, times and durations (RULES 3.9) load alike whatever the file format, in both date systems. The same cells are
+        # written as .xlsx (the preserving reader), .xlsm, .xltx and .xltm (the same reader, as data copies), .xls and .xlsb
+        # (ExcelDataReader, each date or time then classed from the file's own number, read again from the file), and Strict
+        # OOXML (ExcelDataReader alone). Each cell is (value, format, expected in the 1900 system, expected in the 1904 system).
+        sys.path.insert(0, str(ROOT / 'Tests'))
+        from excel_writers import write_xlsx, write_xls, write_xlsb
+        D, T = (lambda text: (text, 'datetime')), (lambda text: (text, 'timespan'))
+        N, X = (lambda text: (text, 'number')), (lambda text: (text, 'text'))
+        both = lambda expected: (expected, expected)
+        NAN, INF = float('nan'), float('inf')
+        LEGACY = [
+            (46347, 'yyyy-mm-dd', D('2026-11-21 00:00:00'), D('2030-11-22 00:00:00')),
+            (46347.5, 'yyyy-mm-dd hh:mm', D('2026-11-21 12:00:00'), D('2030-11-22 12:00:00')),
+            (14.5 / 24, 'h:mm', *both(T('14:30:00'))), (0.5, 20, *both(T('12:00:00'))),                     # times of day
+            (0.0010474537037037037, 47, *both(T('00:01:30.5000000'))), (0.0010416666666666667, 45, *both(T('00:01:30'))),
+            (26 / 24, 46, *both(T('1.02:00:00'))), ((14.5 * 3600 + 0.5) / 86400, '[h]:mm:ss', *both(T('14:30:00.5000000'))),   # durations
+            (-1 / 24, '[h]:mm:ss', *both(T('-01:00:00'))),
+            (60, 'yyyy-mm-dd', D('1900-02-29 00:00:00'), D('1904-03-01 00:00:00')),                    # serial 60
+            (60.5, 22, D('1900-02-29 12:00:00'), D('1904-03-01 12:00:00')),
+            (59, 'yyyy-mm-dd', D('1900-02-28 00:00:00'), D('1904-02-29 00:00:00')), (61, 14, D('1900-03-01 00:00:00'), D('1904-03-02 00:00:00')),
+            (-1, 'yyyy-mm-dd', *both(N('-1'))), (-0.25, 'h:mm', *both(N('-0.25'))),                        # before the date system
+            (-0.123456789, 'yyyy-mm-dd hh:mm', *both(N('-0.123456789'))),
+            (2958465, 'yyyy-mm-dd', D('9999-12-31 00:00:00'), N('2958465')), (2958466, 'yyyy-mm-dd', *both(N('2958466'))),   # beyond 9999-12-31
+            (3000000, '[h]:mm:ss', *both(N('3000000'))), (2957003, 'yyyy-mm-dd', D('9995-12-30 00:00:00'), D('9999-12-31 00:00:00')),
+            (2957004, 'yyyy-mm-dd', D('9995-12-31 00:00:00'), N('2957004')), (2957004, '[h]:mm:ss', T('2957004.00:00:00'), N('2957004')),
+            # As agreed with Windows on 21 November 2026: a duration of more days than the last day's serial, of either sign, is a
+            # number, judged on its value; a time of day is judged on its value, then rounded half away from zero; a date after.
+            (2958465.25, '[h]:mm:ss', *both(N('2958465.25'))), (-3000000, '[h]:mm:ss', *both(N('-3000000'))),
+            (-2958465, '[h]:mm:ss', T('-2958465.00:00:00'), N('-2958465')),
+            (0.9999999999, 'h:mm:ss', *both(T('1.00:00:00'))), (0.9999999999, 'yyyy-mm-dd hh:mm:ss', D('1900-01-01 00:00:00'), D('1904-01-02 00:00:00')),
+            (5.787037037037037e-09, '[h]:mm:ss', *both(T('00:00:00.0010000'))), (-5.787037037037037e-09, '[h]:mm:ss', *both(T('-00:00:00.0010000'))),
+            (46347, '[Magenta]yyyy-mm-dd', D('2026-11-21 00:00:00'), D('2030-11-22 00:00:00')),          # colours make no duration
+            (46348, '[magenta]dd/mm/yyyy', D('2026-11-22 00:00:00'), D('2030-11-23 00:00:00')),
+            (46347.25, '[Red]yyyy-mm-dd hh:mm', D('2026-11-21 06:00:00'), D('2030-11-22 06:00:00')),
+            (0.25, '[Red]hh:mm', *both(T('06:00:00'))), (0.5, '[Magenta]hh:mm', *both(T('12:00:00'))),
+            (1.25, '[Red][h]:mm', *both(T('1.06:00:00'))), (0.5, '[mm]:ss', *both(T('12:00:00'))), (0.1, '[Blue][h]:mm', *both(T('02:24:00'))),
+            (3.14159265358979, '[Magenta]0.00', *both(N('3.14159265358979'))),
+            (1.5, None, *both(N('1.5'))), (0.1, '0.00', *both(N('0.1'))), (123456789012, None, *both(N('123456789012'))),
+            (5e-324, None, *both(N('5e-324'))), (-0.0, None, *both(N('0'))),
+            (NAN, None, *both(X('NaN'))), (INF, None, *both(X('Infinity'))), (-INF, 'yyyy-mm-dd', *both(X('-Infinity'))),   # not finite
+            (46347, 27, D('2026-11-21 00:00:00'), D('2030-11-22 00:00:00')), (0.5, 32, *both(T('12:00:00'))),  # East Asian and Thai built-ins
+            (46347, 71, D('2026-11-21 00:00:00'), D('2030-11-22 00:00:00')), (0.5, 75, *both(T('12:00:00'))),
+            (1.25, 79, *both(T('1.06:00:00'))), (0.5, 80, *both(T('12:00:00'))), (1.5, 59, *both(N('1.5'))),
+            (('formula', 60.5), 'yyyy-mm-dd hh:mm', D('1900-02-29 12:00:00'), D('1904-03-01 12:00:00')),   # saved formula results
+            (('formula', 0.75), 'h:mm', *both(T('18:00:00'))), (('formula', -2), 'yyyy-mm-dd', *both(N('-2')))]
+        # Strict OOXML gives no numbers to read again, so ExcelDataReader's own values stand there: its day 60 reads as day 59,
+        # it keeps a negative date or time only to the millisecond and a [Magenta] number only to the 100 ns tick, and it has
+        # already rounded 0.9999999999 in h:mm:ss to a whole day, which is then a date-time.
+        STRICT = {(False, (60, 'yyyy-mm-dd')): D('1900-02-28 00:00:00'), (False, (60.5, 22)): D('1900-02-28 12:00:00'),
+                  (False, (0.9999999999, 'h:mm:ss')): D('1900-01-01 00:00:00'), (True, (0.9999999999, 'h:mm:ss')): D('1904-01-02 00:00:00'),
+                  (False, (('formula', 60.5), 'yyyy-mm-dd hh:mm')): D('1900-02-28 12:00:00'),
+                  (False, (-0.123456789, 'yyyy-mm-dd hh:mm')): N('-0.12345679398148147'), (True, (-0.123456789, 'yyyy-mm-dd hh:mm')): N('-0.12345679398140419'),
+                  (False, (3.14159265358979, '[Magenta]0.00')): N('3.1415926535891203'), (True, (3.14159265358979, '[Magenta]0.00')): N('3.1415926535891203')}
+        sheet = [(0, 0, 'Value', None)] + [(r, 0, value, code) for r, (value, code, _, _) in enumerate(LEGACY, 1)]
+        for date1904 in (False, True):
+            system = '1904' if date1904 else '1900'
+            books = {kind: folder / f'dates-{system}.{kind}' for kind in ('xlsx', 'xlsm', 'xltx', 'xltm', 'xls', 'xlsb')}
+            books['strict'] = folder / f'dates-{system}-strict.xlsx'
+            for kind, path in books.items():
+                if kind == 'xls': write_xls(path, [('Data', sheet)], date1904)
+                elif kind == 'xlsb': write_xlsb(path, [('Data', sheet)], date1904)
+                else: write_xlsx(path, [('Data', sheet)], date1904, kind)
+                reply = opened(path, snapshot=str(folder / 'date-snapshots'))
+                assert bool(reply.get('dataCopy')) == (kind != 'xlsx') and reply['formulaCount'] == (3 if kind == 'xlsx' else 0), (system, kind, reply)
+                decoded = json.loads(subprocess.check_output([sys.argv[2], str(ROOT / 'Tests/decode-snapshot.mjs'), reply['sheets'][0]['snapshot']], text=True))[0]['cells']
+                assert all(c['formula'] == '' for c in decoded) or kind == 'xlsx', (system, kind)
+                got = {c['row']: (c['text'], c['kind']) for c in decoded if c['row'] > 0}
+                for r, cell in enumerate(LEGACY, 1):
+                    want = cell[3 if date1904 else 2]
+                    if kind == 'strict': want = STRICT.get((date1904, cell[:2]), want)
+                    assert got.get(r) == want, (system, kind, r, cell[:2], got.get(r), want)
+                Path(reply['sheets'][0]['snapshot']).unlink(); close(reply)
+        print(f'PASS: {len(LEGACY)} dates, times, durations and numbers load alike from .xlsx, .xlsm, .xltx, .xltm, .xls and .xlsb in both date systems, the last five as data copies (Strict OOXML differs only where ExcelDataReader rounds)')
+
+        # Exported to .xls and opened again, dates, times and durations keep their text and kind: 1900-02-29 is Excel's day 60,
+        # a time of day and a duration come back to the millisecond, and a date before 1900-01-01, the 1900 system's first day,
+        # and a duration of more days than 9999-12-31's serial, of either sign, which would reopen as a number, are saved as their text.
+        EXPORTED = [('1900-02-29', 'datetime', D('1900-02-29 00:00:00')), ('1900-02-29 06:00:00', 'datetime', D('1900-02-29 06:00:00')),
+                    ('2026-11-21 10:00:00', 'datetime', D('2026-11-21 10:00:00')), ('1899-12-31', 'datetime', X('1899-12-31')), ('1900-01-01', 'datetime', D('1900-01-01 00:00:00')),
+                    ('1899-12-30', 'datetime', X('1899-12-30')), ('1850-01-01', 'datetime', X('1850-01-01')),
+                    ('14:30:00', 'timespan', T('14:30:00')), ('14:30:00.5000000', 'timespan', T('14:30:00.5000000')),
+                    ('1.02:00:00', 'timespan', T('1.02:00:00')), ('-01:00:00', 'timespan', T('-01:00:00')),
+                    ('-3000000.00:00:00', 'timespan', X('-3000000.00:00:00')), ('2958465.06:00:00', 'timespan', X('2958465.06:00:00')),
+                    ('-2958465.00:00:00', 'timespan', T('-2958465.00:00:00'))]
+        xls = folder / 'exported.xls'
+        result = request(action='exportXls', path=str(xls), sheets=[{'name': 'Data', 'cells': [{'col': 0, 'row': r, 'text': text, 'kind': kind} for r, (text, kind, _) in enumerate(EXPORTED)]}])
+        assert result.get('ok'), result
+        reply = opened(xls); got = values(reply)
+        for r, (text, kind, want) in enumerate(EXPORTED): assert got[(0, r)] == want, (text, kind, got[(0, r)], want)
+        close(reply)
+        print('PASS: dates (1900-02-29 included), times of day and durations exported to .xls reopen as they were; dates before 1900-01-01 and durations beyond 9999-12-31 as text')
 finally:
     driver.stdin.close(); driver.wait(timeout=15)

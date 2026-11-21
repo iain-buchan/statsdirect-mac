@@ -91,7 +91,7 @@ export function columnValues(workbook, sheetIndex, request) {
       const text = store.get(c, r), kind = store.kind(c, r);
       values[r - first + 1] = text; kinds[r - first + 1] = kind;
       if (kind === 'error') errors++;
-      if (store.formula(c, r) && (store.formulasStale || text === '')) uncached++;
+      if (store.formulaUnavailable(c, r)) uncached++;
     }
     return {title: store.columnTitle(c), values, kinds};
   });

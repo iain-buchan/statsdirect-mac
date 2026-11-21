@@ -24,8 +24,11 @@ are stored outside the app.
 The app starts with one blank workbook. File > New Script and opened R files
 start in Script view without executing the source. Continue in R opens the
 generated analysis script in Console view and runs it once. Open in R (R+), after
-AI, saves the source in R Scripts and opens RStudio or starts a fresh R.app
-session. File > New C# Script and New VB Script preserve the managed script
+AI, opens the source in RStudio (one uniquely named file per import in R Scripts,
+the user's to keep) or starts a fresh R.app session, which runs the user's own
+.Rprofile and removes its copy of the script when it ends unless the user has
+saved changes to it. Without RStudio or R.app the source is saved in R Scripts.
+File > New C# Script and New VB Script preserve the managed script
 editors. The isolated development app also offers New R Console (Prototype).
 
 - Enter runs a command; Shift+Enter inserts a line. Up/Down recalls history.
@@ -85,7 +88,9 @@ restores the current prompt so the learner can shorten an answer and retry.
 
 Each session has its own working directory under Application Support/StatsDirect
 Console Prototype/R Sessions. User-created files and SVG chart assets remain there when
-a console closes; private temporary IPC files are removed. A renderer reload
+a console closes; private temporary IPC files, whose event log holds each command's
+text and so any worksheet data, are removed then and when StatsDirect quits, and a
+crash's leftovers are removed at the next start or quit. A renderer reload
 replays retained output without executing R commands again. Visible output is
 bounded; this is not a complete disk-backed console log or saved R workspace.
 

@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using System.Xml;
@@ -35,7 +36,9 @@ public static partial class WorkbookIO {
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { foreach (var original in originals.Values) { try { File.Delete(original.path); } catch { } } };
     }
     static readonly JsonSerializerOptions json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
-    public sealed record Cell(int Col, int Row, string Text, string Kind, string Formula = "");
+    // SavedEmpty marks a formula whose saved result is empty text, as the snapshot's extras do; it is written only when true.
+    public sealed record Cell(int Col, int Row, string Text, string Kind, string Formula = "",
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? SavedEmpty = null);
     public sealed record Sheet(string Name, int Rows, int Columns, bool Hidden, List<Cell> Cells, int Count, int FormulaCount, string Snapshot);
     public sealed record Patch(string Name, List<Cell> Cells);
     public sealed record Request(string Action, string Path, string Id, List<Patch> Sheets, string Snapshot, bool Stream = false, List<SheetInserts> Inserts = null, string Password = null);
@@ -74,13 +77,17 @@ public static partial class WorkbookIO {
 
     // ---- Typed columnar snapshot -------------------------------------------------------
     // Little-endian. Header: "SCOL" u32, version u32 (1), sheet count u32, flags u32 (bit 0:
-    // an extras string group of loader metadata follows each column's formulas; skipped here).
-    // Sheet: name length u32, UTF-8 name, pad to 4, column count u32. Column: index u32,
-    // cell count n u32, text count u32, formula count u32, rows u32[n], kinds u8[n], pad to 8,
-    // numbers f64[n], then text and formula entries (cell ordinal u32, byte length u32, UTF-8),
-    // each group padded to 4. Kinds: 0 blank, 1 number, 2 text, 3 datetime, 4 timespan,
-    // 5 boolean, 6 error. A number cell carries its value; every other kind carries text.
+    // every column header has an extras count after its formula count, and an extras string
+    // group of loader metadata follows its formulas; written when any cell has extras, skipped
+    // when read here). Sheet: name length u32, UTF-8 name, pad to 4, column count u32. Column:
+    // index u32, cell count n u32, text count u32, formula count u32, (extras count u32), rows
+    // u32[n], kinds u8[n], pad to 8, numbers f64[n], then text, formula and extras entries
+    // (cell ordinal u32, byte length u32, UTF-8), each group padded to 4. Kinds: 0 blank,
+    // 1 number, 2 text, 3 datetime, 4 timespan, 5 boolean, 6 error. A number cell carries its
+    // value; every other kind carries text. An extras entry is a JSON object: the loader writes
+    // {"savedEmpty":true} for a formula whose saved result is empty text (the grid's col.extra).
     static readonly string[] KindNames = { "blank", "number", "text", "datetime", "timespan", "boolean", "error" };
+    const string SavedEmptyExtra = "{\"savedEmpty\":true}";
     public sealed class ColumnData {
         public int Col;
         public readonly List<int> Rows = new();
@@ -88,11 +95,13 @@ public static partial class WorkbookIO {
         public readonly List<double> Nums = new();
         public readonly List<KeyValuePair<int, string>> Texts = new();
         public readonly List<KeyValuePair<int, string>> Formulas = new();
-        public void Add(int row, byte kind, double num, string text, string formula) {
+        public readonly List<KeyValuePair<int, string>> Extras = new();
+        public void Add(int row, byte kind, double num, string text, string formula, string extra = "") {
             int ordinal = Rows.Count;
             Rows.Add(row); Kinds.Add(kind); Nums.Add(num);
             if (kind != 1 && text.Length > 0) Texts.Add(new(ordinal, text));
             if (formula.Length > 0) Formulas.Add(new(ordinal, formula));
+            if (extra.Length > 0) Extras.Add(new(ordinal, extra));
         }
         public string TextAt(int i) => Kinds[i] == 1 ? JsNumber(Nums[i]) : Texts.Count > 0 && Texts.BinarySearch(new(i, null), OrdinalOrder) is int k && k >= 0 ? Texts[k].Value : "";
         static readonly Comparer<KeyValuePair<int, string>> OrdinalOrder = Comparer<KeyValuePair<int, string>>.Create((a, b) => a.Key.CompareTo(b.Key));
@@ -105,17 +114,19 @@ public static partial class WorkbookIO {
     static void Pad(BinaryWriter w, int align) { while (w.BaseStream.Position % align != 0) w.Write((byte)0); }
     public static void WriteSnapshot(Stream stream, IReadOnlyList<SheetData> sheets) {
         using var w = new BinaryWriter(stream, Encoding.UTF8, true);
-        w.Write(0x4C4F4353u); w.Write(1u); w.Write((uint)sheets.Count); w.Write(0u);
+        bool extras = sheets.Any(s => s.Columns.Values.Any(c => c.Extras.Count > 0));
+        w.Write(0x4C4F4353u); w.Write(1u); w.Write((uint)sheets.Count); w.Write(extras ? 1u : 0u);
         foreach (var sheet in sheets) {
             var name = Encoding.UTF8.GetBytes(sheet.Name ?? ""); w.Write((uint)name.Length); w.Write(name); Pad(w, 4);
             w.Write((uint)sheet.Columns.Count);
             foreach (var col in sheet.Columns.Values) {
                 int n = col.Rows.Count;
                 w.Write((uint)col.Col); w.Write((uint)n); w.Write((uint)col.Texts.Count); w.Write((uint)col.Formulas.Count);
+                if (extras) w.Write((uint)col.Extras.Count);
                 foreach (var r in col.Rows) w.Write((uint)r);
                 w.Write(col.Kinds.ToArray()); Pad(w, 8);
                 foreach (var x in col.Nums) w.Write(x);
-                foreach (var group in new[] { col.Texts, col.Formulas }) {
+                foreach (var group in extras ? new[] { col.Texts, col.Formulas, col.Extras } : new[] { col.Texts, col.Formulas }) {
                     foreach (var (ordinal, text) in group) { var bytes = Encoding.UTF8.GetBytes(text); w.Write((uint)ordinal); w.Write((uint)bytes.Length); w.Write(bytes); }
                     Pad(w, 4);
                 }
@@ -154,8 +165,9 @@ public static partial class WorkbookIO {
     static IEnumerable<Cell> Cells(SheetData sheet) {
         foreach (var col in sheet.Columns.Values) {
             var formulas = col.Formulas.ToDictionary(p => p.Key, p => p.Value);
+            var savedEmpty = col.Extras.Where(p => p.Value == SavedEmptyExtra).Select(p => p.Key).ToHashSet();
             for (int i = 0; i < col.Rows.Count; i++)
-                yield return new Cell(col.Col, col.Rows[i], col.TextAt(i), KindNames[col.Kinds[i]], formulas.TryGetValue(i, out var f) ? f : "");
+                yield return new Cell(col.Col, col.Rows[i], col.TextAt(i), KindNames[col.Kinds[i]], formulas.TryGetValue(i, out var f) ? f : "", savedEmpty.Contains(i) ? true : (bool?)null);
         }
     }
     static SheetData FromCells(string name, IEnumerable<Cell> cells) {
@@ -237,7 +249,7 @@ public static partial class WorkbookIO {
     sealed class Package {
         public readonly List<SheetInfo> Sheets = new();
         public readonly List<string> SharedStrings = new();
-        public readonly List<byte> StyleKinds = new();   // per cellXfs index: 1 number, 3 datetime, 4 timespan
+        public readonly List<byte> StyleKinds = new();   // per cellXfs index, FormatKind's class of its number format
         public bool Date1904;
         public Package(ZipArchive zip, bool structureOnly = false) {
             XDocument Read(string name) { var entry = Entry(zip, name) ?? throw new Exception("The workbook is missing " + name + "."); using var s = entry.Open(); return XDocument.Load(s); }
@@ -277,32 +289,52 @@ public static partial class WorkbookIO {
             }
         }
     }
-    // Excel's built-in date and time formats, and custom codes with date or time tokens.
+    // Classes of number format: a plain number, a date or date-time, an elapsed time (a duration)
+    // and a time of day (a time with no date). The first three share the cell kinds' numbers.
+    public const byte FormatNumber = 1, FormatDate = 3, FormatElapsed = 4, FormatTime = 7;
+    // Excel's built-in date and time formats, and custom codes with date or time tokens. In a code,
+    // m or mm is minutes after an h or before an s, otherwise the month (Excel's rule); quoted
+    // text, \x escapes, _x and *x padding and [...] blocks (colours, conditions, locales) are not
+    // tokens, except [h], [m] and [s], which are elapsed times. Built-ins 32 and 33 are a time of
+    // day in every East Asian locale that defines them; the other East Asian ones stay dates.
     public static byte FormatKind(int id, string code) {
         if (code == null) {
-            if (id is 45 or 46 or 47) return 4;
-            if ((id >= 14 && id <= 22) || (id >= 27 && id <= 36) || (id >= 50 && id <= 58)) return 3;
-            return 1;
+            if (id is 45 or 46 or 47) return FormatElapsed;
+            if (id is (>= 18 and <= 21) or 32 or 33) return FormatTime;
+            if (id is (>= 14 and <= 22) or (>= 27 and <= 36) or (>= 50 and <= 58)) return FormatDate;
+            return FormatNumber;
         }
-        bool elapsed = false, date = false, time = false, quoted = false;
+        // y, d, h, s; m for m or mm, M for mmm and longer (always the month), a for AM/PM or A/P,
+        // and ; between sections, which a minute's neighbours never cross.
+        var tokens = new List<char>();
         for (int i = 0; i < code.Length; i++) {
             char ch = code[i];
-            if (quoted) { if (ch == '"') quoted = false; continue; }
-            if (ch == '"') { quoted = true; continue; }
-            if (ch == '\\') { i++; continue; }
+            if (ch == '"') { int end = code.IndexOf('"', i + 1); i = end < 0 ? code.Length : end; continue; }
+            if (ch is '\\' or '_' or '*') { i++; continue; }
+            if (ch == ';') { tokens.Add(';'); continue; }
             if (ch == '[') {
                 int end = code.IndexOf(']', i); if (end < 0) end = code.Length - 1;
                 var inner = code.Substring(i + 1, end - i - 1).ToLowerInvariant();
-                if (inner.Length > 0 && inner.All(c => c == 'h' || c == 'm' || c == 's')) elapsed = true;
+                if (inner.Length > 0 && inner[0] is 'h' or 'm' or 's' && inner.All(c => c == inner[0])) return FormatElapsed;
                 i = end; continue;
             }
+            if (string.Compare(code, i, "AM/PM", 0, 5, StringComparison.OrdinalIgnoreCase) == 0) { tokens.Add('a'); i += 4; continue; }
+            if (string.Compare(code, i, "A/P", 0, 3, StringComparison.OrdinalIgnoreCase) == 0) { tokens.Add('a'); i += 2; continue; }
             char l = char.ToLowerInvariant(ch);
-            if (l == 'y' || l == 'd' || l == 'm') date = true;
-            if (l == 'h' || l == 's') time = true;
+            if (l is not ('y' or 'm' or 'd' or 'h' or 's')) continue;
+            int run = 1; while (i + 1 < code.Length && char.ToLowerInvariant(code[i + 1]) == l) { i++; run++; }
+            tokens.Add(l == 'm' && run > 2 ? 'M' : l);
         }
-        if (elapsed) return 4;
-        if (date || time) return 3;
-        return 1;
+        bool date = false, time = false;
+        for (int t = 0; t < tokens.Count; t++) {
+            switch (tokens[t]) {
+                case 'y' or 'd' or 'M': date = true; break;
+                case 'h' or 's' or 'a': time = true; break;
+                case 'm' when t > 0 && tokens[t - 1] == 'h' || t + 1 < tokens.Count && tokens[t + 1] == 's': time = true; break;
+                case 'm': date = true; break;
+            }
+        }
+        return date ? FormatDate : time ? FormatTime : FormatNumber;
     }
     static void ReadSheet(ZipArchive zip, Package package, SheetInfo info, SheetData data, ref int count, ref int formulaCount, ref int rows, ref int cols) {
         var entry = Entry(zip, info.Entry) ?? throw new Exception("The worksheet part " + info.Entry + " is missing.");
@@ -347,6 +379,9 @@ public static partial class WorkbookIO {
                 }
             }
             if (hasFormula && formula.Length == 0) formula = "=";  // a formula without text still protects the cell
+            // A formula whose saved result is empty text (t="str" with <v></v> or <v/>) is marked, so that the grid can tell it
+            // from a formula with no saved result: no <v> at all, or an untyped empty <v/> as openpyxl writes every formula.
+            string extra = hasFormula && type == "str" && value?.Length == 0 ? SavedEmptyExtra : "";
             byte kind; double num = double.NaN; string cellText;
             if (type == "s") { kind = 2; cellText = value != null && int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var si) && si < package.SharedStrings.Count ? package.SharedStrings[si] : ""; }
             else if (type == "inlineStr") { kind = 2; cellText = inline ?? ""; }
@@ -356,27 +391,23 @@ public static partial class WorkbookIO {
             else if (type == "d") { kind = 3; cellText = DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) ? DateText(dt) : value ?? ""; }
             else if (string.IsNullOrEmpty(value)) { kind = 0; cellText = ""; }
             else {
-                if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out num)) { kind = 2; cellText = value; }
+                // A value that is not a finite number keeps the file's text, NaN, INF and 1e999 included (.NET reads some of
+                // them as non-finite doubles, which the grid would show as blank cells).
+                if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out num) || !double.IsFinite(num)) { kind = 2; cellText = value; num = double.NaN; }
                 else {
-                    byte styleKind = style != null && int.TryParse(style, NumberStyles.None, CultureInfo.InvariantCulture, out var sx) && sx < package.StyleKinds.Count ? package.StyleKinds[sx] : (byte)1;
+                    byte format = style != null && int.TryParse(style, NumberStyles.None, CultureInfo.InvariantCulture, out var sx) && sx < package.StyleKinds.Count ? package.StyleKinds[sx] : FormatNumber;
                     kind = 1; cellText = "";
                     // A number with date/time formatting can exceed that format's
                     // representable range. Keep the numeric value readable instead
                     // of rejecting the whole workbook because of its display style.
-                    if (styleKind == 3) {
-                        try { cellText = DateText(SerialToDate(num, package.Date1904)); kind = 3; num = double.NaN; }
-                        catch (ArgumentException) { }
-                    } else if (styleKind == 4) {
-                        try { cellText = TimeSpan.FromDays(num).ToString("c", CultureInfo.InvariantCulture); kind = 4; num = double.NaN; }
-                        catch (OverflowException) { }
-                    }
+                    if (format != FormatNumber && TryDateTimeText(num, format, package.Date1904, out var timeKind, out var timeText)) { kind = timeKind; cellText = timeText; num = double.NaN; }
                 }
             }
             if (kind == 0 && !hasFormula) continue;
             if (cellText.Length == 0 && kind != 1) kind = 0;
             int row0 = rowNumber - 1, col0 = colNumber - 1;
             if (row0 < 0 || col0 < 0 || row0 >= MaxRows || col0 >= MaxCols) continue;
-            data.Column(col0).Add(row0, kind, num, cellText, formula);
+            data.Column(col0).Add(row0, kind, num, cellText, formula, extra);
             count++; if (formula.Length > 0) formulaCount++;
             rows = Math.Max(rows, row0 + 1); cols = Math.Max(cols, col0 + 1);
         }
@@ -424,11 +455,62 @@ public static partial class WorkbookIO {
     public static string ColumnName(int col) {  // 1-based
         var name = ""; while (col > 0) { col--; name = (char)('A' + col % 26) + name; col /= 26; } return name;
     }
-    static DateTime SerialToDate(double serial, bool date1904) {
-        if (date1904) serial += 1462; else if (serial < 61) serial += 1;
-        serial = Math.Max(serial, 1); return DateTime.FromOADate(serial);
+    // The kind and text of a number shown with a date or time format: a duration (kind 4) for an elapsed format; a time of day
+    // (kind 4) for a time format without a date and a value from 0 up to one day; otherwise a date-time (kind 3). False when the
+    // value stays a number: a negative date or time (Excel shows #####), or one beyond the range of DateTime or TimeSpan.
+    static bool TryDateTimeText(double serial, byte format, bool date1904, out byte kind, out string text) {
+        kind = 4; text = null;
+        if (format == FormatElapsed) return (text = DurationText(serial)) != null;
+        if (serial < 0) return false;
+        if (format == FormatTime && serial < 1) return (text = DurationText(serial)) != null;
+        kind = 3;
+        try {
+            if (date1904 || serial >= 61) { text = DateText(DateTime.FromOADate(serial + (date1904 ? 1462 : 0))); return true; }
+            // Before 1 March 1900, Excel's serials are one more than OLE Automation dates: Excel's day 60 is 29 February 1900,
+            // which never existed. Excel shows that date, and so does the text; DateTime cannot hold it. FromOADate rounds to the
+            // millisecond, so a value just below day 60 or 61 belongs to the day it rounds to.
+            var date = DateTime.FromOADate(serial + 1);
+            var march1 = new DateTime(1900, 3, 1);
+            text = date < march1 ? DateText(date) : date < march1.AddDays(1) ? LeapDay1900 + DateText(date).Substring(10) : DateText(march1);
+            return true;
+        } catch (ArgumentException) { return false; }
     }
+    const string LeapDay1900 = "1900-02-29";
     static string DateText(DateTime dt) => dt.ToString("yyyy-MM-dd HH:mm:ss.fffffff", CultureInfo.InvariantCulture).TrimEnd('0').TrimEnd('.');
+    // A duration or time of day in .NET's "c" form, [-][d.]hh:mm:ss[.fffffff], rounded to the millisecond as date-times are
+    // (TimeSpan.FromDays truncates to the 100 ns tick below, so 14:30 would read 14:29:59.9999999). Null beyond TimeSpan's range.
+    static string DurationText(double days) {
+        try { return TimeSpan.FromMilliseconds(Math.Round(days * 86_400_000d)).ToString("c", CultureInfo.InvariantCulture); }
+        catch (OverflowException) { return null; }
+    }
+    // The serial number of date-time text as the grid holds it, in the workbook's date system (the inverse of TryDateTimeText).
+    // The clock time is the one written, never moved by this Mac's time zone (R's date-times end in Z). 1900-02-29 is Excel's
+    // day 60 in the 1900 system. False when the text is no date, which is then saved as text rather than failing the save.
+    static bool TryDateSerial(string text, bool date1904, out double serial) {
+        bool leapDay = !date1904 && text.StartsWith(LeapDay1900, StringComparison.Ordinal);
+        serial = 0;
+        if (!DateTime.TryParse(leapDay ? "1900-03-01" + text.Substring(LeapDay1900.Length) : text, CultureInfo.InvariantCulture,
+            DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var date)) return false;
+        serial = date.ToOADate();
+        serial -= date1904 ? 1462 : leapDay || serial < 61 ? 1 : 0;
+        return true;
+    }
+    // Duration text as the grid holds it: .NET's "c" form, [-][d.]hh:mm:ss[.fffffff], or hours past 23 with no day count
+    // (26:00:00), which TimeSpan.Parse reads as 26 days. False for any other text, which is then saved as text.
+    static readonly Regex Duration = new(@"^(-)?(?:([0-9]+)\.)?([0-9]+):([0-5][0-9]):([0-5][0-9])(?:\.([0-9]{1,7}))?$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    static bool TryDuration(string text, out TimeSpan span) {
+        span = default;
+        var m = Duration.Match(text);
+        long days = 0, hours, fraction = 0;
+        if (!m.Success || m.Groups[2].Success && !long.TryParse(m.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out days)
+            || !long.TryParse(m.Groups[3].Value, NumberStyles.None, CultureInfo.InvariantCulture, out hours) || m.Groups[2].Success && hours > 23) return false;
+        if (m.Groups[6].Success) fraction = long.Parse(m.Groups[6].Value.PadRight(7, '0'), CultureInfo.InvariantCulture);
+        try {
+            long ticks = checked((((days * 24 + hours) * 60 + int.Parse(m.Groups[4].Value, CultureInfo.InvariantCulture)) * 60 + int.Parse(m.Groups[5].Value, CultureInfo.InvariantCulture)) * TimeSpan.TicksPerSecond + fraction);
+            span = new TimeSpan(m.Groups[1].Success ? -ticks : ticks);
+            return true;
+        } catch (OverflowException) { return false; }
+    }
     static readonly Regex Reference = new(@"(?<![A-Za-z0-9_.$])(\$?)([A-Za-z]{1,3})(\$?)([0-9]{1,7})(?![A-Za-z0-9_(])", RegexOptions.Compiled);
     static readonly Regex ColumnRange = new(@"(?<![A-Za-z0-9_.$])(\$?)([A-Za-z]{1,3}):(\$?)([A-Za-z]{1,3})(?![A-Za-z0-9_(])", RegexOptions.Compiled);
     static readonly Regex RowRange = new(@"(?<![A-Za-z0-9_.$:])(\$?)([0-9]{1,7}):(\$?)([0-9]{1,7})(?![A-Za-z0-9_(:])", RegexOptions.Compiled);
@@ -502,7 +584,9 @@ public static partial class WorkbookIO {
                     InsertWorkbookColumns(source, insertedSource, inserts, sheets);
                     source = insertedSource;
                 }
-                if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source)) { File.Copy(source, temporary, true); uncached = PatchWithClosedXml(temporary, source, sheets); }
+                int? patched = null;
+                if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source)) { File.Copy(source, temporary, true); patched = PatchWithClosedXml(temporary, source, sheets); }
+                if (patched is int count) uncached = count;
                 else { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 sheetCount = CountSheets(temporary);
             }
@@ -553,7 +637,7 @@ public static partial class WorkbookIO {
         Part("xl/styles.xml", w => WriteStyles(w));
         for (int i = 0; i < sheets.Count; i++) Part($"xl/worksheets/sheet{i + 1}.xml", w => WriteSheet(w, sheets[i], true));
     }
-    const int DateStyle = 1, TextStyle = 2;
+    const int DateStyle = 1, TextStyle = 2, DurationStyle = 3;
     static void WriteStyles(XmlWriter w) {
         w.WriteStartElement("styleSheet", MainNs);
         w.WriteStartElement("numFmts"); w.WriteAttributeString("count", "1");
@@ -566,8 +650,8 @@ public static partial class WorkbookIO {
         w.WriteEndElement();
         w.WriteStartElement("borders"); w.WriteAttributeString("count", "1"); w.WriteStartElement("border"); w.WriteStartElement("left"); w.WriteEndElement(); w.WriteStartElement("right"); w.WriteEndElement(); w.WriteStartElement("top"); w.WriteEndElement(); w.WriteStartElement("bottom"); w.WriteEndElement(); w.WriteStartElement("diagonal"); w.WriteEndElement(); w.WriteEndElement(); w.WriteEndElement();
         w.WriteStartElement("cellStyleXfs"); w.WriteAttributeString("count", "1"); w.WriteStartElement("xf"); w.WriteAttributeString("numFmtId", "0"); w.WriteAttributeString("fontId", "0"); w.WriteAttributeString("fillId", "0"); w.WriteAttributeString("borderId", "0"); w.WriteEndElement(); w.WriteEndElement();
-        w.WriteStartElement("cellXfs"); w.WriteAttributeString("count", "3");
-        foreach (var fmt in new[] { "0", "164", "49" }) { w.WriteStartElement("xf"); w.WriteAttributeString("numFmtId", fmt); w.WriteAttributeString("fontId", "0"); w.WriteAttributeString("fillId", "0"); w.WriteAttributeString("borderId", "0"); w.WriteAttributeString("xfId", "0"); if (fmt != "0") w.WriteAttributeString("applyNumberFormat", "1"); w.WriteEndElement(); }
+        w.WriteStartElement("cellXfs"); w.WriteAttributeString("count", "4");
+        foreach (var fmt in new[] { "0", "164", "49", "46" }) { w.WriteStartElement("xf"); w.WriteAttributeString("numFmtId", fmt); w.WriteAttributeString("fontId", "0"); w.WriteAttributeString("fillId", "0"); w.WriteAttributeString("borderId", "0"); w.WriteAttributeString("xfId", "0"); if (fmt != "0") w.WriteAttributeString("applyNumberFormat", "1"); w.WriteEndElement(); }
         w.WriteEndElement();
         w.WriteStartElement("cellStyles"); w.WriteAttributeString("count", "1"); w.WriteStartElement("cellStyle"); w.WriteAttributeString("name", "Normal"); w.WriteAttributeString("xfId", "0"); w.WriteAttributeString("builtinId", "0"); w.WriteEndElement(); w.WriteEndElement();
         w.WriteEndElement();
@@ -606,6 +690,7 @@ public static partial class WorkbookIO {
         byte kind = col.Kinds[i]; string text = col.TextAt(i);
         string style = existingStyle;
         if (kind == 3 && (style == null || style == "0")) style = DateStyle.ToString(CultureInfo.InvariantCulture);
+        if (newWorkbook && kind == 4 && style == null) style = DurationStyle.ToString(CultureInfo.InvariantCulture);
         if (newWorkbook && kind == 2 && style == null && LooksNumeric(text)) style = TextStyle.ToString(CultureInfo.InvariantCulture);
         if (style != null) w.WriteAttributeString("s", style);
         switch (kind) {
@@ -613,12 +698,9 @@ public static partial class WorkbookIO {
             case 1: w.WriteElementString("v", MainNs, col.Nums[i].ToString("R", CultureInfo.InvariantCulture)); return;
             case 5: w.WriteAttributeString("t", "b"); w.WriteElementString("v", MainNs, string.Equals(text, "TRUE", StringComparison.OrdinalIgnoreCase) ? "1" : "0"); return;
             case 6: w.WriteAttributeString("t", "e"); w.WriteElementString("v", MainNs, Escape(text)); return;
-            case 3: {
-                var dt = DateTime.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.None);
-                double serial = dt.ToOADate(); serial -= date1904 ? 1462 : serial < 61 ? 1 : 0;
-                w.WriteElementString("v", MainNs, serial.ToString("R", CultureInfo.InvariantCulture)); return;
-            }
-            case 4: w.WriteElementString("v", MainNs, TimeSpan.Parse(text, CultureInfo.InvariantCulture).TotalDays.ToString("R", CultureInfo.InvariantCulture)); return;
+            // Date and duration text that Excel cannot hold as a number is saved as the text (default).
+            case 3 when TryDateSerial(text, date1904, out var serial): w.WriteElementString("v", MainNs, serial.ToString("R", CultureInfo.InvariantCulture)); return;
+            case 4 when TryDuration(text, out var span): w.WriteElementString("v", MainNs, span.TotalDays.ToString("R", CultureInfo.InvariantCulture)); return;
             default:
                 w.WriteAttributeString("t", "inlineStr");
                 w.WriteStartElement("is", MainNs); w.WriteStartElement("t", MainNs);
@@ -656,8 +738,12 @@ public static partial class WorkbookIO {
     // Preserve the source package's styles, rich text and other worksheet features.
     // ClosedXML rewrites some inherited fonts on a full save of StatsDirect's test.xlsx.
     // Existing workbooks therefore receive cell patches, rather than a package rebuild.
-    static int PatchWithClosedXml(string temporary, string source, List<SheetData> sheets) {
-        using var workbook = new XLWorkbook(source);
+    // Null when ClosedXML cannot load the workbook, as with a NaN or 1e999 cell value written by another program: the
+    // lossless streaming patcher then saves it, and Excel recalculates.
+    static int? PatchWithClosedXml(string temporary, string source, List<SheetData> sheets) {
+        XLWorkbook loaded;
+        try { loaded = new XLWorkbook(source); } catch (ArgumentException) { return null; }
+        using var workbook = loaded;
         var patches = new List<Patch>();
         foreach (var data in sheets) {
             if (!workbook.Worksheets.Contains(data.Name)) throw new Exception("The worksheet no longer exists in this workbook.");
@@ -666,12 +752,13 @@ public static partial class WorkbookIO {
             foreach (var edit in cells) {
                 var cell = sheet.Cell(edit.Row + 1, edit.Col + 1);
                 if (cell.HasFormula) throw new Exception($"{sheet.Name}!{cell.Address}: formula cells are read-only in this prototype.");
+                // A date goes in as its serial number, as WriteCellValue writes it, so 1900-02-29 (Excel's day 60) needs no DateTime.
                 cell.Value = edit.Kind switch {
                     "blank" => Blank.Value,
                     "number" => double.Parse(edit.Text, NumberStyles.Float, CultureInfo.InvariantCulture),
                     "boolean" => bool.Parse(edit.Text),
-                    "datetime" => DateTime.Parse(edit.Text, CultureInfo.InvariantCulture, DateTimeStyles.None),
-                    "timespan" => TimeSpan.Parse(edit.Text, CultureInfo.InvariantCulture),
+                    "datetime" => TryDateSerial(edit.Text, workbook.Use1904DateSystem, out var serial) ? (XLCellValue)serial : edit.Text,
+                    "timespan" => TryDuration(edit.Text, out var span) ? (XLCellValue)span : edit.Text,
                     _ => XLCellValue.FromObject(edit.Text ?? "", CultureInfo.InvariantCulture)
                 };
                 if (edit.Kind == "datetime" && cell.Style.NumberFormat.NumberFormatId == 0) cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm:ss";
@@ -697,10 +784,16 @@ public static partial class WorkbookIO {
         var bookXml = Read("xl/workbook.xml");
         var relationships = Read("xl/_rels/workbook.xml.rels").Root.Elements(packageRel + "Relationship")
             .ToDictionary(e => (string)e.Attribute("Id"), e => (string)e.Attribute("Target"));
-        int uncached = 0, dateStyle = -1;
-        if (patches.Any(p => p.Cells.Any(c => c.Kind == "datetime"))) {
+        int uncached = 0, dateStyle = -1, durationStyle = -1;
+        bool dates = patches.Any(p => p.Cells.Any(c => c.Kind == "datetime")), durations = patches.Any(p => p.Cells.Any(c => c.Kind == "timespan"));
+        if (dates || durations) {
             var stylesEntry = relationships.Values.Select(ResolveTarget).FirstOrDefault(e => Entry(zip, e) != null && e.EndsWith("styles.xml", StringComparison.OrdinalIgnoreCase));
-            if (stylesEntry != null) { var styles = Read(stylesEntry); dateStyle = EnsureDateStyle(styles, out var added); if (added) Write(stylesEntry, styles); }
+            if (stylesEntry != null) {
+                var styles = Read(stylesEntry); bool added = false;
+                if (dates) dateStyle = EnsureFormatStyle(styles, 22, ref added);
+                if (durations) durationStyle = EnsureFormatStyle(styles, 46, ref added);
+                if (added) Write(stylesEntry, styles);
+            }
         }
         foreach (var sheetInfo in bookXml.Root.Element(s + "sheets").Elements(s + "sheet")) {
             var name = (string)sheetInfo.Attribute("name");
@@ -761,7 +854,8 @@ public static partial class WorkbookIO {
             foreach (var edit in edits) {
                 var xmlCell = Find(edit.Row+1, edit.Col+1);
                 SetValue(xmlCell, edit.Kind == "text" ? (XLCellValue)edit.Text : sheet.Cell(edit.Row+1, edit.Col+1).Value, false);
-                if (edit.Kind == "datetime" && dateStyle >= 0 && ((string)xmlCell.Attribute("s") ?? "0") == "0") xmlCell.SetAttributeValue("s", dateStyle);
+                int formatStyle = edit.Kind == "datetime" ? dateStyle : edit.Kind == "timespan" ? durationStyle : -1;
+                if (formatStyle >= 0 && ((string)xmlCell.Attribute("s") ?? "0") == "0") xmlCell.SetAttributeValue("s", formatStyle);
             }
             foreach (var cell in formulas) {
                 XLCellValue value;
@@ -783,16 +877,16 @@ public static partial class WorkbookIO {
         return uncached;
     }
 
-    // Index of a cellXfs entry with a date-time format (numFmtId 22), added when none exists.
-    // Returns -1 when the document has no cellXfs to extend. `added` reports whether it changed.
-    static int EnsureDateStyle(XDocument styles, out bool added) {
-        added = false;
+    // Index of a cellXfs entry with a built-in number format (22 a date-time, 46 [h]:mm:ss), added
+    // when none exists, for an edited date or duration in a cell of the General style. `added` is
+    // set when the document changed.
+    static int EnsureFormatStyle(XDocument styles, int numFmtId, ref bool added) {
         var xfs = styles.Root.Element(S + "cellXfs");
         if (xfs == null) { xfs = new XElement(S + "cellXfs"); styles.Root.Add(xfs); }
         var list = xfs.Elements(S + "xf").ToList();
-        int index = list.FindIndex(x => ((int?)x.Attribute("numFmtId") ?? 0) == 22);
+        int index = list.FindIndex(x => ((int?)x.Attribute("numFmtId") ?? 0) == numFmtId);
         if (index >= 0) return index;
-        xfs.Add(new XElement(S + "xf", new XAttribute("numFmtId", 22), new XAttribute("fontId", 0), new XAttribute("fillId", 0), new XAttribute("borderId", 0), new XAttribute("xfId", 0), new XAttribute("applyNumberFormat", 1)));
+        xfs.Add(new XElement(S + "xf", new XAttribute("numFmtId", numFmtId), new XAttribute("fontId", 0), new XAttribute("fillId", 0), new XAttribute("borderId", 0), new XAttribute("xfId", 0), new XAttribute("applyNumberFormat", 1)));
         xfs.SetAttributeValue("count", list.Count + 1); added = true;
         return list.Count;
     }
@@ -810,10 +904,12 @@ public static partial class WorkbookIO {
         var rels = ReadXml(source, "xl/_rels/workbook.xml.rels").Root.Elements(PackageRel + "Relationship").ToDictionary(e => (string)e.Attribute("Id"), e => (string)e.Attribute("Target"));
         var stylesEntry = rels.Values.Select(ResolveTarget).FirstOrDefault(e => Entry(source, e) != null && e.EndsWith("styles.xml", StringComparison.OrdinalIgnoreCase));
         var replaced = new Dictionary<string, XDocument>(StringComparer.OrdinalIgnoreCase);
-        int dateStyle = -1;
-        if (sheets.Any(s => s.Columns.Values.Any(c => c.Kinds.Contains((byte)3))) && stylesEntry != null) {
-            var styles = ReadXml(source, stylesEntry);
-            dateStyle = EnsureDateStyle(styles, out var added);
+        int dateStyle = -1, durationStyle = -1;
+        bool dates = sheets.Any(s => s.Columns.Values.Any(c => c.Kinds.Contains((byte)3))), durations = sheets.Any(s => s.Columns.Values.Any(c => c.Kinds.Contains((byte)4)));
+        if ((dates || durations) && stylesEntry != null) {
+            var styles = ReadXml(source, stylesEntry); bool added = false;
+            if (dates) dateStyle = EnsureFormatStyle(styles, 22, ref added);
+            if (durations) durationStyle = EnsureFormatStyle(styles, 46, ref added);
             if (added) replaced[stylesEntry] = styles;
         }
         var book = ReadXml(source, "xl/workbook.xml");
@@ -831,7 +927,7 @@ public static partial class WorkbookIO {
             using var from = entry.Open();
             if (sheetParts.TryGetValue(entry.FullName, out var info)) {
                 edits.TryGetValue(info.Name, out var sheet);
-                StreamSheet(from, into, sheet, info.Name, dateStyle, package.Date1904, ref uncached);
+                StreamSheet(from, into, sheet, info.Name, dateStyle, durationStyle, package.Date1904, ref uncached);
             } else from.CopyTo(into);
         }
         return uncached;
@@ -840,12 +936,15 @@ public static partial class WorkbookIO {
     // Throws when an edit targets a formula cell. The reader advances exactly once per node:
     // XmlWriter.WriteNode leaves it on the node after the one copied, so nothing reads again
     // after it, and whitespace between rows and cells is dropped rather than copied.
-    static void StreamSheet(Stream input, Stream output, SheetData sheet, string sheetName, int dateStyle, bool date1904, ref int uncached) {
+    static void StreamSheet(Stream input, Stream output, SheetData sheet, string sheetName, int dateStyle, int durationStyle, bool date1904, ref int uncached) {
         var pending = sheet == null ? new List<(int row, List<(int col, ColumnData data, int i)> cells)>() : RowsOf(sheet).ToList();
         int pendingAt = 0, uncachedHere = 0;
         using var reader = XmlReader.Create(input, new XmlReaderSettings { IgnoreWhitespace = false });
         using var writer = XmlWriter.Create(output, new XmlWriterSettings { Encoding = new UTF8Encoding(false), OmitXmlDeclaration = false });
-        string styleFor(ColumnData data, int i, string existing) => data.Kinds[i] == 3 && (existing == null || existing == "0") && dateStyle >= 0 ? dateStyle.ToString(CultureInfo.InvariantCulture) : existing;
+        string styleFor(ColumnData data, int i, string existing) {
+            int formatStyle = data.Kinds[i] == 3 ? dateStyle : data.Kinds[i] == 4 ? durationStyle : -1;
+            return formatStyle >= 0 && (existing == null || existing == "0") ? formatStyle.ToString(CultureInfo.InvariantCulture) : existing;
+        }
         void WriteNewCell(int row, int col, ColumnData data, int i) {
             if (data.Kinds[i] == 0) return;
             writer.WriteStartElement("c", MainNs); writer.WriteAttributeString("r", ColumnName(col + 1) + (row + 1).ToString(CultureInfo.InvariantCulture));

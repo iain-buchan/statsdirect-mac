@@ -220,6 +220,13 @@ export class GridStore {
     const col = this.cols[c];
     return col ? col.formula.get(r) ?? '' : '';
   }
+  // A formula cell whose value cannot be used: the workbook has been edited since it was opened, so
+  // results may be out of date, or the file saved no result. A saved result of empty text (the
+  // loader's savedEmpty flag) is a blank cell, not a missing result.
+  formulaUnavailable(c, r) {
+    if (!this.formula(c, r)) return false;
+    return this.formulasStale || this.get(c, r) === '' && this.cols[c].extra.get(r)?.savedEmpty !== true;
+  }
   // The cell as loaded from a file (undefined for cells that were never loaded). For a cell
   // edited since loading, the values it had when loaded.
   loaded(c, r) {
@@ -479,8 +486,9 @@ export class GridStore {
       after = [];
     for (let r = start; r < end; r++) {
       try {
-        if ([c1, c2].some(c => this.formula(c, r) && this.get(c, r) === '')) throw new Error('A formula has no saved result. Recalculate and save this workbook in Excel before analysing it.');
-        if (this.formulasStale && [c1, c2].some(c => this.formula(c, r))) throw new Error('This selection contains formula results that may be out of date. Save, recalculate in Excel, and reopen the workbook before analysing these cells.');
+        const unavailable = [c1, c2].filter(c => this.formulaUnavailable(c, r));
+        if (unavailable.some(c => this.get(c, r) === '' && this.cols[c].extra.get(r)?.savedEmpty !== true)) throw new Error('A formula has no saved result. Recalculate and save this workbook in Excel before analysing it.');
+        if (unavailable.length) throw new Error('This selection contains formula results that may be out of date. Save, recalculate in Excel, and reopen the workbook before analysing these cells.');
         before.push(numeric(this.get(c1, r)));
         after.push(numeric(this.get(c2, r)));
       } catch (e) {

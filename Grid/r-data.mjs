@@ -22,7 +22,7 @@ export function rDataTables(workbook, currentSheet) {
       const seen = new Set(); let hasTime = false;
       for (let i = 0; i < n; i++) {
         const r = i + start, text = store.get(c, r), kind = store.kind(c, r);
-        if (store.formula(c, r) && (store.formulasStale || text === '')) throw new Error('Recalculate formula results in Excel before saving this table as R data.');
+        if (store.formulaUnavailable(c, r)) throw new Error('Recalculate formula results in Excel before saving this table as R data.');
         rows[i] = i;
         const k = text === '' ? 0 : kindIndex(kind);
         kinds[i] = k;

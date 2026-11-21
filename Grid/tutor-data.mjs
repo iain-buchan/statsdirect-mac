@@ -38,7 +38,7 @@ export function tutorData(workbook,sheetIndex,selection={},options={}) {
   const data=columns.map(c=>({index:c,title:store.columnTitle(c),values:Array.from({length:rowCount},(_,i)=>{
     const r=firstRow+i-1,text=store.get(c,r);
     characters+=text.length;if(cellKind(store,c,r)==='error')hasErrors=true;
-    if(store.formula(c,r)&&(store.formulasStale||!text))hasStaleFormulas=true;
+    if(store.formulaUnavailable(c,r))hasStaleFormulas=true;
     return text===''?null:text;
   })}));
   if(characters>50000)throw Error('The selected text is too large for the tutor. Choose a smaller range.');

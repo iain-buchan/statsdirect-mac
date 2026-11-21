@@ -500,7 +500,7 @@ import WebKit
             return (try? await js(script,"window.StatsDirectRConsole?.snapshot().mode==='console'")) as? Bool == true
         }
         let text=console.sourceText
-        try check(text.contains("worksheet_data <- structure(list(") && text.contains("str(worksheet_data)")
+        try check(text.contains("worksheet_data <- structure(list(") && text.contains("utils::str(worksheet_data)")
                   && ["1201","1202","1203","8001","8002","8003"].allSatisfy(text.contains)
                   && !["1204","8004","999999"].contains(where:text.contains),
                   "worksheet R retains an editable script with only the selected cells")
@@ -508,7 +508,7 @@ import WebKit
                   "the integrated session accepts a command against the imported frame")
         try await wait("The integrated data frame did not match the chosen cells and column letters") { console.outputText.contains("WORKSHEET_FRAME_OK") }
         try check(console.outputText.contains("3 obs. of") && console.outputText.contains("2 variables"),
-                  "the integrated session shows str(worksheet_data) after the import")
+                  "the integrated session shows utils::str(worksheet_data) after the import")
         v.remove(script); v.tabs.selectTabViewItem(grid.item)
         try check(try await js(grid,selected) as? Bool == true,"Opening the R session preserves the original worksheet highlight")
 

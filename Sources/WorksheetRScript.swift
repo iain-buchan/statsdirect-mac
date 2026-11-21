@@ -3,7 +3,8 @@ import Foundation
 /// Writes the R script for a worksheet import (the shared worksheet R rules, sections 3 to 5) from the object the grid's
 /// `worksheetRImport(scope, options)` returns. The grid has decided every name, column type and value; this writes them
 /// as R code with base functions only, so that a user's start-up file cannot change the result, and writes a value
-/// unquoted only once it is known to be a number, TRUE or FALSE.
+/// unquoted only once it is known to be a number, TRUE or FALSE. The one other function, str(), is named with its
+/// package, utils::str, as Windows writes it, because utils may not be attached yet while a start-up file runs.
 enum WorksheetRScript {
     // The R input frame includes a 36-character command UUID and a newline.
     static let maximumBytes = 8 * 1024 * 1024 - 37
@@ -17,11 +18,13 @@ enum WorksheetRScript {
               integer(data["columnCount"]) == columns.count,
               let names = data["names"] as? [String], names.count == columns.count,
               let dates = data["dates"] as? Bool else { throw unreadable }
-        // A line break would end a comment, so each CR or LF in the sheet name or range is written as a space (rule 5.5),
-        // and so is a NUL, which R cannot read.
+        // Rule 5.5 (amendment 1): each control character in the sheet name is written as a space, U+0000 to U+001F and
+        // U+007F to U+009F, so CR LF gives two spaces. A line break would end the comment, R cannot read a NUL, and on
+        // Windows R stops reading a script at a raw Ctrl-Z (U+001A). The range text is only column letters, row numbers,
+        // colons and commas; it goes through the same function all the same.
         func comment(_ text: String) -> String {
             var line = String.UnicodeScalarView()
-            for scalar in text.unicodeScalars { line.append([0, 10, 13].contains(scalar.value) ? " " : scalar) }
+            for scalar in text.unicodeScalars { line.append(scalar.value < 0x20 || (0x7F...0x9F).contains(scalar.value) ? " " : scalar) }
             return String(line)
         }
         var script = "# Data copied from the worksheet “\(comment(sheet))”, \(comment(range)).\n"
@@ -71,7 +74,7 @@ enum WorksheetRScript {
         if rFriendlyNames {
             script += "names(worksheet_data) <- make.unique(make.names(gsub(\"[[:space:]]+\", \"_\", trimws(names(worksheet_data)))), sep = \"_\")\n"
         }
-        script += "str(worksheet_data)\n"
+        script += "utils::str(worksheet_data)\n"
         guard script.utf8.count <= maximumBytes else { throw ConversationRScript.Failure(message: sizeMessage) }
         return script
     }

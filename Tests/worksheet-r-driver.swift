@@ -95,9 +95,9 @@ struct WorksheetRDriver {
               c(12, NA, 0x1.8000000000000p+0),
               c("a", NA, "b")
             ), names = c("Age", "Group"), row.names = c(NA_integer_, -3L), class = "data.frame")
-            str(worksheet_data)
+            utils::str(worksheet_data)
 
-            """, "the data frame script has the shared comments, base functions only and str(worksheet_data)")
+            """, "the data frame script has the shared comments, base functions only and utils::str(worksheet_data)")
         let dated = grid([("Age group", "double", ["12", nil, "0x1.8000000000000p+0"]), ("Visit date", "Date", ["20778", nil, "-25567"])],
                          rowCount: 4, range: "A1:B4", dates: true)
         let listText = try expect("a list with dates and R-friendly names is written exactly as the rules show it", dated,
@@ -114,7 +114,7 @@ struct WorksheetRDriver {
               structure(c(20778, -25567), class = "Date")
             ), names = c("Age group", "Visit date"))
             names(worksheet_data) <- make.unique(make.names(gsub("[[:space:]]+", "_", trimws(names(worksheet_data)))), sep = "_")
-            str(worksheet_data)
+            utils::str(worksheet_data)
 
             """, "the list script adds the list and date comments and the R-friendly names line")
         let datesOnly = try WorksheetRScript.build(grid([("Time", "character", ["14:30:00"])], dates: true))
@@ -223,15 +223,23 @@ struct WorksheetRDriver {
             structure(list(intToUtf8(c(97L, 65533L, 98L))), names = "A", row.names = c(NA_integer_, -1L), class = "data.frame")
             """)
 
-        // The sheet name stays in its comment: line breaks become spaces, and bidi controls may stay there.
-        let sheet = "Line one\r\nworksheet_data <- 'hacked'\rnext\nend\u{0}\u{202E}x"
-        let commented = try expect("a sheet name with CR, LF, NUL and a bidi control stays in its comment",
+        // The sheet name stays in its comment (rule 5.5): each control character, U+0000 to U+001F and U+007F to U+009F,
+        // becomes a space, so CR LF gives two; other characters, a bidi control or U+00A0 among them, stay there.
+        let sheet = "Line one\r\nworksheet_data <- 'hacked'\rnext\nend\u{0}\u{202E}x\u{1A}stop\tq()\u{85}\u{7F}\u{9F}\u{A0}\u{2028}z"
+        let commented = try expect("a sheet name with CR LF, CR, LF, NUL, Ctrl-Z, a tab, C1 controls and a bidi control stays in its comment",
                                    grid([("A", "double", ["1", "2"])], sheet: sheet, range: "A1:A2\nC1"), """
             structure(list(c(1, 2)), names = "A", row.names = c(NA_integer_, -2L), class = "data.frame")
             """)
-        try check(commented.components(separatedBy: "\n").first == "# Data copied from the worksheet “Line one  worksheet_data <- 'hacked' next end \u{202E}x”, A1:A2 C1."
-                  && commented.components(separatedBy: "\n").count == 7 && !commented.unicodeScalars.contains("\r"),
-                  "each CR, LF or NUL in the sheet name or range is written as a space, on the first comment line")
+        let commentLines = commented.components(separatedBy: "\n")
+        try check(commentLines.first == "# Data copied from the worksheet “Line one  worksheet_data <- 'hacked' next end \u{202E}x stop q()   \u{A0}\u{2028}z”, A1:A2 C1."
+                  && commentLines.count == 7 && commentLines.last == "",
+                  "each control character in the sheet name (and in the range) is written as a space, on the first comment line")
+        let everyControl = String(String.UnicodeScalarView(Array(0...0x1F).compactMap { Unicode.Scalar(UInt32($0)) }
+                                                           + Array(0x7F...0x9F).compactMap { Unicode.Scalar(UInt32($0)) }))
+        let controls = try WorksheetRScript.build(grid([("A", "double", ["1"])], sheet: "<" + everyControl + ">"))
+        try check(controls.components(separatedBy: "\n").first == "# Data copied from the worksheet “<" + String(repeating: " ", count: 65) + ">”, A1."
+                  && !controls.unicodeScalars.contains { $0.value < 0x20 && $0.value != 10 || (0x7F...0x9F).contains($0.value) },
+                  "all 65 control characters, U+0000 to U+001F and U+007F to U+009F, are spaces, and the script holds no other")
 
         // A heading row with no data below it: a data frame of no rows.
         let headingOnly = grid([("Heading", "character", []), ("B", "double", [])], rowCount: 1)

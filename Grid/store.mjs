@@ -299,11 +299,11 @@ export class GridStore {
   }
   // The first formula or formula result cell whose value cannot be used, as [c, r], or null. Only stored cells are read: a
   // result region's rows that the store holds no chunk for have no saved result.
-  firstUnavailableResult() {
-    for (let c = 0; c < this.cols.length; c++) for (const r of this.cols[c].formula.keys()) if (this.formulaUnavailable(c, r)) return [c, r];
+  firstUnavailableResult(start = 0) {
+    for (let c = 0; c < this.cols.length; c++) for (const r of this.cols[c].formula.keys()) if (r >= start && this.formulaUnavailable(c, r)) return [c, r];
     for (let c = 0; c < this.columns.length; c++) {
       for (const {firstRow, lastRow} of this.formulaResultSpans(c)) {
-        const r = this.unavailableResultRow(c, firstRow, lastRow);
+        const r = this.unavailableResultRow(c, Math.max(firstRow, start), lastRow);
         if (r >= 0) return [c, r];
       }
     }

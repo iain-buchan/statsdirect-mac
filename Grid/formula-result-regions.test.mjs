@@ -197,6 +197,20 @@ test('R data refuses a formula or result without a saved value below the last va
   // In the title row, which is not data, such a formula is no reason to refuse.
   const titled = book([cell(0, 0, '', 'blank', {formula: 'B1&"x"'}), cell(0, 1, '2'), cell(0, 2, '3')], [], {headerRow: true});
   assert.equal(rDataTables(titled, 0).tables[0].rows, 2);
+
+  // A1 has an uncached formula, which looks blank when the workbook infers its title row from B1.
+  // Skipping the title formula must still find a later one, including a dependent cell without its own formula.
+  const headings = [cell(0, 0, '', 'blank', {formula: 'B1&"x"'}), cell(1, 0, 'Measure', 'text'), cell(1, 1, '2'), cell(1, 2, '3')];
+  const inferred = new WorkbookStore();
+  inferred.load({name: 'Regions.xlsx', id: 'x', sheets: [
+    {name: 'Scalar', columns: 4, rows: 12, cells: [...headings, cell(2, 9, '', 'blank', {formula: 'B2*2'})]},
+    {name: 'Array', columns: 4, rows: 12, cells: [...headings, cell(2, 9, '', 'blank', {formula: 'IF(ROW(B20:C21)=20,"",B2*2)', ...empty})],
+      formulaRegions: [{firstRow: 9, lastRow: 10, firstColumn: 2, lastColumn: 3}]}
+  ]});
+  for (const index of [0, 1]) {
+    assert.equal(inferred.sheets[index].store.headerRow, true);
+    assert.throws(() => rDataTables(inferred, index), {message: REFUSAL});
+  }
 });
 
 test('a list of a few whole rows reads those rows alone, however many rows a result region covers between them', () => {
@@ -217,6 +231,22 @@ test('a list of a few whole rows reads those rows alone, however many rows a res
   assert.throws(() => worksheetRImport(w, 0, {columns: [5]}, 'selected', {list: true}), {message: RECALCULATE});
   // And a whole-column analysis ends at the region's last row, which holds a value here.
   assert.equal(analysisMetadata(w, 0, {columns: [5]}).columnEnds[5], n);
+});
+
+test('an R list of many selected rows reads the stored values without probing each selected row in each column', () => {
+  const rows = 100000, columns = 12;
+  const cells = Array.from({length: columns}, (_, c) => [cell(c, 0, '1'), cell(c, rows - 1, '2')]).flat();
+  const w = book(cells, [], {columns, rows});
+  const selected = Array.from({length: rows - 1}, (_, r) => r < rows / 2 ? r : r + 1);
+  const first = w.sheets[0].store.cols[0];
+  const kindAt = first.kindAt.bind(first);
+  let checks = 0;
+  first.kindAt = r => {
+    assert.ok(++checks < 32, 'the list probed unpopulated rows instead of visiting stored values');
+    return kindAt(r);
+  };
+  const data = worksheetRImport(w, 0, {rows: selected}, 'selected', {list: true});
+  assert.deepEqual(data.columns.map(c => c.values), Array.from({length: columns}, () => ['1', '2']));
 });
 
 test('the Excel 97-2003 data copy refuses formula results that may be out of date or were never saved, as R data does', () => {

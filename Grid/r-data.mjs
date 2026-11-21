@@ -21,8 +21,7 @@ export function rDataTables(workbook, currentSheet) {
     const end = Math.max(store.csvRows, store.usedRows());
     // A formula, or an array, spill or data-table result, that holds no usable value is refused wherever it is: one below
     // the last value is no row of the table, which would otherwise be saved without it and without a word.
-    const unavailable = store.firstUnavailableResult();
-    if (unavailable && unavailable[1] >= start) throw new Error('Recalculate formula results in Excel before saving this table as R data.');
+    if (store.firstUnavailableResult(start)) throw new Error('Recalculate formula results in Excel before saving this table as R data.');
     const n = Math.max(0, end - start);
     const columns = [], data = [];
     store.columns.forEach((_, c) => {

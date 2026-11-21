@@ -416,25 +416,31 @@ extension Viewer {
         let folder = pane.session.workingDirectory ?? InteractiveRConsole.supportFolder.appendingPathComponent("R Sessions")
         return openScriptInExternalR(pane.sourceText, name: pane.scriptName, workingDirectory: folder, document: doc)
     }
+    /// R+ and the console's Open in R (rule 6.2): RStudio gets one new file in R Scripts, R.app runs a copy that goes
+    /// when R ends, and with neither the script is saved in R Scripts. Returns the script file written now, if any.
     @discardableResult func openScriptInExternalR(_ source: String, name: String,
                                                    workingDirectory: URL, document: Document) -> URL? {
-        let url: URL
-        do { url = try RExternalScript.save(source, name: name) }
-        catch { showError("Open in R failed: \(error.localizedDescription)"); return nil }
-        guard RExternalScript.opensExternally else {
-            status.stringValue = "Saved \(url.lastPathComponent) in R Scripts"; return url
+        let save: (Viewer, String) -> URL? = { viewer, note in
+            do {
+                let url = try RExternalScript.save(source, name: name)
+                viewer.status.stringValue = "Saved \(url.path)" + note; return url
+            } catch { viewer.showError("Open in R failed: \(error.localizedDescription)"); return nil }
         }
-        let launch: () -> Void = { [weak self, weak document] in
-            guard let self, let document, self.documents.contains(where: { $0 === document }) else { return }
-            RExternalScript.launch(url, source: source, workingDirectory: workingDirectory) { [weak self, weak document] text in
+        guard RExternalScript.opensExternally else { return save(self, "") }
+        let open: () -> URL? = { [weak self, weak document] in
+            guard let self, let document, self.documents.contains(where: { $0 === document }) else { return nil }
+            return RExternalScript.open(source, name: name, workingDirectory: workingDirectory) { [weak self, weak document] text in
                 guard let self, let document, self.documents.contains(where: { $0 === document }) else { return }
                 self.status.stringValue = text
             }
         }
-        if RRuntime.executable() == nil {
-            RInstaller.shared.ensureInstalled { installed in if installed { launch() } }
-        } else { launch() }
-        return url
+        guard RRuntime.executable() == nil else { return open() }
+        RInstaller.shared.ensureInstalled { [weak self, weak document] installed in
+            guard let self, let document, self.documents.contains(where: { $0 === document }) else { return }
+            // Without R, nothing can open the script: keep it in R Scripts, as when no R application is installed.
+            _ = installed ? open() : save(self, "; install RStudio or R to open it")
+        }
+        return nil
     }
     @objc func newRConsolePrototype() { makeRConsole() }
     @discardableResult func makeRConsole(script: String = "", title: String? = nil, saved: Bool = false, autoRun: Bool = false, startInScript: Bool = false) -> Document {

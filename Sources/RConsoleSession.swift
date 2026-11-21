@@ -58,6 +58,8 @@ import CoreFoundation
     private let workingRoot: URL
     private let rExecutable: () -> String?
     private let privateLibrary: URL?
+    /// Where the worker's private folder is made: the user's temporary folder, where removeLeftoverPrivateFolders looks.
+    private let temporaryRoot: URL
     private var process: Process?
     private var startup: Task<Void, Never>?
     private var homeProbe: RConsoleHomeProbe?
@@ -80,12 +82,14 @@ import CoreFoundation
 
     init(worker: URL, bootstrap: URL, workingRoot: URL,
          privateLibrary: URL? = nil,
-         rExecutable: @escaping () -> String? = { RRuntime.executable() }) {
+         rExecutable: @escaping () -> String? = { RRuntime.executable() },
+         temporaryRoot: URL = FileManager.default.temporaryDirectory) {
         self.worker = worker
         self.bootstrap = bootstrap
         self.workingRoot = workingRoot
         self.rExecutable = rExecutable
         self.privateLibrary = privateLibrary
+        self.temporaryRoot = temporaryRoot
     }
 
     /// Give the renderer a retryable session while external R/setup is pending.
@@ -207,7 +211,7 @@ import CoreFoundation
         let directory = workingRoot.appendingPathComponent("Session-" + sessionId, isDirectory: true)
         try fm.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         workingDirectory = directory
-        let ipc = fm.temporaryDirectory.appendingPathComponent("StatsDirect-RConsole-" + UUID().uuidString, isDirectory: true)
+        let ipc = temporaryRoot.appendingPathComponent(Self.privateFolderPrefix + UUID().uuidString, isDirectory: true)
         try fm.createDirectory(at: ipc, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         ipcDirectory = ipc
         // R owns everything under this private temporary root. Retire it only
@@ -257,6 +261,11 @@ import CoreFoundation
             }
         ]
         try task.run()
+        // A crash can leave this folder, whose event log holds each command's full text, data included. Naming the
+        // worker lets a later start remove the folder once that worker has gone (removeLeftoverPrivateFolders).
+        if let worker = RProcessIdentity.of(task.processIdentifier), let record = try? JSONEncoder().encode(worker) {
+            try? record.write(to: ipc.appendingPathComponent(Self.workerRecordName), options: .atomic)
+        }
         try? stdout.fileHandleForWriting.close(); try? stderr.fileHandleForWriting.close()
         let source = DispatchSource.makeTimerSource(queue: .main)
         source.schedule(deadline: .now(), repeating: .milliseconds(30), leeway: .milliseconds(5))
@@ -529,6 +538,90 @@ import CoreFoundation
         let expected = first & 0xE0 == 0xC0 ? 2 : first & 0xF0 == 0xE0 ? 3 : first & 0xF8 == 0xF0 ? 4 : 1
         let available = bytes.count - lead
         return expected > available ? data.count - available : data.count
+    }
+}
+
+extension RConsoleSession {
+    nonisolated static let privateFolderPrefix = "StatsDirect-RConsole-"
+    nonisolated static let workerRecordName = "worker.json"
+    /// How old a private folder without a worker record must be before it can go: far longer than the moment between
+    /// creating a folder and starting its worker, in this or another running StatsDirect.
+    nonisolated static let unrecordedFolderAge: TimeInterval = 600
+
+    /// A session's private folder in the user's temporary folder ($TMPDIR) is removed when its worker ends and when
+    /// StatsDirect quits (shutdown and releaseIO), but a crash leaves it, with the event log of every command and its
+    /// data. At start and at quit, this removes such folders from earlier runs once their worker has gone: only folders
+    /// named StatsDirect-RConsole-<UUID>, owned by this user, and judged by the worker recorded in each. A folder without
+    /// that record (from an older version, or a crash before its worker started) goes only when it is ten minutes old
+    /// and no console worker of this user is running at all. Returns the folders removed.
+    @discardableResult nonisolated static func removeLeftoverPrivateFolders(
+        in temporary: URL = FileManager.default.temporaryDirectory, owner: uid_t = getuid(), now: Date = Date(),
+        isRunning: (RProcessIdentity) -> Bool = { $0.isRunning },
+        anyWorkerRunning: () -> Bool = { RProcessIdentity.anyRunning(named: "RConsoleWorker") }) -> [URL] {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: temporary.path) else { return [] }
+        var removed: [URL] = [], workerRunning: Bool?
+        for name in names.sorted() where name.hasPrefix(privateFolderPrefix) {
+            let id = String(name.dropFirst(privateFolderPrefix.count))
+            guard UUID(uuidString: id)?.uuidString == id else { continue }
+            let folder = temporary.appendingPathComponent(name, isDirectory: true)
+            var info = stat()
+            guard lstat(folder.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR, info.st_uid == owner else { continue }
+            if let worker = workerRecord(in: folder) {
+                if isRunning(worker) { continue }
+            } else {
+                let modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec))
+                guard now.timeIntervalSince(modified) > unrecordedFolderAge else { continue }
+                if workerRunning == nil { workerRunning = anyWorkerRunning() }
+                if workerRunning == true { continue }
+            }
+            if (try? fm.removeItem(at: folder)) != nil { removed.append(folder) }
+        }
+        return removed
+    }
+
+    nonisolated private static func workerRecord(in folder: URL) -> RProcessIdentity? {
+        let file = folder.appendingPathComponent(workerRecordName)
+        var info = stat()
+        guard lstat(file.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_size < 4096,
+              let data = FileManager.default.contents(atPath: file.path) else { return nil }
+        return try? JSONDecoder().decode(RProcessIdentity.self, from: data)
+    }
+}
+
+/// A process as the system knows it: its id and the moment it started, so that a reused process id is never taken for
+/// it. Files a process used are removed only once that process has gone (rule 6.2 of the worksheet R rules).
+struct RProcessIdentity: Codable, Equatable, Sendable {
+    let pid: Int32
+    /// Microseconds since 1970, as the kernel records the start.
+    let started: UInt64
+
+    /// nil when there is no such process of this user (it has exited, or the id now belongs to another user).
+    static func of(_ pid: pid_t) -> RProcessIdentity? {
+        guard pid > 0 else { return nil }
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.stride)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return RProcessIdentity(pid: pid, started: UInt64(info.pbi_start_tvsec) * 1_000_000 + UInt64(info.pbi_start_tvusec))
+    }
+    static var current: RProcessIdentity? { of(getpid()) }
+    var isRunning: Bool { Self.of(pid) == self }
+
+    /// Whether a process of this user runs an executable with this file name; true when that cannot be told.
+    static func anyRunning(named name: String) -> Bool {
+        let uid = UInt32(getuid()), stride = MemoryLayout<pid_t>.stride
+        let needed = proc_listpids(UInt32(PROC_UID_ONLY), uid, nil, 0)
+        guard needed > 0 else { return true }
+        var pids = [pid_t](repeating: 0, count: Int(needed) / stride + 64)
+        let listed = proc_listpids(UInt32(PROC_UID_ONLY), uid, &pids, Int32(pids.count * stride))
+        guard listed > 0 else { return true }
+        var path = [UInt8](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        for pid in pids.prefix(Int(listed) / stride) where pid > 0 {
+            let length = proc_pidpath(pid, &path, UInt32(path.count))
+            guard length > 0 else { continue }
+            if (String(decoding: path.prefix(Int(length)), as: UTF8.self) as NSString).lastPathComponent == name { return true }
+        }
+        return false
     }
 }
 

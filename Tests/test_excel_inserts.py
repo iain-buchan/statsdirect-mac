@@ -2,7 +2,10 @@
 styles, column widths and every formula in the workbook re-referenced, or the save is refused where
 the prototype cannot move a feature. Run with the workbook driver and openpyxl."""
 import json, subprocess, sys, tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from stat import S_IMODE
+from threading import Event
 import openpyxl
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'Tests'))
@@ -11,6 +14,37 @@ driver = subprocess.Popen([sys.argv[1], str(ROOT / 'FullEngine/publish/StatsDire
 def request(**payload):
     driver.stdin.write(json.dumps(payload) + '\n'); driver.stdin.flush()
     return json.loads(driver.stdout.readline())
+
+def save_with_private_staging(destination, **payload):
+    """Observe live staging entries in an otherwise empty destination folder."""
+    ready, finished = Event(), Event()
+    def observe():
+        modes = {}
+        ready.set()
+        while not finished.is_set():
+            for entry in destination.parent.iterdir():
+                if entry == destination:
+                    continue
+                try:
+                    modes[entry.name] = modes.get(entry.name, 0) | S_IMODE(entry.stat().st_mode)
+                except FileNotFoundError:
+                    pass    # an entry already renamed or removed by the writer
+            finished.wait(0.001)
+        return modes
+    with ThreadPoolExecutor(max_workers=1) as readers:
+        observed = readers.submit(observe)
+        try:
+            assert ready.wait(5), 'The staging observer did not start'
+            result = request(action='save', path=str(destination), **payload)
+        finally:
+            finished.set()
+        modes = observed.result()
+    assert result.get('ok') and not result.get('recalculated'), result
+    assert modes, 'No in-progress staging entry was observed for the large workbook'
+    assert all(mode & 0o077 == 0 for mode in modes.values()), modes
+    assert S_IMODE(destination.stat().st_mode) == 0o600, destination
+    assert list(destination.parent.iterdir()) == [destination]
+
 def cell(col, row, text, kind='number'): return {'col': col, 'row': row, 'text': str(text), 'kind': kind}
 def with_results(path, results):
     """Gives formulas the results Excel saves with them, which openpyxl does not write: {worksheet part: {cell: value}}.
@@ -268,7 +302,21 @@ try:
         large=Path(folder)/'large.xlsx'; w=openpyxl.Workbook(write_only=True); d=w.create_sheet('Data')
         for r in range(100001): d.append([r]*10)
         w.save(large)
-        saved=insert(large,col=1)
+        large.chmod(0o600)
+        opened = request(action='open', path=str(large), snapshot=str(Path(folder)/'large-snapshots'))
+        assert 'error' not in opened, opened
+        data = [{'name': 'Data', 'cells': [cell(1, 0, 'result', 'text')]}]
+        inserts = [{'name': 'Data', 'inserts': [{'col': 1, 'count': 1}]}]
+        digest = hashlib.sha256(large.read_bytes()).digest()
+        assert request(action='validateInserts', id=opened['id'], inserts=inserts).get('ok')
+        for label, options in (('streamed', {'stream': True}), ('inserted', {'inserts': inserts})):
+            destination_folder = Path(folder)/f'large-{label}'
+            destination_folder.mkdir(mode=0o755)
+            saved = destination_folder/'result.xlsx'
+            save_with_private_staging(saved, id=opened['id'], sheets=data, **options)
+        assert hashlib.sha256(large.read_bytes()).digest() == digest
+        assert request(action='close', id=opened['id'])['ok']
+        print('PASS: streaming and column insertion keep every observed in-progress workbook staging entry private')
         read=openpyxl.load_workbook(saved,read_only=True); rows=read['Data'].iter_rows(values_only=True)
         first=next(rows); assert first[:4]==(0,'result',0,0),first
         last=None

@@ -273,15 +273,40 @@ public static partial class WorkbookIO {
     static void CopyContents(string source, string target) {
         using var input = File.OpenRead(source);
         using var output = OperatingSystem.IsWindows() ? File.Create(target)
-            : new FileStream(target, new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, UnixCreateMode = Permissions(source) });
+            : new FileStream(target, new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, UnixCreateMode = WorkbookPermissions(File.GetUnixFileMode(input.SafeFileHandle)) });
         input.CopyTo(output);
     }
-    // Who may read and write a workbook, with its owner always able to: a workbook only its owner may read stays so
-    // through the private copy and every save, and one that is read-only can still be saved under another name.
-    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
-    static UnixFileMode Permissions(string path) =>
-        File.GetUnixFileMode(path) & (UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.OtherRead | UnixFileMode.OtherWrite)
+    // The owner's access is restored when saving a read-only source under another name.
+    static UnixFileMode WorkbookPermissions(UnixFileMode mode) =>
+        mode & (UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.OtherRead | UnixFileMode.OtherWrite)
         | UnixFileMode.UserRead | UnixFileMode.UserWrite;
+
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    static void SetSavedWorkbookPermissions(string stagedFile, string opened, string destination) {
+        var mode = opened == null ? File.GetUnixFileMode(stagedFile) : WorkbookPermissions(File.GetUnixFileMode(opened));
+        // Replacing a file must also respect the destination's restrictions. Only absence means there is no mode to keep.
+        try { mode &= File.GetUnixFileMode(destination); } catch (FileNotFoundException) { }
+        File.SetUnixFileMode(stagedFile, mode);
+    }
+
+    // A Mac directory can inherit an ACL that grants access even when its POSIX mode is 0700.
+    // Remove it from the empty staging directory before writing any workbook data.
+    static void RemoveStagingAcl(string staging) {
+        const int extendedAcl = 0x100, operationNotSupported = 45;
+        var acl = acl_init(0);
+        if (acl == IntPtr.Zero) throw new IOException("Could not allocate an ACL for private workbook staging.");
+        try {
+            if (acl_set_file(staging, extendedAcl, acl) != 0 && Marshal.GetLastPInvokeError() != operationNotSupported)
+                throw new IOException("Could not make the workbook staging directory private.");
+        } finally { acl_free(acl); }
+    }
+
+    [DllImport("libSystem.B.dylib", SetLastError = true)]
+    static extern IntPtr acl_init(int count);
+    [DllImport("libSystem.B.dylib", SetLastError = true)]
+    static extern int acl_set_file([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int type, IntPtr acl);
+    [DllImport("libSystem.B.dylib")]
+    static extern int acl_free(IntPtr acl);
 
     sealed class SheetInfo { public string Name; public string Entry; public bool Hidden; }
     // Part names in a package are case-insensitive and relationship targets are percent-encoded.
@@ -742,21 +767,28 @@ public static partial class WorkbookIO {
         foreach (var sheet in sheets) foreach (var col in sheet.Columns.Values) foreach (var r in col.Rows) {
             if (r < 0 || r >= MaxRows || col.Col < 0 || col.Col >= MaxCols) throw new Exception("Cell is outside Excel's worksheet dimensions.");
         }
-        var temporary = request.Path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        var destination = Path.GetFullPath(request.Path);
+        // Keep all intermediate bytes behind an owner-only directory, on the same volume for atomic replacement.
+        var parent = Path.GetDirectoryName(destination);
+        if (!Directory.Exists(parent)) throw new DirectoryNotFoundException("The workbook destination folder was not found.");
+        var staging = Path.Combine(parent, ".statsdirect-save-" + Guid.NewGuid().ToString("N"));
+        var temporary = Path.Combine(staging, "workbook.xlsx");
         int uncached = 0, sheetCount = sheets.Count; bool recalculated = true;
         var inserts = (request.Inserts ?? new()).Where(i => i.Inserts != null && i.Inserts.Count > 0).ToList();
-        string insertedSource = null;
+        if (OperatingSystem.IsWindows()) Directory.CreateDirectory(staging);
+        else Directory.CreateDirectory(staging, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var opened = source;
         try {
+            if (OperatingSystem.IsMacOS()) RemoveStagingAcl(staging);
             if (source == null) { using var stream = File.Create(temporary); WriteWorkbook(stream, sheets); }   // a new workbook already holds the cells where the grid put them
             else {
                 long edits = sheets.Sum(s => s.Columns.Values.Sum(c => (long)c.Rows.Count));
-                string opened = source;
                 if (edits == 0 && inserts.Count == 0) {
                     CopyContents(source, temporary);
                     recalculated = false;
                 } else {
                     if (inserts.Count > 0) {
-                        insertedSource = temporary + ".inserted.xlsx";
+                        var insertedSource = Path.Combine(staging, "inserted.xlsx");
                         InsertWorkbookColumns(source, insertedSource, inserts, sheets);
                         source = insertedSource;
                     }
@@ -767,12 +799,11 @@ public static partial class WorkbookIO {
                     }
                     if (!patched) { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 }
-                // The streaming patcher writes a file anyone may read; the saved workbook is for those the opened one was.
-                if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(temporary, Permissions(opened));
                 sheetCount = CountSheets(temporary);
             }
-            File.Move(temporary, request.Path, true);
-        } finally { if (File.Exists(temporary)) File.Delete(temporary); if (insertedSource != null && File.Exists(insertedSource)) File.Delete(insertedSource); }
+            if (!OperatingSystem.IsWindows()) SetSavedWorkbookPermissions(temporary, opened, destination);
+            File.Move(temporary, destination, true);
+        } finally { Directory.Delete(staging, recursive: true); }
         return new { ok = true, path = request.Path, sheets = sheetCount, uncachedFormulas = uncached, recalculated };
     }
     static int CountSheets(string path) { using var zip = ZipFile.OpenRead(path); return new Package(zip, true).Sheets.Count; }

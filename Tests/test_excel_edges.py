@@ -539,6 +539,28 @@ try:
                 assert result.get('ok') and stat.S_IMODE(out.stat().st_mode) == mode, (oct(mode), label, result, oct(out.stat().st_mode))
             assert request(action='close', id=opened['id'])['ok']
         print('PASS: a workbook keeps who may read and write it through the private copy and every save')
+        # 17. Replacing an existing workbook cannot widen its permissions. A formula-free
+        #     source exercises the unchanged, ClosedXML and forced streaming save paths.
+        for source_mode in (0o644, 0o664):
+            source = folder/f'overwrite-source-{source_mode:o}.xlsx'
+            shutil.copyfile(plain, source)
+            source.chmod(source_mode)
+            opened = request(action='open', path=str(source))
+            assert 'error' not in opened, opened
+            edited_data = [{'name': 'Data', 'cells': [{'col': 0, 'row': 0, 'text': '789', 'kind': 'number'}]}]
+            unedited_data = [{'name': 'Data', 'cells': []}]
+            for target_mode in (0o600, 0o640):
+                for label, save_data, stream in (('unedited', unedited_data, False), ('edited', edited_data, False),
+                                                ('streamed', edited_data, True)):
+                    out = folder/f'overwrite-{source_mode:o}-{target_mode:o}-{label}.xlsx'
+                    out.write_bytes(b'previous destination')
+                    out.chmod(target_mode)
+                    result = request(action='save', id=opened['id'], path=str(out), sheets=save_data, stream=stream)
+                    assert result.get('ok') and zipfile.is_zipfile(out), result
+                    saved_mode = stat.S_IMODE(out.stat().st_mode)
+                    assert saved_mode == target_mode, (oct(source_mode), oct(target_mode), label, oct(saved_mode))
+            assert request(action='close', id=opened['id'])['ok']
+        print('PASS: unchanged, edited and streamed saves preserve a more restrictive existing destination mode')
         # Formula-region caches must also stay safe through Save As/reopen, not only the initial import.
         from excel_formula_region_save import check_formula_region_saves
         check_formula_region_saves(request, sys.argv[2], folder)

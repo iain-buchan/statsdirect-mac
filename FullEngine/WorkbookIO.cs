@@ -36,10 +36,14 @@ public static partial class WorkbookIO {
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { foreach (var original in originals.Values) { try { File.Delete(original.path); } catch { } } };
     }
     static readonly JsonSerializerOptions json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
-    // SavedEmpty marks a formula whose saved result is empty text, as the snapshot's extras do; it is written only when true.
+    // SavedEmpty marks empty saved text, including an array/spill or data-table result without its own formula element.
     public sealed record Cell(int Col, int Row, string Text, string Kind, string Formula = "",
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? SavedEmpty = null);
-    public sealed record Sheet(string Name, int Rows, int Columns, bool Hidden, List<Cell> Cells, int Count, int FormulaCount, string Snapshot);
+    // Formula result regions are inclusive and zero-based. They stay separate from cell formula expressions, and from the
+    // sparse snapshot cells, so a missing dependent needs no materialised cell to retain its formula origin.
+    public sealed record FormulaRegion(int FirstRow, int LastRow, int FirstColumn, int LastColumn);
+    public sealed record Sheet(string Name, int Rows, int Columns, bool Hidden, List<Cell> Cells, int Count, int FormulaCount, string Snapshot,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<FormulaRegion> FormulaRegions = null);
     public sealed record Patch(string Name, List<Cell> Cells);
     public sealed record Request(string Action, string Path, string Id, List<Patch> Sheets, string Snapshot, bool Stream = false, List<SheetInserts> Inserts = null, string Password = null);
     // Columns inserted into an opened worksheet by the grid (a write-back placed before existing columns), in the
@@ -109,6 +113,7 @@ public static partial class WorkbookIO {
     public sealed class SheetData {
         public string Name;
         public readonly SortedDictionary<int, ColumnData> Columns = new();
+        public readonly List<FormulaRegion> FormulaRegions = new();
         public ColumnData Column(int c) { if (!Columns.TryGetValue(c, out var d)) Columns[c] = d = new ColumnData { Col = c }; return d; }
     }
     static void Pad(BinaryWriter w, int align) { while (w.BaseStream.Position % align != 0) w.Write((byte)0); }
@@ -231,7 +236,8 @@ public static partial class WorkbookIO {
                     WriteSnapshot(stream, new[] { data });
                     cells = new List<Cell>();
                 } else cells = Cells(data).ToList();
-                sheets.Add(new Sheet(info.Name, rows, cols, info.Hidden, cells, count, formulas, snapshot));
+                sheets.Add(new Sheet(info.Name, rows, cols, info.Hidden, cells, count, formulas, snapshot,
+                    data.FormulaRegions.Count == 0 ? null : data.FormulaRegions));
                 index++;
             }
         }
@@ -442,6 +448,13 @@ public static partial class WorkbookIO {
                     if (reader.LocalName == "f") {
                         hasFormula = true;
                         string ft = reader.GetAttribute("t"), si = reader.GetAttribute("si");
+                        if (!valuesOnly && (ft is "array" or "dataTable")) {
+                            var region = FormulaResultRegion(reader.GetAttribute("ref"));
+                            if (region != null) {
+                                data.FormulaRegions.Add(region);
+                                rows = Math.Max(rows, region.LastRow + 1); cols = Math.Max(cols, region.LastColumn + 1);
+                            }
+                        }
                         string text = reader.ReadElementContentAsString();
                         if (ft == "shared" && si != null) {
                             if (text.Length > 0) shared[si] = (text, rowNumber, colNumber);
@@ -455,9 +468,10 @@ public static partial class WorkbookIO {
             }
             if (valuesOnly) { hasFormula = false; formula = ""; }   // a data copy keeps a formula's saved result alone
             if (hasFormula && formula.Length == 0) formula = "=";  // a formula without text still protects the cell
-            // A formula whose saved result is empty text (t="str" with <v></v> or <v/>) is marked, so that the grid can tell it
-            // from a formula with no saved result: no <v> at all, or an untyped empty <v/> as openpyxl writes every formula.
-            string extra = hasFormula && type == "str" && value?.Length == 0 ? SavedEmptyExtra : "";
+            // Empty saved text (t="str" with <v></v> or <v/>) is distinct from no saved result. Keep it even when the
+            // formula belongs to an array/spill or data-table anchor elsewhere, whose result region names this cell.
+            // An untyped empty <v/> as openpyxl writes every formula is not a saved empty-text result.
+            string extra = !valuesOnly && type == "str" && value?.Length == 0 ? SavedEmptyExtra : "";
             byte kind; double num = double.NaN; string cellText;
             if (type == "s") { kind = 2; cellText = value != null && int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var si) && si < package.SharedStrings.Count ? package.SharedStrings[si] : ""; }
             else if (type == "inlineStr") { kind = 2; cellText = inline ?? ""; }
@@ -480,7 +494,7 @@ public static partial class WorkbookIO {
                     if (format != FormatNumber && TryDateTimeText(num, format, package.Date1904, out var timeKind, out var timeText)) { kind = timeKind; cellText = timeText; num = double.NaN; }
                 }
             }
-            if (kind == 0 && !hasFormula) continue;
+            if (kind == 0 && !hasFormula && extra.Length == 0) continue;
             if (cellText.Length == 0 && kind != 1) kind = 0;
             if (kind == 0 && valuesOnly) continue;   // empty text too, as the compatibility reader leaves it out
             int row0 = rowNumber - 1, col0 = colNumber - 1;
@@ -489,6 +503,14 @@ public static partial class WorkbookIO {
             count++; if (formula.Length > 0) formulaCount++;
             rows = Math.Max(rows, row0 + 1); cols = Math.Max(cols, col0 + 1);
         }
+    }
+    static FormulaRegion FormulaResultRegion(string reference) {
+        if (reference == null || !Regex.IsMatch(reference, @"^\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}(?::\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6})?\z"))
+            return null;
+        var ends = reference.Replace("$", "").Split(':');
+        var (r1, c1) = ParseAddress(ends[0]); var (r2, c2) = ParseAddress(ends[^1]);
+        if (r1 > MaxRows || r2 > MaxRows || c1 > MaxCols || c2 > MaxCols) return null;
+        return new FormulaRegion(Math.Min(r1, r2) - 1, Math.Max(r1, r2) - 1, Math.Min(c1, c2) - 1, Math.Max(c1, c2) - 1);
     }
     // Concatenates the text runs of an <is> or <si> element (phonetic runs excluded). The
     // reader starts on the element and finishes on its end tag.

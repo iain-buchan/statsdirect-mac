@@ -34,7 +34,8 @@ import json, math, os, re, shutil, struct, subprocess, sys, tempfile, zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_EXAMPLES = [ROOT / 'Learn/Upstream/WorksheetR/examples.json', ROOT / 'Tests/worksheet-r-mac-examples.json']
+DEFAULT_EXAMPLES = [ROOT / 'Learn/Upstream/WorksheetR/examples.json', ROOT / 'Tests/worksheet-r-mac-examples.json',
+                    ROOT / 'Tests/worksheet-r-formula-children.json']
 if len(sys.argv) < 4:
     sys.exit(__doc__.split('\n\n')[1])
 DRIVER, NODE, RSCRIPT = sys.argv[1:4]
@@ -45,7 +46,7 @@ ZONE = dict(os.environ, TZ='Asia/Kolkata')
 # ---------- The cases ----------
 
 SERIALS = ('date', 'datetime', 'time', 'duration')
-CELL_KINDS = ('number', 'text', 'textUnits', 'boolean', 'error', 'formula', 'typed') + SERIALS
+CELL_KINDS = ('number', 'text', 'textUnits', 'boolean', 'error', 'formula', 'cached', 'typed') + SERIALS
 
 def tag(path):
     return 'shared' if path.parent.name == 'WorksheetR' else 'mac' if path.name == 'worksheet-r-mac-examples.json' else path.stem
@@ -56,13 +57,15 @@ def check_cell(where, cell, inside_formula=False):
     allowed = {kinds[0]} if len(kinds) == 1 else set()
     if kinds and kinds[0] in SERIALS: allowed.add('format')
     if kinds == ['formula']: allowed.add('value')
-    if len(kinds) != 1 or set(cell) != allowed or inside_formula and kinds[0] in ('formula', 'typed'):
+    if len(kinds) != 1 or set(cell) != allowed or inside_formula and kinds[0] in ('formula', 'cached', 'typed'):
         raise SystemExit(f'{where}: a cell this harness cannot write: {json.dumps(cell)}')
     if kinds == ['formula']: check_cell(where + ' (its value)', cell['value'], True)
+    if kinds == ['cached'] and cell['cached'] is not None: check_cell(where + ' (its cached value)', cell['cached'], True)
 
 # Every field the schema names, the Mac file's dateSystem included: a field added to a later version stops the test, rather
 # than passing unread.
-CASE_KEYS = {'name', 'rules', 'cells', 'select', 'options', 'expect', 'formatOnly', 'merged', 'note', 'skip', 'dateSystem'}
+CASE_KEYS = {'name', 'rules', 'cells', 'select', 'options', 'expect', 'formatOnly', 'merged', 'note', 'skip', 'dateSystem',
+             'formulaAnchors', 'edits', 'loaderMode'}
 SELECT_KEYS = {'entire', 'range', 'columns', 'rows', 'areas', 'all', 'none'}
 OPTION_KEYS = {'format', 'headings', 'friendly'}
 EXPECT_KEYS = {'entire', 'selected', 'entireEnabled', 'selectedEnabled', 'headingsEnabled', 'headingsSuggested', 'comments', 'r',
@@ -76,6 +79,21 @@ def check_case(where, case):
         raise SystemExit(f'{where}: a selection or date system this harness cannot make')
     for ref, cell in case['cells'].items():
         check_cell(f'{where} {ref}', cell)
+    if case.get('loaderMode', 'snapshot') not in ('snapshot', 'cells'):
+        raise SystemExit(f'{where}: unknown loaderMode')
+    for ref, text in case.get('edits', {}).items():
+        if not re.fullmatch(r'[A-Z]{1,3}[1-9][0-9]*', ref) or not isinstance(text, str):
+            raise SystemExit(f'{where}: invalid edit {ref}')
+    for ref, anchor in case.get('formulaAnchors', {}).items():
+        if 'formula' not in case['cells'].get(ref, {}) or not set(anchor) <= {'type', 'range', 'r1', 'r2', 'dt2D'}:
+            raise SystemExit(f'{where}: invalid formula anchor {ref}')
+        if anchor.get('type') not in ('array', 'dataTable') or not re.fullmatch(r'\$?[A-Za-z]{1,3}\$?[1-9][0-9]*(?::\$?[A-Za-z]{1,3}\$?[1-9][0-9]*)?', anchor.get('range', '')):
+            raise SystemExit(f'{where}: invalid formula range {ref}')
+        for input_key in ('r1', 'r2'):
+            if input_key in anchor and not re.fullmatch(r'[A-Z]{1,3}[1-9][0-9]*', anchor[input_key]):
+                raise SystemExit(f'{where}: invalid formula input {ref} {input_key}')
+        if 'dt2D' in anchor and not isinstance(anchor['dt2D'], bool):
+            raise SystemExit(f'{where}: invalid data table dimension flag {ref}')
 
 cases = []
 for path in EXAMPLES:
@@ -158,15 +176,26 @@ def write_workbook(case, path):
         if 'error' in cell: return f' t="e"><v>{markup(cell["error"])}</v>'
         kind = next(k for k in SERIALS if k in cell)
         return f' s="{style(cell["format"])}"><v>{number_text(cell[kind])}</v>'
-    def formula(cell):   # a formula with the value Excel saved for it
-        saved = cell['value']
-        text = markup(cell['formula'][1:] if cell['formula'].startswith('=') else cell['formula'])
-        if 'text' in saved: return f' t="str"><f>{text}</f><v>{cell_text(saved["text"])}</v>'
-        if 'boolean' in saved: return f' t="b"><f>{text}</f><v>{1 if saved["boolean"] else 0}</v>'
-        if 'error' in saved: return f' t="e"><f>{text}</f><v>{markup(saved["error"])}</v>'
-        if 'number' in saved: return f'><f>{text}</f><v>{number_text(saved["number"])}</v>'
+    def saved_value(saved, expression=''):
+        # A dependent array/spill or data-table cell has a cache but no <f>.
+        # None means no cache at all; empty text is explicitly t="str" + <v/>.
+        if saved is None: return '>' + expression
+        if 'text' in saved: return f' t="str">{expression}<v>{cell_text(saved["text"])}</v>'
+        if 'boolean' in saved: return f' t="b">{expression}<v>{1 if saved["boolean"] else 0}</v>'
+        if 'error' in saved: return f' t="e">{expression}<v>{markup(saved["error"])}</v>'
+        if 'number' in saved: return f'>{expression}<v>{number_text(saved["number"])}</v>'
         kind = next(k for k in SERIALS if k in saved)
-        return f' s="{style(saved["format"])}"><f>{text}</f><v>{number_text(saved[kind])}</v>'
+        return f' s="{style(saved["format"])}">{expression}<v>{number_text(saved[kind])}</v>'
+    def formula(cell, ref):
+        text = markup(cell['formula'][1:] if cell['formula'].startswith('=') else cell['formula'])
+        anchor = case.get('formulaAnchors', {}).get(ref)
+        attrs = ''
+        if anchor:
+            attrs = f' t="{anchor["type"]}" ref="{attribute(anchor["range"])}"'
+            for key in ('r1', 'r2'):
+                if key in anchor: attrs += f' {key}="{attribute(anchor[key])}"'
+            if 'dt2D' in anchor: attrs += f' dt2D="{1 if anchor["dt2D"] else 0}"'
+        return saved_value(cell['value'], f'<f{attrs}>{text}</f>')
     rows = {}
     for ref, cell in case['cells'].items():
         if 'typed' in cell: continue   # typed into the grid once the workbook is open, never in the file
@@ -181,7 +210,7 @@ def write_workbook(case, path):
         for col in sorted(rows[row]):
             ref, cell = rows[row][col]
             if cell is None: cells.append(f'<c r="{ref}" s="{style(FORMAT_ONLY)}"/>')
-            else: cells.append(f'<c r="{ref}"' + (formula(cell) if 'formula' in cell else value(cell, row)) + '</c>')
+            else: cells.append(f'<c r="{ref}"' + (formula(cell, ref) if 'formula' in cell else saved_value(cell['cached']) if 'cached' in cell else value(cell, row)) + '</c>')
         sheet_rows.append(f'<row r="{row}">' + ''.join(cells) + '</row>')
     used = [(col, row) for row in rows for col in rows[row]]
     dimension = 'A1' if not used else (f'{column_letters(min(c for c, _ in used))}{min(r for _, r in used)}:'
@@ -311,11 +340,12 @@ def main():
             for case in todo:
                 book = folder / f'{case["id"]}.xlsx'
                 write_workbook(case, book)
-                reply = request(action='open', path=str(book), snapshot=str(folder / 'snapshots'))
+                reply = request(action='open', path=str(book), **({} if case.get('loaderMode') == 'cells' else {'snapshot': str(folder / 'snapshots')}))
                 if 'error' in reply or reply.get('dataCopy'):
                     raise SystemExit(f'{case["tag"]}: the loader did not open the workbook as an editable .xlsx: {reply}')
                 assert request(action='close', id=reply['id']).get('ok'), case['tag']
-                typed = [{'ref': ref, 'text': cell['typed']} for ref, cell in case['cells'].items() if 'typed' in cell]
+                typed = ([{'ref': ref, 'text': cell['typed']} for ref, cell in case['cells'].items() if 'typed' in cell]
+                         + [{'ref': ref, 'text': text} for ref, text in case.get('edits', {}).items()])
                 plan.append({'id': case['id'], 'select': case['select'], 'options': case['options'],
                              'labelsOnly': bool(case['expect'].get('labelsOnly')), 'typed': typed, 'reply': reply})
         finally:

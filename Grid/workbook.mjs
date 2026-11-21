@@ -29,6 +29,7 @@ export class WorkbookStore {
       store.rows = Math.max(100, sheet.rows);
       store.excelRows = true;
       store.csvRows = sheet.csvRows ?? 0;
+      store.formulaRegions = sheet.formulaRegions ?? [];
       // A sheet carries typed `columnar` records (decoded from a snapshot file), per-column
       // `batches` from the CSV loader, per-cell `cells`, or a combination.
       if (sheet.columnar) store.setLoadedColumns(sheet.columnar);

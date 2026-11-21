@@ -1,0 +1,1273 @@
+{
+  "about": "Real OOXML array/spill and data-table dependent caches, selected without their anchor. Tests/test_worksheet_r_examples.py writes each workbook and runs the actual loader, grid mutation path, native formatter and R. Both sparse snapshot and ordinary cell-JSON representations are qualified.",
+  "version": 1,
+  "schema": {
+    "extends": "The Mac worksheet R fixture schema, with explicit OOXML-only additions below.",
+    "formulaAnchors": "Anchor address -> {type: array|dataTable, range: Excel reference, optional r1/r2/dt2D}. The cell itself has formula/value. Children contain no f element.",
+    "cached": "A cell {cached: value} writes a dependent cached result with no formula element. null writes a cell with no cache; {text:\"\"} writes t=\"str\" with an explicit empty v.",
+    "edits": "Existing cell address -> text typed after the workbook opens, through store.apply and workbook.changed.",
+    "loaderMode": "snapshot (default) uses the real typed binary snapshot; cells requests ordinary JSON cells from the same engine loader."
+  },
+  "cases": [
+    {
+      "name": "Legacy array dependent alone: fresh (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=A2*{1,2;3,4}",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "28"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(28)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Legacy array dependent alone: edited input (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=A2*{1,2;3,4}",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "28"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin.",
+      "edits": {
+        "A2": "8"
+      }
+    },
+    {
+      "name": "Legacy array dependent alone: uncached (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=A2*{1,2;3,4}",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": null
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Legacy array dependent alone: saved empty text (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=A2*{1,2;3,4}",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "text": ""
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(NA)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Legacy array dependent alone: fresh (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=A2*{1,2;3,4}",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "28"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(28)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Legacy array dependent alone: edited input (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=A2*{1,2;3,4}",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "28"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin.",
+      "edits": {
+        "A2": "8"
+      }
+    },
+    {
+      "name": "Legacy array dependent alone: uncached (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=A2*{1,2;3,4}",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": null
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Legacy array dependent alone: saved empty text (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=A2*{1,2;3,4}",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "text": ""
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(NA)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Dynamic spill dependent alone: fresh (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=_xlfn.SEQUENCE(2,2,A2,1)",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "10"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(10)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Dynamic spill dependent alone: edited input (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=_xlfn.SEQUENCE(2,2,A2,1)",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "10"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin.",
+      "edits": {
+        "A2": "8"
+      }
+    },
+    {
+      "name": "Dynamic spill dependent alone: uncached (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=_xlfn.SEQUENCE(2,2,A2,1)",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": null
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Dynamic spill dependent alone: saved empty text (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=_xlfn.SEQUENCE(2,2,A2,1)",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "text": ""
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(NA)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Dynamic spill dependent alone: fresh (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=_xlfn.SEQUENCE(2,2,A2,1)",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "10"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(10)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Dynamic spill dependent alone: edited input (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=_xlfn.SEQUENCE(2,2,A2,1)",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "10"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin.",
+      "edits": {
+        "A2": "8"
+      }
+    },
+    {
+      "name": "Dynamic spill dependent alone: uncached (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=_xlfn.SEQUENCE(2,2,A2,1)",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": null
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Dynamic spill dependent alone: saved empty text (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "=_xlfn.SEQUENCE(2,2,A2,1)",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "text": ""
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:C3"
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(NA)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Data table dependent alone: fresh (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "42"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "dataTable",
+          "range": "B2:C3",
+          "r1": "A2",
+          "r2": "A3",
+          "dt2D": true
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(42)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Data table dependent alone: edited input (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "42"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "dataTable",
+          "range": "B2:C3",
+          "r1": "A2",
+          "r2": "A3",
+          "dt2D": true
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin.",
+      "edits": {
+        "A2": "8"
+      }
+    },
+    {
+      "name": "Data table dependent alone: uncached (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": null
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "dataTable",
+          "range": "B2:C3",
+          "r1": "A2",
+          "r2": "A3",
+          "dt2D": true
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Data table dependent alone: saved empty text (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "text": ""
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "dataTable",
+          "range": "B2:C3",
+          "r1": "A2",
+          "r2": "A3",
+          "dt2D": true
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(NA)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Data table dependent alone: fresh (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "42"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "dataTable",
+          "range": "B2:C3",
+          "r1": "A2",
+          "r2": "A3",
+          "dt2D": true
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(42)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Data table dependent alone: edited input (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "number": "42"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "dataTable",
+          "range": "B2:C3",
+          "r1": "A2",
+          "r2": "A3",
+          "dt2D": true
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin.",
+      "edits": {
+        "A2": "8"
+      }
+    },
+    {
+      "name": "Data table dependent alone: uncached (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": null
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "dataTable",
+          "range": "B2:C3",
+          "r1": "A2",
+          "r2": "A3",
+          "dt2D": true
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Data table dependent alone: saved empty text (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "A3": {
+          "number": "6"
+        },
+        "B2": {
+          "formula": "",
+          "value": {
+            "number": "7"
+          }
+        },
+        "C3": {
+          "cached": {
+            "text": ""
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "dataTable",
+          "range": "B2:C3",
+          "r1": "A2",
+          "r2": "A3",
+          "dt2D": true
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(NA)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      },
+      "note": "C3 has no formula element. The declared anchor range, not an invented child expression, must preserve its formula origin."
+    },
+    {
+      "name": "Ordinary scalar formula control with fresh cache",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "C3": {
+          "formula": "=A2*2",
+          "value": {
+            "number": "14"
+          }
+        }
+      },
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "r": "structure(list(c(14)), names = c(\"C\"), row.names = c(NA_integer_, -1L), class = \"data.frame\")"
+      }
+    },
+    {
+      "name": "Ordinary scalar formula control after referenced input edit",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "C3": {
+          "formula": "=A2*2",
+          "value": {
+            "number": "14"
+          }
+        }
+      },
+      "select": {
+        "range": "C3"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "edits": {
+        "A2": "8"
+      }
+    },
+    {
+      "name": "Sparse absent spill dependent at row 1000000 (snapshot loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "B2": {
+          "formula": "=_xlfn.SEQUENCE(999999,1,A2,1)",
+          "value": {
+            "number": "7"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:B1000000"
+        }
+      },
+      "loaderMode": "snapshot",
+      "select": {
+        "range": "B1000000"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "The selected cell is absent from sheetData; its declared spill range must survive the sparse loader without materialising a million children."
+    },
+    {
+      "name": "Sparse absent spill dependent at row 1000000 (cells loader)",
+      "rules": [
+        "7",
+        "3.11"
+      ],
+      "cells": {
+        "A2": {
+          "number": "7"
+        },
+        "B2": {
+          "formula": "=_xlfn.SEQUENCE(999999,1,A2,1)",
+          "value": {
+            "number": "7"
+          }
+        }
+      },
+      "formulaAnchors": {
+        "B2": {
+          "type": "array",
+          "range": "B2:B1000000"
+        }
+      },
+      "loaderMode": "cells",
+      "select": {
+        "range": "B1000000"
+      },
+      "options": {
+        "format": "data frame",
+        "headings": false,
+        "friendly": false
+      },
+      "expect": {
+        "refusedMessage": "Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.",
+        "r": null
+      },
+      "note": "The selected cell is absent from sheetData; its declared spill range must survive the sparse loader without materialising a million children."
+    }
+  ]
+}

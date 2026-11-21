@@ -21,6 +21,7 @@ export function kindIndex(name) { return KIND_INDEX.get(name) ?? TEXT; }
 const LOADED = 1, MODIFIED = 2;
 // The snapshot extra the loader writes for a formula whose saved result is empty text, exactly as WorkbookIO.cs writes it.
 const SAVED_EMPTY_TEXT = '{"savedEmpty":true}', SAVED_EMPTY = Object.freeze({savedEmpty: true});
+const NO_FORMULA_SPANS = [];
 const UNDO_STEPS = 50,
   UNDO_BYTES = 256 * 1024 * 1024;
 const DATETIME = /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/,
@@ -202,6 +203,8 @@ export class GridStore {
     this.excelRows = false;
     this.csvRows = 0;
     this.formulasStale = false;
+    this.formulaRegions = [];
+    this.formulaSpansByColumn = new Map();
     if (example) {
       this.setLoaded(example.before.map((v, r) => ({col: 0, row: r, text: String(v), kind: 'number'})).concat(example.after.map((v, r) => ({col: 1, row: r, text: String(v), kind: 'number'}))), false);
     }
@@ -222,12 +225,29 @@ export class GridStore {
     const col = this.cols[c];
     return col ? col.formula.get(r) ?? '' : '';
   }
+  // Excel can save only the anchor expression for an array or data table. Keep the
+  // dependent rows as spans in the original worksheet rather than allocating cells.
+  formulaResultSpans(c) {
+    if (!this.formulaRegions.length) return NO_FORMULA_SPANS;
+    let spans = this.formulaSpansByColumn.get(c);
+    if (spans) return spans;
+    let original = c;
+    for (let i = this.inserts.length - 1; i >= 0; i--) {
+      const {col, count} = this.inserts[i];
+      if (original < col) continue;
+      if (original < col + count) { original = -1; break; }
+      original -= count;
+    }
+    spans = this.formulaRegions.filter(r => r.firstColumn <= original && original <= r.lastColumn);
+    this.formulaSpansByColumn.set(c, spans);
+    return spans;
+  }
   // A formula cell whose value cannot be used: the workbook has been edited since it was opened, so
   // results may be out of date, or the file saved no result. A saved result of empty text (the
   // loader's savedEmpty flag) is a blank cell, not a missing result.
   formulaUnavailable(c, r) {
-    if (!this.formula(c, r)) return false;
-    return this.formulasStale || this.get(c, r) === '' && this.cols[c].extra.get(r)?.savedEmpty !== true;
+    if (!this.formula(c, r) && !this.formulaResultSpans(c).some(span => span.firstRow <= r && r <= span.lastRow)) return false;
+    return this.formulasStale || this.get(c, r) === '' && this.cols[c]?.extra.get(r)?.savedEmpty !== true;
   }
   // The cell as loaded from a file (undefined for cells that were never loaded). For a cell
   // edited since loading, the values it had when loaded.
@@ -454,7 +474,11 @@ export class GridStore {
     this.version++;
     this.rows = forward ? step.newRows : step.oldRows;
     this.growColumns(forward ? step.newCols : step.oldCols);
-    if (step.inserts?.length) { if (forward) this.inserts.push(...step.inserts); else this.inserts.splice(-step.inserts.length); }
+    if (step.inserts?.length) {
+      if (forward) this.inserts.push(...step.inserts);
+      else this.inserts.splice(-step.inserts.length);
+      this.formulaSpansByColumn.clear();
+    }
   }
   undo() {
     const s = this.undoStack.pop();

@@ -33,3 +33,19 @@ test('range analysis selects only requested pairs', () => {
   assert.deepEqual(s.paired(2, 3, 1, 3).before, [3, 5]);
   assert.throws(() => s.paired(2, 2), /different/);
 });
+
+test('cached formula result regions follow inserted columns and undo', () => {
+  const s = new GridStore();
+  s.setLoaded([{col: 0, row: 0, text: '2', kind: 'number', formula: 'SEQUENCE(1,2)'}, {col: 1, row: 0, text: '3', kind: 'number'}]);
+  s.formulaRegions = [{firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 1}];
+  assert.equal(s.formulaUnavailable(1, 0), false);
+  s.formulasStale = true;
+  assert.equal(s.formulaUnavailable(1, 0), true);
+  assert.equal(s.apply([], s.rows, s.columns.length + 1, [{col: 1, count: 1}]), true);
+  assert.equal(s.formulaUnavailable(1, 0), false, 'a new column has no original formula result');
+  assert.equal(s.formulaUnavailable(2, 0), true, 'the dependent moved with its cached value');
+  assert.equal(s.undo(), true);
+  assert.equal(s.formulaUnavailable(1, 0), true);
+  assert.equal(s.redo(), true);
+  assert.equal(s.formulaUnavailable(2, 0), true);
+});

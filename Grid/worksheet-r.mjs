@@ -190,9 +190,8 @@ function suggestHeadings(store, plan) {
 // values and formulas (rule 2.1: white-space text too) define the data.
 function columnBounds(store, c) {
   const column = store.cols[c];
-  if (!column) return null;
-  let first = Infinity, last = column.used() - 1;
-  if (column.count) {
+  let first = Infinity, last = (column?.used() ?? 0) - 1;
+  if (column?.count) {
     outer: for (const chunk of [...column.chunks.keys()].sort((a, b) => a - b)) {
       const kinds = column.chunks.get(chunk).kind;
       for (let i = 0; i < kinds.length; i++) {
@@ -200,7 +199,10 @@ function columnBounds(store, c) {
       }
     }
   }
-  for (const row of column.formula.keys()) { first = Math.min(first, row); last = Math.max(last, row); }
+  if (column) for (const row of column.formula.keys()) { first = Math.min(first, row); last = Math.max(last, row); }
+  for (const span of store.formulaResultSpans(c)) {
+    first = Math.min(first, span.firstRow); last = Math.max(last, span.lastRow);
+  }
   return Number.isFinite(first) ? {first, last} : null;
 }
 function populatedBounds(store, columns = null) {
@@ -212,7 +214,7 @@ function populatedBounds(store, columns = null) {
     left = Math.min(left, c); right = Math.max(right, c);
   };
   if (columns) columns.forEach(visit);
-  else store.cols.forEach((_column, c) => visit(c));
+  else for (let c = 0; c < store.columns.length; c++) visit(c);
   return Number.isFinite(first) ? {first, last, left, right} : null;
 }
 // Every row from first to last of a column that holds a value, then every formula row in that span (which can repeat a
@@ -225,6 +227,7 @@ function forEachFilledRow(column, first, last, visit, formulas = true) {
   if (formulas) for (const r of column.formula.keys()) if (r >= first && r <= last) visit(r);
 }
 function hasData(store, c, first, last) {
+  if (store.formulaResultSpans(c).some(span => span.firstRow <= last && span.lastRow >= first)) return true;
   const column = store.cols[c];
   if (!column) return false;
   for (const r of column.formula.keys()) if (r >= first && r <= last) return true;
@@ -332,11 +335,21 @@ function rowsPlan(store, selected) {
   let low = Infinity, high = -1;
   for (const r of selected) { marked[r] = 1; low = Math.min(low, r); high = Math.max(high, r); }
   let first = Infinity, last = -1, left = Infinity, right = -1;
-  store.cols.forEach((column, c) => forEachFilledRow(column, low, high, r => {
-    if (!marked[r]) return;
+  const visit = (c, r) => {
     first = Math.min(first, r); last = Math.max(last, r);
     left = Math.min(left, c); right = Math.max(right, c);
-  }));
+  };
+  store.cols.forEach((column, c) => forEachFilledRow(column, low, high, r => { if (marked[r]) visit(c, r); }));
+  if (store.formulaRegions.length) {
+    for (let c = 0; c < store.columns.length; c++) {
+      for (const span of store.formulaResultSpans(c)) {
+        const top = marked.indexOf(1, Math.max(low, span.firstRow));
+        if (top < 0 || top > span.lastRow) continue;
+        visit(c, top);
+        visit(c, marked.lastIndexOf(1, Math.min(high, span.lastRow)));
+      }
+    }
+  }
   if (last < 0) return 'empty';
   const rows = [];
   for (let r = first; r <= last; r++) if (marked[r]) rows.push(r);

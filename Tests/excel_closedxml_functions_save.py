@@ -24,7 +24,9 @@ import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 import openpyxl
+from openpyxl.packaging.relationship import Relationship
 from openpyxl.workbook.defined_name import DefinedName
+from openpyxl.workbook.external_link import external
 
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
@@ -57,8 +59,12 @@ FIXTURES = {
     'known': {'cells': [('C1', 'SUM(A1:A6)', '21', None),
                         ('C2', 'IF(A1>0,"NORM.S.INV(x)",1)', 'NORM.S.INV(x)', 'str'),
                         ("C3", "'NORMSINV(2)'!A1*2", '14', None),
+                        ('C4', 'ROUND(1.005,2)', '1.01', None),
                         ('D1', 'E1*2', '4', None)],
               'names': {'Dyn': 'OFFSET(Data!$A$1,0,0,COUNTA(Data!$A:$A),1)'}, 'streams': False},
+    'external': {'cells': [('C1', 'IFERROR([1]Sheet!A1,0)', '97', None),
+                           ('D1', 'E1*2', '4', None)],
+                 'names': {}, 'streams': False, 'external': True},
 }
 
 
@@ -79,6 +85,18 @@ def fixture(path, spec):
     ws['E1'] = 2
     book.create_sheet('NORMSINV(2)')['A1'] = 7
     for name, text in spec['names'].items(): book.defined_names[name] = DefinedName(name, attr_text=text)
+    if spec.get('external'):
+        linked_path = path.with_name('linked.xlsx')
+        linked = openpyxl.Workbook()
+        linked.active['A1'] = 97
+        linked.save(linked_path)
+        cached_row = external.ExternalRow(r=1, cell=[external.ExternalCell(r='A1', t='n', v='97')])
+        cached_sheet = external.ExternalSheetData(sheetId=0, row=[cached_row])
+        link = external.ExternalLink(externalBook=external.ExternalBook(
+            sheetNames=external.ExternalSheetNames(['Sheet']),
+            sheetDataSet=external.ExternalSheetDataSet([cached_sheet]), id='rId1'))
+        link.file_link = Relationship(Id='rId1', type='externalLinkPath', Target=linked_path.resolve().as_uri(), TargetMode='External')
+        book._external_links.append(link)
     book.save(seed)
     with zipfile.ZipFile(seed) as source, zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as target:
         for item in source.infolist():
@@ -117,11 +135,11 @@ def check_closedxml_function_saves(request, node, folder):
     def check(ok, label):
         print(('PASS: ' if ok else 'FAIL: ') + label, flush=True)
         if not ok: failures.append(label)
-    def grid(reply, refs, label, edit=None):
+    def grid(reply, refs, label, edit=None, write_snapshot=False):
         payload = folder / (label + '.json')
         payload.write_text(json.dumps({'reply': reply, 'cells': [position(ref) for ref in refs], 'edit': edit}), encoding='utf-8')
         edits = folder / (label + '.edits.sdcol')
-        command = [node, str(ROOT / 'Tests/worksheet-r-cells.mjs'), str(payload)] + ([str(edits)] if edit else [])
+        command = [node, str(ROOT / 'Tests/worksheet-r-cells.mjs'), str(payload)] + ([str(edits)] if edit or write_snapshot else [])
         return json.loads(subprocess.check_output(command, text=True, cwd=ROOT)), edits
     for variant, spec in FIXTURES.items():
         source = folder / (variant + '-source.xlsx')
@@ -135,11 +153,14 @@ def check_closedxml_function_saves(request, node, folder):
             check(fresh['D1'].get('values') == ['4'] and all(cell.get('values') is not None for cell in fresh.values()),
                   variant + ': the freshly opened results go to R as Excel saved them')
             check(all(cell.get('error') == REFUSAL for cell in seen['after']), variant + ': after the grid edit every formula result is refused for R')
-            for label, snapshot in ((variant + '-edited', edits), (variant + '-unedited', None)):
+            _, unchanged = grid(opened, refs, variant + '-unchanged', write_snapshot=True)
+            saves = [('edited', edits, True, False),
+                     ('unedited', unchanged, False, False),
+                     ('unedited-stream', unchanged, False, True)]
+            for operation, snapshot, edited, stream in saves:
+                label = variant + '-' + operation
                 saved_path = folder / (label + '.xlsx')
-                # Unedited, the grid sends every worksheet with no changed cells.
-                unchanged = [{'name': sheet['name'], 'cells': []} for sheet in opened['sheets']]
-                saved = request(action='save', path=str(saved_path), id=opened['id'], **({'snapshot': str(snapshot)} if snapshot else {'sheets': unchanged}))
+                saved = request(action='save', path=str(saved_path), id=opened['id'], snapshot=str(snapshot), stream=stream)
                 if not saved.get('ok'): check(False, label + ': the default save succeeded: ' + str(saved)); continue
                 old_xml, new_xml = xml_cells(source), xml_cells(saved_path)
                 check(all(new_xml[ref].findtext(S + 'f') == old_xml[ref].findtext(S + 'f') for ref in refs), label + ': every formula expression is kept')
@@ -148,11 +169,11 @@ def check_closedxml_function_saves(request, node, folder):
                 try:
                     back, _ = grid(reopened, refs + ['A1', 'E1'], label + '-reopened')
                     cells = {ref: cell for ref, cell in zip(refs + ['A1', 'E1'], back['before'])}
-                    check(cells['A1'].get('values') == ['1'] and cells['E1'].get('values') == (['10'] if snapshot else ['2']), label + ': the values around the formulas survive')
-                    if spec['streams'] and not snapshot:
-                        # Nothing edited, nothing to merge: the copy keeps every result Excel saved, and R receives them.
-                        check(saved.get('recalculated') is True and saved.get('uncachedFormulas') == 0 and saved_path.read_bytes() == source.read_bytes(),
-                              label + ': an unedited Save As copies the workbook as opened: ' + json.dumps(saved))
+                    check(cells['A1'].get('values') == ['1'] and cells['E1'].get('values') == (['10'] if edited else ['2']), label + ': the values around the formulas survive')
+                    if not edited:
+                        check(saved_path.read_bytes() == source.read_bytes(), label + ': the workbook is copied byte for byte')
+                        check(saved.get('recalculated') is False and saved.get('uncachedFormulas') == 0,
+                              label + ': an unedited copy neither calculates nor invalidates formula results: ' + json.dumps(saved))
                         check(all(cells[ref].get('values') == fresh[ref].get('values') for ref in refs),
                               label + ': the reopened results are Excel\'s saved ones: ' + json.dumps([cells[ref] for ref in refs]))
                     elif spec['streams']:
@@ -162,12 +183,16 @@ def check_closedxml_function_saves(request, node, folder):
                               label + ': no formula keeps a saved result: no #NAME?, no IFERROR or ISERROR fallback, no stale value')
                         check(all(cells[ref]['text'] == '' and cells[ref]['unavailable'] is True and cells[ref].get('error') == REFUSAL for ref in refs),
                               label + ': every reopened formula result is refused for R until Excel recalculates it: ' + json.dumps([cells[ref] for ref in refs]))
+                    elif spec.get('external'):
+                        check(saved.get('uncachedFormulas') == 1 and new_xml['C1'].find(S + 'v') is None
+                              and cells['C1'].get('error') == REFUSAL and cells['D1'].get('values') == ['20'],
+                              label + ': the edited linked result is unavailable while the local formula recalculates')
                     else:
-                        expected = {'C1': ['21'], 'C2': ['NORM.S.INV(x)'], 'C3': ['14'], 'D1': ['20' if snapshot else '4']}
+                        expected = {'C1': ['21'], 'C2': ['NORM.S.INV(x)'], 'C3': ['14'], 'D1': ['20']}
                         check(saved.get('recalculated') is True and saved.get('uncachedFormulas') == 0,
                               label + ': functions ClosedXML implements keep the ClosedXML patcher: ' + json.dumps(saved))
-                        check({ref: cells[ref].get('values') for ref in refs} == expected,
-                              label + ': the reopened results are ClosedXML\'s recalculated ones, and R receives them: ' + json.dumps([cells[ref] for ref in refs]))
+                        check(all(cells[ref].get('values') == values for ref, values in expected.items()),
+                              label + ': the reopened controls reach R with their recalculated results: ' + json.dumps([cells[ref] for ref in expected]))
                 finally: assert request(action='close', id=reopened['id']).get('ok')
         finally: assert request(action='close', id=opened['id']).get('ok')
     if failures: raise AssertionError(f'{len(failures)} ClosedXML function save/reopen checks failed: ' + '; '.join(failures))

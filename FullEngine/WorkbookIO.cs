@@ -22,7 +22,8 @@ using ClosedXML.Excel;
 // names a `snapshot` directory, as one typed columnar file per sheet (see Snapshot below)
 // that the grid loads into typed arrays without going through JSON.
 //
-// Saving writes a new workbook with a streaming XML writer. An opened workbook is patched:
+// Saving writes a new workbook with a streaming XML writer. An unchanged source workbook
+// is copied with its original calculation settings and cached results. Edits are patched:
 // small workbooks through ClosedXML (which recalculates formulas and preserves styles),
 // large ones by streaming each worksheet part and merging the edited cells, leaving Excel
 // to recalculate formulas when it opens the file.
@@ -722,18 +723,20 @@ public static partial class WorkbookIO {
             if (source == null) { using var stream = File.Create(temporary); WriteWorkbook(stream, sheets); }   // a new workbook already holds the cells where the grid put them
             else {
                 long edits = sheets.Sum(s => s.Columns.Values.Sum(c => (long)c.Rows.Count));
-                if (inserts.Count > 0) {
-                    insertedSource = temporary + ".inserted.xlsx";
-                    InsertWorkbookColumns(source, insertedSource, inserts, sheets);
-                    source = insertedSource;
+                if (edits == 0 && inserts.Count == 0) {
+                    File.Copy(source, temporary, true);
+                    recalculated = false;
+                } else {
+                    if (inserts.Count > 0) {
+                        insertedSource = temporary + ".inserted.xlsx";
+                        InsertWorkbookColumns(source, insertedSource, inserts, sheets);
+                        source = insertedSource;
+                    }
+                    int? patched = null;
+                    if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source) && ClosedXmlCalculates(source)) { File.Copy(source, temporary, true); patched = PatchWithClosedXml(temporary, source, sheets); }
+                    if (patched is int count) uncached = count;
+                    else { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 }
-                int? patched = null;
-                if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source) && ClosedXmlCalculates(source)) { File.Copy(source, temporary, true); patched = PatchWithClosedXml(temporary, source, sheets); }
-                if (patched is int count) uncached = count;
-                // With no edited cell and no inserted column there is nothing to merge: the workbook as opened keeps the
-                // results Excel saved, which the streaming patch would drop for Excel to recalculate.
-                else if (edits == 0 && inserts.Count == 0) File.Copy(source, temporary, true);
-                else { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 sheetCount = CountSheets(temporary);
             }
             File.Move(temporary, request.Path, true);

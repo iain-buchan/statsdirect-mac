@@ -312,8 +312,7 @@ try:
             assert result.get('ok') and result['recalculated'] is False and result['uncachedFormulas'] == len(FORMULAS), (stream, result)
             check_round_trip(out, f'streaming patch, stream={stream}', moved, uncached)
         assert request(action='close', id=opened['id'])['ok']
-        # ClosedXML's results are kept only when it reproduces every result Excel saved, and a formula with no saved result
-        # gives it nothing to reproduce: a workbook ClosedXML can load, but with such formulas, is saved by streaming too.
+        # Even a workbook ClosedXML can load is saved by streaming when it contains formulas.
         READABLE = ['INF', '-INF']   # ClosedXML 0.105 loads these, which .NET does not read as numbers, in any style
         readable = folder/'values-readable.xlsx'; make_values(readable, READABLE)
         opened = request(action='open', path=str(readable)); check_values(opened, READABLE)
@@ -323,19 +322,23 @@ try:
         assert result.get('ok') and result['recalculated'] is False and result['uncachedFormulas'] == len(FORMULAS), result
         check_round_trip(out, 'streaming patch for formulas without saved results', moved, uncached, READABLE)
         assert request(action='close', id=opened['id'])['ok']
-        # With every result saved, and reproduced, ClosedXML recalculates the formulas: =IF(A1>0,"",1) keeps a saved empty result.
+        # Saved empty strings are kept in unedited copies and cleared like numeric caches after an edit.
         SAVED = [f for f in FORMULAS if f[4] or f[3] != FORMULA]
         assert len(SAVED) == 3
         verified = folder/'values-verified.xlsx'; make_values(verified, READABLE, SAVED)
         opened = request(action='open', path=str(verified)); check_values(opened, READABLE)
         moved, edits = edits_of(opened)
-        out = folder/'values-closedxml.xlsx'
+        out = folder/'values-byte-copy.xlsx'
+        result = request(action='save', id=opened['id'], path=str(out), sheets=[{'name':'Values','cells':[]}])
+        assert result.get('ok') and result['recalculated'] is False and result['uncachedFormulas'] == 0, result
+        assert out.read_bytes() == verified.read_bytes()
+        out = folder/'values-edited.xlsx'
         result = request(action='save', id=opened['id'], path=str(out), sheets=edits)
-        assert result.get('ok') and result['recalculated'] is True and result['uncachedFormulas'] == 0, result
-        recalculated = [('', 'blank', formula, True) if formula == FORMULA else (text, kind, formula, None) for _, text, kind, formula, _ in SAVED]
-        check_round_trip(out, 'ClosedXML patch', moved, recalculated, READABLE)
+        assert result.get('ok') and result['recalculated'] is False and result['uncachedFormulas'] == len(SAVED), result
+        cleared = [('', 'blank', formula, None) for _, _, _, formula, _ in SAVED]
+        check_round_trip(out, 'edit after all results were saved', moved, cleared, READABLE)
         assert request(action='close', id=opened['id'])['ok']
-        print('PASS: dates (1900-02-29 included), times of day and durations keep their text and kind through all three save paths; typed 26:00:00, R date-times and impossible dates save correctly, and dates before 1900-01-01 and durations beyond 9999-12-31 as text; a workbook ClosedXML cannot load is saved by streaming')
+        print('PASS: dates (1900-02-29 included), times of day and durations keep their text and kind through new, copied and edited workbooks; typed 26:00:00, R date-times and impossible dates save correctly, and dates before 1900-01-01 and durations beyond 9999-12-31 as text; a workbook ClosedXML cannot load is saved by streaming')
         # 11. The 1904 date system: a time of day is still a time, serial 0 is 1904-01-01, 60 is an ordinary day, a negative date
         #     stays a number, and 1900-02-29 is no date at all. A workbook without saved empty results has no extras group.
         MAC = [(14.5 / 24, 'h:mm', '14:30:00', 'timespan'), (0, 'yyyy-mm-dd', '1904-01-01 00:00:00', 'datetime'),
@@ -374,7 +377,7 @@ try:
         #     time format from 0 up to one day is a time of day, judged on the value itself and only then rounded, so 0.999999999
         #     reads 1.00:00:00 (24:00:00 in R). A date or date-time beyond the last day, or before the first day of its system, is
         #     a number, judged rounded to the millisecond, as its text is. Every rounding is half away from zero. Every value is
-        #     then saved, as it is and moved into a cell of the General style, through all three save paths and reopened. An
+        #     then saved, as it is and moved into a cell of the General style, through new, copied and edited workbooks and reopened. An
         #     in-place save of a time of day that rounds to a whole day writes 1, which a time format holds as a date-time (a
         #     value of one day or more in a format with no date): the two patch paths keep the cell's own format, so it reopens
         #     as that date-time (the fifth item), while moved into the General style, or into a new workbook, it takes the

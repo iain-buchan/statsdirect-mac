@@ -6,9 +6,9 @@ Called by test_excel_edges.py in CI. Focused usage (optional retained work folde
 Every source is real OOXML. The production loader opens it, the actual grid
 model edits E1 or B4, exports its normal typed edit snapshot, and the production
 workbook bridge saves/reopens both the small default and forced-streaming path.
-Only the cached dependent (without its own <f>) is selected for R. The corrected
-conservative policy never asks ClosedXML to recalculate array/spill/data-table
-files; an ordinary scalar-only control still uses ClosedXML successfully.
+Only the cached dependent (without its own <f>) is selected for R. Edited
+workbooks with array/spill/data-table formulas or ordinary scalar formulas leave
+all results for Excel to recalculate.
 """
 import copy
 import json
@@ -138,9 +138,11 @@ def check_formula_region_saves(request, node, folder):
                     check(actual['input'] == '10' and new_xml[input_ref].findtext(S + 'v') == '10', label + ': edited ' + input_ref + ' survives Save As/reopen')
                     check(unrelated_preserved(source, saved_path), label + ': unrelated values, cell styles, merged area and dimensions survive')
                     if variant == 'scalar':
-                        check(saved.get('recalculated') is True and actual.get('values') == ['20'] and actual.get('unavailable') is False,
-                              label + ': the ordinary small scalar-only workbook retains ClosedXML recalculation')
-                        check(formula(new_xml.get('F1')) == formula(old_xml.get('F1')), label + ': scalar expression is preserved')
+                        check(saved.get('recalculated') is False and saved.get('uncachedFormulas') == 1
+                              and actual.get('unavailable') is True and actual.get('error') == REFUSAL,
+                              label + ': the small scalar formula also waits for Excel to recalculate')
+                        check(formula(new_xml.get('F1')) == formula(old_xml.get('F1'))
+                              and new_xml['F1'].find(S + 'v') is None, label + ': only the scalar cache is cleared')
                     else:
                         anchor_ref = 'C3' if variant == 'what-if' else 'A1'
                         child_ref = 'C4' if variant == 'what-if' else 'B1'

@@ -14,8 +14,7 @@ def request(**payload):
 def cell(col, row, text, kind='number'): return {'col': col, 'row': row, 'text': str(text), 'kind': kind}
 def with_results(path, results):
     """Gives formulas the results Excel saves with them, which openpyxl does not write: {worksheet part: {cell: value}}.
-    A save keeps ClosedXML's recalculation only for a workbook whose every formula has a saved result that ClosedXML
-    reproduces, so a workbook meant for that path needs them."""
+    This lets the insert tests verify that preexisting results are removed after a structural edit."""
     import zipfile, xml.etree.ElementTree as ET
     main = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
     ET.register_namespace('', main)
@@ -81,12 +80,14 @@ try:
             for repeat in range(2):
                 result=request(action='save',id=opened['id'],path=str(dest),**grid[state]); assert result.get('ok'),result
             x=openpyxl.load_workbook(dest)['Data']
-            if state=='undone': assert x['B3'].value==21 and x['A3'].value=='=B3*2'
+            if state=='undone':
+                assert x['B3'].value==21 and x['A3'].value=='=B3*2'
+                assert openpyxl.load_workbook(dest,data_only=True)['Data']['A3'].value is None
             else:
                 assert x['C3'].value==21 and x['B3'].value=='=C3*2' and x['D3'].value==8
-                assert x['C3'].number_format=='0.00%' and openpyxl.load_workbook(dest,data_only=True)['Data']['B3'].value==42
+                assert x['C3'].number_format=='0.00%' and openpyxl.load_workbook(dest,data_only=True)['Data']['B3'].value is None
                 assert len(grid[state]['sheets'][0]['cells'])==5,grid[state]
-        print('PASS: real grid plan → export → native save, prior edits, moved formula cells, recalculation, repeated saves and undo/redo')
+        print('PASS: real grid plan → export → native save, prior edits, moved formula cells, cleared saved results, repeated saves and undo/redo')
 
         # Every refusal is checked at preflight as well as save; neither the source nor
         # an existing destination may change, and no temporary file may remain.
@@ -112,8 +113,8 @@ try:
                 assert dest.read_bytes()==b'previous destination'
             else:
                 assert pre.get('ok') and result.get('ok'), (pre,result)
-                if stream and opened.get('formulaCount',0): assert result.get('uncachedFormulas',0)>0,result
-                # The patcher the save took: ClosedXML's (True), whose results are kept, or the streaming one (False).
+                if opened.get('formulaCount',0): assert result.get('uncachedFormulas',0)>0,result
+                # The patcher the save took: ClosedXML's (True) or streaming (False).
                 if recalculated is not None: assert result.get('recalculated') is recalculated, (path.name, stream, result)
             assert hashlib.sha256(path.read_bytes()).digest()==digest
             assert not list(Path(folder).glob('*.tmp*'))
@@ -139,7 +140,7 @@ try:
         w.save(p)
         with_results(p, {'xl/worksheets/sheet1.xml': {'C8': 15}, 'xl/worksheets/sheet2.xml': {'A1': 3}})
         for streaming in (False,True):
-            saved=insert(p,stream=streaming,recalculated=not streaming); loaded=openpyxl.load_workbook(saved); x=loaded['Data']
+            saved=insert(p,stream=streaming,recalculated=False); loaded=openpyxl.load_workbook(saved); x=loaded['Data']
             assert x['C2'].value==2 and x['C2'].number_format=='0.00%' and x['C2'].font.bold and x['C2'].font.name=='Arial'
             assert x['C2'].fill.fgColor.rgb=='0000FF00' and x['C2'].border.bottom.style=='thin'
             assert x.column_dimensions['C'].width==32 and x.column_dimensions['D'].hidden and x.row_dimensions[2].height==30
@@ -153,15 +154,32 @@ try:
             assert x.auto_filter.ref=='A1:D6' and x.auto_filter.filterColumn[0].colId==2
             assert x['D8'].value=='=SUM($C2,D$2,$C$2,C:C,2:2)+N("B2")', x['D8'].value
             assert loaded['Other']['A1'].value.replace("'",'')=='=Data!C2+1'
-            if not streaming:   # ClosedXML's results for the moved formulas, which read the same cells as before
-                values=openpyxl.load_workbook(saved,data_only=True); assert values['Data']['D8'].value==15 and values['Other']['A1'].value==3, (values['Data']['D8'].value, values['Other']['A1'].value)
-        # A reference to another workbook is kept as written. ClosedXML cannot evaluate it, so both saves stream.
+            values=openpyxl.load_workbook(saved,data_only=True)
+            assert values['Data']['D8'].value is None and values['Other']['A1'].value is None
+        # A reference to another workbook is kept as written and waits for Excel to recalculate.
         w,d,p=book('external.xlsx'); other=w.create_sheet('Other'); other['A1']="='Data'!B2+1"; other['A2']='=[1]Data!B2'; w.save(p)
         with_results(p, {'xl/worksheets/sheet2.xml': {'A1': 3, 'A2': 2}})
         for streaming in (False,True):
             loaded=openpyxl.load_workbook(insert(p,stream=streaming,recalculated=False))
             assert loaded['Other']['A1'].value.replace("'",'')=='=Data!C2+1' and loaded['Other']['A2'].value=='=[1]Data!B2'
-        print('PASS: formatting, widths, hidden columns, merged ranges, conditional formats, validation, links, freeze panes, filters, names and cross-sheet/absolute/external references on both save paths')
+        print('PASS: formatting, widths, hidden columns, merged ranges, conditional formats, validation, links, freeze panes, filters, names and cross-sheet/absolute/external references through an edited save')
+
+        # Both sheets start with the same figures, so a check of the saved result cannot tell that ClosedXML
+        # reads the local column. Inserting before the local B changes that wrong sum to 0, but Table1 stays at 6.
+        w=openpyxl.Workbook(); d=w.active; d.title='Data'; p=Path(folder)/'cross-sheet-table.xlsx'
+        values=w.create_sheet('Other')
+        values.append(['Name','Value'])
+        for r, (name, value) in enumerate(zip('abc',(1,2,3)),start=2):
+            d.cell(r,2,value); values.append([name,value])
+        values.add_table(Table(displayName='Table1',ref='A1:B4'))
+        d['C1']='=SUM(Table1[Value])'; w.save(p)
+        with_results(p, {'xl/worksheets/sheet1.xml': {'C1': 6}})
+        saved=insert(p,recalculated=False)
+        loaded=openpyxl.load_workbook(saved)
+        assert loaded['Data']['D1'].value=='=SUM(Table1[Value])'
+        assert openpyxl.load_workbook(saved,data_only=True)['Data']['D1'].value is None
+        assert [loaded['Other'][f'B{r}'].value for r in (2,3,4)]==[1,2,3]
+        print('PASS: an insertion clears a cross-sheet table formula cache even if the old result agreed by coincidence')
 
         w,d,p=book('table.xlsx'); d.add_table(Table(displayName='Trial',ref='A1:C2')); w.save(p)
         saved=insert(p,col=0); assert openpyxl.load_workbook(saved)['Data'].tables['Trial'].ref=='B1:D2'

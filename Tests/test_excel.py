@@ -72,15 +72,15 @@ try:
                     for feature in ('font', 'fill', 'alignment', 'border'):
                         assert copy.copy(getattr(target, feature)) == copy.copy(getattr(cell, feature)), (a.title, cell.coordinate, feature, str(getattr(cell, feature)), str(getattr(target, feature)))
                     count += 1; formulas += cell.data_type == 'f'
-        old_values, new_values = independent_read(source, True), independent_read(saved, True)
+        new_values = independent_read(saved, True)
         for sheet in before:
             for row in sheet:
                 for cell in row:
                     if cell.data_type == 'f':
-                        assert old_values[sheet.title][cell.coordinate].value == new_values[sheet.title][cell.coordinate].value, (sheet.title, cell.coordinate, 'formula result')
+                        assert new_values[sheet.title][cell.coordinate].value is None, (sheet.title, cell.coordinate, 'formula result')
         reopened = request(action='open', path=str(saved))
         assert len(reopened['sheets']) == 11 and reopened['formulaCount'] == 22
-        # The file the ClosedXML path wrote is indented; a streaming patch of it must keep every cell.
+        # A second save must keep every cell and formula expression from the first.
         restreamed = Path(folder)/'restreamed.xlsx'
         result = request(action='save', id=reopened['id'], path=str(restreamed), stream=True, sheets=[{'name':'Parametric','cells':[{'col':0,'row':1,'text':'333','kind':'number'}]}])
         assert result.get('ok'), result
@@ -92,15 +92,16 @@ try:
                     expected = 333 if a.title == 'Parametric' and cell.coordinate == 'A2' else cell.value
                     assert again[a.title][cell.coordinate].value == expected, (a.title, cell.coordinate, expected, again[a.title][cell.coordinate].value)
         assert request(action='close', id=reopened['id']).get('ok')
-        print(f'PASS: all 11 sheets, {count} populated cells, {formulas} formulas, cached formula results, cell types and cell styles survive the edited round trip')
+        print(f'PASS: all 11 sheets, {count} populated cells, {formulas} formula expressions, cell types and cell styles survive the edited round trip')
         recalculated = Path(folder)/'recalculated.xlsx'
         changed_input = request(action='save', id=imported['id'], path=str(recalculated), sheets=[{'name':'Graphics','cells':[{'col':19,'row':1,'text':'100','kind':'number'}]}])
-        assert changed_input.get('ok'), changed_input
+        assert changed_input.get('ok') and changed_input.get('recalculated') is False and changed_input.get('uncachedFormulas') == 22, changed_input
         calc_values = independent_read(recalculated, True)['Graphics']
-        assert calc_values['V2'].value == 100 - calc_values['U2'].value
-        assert calc_values['W2'].value == 100 + calc_values['U2'].value
+        assert calc_values['T2'].value == 100
+        assert calc_values['V2'].value is None and calc_values['W2'].value is None
         assert independent_read(recalculated)['Graphics']['V2'].value == before['Graphics']['V2'].value
-        print('PASS: editing a formula input refreshes saved arithmetic results while retaining the formula expressions')
+        assert 'fullCalcOnLoad="1"' in ZipFile(recalculated).read('xl/workbook.xml').decode()
+        print('PASS: editing a formula input preserves its expression and leaves its result for Excel to calculate')
         types_file = Path(folder)/'types.xlsx'
         values = [('00123', 'text'), ('-1.25e-8', 'number'), ('TRUE', 'boolean'), ('2024-02-29 12:34:56', 'datetime'), ('=1+1', 'text'), ('', 'blank')]
         result = request(action='save', path=str(types_file), sheets=[{'name':'Types', 'cells':[{'col':i,'row':0,'text':v,'kind':k} for i,(v,k) in enumerate(values)]}])
@@ -113,6 +114,17 @@ try:
         assert typed['E1'].value == '=1+1' and typed['E1'].data_type == 's'
         assert typed['F1'].value is None
         print('PASS: number, text identifier, boolean, date, literal formula-looking text and blank export correctly')
+        type_source = request(action='open', path=str(types_file))
+        updated_types = Path(folder)/'edited-types.xlsx'
+        changed_types = request(action='save', id=type_source['id'], path=str(updated_types),
+                                sheets=[{'name':'Types','cells':[{'col':0,'row':0,'text':'00456','kind':'text'}]}])
+        assert changed_types.get('ok') and changed_types.get('recalculated') is True and changed_types.get('uncachedFormulas') == 0, changed_types
+        updated = independent_read(updated_types)['Types']
+        assert updated['A1'].value == '00456' and updated['A1'].data_type == 's'
+        for address in ['B1', 'C1', 'D1', 'E1', 'F1']:
+            assert updated[address].value == typed[address].value and updated[address].number_format == typed[address].number_format
+        assert request(action='close', id=type_source['id']).get('ok')
+        print('PASS: a small formula-free workbook keeps the ClosedXML edit path, types and styles')
         formula = next((s, c) for s in imported['sheets'] for c in s['cells'] if c['formula'])
         protected = request(action='save', id=imported['id'], path=str(saved), sheets=[{'name':formula[0]['name'],'cells':[dict(formula[1], text='0',kind='number')]}])
         assert 'read-only' in protected.get('error','')
@@ -134,10 +146,10 @@ try:
         assert encoded['cells'] == 1
         from_snapshot = Path(folder)/'from-snapshot.xlsx'
         result = request(action='save', id=columnar['id'], path=str(from_snapshot), snapshot=str(edits))
-        assert result.get('ok') and result.get('recalculated') is True, result
+        assert result.get('ok') and result.get('recalculated') is False and result.get('uncachedFormulas') == 22, result
         assert independent_read(from_snapshot)['Parametric']['A2'].value == 332
         assert independent_read(from_snapshot)['Graphics']['V2'].value == before['Graphics']['V2'].value
-        assert independent_read(from_snapshot, True)['Graphics']['V2'].value == old_values['Graphics']['V2'].value
+        assert independent_read(from_snapshot, True)['Graphics']['V2'].value is None
         print('PASS: a save from an edits snapshot patches the workbook like the JSON edits')
         # Large workbooks are patched by streaming the worksheet parts; formulas keep their
         # expressions but lose cached results, which Excel recalculates on load.

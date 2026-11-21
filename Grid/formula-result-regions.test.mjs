@@ -211,6 +211,13 @@ test('R data refuses a formula or result without a saved value below the last va
     assert.equal(inferred.sheets[index].store.headerRow, true);
     assert.throws(() => rDataTables(inferred, index), {message: REFUSAL});
   }
+  // The same with the title row declared: a title formula hides no formula among or below the data rows, in its own
+  // column or another, nor a result region, even one that starts in the title row.
+  const title = cell(0, 0, '', 'blank', {formula: 'B1&"x"'}), data = [cell(0, 1, '2'), cell(0, 2, '3')];
+  for (const below of [cell(0, 5, '', 'blank', {formula: 'A2*2'}), cell(2, 5, '', 'blank', {formula: 'A2*2'}), cell(2, 1, '', 'blank', {formula: 'A2*2'})])
+    assert.throws(() => rDataTables(book([title, ...data, below], [], {headerRow: true}), 0), {message: REFUSAL}, JSON.stringify(below));
+  assert.throws(() => rDataTables(book([title, ...data], [{firstRow: 4, lastRow: 6, firstColumn: 4, lastColumn: 5}], {headerRow: true}), 0), {message: REFUSAL});
+  assert.throws(() => rDataTables(book([title, ...data], [{firstRow: 0, lastRow: 2, firstColumn: 4, lastColumn: 4}], {headerRow: true}), 0), {message: REFUSAL});
 });
 
 test('a list of a few whole rows reads those rows alone, however many rows a result region covers between them', () => {

@@ -116,19 +116,20 @@ function App() {
   const getCell = useCallback(([c, r]: Item): GridCell => {
     const raw = store.get(c, r);
     const n = cellKind(store, c, r) === 'number' ? Number(raw) : NaN;
-    const formula = !!store.formula(c, r);
+    // A formula cell, or a cell of an array, spill or data-table result: Excel calculates it, and the store refuses edits to it.
+    const locked = store.readOnly(c, r);
     return Number.isFinite(n) ? {
       kind: GridCellKind.Number,
       data: n,
       displayData: raw,
-      allowOverlay: !formula,
-      readonly: formula
+      allowOverlay: !locked,
+      readonly: locked
     } : {
       kind: GridCellKind.Text,
       data: raw,
       displayData: raw,
-      allowOverlay: !formula,
-      readonly: formula
+      allowOverlay: !locked,
+      readonly: locked
     };
   }, [store]);
   const range = () => {
@@ -351,7 +352,7 @@ function App() {
         setSelection(empty);
         setMessage(sheet.name + (sheet.hidden ? " (hidden in Excel)" : ""));
       }}>{sheet.name}{sheet.hidden ? " (hidden)" : ""}</button>)}</div>}
-  <div className="formula"><label htmlFor="cellValue">{current ? columnName(current[0]) + (current[1] + 1) : 'Cell'}</label><input id="cellValue" aria-label="Selected cell value" placeholder="Select a cell, then edit its value here or double-click the cell" disabled={!current || !!store.formula(current[0], current[1])} value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => {
+  <div className="formula"><label htmlFor="cellValue">{current ? columnName(current[0]) + (current[1] + 1) : 'Cell'}</label><input id="cellValue" aria-label="Selected cell value" placeholder="Select a cell, then edit its value here or double-click the cell" disabled={!current || store.readOnly(current[0], current[1])} value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => {
         const movement = cellMovement(e);
         if (movement && current) {
           e.preventDefault();
@@ -361,7 +362,7 @@ function App() {
             selectAdjacentCell(current, movement, store.columns.length, store.rows, setSelection, grid.current);
           });
         }
-      }} /><span>{current && store.formula(current[0], current[1]) ? (store.formulasStale ? "Original Excel formula (save and reopen to refresh): " : "Formula: ") + store.formula(current[0], current[1]) : "↵ to save and move down"}</span></div>
+      }} /><span>{current && store.formula(current[0], current[1]) ? (store.formulasStale ? "Original Excel formula (save and reopen to refresh): " : "Formula: ") + store.formula(current[0], current[1]) : current && store.formulaResult(current[0], current[1]) ? "Result of an Excel array, spill or data table formula" : "↵ to save and move down"}</span></div>
   <div className="canvas" ref={container} onMouseDownCapture={columnDrag.onMouseDownCapture}><DataEditor ref={grid} provideEditor={arrowKeyEditor} trapFocus width={containerSize.width} height={containerSize.height} columns={store.columns.map((title: string, c: number) => ({
         id: String(c),
         title: store.headerRow ? columnName(c) + ' · ' + store.columnTitle(c) : columnName(c),

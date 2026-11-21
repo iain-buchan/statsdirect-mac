@@ -287,11 +287,14 @@ export class GridStore {
     return i < spans.length && spans[i].firstRow <= last;
   }
   formulaResult(c, r) { return this.formulaResultIn(c, r, r); }
+  // A cell Excel calculates, which the grid shows but does not edit: a formula cell, or a cell of an array, spill or
+  // What-If Data Table result, whose formula is its anchor's.
+  readOnly(c, r) { return !!this.formula(c, r) || this.formulaResult(c, r); }
   // A formula cell whose value cannot be used: the workbook has been edited since it was opened, so
   // results may be out of date, or the file saved no result. A saved result of empty text (the
   // loader's savedEmpty flag) is a blank cell, not a missing result.
   formulaUnavailable(c, r) {
-    if (!this.formula(c, r) && !this.formulaResult(c, r)) return false;
+    if (!this.readOnly(c, r)) return false;
     return this.formulasStale || this.get(c, r) === '' && this.cols[c]?.extra.get(r)?.savedEmpty !== true;
   }
   // The cell as loaded from a file (undefined for cells that were never loaded). For a cell
@@ -441,6 +444,14 @@ export class GridStore {
       const c = b.col;
       if (c < 0 || c >= MAX_COLS) throw new Error('Cell is outside the worksheet.');
       const col = preview[c] ?? new Column(), n = b.rows.length;
+      // The column before this step's insertions (-1 for one they add), whose array, spill and data-table results are
+      // read-only as formula cells are: Excel's save keeps them for the anchor's formula, and refuses an edit to one.
+      let before = c;
+      for (let i = inserts.length - 1; i >= 0 && before >= 0; i--) {
+        const {col: at, count} = inserts[i];
+        if (before >= at + count) before -= count; else if (before >= at) before = -1;
+      }
+      const results = before >= 0 && this.formulaResultSpans(before).length > 0;
       // Last write to a cell wins; collect the distinct rows in order of first appearance.
       const index = new Map();
       for (let i = 0; i < n; i++) {
@@ -458,7 +469,7 @@ export class GridStore {
         const explicit = b.kinds?.[i];
         const kind = text === '' ? BLANK : explicit ? KIND_INDEX.get(explicit) : deriveKind(text, original);
         const oldKind = col.kindAt(r);
-        if (col.formula.has(r) && (text !== current || kind !== oldKind)) throw new Error('Formula cells are read-only. Edit their formulas in Excel.');
+        if ((col.formula.has(r) || results && this.formulaResult(before, r)) && (text !== current || kind !== oldKind)) throw new Error('Formula cells are read-only. Edit their formulas in Excel.');
         if (text === current && kind === oldKind) continue;
         rowsOut[k] = r;
         beforeKind[k] = oldKind; beforeNum[k] = col.numAt(r);

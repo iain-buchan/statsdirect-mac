@@ -4,10 +4,12 @@ import {WorkbookStore} from './workbook.mjs';
 import {worksheetRImport} from './worksheet-r.mjs';
 import {columnValues} from './analysis-source.mjs';
 import {rDataTables} from './r-data.mjs';
+import {planWriteBack} from './write-back.mjs';
 
 // Array, spill and What-If Data Table results: cells an anchor's formula fills, with no formula of their own, which the
 // loader reports as regions ({firstRow, lastRow, firstColumn, lastColumn}, zero-based) beside the cells it read.
 const RECALCULATE = 'Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.';
+const READ_ONLY = 'Formula cells are read-only. Edit their formulas in Excel.';
 const cell = (col, row, text, kind = 'number', extra = {}) => ({col, row, text, kind, ...extra});
 function book(cells, formulaRegions, {columns = 10, rows = 20, headerRow = false} = {}) {
   const w = new WorkbookStore();
@@ -71,4 +73,53 @@ test('whole rows find the result spans they meet by binary search, however many 
     const preview = worksheetRImport(sparse, 0, {rows});
     assert.equal(preview.selected?.range ?? null, range, JSON.stringify(rows));
   }
+});
+
+test('array, spill and data-table results are read-only, as formula cells are, and the other edits still save', () => {
+  // B2:C3 spills from B2; E2:E3 is a CSE array from E2; G3:G4 a What-If Data Table from G3; H2:H3 an array whose results
+  // the file did not save; J5 an ordinary value.
+  const w = book([
+    cell(1, 1, '1', 'number', {formula: '_xlfn.SEQUENCE(2,2)'}), cell(2, 1, '2'), cell(1, 2, '3'), cell(2, 2, '4'),
+    cell(0, 1, '5'), cell(0, 2, '6'), cell(4, 1, '10', 'number', {formula: 'A2:A3*2'}), cell(4, 2, '12'),
+    cell(6, 2, '7', 'number', {formula: '='}), cell(6, 3, '8'), cell(7, 1, '', 'blank', {formula: 'A2:A3+1'}), cell(9, 4, '5')],
+  [{firstRow: 1, lastRow: 2, firstColumn: 1, lastColumn: 2}, {firstRow: 1, lastRow: 2, firstColumn: 4, lastColumn: 4},
+    {firstRow: 2, lastRow: 3, firstColumn: 6, lastColumn: 6}, {firstRow: 1, lastRow: 2, firstColumn: 7, lastColumn: 7}]);
+  const store = w.sheets[0].store;
+  // Typing, Delete, paste and cut all reach the store as edits, and each is refused.
+  for (const [c, r] of [[2, 2], [2, 1], [1, 2], [4, 2], [6, 3], [7, 2]]) {
+    assert.throws(() => store.apply([[c, r, '99']]), {message: READ_ONLY}, `typed into ${c},${r}`);
+    assert.throws(() => store.paste(c, r, '99'), {message: READ_ONLY}, `pasted into ${c},${r}`);
+  }
+  // The grid and the formula bar lock the same cells (main.tsx asks readOnly).
+  assert.deepEqual([[1, 1], [2, 1], [1, 2], [2, 2], [4, 2], [6, 3], [7, 2], [9, 4], [0, 1], [3, 1], [2, 3]].map(([c, r]) => store.readOnly(c, r)),
+    [true, true, true, true, true, true, true, false, false, false, false]);
+  assert.throws(() => store.apply([[2, 2, '']]), {message: READ_ONLY});
+  assert.throws(() => store.apply([[9, 4, '6'], [2, 2, '']]), {message: READ_ONLY}, 'a clear across the region');
+  assert.throws(() => store.paste(3, 2, '1\t2'), {message: READ_ONLY}, 'a paste from D3 that reaches E3');
+  assert.equal(store.apply([[7, 2, '']]), false, 'clearing a result that is already blank changes nothing');
+  assert.deepEqual([store.version, store.canUndo, store.get(2, 2)], [0, false, '4'], 'nothing refused was applied');
+  assert.equal(store.paste(8, 2, '1\t2\n3\t4'), true, 'a paste beside the regions');
+  assert.ok(store.undo());
+  // Analysis output written in place of the selected column C clears it first, and is refused; so are columns it inserts.
+  const frame = {name: 'Out', columns: 1, rows: 3, headerRow: false, lengths: [2], missingIndicator: '*', cells: [{col: 0, row: 0, text: 'fit'}, {col: 0, row: 1, text: '1'}, {col: 0, row: 2, text: '2'}]};
+  const write = (placement, columns) => {
+    const plan = planWriteBack(store, [frame], placement, {firstRow: 2, lastRow: 3, columns}, {backed: true});
+    return store.apply(plan.edits, Math.max(store.rows, plan.rows), Math.max(store.columns.length, plan.cols), plan.inserts);
+  };
+  assert.throws(() => write('ReplaceSelection', [2]), {message: READ_ONLY});
+  assert.equal(write('BeforeSelection', [2]), true);
+  // The new column C is not a result; the spill's right-hand column is now D, still read-only, and Undo moves it back.
+  assert.deepEqual([store.readOnly(2, 2), store.readOnly(3, 2), store.get(3, 2)], [false, true, '4']);
+  assert.throws(() => store.apply([[3, 2, '99']]), {message: READ_ONLY});
+  assert.ok(store.undo());
+  assert.deepEqual([store.readOnly(2, 2), store.readOnly(3, 2)], [true, false]);
+  // In one step with its insertions, a result is judged by the column it was in before them.
+  const cols = store.columns.length;
+  assert.throws(() => store.apply([[3, 2, '99']], store.rows, cols + 1, [{col: 2, count: 1}]), {message: READ_ONLY});
+  assert.equal(store.apply([[2, 2, '99']], store.rows, cols + 1, [{col: 2, count: 1}]), true);
+  assert.ok(store.undo());
+  // An ordinary edit is accepted, and the save sends it alone.
+  assert.equal(store.apply([[9, 4, '6']]), true);
+  w.changed();
+  assert.deepEqual(w.exportColumns().sheets[0].columns.map(c => [c.col, Array.from(c.rows), Array.from(c.nums)]), [[9, [4], [6]]]);
 });

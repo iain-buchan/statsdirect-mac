@@ -27,6 +27,7 @@ MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 S = '{' + MAIN + '}'
 PART = 'xl/worksheets/sheet1.xml'
 REFUSAL = 'Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.'
+READ_ONLY = 'Formula cells are read-only. Edit their formulas in Excel.'
 ET.register_namespace('', MAIN)
 
 
@@ -119,6 +120,7 @@ def check_formula_region_saves(request, node, folder):
         try:
             before, edits = grid(opened, variant, variant, edit=True)
             check(before['before'].get('values') == ['4' if variant == 'scalar' else '3'], variant + ' fresh dependent-only R selection reads the actual saved result')
+            check(before['before'].get('childEdit') == READ_ONLY, variant + ' real grid refuses typing into the dependent when it is made, so the other edits still save')
             check(before['after'].get('error') == REFUSAL and before['after']['input'] == '10', variant + ' real grid input edit refuses the stale dependent before saving')
             for stream in ((False,) if variant == 'scalar' else (False, True)):
                 label = variant + ('-stream' if stream else '-default')

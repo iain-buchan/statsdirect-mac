@@ -24,6 +24,11 @@ function inspect() {
   }
 }
 const before = inspect();
+// Typing into the dependent (or, for the scalar control, the formula cell) is refused when it is made, as the save would
+// refuse it; an edit the grid took is undone, so that the rest runs as before.
+let childEdit = null;
+try { if (store.apply([[...child, '99']])) { store.undo(); childEdit = 'accepted'; } } catch (error) { childEdit = error.message; }
+before.childEdit = childEdit;
 let after;
 if (editSnapshot) {
   if (!store.apply([[...input, '10']])) throw new Error('The fixture input was not edited');

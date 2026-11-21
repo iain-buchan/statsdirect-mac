@@ -295,12 +295,13 @@ public static partial class WorkbookIO {
     // Excel's built-in date and time formats, and custom codes with date or time tokens. In a code,
     // m or mm is minutes after an h or before an s, otherwise the month (Excel's rule); quoted
     // text, \x escapes, _x and *x padding and [...] blocks (colours, conditions, locales) are not
-    // tokens, except [h], [m] and [s], which are elapsed times. Built-ins 32 and 33 are a time of
-    // day in every East Asian locale that defines them; the other East Asian ones stay dates.
+    // tokens, except [h], [m] and [s], which are elapsed times. Built-in 46 ([h]:mm:ss) is the only
+    // elapsed built-in: 45 (mm:ss) and 47 (mmss.0) wrap at the hour, so they are times of day, as are
+    // 32 and 33 in every East Asian locale that defines them; the other East Asian ones stay dates.
     public static byte FormatKind(int id, string code) {
         if (code == null) {
-            if (id is 45 or 46 or 47) return FormatElapsed;
-            if (id is (>= 18 and <= 21) or 32 or 33) return FormatTime;
+            if (id == 46) return FormatElapsed;   // [h]:mm:ss
+            if (id is (>= 18 and <= 21) or 32 or 33 or 45 or 47) return FormatTime;   // 45 mm:ss and 47 mmss.0 wrap at the hour, as times of day do
             if (id is (>= 14 and <= 22) or (>= 27 and <= 36) or (>= 50 and <= 58)) return FormatDate;
             return FormatNumber;
         }

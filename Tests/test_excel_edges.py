@@ -150,9 +150,9 @@ try:
             'elapsed': [('14:30:00', 'timespan'), ('1.02:00:00', 'timespan'), ('-01:00:00', 'timespan')],
             'number': [(None, 'number')] * 3}
         FORMATS = [
-            # Built-ins (openpyxl writes these codes as their ids): 18 to 21 times of day, 45 to 47 durations, 14, 16 and 22 dates.
+            # Built-ins (openpyxl writes these codes as their ids): 18 to 21, 45 and 47 times of day, 46 a duration, 14, 16 and 22 dates.
             ('h:mm AM/PM', 'time'), ('h:mm:ss AM/PM', 'time'), ('h:mm', 'time'), ('h:mm:ss', 'time'),
-            ('mm:ss', 'elapsed'), ('[h]:mm:ss', 'elapsed'), ('mmss.0', 'elapsed'),
+            ('mm:ss', 'time'), ('[h]:mm:ss', 'elapsed'), ('mmss.0', 'time'),
             ('mm-dd-yy', 'date'), ('d-mmm', 'date'), ('m/d/yy h:mm', 'date'), ('General', 'number'), ('0.00', 'number'),
             # Custom codes: m is minutes after an h or before an s, otherwise the month, and never across a ;. Quoted text,
             # \ escapes, _ and * padding and [...] blocks are not tokens, except [h], [m] and [s].

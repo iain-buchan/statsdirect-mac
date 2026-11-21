@@ -423,7 +423,17 @@ try:
                     (50, '[>=100]yyyy-mm-dd;0.00', '50', 'number'),                            # it does not: the first section without one
                     (-5, '[<0][h]:mm;yyyy-mm-dd', '-5.00:00:00', 'timespan'),
                     (0.25, '"a;b" h:mm;yyyy-mm-dd', '06:00:00', 'timespan'),                   # a quoted ; does not end a section
-                    (0.25, 'h\\;mm;yyyy-mm-dd', '06:00:00', 'timespan')]                       # nor does an escaped one
+                    (0.25, 'h\\;mm;yyyy-mm-dd', '06:00:00', 'timespan'),                     # nor does an escaped one
+                    # Amendment 2, as Excel: a section without a condition keeps its role (the first for positive values, the
+                    # second for negative ones); the first applies where it can, then the second, then the third; of only two
+                    # sections the second applies wherever the first does not; a quoted [>10] is text, not a condition.
+                    (5.5, '[>10]yyyy-mm-dd;[h]:mm;0.00', '5.5', 'number'),                      # neither the first nor the second: the third
+                    (-3, '[>10]0.00;yyyy-mm-dd;[h]:mm', '-3', 'number'),                       # the second, a date, so a negative date is a number
+                    (0.5, '[>10]0.00;[<1]h:mm;yyyy-mm-dd', '12:00:00', 'timespan'),           # the second's condition holds
+                    (1.25, '[<1]0.00;[h]:mm', '1.06:00:00', 'timespan'),                       # of two, the second wherever the first does not apply
+                    (5.5, '"[>10]"yyyy-mm-dd;[h]:mm;0;@', '1900-01-05 12:00:00', 'datetime'), # a quoted condition is text
+                    (0, '0.00;[<5]h:mm;yyyy-mm-dd', '00:00:00', 'timespan'),                   # zero is not positive, so the second's condition decides
+                    (0.5, '0.00;[<5]h:mm;yyyy-mm-dd', '0.5', 'number')]                        # a positive value takes the first
         book = folder/'sections.xlsx'
         write_xlsx(book, [('Sections', [(r, 0, value, code) for r, (value, code, _, _) in enumerate(SECTIONS)])])
         opened = request(action='open', path=str(book)); assert 'error' not in opened, opened

@@ -312,20 +312,25 @@ public static partial class WorkbookIO {
     // by a code that this function classes as it classes the id, so a legacy file classes as an
     // .xlsx does (WorkbookImport.cs).
     // A number format's sections, separated by ; outside quotes, escapes and brackets, each with its class and any condition
-    // ([<0], [>=100]); a built-in format without a code has one section. Only the section that applies to a value counts
-    // (RULES 3.9, amendment 1): with a condition in the first or second section, the first section whose condition holds, else
-    // the first without one; without conditions, the first for a positive value, the second for a negative one and the third
-    // for zero, where they exist (Excel shows zero with the first when there is no third, and a negative with the first when
-    // there is no second).
+    // ([<0], [>=100]) outside quotes; a built-in format without a code has one section. Only the section that applies to a
+    // value counts, and its own class decides how the value is read (RULES 3.9, amendments 1 and 2, as Excel does). With a
+    // condition in the first or second section, a section without a condition keeps its role, the first for positive values
+    // and the second for negative ones: the first applies where it can, then the second, then the third, and of only two
+    // sections the second applies wherever the first does not. Without conditions, the first is for a positive value, the
+    // second for a negative one and the third for zero, where they exist (zero takes the first when there is no third, and a
+    // negative the first when there is no second).
     public sealed class NumberFormat {
         readonly List<(byte kind, Func<double, bool> condition)> sections;
         internal NumberFormat(List<(byte kind, Func<double, bool> condition)> sections) { this.sections = sections; }
         public byte KindFor(double value) {
             if (sections.Count == 0) return FormatNumber;
             if (sections[0].condition != null || sections.Count > 1 && sections[1].condition != null) {
-                foreach (var (kind, condition) in sections) if (condition != null && condition(value)) return kind;
-                foreach (var (kind, condition) in sections) if (condition == null) return kind;
-                return FormatNumber;
+                var (first, firstCondition) = sections[0];
+                if (firstCondition != null ? firstCondition(value) : value > 0) return first;
+                if (sections.Count == 1) return FormatNumber;
+                var (second, secondCondition) = sections[1];
+                if (sections.Count == 2 || (secondCondition != null ? secondCondition(value) : value < 0)) return second;
+                return sections[2].kind;
             }
             int index = value < 0 ? 1 : value == 0 ? 2 : 0;
             return (index < sections.Count && index < 3 ? sections[index] : sections[0]).kind;

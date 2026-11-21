@@ -280,6 +280,18 @@ import Darwin
         try check(lockedRun.status == 0 && lockedRun.output.contains("PARENT_CHECKS_PASSED") && exists(locked.script) && exists(locked.record),
                   "a copy R cannot read when it ends keeps its launch record", lockedRun.output)
 
+        // So does a copy whose attributes R may not read (an access list can deny that): R's file.exists says it is not
+        // there, but the folder still lists it.
+        let denied = try RExternalSession(data: Data(worksheetScript.utf8), name: "Denied Worksheet.R",
+                                          directory: RExternalScript.launchFolder(in: root), echo: false)
+        let deny = "stopifnot(system2(\"/bin/chmod\", c(\"+a\", shQuote(\"user:\(NSUserName()) deny read,readattr,readextattr\"), shQuote(\(rString(denied.script.path))))) == 0L, !file.exists(\(rString(denied.script.path))))"
+        let deniedRun = try runR(rscript, try checks(work, "denied", deny), in: empty, home: empty, session: denied)
+        let allow = Process(); allow.executableURL = URL(fileURLWithPath: "/bin/chmod"); allow.arguments = ["-N", denied.script.path]
+        try allow.run(); allow.waitUntilExit()
+        try check(deniedRun.status == 0 && deniedRun.output.contains("PARENT_CHECKS_PASSED") && allow.terminationStatus == 0
+                  && exists(denied.script) && exists(denied.record) && !exists(denied.profile),
+                  "a copy whose attributes R may not read when it ends keeps its launch record", deniedRun.output)
+
         // A StatsDirect start-up file passed on through an inherited R_PROFILE_USER is never taken for the user's own.
         let inherited = try RExternalSession(data: Data(worksheetScript.utf8), name: "Inherited Worksheet.R",
                                              directory: RExternalScript.launchFolder(in: root), echo: false)
@@ -603,6 +615,12 @@ import Darwin
                   && text(first) == "first <- 1\n" && text(second) == "second <- 2\n" && text(third) == "third <- 3\n",
                   "RStudio gets one new file per import, named by date and time, numbered on a clash, never replacing another",
                   [first, second, third, console].map(\.lastPathComponent).joined(separator: "\n"))
+        // An import is a file like any other StatsDirect writes: the user's file-creation mask decides who may read it,
+        // and the private file it was written to is gone.
+        let mask = umask(0); umask(mask)
+        let made = try entries(scripts)
+        try check(made.count == 4 && made.values.allSatisfy { $0.hasPrefix("file " + String(0o666 & ~mask, radix: 8) + " ") },
+                  "an import has the permissions of any new file, and its private file is not left behind", "\(made)")
         let saved = try RExternalScript.save("old <- 1\n", name: "Sheet1 Worksheet", in: scripts)
         let again = try RExternalScript.save("new <- 2\n", name: "Sheet1 Worksheet", in: scripts)
         try check(saved == again && saved.lastPathComponent == "Sheet1 Worksheet.R" && text(again) == "new <- 2\n",
@@ -634,6 +652,90 @@ import Darwin
         try clashes(work: work.appendingPathComponent("clashes", isDirectory: true), date: date)
         try failedWrites(work: work.appendingPathComponent("write fails", isDirectory: true), date: date)
         try failedOpenKeepsExisting(work: work.appendingPathComponent("no descriptors", isDirectory: true), date: date)
+        try plainDisks(work: work.appendingPathComponent("plain disk", isDirectory: true), date: date)
+        try namedFailures(work: work.appendingPathComponent("named failure", isDirectory: true), date: date)
+        try staleTemporaries(work: work.appendingPathComponent("stale", isDirectory: true))
+    }
+
+    /// A disk that cannot rename a file without replacing another (FAT, exFAT, some network disks) says "not supported"
+    /// or "invalid argument". There the script is written straight to a name that is free.
+    @MainActor static func plainDisks(work: URL, date: Date) throws {
+        for (label, code) in [("not supported", ENOTSUP), ("invalid", EINVAL)] {
+            let place = try folder(work.appendingPathComponent(label, isDirectory: true)), name = "Sheet1 Worksheet"
+            var asked = 0
+            func save(_ text: String) throws -> URL {
+                try RExternalScript.saveUnique(text, name: name, date: date, in: place) { _, _ in asked += 1; return code }
+            }
+            let first = try save("first <- 1\n"), second = try save("second <- 2\n")
+            try writeAsGiven("# the user's\n", in: place, name: "Sheet1 Worksheet 2026-11-21 101530 3.R")
+            let fourth = try save("fourth <- 4\n")
+            let mask = umask(0); umask(mask)
+            let mode = "file " + String(0o666 & ~mask, radix: 8) + " ", saved = try entries(place)
+            try check([first, second, fourth].map(\.lastPathComponent) == ["Sheet1 Worksheet 2026-11-21 101530.R",
+                          "Sheet1 Worksheet 2026-11-21 101530 2.R", "Sheet1 Worksheet 2026-11-21 101530 4.R"]
+                      && asked == 3
+                      && saved == ["Sheet1 Worksheet 2026-11-21 101530.R": mode + "first <- 1\n",
+                                                  "Sheet1 Worksheet 2026-11-21 101530 2.R": mode + "second <- 2\n",
+                                                  "Sheet1 Worksheet 2026-11-21 101530 3.R": "file 644 # the user's\n",
+                                                  "Sheet1 Worksheet 2026-11-21 101530 4.R": mode + "fourth <- 4\n"],
+                      "on a disk that cannot rename without replacing (\(label)), each import is written to the next free name, with no private file left",
+                      "\(saved) after \(asked) renames")
+            // A write that fails there removes the file it had begun, and no other.
+            let before = try entries(place)
+            let large = try withFileSizeLimit(4096) { Result { try save(String(repeating: "x <- 1\n", count: 1200)) } }
+            guard case .failure(let error) = large else { throw Failure(description: "a write past the file-size limit succeeded") }
+            let cause = (error as NSError).userInfo[NSUnderlyingErrorKey] as? NSError, after = try entries(place)
+            try check(cause?.domain == NSPOSIXErrorDomain && cause?.code == Int(EFBIG) && after == before,
+                      "a failed write on such a disk (\(label)) is reported and removes only the file it had begun",
+                      "\(error)\n\(after)")
+        }
+    }
+
+    /// A failed save names the file it was for and its folder, as Foundation's own messages do.
+    @MainActor static func namedFailures(work: URL, date: Date) throws {
+        let place = try folder(work.appendingPathComponent("Read Only Scripts", isDirectory: true)), name = "Sheet1 Worksheet 2026-11-21 101530.R"
+        guard chmod(place.path, 0o555) == 0 else { throw Failure(description: "could not make the folder read-only") }
+        defer { chmod(place.path, 0o755) }
+        let denied = Result { try RExternalScript.saveUnique("x <- 1\n", name: "Sheet1 Worksheet", date: date, in: place) }
+        guard case .failure(let error) = denied else { throw Failure(description: "a save into a read-only folder succeeded") }
+        let info = (error as NSError).userInfo, cause = info[NSUnderlyingErrorKey] as? NSError
+        try check((error as? CocoaError)?.code == .fileWriteNoPermission && info[NSFilePathErrorKey] as? String == place.appendingPathComponent(name).path
+                  && cause?.domain == NSPOSIXErrorDomain && cause?.code == Int(EACCES)
+                  && error.localizedDescription.contains(name) && error.localizedDescription.contains("Read Only Scripts")
+                  && (try fm.contentsOfDirectory(atPath: place.path)).isEmpty,
+                  "a save refused by the folder says which file could not be saved, and where", error.localizedDescription)
+        // A reason Foundation has no words for is added in the system's.
+        let other = RExternalScript.fileError(EMFILE, place.appendingPathComponent(name))
+        try check(other.localizedDescription.contains(name) && other.localizedDescription.contains("Read Only Scripts")
+                  && other.localizedDescription.contains(String(cString: strerror(EMFILE))),
+                  "any other failure names the file and folder and gives the system's reason", other.localizedDescription)
+    }
+
+    /// What a save that never finished left in R Scripts goes at the next start or quit: only this user's own plain
+    /// files under a private name, and only old ones, which no running StatsDirect can still be writing.
+    @MainActor static func staleTemporaries(work: URL) throws {
+        let place = try folder(work), now = Date()
+        func age(_ name: String, seconds: TimeInterval) throws {
+            try fm.setAttributes([.modificationDate: now.addingTimeInterval(-seconds)], ofItemAtPath: place.appendingPathComponent(name).path)
+        }
+        for name in [".statsdirect-r-Ab12cD", ".statsdirect-r-fresh1", ".statsdirect-r-toolong1", ".statsdirect-r-sh0rt", ".statsdirect-r-a_b-c1",
+                     ".statsdirect-startup.R", "Sheet1 Worksheet 2026-11-21 101530.R"] {
+            try writeAsGiven("half an import\n", in: place, name: name)
+            if name != ".statsdirect-r-fresh1" { try age(name, seconds: 3600) }
+        }
+        try fm.createDirectory(at: place.appendingPathComponent(".statsdirect-r-folder"), withIntermediateDirectories: false)
+        try age(".statsdirect-r-folder", seconds: 3600)
+        try fm.createSymbolicLink(atPath: place.appendingPathComponent(".statsdirect-r-link01").path, withDestinationPath: "Sheet1 Worksheet 2026-11-21 101530.R")
+        let before = try entries(place)
+        let removed = RExternalScript.removeStaleTemporaries(in: place, now: now)
+        var expected = before; expected[".statsdirect-r-Ab12cD"] = nil
+        let left = try entries(place)
+        try check(removed.map(\.lastPathComponent) == [".statsdirect-r-Ab12cD"] && left == expected,
+                  "an old private file of an unfinished save is removed; a recent one, a folder, a link and every other name stay",
+                  "\(removed.map(\.lastPathComponent))\n\(left)")
+        try check(RExternalScript.removeStaleTemporaries(in: place.appendingPathComponent("missing"), now: now).isEmpty
+                  && RExternalScript.removeStaleTemporaries(in: place, now: now.addingTimeInterval(3600)).map(\.lastPathComponent) == [".statsdirect-r-fresh1"],
+                  "a missing folder is no failure, and the recent file goes once it too is old")
     }
 
     /// No file in R Scripts is hidden: Finder, RStudio's Files pane and R's list.files() do not show a name that starts with ".".
@@ -823,8 +925,10 @@ import Darwin
         guard case .failure(let error) = result else { throw Failure(description: "the save succeeded without a file descriptor") }
         let outer = error as NSError, cause = outer.userInfo[NSUnderlyingErrorKey] as? NSError ?? outer
         try check(cause.domain == NSPOSIXErrorDomain && cause.code == Int(EMFILE)
-                  && text(existing) == original && (try entries(place)) == before,
-                  "an open failure preserves the existing script and leaves no new file", error.localizedDescription)
+                  && text(existing) == original && (try entries(place)) == before
+                  && error.localizedDescription.contains(existing.lastPathComponent)
+                  && error.localizedDescription.contains(String(cString: strerror(EMFILE))),
+                  "an open failure preserves the existing script, leaves no new file, and names the file and the reason", error.localizedDescription)
     }
 
     // MARK: Process identity

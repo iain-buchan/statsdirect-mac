@@ -270,9 +270,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         openDocumentURLs(requested)
         // Data that R sessions which did not end normally left behind (rule 6.2): the files of R.app launches that
         // have ended, and the private folders of console workers that have gone. Nothing a running R uses is touched.
-        let roots = externalRSessionRoots
+        let roots = externalRSessionRoots, scripts = RExternalScript.scriptsFolder
         DispatchQueue.global(qos: .utility).async {
             RExternalScript.removeLeftovers(in: roots)
+            RExternalScript.removeStaleTemporaries(in: scripts)
             RConsoleSession.removeLeftoverPrivateFolders()
         }
         if !InteractiveRConsolePrototype.enabled { startUpdateChecks() }
@@ -868,6 +869,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         // Leftovers of R sessions that have ended without removing them (rule 6.2); a running R keeps its own. This
         // StatsDirect's consoles have already removed their private folders while Quit waited for them.
         RExternalScript.removeLeftovers(in: externalRSessionRoots)
+        RExternalScript.removeStaleTemporaries(in: RExternalScript.scriptsFolder)
         RConsoleSession.removeLeftoverPrivateFolders()
         closeOpenWorkbooks()
         SnapshotStore.shared.shutdown()

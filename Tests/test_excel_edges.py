@@ -525,6 +525,20 @@ try:
         finally:
             os.chflags(locked, 0); os.chmod(locked, 0o644)
         print('PASS: an old, read-only, Finder-locked workbook opens and saves, unedited and edited, as new unlocked files dated now')
+        # 16. A workbook only its owner may read stays so: in the private copy, and saved unedited, edited and streamed.
+        #     One that others may read stays readable by them.
+        for mode in (0o600, 0o640, 0o644):
+            source = folder/f'mode-{mode:o}.xlsx'; shutil.copyfile(verified, source); os.chmod(source, mode)
+            copies = folder/f'mode-{mode:o}-snapshots'
+            opened = request(action='open', path=str(source), snapshot=str(copies)); assert 'error' not in opened, opened
+            private = list(copies.glob('statsdirect-workbook-*.xlsx'))
+            assert len(private) == 1 and stat.S_IMODE(private[0].stat().st_mode) == mode, (oct(mode), private)
+            for label, cells, stream in (('unedited', unchanged, False), ('edited', edit, False), ('edited-stream', edit, True)):
+                out = folder/f'mode-{mode:o}-{label}.xlsx'
+                result = request(action='save', id=opened['id'], path=str(out), sheets=cells, stream=stream)
+                assert result.get('ok') and stat.S_IMODE(out.stat().st_mode) == mode, (oct(mode), label, result, oct(out.stat().st_mode))
+            assert request(action='close', id=opened['id'])['ok']
+        print('PASS: a workbook keeps who may read and write it through the private copy and every save')
         # Formula-region caches must also stay safe through Save As/reopen, not only the initial import.
         from excel_formula_region_save import check_formula_region_saves
         check_formula_region_saves(request, sys.argv[2], folder)

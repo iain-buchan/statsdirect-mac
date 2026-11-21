@@ -64,7 +64,8 @@ Excel calculates them on open. The save reply reports the invalidated results in
 refuse those cells until Excel has saved fresh results. A match between ClosedXML
 and the old Excel results cannot establish a correct answer for an edited input.
 For an unedited save, the copy, like the private copy taken at open, is a new file with the same bytes, not a copy
-that carries the original's date, read-only permission or Finder lock.
+that carries the original's date, read-only permission or Finder lock. The private copy and every saved workbook can
+be read and written by those who could read and write the workbook as opened, and always by its owner.
 
 The prototype's 500,000-cell, 50 MB, 256 MB and 128-sheet limits are gone. Measured through
 the native driver on the 1,048,576-row × 4-column probe workbook (35 MB):

@@ -220,13 +220,14 @@ public static partial class WorkbookIO {
         var id = Guid.NewGuid().ToString("N");
         var sheets = new List<Sheet>();
         var written = new List<string>();
+        bool madeFolder = false;
         try {
         // The original is kept as a private copy so later edits on disk do not change what is patched. The copy is taken
         // first and the cells are read from it, so the grid and the copy hold the same workbook even when the file is
         // replaced while it is read (by a sync client, or Excel's AutoSave).
         string copy = null;
         if (!dataCopy) {
-            if (snapshotDir != null) Directory.CreateDirectory(snapshotDir);
+            if (snapshotDir != null && !Directory.Exists(snapshotDir)) { Directory.CreateDirectory(snapshotDir); madeFolder = true; }
             copy = System.IO.Path.Combine(snapshotDir ?? System.IO.Path.GetTempPath(), $"statsdirect-workbook-{id}.xlsx");
             written.Add(copy);
             CopyContents(path, copy);
@@ -260,15 +261,27 @@ public static partial class WorkbookIO {
         }
         originals[id] = (copy, sheets.Sum(x => (long)x.Count), sheets.Any(x => x.FormulaCount > 0));
         return new { id, name = System.IO.Path.GetFileName(path), sheets, formulaCount = sheets.Sum(s => s.FormulaCount), cellCount = sheets.Sum(s => s.Count) };
-        } catch { foreach (var file in written) { try { File.Delete(file); } catch { } } throw; }
+        } catch {
+            foreach (var file in written) { try { File.Delete(file); } catch { } }
+            if (madeFolder) { try { Directory.Delete(snapshotDir); } catch { } }   // only while it is empty
+            throw;
+        }
     }
-    // A new file holding the source's bytes. A file-system copy would also give it the source's modification time,
-    // read-only permission and Finder lock, and a locked copy can be neither patched nor removed.
+    // A new file holding the source's bytes, which those who may read or write the source may read or write, and its
+    // owner always. A file-system copy would also give it the source's modification time, a read-only permission and
+    // Finder lock, and a locked copy can be neither patched nor removed.
     static void CopyContents(string source, string target) {
         using var input = File.OpenRead(source);
-        using var output = File.Create(target);
+        using var output = OperatingSystem.IsWindows() ? File.Create(target)
+            : new FileStream(target, new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, UnixCreateMode = Permissions(source) });
         input.CopyTo(output);
     }
+    // Who may read and write a workbook, with its owner always able to: a workbook only its owner may read stays so
+    // through the private copy and every save, and one that is read-only can still be saved under another name.
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    static UnixFileMode Permissions(string path) =>
+        File.GetUnixFileMode(path) & (UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.OtherRead | UnixFileMode.OtherWrite)
+        | UnixFileMode.UserRead | UnixFileMode.UserWrite;
 
     sealed class SheetInfo { public string Name; public string Entry; public bool Hidden; }
     // Part names in a package are case-insensitive and relationship targets are percent-encoded.
@@ -737,6 +750,7 @@ public static partial class WorkbookIO {
             if (source == null) { using var stream = File.Create(temporary); WriteWorkbook(stream, sheets); }   // a new workbook already holds the cells where the grid put them
             else {
                 long edits = sheets.Sum(s => s.Columns.Values.Sum(c => (long)c.Rows.Count));
+                string opened = source;
                 if (edits == 0 && inserts.Count == 0) {
                     CopyContents(source, temporary);
                     recalculated = false;
@@ -753,6 +767,8 @@ public static partial class WorkbookIO {
                     }
                     if (!patched) { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 }
+                // The streaming patcher writes a file anyone may read; the saved workbook is for those the opened one was.
+                if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(temporary, Permissions(opened));
                 sheetCount = CountSheets(temporary);
             }
             File.Move(temporary, request.Path, true);

@@ -730,6 +730,9 @@ public static partial class WorkbookIO {
                 int? patched = null;
                 if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source) && ClosedXmlCalculates(source)) { File.Copy(source, temporary, true); patched = PatchWithClosedXml(temporary, source, sheets); }
                 if (patched is int count) uncached = count;
+                // With no edited cell and no inserted column there is nothing to merge: the workbook as opened keeps the
+                // results Excel saved, which the streaming patch would drop for Excel to recalculate.
+                else if (edits == 0 && inserts.Count == 0) File.Copy(source, temporary, true);
                 else { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 sheetCount = CountSheets(temporary);
             }

@@ -57,7 +57,9 @@ opened workbook is patched: through ClosedXML, which recalculates formulas and p
 styles, when the original plus the edits hold at most one million cells, and otherwise by
 streaming each worksheet part and merging the edited cells, in which case formula cells keep
 their expressions, lose their cached results and the workbook is marked for recalculation
-when Excel opens it (`uncachedFormulas` in the reply tells the user).
+when Excel opens it (`uncachedFormulas` in the reply tells the user). A workbook saved with no
+edited cell and no inserted column has nothing to stream and is copied as opened, with the
+results Excel saved.
 
 The prototype's 500,000-cell, 50 MB, 256 MB and 128-sheet limits are gone. Measured through
 the native driver on the 1,048,576-row × 4-column probe workbook (35 MB):

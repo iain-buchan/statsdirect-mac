@@ -7,7 +7,8 @@ The default save patches a small workbook through ClosedXML, which writes its ow
 function it lacks that result is #NAME?, and IFERROR, ISERROR or IFNA turn it into an ordinary value, so a reopened
 workbook would send R a result Excel never computed. Such a workbook must take the streaming patcher instead: its
 formulas keep their expressions and lose their saved results, which Excel recalculates, and the reopened cells are
-refused for R until then. A defined name a formula uses counts as that formula. A workbook whose functions ClosedXML
+refused for R until then; unedited, there is nothing to patch, and the Save As copies the workbook with Excel's saved
+results. A defined name a formula uses counts as that formula. A workbook whose functions ClosedXML
 implements keeps the ClosedXML path and its recalculated results, even with such a name in a string literal, in a quoted
 sheet name, or in a defined name nothing uses.
 Every source is real OOXML with Excel's saved results; the actual grid model makes the edit, exports its edit snapshot
@@ -148,7 +149,13 @@ def check_closedxml_function_saves(request, node, folder):
                     back, _ = grid(reopened, refs + ['A1', 'E1'], label + '-reopened')
                     cells = {ref: cell for ref, cell in zip(refs + ['A1', 'E1'], back['before'])}
                     check(cells['A1'].get('values') == ['1'] and cells['E1'].get('values') == (['10'] if snapshot else ['2']), label + ': the values around the formulas survive')
-                    if spec['streams']:
+                    if spec['streams'] and not snapshot:
+                        # Nothing edited, nothing to merge: the copy keeps every result Excel saved, and R receives them.
+                        check(saved.get('recalculated') is True and saved.get('uncachedFormulas') == 0 and saved_path.read_bytes() == source.read_bytes(),
+                              label + ': an unedited Save As copies the workbook as opened: ' + json.dumps(saved))
+                        check(all(cells[ref].get('values') == fresh[ref].get('values') for ref in refs),
+                              label + ': the reopened results are Excel\'s saved ones: ' + json.dumps([cells[ref] for ref in refs]))
+                    elif spec['streams']:
                         check(saved.get('recalculated') is False and saved.get('uncachedFormulas') == len(refs),
                               label + ': a function ClosedXML lacks sends the workbook to the streaming patcher: ' + json.dumps(saved))
                         check(all(new_xml[ref].find(S + 'v') is None and 't' not in new_xml[ref].attrib for ref in refs),

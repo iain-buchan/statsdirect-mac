@@ -22,7 +22,8 @@ import CryptoKit
 
     /// The file name for a script titled `name`: "/", ":", control characters and bidirectional-text controls as "_",
     /// without surrounding spaces, with ".R" added unless it has an R extension, and short enough for a date and number
-    /// to be added.
+    /// to be added: at most 200 of the 255 units the Mac's disks allow a name (`diskLength`), shortened on a character
+    /// boundary.
     nonisolated static func fileName(_ name: String) -> String {
         var scalars = String.UnicodeScalarView()
         for scalar in name.unicodeScalars {
@@ -33,12 +34,25 @@ import CryptoKit
         var file = String(scalars).trimmingCharacters(in: .whitespaces)
         if file.isEmpty { file = "Script" }
         if (file as NSString).pathExtension.lowercased() != "r" { file += ".R" }
-        if file.utf8.count > 200 {
-            var stem = (file as NSString).deletingPathExtension
-            while stem.utf8.count > 198 { stem.removeLast() }
+        if diskLength(file) > 200 {
+            // Each character takes at least one unit, so the first 198 hold all that can stay.
+            var stem = String((file as NSString).deletingPathExtension.prefix(198))
+            while diskLength(stem) > 198 { stem.removeLast() }
             file = stem + ".R"
         }
         return file
+    }
+
+    /// A name's length as the Mac's disks limit it, to 255: in UTF-16 units of the decomposed form Foundation gives them,
+    /// which can be several times its length as typed ("ǖ" is u, a diaeresis and a macron). That form is NFD, except that
+    /// it keeps some characters whole, CJK compatibility ideographs among them, a few of which NFD would make shorter.
+    nonisolated static func diskLength(_ name: String) -> Int {
+        let text = name as CFString
+        var bytes = [CChar](repeating: 0, count: CFStringGetMaximumSizeOfFileSystemRepresentation(text))
+        guard CFStringGetFileSystemRepresentation(text, &bytes, bytes.count) else {
+            return name.decomposedStringWithCanonicalMapping.utf16.count
+        }
+        return String(decoding: bytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self).utf16.count
     }
 
     /// The script saved in R Scripts under its own name, replacing an earlier save of that name.

@@ -8,8 +8,8 @@ import Darwin
 ///   none. The script is read as written whatever the user's profile sets options(encoding) or defaultPackages to. When
 ///   R ends, the script copy and the start-up file go by their exact paths, each only while unchanged, then the record;
 /// - a script copy never takes the start-up file's or the launch record's name;
-/// - R+ file names and saves in R Scripts: numbered only when a name is in use, and nothing left by a save that fails (one
-///   cut short by a file-size limit);
+/// - R+ file names and saves in R Scripts: within the disk's limit on a name however its accents decompose, numbered only
+///   when a name is in use, and nothing left by a save that fails (one cut short by a file-size limit);
 /// - the leftover clean-up of R.app launch folders and of console private folders, on fake trees, with another StatsDirect
 ///   still running;
 /// - a real console worker whose host is killed leaves its private folder, which start-up removes once it has gone.
@@ -629,8 +629,35 @@ import Darwin
         try check(consoleFallback == consoleAgain && consoleAgain.lastPathComponent == "Console.R" && text(consoleAgain) == "console <- 10\n",
                   "console fallback keeps its established named-script behavior, independently of worksheet imports")
 
+        try longNames(work: work.appendingPathComponent("long", isDirectory: true), date: date)
         try clashes(work: work.appendingPathComponent("clashes", isDirectory: true), date: date)
         try failedWrites(work: work.appendingPathComponent("write fails", isDirectory: true), date: date)
+    }
+
+    /// The Mac's disks allow a name 255 UTF-16 units in the decomposed form Foundation hands them, which can be several times
+    /// its length as typed.
+    @MainActor static func longNames(work: URL, date: Date) throws {
+        /// A name's length as the disk counts it, from the path Foundation gives the file system.
+        func units(_ name: String) -> Int {
+            URL(fileURLWithPath: "/").appendingPathComponent(name).withUnsafeFileSystemRepresentation { String(cString: $0!) }.utf16.count - 1
+        }
+        try check(RExternalScript.fileName(String(repeating: "\u{E9}", count: 99)) == String(repeating: "\u{E9}", count: 99) + ".R"
+                  && RExternalScript.fileName(String(repeating: "a", count: 199)) == String(repeating: "a", count: 198) + ".R",
+                  "a file name of 200 units is kept as it is; one unit more and it is shortened")
+        // However a title decomposes, its file name leaves room for a date and a number, and each kind of save works: here
+        // "ǖ" and "ΐ" (3 units each, decomposed), "ᾂ" (4) and a CJK compatibility ideograph, which Foundation keeps whole
+        // (2 units, where NFD would give 1).
+        for (letter, count) in [("\u{1D6}", 76), ("\u{390}", 99), ("\u{1F82}", 66), ("\u{2F800}", 150)] {
+            let title = String(repeating: letter, count: count) + " Worksheet", name = RExternalScript.fileName(title)
+            let place = try folder(work.appendingPathComponent(String(format: "U+%04X", letter.unicodeScalars.first!.value), isDirectory: true))
+            let saved = try [RExternalScript.saveUnique("x <- 1\n", name: title, date: date, in: place),
+                             RExternalScript.saveUnique("x <- 2\n", name: title, date: date, in: place),
+                             RExternalScript.save("x <- 3\n", name: title, in: place)]
+            try check(units(name) <= 200 && name.hasPrefix(letter) && saved.map(text) == ["x <- 1\n", "x <- 2\n", "x <- 3\n"]
+                      && saved[1].lastPathComponent.hasSuffix(" 101530 2.R"),
+                      "a title of \(count) \(letter) gives a name of \(units(name)) units as the disk counts them, and the dated, numbered and named saves all work",
+                      saved.map { "\(units($0.lastPathComponent)) units: \($0.lastPathComponent)" }.joined(separator: "\n"))
+        }
     }
 
     /// A file written under its name exactly as given, as R or a shell writes one, where Foundation would decompose its accents.

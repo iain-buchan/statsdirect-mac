@@ -488,5 +488,9 @@ try:
         # Formula-region caches must also stay safe through Save As/reopen, not only the initial import.
         from excel_formula_region_save import check_formula_region_saves
         check_formula_region_saves(request, sys.argv[2], folder)
+        # And a formula calling a function ClosedXML lacks must not come back from the default save as its #NAME? or an
+        # IFERROR, ISERROR or IFNA fallback built on it.
+        from excel_closedxml_functions_save import check_closedxml_function_saves
+        check_closedxml_function_saves(request, sys.argv[2], folder)
 finally:
     driver.stdin.close(); driver.wait(timeout=15)

@@ -728,7 +728,7 @@ public static partial class WorkbookIO {
                     source = insertedSource;
                 }
                 int? patched = null;
-                if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source)) { File.Copy(source, temporary, true); patched = PatchWithClosedXml(temporary, source, sheets); }
+                if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source) && ClosedXmlCalculates(source)) { File.Copy(source, temporary, true); patched = PatchWithClosedXml(temporary, source, sheets); }
                 if (patched is int count) uncached = count;
                 else { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 sheetCount = CountSheets(temporary);
@@ -875,6 +875,64 @@ public static partial class WorkbookIO {
         }
         w.WriteEndElement();
         w.WriteEndElement();
+    }
+
+    // ---- Which patcher: whether ClosedXML can calculate every function the formulas call --
+    // The ClosedXML patcher writes ClosedXML's own result for every formula (PatchOriginal). A function it does not implement
+    // comes out as #NAME?, and IFERROR, ISERROR and the like turn that into an ordinary value, such as 0 for
+    // IFERROR(NORM.S.INV(0.975),0): neither is the result Excel saved, and a reopened workbook would send it to R and the
+    // analyses as Excel's. Such a workbook goes to the streaming patcher, which keeps the formulas, removes their saved
+    // results (reported as uncached) and leaves Excel to recalculate them. The functions are those called by any worksheet
+    // formula, and by the defined names those formulas use (and the names those use), each read with its string literals,
+    // quoted sheet names and bracketed parts (structured and external references) left out; a name nothing uses, such as a
+    // chart's OFFSET range, does not count.
+    static readonly Regex FormulaFunction = new(@"(?<![\p{L}\p{N}_.\\?])([\p{L}_\\][\p{L}\p{N}_.\\?]*)\(", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    static readonly Regex FormulaWord = new(@"(?<![\p{L}\p{N}_.\\?])[\p{L}_\\][\p{L}\p{N}_.\\?]*", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    static readonly Regex FormulaLiteral = new(@"""(?:[^""]|"""")*""|'(?:[^']|'')*'|\[[^\[\]]*\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    static readonly ConcurrentDictionary<string, bool> closedXmlFunctions = new(StringComparer.OrdinalIgnoreCase);
+    // Called with no arguments, a function ClosedXML lacks gives #NAME?, while one it has refuses the call as too few
+    // arguments, needs a cell to evaluate in, or gives its value. A call that fails any other way (LOG10() does) is made
+    // again with one argument, and one that fails both ways counts as lacking. Each name is asked once.
+    static bool ClosedXmlImplements(string function) => closedXmlFunctions.GetOrAdd(function, name => {
+        foreach (var call in new[] { name + "()", name + "(1)" }) {
+            try { var result = XLWorkbook.EvaluateExpr(call); return !(result.IsError && result.GetError() == XLError.NameNotRecognized); }
+            catch (ClosedXML.Excel.CalcEngine.ExpressionParseException) { return true; }
+            catch (InvalidOperationException) { return true; }
+            catch (Exception) { }
+        }
+        return false;
+    });
+    static bool ClosedXmlCalculates(string path) {
+        using var zip = ZipFile.OpenRead(path);
+        var package = new Package(zip, true);
+        // The defined names' formulas by name; a sheet's own name shares its name with the workbook's, and both are read.
+        var names = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in ReadXml(zip, "xl/workbook.xml").Root.Element(S + "definedNames")?.Elements(S + "definedName") ?? Enumerable.Empty<XElement>()) {
+            var key = (string)name.Attribute("name") ?? "";
+            if (!names.TryGetValue(key, out var formulas)) names[key] = formulas = new List<string>();
+            formulas.Add(name.Value);
+        }
+        var functions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pending = new Queue<string>();
+        void Read(string formula) {
+            var text = FormulaLiteral.Replace(formula, "\"\"");
+            foreach (Match m in FormulaFunction.Matches(text)) functions.Add(m.Groups[1].Value);
+            if (names.Count > 0) foreach (Match m in FormulaWord.Matches(text)) if (names.ContainsKey(m.Value) && used.Add(m.Value)) pending.Enqueue(m.Value);
+        }
+        foreach (var sheet in package.Sheets) {
+            var entry = Entry(zip, sheet.Entry);
+            if (entry == null) continue;
+            using var stream = entry.Open();
+            using var reader = XmlReader.Create(stream);
+            while (!reader.EOF) {
+                if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "f" && reader.NamespaceURI == MainNs)
+                    Read(reader.ReadElementContentAsString());   // leaves the reader on the node after the element
+                else reader.Read();
+            }
+        }
+        while (pending.Count > 0) foreach (var formula in names[pending.Dequeue()]) Read(formula);
+        return functions.All(ClosedXmlImplements);
     }
 
     // ---- Patch an opened workbook through ClosedXML (small workbooks) ------------------

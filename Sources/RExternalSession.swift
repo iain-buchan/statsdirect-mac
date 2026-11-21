@@ -175,8 +175,12 @@ import CryptoKit
                 let session = try RExternalSession(data: Data(source.utf8), name: fileName(name), directory: launchFolder(in: workingDirectory), echo: echo)
                 start(session, with: r, status: status) { reason in
                     // R.app did not start: keep the script for the user, as when no R application is installed.
-                    if let saved = try? saveFallback(source, name: name, echo: echo) { status("Open in R failed: \(reason). Your script is saved as \(saved.path).") }
-                    else { status("Open in R failed: \(reason).") }
+                    do {
+                        let saved = try saveFallback(source, name: name, echo: echo)
+                        status("Open in R failed: \(reason). Your script is saved as \(saved.path).")
+                    } catch {
+                        status("Open in R failed: \(reason). Your script could not be saved: \(error.localizedDescription)")
+                    }
                 }
                 return session.script
             }

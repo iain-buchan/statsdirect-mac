@@ -180,7 +180,8 @@ import CryptoKit
 
     /// Removes what R.app sessions that did not end normally left in External R-<UUID> folders, directly in each root or
     /// one folder below it (a console session's or a script pane's folder): each file a launch record lists, while it is
-    /// still what the launch wrote, and then the record itself. A launch made by another StatsDirect that is still running
+    /// still what the launch wrote, and then the record itself, unless a listed file could not be read or removed, when the
+    /// record stays for a later run. A launch made by another StatsDirect that is still running
     /// is that StatsDirect's own, whether or not its R.app has started, and keeps everything; so does a launch whose R.app
     /// is still running, or may be, and a folder without a record (an earlier version's, or RStudio's). Folders always
     /// stay. `this` is the StatsDirect calling. Returns the files removed.
@@ -229,9 +230,11 @@ import CryptoKit
                 let file = folder.appendingPathComponent(name)
                 var info = stat()
                 guard lstat(file.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG || info.st_mode & S_IFMT == S_IFLNK else { continue }
-                // A file that is no longer what this launch wrote is the user's: a script copy they saved changes to in
-                // R.app's editor, or their own file under that name.
-                guard fm.contents(atPath: file.path).map(RExternalLaunchRecord.digest) == digest else { continue }
+                // A file that cannot be read now may still be what this launch wrote: it stays, and keeps the record, so
+                // that a later run looks at it again. One that is no longer what the launch wrote is the user's: a script
+                // copy they saved changes to in R.app's editor, or their own file under that name.
+                guard let contents = fm.contents(atPath: file.path) else { kept = true; continue }
+                guard RExternalLaunchRecord.digest(contents) == digest else { continue }
                 if unlink(file.path) == 0 { removed.append(file) } else { kept = true }
             }
             // The record goes once what it lists is gone or the user's, so that a later run can retry the rest.

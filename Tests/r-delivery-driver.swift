@@ -705,6 +705,13 @@ import Darwin
         try fm.createSymbolicLink(at: link, withDestinationURL: elsewhere.directory)
         let corrupt = try launch(in: root, app: ended, host: nil)
         try Data("{not json".utf8).write(to: corrupt.record)
+        // A listed file that cannot be read now (here a script copy with no permissions) may still be what the launch wrote:
+        // it stays, and so does the record, so that a later run, once it can read the file, finishes the clean-up.
+        let unreadable = try launch(in: root, app: ended, host: nil)
+        guard chmod(unreadable.script.path, 0) == 0, fm.contents(atPath: unreadable.script.path) == nil else {
+            throw Failure(description: "the test could not make a script copy unreadable")
+        }
+        defer { chmod(unreadable.script.path, 0o644) }
 
         // Any R.app might be the one a launch without a recorded R.app is using: keep it.
         let removedWhileRApp = RExternalScript.removeLeftovers(in: [root, root], rAppRunning: { true })
@@ -724,6 +731,9 @@ import Darwin
                   "a start-up file the user replaced stays, as does their own startup.R; the unchanged copy and the record go")
         try check(!exists(linked.script) && exists(target) && !exists(linked.profile), "a linked script copy loses only its link")
         try check(paths(removedWhileRApp).count == removedWhileRApp.count, "a root named twice is cleaned once")
+        try check(exists(unreadable.script) && exists(unreadable.record) && !exists(unreadable.profile)
+                  && RExternalLaunchRecord.read(unreadable.record)?.files.count == 2,
+                  "a listed file that cannot be read stays, and keeps the launch record, while the rest goes")
 
         // Once no R.app runs, an unrecorded launch whose StatsDirect has gone loses its files too.
         let removedLater = RExternalScript.removeLeftovers(in: [root], rAppRunning: { false })
@@ -750,6 +760,15 @@ import Darwin
                   && paths(removedAfterOther) == paths([otherEnded.script, otherEnded.profile, otherEnded.record,
                                                          otherStarting.script, otherStarting.profile, otherStarting.record]),
                   "once the other StatsDirect has gone, and no R.app runs, its launches lose their files", removedAfterOther.map(\.path).joined(separator: "\n"))
+
+        // The unreadable copy was kept through every run so far. Once it can be read, and is still what the launch wrote, it
+        // goes, and the record with it.
+        try check(exists(unreadable.script) && exists(unreadable.record), "a file that still cannot be read keeps its record run after run")
+        guard chmod(unreadable.script.path, 0o644) == 0 else { throw Failure(description: "the test could not make the script copy readable again") }
+        let removedOnceReadable = RExternalScript.removeLeftovers(in: [root], rAppRunning: { false })
+        try check(paths(removedOnceReadable) == paths([unreadable.script, unreadable.record]) && !exists(unreadable.script) && !exists(unreadable.record)
+                  && exists(unreadable.directory.appendingPathComponent("user.csv")),
+                  "once it can be read, the copy and its record go", removedOnceReadable.map(\.path).joined(separator: "\n"))
     }
 
     // MARK: Console private folders (6.2, at start)

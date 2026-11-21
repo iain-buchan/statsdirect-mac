@@ -1,7 +1,190 @@
 import {columnName} from './store.mjs';
 
-// Plan bounds from the sparse column store. Formatting-only cells may allocate
-// chunks, but only actual values and formulas define an importable worksheet.
+// Worksheet data for R, by the rules shared with StatsDirect for Windows ("Worksheet data sent to
+// R" in the statisticalhelp repository; rule numbers below refer to it). The prompt's preview reads
+// only bounds and the first row. The import reads the confirmed cells and returns each column's R
+// type with its values as text: exact R numeric literals, TRUE/FALSE, day counts for Date, or the
+// raw strings of a character column, which the host quotes. null is a missing value.
+
+const RECALCULATE = 'Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.';
+const TOO_LARGE = 'The selected data exceed the 8 MiB editable R script limit. Select a smaller range, or export the worksheet as RDS from File → Export.';
+const DAY = 86400000;
+
+// Rule 3.1: white space is Unicode White_Space, which .NET's String.Trim removes (not U+200B or U+FEFF).
+const SPACE = '[\\t-\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]';
+const EDGE_SPACE = new RegExp(`^${SPACE}+|${SPACE}+$`, 'g');
+export const trimSpace = text => text.replace(EDGE_SPACE, '');
+
+// Rule 3.4 (C9): trimmed text that counts as a number: ASCII digits, a finite value and no
+// leading zero. Returns the number, or NaN.
+const DECIMAL = /^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/, LEADING_ZERO = /^[+-]?0[0-9]/;
+export function numberValue(text) {
+  if (!DECIMAL.test(text) || LEADING_ZERO.test(text)) return NaN;
+  const x = Number(text);
+  return Number.isFinite(x) ? x : NaN;
+}
+
+// Rules 3.2, 3.3 and 3.5. The markers are missing in any column when written exactly so; the
+// words in any other case, and the Inf words, only beside an anchor (A1). Case is ASCII only.
+const MARKERS = new Set(['*', '* (missing)', '.', 'NA', 'N/A', 'NaN', 'NULL', 'MISSING']);
+const MISSING_WORD = /^(?:na|n\/a|nan|null|missing)$/i, INFINITY_WORD = /^(-?)inf(?:inity)?$/i, BOOLEAN_WORD = /^(?:true|false)$/i;
+const LETTER = /\p{L}/u;
+
+// Rule 3.8 (I4): the R literal that reads back as exactly this double. The shortest decimal when it
+// has no exponent, at most four digits after the point and at most 15 digits; otherwise R's
+// hexadecimal form, with subnormals as 0x0.<fraction>p-1022 (R reads C's %a form of them as 0).
+export function rNumber(x) {
+  if (x === Infinity) return 'Inf';
+  if (x === -Infinity) return '-Inf';
+  const text = String(x);   // -0 gives "0"
+  if (!text.includes('e')) {
+    const point = text.indexOf('.'), decimals = point < 0 ? 0 : text.length - point - 1;
+    if (decimals <= 4 && text.replace(/[-.]/g, '').replace(/^0+/, '').length <= 15) return text;
+  }
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, x);
+  const high = view.getUint32(0), exponent = (high >>> 20) & 0x7ff, sign = high >>> 31 ? '-' : '';
+  const fraction = (high & 0xfffff).toString(16).padStart(5, '0') + view.getUint32(4).toString(16).padStart(8, '0');
+  return exponent ? `${sign}0x1.${fraction}p${exponent >= 1023 ? '+' : ''}${exponent - 1023}` : `${sign}0x0.${fraction}p-1022`;
+}
+
+// Rule 3.9: dates and times, rounded to the millisecond. A datetime cell's text is
+// YYYY-MM-DD[ T]HH:MM[:SS[.f…]], with a final Z (UTC) from R data files; a timespan cell's is
+// .NET's "c" text, [-][d.]hh:mm:ss[.fffffff].
+const DATE_TIME = /^([0-9]{4})-([0-9]{2})-([0-9]{2})(?:[ T]([0-9]{2}):([0-9]{2})(?::([0-9]{2})(?:\.([0-9]+))?)?Z?)?$/;
+const DURATION = /^(-?)(?:([0-9]+)\.)?([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?$/;
+const milliseconds = (digits = '') => Number(digits.padEnd(3, '0').slice(0, 3)) + (digits[3] >= '5' ? 1 : 0);
+const two = n => String(n).padStart(2, '0');
+// Milliseconds since 1970-01-01, carried into the seconds, minutes and date, or NaN for a time or
+// date the calendar does not have.
+function dateTimeValue(text) {
+  const match = DATE_TIME.exec(text);
+  if (!match) return NaN;
+  const [y, mo, d, h, mi, s] = match.slice(1, 7).map(v => Number(v ?? 0));
+  if (h > 23 || mi > 59 || s > 59) return NaN;
+  const date = new Date(0);
+  date.setUTCFullYear(y, mo - 1, d);
+  if (date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return NaN;
+  return date.getTime() + ((h * 60 + mi) * 60 + s) * 1000 + milliseconds(match[7]);
+}
+function dayText(days) {
+  const date = new Date(days * DAY);
+  return String(date.getUTCFullYear()).padStart(4, '0') + '-' + two(date.getUTCMonth() + 1) + '-' + two(date.getUTCDate());
+}
+// HH:MM:SS, the hours not wrapped, and a point with one to three digits only for a fraction.
+function clockText(ms) {
+  const fraction = ms % 1000;
+  return two(Math.floor(ms / 3600000)) + ':' + two(Math.floor(ms / 60000) % 60) + ':' + two(Math.floor(ms / 1000) % 60)
+    + (fraction ? '.' + String(fraction).padStart(3, '0').replace(/0+$/, '') : '');
+}
+// A time of day or duration as [-]HH:MM:SS[.f], or null when the text is not a duration.
+function durationText(text) {
+  const match = DURATION.exec(text);
+  if (!match) return null;
+  const [d, h, mi, s] = match.slice(2, 6).map(v => Number(v ?? 0));
+  const ms = (((d * 24 + h) * 60 + mi) * 60 + s) * 1000 + milliseconds(match[6]);
+  if (mi > 59 || s > 59 || !Number.isSafeInteger(ms)) return null;
+  return (match[1] && ms ? '-' : '') + clockText(ms);
+}
+
+// Rule 3.10: text arrives exactly as in the cell, except that a lone surrogate becomes U+FFFD.
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
+const wellFormed = text => text.replace(LONE_SURROGATE, '\ufffd');
+
+// What a copied cell holds. The first four are always missing: blank (also empty or white-space
+// text, and a formula whose saved result is empty text), a marker written exactly so, a
+// spreadsheet error (C4), and the nonexistent 1900-02-29. A typed cell whose text does not read as
+// its type counts as text.
+const Cell = {blank: 0, marker: 1, error: 2, serial60: 3, word: 4, infinite: 5, number: 6, numberText: 7,
+  boolean: 8, booleanText: 9, date: 10, dateTime: 11, time: 12, text: 13};
+const CLASSES = 14;
+// The class of one cell. Its value goes in value[i]: the number, ±Infinity, 1 or 0 for a Boolean,
+// the day count of a date, or the milliseconds since 1970 of a date-time.
+function classify(text, kind, value, i) {
+  if (kind === 'error') return Cell.error;
+  if (text === '') return Cell.blank;
+  const t = trimSpace(text);
+  if (kind === 'number') {
+    const x = numberValue(t);
+    if (!Number.isNaN(x)) { value[i] = x; return Cell.number; }
+  } else if (kind === 'boolean') {
+    if (BOOLEAN_WORD.test(t)) { value[i] = /^t/i.test(t) ? 1 : 0; return Cell.boolean; }
+  } else if (kind === 'datetime' && DATE_TIME.test(t)) {
+    if (t.startsWith('1900-02-29')) return Cell.serial60;
+    const time = dateTimeValue(t);
+    if (!Number.isNaN(time)) {
+      if (time % DAY) { value[i] = time; return Cell.dateTime; }
+      value[i] = time / DAY; return Cell.date;
+    }
+  } else if (kind === 'timespan' && durationText(t) !== null) return Cell.time;
+  if (t === '') return Cell.blank;
+  if (MARKERS.has(t)) return Cell.marker;
+  if (MISSING_WORD.test(t)) return Cell.word;
+  const x = numberValue(t);
+  if (!Number.isNaN(x)) { value[i] = x; return Cell.numberText; }
+  const infinite = INFINITY_WORD.exec(t);
+  if (infinite) { value[i] = infinite[1] ? -Infinity : Infinity; return Cell.infinite; }
+  if (BOOLEAN_WORD.test(t)) { value[i] = /^t/i.test(t) ? 1 : 0; return Cell.booleanText; }
+  return Cell.text;
+}
+
+// Rule 3.6, judged on the non-missing cells. The any-case words are missing, and the Inf words
+// numbers, only beside at least one number, Boolean or date with every other cell of that kind (A1).
+function columnType(n) {
+  const numbers = n[Cell.number] + n[Cell.numberText], booleans = n[Cell.boolean] + n[Cell.booleanText], dates = n[Cell.date];
+  if (n[Cell.dateTime] + n[Cell.time] + n[Cell.text] === 0) {
+    if (numbers && !booleans && !dates) return 'double';
+    if (!numbers && !n[Cell.infinite]) {
+      if (booleans && !dates) return 'logical';
+      if (dates && !booleans) return 'Date';
+      if (!booleans && !dates && !n[Cell.word]) return 'logical';   // every cell missing
+    }
+  }
+  return 'character';
+}
+// A date-time column: every non-missing cell a date or date-time, at least one with a time. Its
+// midnights keep 00:00:00, because as.POSIXct() drops the time from every value if one lacks it.
+const dateTimeColumn = n => n[Cell.dateTime] > 0 && n[Cell.number] + n[Cell.numberText] + n[Cell.boolean] + n[Cell.booleanText]
+  + n[Cell.time] + n[Cell.text] + n[Cell.word] + n[Cell.infinite] === 0;
+
+// Rule 3.7: a value in a character column, and a heading's name (4.5). A text cell keeps its exact text.
+function cellText(cls, x, text, dateTimes) {
+  switch (cls) {
+    case Cell.number: return String(x === 0 ? 0 : x);   // -0 as 0
+    case Cell.boolean: return x ? 'TRUE' : 'FALSE';
+    case Cell.date: return dayText(x) + (dateTimes ? ' 00:00:00' : '');
+    case Cell.dateTime: { const days = Math.floor(x / DAY); return dayText(days) + ' ' + clockText(x - days * DAY); }
+    case Cell.time: return durationText(trimSpace(text));
+    default: return wellFormed(text);
+  }
+}
+function valueText(type, cls, x, text, dateTimes) {
+  switch (type) {
+    case 'double': return cls === Cell.number || cls === Cell.numberText ? rNumber(x) : cls === Cell.infinite ? (x > 0 ? 'Inf' : '-Inf') : null;
+    case 'logical': return cls === Cell.boolean || cls === Cell.booleanText ? (x ? 'TRUE' : 'FALSE') : null;
+    case 'Date': return cls === Cell.date ? rNumber(x) : null;
+    default: return cls > Cell.serial60 ? cellText(cls, x, text, dateTimes) : null;
+  }
+}
+
+// Rule 4.1: the first row is suggested as headings when the data has at least two rows and every
+// non-blank first-row cell is text with a letter, not numeric text, a Boolean or an exact marker.
+// Blank and white-space cells are passed over; a formula counts by its value; one heading is needed.
+function suggestHeadings(store, plan) {
+  if (rowCount(plan) < 2) return false;
+  const r = rowAt(plan, 0), value = new Float64Array(1);
+  let any = false;
+  for (const c of plan.columns) {
+    const text = store.get(c, r), cls = classify(text, store.kind(c, r), value, 0);
+    if (cls === Cell.blank) continue;
+    if (![Cell.text, Cell.word, Cell.infinite].includes(cls) || !LETTER.test(text)) return false;
+    any = true;
+  }
+  return any;
+}
+
+// Plan bounds from the sparse column store. Formatting-only cells may allocate chunks, but only
+// values and formulas (rule 2.1: white-space text too) define the data.
 function columnBounds(store, c) {
   const column = store.cols[c];
   if (!column) return null;
@@ -17,7 +200,6 @@ function columnBounds(store, c) {
   for (const row of column.formula.keys()) { first = Math.min(first, row); last = Math.max(last, row); }
   return Number.isFinite(first) ? {first, last} : null;
 }
-
 function populatedBounds(store, columns = null) {
   let first = Infinity, last = -1, left = Infinity, right = -1;
   const visit = c => {
@@ -30,93 +212,164 @@ function populatedBounds(store, columns = null) {
   else store.cols.forEach((_column, c) => visit(c));
   return Number.isFinite(first) ? {first, last, left, right} : null;
 }
+// Every row from first to last of a column that holds a value or a formula.
+function forEachFilledRow(column, first, last, visit) {
+  for (const [index, {kind}] of column.chunks) {
+    const base = index * kind.length;
+    for (let r = Math.max(first, base), end = Math.min(last, base + kind.length - 1); r <= end; r++) if (kind[r - base] !== 0) visit(r);
+  }
+  for (const r of column.formula.keys()) if (r >= first && r <= last) visit(r);
+}
+function hasData(store, c, first, last) {
+  const column = store.cols[c];
+  if (!column) return false;
+  for (const r of column.formula.keys()) if (r >= first && r <= last) return true;
+  for (const [index, {kind}] of column.chunks) {
+    const base = index * kind.length;
+    for (let r = Math.max(first, base), end = Math.min(last, base + kind.length - 1); r <= end; r++) if (kind[r - base] !== 0) return true;
+  }
+  return false;
+}
 
-function importPlan(store, selection, scope, entire) {
-  if (scope === 'entire') return entire ? {
-    columns: Array.from({length: entire.right - entire.left + 1}, (_, i) => entire.left + i),
-    first: entire.first, last: entire.last
-  } : null;
-  const headings = selection.columns ?? [], selectedRows = selection.rows ?? [], range = selection.range;
-  if (headings.length) {
-    const columns = [...headings];
-    if (new Set(columns).size !== columns.length || columns.some(c => !Number.isInteger(c) || c < 0 || c >= store.columns.length)) {
-      throw new Error('Select cells inside the worksheet.');
-    }
-    const bounds = populatedBounds(store, columns);
-    return bounds ? {columns, first: bounds.first, last: bounds.last} : null;
+const span = (from, to) => Array.from({length: to - from + 1}, (_, i) => from + i);
+// Runs of consecutive indices in a sorted list, as [first, last] pairs.
+function runs(sorted) {
+  const out = [];
+  for (const i of sorted) {
+    if (out.length && out.at(-1)[1] === i - 1) out.at(-1)[1] = i;
+    else out.push([i, i]);
   }
-  if (selectedRows.length) {
-    if (selectedRows.some(r => !Number.isInteger(r) || r < 0 || r >= store.rows)) throw new Error('Select cells inside the worksheet.');
-    // Retain row-heading selections, including their gaps, over the populated
-    // worksheet width; rows beyond its last populated row remain excluded.
-    const rows = [...new Set(selectedRows)].filter(r => entire && r <= entire.last).sort((a, b) => a - b);
-    return rows.length ? {columns: Array.from({length: entire.right + 1}, (_, c) => c), first: rows[0], last: rows.at(-1), rows} : null;
-  }
-  if (!range) return null;
-  const {x, y, width, height} = range;
+  return out;
+}
+// Whether a list of indices names every index below n.
+function covers(list, n) {
+  if (list.length < n) return false;
+  const seen = new Uint8Array(n);
+  let count = 0;
+  for (const i of list) if (Number.isInteger(i) && i >= 0 && i < n && !seen[i]) { seen[i] = 1; count++; }
+  return count === n;
+}
+
+// A plan is the columns sent, their rows (first to last, or a sorted list for whole rows) and the
+// areas the range text names. A selection that cannot be sent is a reason instead: "none" (no
+// selection), "empty" (no non-blank cell) or "shape" (a multiple selection other than several whole
+// columns or several whole rows).
+const rowCount = plan => plan.rows ? plan.rows.length : plan.last - plan.first + 1;
+const rowAt = (plan, i) => plan.rows ? plan.rows[i] : plan.first + i;
+function entirePlan(store) {
+  const bounds = populatedBounds(store);
+  return bounds && {columns: span(bounds.left, bounds.right), first: bounds.first, last: bounds.last, areas: [bounds]};
+}
+function selectedPlan(store, selection) {
+  const columns = selection.columns ?? [], rows = selection.rows ?? [], range = selection.range;
+  const parts = (columns.length > 0) + (rows.length > 0) + !!range;
+  if (!parts) return 'none';
+  if (parts > 1 || selection.ranges?.length) return 'shape';
+  if (selectsAll(store, selection)) return entirePlan(store) ?? 'empty';
+  if (columns.length) return columnsPlan(store, columns);
+  if (rows.length) return rowsPlan(store, rows);
+  return rectanglePlan(store, range);
+}
+// Rule 2.6: select all is the same as Entire worksheet. That is the grid's Edit ▸ Select All
+// (`all`, set by main.tsx while that selection lasts), Glide's own Command-A (a rectangle over the
+// whole grid) and the corner (every grid row), and also every grid column.
+function selectsAll(store, {columns = [], rows = [], range, all}) {
+  if (all === true) return true;
+  if (range) return range.x === 0 && range.y === 0 && range.width === store.columns.length && range.height === store.rows;
+  return rows.length ? covers(rows, store.rows) : covers(columns, store.columns.length);
+}
+// Rule 2.2: a rectangle keeps its explicit bounds, if it holds any data.
+function rectanglePlan(store, {x, y, width, height}) {
   if (![x, y, width, height].every(Number.isInteger) || x < 0 || y < 0 || width < 1 || height < 1 || x + width > store.columns.length || y + height > store.rows) {
     throw new Error('Select cells inside the worksheet.');
   }
-  return {columns: Array.from({length: width}, (_, i) => x + i), first: y, last: y + height - 1};
+  const columns = span(x, x + width - 1), last = y + height - 1;
+  if (!columns.some(c => hasData(store, c, y, last))) return 'empty';
+  return {columns, first: y, last, areas: [{left: x, right: x + width - 1, first: y, last}]};
+}
+// Rules 2.3 and C7: whole columns, in sheet order, from the first to the last non-blank row of those
+// columns. A selected column with no data stays, as a column of NA.
+function columnsPlan(store, selected) {
+  if (new Set(selected).size !== selected.length || selected.some(c => !Number.isInteger(c) || c < 0 || c >= store.columns.length)) {
+    throw new Error('Select cells inside the worksheet.');
+  }
+  const columns = [...selected].sort((a, b) => a - b), bounds = populatedBounds(store, columns);
+  if (!bounds) return 'empty';
+  return {columns, first: bounds.first, last: bounds.last,
+    areas: runs(columns).map(([left, right]) => ({left, right, first: bounds.first, last: bounds.last}))};
+}
+// C6: whole rows, from the first to the last selected row holding a non-blank cell (blank selected
+// rows between them stay), across from the first to the last non-blank column of those rows.
+function rowsPlan(store, selected) {
+  if (selected.some(r => !Number.isInteger(r) || r < 0 || r >= store.rows)) throw new Error('Select cells inside the worksheet.');
+  const marked = new Uint8Array(store.rows);
+  let low = Infinity, high = -1;
+  for (const r of selected) { marked[r] = 1; low = Math.min(low, r); high = Math.max(high, r); }
+  let first = Infinity, last = -1, left = Infinity, right = -1;
+  store.cols.forEach((column, c) => forEachFilledRow(column, low, high, r => {
+    if (!marked[r]) return;
+    first = Math.min(first, r); last = Math.max(last, r);
+    left = Math.min(left, c); right = Math.max(right, c);
+  }));
+  if (last < 0) return 'empty';
+  const rows = [];
+  for (let r = first; r <= last; r++) if (marked[r]) rows.push(r);
+  return {columns: span(left, right), rows, areas: runs(rows).map(([top, bottom]) => ({left, right, first: top, last: bottom}))};
 }
 
-function importRange(plan) {
-  const {columns, first, last, rows} = plan;
-  const consecutiveColumns = columns.every((c, i) => c === columns[0] + i);
-  const consecutiveRows = !rows || rows.length === last - first + 1;
-  if (consecutiveColumns && consecutiveRows) {
-    const from = columnName(columns[0]) + (first + 1), to = columnName(columns.at(-1)) + (last + 1);
+// Rule 1.4: A1 notation, areas in sheet order. The prompt lists at most three, then ",…".
+function rangeText(areas, limit = Infinity) {
+  const text = areas.slice(0, limit).map(({left, right, first, last}) => {
+    const from = columnName(left) + (first + 1), to = columnName(right) + (last + 1);
     return from === to ? from : from + ':' + to;
-  }
-  const labels = consecutiveColumns ? `${columnName(columns[0])}:${columnName(columns.at(-1))}` : columns.map(columnName).join(', ');
-  return labels + ' · rows ' + (consecutiveRows ? `${first + 1}–${last + 1}` : rows.map(r => r + 1).join(', '));
+  }).join(',');
+  return areas.length > limit ? text + ',…' : text;
 }
+const summary = (store, plan) => ({range: rangeText(plan.areas, 3), rowCount: rowCount(plan), columnCount: plan.columns.length,
+  suggestHeadings: suggestHeadings(store, plan)});
 
-function suggestHeadings(store, plan) {
-  let any = false;
-  const numeric = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
-  for (const c of plan.columns) {
-    const text = store.get(c, plan.first).trim();
-    if (!text) continue;
-    any = true;
-    if (store.kind(c, plan.first) !== 'text' || store.formula(c, plan.first) || numeric.test(text) || /^(true|false)$/i.test(text)) return false;
-  }
-  return any;
-}
-
-// The prompt asks for bounds and heading advice without materialising the
-// selected data. Only its confirmed scope reads cells; the first row stays raw
-// so the native dialog's heading choice, independent of the grid flag, owns it.
-export function worksheetRImport(workbook, sheetIndex, selection = {}, scope, maximumBytes = 8 * 1024 * 1024) {
+// Without a scope: the prompt's preview, {sheet, entire, selected, selectedReason}. With "entire"
+// or "selected": the data, {sheet, range, rangeAll, rowCount, columnCount, names, columns, dates}.
+// options.headings takes the names from the first row (rule 4); rowCount still counts that row.
+// The size check here only refuses what no script could hold (at least 3 bytes per cell in a data
+// frame, and each value's own length); the host makes the exact check on the script it writes.
+export function worksheetRImport(workbook, sheetIndex, selection = {}, scope, options = {}, maximumBytes = 8 * 1024 * 1024) {
   const sheet = workbook.sheets[sheetIndex], store = sheet?.store;
   if (!store) throw new Error('Choose an open worksheet.');
-  const entire = populatedBounds(store);
-  const plan = name => importPlan(store, selection, name, entire);
-  const preview = value => value ? {
-    range: importRange(value), rowCount: value.rows?.length ?? value.last - value.first + 1,
-    columnCount: value.columns.length, suggestHeadings: suggestHeadings(store, value)
-  } : null;
-  if (scope === undefined) return {entire: preview(plan('entire')), selected: preview(plan('selected'))};
+  if (scope === undefined) {
+    const entire = entirePlan(store), selected = selectedPlan(store, selection), reason = typeof selected === 'string' ? selected : null;
+    return {sheet: sheet.name, entire: entire && summary(store, entire), selected: reason ? null : summary(store, selected), selectedReason: reason};
+  }
   if (!['entire', 'selected'].includes(scope)) throw new Error('Choose the entire worksheet or selected cells.');
-  const chosen = plan(scope);
-  if (!chosen) throw new Error(scope === 'entire' ? 'The worksheet contains no data.' : 'Select worksheet cells, columns or rows to import.');
-  const info = preview(chosen);
-  const tooLarge = () => new Error('The selected data exceed the 8 MiB editable R script limit. Select a smaller range, or export the worksheet as RDS from File → Export.');
-  let minimumBytes = chosen.columns.length * info.rowCount * 3;
-  if (minimumBytes > maximumBytes) throw tooLarge();
-  const encoder = new TextEncoder();
-  const columns = chosen.columns.map(c => {
-    const title = store.headerRow ? store.columnTitle(c) : 'Column ' + columnName(c), values = [], kinds = [];
-    minimumBytes += encoder.encode(title).length;
-    for (let i = 0; i < info.rowCount; i++) {
-      const r = chosen.rows ? chosen.rows[i] : chosen.first + i, text = store.get(c, r), kind = store.kind(c, r);
-      if (kind === 'error') throw new Error('The selection contains Excel errors. Correct them in Excel and reopen the workbook.');
-      if (store.formula(c, r) && (store.formulasStale || text === '')) throw new Error('Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.');
-      minimumBytes += Math.max(1, encoder.encode(text).length) - 1;
-      if (minimumBytes > maximumBytes) throw tooLarge();
-      values.push(text); kinds.push(kind);
+  const plan = scope === 'entire' ? entirePlan(store) : selectedPlan(store, selection);
+  if (!plan || typeof plan === 'string') throw new Error(scope === 'entire' ? 'The worksheet contains no data.' : 'Select worksheet cells, columns or rows to import.');
+  const rows = rowCount(plan), headings = options?.headings === true && rows > 1, start = headings ? 1 : 0;
+  if (plan.columns.length * (rows - start) * 3 > maximumBytes) throw new Error(TOO_LARGE);
+  const kinds = new Uint8Array(rows), numbers = new Float64Array(rows), names = [], columns = [];
+  let bytes = 0, dates = false;
+  for (const c of plan.columns) {
+    const counts = new Uint32Array(CLASSES);
+    for (let i = 0; i < rows; i++) {
+      const r = rowAt(plan, i), text = store.get(c, r), kind = store.kind(c, r);
+      if (store.formulaUnavailable(c, r)) throw new Error(RECALCULATE);
+      if (text.includes('\0')) throw new Error(`Cell ${columnName(c)}${r + 1} contains a null character, which R cannot hold. Remove it, then open the R import again.`);
+      kinds[i] = classify(text, kind, numbers, i);
+      if (i < start) continue;
+      counts[kinds[i]]++;
+      if (kind === 'datetime' || kind === 'timespan') dates = true;   // A2
     }
-    return {title, values, kinds};
-  });
-  return {workbook: workbook.name, sheet: sheet.name, range: info.range, rowCount: info.rowCount, columns};
+    const type = columnType(counts), dateTimes = type === 'character' && dateTimeColumn(counts), values = new Array(rows - start);
+    for (let i = start; i < rows; i++) {
+      const value = valueText(type, kinds[i], numbers[i], store.get(c, rowAt(plan, i)), dateTimes);
+      values[i - start] = value;
+      if (value !== null && (bytes += value.length + 2) > maximumBytes) throw new Error(TOO_LARGE);
+    }
+    const name = headings && ![Cell.blank, Cell.error, Cell.serial60].includes(kinds[0])
+      ? cellText(kinds[0], numbers[0], store.get(c, rowAt(plan, 0)), false) : columnName(c);
+    if ((bytes += name.length + 2) > maximumBytes) throw new Error(TOO_LARGE);
+    names.push(name);
+    columns.push({type, values});
+  }
+  return {sheet: sheet.name, range: rangeText(plan.areas, 3), rangeAll: rangeText(plan.areas), rowCount: rows,
+    columnCount: plan.columns.length, names, columns, dates};
 }

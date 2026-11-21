@@ -62,7 +62,8 @@ function App() {
     [message, setMessage] = useState('Ready'),
     [value, setValue] = useState('');
   const grid = useRef<DataEditorRef>(null),
-    selectionRef = useRef(selection);
+    selectionRef = useRef(selection),
+    selectedAll = useRef<GridSelection | null>(null);
   selectionRef.current = selection;
   const pendingCut = useRef<any>(null);
   const [findOpen,setFindOpen]=useState(false), [findText,setFindText]=useState('');
@@ -167,11 +168,12 @@ function App() {
     window.statsDirectGrid = {
       setWorksheetCommands: (commands: unknown) => setCommandCatalogue(worksheetCommands(commands)),
       showWorksheetCommands: () => window.dispatchEvent(new Event('statsdirect-open-worksheet-commands')),
-      worksheetRImport: (scope?: 'entire'|'selected') => {
+      // The R import prompt's preview (no arguments), then the chosen data ({headings} in options).
+      // Edit ▸ Select All, until the selection next changes, is the entire worksheet (rule 2.6).
+      worksheetRImport: (scope?: 'entire'|'selected', options?: {headings?: boolean}) => {
         const selection = selectionRef.current;
-        const result = worksheetRImport(workbook, sheetIndex,
-          {columns:selection.columns.toArray(), rows:selection.rows.toArray(), range:selection.current?.range}, scope);
-        return {...result, sheet:workbook.sheets[sheetIndex].name};
+        return worksheetRImport(workbook, sheetIndex, {columns:selection.columns.toArray(), rows:selection.rows.toArray(),
+          range:selection.current?.range, ranges:selection.current?.rangeStack ?? [], all:selection === selectedAll.current}, scope, options);
       },
       editCommand: (command: string, clipboard: string) => {
         const focused = document.activeElement as HTMLElement | null;
@@ -183,9 +185,12 @@ function App() {
             case 'copy': native('copy', {text: copy()}); break;
             case 'cut': cut(); break;
             case 'paste': paste(clipboard); break;
-            case 'selectAll':
-              setSelection({...empty, current: {cell: [0, 0], range: {x: 0, y: 0, width: store.columns.length, height: Math.max(1, store.usedRows())}, rangeStack: []}});
+            case 'selectAll': {
+              const all: GridSelection = {...empty, current: {cell: [0, 0], range: {x: 0, y: 0, width: store.columns.length, height: Math.max(1, store.usedRows())}, rangeStack: []}};
+              selectedAll.current = all;
+              setSelection(all);
               break;
+            }
           }
         });
         return true;

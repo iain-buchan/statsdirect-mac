@@ -6,6 +6,7 @@ import {columnValues} from './analysis-source.mjs';
 import {worksheetInput, worksheetInputFrom} from './operation-data.mjs';
 import {rDataTables} from './r-data.mjs';
 import {tutorData} from './tutor-data.mjs';
+import {worksheetRImport} from './worksheet-r.mjs';
 
 // A formula whose saved result is empty text (=IF(A2="","",A2*2)) is a blank cell everywhere a
 // blank counts as missing. A formula with no saved result, or any formula once the workbook has
@@ -40,6 +41,7 @@ test('the loader flag travels in the snapshot extras (I1) and marks the cell as 
   w.load({name: 'Loaded.xlsx', sheets: [{name: 'S', rows: 10, columns: 3, headerRow: false, columnar: decodeSnapshot(snapshot).sheets[0].columns}]});
   const s = w.sheets[0].store;
   assert.deepEqual([s.get(1, 1), s.formula(1, 1), s.formulaUnavailable(1, 1), s.formulaUnavailable(2, 1)], ['', 'IF(A2>1,"",A2)', false, true]);
+  assert.deepEqual(worksheetRImport(w, 0, {columns: [1]}, 'selected').columns, [{type: 'double', values: ['3', null]}]);
 });
 
 test('analyses read a saved empty result as a blank cell and count missing results as uncached', () => {

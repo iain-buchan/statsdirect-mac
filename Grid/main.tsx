@@ -6,7 +6,7 @@ import '@glideapps/glide-data-grid/dist/index.css';
 import './style.css';
 import {Toolbar} from './toolbar';
 import {worksheetCommands} from './worksheet-commands.mjs';
-import {worksheetRSelection} from './worksheet-r.mjs';
+import {worksheetRImport} from './worksheet-r.mjs';
 import type {WorksheetCommand} from './WorksheetAnalysis';
 import {findCell} from './find.mjs';
 import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
@@ -62,7 +62,8 @@ function App() {
     [message, setMessage] = useState('Ready'),
     [value, setValue] = useState('');
   const grid = useRef<DataEditorRef>(null),
-    selectionRef = useRef(selection);
+    selectionRef = useRef(selection),
+    selectedAll = useRef<GridSelection | null>(null);
   selectionRef.current = selection;
   const pendingCut = useRef<any>(null);
   const [findOpen,setFindOpen]=useState(false), [findText,setFindText]=useState('');
@@ -115,19 +116,20 @@ function App() {
   const getCell = useCallback(([c, r]: Item): GridCell => {
     const raw = store.get(c, r);
     const n = cellKind(store, c, r) === 'number' ? Number(raw) : NaN;
-    const formula = !!store.formula(c, r);
+    // A formula cell, or a cell of an array, spill or data-table result: Excel calculates it, and the store refuses edits to it.
+    const locked = store.readOnly(c, r);
     return Number.isFinite(n) ? {
       kind: GridCellKind.Number,
       data: n,
       displayData: raw,
-      allowOverlay: !formula,
-      readonly: formula
+      allowOverlay: !locked,
+      readonly: locked
     } : {
       kind: GridCellKind.Text,
       data: raw,
       displayData: raw,
-      allowOverlay: !formula,
-      readonly: formula
+      allowOverlay: !locked,
+      readonly: locked
     };
   }, [store]);
   const range = () => {
@@ -167,7 +169,13 @@ function App() {
     window.statsDirectGrid = {
       setWorksheetCommands: (commands: unknown) => setCommandCatalogue(worksheetCommands(commands)),
       showWorksheetCommands: () => window.dispatchEvent(new Event('statsdirect-open-worksheet-commands')),
-      worksheetRSelection: () => worksheetRSelection(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
+      // The R import prompt's preview (no arguments), then the chosen data ({headings, list} in options).
+      // Edit ▸ Select All, until the selection next changes, is the entire worksheet (rule 2.6).
+      worksheetRImport: (scope?: 'entire'|'selected', options?: {headings?: boolean, list?: boolean}) => {
+        const selection = selectionRef.current;
+        return worksheetRImport(workbook, sheetIndex, {columns:selection.columns.toArray(), rows:selection.rows.toArray(),
+          range:selection.current?.range, ranges:selection.current?.rangeStack ?? [], all:selection === selectedAll.current}, scope, options);
+      },
       editCommand: (command: string, clipboard: string) => {
         const focused = document.activeElement as HTMLElement | null;
         if (focused?.matches('input,textarea,select') || focused?.isContentEditable) return false;
@@ -178,9 +186,12 @@ function App() {
             case 'copy': native('copy', {text: copy()}); break;
             case 'cut': cut(); break;
             case 'paste': paste(clipboard); break;
-            case 'selectAll':
-              setSelection({...empty, current: {cell: [0, 0], range: {x: 0, y: 0, width: store.columns.length, height: Math.max(1, store.usedRows())}, rangeStack: []}});
+            case 'selectAll': {
+              const all: GridSelection = {...empty, current: {cell: [0, 0], range: {x: 0, y: 0, width: store.columns.length, height: Math.max(1, store.usedRows())}, rangeStack: []}};
+              selectedAll.current = all;
+              setSelection(all);
               break;
+            }
           }
         });
         return true;
@@ -201,7 +212,9 @@ function App() {
       snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),
       // The snapshot carries the cells; columns inserted before existing ones since the file was loaded travel beside it.
       excelSnapshot: async (allValues = false) => {
-        const sheets = workbook.exportColumns(allValues).sheets;
+        let sheets;
+        // A data copy's refusal (stale or missing formula results) is shown here too: the XLS export reports only that the grid could not be read.
+        try { sheets = workbook.exportColumns(allValues).sheets; } catch (error) { setMessage((error as Error).message); throw error; }
         const stored = await postSnapshot(sheets);
         return {...stored, inserts: sheets.filter((sh: any) => sh.inserts?.length).map((sh: any) => ({name: sh.name, inserts: sh.inserts}))};
       },
@@ -324,8 +337,9 @@ function App() {
     {id:'find',label:'Find (⌘F)',icon:'find',priority:20,group:true,run:showFind},
     {id:'clear',label:'Clear selected cells',icon:'clear',priority:40,group:true,disabled:!selected,run:()=>attempt(clear)},
     {id:'analyse',label:'Analyse worksheet (⇧⌘A)',text:'Analyse',icon:'analyse',priority:5,group:true},
-    {id:'worksheetHelp',label:'Worksheet help',icon:'help',priority:25,run:()=>native('worksheetHelp')},
-    {id:'worksheetR',label:'Open selected data in R',icon:'r',priority:25,disabled:!selected,run:()=>native('worksheetR')}
+    {id:'worksheetR',label:'Open in StatsDirect R',icon:'r',priority:25,run:()=>native('worksheetR',{external:false})},
+    {id:'worksheetRPlus',label:'Open in R or RStudio',icon:'rPlus',priority:25,run:()=>native('worksheetR',{external:true})},
+    {id:'worksheetHelp',label:'Worksheet help',icon:'help',priority:25,group:true,run:()=>native('worksheetHelp')}
   ]} moreActions={[
     {id:'addRows',label:'Add 100 rows',icon:'addRows',priority:60,disabled:store.rows>=MAX_ROWS,run:()=>attempt(()=>{if(store.apply([],Math.min(MAX_ROWS,store.rows+100)))changed();})},
     {id:'addColumn',label:'Add column',icon:'addColumn',priority:60,disabled:store.columns.length>=MAX_COLS,run:()=>attempt(()=>{if(store.apply([],store.rows,store.columns.length+1))changed();})}
@@ -340,7 +354,7 @@ function App() {
         setSelection(empty);
         setMessage(sheet.name + (sheet.hidden ? " (hidden in Excel)" : ""));
       }}>{sheet.name}{sheet.hidden ? " (hidden)" : ""}</button>)}</div>}
-  <div className="formula"><label htmlFor="cellValue">{current ? columnName(current[0]) + (current[1] + 1) : 'Cell'}</label><input id="cellValue" aria-label="Selected cell value" placeholder="Select a cell, then edit its value here or double-click the cell" disabled={!current || !!store.formula(current[0], current[1])} value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => {
+  <div className="formula"><label htmlFor="cellValue">{current ? columnName(current[0]) + (current[1] + 1) : 'Cell'}</label><input id="cellValue" aria-label="Selected cell value" placeholder="Select a cell, then edit its value here or double-click the cell" disabled={!current || store.readOnly(current[0], current[1])} value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => {
         const movement = cellMovement(e);
         if (movement && current) {
           e.preventDefault();
@@ -350,7 +364,7 @@ function App() {
             selectAdjacentCell(current, movement, store.columns.length, store.rows, setSelection, grid.current);
           });
         }
-      }} /><span>{current && store.formula(current[0], current[1]) ? (store.formulasStale ? "Original Excel formula (save and reopen to refresh): " : "Formula: ") + store.formula(current[0], current[1]) : "↵ to save and move down"}</span></div>
+      }} /><span>{current && store.formula(current[0], current[1]) ? (store.formulasStale ? "Original Excel formula (save and reopen to refresh): " : "Formula: ") + store.formula(current[0], current[1]) : current && store.formulaResult(current[0], current[1]) ? "Result of an Excel array, spill or data table formula" : "↵ to save and move down"}</span></div>
   <div className="canvas" ref={container} onMouseDownCapture={columnDrag.onMouseDownCapture}><DataEditor ref={grid} provideEditor={arrowKeyEditor} trapFocus width={containerSize.width} height={containerSize.height} columns={store.columns.map((title: string, c: number) => ({
         id: String(c),
         title: store.headerRow ? columnName(c) + ' · ' + store.columnTitle(c) : columnName(c),

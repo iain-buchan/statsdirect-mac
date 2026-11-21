@@ -1,62 +1,589 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {CompactSelection} from '@glideapps/glide-data-grid';
 import {WorkbookStore} from './workbook.mjs';
-import {worksheetRSelection} from './worksheet-r.mjs';
+import {columnName} from './store.mjs';
+import {worksheetRImport, rNumber, numberValue, trimSpace} from './worksheet-r.mjs';
 
-function workbook(cells, {headerRow = false, columns = 8, rows = 100} = {}) {
+// The shared rules ("Worksheet data sent to R", statisticalhelp): rule numbers refer to them.
+function workbook(cells, {headerRow = false, columns = 8, rows = 100, name = 'Measurements'} = {}) {
   const book = new WorkbookStore();
-  book.load({name: 'Selected.xlsx', sheets: [{name: 'Measurements', headerRow, columns, rows, cells}]});
+  book.load({name: 'Selected.xlsx', sheets: [{name, headerRow, columns, rows, cells}]});
   return book;
 }
 const cell = (col, row, text, kind = 'number', extra = {}) => ({col, row, text, kind, ...extra});
+// Columns of values from row 1: a number is a number cell, a string a text cell, null a blank cell,
+// and an object {text, kind, ...} is taken as given.
+const value = v => typeof v === 'number' ? {text: Object.is(v, -0) ? '-0' : String(v), kind: 'number'} : typeof v === 'string' ? {text: v, kind: 'text'} : v;
+function sheet(columns, options) {
+  const cells = [];
+  columns.forEach((values, c) => values.forEach((v, r) => { if (v !== null) cells.push({col: c, row: r, ...value(v)}); }));
+  return workbook(cells, options);
+}
+const entire = (columns, options = {}) => worksheetRImport(sheet(columns), 0, {}, 'entire', options);
+const column = (values, options) => entire([values], options).columns[0];
+const datetime = text => ({text, kind: 'datetime'}), timespan = text => ({text, kind: 'timespan'});
+const boolean = text => ({text, kind: 'boolean'}), error = text => ({text, kind: 'error'});
+const span = (from, to) => Array.from({length: to - from + 1}, (_, i) => from + i);
+const TOO_LARGE = 'The selected data exceed the 8 MiB editable R script limit. Select a smaller range, or export the worksheet as RDS from File → Export.';
+const RECALCULATE = 'Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.';
+// What main.tsx hands worksheetRImport for a Glide GridSelection, and a CompactSelection built from pieces [from, to)
+// in the order given, as Glide adds them for a Command-click or Shift-click.
+const glide = ({columns = CompactSelection.empty(), rows = CompactSelection.empty(), current} = {}) =>
+  ({columns: columns.toArray(), rows: rows.toArray(), range: current?.range, ranges: current?.rangeStack ?? [], all: false});
+const pieces = (...ranges) => ranges.reduce((selection, range) => selection.add(range), CompactSelection.empty());
 
-test('R column selection follows the chosen columns and leaves unrelated empty tails behind', () => {
-  const book = workbook([cell(0, 0, 'Before', 'text'), cell(1, 0, 'After', 'text'),
-    cell(0, 1, '3.25'), cell(0, 3, '5'), cell(1, 1, '2'), cell(4, 90, '999')], {headerRow: true});
-  const result = worksheetRSelection(book, 0, {columns: [1, 0]});
-  assert.equal(result.rowCount, 3);
-  assert.deepEqual(result.columns.map(c => c.title), ['After', 'Before']);
-  assert.deepEqual(result.columns.map(c => c.values), [['2', '', ''], ['3.25', '', '5']]);
-  assert.equal(result.range, 'B, A · rows 2–4');
+// Reads an R numeric literal as R does, from the IEEE bits its hexadecimal form names.
+function readR(literal) {
+  if (literal === 'Inf' || literal === '-Inf') return literal === 'Inf' ? Infinity : -Infinity;
+  const hex = /^(-?)0x([01])\.([0-9a-f]{13})p([+-][0-9]+)$/.exec(literal);
+  if (!hex) {
+    assert.match(literal, /^-?[0-9]+(\.[0-9]{1,4})?$/, literal);
+    return Number(literal);
+  }
+  const [, sign, lead, fraction, exponent] = hex, biased = lead === '1' ? Number(exponent) + 1023 : 0;
+  assert.ok(lead === '1' ? biased >= 1 && biased <= 2046 : exponent === '-1022', literal);
+  const view = new DataView(new ArrayBuffer(8));
+  view.setUint32(0, (sign ? 0x80000000 : 0) + biased * 0x100000 + parseInt(fraction.slice(0, 5), 16));
+  view.setUint32(4, parseInt(fraction.slice(5), 16));
+  return view.getFloat64(0);
+}
+
+test('rule 3.8 writes every example number as a literal that names the same double', () => {
+  const examples = [[0.30000000000000004, '0x1.3333333333334p-2'], [1 / 3, '0x1.5555555555555p-2'], [5.499065962e-14, '0x1.ef4fd3fb883e3p-45'],
+    [84814136847853600000, '0x1.264216064eebbp+66'], [1e22, '0x1.0f0cf064dd592p+73'], [1e23, '0x1.52d02c7e14af6p+76'],
+    [9007199254740993, '0x1.0000000000000p+53'], [1.7976931348623157e308, '0x1.fffffffffffffp+1023'],
+    [2.2250738585072014e-308, '0x1.0000000000000p-1022'], [5e-324, '0x0.0000000000001p-1022'], [-0, '0'],
+    [0.883020325331, '0x1.c41b3d75fff63p-1'], [12, '12'], [13.5, '13.5'], [0.1, '0.1'], [98.6, '98.6'], [-0.25, '-0.25']];
+  for (const [x, literal] of examples) {
+    assert.equal(rNumber(x), literal, String(x));
+    assert.ok(readR(literal) === x, literal);
+  }
+  const data = column(examples.map(([x]) => x));
+  assert.equal(data.type, 'double');
+  assert.deepEqual(data.values, examples.map(([, literal]) => literal));
+  // The decimal band: no exponent, at most four decimals, at most 15 digits once leading zeros go.
+  assert.deepEqual([0.0001, 0.00001, 100.1234, 100.12345, 123456789012345, 1234567890123456, 1e20, 1e21, -1.5, -5e-324].map(rNumber),
+    ['0.0001', '0x1.4f8b588e368f1p-17', '100.1234', '0x1.907e69ad42c3dp+6', '123456789012345', '0x1.18b54f22aeb00p+50',
+      '0x1.5af1d78b58c40p+66', '0x1.b1ae4d6e2ef50p+69', '-1.5', '-0x0.0000000000001p-1022']);
+  assert.deepEqual([Infinity, -Infinity].map(rNumber), ['Inf', '-Inf']);
 });
 
-test('R cell rectangles retain all selected missing positions and original cell types', () => {
-  const book = workbook([cell(0, 1, '001', 'text'), cell(1, 1, 'true', 'boolean'), cell(0, 2, '2.5')]);
-  const result = worksheetRSelection(book, 0, {range: {x: 0, y: 1, width: 2, height: 4}});
-  assert.equal(result.rowCount, 4);
-  assert.deepEqual(result.columns[0], {title: 'Column A', values: ['001', '2.5', '', ''], kinds: ['text', 'number', 'blank', 'blank']});
-  assert.deepEqual(result.columns[1].values, ['true', '', '', '']);
+test('rule 3.8 literals read back exactly over a large random sample of doubles', () => {
+  const view = new DataView(new ArrayBuffer(8));
+  let seed = 0x9e3779b9;
+  const random = () => (seed = Math.imul(seed ^ seed >>> 15, 0x2c1b3c6d) + 0x6d2b79f5 >>> 0);
+  for (let i = 0; i < 200000; i++) {
+    view.setUint32(0, i % 10 === 0 ? random() & 0x800fffff : random());   // one in ten subnormal or zero
+    view.setUint32(4, random());
+    const x = view.getFloat64(0);
+    if (!Number.isFinite(x)) continue;
+    const literal = rNumber(x);
+    assert.ok(readR(literal) === x, `${x} as ${literal}`);
+  }
+  for (let i = 0; i < 50000; i++) {   // short typed decimals stay decimal and exact
+    const x = Number(((random() % 2000000) - 1000000) / 10 ** (random() % 5));
+    assert.ok(readR(rNumber(x)) === x, String(x));
+  }
 });
 
-test('R row headings use the populated width and selected data rows', () => {
-  const book = workbook([cell(0, 0, 'Name', 'text'), cell(2, 0, 'Count', 'text'),
-    cell(0, 1, 'Alpha', 'text'), cell(2, 1, '5'), cell(2, 3, '7')], {headerRow: true});
-  const result = worksheetRSelection(book, 0, {rows: [0, 1, 3, 90]});
-  assert.equal(result.rowCount, 2);
-  assert.equal(result.columns.length, 3);
-  assert.deepEqual(result.columns[2].values, ['5', '7']);
-  assert.equal(result.range, 'A, B, C · rows 2, 4');
+test('rule 3.1 trims Unicode White_Space only, and rule 3.4 reads finite ASCII decimals without a leading zero', () => {
+  const space = [...Array(0x10000).keys()].map(u => String.fromCharCode(u)).filter(ch => /\p{White_Space}/u.test(ch));
+  assert.equal(space.length, 25);
+  for (const ch of space) assert.equal(trimSpace(ch + 'x' + ch), 'x', ch.codePointAt(0).toString(16));
+  assert.equal(trimSpace('\u200bx\ufeff'), '\u200bx\ufeff');
+  for (const [text, x] of [['12', 12], ['.5', 0.5], ['5.', 5], ['+5', 5], ['1E+05', 100000], ['1e-400', 0], ['0', 0], ['0.5', 0.5],
+    ['-0.25', -0.25], ['0e5', 0], ['-0', -0]]) assert.ok(Object.is(numberValue(text), x), text);
+  for (const text of ['0012', '-007', '00.5', '1e999', '0x10', 'Infinity', 'NaN', '1,000', '\u0661\u0662\u0663', ' 13', '', '.', 'e5']) assert.ok(Number.isNaN(numberValue(text)), text);
 });
 
-test('R selection requires data and refuses Excel errors or stale formula values', () => {
-  const book = workbook([cell(0, 0, 'Heading', 'text'), cell(0, 1, '3', 'number', {formula: '1+2'})], {headerRow: true});
-  assert.throws(() => worksheetRSelection(book, 0), /Select worksheet/);
-  assert.throws(() => worksheetRSelection(book, 0, {range: {x: 0, y: 0, width: 1, height: 1}}), /no data rows/);
-  const selected = {columns: [0]};
-  assert.deepEqual(worksheetRSelection(book, 0, selected).columns[0].values, ['3']);
-  book.sheets[0].store.formulasStale = true;
-  assert.throws(() => worksheetRSelection(book, 0, selected), /Recalculate/);
-  const errorBook = workbook([cell(0, 0, '#DIV/0!', 'error')]);
-  assert.throws(() => worksheetRSelection(errorBook, 0, selected), /Excel errors/);
+test('rule 3.2 and A1: missing markers, and the any-case words only beside numbers, Booleans, dates or date-times', () => {
+  assert.deepEqual(column(['Na', 'K', 'Cl']), {type: 'character', values: ['Na', 'K', 'Cl']});
+  assert.deepEqual(column(['1', 'na', '2']), {type: 'double', values: ['1', null, '2']});
+  assert.deepEqual(column([1, 'na', 2]), {type: 'double', values: ['1', null, '2']});
+  assert.deepEqual(column(['Alive', 'Missing']), {type: 'character', values: ['Alive', 'Missing']});
+  assert.deepEqual(column(['Smith', 'NA']), {type: 'character', values: ['Smith', null]});
+  assert.deepEqual(column([boolean('TRUE'), 'na']), {type: 'logical', values: ['TRUE', null]});
+  assert.deepEqual(column(['TRUE', 'na']), {type: 'logical', values: ['TRUE', null]});
+  assert.deepEqual(column([datetime('2026-11-21 00:00:00'), 'Null']), {type: 'Date', values: ['20778', null]});
+  // Date-times anchor the words too (agreed with Windows): the column is a date-time column and the
+  // word is NA. A time of day or a duration is no anchor, so the word stays text.
+  assert.deepEqual(column([datetime('2026-11-21 10:00:00'), 'na']), {type: 'character', values: ['2026-11-21 10:00:00', null]});
+  assert.deepEqual(column([datetime('2026-11-21 10:00:00'), datetime('2026-11-22 00:00:00'), 'Null']),
+    {type: 'character', values: ['2026-11-21 10:00:00', '2026-11-22 00:00:00', null]});
+  assert.deepEqual(column([timespan('14:30:00'), 'na']), {type: 'character', values: ['14:30:00', 'na']});
+  assert.deepEqual(column([timespan('1.02:00:00'), 'na']), {type: 'character', values: ['26:00:00', 'na']});
+  assert.deepEqual(column([datetime('2026-11-21 10:00:00'), 'na', 'x']), {type: 'character', values: ['2026-11-21 10:00:00', 'na', 'x']});
+  // No anchor: the words and Inf stay text.
+  assert.deepEqual(column(['Nan', 'Nan']), {type: 'character', values: ['Nan', 'Nan']});
+  assert.deepEqual(column(['na']), {type: 'character', values: ['na']});
+  assert.deepEqual(column(['Inf']), {type: 'character', values: ['Inf']});
+  assert.deepEqual(column(['Inf', 1]), {type: 'double', values: ['Inf', '1']});
+  assert.deepEqual(column(['na', 1]), {type: 'double', values: [null, '1']});
+  assert.deepEqual(column(['na', 'Inf']), {type: 'character', values: ['na', 'Inf']});
+  assert.deepEqual(column([boolean('TRUE'), 'Inf']), {type: 'character', values: ['TRUE', 'Inf']});
+  // Every marker of any column, around white space, beside one number.
+  const markers = ['', ' ', '*', '* (missing)', '.', 'NA', 'N/A', 'NaN', 'NULL', 'MISSING', ' NA ', '\u00a0*\u3000', 'n/a', 'NAN', 'mIsSiNg'];
+  assert.deepEqual(column([7, ...markers.map(text => ({text, kind: 'text'})), 8]), {type: 'double', values: ['7', ...markers.map(() => null), '8']});
+  assert.deepEqual(column(['*', '.', 'N/A', null, 'x']), {type: 'character', values: [null, null, null, null, 'x']});
+  // A column of missing values only is logical NA.
+  assert.deepEqual(column(['NA', '*', ' ', error('#N/A')]), {type: 'logical', values: [null, null, null, null]});
 });
 
-test('R selection handles 10000 by 10 data and refuses oversized scripts explicitly', () => {
+test('rule 3.2 white space and C9 codes: numbers, missing values and text', () => {
+  assert.deepEqual(column([' 13']), {type: 'double', values: ['13']});
+  assert.deepEqual(column(['13\u0085']), {type: 'double', values: ['13']});
+  assert.deepEqual(column(['\u3000']), {type: 'logical', values: [null]});
+  assert.deepEqual(column(['\ufeff13']), {type: 'character', values: ['\ufeff13']});
+  assert.deepEqual(column(['0012', '-007', '00.5']), {type: 'character', values: ['0012', '-007', '00.5']});
+  assert.deepEqual(column(['0', '0.5', '-0.25', '0e5']), {type: 'double', values: ['0', '0.5', '-0.25', '0']});
+  assert.deepEqual(column([1, 'Inf', '-infinity', ' INFINITY ', '-Inf']), {type: 'double', values: ['1', 'Inf', '-Inf', 'Inf', '-Inf']});
+  assert.deepEqual(column(['1e999', 1]), {type: 'character', values: ['1e999', '1']});
+  assert.deepEqual(column(['0x10', 1]), {type: 'character', values: ['0x10', '1']});
+  assert.deepEqual(column(['+Inf', 1]), {type: 'character', values: ['+Inf', '1']});
+  // A typed number keeps its text in the Mac grid; its value is read from that text (rule 3.4).
+  const typed = workbook([]), store = typed.sheets[0].store;
+  store.apply([[0, 0, '1.50'], [0, 1, ' 13'], [0, 2, '5.'], [0, 3, '1E+05'], [0, 4, '-0'], [0, 5, '1e-400'], [1, 0, 'x'], [1, 1, '1.50'], [1, 2, '-0']]);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(r => store.kind(0, r)), Array(6).fill('number'));
+  const data = worksheetRImport(typed, 0, {}, 'entire');
+  assert.deepEqual(data.columns[0], {type: 'double', values: ['1.5', '13', '5', '100000', '0', '0']});
+  assert.deepEqual(data.columns[1], {type: 'character', values: ['x', '1.5', '0', null, null, null]});
+});
+
+test('rules 3.5 to 3.7: Booleans, mixed columns and number cells written as JavaScript writes them', () => {
+  assert.deepEqual(column(['true', 'True', boolean('FALSE'), ' false ']), {type: 'logical', values: ['TRUE', 'TRUE', 'FALSE', 'FALSE']});
+  assert.deepEqual(column(['true', 'True', boolean('FALSE'), 'x']), {type: 'character', values: ['true', 'True', 'FALSE', 'x']});
+  assert.deepEqual(column([boolean('TRUE'), 1]), {type: 'character', values: ['TRUE', '1']});
+  assert.deepEqual(column(['x', 100000, 0.00001, 1e-7, 1.2e-7, 1e21, -0, 123456789012345680000, 5e-324, 1.7976931348623157e308, 0.30000000000000004]),
+    {type: 'character', values: ['x', '100000', '0.00001', '1e-7', '1.2e-7', '1e+21', '0', '123456789012345680000', '5e-324', '1.7976931348623157e+308', '0.30000000000000004']});
+  // Text cells keep their exact text, white space included.
+  assert.deepEqual(column(['x', '1.50', ' 13 ', 'true', '\tTab\n']), {type: 'character', values: ['x', '1.50', ' 13 ', 'true', '\tTab\n']});
+  // Doubles, never integers: whole numbers are plain literals of a double column.
+  assert.deepEqual(column([1, 2, 3]), {type: 'double', values: ['1', '2', '3']});
+});
+
+test('C4: a spreadsheet error is missing; text that looks like an error stays text', () => {
+  assert.deepEqual(column([1, error('#DIV/0!'), error('#N/A'), 3]), {type: 'double', values: ['1', null, null, '3']});
+  assert.deepEqual(column(['#DIV/0!', 'x']), {type: 'character', values: ['#DIV/0!', 'x']});
+  assert.deepEqual(entire([[error('#REF!'), 1, 2], ['B', 3, 4]], {headings: true}).names, ['A', 'B']);
+});
+
+test('rule 3.9 and A2: dates, date-times, times of day, durations and serial 60', () => {
+  const dates = column([datetime('2026-11-21 00:00:00'), datetime('1970-01-01'), datetime('1900-01-01 00:00:00'), null, datetime('1904-01-01 00:00:00')]);
+  assert.deepEqual(dates, {type: 'Date', values: ['20778', '0', '-25567', null, '-24107']});
+  assert.deepEqual(column([datetime('2026-11-21 00:00:00'), datetime('2026-11-21 14:30:00.5')]),
+    {type: 'character', values: ['2026-11-21 00:00:00', '2026-11-21 14:30:00.5']});
+  assert.deepEqual(column([datetime('2026-11-21 00:00:00'), 'x', datetime('2026-11-22 08:00:00')]),
+    {type: 'character', values: ['2026-11-21', 'x', '2026-11-22 08:00:00']});
+  assert.deepEqual(column([timespan('14:30:00'), timespan('1.02:00:00'), timespan('-01:00:00'), timespan('14:30:00.5000000'), timespan('00:00:00.0004')]),
+    {type: 'character', values: ['14:30:00', '26:00:00', '-01:00:00', '14:30:00.5', '00:00:00']});
+  assert.deepEqual(column([timespan('-00:00:00.0004'), timespan('10675199.02:48:05.4775807'), timespan('23:59:59.9996')]),
+    {type: 'character', values: ['00:00:00', '256204778:48:05.478', '24:00:00']});
+  // Rounding to the millisecond is half away from zero, for either sign (agreed with Windows, 21 November 2026), and a time
+  // of day that rounds to a whole day, as the loader gives 0.999999999 in h:mm:ss (1.00:00:00), is 24:00:00.
+  assert.deepEqual(column([timespan('00:00:00.0005'), timespan('-00:00:00.0005'), timespan('-1.00:00:00.0015'), timespan('00:00:00.0004999'),
+    timespan('1.00:00:00'), timespan('-23:59:59.9995'), timespan('-00:00:00.0010000')]),
+    {type: 'character', values: ['00:00:00.001', '-00:00:00.001', '-24:00:00.002', '00:00:00', '24:00:00', '-24:00:00', '-00:00:00.001']});
+  assert.deepEqual(column([datetime('2026-11-21 10:00:00.0005'), datetime('1950-01-01 23:59:59.9995'), datetime('1950-01-01 10:00:00.0004999')]),
+    {type: 'character', values: ['2026-11-21 10:00:00.001', '1950-01-02 00:00:00', '1950-01-01 10:00:00']});
+  // Serial 60, the nonexistent 1900-02-29, is NA; beside dates the column is still Date.
+  assert.deepEqual(column([datetime('1900-02-29'), datetime('1900-03-01 00:00:00')]), {type: 'Date', values: [null, '-25508']});
+  assert.deepEqual(column([datetime('1900-02-29 06:00:00')]), {type: 'logical', values: [null]});
+  // Rounding to the millisecond carries into the seconds, minutes and date.
+  assert.deepEqual(column([datetime('2026-12-31 23:59:59.9996'), datetime('2026-11-21T10:30:00.1234'), datetime('2026-11-21T10:30:00.500000Z'), datetime('2026-11-21 10:30')]),
+    {type: 'character', values: ['2027-01-01 00:00:00', '2026-11-21 10:30:00.123', '2026-11-21 10:30:00.5', '2026-11-21 10:30:00']});
+  assert.deepEqual(column([datetime('2026-12-31 23:59:59.9996')]), {type: 'Date', values: ['20819']});
+  // A datetime cell whose text is not a calendar date is text: Excel's own or an R NaN Date.
+  assert.deepEqual(column([datetime('2026-02-30'), datetime('2026-11-21 24:00:00'), datetime('NaN')]), {type: 'character', values: ['2026-02-30', '2026-11-21 24:00:00', null]});
+  assert.deepEqual(column([datetime('0001-01-01 00:00:00'), datetime('9999-12-31 00:00:00')]), {type: 'Date', values: ['-719162', '2932896']});
+  // A2: the date comment depends on the data cells, not the heading.
+  assert.equal(entire([[1, 2]]).dates, false);
+  assert.equal(entire([[timespan('14:30:00'), 2]]).dates, true);
+  assert.equal(entire([[datetime('2026-11-21 00:00:00'), 2]], {headings: true}).dates, false);
+  assert.equal(entire([['When', datetime('1900-02-29')]], {headings: true}).dates, true);
+});
+
+test('rule 3.10: text is exact, a lone surrogate becomes U+FFFD and a NUL is refused with its cell', () => {
+  assert.deepEqual(column(['a\u2068b\u2069\u202ec', '"\\\r\n\u001a']), {type: 'character', values: ['a\u2068b\u2069\u202ec', '"\\\r\n\u001a']});
+  assert.deepEqual(column(['a\ud800b', '\udc00', '\ud83d\ude00']), {type: 'character', values: ['a\ufffdb', '\ufffd', '\ud83d\ude00']});
+  assert.deepEqual(entire([['\ud800'], ['x\udfff']], {headings: false}).columns.map(c => c.values), [['\ufffd'], ['x\ufffd']]);
+  assert.deepEqual(entire([['H\ud800', 1, 2]], {headings: true}).names, ['H\ufffd']);
+  const nul = workbook([cell(0, 0, 'Head', 'text'), cell(1, 6, 'a\0b', 'text')]);
+  assert.throws(() => worksheetRImport(nul, 0, {}, 'entire'),
+    {message: 'Cell B7 contains a null character, which R cannot hold. Remove it, then open the R import again.'});
+  const heading = workbook([cell(2, 0, '\0', 'text'), cell(2, 1, '1')]);
+  assert.throws(() => worksheetRImport(heading, 0, {}, 'entire', {headings: true}), /^Error: Cell C1 contains a null character/);
+  // Several NULs: the first in sheet order, rows then columns (rule 3.10), although the copying loop
+  // reads column by column: B1 comes before A2.
+  const two = workbook([cell(0, 0, 'x', 'text'), cell(0, 1, 'a\0', 'text'), cell(1, 0, '\0b', 'text'), cell(1, 1, '2')]);
+  assert.throws(() => worksheetRImport(two, 0, {}, 'entire', {headings: false}),
+    {message: 'Cell B1 contains a null character, which R cannot hold. Remove it, then open the R import again.'});
+});
+
+test('rules 4.1 to 4.5: the heading suggestion, exact names and the column letters', () => {
+  const electrolytes = sheet([['Na', 140, 138], ['K', 4.1, 3.9]]);
+  assert.equal(worksheetRImport(electrolytes, 0).entire.suggestHeadings, true);
+  const named = worksheetRImport(electrolytes, 0, {}, 'entire', {headings: true});
+  assert.deepEqual([named.names, named.rowCount, named.columns], [['Na', 'K'], 3, [{type: 'double', values: ['140', '138']}, {type: 'double', values: ['4.1', '3.9']}]]);
+  const unnamed = worksheetRImport(electrolytes, 0, {}, 'entire', {headings: false});
+  assert.deepEqual([unnamed.names, unnamed.columns[0]], [['A', 'B'], {type: 'double', values: [null, '140', '138']}]);
+  // Column 365 is named NA; a blank heading takes its letter, even beside a heading of that letter.
+  const wide = workbook([cell(364, 0, '1')], {columns: 400});
+  assert.equal(columnName(364), 'NA');
+  assert.deepEqual(worksheetRImport(wide, 0, {}, 'entire').names, ['NA']);
+  assert.deepEqual(entire([['B', 1, 2], [null, 3, 4], [' ', 5, 6]], {headings: true}).names, ['B', 'B', 'C']);
+  const awkward = ['row.names', 'row.names', 'check.rows', 'stringsAsFactors', '..adfl.x', ' Before  ', 'x'.repeat(10001), 'NA', '*'];
+  assert.deepEqual(entire(awkward.map(name => [name, 1, 2]), {headings: true}).names, awkward);
+  // Headings from other kinds of cell, when the box is ticked by hand (rule 4.5).
+  const kinds = entire([[1.5, 1, 2], [{text: '1.50', kind: 'number'}, 1, 2], [-0, 1, 2], [boolean('true'), 1, 2], [datetime('2026-11-21 00:00:00'), 1, 2],
+    [datetime('2026-11-21 10:30:00'), 1, 2], [timespan('1.02:00:00'), 1, 2], [datetime('1900-02-29'), 1, 2]], {headings: true});
+  assert.deepEqual(kinds.names, ['1.5', '1.5', '0', 'TRUE', '2026-11-21', '2026-11-21 10:30:00', '26:00:00', 'H']);
+  assert.equal(worksheetRImport(sheet([[1.5, 1, 2]]), 0).entire.suggestHeadings, false);
+  // One row cannot be both headings and data: the box is disabled, and ignored if sent.
+  const single = entire([['Na'], ['K']], {headings: true});
+  assert.deepEqual([single.names, single.rowCount, single.columns[0].values], [['A', 'B'], 1, ['Na']]);
+});
+
+test('rule 4.1: which first rows are suggested as headings', () => {
+  const suggests = (...first) => worksheetRImport(sheet(first.map(v => [v, 1])), 0).entire.suggestHeadings;
+  for (const heading of ['Label', 'Na', 'n/a', 'Inf', '1e999', 'Group 1', '\ud835\udc00', '\ud840\udc00', 'é', ' PEFR  Before ']) assert.equal(suggests(heading), true, heading);
+  for (const heading of ['---', '%', '(1)', '1,000', '12-14', '*', '.', 'NA', 'N/A', 'NaN', 'NULL', 'MISSING', '* (missing)', '\u0661\u0662\u0663', '²', '12', '0012',
+    'TRUE', 'false', 12, boolean('TRUE'), datetime('2026-11-21 00:00:00'), timespan('14:30:00'), error('#N/A')]) assert.equal(suggests(heading), false, String(heading.text ?? heading));
+  assert.equal(suggests('Label', null), true);
+  assert.equal(suggests('Label', '   '), true);
+  assert.equal(suggests('   '), false);
+  assert.equal(suggests('Label', 'NA'), false);
+  assert.equal(worksheetRImport(sheet([['Label']]), 0).entire.suggestHeadings, false);
+  // A formula counts by its value.
+  const formula = workbook([cell(0, 0, 'Group 1', 'text', {formula: 'A9&" 1"'}), cell(1, 0, '', 'blank', {formula: 'IF(1,"","")'}), cell(0, 1, '4')]);
+  assert.equal(worksheetRImport(formula, 0).entire.suggestHeadings, true);
+});
+
+test('rule 2.1 and the preview: populated bounds, the sheet and no selection', () => {
+  const book = workbook([cell(2, 4, ' PEFR  Before ', 'text'), cell(4, 4, 'After', 'text'),
+    cell(2, 5, '3.25'), cell(4, 8, '7'), cell(0, 0, '', 'blank', {format: '0.00'}), cell(6, 9, '  ', 'text')]);
+  assert.deepEqual(worksheetRImport(book, 0), {sheet: 'Measurements',
+    entire: {range: 'C5:G10', rowCount: 6, columnCount: 5, suggestHeadings: true}, selected: null, selectedReason: 'none'});
+  const data = worksheetRImport(book, 0, {}, 'entire');
+  assert.deepEqual([data.sheet, data.range, data.rangeAll, data.rowCount, data.columnCount, data.names, data.dates],
+    ['Measurements', 'C5:G10', 'C5:G10', 6, 5, ['C', 'D', 'E', 'F', 'G'], false]);
+  assert.deepEqual(data.columns.map(c => c.values), [[' PEFR  Before ', '3.25', null, null, null, null], [null, null, null, null, null, null],
+    ['After', null, null, null, '7', null], [null, null, null, null, null, null], [null, null, null, null, null, null]]);
+  assert.deepEqual(data.columns.map(c => c.type), ['character', 'logical', 'character', 'logical', 'logical']);
+  assert.deepEqual(worksheetRImport(book, 0, {}, 'entire', {headings: true}).names, [' PEFR  Before ', 'D', 'After', 'F', 'G']);
+});
+
+test('rules 2.2 and 2.8: a rectangle keeps its bounds, one cell is valid, and a blank rectangle is not available', () => {
+  const book = workbook([cell(0, 0, 'First', 'text'), cell(1, 0, 'Second', 'text'), cell(0, 2, '5'), cell(1, 3, 'true', 'boolean')], {headerRow: true});
+  const rectangle = {range: {x: 0, y: 0, width: 3, height: 8}};
+  assert.deepEqual(worksheetRImport(book, 0, rectangle).selected, {range: 'A1:C8', rowCount: 8, columnCount: 3, suggestHeadings: true});
+  const raw = worksheetRImport(book, 0, rectangle, 'selected', {headings: true});
+  assert.deepEqual([raw.names, raw.columns.map(c => c.type)], [['First', 'Second', 'C'], ['double', 'logical', 'logical']]);
+  assert.deepEqual(raw.columns[0].values, [null, '5', null, null, null, null, null]);
+  assert.deepEqual(worksheetRImport(book, 0, {range: {x: 0, y: 2, width: 1, height: 1}}), {sheet: 'Measurements',
+    entire: {range: 'A1:B4', rowCount: 4, columnCount: 2, suggestHeadings: true}, selected: {range: 'A3', rowCount: 1, columnCount: 1, suggestHeadings: false}, selectedReason: null});
+  const blank = worksheetRImport(book, 0, {range: {x: 3, y: 1, width: 2, height: 4}});
+  assert.deepEqual([blank.selected, blank.selectedReason], [null, 'empty']);
+  assert.throws(() => worksheetRImport(book, 0, {range: {x: 3, y: 1, width: 2, height: 4}}, 'selected'), /Select worksheet cells, columns or rows/);
+  // The grid's own header-row flag plays no part: names come only from the prompt's choice.
+  const interior = worksheetRImport(book, 0, {range: {x: 0, y: 2, width: 2, height: 2}}, 'selected');
+  assert.deepEqual([interior.names, interior.columns[0].values], [['A', 'B'], ['5', null]]);
+});
+
+test('rule 2.3 and C7: whole columns, trimmed to their data rows, in sheet order and written as Excel writes a union', () => {
+  const book = workbook([cell(2, 2, '1'), cell(2, 3, '2'), cell(4, 2, '3'), cell(4, 3, '4'), cell(3, 9, 'far', 'text'), cell(7, 0, 'x', 'text')]);
+  assert.deepEqual(worksheetRImport(book, 0, {columns: [4, 2]}).selected, {range: 'C3:C4,E3:E4', rowCount: 2, columnCount: 2, suggestHeadings: false});
+  const pair = worksheetRImport(book, 0, {columns: [4, 2]}, 'selected');
+  assert.deepEqual([pair.names, pair.columns.map(c => c.values), pair.rangeAll], [['C', 'E'], [['1', '2'], ['3', '4']], 'C3:C4,E3:E4']);
+  assert.equal(worksheetRImport(book, 0, {columns: [2, 3, 4]}).selected.range, 'C3:E10');
+  // A selected column with no data stays, as NA.
+  const withBlank = worksheetRImport(book, 0, {columns: [2, 5]}, 'selected');
+  assert.deepEqual([withBlank.range, withBlank.columns], ['C3:C4,F3:F4', [{type: 'double', values: ['1', '2']}, {type: 'logical', values: [null, null]}]]);
+  assert.deepEqual(worksheetRImport(book, 0, {columns: [5, 6]}).selectedReason, 'empty');
+  // The prompt lists three areas, then an ellipsis; the comment's text lists them all.
+  const spread = workbook([0, 2, 4, 6, 8].map(c => cell(c, 0, String(c))), {columns: 12});
+  const five = worksheetRImport(spread, 0, {columns: [0, 2, 4, 6, 8]}, 'selected');
+  assert.deepEqual([five.range, five.rangeAll], ['A1,C1,E1,…', 'A1,C1,E1,G1,I1']);
+  assert.equal(worksheetRImport(spread, 0, {columns: [0, 2, 4]}).selected.range, 'A1,C1,E1');
+});
+
+test('C6: whole rows, from the first to the last selected row with data, across the data of those rows', () => {
+  const book = workbook([cell(2, 2, 'Name', 'text'), cell(3, 2, 'Count', 'text'), cell(2, 3, 'Alpha', 'text'), cell(3, 3, '5'),
+    cell(3, 5, '7'), cell(6, 30, 'later', 'text')]);
+  const rows = Array.from({length: 10}, (_, r) => r);
+  assert.deepEqual(worksheetRImport(book, 0, {rows}).selected, {range: 'C3:D6', rowCount: 4, columnCount: 2, suggestHeadings: true});
+  const data = worksheetRImport(book, 0, {rows}, 'selected', {headings: true});
+  assert.deepEqual([data.names, data.columns], [['Name', 'Count'], [{type: 'character', values: ['Alpha', null, null]}, {type: 'double', values: ['5', null, '7']}]]);
+  // Unselected rows between selected ones are not sent; each run of rows is an area.
+  const gaps = worksheetRImport(book, 0, {rows: [2, 3, 5, 90]}, 'selected');
+  assert.deepEqual([gaps.range, gaps.rowCount, gaps.columns[1].values], ['C3:D4,C6:D6', 3, ['Count', '5', '7']]);
+  assert.deepEqual(worksheetRImport(book, 0, {rows: [6, 7, 8]}).selectedReason, 'empty');
+  assert.equal(worksheetRImport(book, 0, {rows: [5, 30]}).selected.range, 'D6:G6,D31:G31');
+});
+
+test('rule 2.6: select all is the entire worksheet, by the corner, Command-A, or every column or row however selected', () => {
+  const book = workbook([cell(2, 2, 'x', 'text'), cell(3, 4, '1')]);   // C3 and D5, in a grid of 8 columns and 100 rows
+  const store = book.sheets[0].store, n = store.columns.length, whole = worksheetRImport(book, 0).entire;
+  assert.deepEqual(whole, {range: 'C3:D5', rowCount: 3, columnCount: 2, suggestHeadings: true});
+  // Glide's CompactSelection merges adjacent pieces, so A:C with D:H reaches the import as one list.
+  assert.deepEqual(pieces([0, 3], [3, n]).items, [[0, n]]);
+  const forms = {
+    'the corner': glide({rows: pieces([0, store.rows])}),
+    'Command-A': glide({current: {cell: [0, 0], range: {x: 0, y: 0, width: n, height: store.rows}, rangeStack: []}}),
+    'one drag across every column header': glide({columns: pieces([0, n])}),
+    'a click on A, then Shift-click on H': glide({columns: pieces([0, 1]).add([0, n])}),
+    'Command-click pieces A:C with D:H': glide({columns: pieces([0, 3], [3, n])}),
+    'Command-click pieces D:H, then A:C': glide({columns: pieces([3, n], [0, 3])}),
+    'every column, one Command-click at a time': glide({columns: pieces(...span(0, n - 1).map(c => [c, c + 1]))}),
+    'two pieces handed over unmerged and out of order': {columns: [...span(3, n - 1), ...span(0, 2)]},
+    'rows 1:40 with 41:100': glide({rows: pieces([0, 40], [40, store.rows])}),
+    'rows 51:100, then Shift-click up to 1': glide({rows: pieces([50, store.rows], [0, 51])})};
+  for (const [form, selection] of Object.entries(forms)) {
+    assert.deepEqual(worksheetRImport(book, 0, selection), {sheet: 'Measurements', entire: whole, selected: whole, selectedReason: null}, form);
+    assert.deepEqual(worksheetRImport(book, 0, selection, 'selected'), worksheetRImport(book, 0, {}, 'entire'), form);
+  }
+  // Fewer than every column stays whole columns (rule 2.3), with its blank selected columns kept as NA, whether in two
+  // pieces or one.
+  for (const [columns, range] of [[pieces([0, 3], [4, n]), 'A3:C3,E3:H3'], [pieces([0, n - 1]), 'A3:G5']]) {
+    const short = worksheetRImport(book, 0, glide({columns}), 'selected');
+    assert.deepEqual([short.range, short.columnCount, short.names], [range, 7, columns.toArray().map(columnName)]);
+    assert.ok(short.columns.every((c, i) => ['C', 'D'].includes(short.names[i]) || c.type === 'logical' && c.values.every(v => v === null)));
+  }
+  assert.deepEqual(worksheetRImport(book, 0, glide({columns: pieces([0, 3], [4, n])})).selected, {range: 'A3:C3,E3:H3', rowCount: 1, columnCount: 7, suggestHeadings: false});
+  // Every row but one is whole rows (C6), which here cut to the same cells.
+  assert.equal(worksheetRImport(book, 0, glide({rows: pieces([0, 40], [41, store.rows])})).selected.range, 'C3:D5');
+  // Edit ▸ Select All selects the used rows, marked as select all; the same rectangle drawn by hand
+  // keeps its own bounds.
+  const menu = {range: {x: 0, y: 0, width: store.columns.length, height: store.usedRows()}};
+  assert.deepEqual(worksheetRImport(book, 0, {...menu, all: true}).selected, whole);
+  assert.equal(worksheetRImport(book, 0, menu).selected.range, 'A1:H5');
+  const blank = workbook([]), size = blank.sheets[0].store;
+  assert.deepEqual(worksheetRImport(blank, 0, {range: {x: 0, y: 0, width: size.columns.length, height: size.rows}}),
+    {sheet: 'Measurements', entire: null, selected: null, selectedReason: 'empty'});
+  assert.equal(worksheetRImport(blank, 0, {range: {x: 0, y: 0, width: size.columns.length, height: 1}, all: true}).selectedReason, 'empty');
+});
+
+test('C7: a multiple selection other than whole columns or whole rows is refused as a shape', () => {
+  const book = workbook([cell(0, 0, '1'), cell(1, 1, '2')]);
+  for (const selection of [{range: {x: 0, y: 0, width: 1, height: 1}, ranges: [{x: 1, y: 1, width: 1, height: 1}]},
+    {columns: [0], rows: [1]}, {columns: [0], range: {x: 0, y: 0, width: 1, height: 1}}]) {
+    assert.deepEqual(worksheetRImport(book, 0, selection).selectedReason, 'shape');
+    assert.throws(() => worksheetRImport(book, 0, selection, 'selected'), /Select worksheet cells, columns or rows/);
+  }
+});
+
+test('a selection reaching beyond the grid is clipped to it, so the prompt opens and the import sends what it showed', () => {
+  const book = workbook([cell(0, 0, 'Dose', 'text'), cell(0, 94, '5'), cell(7, 1, 'h', 'text')]);   // 8 columns, 100 rows
+  const store = book.sheets[0].store, whole = worksheetRImport(book, 0).entire, preview = selection => worksheetRImport(book, 0, selection);
+  // Glide's cursor on its trailing "Add a row" row, just below the grid (Command-End, or Down or Page Down past the end).
+  const trailing = {range: {x: 0, y: 100, width: 1, height: 1}};
+  assert.deepEqual(preview(trailing), {sheet: 'Measurements', entire: whole, selected: null, selectedReason: 'empty'});
+  assert.throws(() => worksheetRImport(book, 0, trailing, 'selected'), {message: 'Select worksheet cells, columns or rows to import.'});
+  // A rectangle running past the last row is cut at it, in the preview and the import alike.
+  const tail = {range: {x: 0, y: 90, width: 1, height: 60}};
+  assert.deepEqual(preview(tail).selected, {range: 'A91:A100', rowCount: 10, columnCount: 1, suggestHeadings: false});
+  const data = worksheetRImport(book, 0, tail, 'selected');
+  assert.deepEqual([data.range, data.rowCount, data.columns[0].values.filter(v => v !== null)], ['A91:A100', 10, ['5']]);
+  // Add 100 rows, select row 150, then Undo: Glide keeps the rows selected.
+  store.apply([], 200); store.undo();
+  assert.equal(store.rows, 100);
+  assert.equal(preview({rows: [149]}).selectedReason, 'empty');
+  assert.deepEqual(preview({rows: [94, 149]}).selected, {range: 'A95', rowCount: 1, columnCount: 1, suggestHeadings: false});
+  // Add column, select the new column, then Undo.
+  store.apply([], store.rows, 9); store.undo();
+  assert.equal(store.columns.length, 8);
+  assert.equal(preview({columns: [8]}).selectedReason, 'empty');
+  assert.deepEqual(worksheetRImport(book, 0, {columns: [7, 8]}, 'selected').columns, [{type: 'character', values: ['h']}]);
+  // Select all made before the grid shrank is still select all, once clipped: Command-A's rectangle, the corner's rows,
+  // and every column, here with one more beyond the grid.
+  for (const selection of [{range: {x: 0, y: 0, width: 9, height: 200}}, {rows: span(0, 199)}, {columns: span(0, 8)}]) {
+    assert.deepEqual(preview(selection).selected, whole);
+    assert.deepEqual(worksheetRImport(book, 0, selection, 'selected'), worksheetRImport(book, 0, {}, 'entire'));
+  }
+  // A selection wholly beyond a blank grid leaves nothing either.
+  const blank = workbook([]);
+  assert.deepEqual(worksheetRImport(blank, 0, {range: {x: 7, y: 0, width: 2, height: 1}}), {sheet: 'Measurements', entire: null, selected: null, selectedReason: 'empty'});
+  assert.equal(worksheetRImport(blank, 0, {rows: [100]}).selectedReason, 'empty');
+});
+
+test('R import refuses malformed selections, unknown scopes and empty worksheets', () => {
+  const empty = workbook([]);
+  assert.deepEqual(worksheetRImport(empty, 0), {sheet: 'Measurements', entire: null, selected: null, selectedReason: 'none'});
+  assert.throws(() => worksheetRImport(empty, 0, {}, 'entire'), {message: 'The worksheet contains no data.'});
+  assert.throws(() => worksheetRImport(empty, 0, {}, 'selected'), {message: 'Select worksheet cells, columns or rows to import.'});
+  // What Glide never gives: positions that are not whole numbers from 0, an empty rectangle, a column named twice.
+  for (const selection of [{range: {x: -1, y: 0, width: 2, height: 1}}, {range: {x: 0.5, y: 0, width: 1, height: 1}}, {range: {x: '0', y: 0, width: 1, height: 1}},
+    {range: {x: 0, y: 0, width: 0, height: 1}}, {range: {x: 0, y: 0, width: 1}}, {columns: [0, 0]}, {columns: [-1]}, {columns: [1.5]}, {rows: [NaN]}, {rows: ['3']}]) {
+    for (const scope of [undefined, 'selected']) {
+      assert.throws(() => worksheetRImport(empty, 0, selection, scope), {message: 'Select cells inside the worksheet.'}, JSON.stringify(selection));
+    }
+  }
+  assert.throws(() => worksheetRImport(empty, 0, {}, 'invalid'), /entire worksheet/);
+  assert.throws(() => worksheetRImport(empty, 3), /open worksheet/);
+  // The entire worksheet ignores a selection it does not use.
+  const book = workbook([cell(0, 0, '1')]);
+  assert.equal(worksheetRImport(book, 0, {columns: [0, 0]}, 'entire').columns[0].values[0], '1');
+});
+
+test('rules 3.2 and 7: formula cells send saved values; an empty saved result is NA; others are refused', () => {
+  const formulaOnly = workbook([cell(25, 11, '', 'blank', {formula: '1+2'}), cell(0, 0, '', 'blank', {style: 'Heading'})], {columns: 26});
+  assert.deepEqual(worksheetRImport(formulaOnly, 0).entire, {range: 'Z12', rowCount: 1, columnCount: 1, suggestHeadings: false});
+  assert.throws(() => worksheetRImport(formulaOnly, 0, {}, 'entire'), {message: 'Recalculate and save this workbook in Excel, then reopen it before using formula cells in R.'});
+  const cached = workbook([cell(25, 11, '3', 'number', {formula: '1+2'})], {columns: 26});
+  assert.deepEqual(worksheetRImport(cached, 0, {}, 'entire').columns, [{type: 'double', values: ['3']}]);
+  const savedEmpty = workbook([cell(0, 0, '5'), cell(0, 1, '', 'blank', {formula: 'IF(A1>9,A1,"")', savedEmpty: true}), cell(0, 2, '7')]);
+  assert.deepEqual(worksheetRImport(savedEmpty, 0, {}, 'entire').columns, [{type: 'double', values: ['5', null, '7']}]);
+  // Once the workbook is edited, every formula result may be out of date, the empty ones too.
+  for (const book of [savedEmpty, cached]) {
+    book.sheets[0].store.formulasStale = true;
+    assert.throws(() => worksheetRImport(book, 0, {}, 'entire'), /Recalculate/);
+  }
+  const heading = workbook([cell(0, 0, 'Total', 'text', {formula: '"Total"'}), cell(0, 1, '1')]);
+  heading.sheets[0].store.formulasStale = true;
+  assert.throws(() => worksheetRImport(heading, 0, {}, 'entire', {headings: true}), /Recalculate/);
+});
+
+test('the 8 MiB check refuses only what no script could hold, before reading huge sparse data', () => {
   const book = workbook([], {columns: 10, rows: 10000});
   book.sheets[0].store.apply(Array.from({length: 10}, (_, c) => Array.from({length: 10000}, (_, r) => [c, r, String(r + c)])).flat());
-  const result = worksheetRSelection(book, 0, {columns: Array.from({length: 10}, (_, c) => c)});
-  assert.equal(result.rowCount, 10000);
-  assert.equal(result.columns[9].values[9999], '10008');
-  assert.throws(() => worksheetRSelection(book, 0, {columns: [0]}, 100), /8 MiB/);
-  const large = workbook([], {columns: 8, rows: 1048576});
-  assert.throws(() => worksheetRSelection(large, 0, {range: {x: 0, y: 0, width: 8, height: 1048576}}), /8 MiB/);
+  const result = worksheetRImport(book, 0, {columns: Array.from({length: 10}, (_, c) => c)}, 'selected');
+  assert.deepEqual([result.rowCount, result.columns[9].values[9999], result.range], [10000, '10008', 'A1:J10000']);
+  assert.throws(() => worksheetRImport(book, 0, {columns: [0]}, 'selected', {}, 100), {message: 'The selected data exceed the 8 MiB editable R script limit. Select a smaller range, or export the worksheet as RDS from File → Export.'});
+  const large = workbook([cell(0, 0, '1')], {columns: 8, rows: 1048576});
+  assert.throws(() => worksheetRImport(large, 0, {range: {x: 0, y: 0, width: 7, height: 1048576}}, 'selected'), /8 MiB/);
+  // Long values count by their own length.
+  const long = workbook([cell(0, 0, 'x'.repeat(5000), 'text'), cell(0, 1, 'y'.repeat(5000), 'text')]);
+  assert.throws(() => worksheetRImport(long, 0, {}, 'entire', {}, 9000), /8 MiB/);
+  assert.equal(worksheetRImport(long, 0, {}, 'entire', {}, 11000).columns[0].values[1].length, 5000);
+});
+
+test('a list of vectors sends only its non-missing values, so the 8 MiB check counts only what it writes', () => {
+  // The review's case: A holds 1,000,000 numbers and B and C 20 each, independent samples of different lengths. As a
+  // data frame no script could hold them (3 columns × 1,000,000 rows × at least 3 bytes); as a list it is about 4 MB.
+  const book = workbook([]), store = book.sheets[0].store, edits = [];
+  for (let r = 0; r < 1000000; r++) edits.push([0, r, String(r % 97)]);
+  for (let r = 0; r < 20; r++) edits.push([1, r, String(r)], [2, r, String(-r)]);
+  store.apply(edits);
+  assert.throws(() => worksheetRImport(book, 0, {columns: [0, 1, 2]}, 'selected'), {message: TOO_LARGE});
+  assert.throws(() => worksheetRImport(book, 0, {columns: [0, 1, 2]}, 'selected', {list: false}), {message: TOO_LARGE});
+  const list = worksheetRImport(book, 0, {columns: [0, 1, 2]}, 'selected', {list: true});
+  assert.deepEqual([list.range, list.rowCount, list.columns.map(c => c.values.length)], ['A1:C1000000', 1000000, [1000000, 20, 20]]);
+  assert.deepEqual([list.columns[0].values[999999], list.columns[2].values.slice(18)], [String(999999 % 97), ['-18', '-19']]);
+  // Its second case: A to C hold 50 values each and D one stray value in row 800,000.
+  const stray = workbook([...[0, 1, 2].flatMap(c => span(0, 49).map(r => cell(c, r, String(r)))), cell(3, 799999, '7')], {rows: 800000});
+  assert.throws(() => worksheetRImport(stray, 0, {columns: [0, 1, 2, 3]}, 'selected'), {message: TOO_LARGE});
+  assert.deepEqual(worksheetRImport(stray, 0, {columns: [0, 1, 2, 3]}, 'selected', {list: true}).columns.map(c => c.values),
+    [span(0, 49).map(String), span(0, 49).map(String), span(0, 49).map(String), ['7']]);
+  // A number cell is never missing, so each needs at least 3 bytes ("1, "), counted before any cell is read. A1 is n, and
+  // A2:A101 hold 1: as a list with headings, 100 values and the name make 303 bytes.
+  const counted = workbook([cell(0, 0, 'n', 'text'), ...span(1, 100).map(r => cell(0, r, '1'))]), counts = counted.sheets[0].store;
+  const read = counts.get.bind(counts);
+  let reads = 0;
+  counts.get = (c, r) => { reads++; return read(c, r); };
+  const refusedUnread = (selection, options, bytes) => {
+    reads = 0;
+    assert.throws(() => worksheetRImport(counted, 0, selection, 'selected', options, bytes), {message: TOO_LARGE});
+    return reads === 0;
+  };
+  assert.equal(worksheetRImport(counted, 0, {columns: [0]}, 'selected', {list: true, headings: true}, 303).columns[0].values.length, 100);
+  assert.equal(refusedUnread({columns: [0]}, {list: true, headings: true}, 299), true);    // 100 numbers need 300 bytes
+  assert.equal(refusedUnread({columns: [0]}, {list: true, headings: true}, 300), false);   // read, then 303 bytes are too many
+  // A1's text may be a missing value, which a list leaves out, so it is not counted before reading: the list is read and
+  // then refused, at 306 bytes with A1 as data and the name A.
+  assert.equal(refusedUnread({columns: [0]}, {list: true, headings: false}, 302), false);
+  assert.equal(worksheetRImport(counted, 0, {columns: [0]}, 'selected', {list: true, headings: false}, 306).columns[0].values.length, 101);
+  // Of whole rows only the selected ones count: rows 1 to 51 and 101 are 51 data cells, not the 100 from A2 to A101.
+  assert.equal(worksheetRImport(counted, 0, {rows: [...span(0, 50), 100]}, 'selected', {list: true, headings: true}, 160).columns[0].values.length, 51);
+  // A blank formula (its saved result empty text) is missing, so it is not sent either.
+  const formulas = workbook([cell(0, 0, '1'), ...span(1, 9).map(r => cell(0, r, '', 'blank', {formula: 'IF(1,"","")', savedEmpty: true}))]);
+  assert.deepEqual(worksheetRImport(formulas, 0, {columns: [0]}, 'selected', {list: true}, 12).columns[0], {type: 'double', values: ['1']});
+  // Missing markers, errors and other cells a list leaves out cost nothing, however many: with a limit of 100 bytes, a
+  // thousand of them beside two numbers (as a data frame, 6,000 bytes at least) are a list of two values, 12 bytes.
+  const markers = workbook([...span(0, 999).map(r => cell(0, r, r % 2 ? '*' : 'NA', 'text')), ...span(0, 997).map(r => cell(2, r, '#N/A', 'error')),
+    cell(1, 5, '4'), cell(1, 999, '6')], {rows: 1000});
+  assert.throws(() => worksheetRImport(markers, 0, {columns: [0, 1, 2]}, 'selected', {}, 100), {message: TOO_LARGE});
+  assert.deepEqual(worksheetRImport(markers, 0, {columns: [0, 1, 2]}, 'selected', {list: true}, 100).columns,
+    [{type: 'logical', values: []}, {type: 'double', values: ['4', '6']}, {type: 'logical', values: []}]);
+});
+
+test('a list sends each column\'s non-missing values in sheet order, with the column types and names a data frame has', () => {
+  const columns = [[1, null, 'NA', 2, error('#N/A'), '*', 3], ['Name', null, null, 'x', ' ', 'na'], [null, 'na', 5, null, 'Inf'],
+    [datetime('2026-11-21 00:00:00'), datetime('1900-02-29'), 'Null', datetime('2026-11-22 10:00:00')], [null, null, null], [boolean('TRUE'), 'na', 'false']];
+  const frame = entire(columns), list = entire(columns, {list: true});
+  assert.deepEqual(list.columns, frame.columns.map(({type, values}) => ({type, values: values.filter(v => v !== null)})));
+  assert.deepEqual(list.columns, [{type: 'double', values: ['1', '2', '3']}, {type: 'character', values: ['Name', 'x', 'na']},
+    {type: 'double', values: ['5', 'Inf']}, {type: 'character', values: ['2026-11-21 00:00:00', '2026-11-22 10:00:00']},
+    {type: 'logical', values: []}, {type: 'logical', values: ['TRUE', 'FALSE']}]);
+  assert.deepEqual([list.names, list.rowCount, list.columnCount, list.dates], [frame.names, frame.rowCount, frame.columnCount, frame.dates]);
+  // With headings: a heading cell names its column and is not a value, and a blank one takes the column's letter.
+  const named = entire([['Dose', 1, null, 2], [null, 'a', null, 'b'], ['Empty']], {list: true, headings: true});
+  assert.deepEqual([named.names, named.columns], [['Dose', 'B', 'Empty'],
+    [{type: 'double', values: ['1', '2']}, {type: 'character', values: ['a', 'b']}, {type: 'logical', values: []}]]);
+  // Whole rows: only the selected ones, in order.
+  const book = sheet([[1, 2, 3, 4, 5, 6]]);
+  assert.deepEqual(worksheetRImport(book, 0, {rows: [1, 3, 5]}, 'selected', {list: true}).columns, [{type: 'double', values: ['2', '4', '6']}]);
+  // A NUL anywhere is refused with its cell, the first in sheet order, without reading the blank cells around it.
+  const nul = workbook([cell(3, 900000, 'a\0', 'text'), cell(9, 5, '\0', 'text'), cell(1, 5, 'b\0', 'text'), cell(0, 0, '1')], {columns: 10, rows: 1000000});
+  assert.throws(() => worksheetRImport(nul, 0, {}, 'entire', {list: true}),
+    {message: 'Cell B6 contains a null character, which R cannot hold. Remove it, then open the R import again.'});
+});
+
+test('a list refuses formula result cells it cannot use, as a data frame does, reading only what it must', () => {
+  // A1 is an array or spill formula over A1:A4, as the loader gives one: the anchor with its formula and saved result, the
+  // dependent cells with their saved results alone, and the region they cover.
+  const region = (cells, {stale = false, rows = 100} = {}) => {
+    const book = new WorkbookStore();
+    book.load({name: 'Regions.xlsx', sheets: [{name: 'Sheet1', headerRow: false, columns: 3, rows, cells,
+      formulaRegions: [{firstRow: 0, lastRow: 3, firstColumn: 0, lastColumn: 0}]}]});
+    book.sheets[0].store.formulasStale = stale;
+    return book;
+  };
+  const saved = [cell(0, 0, '1', 'number', {formula: 'SEQUENCE(4)'}), cell(0, 1, '2'), cell(0, 2, '3'), cell(0, 3, '4'), cell(1, 9, '9')];
+  const list = book => worksheetRImport(book, 0, {}, 'entire', {list: true});
+  assert.deepEqual(list(region(saved)).columns[0], {type: 'double', values: ['1', '2', '3', '4']});
+  // Once the workbook is edited, every result may be out of date; a dependent cell with no saved result is refused at once.
+  assert.throws(() => list(region(saved, {stale: true})), {message: RECALCULATE});
+  assert.throws(() => list(region(saved.filter(c => c.row !== 2))), {message: RECALCULATE});
+  // A saved empty-text result is missing, not a reason to refuse.
+  assert.deepEqual(list(region([...saved.filter(c => c.row !== 2), cell(0, 2, '', 'blank', {savedEmpty: true})])).columns[0],
+    {type: 'double', values: ['1', '2', '4']});
+  // Whole rows that leave out the dependent cell with no saved result do not refuse; rows that take it in do.
+  const missing = region(saved.filter(c => c.row !== 2));
+  assert.deepEqual(worksheetRImport(missing, 0, {rows: [0, 1, 3]}, 'selected', {list: true}).columns[0], {type: 'double', values: ['1', '2', '4']});
+  assert.throws(() => worksheetRImport(missing, 0, {rows: [2, 9]}, 'selected', {list: true}), {message: RECALCULATE});
+  // A data frame and a list refuse the same selections.
+  for (const book of [region(saved, {stale: true}), missing]) assert.throws(() => worksheetRImport(book, 0, {}, 'entire'), {message: RECALCULATE});
+  // A region without saved results at all, over a million rows, is refused from its first row, not read row by row.
+  const empty = new WorkbookStore();
+  empty.load({name: 'Regions.xlsx', sheets: [{name: 'Sheet1', headerRow: false, columns: 1, rows: 1048576,
+    cells: [cell(0, 0, '', 'blank', {formula: 'SEQUENCE(1048576)'})], formulaRegions: [{firstRow: 0, lastRow: 1048575, firstColumn: 0, lastColumn: 0}]}]});
+  const blank = empty.sheets[0].store, look = blank.formulaUnavailable.bind(blank);
+  let looks = 0;
+  blank.formulaUnavailable = (c, r) => { looks++; return look(c, r); };
+  assert.throws(() => list(empty), {message: RECALCULATE});
+  assert.ok(looks <= 4, `${looks} cells looked at`);
+});
+
+test('R import preview does not materialise huge sparse worksheet data', () => {
+  const book = workbook([cell(0, 0, '1'), cell(16383, 1048575, '2')], {columns: 16384, rows: 1048576});
+  const store = book.sheets[0].store, get = store.get.bind(store);
+  let reads = 0;
+  store.get = (c, r) => { assert.ok(++reads <= 16384); return get(c, r); };
+  assert.deepEqual(worksheetRImport(book, 0).entire, {range: 'A1:XFD1048576', rowCount: 1048576, columnCount: 16384, suggestHeadings: false});
+  reads = 0;
+  assert.equal(worksheetRImport(book, 0, {range: {x: 0, y: 0, width: 16384, height: 1048576}}).selectedReason, null);
+  reads = 0;
+  assert.equal(worksheetRImport(book, 0, {rows: [5, 1048575]}).selected.range, 'XFD1048576');
+  reads = 0;
+  assert.throws(() => worksheetRImport(book, 0, {}, 'entire'), /8 MiB/);
+  assert.equal(reads, 0, 'a data frame of 17 billion cells is refused before any is read');
+  // A list of the same two cells is a tiny script: it is not refused for its area, and it reads only the filled cells.
+  const names = span(0, 16383).map(columnName), empty = {type: 'logical', values: []};
+  for (const [selection, scope, columns] of [[{}, 'entire', names.map((_, c) => c)], [{columns: [0, 1, 2, 3, 4, 5, 6, 7, 16383]}, 'selected', [0, 1, 2, 3, 4, 5, 6, 7, 16383]]]) {
+    reads = 0;
+    const list = worksheetRImport(book, 0, selection, scope, {list: true});
+    assert.deepEqual([list.range, list.rowCount, list.columnCount, list.names], [scope === 'entire' ? 'A1:XFD1048576' : 'A1:H1048576,XFD1:XFD1048576', 1048576, columns.length, columns.map(c => names[c])]);
+    assert.deepEqual(list.columns, columns.map(c => c === 0 ? {type: 'double', values: ['1']} : c === 16383 ? {type: 'double', values: ['2']} : empty));
+    assert.ok(reads <= 8, `${reads} cells read`);
+  }
 });

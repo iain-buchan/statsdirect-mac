@@ -10,11 +10,21 @@ import { worksheetSelection } from './operation-data.mjs';
 // through the same column bridge as worksheet inputs, without a cell-count limit.
 const INLINE_SCREEN_CELLS = 65536;
 
-// Last 1-based row of a column that holds a value or a formula (0 for an empty column).
+// Last 1-based row of a column that holds a value, or a formula or an array, spill or data-table result whose value
+// cannot be used (0 for an empty column), so that a whole column takes in such a trailing cell, as the R import does,
+// and the analysis refuses it rather than leaving it out. A trailing result saved as empty text is a blank cell, which
+// a whole column does not reach for.
 export function columnEnd(store, c) {
   let end = store.columnUsedRows(c);
   const col = store.cols[c];
-  if (col) for (const r of col.formula.keys()) if (r + 1 > end) end = r + 1;
+  if (col) for (const r of col.formula.keys()) if (r + 1 > end && store.formulaUnavailable(c, r)) end = r + 1;
+  // Rows from end on hold no value, so only the last of them that cannot be used matters.
+  const spans = store.formulaResultSpans(c);   // sorted by row
+  last: for (let i = spans.length - 1; i >= 0 && spans[i].lastRow + 1 > end; i--) {
+    for (let r = spans[i].lastRow, stop = Math.max(end, spans[i].firstRow); r >= stop; r--) {
+      if (store.formulaUnavailable(c, r)) { end = r + 1; break last; }
+    }
+  }
   return end;
 }
 
@@ -35,7 +45,8 @@ export function analysisMetadata(workbook, sheetIndex, selection) {
     hasTitle: !!store.headerRow,
     columns: store.columns.map((_, c) => store.columnTitle(c)),
     firstRow,
-    rows: Math.max(firstRow, store.usedRows(), chosen.range?.last ?? 0),
+    // A whole column may end with a formula cell that holds no value, which the analysis then refuses by name.
+    rows: Math.max(firstRow, store.usedRows(), columnEnds.reduce((a, b) => Math.max(a, b), 0), chosen.range?.last ?? 0),
     formulasStale: store.formulasStale,
     columnEnds,
     width: used.length ? used[used.length - 1] + 1 : 0,
@@ -91,7 +102,7 @@ export function columnValues(workbook, sheetIndex, request) {
       const text = store.get(c, r), kind = store.kind(c, r);
       values[r - first + 1] = text; kinds[r - first + 1] = kind;
       if (kind === 'error') errors++;
-      if (store.formula(c, r) && (store.formulasStale || text === '')) uncached++;
+      if (store.formulaUnavailable(c, r)) uncached++;
     }
     return {title: store.columnTitle(c), values, kinds};
   });

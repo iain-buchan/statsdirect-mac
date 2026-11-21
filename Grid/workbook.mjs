@@ -29,6 +29,7 @@ export class WorkbookStore {
       store.rows = Math.max(100, sheet.rows);
       store.excelRows = true;
       store.csvRows = sheet.csvRows ?? 0;
+      store.formulaRegions = sheet.formulaRegions ?? [];
       // A sheet carries typed `columnar` records (decoded from a snapshot file), per-column
       // `batches` from the CSV loader, per-cell `cells`, or a combination.
       if (sheet.columnar) store.setLoadedColumns(sheet.columnar);
@@ -72,7 +73,11 @@ export class WorkbookStore {
   // backed by a file: loaded cells edited since loading (including those now blank), then
   // cells never in the file. Otherwise every populated cell, with a new worksheet's column
   // titles as row 0 and its data shifted down one row.
+  // With allValues (the Excel 97-2003 data copy, which keeps values alone), a formula, array, spill or data-table result
+  // that may be out of date or was never saved is refused, as the R data export refuses it, rather than written as a
+  // constant.
   exportCells(visit, allValues = false) {
+    if (allValues && this.sheets.some(({store}) => store.firstUnavailableResult())) throw new Error('Recalculate formula results in Excel before exporting an Excel 97–2003 data copy.');
     this.sheets.forEach(({store}, sheetIndex) => {
       if (!this.imported) store.columns.forEach((text, col) => visit(sheetIndex, col, 0, text, 'text'));
       const push = (col, row, text) => visit(sheetIndex, col, this.imported ? row : row + 1, text, store.kind(col, row));

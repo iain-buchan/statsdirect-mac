@@ -19,6 +19,9 @@ const KIND_INDEX = new Map(KINDS.map((k, i) => [k, i]));
 const BLANK = 0, NUMBER = 1, TEXT = 2;
 export function kindIndex(name) { return KIND_INDEX.get(name) ?? TEXT; }
 const LOADED = 1, MODIFIED = 2;
+// The snapshot extra the loader writes for a formula whose saved result is empty text, exactly as WorkbookIO.cs writes it.
+const SAVED_EMPTY_TEXT = '{"savedEmpty":true}', SAVED_EMPTY = Object.freeze({savedEmpty: true});
+const NO_FORMULA_SPANS = [];
 const UNDO_STEPS = 50,
   UNDO_BYTES = 256 * 1024 * 1024;
 const DATETIME = /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/,
@@ -76,6 +79,39 @@ export function scanDelimited(text, delimiter, emit) {
   if (tail !== '' || c > 0) { finish(tail); r++; }
   else if (!any) r = 0;
   return {rows: r, cols};
+}
+// The smallest index i below n for which after(i) holds, or n: a binary search over a condition that, once it holds, holds
+// for every later index.
+export function firstIndex(n, after) {
+  let low = 0, high = n;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (after(middle)) high = middle; else low = middle + 1;
+  }
+  return low;
+}
+// Formula result regions (the loader's {firstRow, lastRow, firstColumn, lastColumn}, inclusive and zero-based, in the file's
+// columns), indexed so that a cell is looked up in O(log n): the file's columns are cut wherever a region starts or ends, so
+// that the same regions cover every column of a piece, and each piece keeps their rows as spans sorted by row, with
+// overlapping or adjacent ones merged. A region adds itself to each piece it covers, so wide regions that share their
+// columns, such as one array formula across each row, cost one piece.
+function regionIndex(regions) {
+  const cuts = [...new Set(regions.flatMap(r => [r.firstColumn, r.lastColumn + 1]))].sort((a, b) => a - b);
+  const pieces = Array.from({length: Math.max(0, cuts.length - 1)}, () => []);
+  for (const region of regions) {
+    const end = firstIndex(cuts.length, i => cuts[i] > region.lastColumn);   // the cut after its last column
+    for (let p = firstIndex(cuts.length, i => cuts[i] >= region.firstColumn); p < end; p++) pieces[p].push(region);
+  }
+  const spans = pieces.map(list => {
+    const merged = [];
+    for (const {firstRow, lastRow} of list.sort((a, b) => a.firstRow - b.firstRow)) {
+      const last = merged.at(-1);
+      if (last && firstRow <= last.lastRow + 1) { if (lastRow > last.lastRow) last.lastRow = lastRow; }
+      else merged.push({firstRow, lastRow});
+    }
+    return merged;
+  });
+  return {regions, cuts, spans, byColumn: new Map()};
 }
 export function numeric(raw) {
   if (raw.trim() === '') return null;
@@ -200,6 +236,9 @@ export class GridStore {
     this.excelRows = false;
     this.csvRows = 0;
     this.formulasStale = false;
+    // The loader's array, spill and What-If Data Table result regions; formulaResultSpans indexes them when first asked.
+    this.formulaRegions = [];
+    this.formulaIndex = null;
     if (example) {
       this.setLoaded(example.before.map((v, r) => ({col: 0, row: r, text: String(v), kind: 'number'})).concat(example.after.map((v, r) => ({col: 1, row: r, text: String(v), kind: 'number'}))), false);
     }
@@ -219,6 +258,61 @@ export class GridStore {
   formula(c, r) {
     const col = this.cols[c];
     return col ? col.formula.get(r) ?? '' : '';
+  }
+  // Excel can save only the anchor expression for an array or data table. Keep the dependent rows as spans in the
+  // original worksheet rather than allocating cells: column c's rows covered by a result region, as {firstRow, lastRow}
+  // spans sorted by row that neither overlap nor touch (shared, so not to be changed). Columns inserted since the file was
+  // loaded have none; the others keep their own.
+  formulaResultSpans(c) {
+    if (!this.formulaRegions.length) return NO_FORMULA_SPANS;
+    let index = this.formulaIndex;
+    if (index?.regions !== this.formulaRegions) index = this.formulaIndex = regionIndex(this.formulaRegions);
+    let spans = index.byColumn.get(c);
+    if (spans) return spans;
+    let original = c;
+    for (let i = this.inserts.length - 1; i >= 0; i--) {
+      const {col, count} = this.inserts[i];
+      if (original < col) continue;
+      if (original < col + count) { original = -1; break; }
+      original -= count;
+    }
+    const piece = original < 0 ? -1 : firstIndex(index.cuts.length, i => index.cuts[i] > original) - 1;
+    spans = piece >= 0 && piece < index.spans.length ? index.spans[piece] : NO_FORMULA_SPANS;
+    index.byColumn.set(c, spans);
+    return spans;
+  }
+  // Whether a cell of column c from row first to row last lies in an array, spill or What-If Data Table result.
+  formulaResultIn(c, first, last) {
+    const spans = this.formulaResultSpans(c), i = firstIndex(spans.length, k => spans[k].lastRow >= first);
+    return i < spans.length && spans[i].firstRow <= last;
+  }
+  formulaResult(c, r) { return this.formulaResultIn(c, r, r); }
+  // A cell Excel calculates, which the grid shows but does not edit: a formula cell, or a cell of an array, spill or
+  // What-If Data Table result, whose formula is its anchor's.
+  readOnly(c, r) { return !!this.formula(c, r) || this.formulaResult(c, r); }
+  // A formula cell whose value cannot be used: the workbook has been edited since it was opened, so
+  // results may be out of date, or the file saved no result. A saved result of empty text (the
+  // loader's savedEmpty flag) is a blank cell, not a missing result.
+  formulaUnavailable(c, r) {
+    if (!this.readOnly(c, r)) return false;
+    return this.formulasStale || this.get(c, r) === '' && this.cols[c]?.extra.get(r)?.savedEmpty !== true;
+  }
+  // The first formula or formula result cell whose value cannot be used, as [c, r], or null. Only stored cells are read: a
+  // result region's rows that the store holds no chunk for have no saved result.
+  firstUnavailableResult() {
+    for (let c = 0; c < this.cols.length; c++) for (const r of this.cols[c].formula.keys()) if (this.formulaUnavailable(c, r)) return [c, r];
+    for (let c = 0; c < this.columns.length; c++) {
+      const column = this.cols[c];
+      for (const {firstRow, lastRow} of this.formulaResultSpans(c)) {
+        if (this.formulasStale) return [c, firstRow];
+        for (let r = firstRow; r <= lastRow;) {
+          const ch = column?.chunks.get(r >> CHUNK_BITS), end = Math.min(lastRow, r | MASK);
+          if (!ch) return [c, r];
+          for (; r <= end; r++) if (ch.kind[r & MASK] === BLANK && column.extra.get(r)?.savedEmpty !== true) return [c, r];
+        }
+      }
+    }
+    return null;
   }
   // The cell as loaded from a file (undefined for cells that were never loaded). For a cell
   // edited since loading, the values it had when loaded.
@@ -285,7 +379,9 @@ export class GridStore {
     }
   }
   // Bulk load typed column records as decoded from a snapshot file (see snapshot.mjs):
-  // {col, rows, kinds, nums, texts: Map<ordinal, text>, formulas: Map<ordinal, text>}.
+  // {col, rows, kinds, nums, texts: Map<ordinal, text>, formulas: Map<ordinal, text>, extras: Map<ordinal, JSON text>}.
+  // The loader's commonest extra, a formula's saved empty-text result, is matched by its text and shares one frozen
+  // object, rather than being parsed into a new object for each cell (a column of them can fill the sheet).
   setLoadedColumns(columns) {
     let maxRow = -1, maxCol = -1;
     for (const b of columns) {
@@ -304,8 +400,10 @@ export class GridStore {
         }
         const formula = b.formulas?.get(i), extra = b.extras?.get(i);
         if (formula) col.formula.set(r, formula);
-        if (extra) { try { col.extra.set(r, JSON.parse(extra)); } catch { /* malformed loader metadata is ignored */ } }
-        else if (!formula && kind === BLANK) continue;
+        if (extra) {
+          if (extra === SAVED_EMPTY_TEXT) col.extra.set(r, SAVED_EMPTY);
+          else { try { col.extra.set(r, JSON.parse(extra)); } catch { /* malformed loader metadata is ignored */ } }
+        } else if (!formula && kind === BLANK) continue;
         col.setFlags(r, LOADED);
         if (r > maxRow) maxRow = r;
       }
@@ -363,6 +461,14 @@ export class GridStore {
       const c = b.col;
       if (c < 0 || c >= MAX_COLS) throw new Error('Cell is outside the worksheet.');
       const col = preview[c] ?? new Column(), n = b.rows.length;
+      // The column before this step's insertions (-1 for one they add), whose array, spill and data-table results are
+      // read-only as formula cells are: Excel's save keeps them for the anchor's formula, and refuses an edit to one.
+      let before = c;
+      for (let i = inserts.length - 1; i >= 0 && before >= 0; i--) {
+        const {col: at, count} = inserts[i];
+        if (before >= at + count) before -= count; else if (before >= at) before = -1;
+      }
+      const results = before >= 0 && this.formulaResultSpans(before).length > 0;
       // Last write to a cell wins; collect the distinct rows in order of first appearance.
       const index = new Map();
       for (let i = 0; i < n; i++) {
@@ -380,7 +486,7 @@ export class GridStore {
         const explicit = b.kinds?.[i];
         const kind = text === '' ? BLANK : explicit ? KIND_INDEX.get(explicit) : deriveKind(text, original);
         const oldKind = col.kindAt(r);
-        if (col.formula.has(r) && (text !== current || kind !== oldKind)) throw new Error('Formula cells are read-only. Edit their formulas in Excel.');
+        if ((col.formula.has(r) || results && this.formulaResult(before, r)) && (text !== current || kind !== oldKind)) throw new Error('Formula cells are read-only. Edit their formulas in Excel.');
         if (text === current && kind === oldKind) continue;
         rowsOut[k] = r;
         beforeKind[k] = oldKind; beforeNum[k] = col.numAt(r);
@@ -441,7 +547,11 @@ export class GridStore {
     this.version++;
     this.rows = forward ? step.newRows : step.oldRows;
     this.growColumns(forward ? step.newCols : step.oldCols);
-    if (step.inserts?.length) { if (forward) this.inserts.push(...step.inserts); else this.inserts.splice(-step.inserts.length); }
+    if (step.inserts?.length) {
+      if (forward) this.inserts.push(...step.inserts);
+      else this.inserts.splice(-step.inserts.length);
+      this.formulaIndex?.byColumn.clear();
+    }
   }
   undo() {
     const s = this.undoStack.pop();
@@ -479,8 +589,9 @@ export class GridStore {
       after = [];
     for (let r = start; r < end; r++) {
       try {
-        if ([c1, c2].some(c => this.formula(c, r) && this.get(c, r) === '')) throw new Error('A formula has no saved result. Recalculate and save this workbook in Excel before analysing it.');
-        if (this.formulasStale && [c1, c2].some(c => this.formula(c, r))) throw new Error('This selection contains formula results that may be out of date. Save, recalculate in Excel, and reopen the workbook before analysing these cells.');
+        const unavailable = [c1, c2].filter(c => this.formulaUnavailable(c, r));
+        if (unavailable.some(c => this.get(c, r) === '' && this.cols[c].extra.get(r)?.savedEmpty !== true)) throw new Error('A formula has no saved result. Recalculate and save this workbook in Excel before analysing it.');
+        if (unavailable.length) throw new Error('This selection contains formula results that may be out of date. Save, recalculate in Excel, and reopen the workbook before analysing these cells.');
         before.push(numeric(this.get(c1, r)));
         after.push(numeric(this.get(c2, r)));
       } catch (e) {

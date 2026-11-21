@@ -214,8 +214,8 @@ export function WorksheetAnalysis({commands, run, searchHelp, close, position, e
         event.preventDefault(); event.stopPropagation(); close();
       }
     }}>
-    <input ref={search} id="worksheet-analysis-search" type="search" placeholder="Search worksheet commands"
-      aria-label="Search worksheet commands" autoComplete="off" spellCheck={false} role="combobox"
+    <input ref={search} id="worksheet-analysis-search" type="search" placeholder="Search methods"
+      aria-label="Search methods" autoComplete="off" spellCheck={false} role="combobox"
       aria-haspopup="tree" aria-autocomplete="list" aria-expanded="true" aria-controls="worksheet-analysis-results"
       aria-activedescendant={match ? itemID(match) : undefined} onKeyDown={searchKeyDown}
       value={query} onChange={event => {

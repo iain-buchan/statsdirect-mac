@@ -242,15 +242,17 @@ public static partial class WorkbookIO {
     }
 
     static bool NeedsExcelCalculation(string path) {
-        // ClosedXML cannot interpret every Excel extension or control. These packages
-        // use the lossless streaming patcher regardless of size; Excel recalculates them.
+        // ClosedXML cannot interpret every Excel extension or control, nor evaluate a formula that
+        // reads another workbook (xl/externalLinks/). These packages use the lossless streaming
+        // patcher regardless of size; Excel recalculates them.
         using var zip = ZipFile.OpenRead(path);
+        var worksheets = new Package(zip, true).Sheets.Select(s => s.Entry).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in zip.Entries) {
             string name = entry.FullName.ToLowerInvariant();
-            if (name.StartsWith("xl/pivot") || name.StartsWith("xl/slicer") || name.StartsWith("xl/querytables/") || name.StartsWith("xl/ctrlprops/") || name.StartsWith("xl/activex/") || name.StartsWith("xl/threadedcomments/") || name is "xl/metadata.xml" or "xl/connections.xml") return true;
-            if (!name.StartsWith("xl/worksheets/") || !name.EndsWith(".xml")) continue;
-            using var stream = entry.Open(); using var reader = XmlReader.Create(stream);
-            while (reader.Read()) if (reader.NodeType == XmlNodeType.Element && (reader.LocalName == "extLst" || reader.LocalName == "f" && reader.GetAttribute("t") == "dataTable")) return true;
+            if (name.StartsWith("xl/pivot") || name.StartsWith("xl/slicer") || name.StartsWith("xl/externallinks/") || name.StartsWith("xl/querytables/") || name.StartsWith("xl/ctrlprops/") || name.StartsWith("xl/activex/") || name.StartsWith("xl/threadedcomments/") || name is "xl/metadata.xml" or "xl/connections.xml") return true;
+            if (!worksheets.Contains(entry.FullName)) continue;
+            ReadFormulaResultRegions(entry, out var requiresExcel);
+            if (requiresExcel) return true;
         }
         return false;
     }

@@ -1,7 +1,8 @@
 """Writes Tests/Fixtures/Excel/formula-column.xlsx: a worksheet of 2,600 rows whose column y holds formulas (=A2*2 ...) with their
-results saved, as Excel saves them, and a worksheet extension list (Excel for Mac's page layout view, which every workbook Excel for
-Mac saves carries), which routes this program's save of the workbook through its streaming patcher. The streaming patcher keeps the
-formulas and drops their saved results, so Excel recalculates: a run on x and y, the file saved, the grid closed and Continue in R
+results saved, as Excel saves them, and a worksheet extension list (the page layout view extension Excel for Mac can write), which
+routes this program's save of the workbook, once edited, through its streaming patcher (any worksheet extension list does). The
+streaming patcher keeps the formulas and drops their saved results, so Excel recalculates: a run on x and y, the file edited and
+saved, the grid closed and Continue in R
 is then the case of a workbook whose formula cells have no saved results (Tests/report-export-driver.swift runRecords).
 
     python3 Tests/make-formula-workbook.py [path]

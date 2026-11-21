@@ -116,6 +116,10 @@ import WebKit
         try check(true,"worksheet Find selects the matching cell")
         _=try await js(grid,"document.querySelector('[aria-label=\"Close Find\"]').click();window.statsDirectGrid.editCommand('selectAll','')")
         try await Task.sleep(nanoseconds:100_000_000)
+        // Rule 2.6 of the worksheet R rules: Edit > Select All offers Entire worksheet as its Selected cells, which the
+        // grid's own tests cannot reach because the marker lives in the React selection.
+        try check(try await js(grid,"(()=>{const p=window.statsDirectGrid.worksheetRImport();return p.selected!==null&&JSON.stringify(p.selected)===JSON.stringify(p.entire);})()") as? Bool == true,
+                  "Select All offers the entire worksheet as the R import's selected cells")
         let board=NSPasteboard.general
         let saved=board.pasteboardItems?.map { item in item.types.reduce(into:[NSPasteboard.PasteboardType:Data]()){$0[$1]=item.data(forType:$1)} } ?? []
         defer {board.clearContents();board.writeObjects(saved.map { data in let i=NSPasteboardItem();for(t,d) in data {i.setData(d,forType:t)};return i})}
@@ -185,7 +189,13 @@ import WebKit
         let selected="(()=>{const s=statsDirectGrid.analysisSource();return JSON.stringify(s.selection)==='[0,1]'&&s.range?.first===2&&s.range?.last===4})()"
         try await wait("Worksheet gesture did not select A/B, rows 2–4") { (try? await js(grid,selected)) as? Bool == true }
         try await fit(grid)
-        try check(try await js(grid,"document.querySelector('[data-command=analyse]').textContent.trim()==='Analyse' && !!document.querySelector('[data-command=worksheetHelp]') && !!document.querySelector('[data-command=worksheetR]')") as? Bool == true,"worksheet exposes labelled Analyse, Help and R commands")
+        try check(try await js(grid,"""
+            (()=>{const row=document.querySelector('.sd-toolbar-row'), get=id=>row.querySelector('[data-command='+id+']');
+                const analyse=get('analyse'), r=get('worksheetR'), external=get('worksheetRPlus'), help=get('worksheetHelp');
+                return analyse?.textContent.trim()==='Analyse'&&r?.previousElementSibling===analyse&&external?.previousElementSibling===r&&
+                    help?.previousElementSibling===external&&help.hasAttribute('data-group-start')&&
+                    [r,external,help].every(b=>b.title===b.getAttribute('aria-label')&&b.title.length>0);})()
+            """) as? Bool == true,"worksheet groups the labelled Analyse, R and R+ commands before the Help divider")
 
         let originalCount=v.documents.count
         try await click(grid,"analyse")
@@ -225,7 +235,9 @@ import WebKit
         try check(!nativeRows.isEmpty && NSArray(array:chooserRows).isEqual(to:nativeRows),"Analyse tree preserves the complete native hierarchy, labels, order and availability (\(chooserRows.count) tree nodes, \(nativeRows.count) native nodes)")
         try check(try await js(grid,"""
             (()=>{const tree=document.getElementById('worksheet-analysis-results'),nodes=[...tree.querySelectorAll('[role=treeitem]')],branches=[...tree.querySelectorAll('[data-worksheet-branch]')];
-                return tree.getAttribute('role')==='tree'&&document.getElementById('worksheet-analysis-search').getAttribute('aria-haspopup')==='tree'&&
+                const search=document.getElementById('worksheet-analysis-search');
+                return tree.getAttribute('role')==='tree'&&search.getAttribute('aria-haspopup')==='tree'&&
+                    search.placeholder==='Search methods'&&search.getAttribute('aria-label')==='Search methods'&&
                     branches.length>3&&branches.every(node=>node.getAttribute('aria-expanded')==='false'&&node.querySelector(':scope > [role=group]').hidden)&&
                     nodes.filter(node=>node.getClientRects().length).map(node=>node.dataset.worksheetBranch).join('|')==='Analysis|Data|Graphics'&&
                     nodes.every(node=>node.id)&&new Set(nodes.map(node=>node.id)).size===nodes.length;
@@ -418,15 +430,162 @@ import WebKit
         let selectionAfterHelp=try await js(grid,selected) as? Bool == true
         try check(v.active === grid && v.documents.count == originalCount && selectionAfterHelp,"worksheet Help reuses the existing dock without creating a document or changing the selection")
         v.helpPane.hide();v.window.contentView!.layoutSubtreeIfNeeded()
+        try await worksheetRTools(v, grid: grid, js: js, click: click, selected: selected)
+    }
+
+    @MainActor static func worksheetRTools(_ v: Viewer, grid: Document,
+        js: (Document, String) async throws -> Any?, click: (Document, String) async throws -> Void,
+        selected: String) async throws {
+        func view<T: NSView>(_ id: String, in root: NSView?) -> T? {
+            guard let root else { return nil }
+            if root.identifier?.rawValue == "worksheet-r-" + id { return root as? T }
+            return root.subviews.lazy.compactMap { view(id, in: $0) }.first
+        }
+        func button(_ id: String, in sheet: NSWindow) throws -> NSButton {
+            guard let control: NSButton = view(id, in: sheet.contentView) else {
+                throw NSError(domain:"ToolbarChecks",code:3,userInfo:[NSLocalizedDescriptionKey:"Missing R import control " + id])
+            }
+            return control
+        }
+        func prompt() async throws -> NSWindow {
+            try await wait("Worksheet R import sheet did not open") { v.window.attachedSheet?.identifier?.rawValue == "worksheet-r-import" }
+            return v.window.attachedSheet!
+        }
+        func formatControls(in sheet: NSWindow) throws -> (NSPopUpButton, NSTextField) {
+            guard let format: NSPopUpButton = view("format", in: sheet.contentView),
+                  let hint: NSTextField = view("format-hint", in: sheet.contentView) else {
+                throw NSError(domain:"ToolbarChecks",code:3,userInfo:[NSLocalizedDescriptionKey:"Missing R import format or its hint"])
+            }
+            return (format, hint)
+        }
+        func choose(_ format: NSPopUpButton, _ index: Int) { format.selectItem(at: index); format.sendAction(format.action, to: format.target) }
+        /// Every text the sheet shows, the alert's title and message among them.
+        func texts(in sheet: NSWindow) -> [String] {
+            func collect(_ view: NSView) -> [String] { ((view as? NSTextField).map { [$0.stringValue] } ?? []) + view.subviews.flatMap(collect) }
+            return sheet.contentView.map(collect) ?? []
+        }
+        let originalCount = v.documents.count
         try await click(grid,"worksheetR")
-        try await wait("Worksheet R did not open an interactive script document") { v.active?.kind == "r" && v.active?.rConsolePane != nil }
+        let integrated = try await prompt()
+        let none = try button("none", in: integrated)
+        let entireCells = try button("entire", in: integrated)
+        let selectedCells = try button("selected", in: integrated)
+        let headings = try button("headings", in: integrated)
+        let friendly = try button("friendly-names", in: integrated)
+        let (format, hint) = try formatControls(in: integrated)
+        try check(texts(in: integrated).contains("Open in StatsDirect R")
+                  && texts(in: integrated).contains("Choose the data from “Measurements” to copy into the new R session as worksheet_data."),
+                  "the R sheet is titled Open in StatsDirect R and names the sheet and worksheet_data")
+        try check(none.state == .on && integrated.initialFirstResponder === none
+                  && !headings.isEnabled && !friendly.isEnabled && !format.isEnabled && hint.isHidden
+                  && friendly.state == .off && format.titleOfSelectedItem == "Data frame (keep rows aligned)",
+                  "the native import sheet focuses No data and disables the data options by default")
+        try check(entireCells.title == "Entire worksheet — A1:F100 (100 rows × 6 columns)"
+                  && selectedCells.title == "Selected cells — A2:B4 (3 rows × 2 columns)"
+                  && selectedCells.accessibilityIdentifier() == "worksheet-r-selected",
+                  "the data choices give the exact ranges and counts, and keep stable accessibility identifiers")
+        selectedCells.performClick(nil)
+        try check(headings.isEnabled && headings.state == .off && !friendly.isEnabled && format.isEnabled,
+                  "a numeric first row stays in the imported data by default")
+        choose(format, 1)
+        try check(!hint.isHidden && hint.stringValue == "Missing values are removed separately from each vector.",
+                  "List of vectors shows its hint")
+        choose(format, 0)
+        try check(hint.isHidden, "Data frame hides the list hint")
+        try button("open", in: integrated).performClick(nil)
+        try await wait("Worksheet R did not open an integrated R session") { v.active?.kind == "r" && v.active?.rConsolePane != nil }
         let script=v.active!, console=script.rConsolePane!
-        try await wait { (try? await js(script,"window.StatsDirectRConsole?.snapshot().mode==='script' && document.getElementById('script-source').value.length>0 && !document.getElementById('script-source').disabled && !document.getElementById('script-source').readOnly")) as? Bool == true }
-        try await wait("The new R script did not reach an idle ready session") { console.session.state == "ready" }
+        try await wait("Worksheet R did not import the data into its live console") {
+            guard console.session.state == "ready", console.hasWorkspace else { return false }
+            return (try? await js(script,"window.StatsDirectRConsole?.snapshot().mode==='console'")) as? Bool == true
+        }
         let text=console.sourceText
-        try check(text.contains("data <-") && text.contains("Before") && text.contains("After") && ["1201","1202","1203","8001","8002","8003"].allSatisfy(text.contains) && !["1204","8004","999999"].contains(where:text.contains),"worksheet R opens an editable script containing only the selected columns and three selected data rows")
-        try check(!console.isBusy && !console.hasWorkspace && console.session.commandId == nil && console.outputText.isEmpty,"worksheet R starts ready without executing the generated data script")
-        try check(try await js(grid,selected) as? Bool == true,"Opening the R script preserves the original worksheet highlight")
-        v.remove(script)
+        try check(text.contains("worksheet_data <- structure(list(") && text.contains("utils::str(worksheet_data)")
+                  && ["1201","1202","1203","8001","8002","8003"].allSatisfy(text.contains)
+                  && !["1204","8004","999999"].contains(where:text.contains),
+                  "worksheet R retains an editable script with only the selected cells")
+        try check(console.session.submit(source: "if (is.data.frame(worksheet_data) && identical(names(worksheet_data), c('A', 'B')) && identical(worksheet_data$A, c(1201, 1202, 1203)) && identical(worksheet_data$B, c(8001, 8002, 8003))) cat(paste0('WORKSHEET_', 'FRAME_OK'))"),
+                  "the integrated session accepts a command against the imported frame")
+        try await wait("The integrated data frame did not match the chosen cells and column letters") { console.outputText.contains("WORKSHEET_FRAME_OK") }
+        try check(console.outputText.contains("3 obs. of") && console.outputText.contains("2 variables"),
+                  "the integrated session shows utils::str(worksheet_data) after the import")
+        v.remove(script); v.tabs.selectTabViewItem(grid.item)
+        try check(try await js(grid,selected) as? Bool == true,"Opening the R session preserves the original worksheet highlight")
+
+        try await click(grid,"worksheetR")
+        let empty = try await prompt()
+        try button("open", in: empty).performClick(nil)
+        try await wait { v.active?.rConsolePane != nil && v.documents.count == originalCount + 1 }
+        let emptyScript = v.active!
+        try check(emptyScript.rConsolePane?.sourceText.isEmpty == true && emptyScript.rConsolePane?.hasWorkspace == false,
+                  "the default No data choice opens an empty integrated session")
+        v.remove(emptyScript); v.tabs.selectTabViewItem(grid.item)
+
+        let sheetName = "Worksheet R toolbar test " + UUID().uuidString
+        _=try await grid.web.callAsyncJavaScript("""
+            await statsDirectGrid.loadWorkbook({name:'Worksheet R test',sheets:[{name, headerRow:false, rows:100, columns:8, cells:[
+                {col:1,row:3,text:'PEFR Before',kind:'text'}, {col:2,row:3,text:'PEFR_Before',kind:'text'},
+                {col:3,row:3,text:'PEFR_Before_1',kind:'text'},
+                {col:1,row:4,text:'11',kind:'number'}, {col:2,row:5,text:'22',kind:'number'},
+                {col:1,row:6,text:'33',kind:'number'}, {col:3,row:6,text:'44',kind:'number'}]}]});
+            return true;
+            """, arguments:["name":sheetName], in:nil, contentWorld:.page)
+        try await wait { (try? await js(grid,"statsDirectGrid.analysisSource().name.endsWith(" + v.jsString(sheetName) + ")")) as? Bool == true }
+        // The script R+ saves in R Scripts is named after the sheet; a unique suffix may follow.
+        func savedScripts() -> [URL] {
+            ((try? FileManager.default.contentsOfDirectory(at: RExternalScript.scriptsFolder, includingPropertiesForKeys: nil)) ?? [])
+                .filter { $0.lastPathComponent.hasPrefix(sheetName + " Worksheet") && $0.pathExtension == "R" }
+        }
+        let launchExternal = RExternalScript.opensExternally
+        RExternalScript.opensExternally = false
+        defer { RExternalScript.opensExternally = launchExternal; for url in savedScripts() { try? FileManager.default.removeItem(at: url) } }
+        try await click(grid,"worksheetRPlus")
+        let cancelled = try await prompt()
+        try check(try button("none", in: cancelled).state == .on && texts(in: cancelled).contains("Open in R or RStudio")
+                  && texts(in: cancelled).contains("Choose the data from “\(sheetName)” to copy into R as worksheet_data."),
+                  "the external R+ command opens the same No data default sheet, titled Open in R or RStudio")
+        try button("cancel", in: cancelled).performClick(nil)
+        try await wait { v.window.attachedSheet == nil }
+        try check(v.documents.count == originalCount && savedScripts().isEmpty,
+                  "Cancel prevents both a data copy and an external handoff")
+
+        try await click(grid,"worksheetRPlus")
+        let external = try await prompt()
+        let entire = try button("entire", in: external)
+        try check(entire.title == "Entire worksheet — B4:D7 (4 rows × 3 columns)",
+                  "Entire worksheet reports populated bounds and dimensions")
+        entire.performClick(nil)
+        let infer = try button("headings", in: external)
+        let convert = try button("friendly-names", in: external)
+        try check(infer.state == .on && convert.isEnabled && convert.state == .off,
+                  "a clear first row suggests headings, and R-friendly names are opt-in")
+        convert.performClick(nil)
+        infer.performClick(nil)
+        try check(infer.state == .off && !convert.isEnabled && convert.state == .on,
+                  "unticking the first box dims R-friendly names but keeps their tick")
+        entire.performClick(nil)
+        try check(infer.state == .off, "choosing the same data again keeps the user's first-box choice")
+        infer.performClick(nil)
+        try check(convert.isEnabled && convert.state == .on, "ticking the first box again brings back the R-friendly tick")
+        let (externalFormat, externalHint) = try formatControls(in: external)
+        choose(externalFormat, 1)
+        try check(!externalHint.isHidden, "List of vectors shows its hint for R+ too")
+        try button("open", in: external).performClick(nil)
+        try await wait("R+ did not save the external script") { savedScripts().count == 1 }
+        try check(v.active === grid && v.documents.count == originalCount,
+                  "worksheet R+ hands off the script without opening an internal R tab")
+        guard let rscript = RRuntime.executable() else {
+            throw NSError(domain:"ToolbarChecks",code:4,userInfo:[NSLocalizedDescriptionKey:"Rscript is required for standalone worksheet replay"])
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath:rscript)
+        process.arguments = ["--vanilla", "-e", """
+            source(commandArgs(TRUE)[1L], encoding = 'UTF-8')
+            stopifnot(is.list(worksheet_data), !is.data.frame(worksheet_data),
+              identical(names(worksheet_data), c('PEFR_Before', 'PEFR_Before_2', 'PEFR_Before_1')),
+              identical(worksheet_data[[1L]], c(11, 33)), identical(worksheet_data[[2L]], 22), identical(worksheet_data[[3L]], 44))
+            """, savedScripts()[0].path]
+        try process.run(); process.waitUntilExit()
+        try check(process.terminationStatus == 0,"the R+ script replays independently in R with unique headings and unequal vectors")
     }
 }

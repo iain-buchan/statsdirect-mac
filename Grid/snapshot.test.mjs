@@ -70,9 +70,12 @@ test('analysis forms receive metadata and read columns on demand', () => {
   const meta = analysisMetadata(book, 0, {columns: [1, 0]});
   assert.equal(meta.lazy, true);
   assert.deepEqual([meta.workbook, meta.sheet, meta.sheetName, meta.hasTitle], ['book.xlsx', 0, 'S', true]);
-  assert.deepEqual([meta.firstRow, meta.rows, meta.columnEnds, meta.width, meta.selection], [2, 3, [3, 5, 0], 2, [1, 0]]);
+  // The rows reach B5, a formula without a saved result, which a whole column B takes in and refuses by name.
+  assert.deepEqual([meta.firstRow, meta.rows, meta.columnEnds, meta.width, meta.selection], [2, 5, [3, 5, 0], 2, [1, 0]]);
   assert.equal(JSON.stringify(meta).includes('"12"'), false);
   assert.deepEqual(worksheetRows(meta, [0, 1]), {first: 2, last: 5});
+  const whole = worksheetInput(meta, [1], 2, 5);
+  assert.throws(() => worksheetInputFrom(whole, columnValues(book, 0, whole.request)), /^Error: Recalculate and save this workbook in Excel/);
   const pending = worksheetInput(meta, [1, 0], 2, 3);
   assert.deepEqual(pending.request, {sheet: 0, sheetName: 'S', columns: [1, 0], first: 2, last: 3});
   const data = columnValues(book, 0, pending.request);

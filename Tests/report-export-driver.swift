@@ -1180,10 +1180,11 @@ extension ReportExportTests {
         try check(r.text.contains("# Data: \"renamed.xlsx\", sheet \"Sheet1\" could not be read (the record points at more cells than can be read): put the values in by hand.") && r.text.contains("before <- NULL   # c1, column 1, rows 1 to 1048576: not read, see above") && r.status=="R script opened, but its data could not be read from the workbook: see the head of the script","the vast record's script: \(headLines(r.text)) · \(r.status)")
         print("PASS: a record pointing at more cells than can be read leaves the frame unread with the reason, and the script still opens");fflush(stdout)
         // 10. A workbook whose formula cells lose their saved results: a run on a formula column with its results saved, the file then
-        //     saved by this program through its streaming patcher (which keeps the formulas and drops their results for Excel to
-        //     recalculate; the fixture's worksheet extension routes the save there, as every workbook Excel for Mac saves does) and the
-        //     grid closed: the record's columns cannot be read from the file, as the grid refuses such cells, so the script says so rather
-        //     than reading blanks and noting that the column changed.
+        //     edited outside the run's columns and saved by this program through its streaming patcher (which keeps the formulas and
+        //     drops their results for Excel to recalculate; the fixture's worksheet extension list routes the save there, as any
+        //     worksheet extension list does) and the grid closed: the record's columns cannot be read from the file, as the grid refuses such
+        //     cells, so the script says so rather than reading blanks and noting that the column changed. Unedited, a save has nothing
+        //     to merge and copies the workbook as opened, with its saved results.
         let formulaFixture=URL(fileURLWithPath:FileManager.default.currentDirectoryPath).appendingPathComponent("Tests/Fixtures/Excel/formula-column.xlsx")
         let formulas=output.appendingPathComponent("formulas.xlsx"); try? FileManager.default.removeItem(at:formulas); try FileManager.default.copyItem(at:formulaFixture,to:formulas)
         let formulasPath=formulas.resolvingSymlinksInPath().path
@@ -1202,10 +1203,15 @@ extension ReportExportTests {
         r=try await continueInR(report,id:formulaEntry.id)
         try check(r.text.contains("# Data: \"formulas.xlsx\", sheet \"Sheet1\", read on ") && !r.text.contains("# NOTE:") && r.text.contains("   # y, column 2, rows 1 to 2601\n") && r.status=="R script of the analysis opened","the formula run read back from the open grid: \(headLines(r.text)) · \(r.status)")
         let sizeBefore=(try? FileManager.default.attributesOfItem(atPath:formulasPath)[.size] as? Int) ?? 0
+        let opened=try Data(contentsOf:formulas)
+        v.saveExcel(formulaGrid,to:formulas)   // saveExcel(_:to:) marks the grid busy before it returns
+        try await wait("the unedited save of the formula workbook", timeout:60) { !formulaGrid.fileBusy }
+        try check(formulaGrid.workbookSourceURL?.path==formulasPath && (try? Data(contentsOf:formulas))==opened,"an unedited save in place copies the workbook as opened, with its saved results")
+        _=try await js(formulaGrid,"({ok:(statsDirectGrid.setCellText({col:3,row:0,text:'checked'}),true)})")   // D1, outside the run's columns
         v.saveExcel(formulaGrid,to:formulas)
         try await wait("the save of the formula workbook", timeout:60) { !formulaGrid.fileBusy }
         let sizeAfter=(try? FileManager.default.attributesOfItem(atPath:formulasPath)[.size] as? Int) ?? 0
-        try check(formulaGrid.workbookSourceURL?.path==formulasPath && sizeAfter>0 && sizeAfter != sizeBefore,"the workbook was saved in place through the streaming patcher: \(sizeBefore) → \(sizeAfter) bytes")
+        try check(formulaGrid.workbookSourceURL?.path==formulasPath && sizeAfter>0 && sizeAfter != sizeBefore,"the edited workbook was saved in place through the streaming patcher: \(sizeBefore) → \(sizeAfter) bytes")
         v.remove(formulaGrid)
         r=try await continueInR(report,id:formulaEntry.id)
         try check(r.text.contains("# Data: \"formulas.xlsx\", sheet \"Sheet1\" could not be read (the workbook holds formula cells whose results are not saved): put the values in by hand.") && !r.text.contains("# NOTE:") && r.text.contains("after <- NULL   # y, column 2, rows 1 to 2601: not read, see above") && r.status=="R script opened, but its data could not be read from the workbook: see the head of the script","the formula workbook after its streaming save: \(headLines(r.text)) · \(r.status)")

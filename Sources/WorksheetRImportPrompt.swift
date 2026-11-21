@@ -1,6 +1,7 @@
 import Cocoa
 
-/// A worksheet import choice shared by the internal R console and an external R application.
+/// A worksheet import choice shared by the internal R console and an external R application
+/// (the shared worksheet R rules, section 1).
 @MainActor
 final class WorksheetRImportPrompt: NSObject {
     struct Option {
@@ -29,9 +30,14 @@ final class WorksheetRImportPrompt: NSObject {
         }
 
         fileprivate var detail: String {
-            let rows = NumberFormatter.localizedString(from: NSNumber(value: rowCount), number: .decimal)
-            let columns = NumberFormatter.localizedString(from: NSNumber(value: columnCount), number: .decimal)
-            return "\(range) (\(rows) \(rowCount == 1 ? "row" : "rows") × \(columns) \(columnCount == 1 ? "column" : "columns"))"
+            "\(range) (\(Self.count(rowCount, "row")) × \(Self.count(columnCount, "column")))"
+        }
+
+        /// "1 row", "1,048,576 rows": digits with commas, whatever the user's locale (rule 1.4).
+        static func count(_ value: Int, _ noun: String) -> String {
+            var digits = String(value), groups = ""
+            while digits.count > 3 { groups = "," + digits.suffix(3) + groups; digits.removeLast(3) }
+            return digits + groups + " " + noun + (value == 1 ? "" : "s")
         }
     }
 
@@ -49,7 +55,8 @@ final class WorksheetRImportPrompt: NSObject {
     let selectedButton = NSButton(radioButtonWithTitle: "Selected cells", target: nil, action: nil)
     let noneButton = NSButton(radioButtonWithTitle: "No data", target: nil, action: nil)
     let format = NSPopUpButton(frame: .zero, pullsDown: false)
-    let headings = NSButton(checkboxWithTitle: "Use first row as column names", target: nil, action: nil)
+    let formatHint = NSTextField(labelWithString: "Missing values are removed separately from each vector.")
+    let headings = NSButton(checkboxWithTitle: "Use the first row as column names", target: nil, action: nil)
     let rFriendlyNames = NSButton(checkboxWithTitle: "Use R-friendly names", target: nil, action: nil)
     private let formatLabel = NSTextField(labelWithString: "Import as:")
     private let entire: Option?
@@ -57,8 +64,10 @@ final class WorksheetRImportPrompt: NSObject {
     private var completion: ((Selection?) -> Void)?
     private(set) var scope: Scope = .none
 
-    static func present(on window: NSWindow, external: Bool, entire: Option?, selected: Option?, completion: @escaping (Selection?) -> Void) {
-        let prompt = WorksheetRImportPrompt(external: external, entire: entire, selected: selected)
+    static func present(on window: NSWindow, external: Bool, sheet: String, entire: Option?, selected: Option?,
+                        selectedReason: String?, completion: @escaping (Selection?) -> Void) {
+        let prompt = WorksheetRImportPrompt(external: external, sheet: sheet, entire: entire, selected: selected,
+                                            selectedReason: selectedReason)
         prompt.completion = completion
         prompt.alert.beginSheetModal(for: window) { [prompt] response in
             let callback = prompt.completion
@@ -67,12 +76,23 @@ final class WorksheetRImportPrompt: NSObject {
         }
     }
 
-    init(external: Bool, entire: Option?, selected: Option?) {
+    /// Why Selected cells cannot be chosen, from the grid's `selectedReason` (rule 1.5).
+    static func unavailableSelection(_ reason: String?) -> String {
+        switch reason {
+        case "shape": return "Selected cells (select one rectangle, or whole columns or rows)"
+        case "empty": return "Selected cells (no data in the selection)"
+        default: return "Selected cells (no selection)"
+        }
+    }
+
+    init(external: Bool, sheet: String, entire: Option?, selected: Option?, selectedReason: String?) {
         self.entire = entire
         self.selected = selected
         super.init()
-        alert.messageText = external ? "Open in R or RStudio" : "Open in R"
-        alert.informativeText = "Choose the data to copy into the new R session."
+        alert.messageText = external ? "Open in R or RStudio" : "Open in StatsDirect R"
+        // RStudio opens the script in the user's own session, so R+ does not promise a new one (rule 1.2).
+        alert.informativeText = entire == nil && selected == nil ? "The worksheet “\(sheet)” has no data to copy."
+            : "Choose the data from “\(sheet)” to copy into \(external ? "R" : "the new R session") as worksheet_data."
         alert.alertStyle = .informational
         alert.window.identifier = NSUserInterfaceItemIdentifier("worksheet-r-import")
         let open = alert.addButton(withTitle: "Open")
@@ -94,19 +114,24 @@ final class WorksheetRImportPrompt: NSObject {
             button.setContentHuggingPriority(.defaultLow, for: .horizontal)
         }
         entireButton.title = entire.map { "Entire worksheet — \($0.detail)" } ?? "Entire worksheet (no data)"
-        selectedButton.title = selected.map { "Selected cells — \($0.detail)" } ?? "Selected cells (no selection)"
+        selectedButton.title = selected.map { "Selected cells — \($0.detail)" } ?? Self.unavailableSelection(selectedReason)
         entireButton.isEnabled = entire != nil
         selectedButton.isEnabled = selected != nil
         noneButton.state = .on
 
-        format.addItems(withTitles: ["Data frame", "List of vectors"])
+        format.addItems(withTitles: ["Data frame (keep rows aligned)", "List of vectors (independent samples)"])
         format.identifier = NSUserInterfaceItemIdentifier("worksheet-r-format")
         format.setAccessibilityIdentifier("worksheet-r-format")
         format.setAccessibilityLabel("Import data as")
         format.setAccessibilityHelp("Choose a data frame or a named list containing one vector per worksheet column.")
         format.selectItem(at: 0)
+        format.target = self
+        format.action = #selector(formatChanged(_:))
         let formatRow = NSStackView(views: [formatLabel, format])
         formatRow.spacing = 8
+        formatHint.identifier = NSUserInterfaceItemIdentifier("worksheet-r-format-hint")
+        formatHint.setAccessibilityIdentifier("worksheet-r-format-hint")
+        formatHint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         for (button, id) in [(headings, "worksheet-r-headings"), (rFriendlyNames, "worksheet-r-friendly-names")] {
             button.identifier = NSUserInterfaceItemIdentifier(id)
             button.setAccessibilityIdentifier(id)
@@ -117,11 +142,14 @@ final class WorksheetRImportPrompt: NSObject {
         rFriendlyNames.setAccessibilityHelp("Replace spaces with underscores and make the names valid and unique in R.")
         rFriendlyNames.state = .off
 
-        let stack = NSStackView(views: [entireButton, selectedButton, noneButton, formatRow, headings, rFriendlyNames])
+        let stack = NSStackView(views: [entireButton, selectedButton, noneButton, formatRow, formatHint, headings, rFriendlyNames])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
+        // The hint keeps its line while hidden, so the open sheet never changes size.
+        stack.detachesHiddenViews = false
         stack.setCustomSpacing(18, after: noneButton)
+        stack.setCustomSpacing(4, after: formatRow)
         stack.edgeInsets = NSEdgeInsets(top: 4, left: 0, bottom: 4, right: 0)
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.widthAnchor.constraint(equalToConstant: 540).isActive = true
@@ -141,9 +169,14 @@ final class WorksheetRImportPrompt: NSObject {
     }
 
     @objc private func scopeChanged(_ sender: NSButton) {
-        guard sender.isEnabled else { return }
-        scope = sender === entireButton ? .entire : sender === selectedButton ? .selected : .none
+        let chosen: Scope = sender === entireButton ? .entire : sender === selectedButton ? .selected : .none
+        guard sender.isEnabled, chosen != scope else { updateControls(resetHeadings: false); return }
+        scope = chosen
         updateControls(resetHeadings: true)
+    }
+
+    @objc private func formatChanged(_ sender: NSPopUpButton) {
+        updateControls(resetHeadings: false)
     }
 
     @objc private func headingsChanged(_ sender: NSButton) {
@@ -157,13 +190,12 @@ final class WorksheetRImportPrompt: NSObject {
         let option = scope == .entire ? entire : scope == .selected ? selected : nil
         format.isEnabled = option != nil
         formatLabel.textColor = option == nil ? .disabledControlTextColor : .labelColor
+        formatHint.isHidden = format.indexOfSelectedItem != 1
+        formatHint.textColor = option == nil ? .disabledControlTextColor : .secondaryLabelColor
+        // The first box takes the suggestion each time the data choice changes (rule 1.7). The R-friendly box keeps
+        // the user's own tick while the prompt is open; while the first box is unticked it is dimmed and not used.
         headings.isEnabled = (option?.rowCount ?? 0) > 1
-        if resetHeadings {
-            headings.state = headings.isEnabled && option?.suggestHeadings == true ? .on : .off
-            rFriendlyNames.state = .off
-        }
-        if !headings.isEnabled { headings.state = .off }
+        if resetHeadings { headings.state = headings.isEnabled && option?.suggestHeadings == true ? .on : .off }
         rFriendlyNames.isEnabled = headings.isEnabled && headings.state == .on
-        if !rFriendlyNames.isEnabled { rFriendlyNames.state = .off }
     }
 }

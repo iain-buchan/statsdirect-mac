@@ -9,13 +9,13 @@ extension Viewer {
             guard let self, let doc, self.active === doc, self.window.attachedSheet == nil,
                   NSApp.modalWindow == nil else { return }
             do {
-                guard let options = try result.get() as? [String: Any] else {
+                guard let options = try result.get() as? [String: Any], let sheet = options["sheet"] as? String else {
                     throw ConversationRScript.Failure(message: "The worksheet import options could not be read.")
                 }
                 let entire = WorksheetRImportPrompt.Option(options["entire"] as? [String: Any])
                 let selected = WorksheetRImportPrompt.Option(options["selected"] as? [String: Any])
-                let sheet = options["sheet"] as? String
-                WorksheetRImportPrompt.present(on: self.window, external: external, entire: entire, selected: selected) { [weak self, weak doc] choice in
+                WorksheetRImportPrompt.present(on: self.window, external: external, sheet: sheet, entire: entire, selected: selected,
+                                               selectedReason: options["selectedReason"] as? String) { [weak self, weak doc] choice in
                         guard let self, let doc, let choice, self.active === doc else { return }
                         if choice.scope == .none {
                             self.openWorksheetRSession("", title: nil, document: doc, external: external)
@@ -30,26 +30,28 @@ extension Viewer {
         }
     }
 
-    private func importWorksheetInR(_ doc: Document, version: Int, sheet: String?,
+    private func importWorksheetInR(_ doc: Document, version: Int, sheet: String,
                                     expected: WorksheetRImportPrompt.Option,
                                     choice: WorksheetRImportPrompt.Selection, external: Bool) {
         let changed = ConversationRScript.Failure(message: "The worksheet changed. Open the R import prompt again.")
         guard doc.gridVersion == version else { showWorksheetRError(changed, document: doc); return }
-        doc.web.callAsyncJavaScript("return window.statsDirectGrid.worksheetRImport(scope)",
-                                    arguments: ["scope": choice.scope.rawValue], in: nil, in: .page) { [weak self, weak doc] result in
+        doc.web.callAsyncJavaScript("return window.statsDirectGrid.worksheetRImport(scope, {headings: headings})",
+                                    arguments: ["scope": choice.scope.rawValue, "headings": choice.headings],
+                                    in: nil, in: .page) { [weak self, weak doc] result in
             guard let self, let doc, self.active === doc else { return }
             do {
                 guard doc.gridVersion == version else { throw changed }
-                guard let data = try result.get() as? [String: Any] else {
-                    throw ConversationRScript.Failure(message: "The worksheet data could not be read.")
-                }
+                let unreadable = ConversationRScript.Failure(message: "The worksheet data could not be read.")
+                guard let data = try result.get() as? [String: Any] else { throw unreadable }
                 guard data["sheet"] as? String == sheet, data["range"] as? String == expected.range,
-                      data["rowCount"] as? Int == expected.rowCount,
-                      (data["columns"] as? [Any])?.count == expected.columnCount else { throw changed }
-                let source = try WorksheetRScript.build(data, headings: choice.headings,
-                                                        rFriendlyNames: choice.rFriendlyNames, asList: choice.asList)
-                self.openWorksheetRSession(source, title: data["sheet"] as? String ?? doc.title,
-                                           document: doc, external: external)
+                      WorksheetRScript.integer(data["rowCount"]) == expected.rowCount,
+                      WorksheetRScript.integer(data["columnCount"]) == expected.columnCount else { throw changed }
+                // One value per data row: the rows sent, less the first when it names the columns.
+                let dataRows = expected.rowCount - (choice.headings ? 1 : 0)
+                guard let columns = data["columns"] as? [[String: Any]], columns.count == expected.columnCount,
+                      columns.allSatisfy({ ($0["values"] as? [Any])?.count == dataRows }) else { throw unreadable }
+                let source = try WorksheetRScript.build(data, rFriendlyNames: choice.rFriendlyNames, asList: choice.asList)
+                self.openWorksheetRSession(source, title: sheet, document: doc, external: external)
             } catch {
                 self.showWorksheetRError(error, document: doc)
             }
@@ -70,7 +72,9 @@ extension Viewer {
     }
 
     private func showWorksheetRError(_ error: Error, document: Document) {
-        let message = javaScriptMessage(error)
+        var message = javaScriptMessage(error)
+        // WebKit gives an Error thrown in the grid as "Error: <message>"; the grid's own message is shown as it wrote it.
+        if (error as NSError).domain == WKError.errorDomain && message.hasPrefix("Error: ") { message.removeFirst(7) }
         gridStatus(document, message)
         status.stringValue = message
     }

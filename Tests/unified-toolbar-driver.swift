@@ -116,6 +116,10 @@ import WebKit
         try check(true,"worksheet Find selects the matching cell")
         _=try await js(grid,"document.querySelector('[aria-label=\"Close Find\"]').click();window.statsDirectGrid.editCommand('selectAll','')")
         try await Task.sleep(nanoseconds:100_000_000)
+        // Rule 2.6 of the worksheet R rules: Edit > Select All offers Entire worksheet as its Selected cells, which the
+        // grid's own tests cannot reach because the marker lives in the React selection.
+        try check(try await js(grid,"(()=>{const p=window.statsDirectGrid.worksheetRImport();return p.selected!==null&&JSON.stringify(p.selected)===JSON.stringify(p.entire);})()") as? Bool == true,
+                  "Select All offers the entire worksheet as the R import's selected cells")
         let board=NSPasteboard.general
         let saved=board.pasteboardItems?.map { item in item.types.reduce(into:[NSPasteboard.PasteboardType:Data]()){$0[$1]=item.data(forType:$1)} } ?? []
         defer {board.clearContents();board.writeObjects(saved.map { data in let i=NSPasteboardItem();for(t,d) in data {i.setData(d,forType:t)};return i})}

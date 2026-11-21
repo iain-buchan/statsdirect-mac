@@ -33,6 +33,9 @@ form, so `1.50`, `0012` and `1e21` keep their text. The kind rules are unchanged
 - Per-cell metadata is read through `kind(c, r)`, `formula(c, r)` and `loaded(c, r)` instead
   of a `metadata` Map; `count()`, `usedColumns()`, `columnUsedRows(c)`, `forEachCell(fn)` and
   the `canUndo`/`canRedo` getters replace walks over a `cells` Map.
+- `formulaUnavailable(c, r)` is true for a formula cell whose value cannot be used: the workbook has been edited
+  since it was opened (`formulasStale`), or the cell has no saved result. A formula whose saved result is empty
+  text carries the loader extra `savedEmpty: true`; it is a blank cell, not an unavailable one.
 - Loaders call `setLoaded(cells)` (the existing per-cell JSON) or `setLoadedBatches(batches,
   kindOf)` (per-column `{col, rows, nums, texts}` as the CSV loader now produces).
 - Undo steps are per-column typed patches with a 50-step, 256 MB budget.

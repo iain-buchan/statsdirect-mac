@@ -207,7 +207,10 @@ public static partial class WorkbookIO {
     }
 
     // ---- Open ------------------------------------------------------------------------
-    static object OpenXlsx(string path, string snapshotDir) {
+    // A data copy (dataCopy) is any other transitional SpreadsheetML package, such as .xlsm, .xltx or .xltm: its values are read
+    // exactly as an .xlsx's are, but, as with the compatibility reader (WorkbookImport.cs), only the values are kept (a formula's
+    // saved result, without the formula) and the original is never patched.
+    static object OpenXlsx(string path, string snapshotDir, bool dataCopy = false) {
         var id = Guid.NewGuid().ToString("N");
         var sheets = new List<Sheet>();
         var written = new List<string>();
@@ -218,7 +221,7 @@ public static partial class WorkbookIO {
             foreach (var info in package.Sheets) {
                 var data = new SheetData { Name = info.Name };
                 int count = 0, formulas = 0, rows = 0, cols = 0;
-                ReadSheet(zip, package, info, data, ref count, ref formulas, ref rows, ref cols);
+                ReadSheet(zip, package, info, data, ref count, ref formulas, ref rows, ref cols, dataCopy);
                 string snapshot = null; List<Cell> cells;
                 if (snapshotDir != null) {
                     Directory.CreateDirectory(snapshotDir);
@@ -233,6 +236,11 @@ public static partial class WorkbookIO {
             }
         }
         if (sheets.Count == 0) throw new Exception("The workbook contains no worksheets.");
+        if (dataCopy) {
+            dataCopies[id] = System.IO.Path.GetFullPath(path);
+            return new { id, name = System.IO.Path.GetFileName(path), sheets, formulaCount = 0,
+                cellCount = sheets.Sum(s => (long)s.Count), dataCopy = true, importNotice = DataCopyNotice };
+        }
         // The original is kept as a private copy so later edits on disk do not change what is patched.
         var copy = System.IO.Path.Combine(snapshotDir ?? System.IO.Path.GetTempPath(), $"statsdirect-workbook-{id}.xlsx");
         written.Add(copy);
@@ -295,14 +303,19 @@ public static partial class WorkbookIO {
     // Excel's built-in date and time formats, and custom codes with date or time tokens. In a code,
     // m or mm is minutes after an h or before an s, otherwise the month (Excel's rule); quoted
     // text, \x escapes, _x and *x padding and [...] blocks (colours, conditions, locales) are not
-    // tokens, except [h], [m] and [s], which are elapsed times. Built-in 46 ([h]:mm:ss) is the only
-    // elapsed built-in: 45 (mm:ss) and 47 (mmss.0) wrap at the hour, so they are times of day, as are
-    // 32 and 33 in every East Asian locale that defines them; the other East Asian ones stay dates.
+    // tokens, except a bracket holding one of h, m or s alone, repeated ([h], [hh], [mm], [ss]),
+    // which is an elapsed time: [Magenta] and [Red] are colours (RULES 3.9). An unclosed [ runs to
+    // the end of the code. Built-ins 46 ([h]:mm:ss) and 79 (Thai [h]:mm:ss) are the elapsed ones:
+    // 45 (mm:ss) and 47 (mmss.0) wrap at the hour, so they are times of day, as are 32 and 33 in
+    // every East Asian locale that defines them and Thai 75, 76, 78 and 80; the other East Asian
+    // and Thai date formats (71 to 74, 77 and 81) are dates. ExcelDataReader names each built-in
+    // by a code that this function classes as it classes the id, so a legacy file classes as an
+    // .xlsx does (WorkbookImport.cs).
     public static byte FormatKind(int id, string code) {
         if (code == null) {
-            if (id == 46) return FormatElapsed;   // [h]:mm:ss
-            if (id is (>= 18 and <= 21) or 32 or 33 or 45 or 47) return FormatTime;   // 45 mm:ss and 47 mmss.0 wrap at the hour, as times of day do
-            if (id is (>= 14 and <= 22) or (>= 27 and <= 36) or (>= 50 and <= 58)) return FormatDate;
+            if (id is 46 or 79) return FormatElapsed;   // [h]:mm:ss
+            if (id is (>= 18 and <= 21) or 32 or 33 or 45 or 47 or 75 or 76 or 78 or 80) return FormatTime;   // 45 mm:ss and 47 mmss.0 wrap at the hour, as times of day do
+            if (id is (>= 14 and <= 22) or (>= 27 and <= 36) or (>= 50 and <= 58) or (>= 71 and <= 81)) return FormatDate;
             return FormatNumber;
         }
         // y, d, h, s; m for m or mm, M for mmm and longer (always the month), a for AM/PM or A/P,
@@ -314,7 +327,8 @@ public static partial class WorkbookIO {
             if (ch is '\\' or '_' or '*') { i++; continue; }
             if (ch == ';') { tokens.Add(';'); continue; }
             if (ch == '[') {
-                int end = code.IndexOf(']', i); if (end < 0) end = code.Length - 1;
+                // A code ending in an unclosed [ (another program can write "0.00[") must not fail the whole workbook.
+                int end = code.IndexOf(']', i); if (end < 0) end = code.Length;
                 var inner = code.Substring(i + 1, end - i - 1).ToLowerInvariant();
                 if (inner.Length > 0 && inner[0] is 'h' or 'm' or 's' && inner.All(c => c == inner[0])) return FormatElapsed;
                 i = end; continue;
@@ -337,7 +351,7 @@ public static partial class WorkbookIO {
         }
         return date ? FormatDate : time ? FormatTime : FormatNumber;
     }
-    static void ReadSheet(ZipArchive zip, Package package, SheetInfo info, SheetData data, ref int count, ref int formulaCount, ref int rows, ref int cols) {
+    static void ReadSheet(ZipArchive zip, Package package, SheetInfo info, SheetData data, ref int count, ref int formulaCount, ref int rows, ref int cols, bool valuesOnly = false) {
         var entry = Entry(zip, info.Entry) ?? throw new Exception("The worksheet part " + info.Entry + " is missing.");
         using var stream = entry.Open();
         using var reader = XmlReader.Create(stream, new XmlReaderSettings { IgnoreWhitespace = true });
@@ -379,6 +393,7 @@ public static partial class WorkbookIO {
                     reader.Skip();
                 }
             }
+            if (valuesOnly) { hasFormula = false; formula = ""; }   // a data copy keeps a formula's saved result alone
             if (hasFormula && formula.Length == 0) formula = "=";  // a formula without text still protects the cell
             // A formula whose saved result is empty text (t="str" with <v></v> or <v/>) is marked, so that the grid can tell it
             // from a formula with no saved result: no <v> at all, or an untyped empty <v/> as openpyxl writes every formula.
@@ -389,7 +404,7 @@ public static partial class WorkbookIO {
             else if (type == "str") { kind = 2; cellText = Unescape(value ?? ""); }
             else if (type == "b") { kind = 5; cellText = value == "1" ? "TRUE" : value == "0" ? "FALSE" : value ?? ""; if (cellText.Length == 0) kind = 0; }
             else if (type == "e") { kind = 6; cellText = value ?? ""; }
-            else if (type == "d") { kind = 3; cellText = DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) ? DateText(dt) : value ?? ""; }
+            else if (type == "d") IsoDateText(value ?? "", package.Date1904, out kind, out cellText);
             else if (string.IsNullOrEmpty(value)) { kind = 0; cellText = ""; }
             else {
                 // A value that is not a finite number keeps the file's text, NaN, INF and 1e999 included (.NET reads some of
@@ -406,6 +421,7 @@ public static partial class WorkbookIO {
             }
             if (kind == 0 && !hasFormula) continue;
             if (cellText.Length == 0 && kind != 1) kind = 0;
+            if (kind == 0 && valuesOnly) continue;   // empty text too, as the compatibility reader leaves it out
             int row0 = rowNumber - 1, col0 = colNumber - 1;
             if (row0 < 0 || col0 < 0 || row0 >= MaxRows || col0 >= MaxCols) continue;
             data.Column(col0).Add(row0, kind, num, cellText, formula, extra);
@@ -458,12 +474,15 @@ public static partial class WorkbookIO {
     }
     // The kind and text of a number shown with a date or time format: a duration (kind 4) for an elapsed format; a time of day
     // (kind 4) for a time format without a date and a value from 0 up to one day; otherwise a date-time (kind 3). False when the
-    // value stays a number: a negative date or time (Excel shows #####), or one beyond the range of DateTime or TimeSpan.
+    // value stays a number (RULES 3.9), as Excel shows ##### for it: a value beyond 9999-12-31 as a number of days, in any of these
+    // formats, and a negative one in a date or time format, before the first day of its date system. Each is judged rounded to
+    // the millisecond, as its text is.
     static bool TryDateTimeText(double serial, byte format, bool date1904, out byte kind, out string text) {
         kind = 4; text = null;
+        if (!double.IsFinite(serial) || BeyondLastDay(serial, date1904)) return false;
         if (format == FormatElapsed) return (text = DurationText(serial)) != null;
         if (serial < 0) return false;
-        if (format == FormatTime && serial < 1) return (text = DurationText(serial)) != null;
+        if (format == FormatTime && Math.Round(serial * 86_400_000d) < 86_400_000d) return (text = DurationText(serial)) != null;
         kind = 3;
         try {
             if (date1904 || serial >= 61) { text = DateText(DateTime.FromOADate(serial + (date1904 ? 1462 : 0))); return true; }
@@ -484,9 +503,27 @@ public static partial class WorkbookIO {
         try { return TimeSpan.FromMilliseconds(Math.Round(days * 86_400_000d)).ToString("c", CultureInfo.InvariantCulture); }
         catch (OverflowException) { return null; }
     }
+    // 9999-12-31 is the last day of either date system: serial 2,958,465 in the 1900 system and 2,957,003 in the 1904 system.
+    const double LastDay1900 = 2_958_465, LastDay1904 = 2_957_003;
+    static bool BeyondLastDay(double serial, bool date1904) =>
+        Math.Round(serial * 86_400_000d) >= ((date1904 ? LastDay1904 : LastDay1900) + 1) * 86_400_000d;
+    // An ISO 8601 cell (t="d", as SheetJS and openpyxl write): the clock time as written, with a trailing Z or an offset read as
+    // UTC, never moved into this Mac's time zone, and rounded to the millisecond as every other date-time is. A time with no date
+    // is a time of day, as a number below one day in a time format is. Text that is no date stays text.
+    static void IsoDateText(string value, bool date1904, out byte kind, out string text) {
+        if (!DateTime.TryParse(value.Trim(), CultureInfo.InvariantCulture,
+            DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal | DateTimeStyles.NoCurrentDateDefault, out var date)) {
+            kind = 2; text = value; return;
+        }
+        if (date.Date == DateTime.MinValue.Date && TryDateTimeText(date.TimeOfDay.Ticks / (double)TimeSpan.TicksPerDay, FormatTime, date1904, out kind, out text)) return;
+        long ticks = (date.Ticks + TimeSpan.TicksPerMillisecond / 2) / TimeSpan.TicksPerMillisecond * TimeSpan.TicksPerMillisecond;
+        kind = 3; text = DateText(ticks <= DateTime.MaxValue.Ticks ? new DateTime(ticks) : date);
+    }
     // The serial number of date-time text as the grid holds it, in the workbook's date system (the inverse of TryDateTimeText).
     // The clock time is the one written, never moved by this Mac's time zone (R's date-times end in Z). 1900-02-29 is Excel's
-    // day 60 in the 1900 system. False when the text is no date, which is then saved as text rather than failing the save.
+    // day 60 in the 1900 system. False when the text is no date, or a date before the first day of the date system (serial 0:
+    // 1899-12-31, which Excel shows as 1900-01-00, or 1904-01-01), which Excel cannot show as a date: such text is saved as
+    // text rather than as a negative number or a failed save, so that it reopens as it was written.
     static bool TryDateSerial(string text, bool date1904, out double serial) {
         bool leapDay = !date1904 && text.StartsWith(LeapDay1900, StringComparison.Ordinal);
         serial = 0;
@@ -494,7 +531,7 @@ public static partial class WorkbookIO {
             DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var date)) return false;
         serial = date.ToOADate();
         serial -= date1904 ? 1462 : leapDay || serial < 61 ? 1 : 0;
-        return true;
+        return serial >= 0;
     }
     // Duration text as the grid holds it: .NET's "c" form, [-][d.]hh:mm:ss[.fffffff], or hours past 23 with no day count
     // (26:00:00), which TimeSpan.Parse reads as 26 days. False for any other text, which is then saved as text.

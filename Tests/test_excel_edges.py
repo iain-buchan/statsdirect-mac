@@ -160,9 +160,19 @@ try:
             ('[$-F400]h:mm:ss\\ AM/PM', 'time'), ('AM/PM', 'time'), ('"d"h:mm', 'time'), ('\\dh:mm', 'time'), ('*mh:mm', 'time'), ('_mh:mm', 'time'),
             ('[mm]:ss', 'elapsed'), ('[ss].00', 'elapsed'), ('[Red][h]:mm', 'elapsed'),
             ('yyyy-mm-dd', 'date'), ('yyyy-mm-dd hh:mm:ss', 'date'), ('mmmm yyyy', 'date'), ('mm', 'date'), ('mm/dd', 'date'), ('h;mm', 'date'), ('dddd', 'date'),
-            ('0.000', 'number'), ('"h:mm"0.0', 'number'), ('0.0\\h', 'number'), ('[Red]0.00;[Blue]-0.00', 'number'), ('#,##0_);[Red]\\(#,##0\\)', 'number'), ('0.00E+00', 'number')]
-        # East Asian built-ins, which have no openpyxl code: 32 and 33 are times of day in every locale that has them; 27 is a date.
-        EAST_ASIAN = [('0.0000', 32, 'time'), ('0.00000', 33, 'time'), ('0.000000', 27, 'date')]
+            ('0.000', 'number'), ('"h:mm"0.0', 'number'), ('0.0\\h', 'number'), ('[Red]0.00;[Blue]-0.00', 'number'), ('#,##0_);[Red]\\(#,##0\\)', 'number'), ('0.00E+00', 'number'),
+            # Amendment 3.9: only a bracket holding one of h, m or s alone, repeated, makes a duration, in any case and after a
+            # colour. Colours ([Magenta] and [Red] among them), locales and conditions are not tokens, nor is a bracket of two
+            # letters or one in quotes.
+            ('[hh]:mm:ss', 'elapsed'), ('[m]:ss', 'elapsed'), ('[s]', 'elapsed'), ('[ss].0', 'elapsed'), ('[H]:mm', 'elapsed'), ('[Blue][h]:mm', 'elapsed'),
+            ('[Magenta]yyyy-mm-dd', 'date'), ('[magenta]dd/mm/yyyy', 'date'), ('[Magenta]yyyy-mm-dd hh:mm', 'date'), ('[Red]yyyy-mm-dd hh:mm', 'date'),
+            ('[$-409]yyyy-mm-dd', 'date'), ('[Red]hh:mm', 'time'), ('[Magenta]hh:mm', 'time'), ('[Magenta]h:mm:ss', 'time'), ('[hm]:ss', 'time'),
+            ('[Magenta]0.00', 'number'), ('[>=100]0;0', 'number'), ('[Red][<0]0.0;[Blue]0.0', 'number'), ('"[h]"0.00', 'number'), ('[Magenta]', 'number')]
+        # Built-ins openpyxl has no code for. East Asian: 32 and 33 are times of day in every locale that has them; 27 is a date.
+        # Thai: 71 to 74, 77 and 81 are dates, 75, 76, 78 and 80 times of day, 79 ([h]:mm:ss) a duration, and 59 to 70 numbers.
+        EAST_ASIAN = [('0.0000', 32, 'time'), ('0.00000', 33, 'time'), ('0.000000', 27, 'date'),
+                      ('0.0000000', 71, 'date'), ('0.00000000', 77, 'date'), ('0.000000000', 75, 'time'), ('0.0000000000', 78, 'time'),
+                      ('0.00000000000', 80, 'time'), ('0.000000000000', 79, 'elapsed'), ('0.0000000000000', 59, 'number')]
         formats = folder/'formats.xlsx'; book = openpyxl.Workbook(); ws = book.active; ws.title = 'Formats'
         for r, code in enumerate([code for code, _ in FORMATS] + [code for code, _, _ in EAST_ASIAN], 1):
             ws.cell(r, 1, code)
@@ -180,7 +190,7 @@ try:
                 cell = got[(c, r)]
                 assert cell['kind'] == k and text in (None, cell['text']), (code, kind, c, cell)
         assert request(action='close', id=opened['id'])['ok']
-        print(f'PASS: {len(FORMATS) + len(EAST_ASIAN)} number formats are read as times of day, durations, dates or numbers by Excel\'s minutes-or-months rule')
+        print(f'PASS: {len(FORMATS) + len(EAST_ASIAN)} number formats are read as times of day, durations, dates or numbers by Excel\'s minutes-or-months rule; colour codes, locales and conditions make no duration')
         # 9. Values (RULES 3.9 and 3.2): times of day and durations are rounded to the millisecond; serial 60 is 1900-02-29, also
         #    when a value rounds to it; negative dates and times stay numbers; a value that is not a finite number keeps its text;
         #    a formula whose saved result is empty text is marked savedEmpty, and a formula with no saved result is not.
@@ -259,7 +269,14 @@ try:
             ('1900-02-29', 'datetime', '1900-02-29 00:00:00', 'datetime'),
             ('2026-07-01T14:30:00.123456Z', 'datetime', '2026-07-01 14:30:00.123', 'datetime'),
             ('2026-02-30', 'datetime', '2026-02-30', 'text'),
-            ('25:61:00', 'timespan', '25:61:00', 'text')]
+            ('25:61:00', 'timespan', '25:61:00', 'text'),
+            # A date before the first day of the date system (serial 0, 1899-12-31) has no serial Excel shows as a date (a
+            # negative one reopens as a number, RULES 3.9), so it is saved as its text, an R Date from 1850 among them.
+            ('1899-12-31', 'datetime', '1899-12-31 00:00:00', 'datetime'),
+            ('1899-12-30', 'datetime', '1899-12-30', 'text'),
+            ('1899-12-30 12:00:00', 'datetime', '1899-12-30 12:00:00', 'text'),
+            ('1850-01-01', 'datetime', '1850-01-01', 'text'),
+            ('1850-01-01T00:00:00.000000Z', 'datetime', '1850-01-01T00:00:00.000000Z', 'text')]
         typed_cells = [{'col': 8, 'row': r, 'text': text, 'kind': kind} for r, (text, kind, _, _) in enumerate(TYPED)]
         def edits_of(reply):
             value_cells = [c for c in reply['sheets'][0]['cells'] if not c['formula']]
@@ -297,7 +314,7 @@ try:
         recalculated = [('', 'blank', formula, True) if formula == FORMULA else (text, kind, formula, None) for _, text, kind, formula, _ in FORMULAS]
         check_round_trip(out, 'ClosedXML patch', moved, recalculated, READABLE)
         assert request(action='close', id=opened['id'])['ok']
-        print('PASS: dates (1900-02-29 included), times of day and durations keep their text and kind through all three save paths; typed 26:00:00, R date-times and impossible dates save correctly; a workbook ClosedXML cannot load is saved by streaming')
+        print('PASS: dates (1900-02-29 included), times of day and durations keep their text and kind through all three save paths; typed 26:00:00, R date-times and impossible dates save correctly, and dates before 1899-12-31 as text; a workbook ClosedXML cannot load is saved by streaming')
         # 11. The 1904 date system: a time of day is still a time, serial 0 is 1904-01-01, 60 is an ordinary day, a negative date
         #     stays a number, and 1900-02-29 is no date at all. A workbook without saved empty results has no extras group.
         MAC = [(14.5 / 24, 'h:mm', '14:30:00', 'timespan'), (0, 'yyyy-mm-dd', '1904-01-01 00:00:00', 'datetime'),
@@ -311,11 +328,13 @@ try:
         decoded = json.loads(subprocess.check_output([sys.argv[2], str(ROOT/'Tests/decode-snapshot.mjs'), opened['sheets'][0]['snapshot']], text=True))[0]['cells']
         assert [(c['text'], c['kind']) for c in sorted(decoded, key=lambda c: c['row'])] == [(text, kind) for _, _, text, kind in MAC], decoded
         mac_cells = [{'col': 0, 'row': r, 'text': text, 'kind': kind} for r, (_, _, text, kind) in enumerate(MAC)]
-        mac_typed = [{'col': 1, 'row': 0, 'text': '1900-02-29', 'kind': 'datetime'}, {'col': 1, 'row': 1, 'text': '1904-01-01 06:00:00', 'kind': 'datetime'}]
-        # A new workbook uses the 1900 system, where 1900-02-29 is Excel's day 60.
-        for n, (label, kwargs, leap_day) in enumerate([('new workbook', {}, ('1900-02-29 00:00:00', 'datetime')),
-                                                       ('ClosedXML patch', {'id': opened['id']}, ('1900-02-29', 'text')),
-                                                       ('streaming patch', {'id': opened['id'], 'stream': True}, ('1900-02-29', 'text'))]):
+        mac_typed = [{'col': 1, 'row': 0, 'text': '1900-02-29', 'kind': 'datetime'}, {'col': 1, 'row': 1, 'text': '1904-01-01 06:00:00', 'kind': 'datetime'},
+                     {'col': 1, 'row': 2, 'text': '1903-12-31', 'kind': 'datetime'}]
+        # A new workbook uses the 1900 system, where 1900-02-29 is Excel's day 60 and 1903-12-31 an ordinary day; in the 1904
+        # system 1903-12-31 is before the first day, so it is saved as its text.
+        for n, (label, kwargs, leap_day, before) in enumerate([('new workbook', {}, ('1900-02-29 00:00:00', 'datetime'), ('1903-12-31 00:00:00', 'datetime')),
+                                                               ('ClosedXML patch', {'id': opened['id']}, ('1900-02-29', 'text'), ('1903-12-31', 'text')),
+                                                               ('streaming patch', {'id': opened['id'], 'stream': True}, ('1900-02-29', 'text'), ('1903-12-31', 'text'))]):
             out = folder/f'times1904-{n}.xlsx'
             result = request(action='save', path=str(out), sheets=[{'name': 'Mac', 'cells': mac_cells + [dict(c, col=c['col'] + 2) for c in mac_cells] + mac_typed}], **kwargs)
             assert result.get('ok'), (label, result)
@@ -324,8 +343,81 @@ try:
                 for col in (0, 2): assert (got[(col, c['row'])]['text'], got[(col, c['row'])]['kind']) == (c['text'], c['kind']), (label, col, c, got[(col, c['row'])])
             assert (got[(1, 0)]['text'], got[(1, 0)]['kind']) == leap_day, (label, got[(1, 0)])
             assert (got[(1, 1)]['text'], got[(1, 1)]['kind']) == ('1904-01-01 06:00:00', 'datetime'), (label, got[(1, 1)])
+            assert (got[(1, 2)]['text'], got[(1, 2)]['kind']) == before, (label, got[(1, 2)])
             assert request(action='close', id=back['id'])['ok']
         assert request(action='close', id=opened['id'])['ok']
-        print('PASS: 1904-system times of day, dates from 1904-01-01 and negative dates load and survive all three save paths; 1900-02-29 is no date there')
+        print('PASS: 1904-system times of day, dates from 1904-01-01 and negative dates load and survive all three save paths; 1900-02-29 is no date there, and 1903-12-31 is saved as text')
+        # 12. Amendment 3.9 at the ends of the calendar, in both date systems. 9999-12-31 is the last day of either system
+        #     (serial 2,958,465 in the 1900 system, 2,957,003 in the 1904 system): a value in a date, time or duration format
+        #     beyond it, as a number of days, is a number, and so is one in a date or time format before the first day of its
+        #     system. Each is judged rounded to the millisecond, as its text is; a duration may be negative. Every value is then
+        #     saved, as it is and moved into a cell of the General style, through all three save paths and reopened.
+        sys.path.insert(0, str(ROOT / 'Tests'))
+        from excel_writers import write_xlsx
+        EDGES = {
+            False: [(2958465, 'yyyy-mm-dd', '9999-12-31 00:00:00', 'datetime'), (2958465.5, 'yyyy-mm-dd hh:mm', '9999-12-31 12:00:00', 'datetime'),
+                    (2958465.25, 'h:mm', '9999-12-31 06:00:00', 'datetime'), (2958465, '[h]:mm:ss', '2958465.00:00:00', 'timespan'),
+                    (2958466, 'yyyy-mm-dd', '2958466', 'number'), (2958466, 'h:mm', '2958466', 'number'), (2958466, '[h]:mm:ss', '2958466', 'number'),
+                    (2958465.9999999995, 'yyyy-mm-dd hh:mm:ss', '2958465.9999999995', 'number'),   # rounds to 10000-01-01
+                    (2958465.9999999995, '[h]:mm:ss', '2958465.9999999995', 'number'),
+                    (3000000, '[h]:mm:ss', '3000000', 'number'), (-3000000, '[h]:mm:ss', '-3000000.00:00:00', 'timespan'),
+                    (-1, 'yyyy-mm-dd', '-1', 'number'), (-0.0000001, 'h:mm:ss', '-1e-7', 'number'),
+                    (0, 'yyyy-mm-dd', '1899-12-31 00:00:00', 'datetime'), (0.9999999999, 'h:mm:ss', '1900-01-01 00:00:00', 'datetime')],
+            True: [(2957003, 'yyyy-mm-dd', '9999-12-31 00:00:00', 'datetime'), (2957003.75, 'yyyy-mm-dd hh:mm', '9999-12-31 18:00:00', 'datetime'),
+                   (2957003, '[h]:mm:ss', '2957003.00:00:00', 'timespan'), (2957004, 'yyyy-mm-dd', '2957004', 'number'),
+                   (2957004, 'h:mm', '2957004', 'number'), (2957004, '[h]:mm:ss', '2957004', 'number'), (2958465, 'yyyy-mm-dd', '2958465', 'number'),
+                   (3000000, '[h]:mm:ss', '3000000', 'number'), (-1, 'yyyy-mm-dd', '-1', 'number'), (-0.25, 'h:mm', '-0.25', 'number'),
+                   (0, 'yyyy-mm-dd', '1904-01-01 00:00:00', 'datetime'), (0.6041666666666666, 'h:mm', '14:30:00', 'timespan'),
+                   (0.9999999999, 'h:mm:ss', '1904-01-02 00:00:00', 'datetime')]}
+        for date1904, edges in EDGES.items():
+            system = '1904' if date1904 else '1900'
+            book = folder/f'edges-{system}.xlsx'
+            write_xlsx(book, [('Edges', [(r, 0, value, code) for r, (value, code, _, _) in enumerate(edges)])], date1904=date1904)
+            opened = request(action='open', path=str(book), snapshot=str(folder/'snapshots'))
+            assert 'error' not in opened, (system, opened)
+            decoded = json.loads(subprocess.check_output([sys.argv[2], str(ROOT/'Tests/decode-snapshot.mjs'), opened['sheets'][0]['snapshot']], text=True))[0]['cells']
+            got = {c['row']: (c['text'], c['kind']) for c in decoded}
+            for r, (value, code, text, kind) in enumerate(edges): assert got[r] == (text, kind), (system, value, code, got[r])
+            edits = [{'col': c['col'] + d, 'row': c['row'], 'text': c['text'], 'kind': c['kind']} for c in decoded for d in (0, 2)]
+            for label, kwargs in [('new workbook', {}), ('ClosedXML patch', {'id': opened['id']}), ('streaming patch', {'id': opened['id'], 'stream': True})]:
+                out = folder/f'edges-{system}-{label.split()[0]}.xlsx'
+                result = request(action='save', path=str(out), sheets=[{'name': 'Edges', 'cells': edits}], **kwargs)
+                assert result.get('ok'), (system, label, result)
+                back = request(action='open', path=str(out)); again = cells(back)
+                for e in edits: assert (again[(e['col'], e['row'])]['text'], again[(e['col'], e['row'])]['kind']) == (e['text'], e['kind']), (system, label, e, again[(e['col'], e['row'])])
+                assert request(action='close', id=back['id'])['ok']
+            assert request(action='close', id=opened['id'])['ok']
+        print('PASS: values beyond 9999-12-31 or before the date system are numbers, and 9999-12-31 is a date, in both date systems; each survives all three save paths')
+        # 13. A number format ending in an unclosed [ (another program can write "0.00[") no longer fails the whole workbook: the
+        #     bracket runs to the end of the code. The workbook opens, classes each cell and saves through the streaming patch,
+        #     which reads the styles again.
+        MALFORMED = [('0.00[', '0.25', 'number'), ('[', '0.25', 'number'), ('h:mm[', '06:00:00', 'timespan'),
+                     ('yyyy-mm-dd[', '1899-12-31 06:00:00', 'datetime'), ('[h', '06:00:00', 'timespan'), ('[$-409', '0.25', 'number')]
+        book = folder/'malformed.xlsx'
+        write_xlsx(book, [('Codes', [(r, 0, 0.25, code) for r, (code, _, _) in enumerate(MALFORMED)])])
+        opened = request(action='open', path=str(book)); assert 'error' not in opened, opened
+        got = cells(opened)
+        for r, (code, text, kind) in enumerate(MALFORMED): assert (got[(0, r)]['text'], got[(0, r)]['kind']) == (text, kind), (code, got[(0, r)])
+        out = folder/'malformed-patched.xlsx'
+        result = request(action='save', id=opened['id'], path=str(out), stream=True, sheets=[{'name': 'Codes', 'cells': [{'col': 1, 'row': 0, 'text': '7', 'kind': 'number'}]}])
+        assert result.get('ok'), result
+        back = request(action='open', path=str(out)); assert cells(back)[(1, 0)]['text'] == '7' and len(cells(back)) == len(MALFORMED) + 1, back
+        assert request(action='close', id=back['id'])['ok'] and request(action='close', id=opened['id'])['ok']
+        print('PASS: number formats ending in an unclosed [ open, class their cells and save')
+        # 14. ISO 8601 cells (t="d"), as SheetJS writes dates with cellDates and openpyxl with iso_dates: the clock time is the
+        #     one written, a trailing Z or an offset read as UTC and never moved into this Mac's zone (the driver runs in
+        #     Asia/Kolkata), rounded to the millisecond; a time with no date is a time of day (RULES 3.9), and other text stays
+        #     text. Both date systems.
+        ISO = [('2026-11-21T10:00:00.000Z', None, '2026-11-21 10:00:00', 'datetime'), ('2026-11-21T10:00:00', None, '2026-11-21 10:00:00', 'datetime'),
+               ('2026-11-21T10:00:00+05:30', None, '2026-11-21 04:30:00', 'datetime'), ('2026-11-21', 'yyyy-mm-dd', '2026-11-21 00:00:00', 'datetime'),
+               ('2026-07-01T14:30:00.1234567Z', None, '2026-07-01 14:30:00.123', 'datetime'), ('1850-01-01', 'yyyy-mm-dd', '1850-01-01 00:00:00', 'datetime'),
+               ('14:30:00', 'hh:mm:ss', '14:30:00', 'timespan'), ('14:30:00.5', 'hh:mm:ss', '14:30:00.5000000', 'timespan'), ('not a date', None, 'not a date', 'text')]
+        for date1904 in (False, True):
+            book = folder/f'iso-{date1904}.xlsx'
+            write_xlsx(book, [('Iso', [(r, 0, ('iso', value), code) for r, (value, code, _, _) in enumerate(ISO)])], date1904=date1904)
+            opened = request(action='open', path=str(book)); got = cells(opened)
+            for r, (value, _, text, kind) in enumerate(ISO): assert (got[(0, r)]['text'], got[(0, r)]['kind']) == (text, kind), (date1904, value, got[(0, r)])
+            assert request(action='close', id=opened['id'])['ok']
+        print('PASS: ISO 8601 cells keep the clock time written, whatever the zone, and a time with no date is a time of day')
 finally:
     driver.stdin.close(); driver.wait(timeout=15)

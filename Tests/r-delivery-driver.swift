@@ -1,16 +1,22 @@
 import Foundation
 import Darwin
 
-/// R+ delivery (rules 6.1 and 6.2 of the worksheet R rules), checked without launching R.app, RStudio or StatsDirect:
-/// - under Rscript, the generated startup.R runs the user's own profile and .First as R would, leaves R_PROFILE_USER
-///   unset for child processes, and removes its script copy (unless changed), itself and its launch record when R ends;
-/// - R+ file names, and the leftover clean-up of R.app launch folders and of console private folders, on fake trees;
+/// R+ delivery (rules 6.1 and 6.2 of the worksheet R rules, with amendment 1), checked without launching R.app, RStudio
+/// or StatsDirect:
+/// - under Rscript, the generated start-up file runs the user's own profile and .First as R would: the file the user's
+///   own R_PROFILE_USER names, else ./.Rprofile, else ~/.Rprofile. Child processes get the user's R_PROFILE_USER back, or
+///   none. The script is read as written whatever the user's profile sets options(encoding) or defaultPackages to. When
+///   R ends, the script copy and the start-up file go by their exact paths, each only while unchanged, then the record;
+/// - a script copy never takes the start-up file's or the launch record's name;
+/// - R+ file names, and the leftover clean-up of R.app launch folders and of console private folders, on fake trees,
+///   with another StatsDirect still running;
 /// - a real console worker whose host is killed leaves its private folder, which start-up removes once it has gone.
 /// Usage: r-delivery-driver Rscript work-folder RConsoleWorker console-bootstrap.R
 ///   (or, as the killed host: r-delivery-driver host RConsoleWorker console-bootstrap.R sessions-folder temporary-folder info-file)
 @main struct RDeliveryDriver {
     struct Failure: Error, CustomStringConvertible { let description: String }
     static let fm = FileManager.default
+    static let profileName = ".statsdirect-startup.R", recordName = ".statsdirect-launch.json"
 
     @MainActor static func main() async {
         do {
@@ -24,6 +30,11 @@ import Darwin
             guard arguments.count == 5 else { throw Failure(description: "Usage: r-delivery-driver Rscript work-folder RConsoleWorker console-bootstrap.R") }
             let rscript = arguments[1], work = URL(fileURLWithPath: arguments[2], isDirectory: true)
             try startupProfile(rscript: rscript, work: work.appendingPathComponent("startup", isDirectory: true))
+            try userProfileVariable(rscript: rscript, work: work.appendingPathComponent("user profile", isDirectory: true))
+            try encodings(rscript: rscript, work: work.appendingPathComponent("encoding", isDirectory: true))
+            try basePackagesOnly(rscript: rscript, work: work.appendingPathComponent("base only", isDirectory: true))
+            try exactRemoval(rscript: rscript, work: work.appendingPathComponent("exact", isDirectory: true))
+            try reservedNames(rscript: rscript, work: work.appendingPathComponent("reserved", isDirectory: true))
             try fileNames(work: work.appendingPathComponent("names", isDirectory: true))
             try processIdentity()
             try launchRecords(work: work.appendingPathComponent("launches", isDirectory: true))
@@ -43,6 +54,9 @@ import Darwin
     }
     static func exists(_ url: URL) -> Bool { var info = stat(); return lstat(url.path, &info) == 0 }
     static func folder(_ url: URL) throws -> URL { try fm.createDirectory(at: url, withIntermediateDirectories: true); return url }
+    static func text(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
+    /// Paths compared as the clean-up reports them: standardized, so that a doubled slash in the work folder does not matter.
+    static func paths(_ urls: [URL]) -> Set<String> { Set(urls.map { $0.standardizedFileURL.path }) }
 
     /// An R string literal in ASCII: every other character as a \u escape, which R reads in any locale.
     static func rString(_ text: String) -> String {
@@ -59,17 +73,39 @@ import Darwin
         return result + "\""
     }
 
-    struct RRun { let status: Int32; let output: String }
-    /// Rscript as R.app would start R: HOME is the given folder, and R_PROFILE_USER names StatsDirect's startup.R.
-    static func runR(_ rscript: String, _ file: URL, in directory: URL, home: URL, profile: URL) throws -> RRun {
+    struct RRun {
+        let status: Int32
+        let output: String
+        /// The lines R printed itself, without those it relayed from a child process ("CHILD: ...").
+        var own: String { output.split(separator: "\n", omittingEmptySubsequences: false).filter { !$0.hasPrefix("CHILD:") }.joined(separator: "\n") }
+        func count(_ text: String) -> Int { own.components(separatedBy: text).count - 1 }
+        /// Whether R printed `first` before `second`, both of them.
+        func printed(_ first: String, before second: String) -> Bool {
+            guard let a = own.range(of: first), let b = own.range(of: second) else { return false }
+            return a.lowerBound < b.lowerBound
+        }
+        /// The rest of each printed line that starts with `prefix`, the relayed child lines included. Swift compares the
+        /// results as Unicode text: the system hands a process its environment with accented letters decomposed.
+        func values(after prefix: String) -> [String] {
+            output.split(separator: "\n").filter { $0.hasPrefix(prefix) }.map { String($0.dropFirst(prefix.count)) }
+        }
+    }
+    /// Rscript as R.app would start R: HOME is the given folder, and R gets the variables StatsDirect gives R.app
+    /// (configuration), for StatsDirect's own environment `statsDirect`: its start-up file and, when StatsDirect has
+    /// one, the user's own R_PROFILE_USER. `extra` adds variables, such as R_PROFILE for a site profile.
+    @MainActor static func runR(_ rscript: String, _ file: URL, in directory: URL, home: URL, session: RExternalSession,
+                                statsDirect: [String: String] = [:], extra: [String: String] = [:]) throws -> RRun {
         let process = Process(), pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: rscript)
         process.arguments = [file.path]
         process.currentDirectoryURL = directory
         var environment = ProcessInfo.processInfo.environment
-        for key in ["R_PROFILE_USER", "R_ENVIRON_USER", "R_LIBS_USER", "R_DEFAULT_PACKAGES", "R_PROFILE"] { environment[key] = nil }
+        for key in ["R_PROFILE_USER", "R_ENVIRON_USER", "R_LIBS_USER", "R_DEFAULT_PACKAGES", "R_PROFILE", RExternalSession.userProfileVariable] {
+            environment[key] = nil
+        }
         environment["HOME"] = home.path; environment["LC_ALL"] = "en_US.UTF-8"
-        environment["R_PROFILE_USER"] = profile.path
+        for (key, value) in session.configuration(environment: statsDirect).environment { environment[key] = value }
+        for (key, value) in extra { environment[key] = value }
         process.environment = environment
         process.standardOutput = pipe; process.standardError = pipe
         try process.run()
@@ -86,76 +122,86 @@ import Darwin
     """
     static let expectedData = #"identical(worksheet_data, structure(list(c(1, 2)), names = "A", row.names = c(NA_integer_, -2L), class = "data.frame"))"#
 
+    /// A check script for R to run after the import, in `work`; it ends by printing PARENT_CHECKS_PASSED.
+    static func checks(_ work: URL, _ name: String, _ lines: String) throws -> URL {
+        let file = work.appendingPathComponent(name + ".R")
+        try (lines + "\ncat(\"PARENT_CHECKS_PASSED\\n\")\n").write(to: file, atomically: true, encoding: .utf8)
+        return file
+    }
+    static func write(_ text: String, to url: URL) throws { try text.write(to: url, atomically: true, encoding: .utf8) }
+
     // MARK: 6.1 and the R side of 6.2
 
-    static func startupProfile(rscript: String, work: URL) throws {
+    @MainActor static func startupProfile(rscript: String, work: URL) throws {
         // Quotes, a backslash, accented letters and a bidirectional-text control in the folder R works in.
         let root = try folder(work.appendingPathComponent("R Sessions ' \" \\ café \u{202E}x", isDirectory: true))
         let home = try folder(work.appendingPathComponent("home", isDirectory: true))
         let start = try folder(work.appendingPathComponent("start", isDirectory: true))
-        try #"""
+        try write(#"""
         cat("USER_PROFILE_RAN\n")
         options(statsdirect.test.profile = "home")
         .First <- function() { cat("USER_FIRST_RAN\n"); options(statsdirect.test.first = "home") }
 
-        """#.write(to: home.appendingPathComponent(".Rprofile"), atomically: true, encoding: .utf8)
+        """#, to: home.appendingPathComponent(".Rprofile"))
         func session(_ name: String = "Sheet1 café Worksheet.R") throws -> RExternalSession {
             try RExternalSession(data: Data(worksheetScript.utf8), name: name, directory: RExternalScript.launchFolder(in: root))
         }
-        func checks(_ name: String, _ lines: String) throws -> URL {
-            let file = work.appendingPathComponent(name + ".R")
-            try (lines + "\ncat(\"PARENT_CHECKS_PASSED\\n\")\n").write(to: file, atomically: true, encoding: .utf8)
-            return file
-        }
 
-        // The launch record comes with the files, naming this StatsDirect and no R.app yet.
+        // The launch record comes with the files, naming this StatsDirect and no R.app yet, with a digest for each file.
         let main = try session()
         let record = RExternalLaunchRecord.read(main.record)
-        try check(exists(main.script) && exists(main.profile) && record == RExternalLaunchRecord(
-                    script: main.script.lastPathComponent, scriptSHA256: RExternalLaunchRecord.digest(Data(worksheetScript.utf8)),
-                    files: ["startup.R"], host: RProcessIdentity.current, app: nil),
-                  "an R.app launch writes its script copy, startup.R and a launch record naming its StatsDirect", String(describing: record))
-        let profileText = try String(contentsOf: main.profile, encoding: .utf8)
-        try check(!profileText.unicodeScalars.contains { $0.value == 0x202E } && profileText.contains("\\u202e"),
-                  "startup.R writes a bidirectional-text control in a path as an escape, which R accepts")
+        let profileData = fm.contents(atPath: main.profile.path) ?? Data()
+        let profileText = String(decoding: profileData, as: UTF8.self)
+        try check(main.profile.lastPathComponent == profileName && exists(main.script) && exists(main.profile)
+                  && record?.files == [main.script.lastPathComponent: RExternalLaunchRecord.digest(Data(worksheetScript.utf8)),
+                                       profileName: RExternalLaunchRecord.digest(profileData)]
+                  && record?.host == RProcessIdentity.current && record?.app == nil
+                  && record.flatMap { UUID(uuidString: $0.id) } != nil && record.map { profileText.contains("\"\($0.id)\"") } == true,
+                  "an R.app launch writes its script copy, \(profileName) and a launch record naming its StatsDirect, a SHA-256 for each file and the id the start-up file holds",
+                  String(describing: record))
+        // Foundation gives the path's é decomposed, as e and a combining accent; the disk takes either form for the same name.
+        try check(profileData.allSatisfy { $0 == 10 || (32..<127).contains($0) }
+                  && (profileText.contains("caf\\u00e9") || profileText.contains("cafe\\u0301"))
+                  && profileText.contains("\\u202e") && !profileText.contains("unlink("),
+                  "the start-up file is printable ASCII, with the folder's accented letter and bidirectional-text control as escapes, and never uses unlink()")
 
         // The user's profile and .First run as R would, and a child Rscript does not inherit StatsDirect's profile.
         let child = work.appendingPathComponent("child.R")
-        try #"cat(paste("CHILD_STATE", Sys.getenv("R_PROFILE_USER", unset = "UNSET"), exists("worksheet_data"), exists(".First"), getOption("statsdirect.test.profile", "none")), "\n", sep = "")"#
-            .write(to: child, atomically: true, encoding: .utf8)
-        let first = try runR(rscript, try checks("main", """
+        try write(#"cat(paste("CHILD_STATE", Sys.getenv("R_PROFILE_USER", unset = "UNSET"), exists("worksheet_data"), exists(".First"), getOption("statsdirect.test.profile", "none")), "\n", sep = "")"#,
+                  to: child)
+        let first = try runR(rscript, try checks(work, "main", """
             stopifnot(identical(getOption("statsdirect.test.profile"), "home"), identical(getOption("statsdirect.test.first"), "home"))
-            stopifnot(is.na(Sys.getenv("R_PROFILE_USER", unset = NA)), \(expectedData))
+            stopifnot(is.na(Sys.getenv("R_PROFILE_USER", unset = NA)), is.na(Sys.getenv("\(RExternalSession.userProfileVariable)", unset = NA)), \(expectedData))
             stopifnot(identical(normalizePath(getwd()), normalizePath(\(rString(main.directory.path)))))
             child <- system2(file.path(R.home("bin"), "Rscript"), shQuote(\(rString(child.path))), stdout = TRUE, stderr = TRUE)
             writeLines(paste("CHILD:", child))
             stopifnot("CHILD_STATE UNSET FALSE TRUE home" %in% child, !any(grepl("StatsDirect", child)))
-            """), in: start, home: home, profile: main.profile)
+            """), in: start, home: home, session: main)
         let output = first.output
         func at(_ text: String) -> Int { output.range(of: text).map { output.distance(from: output.startIndex, to: $0.lowerBound) } ?? -1 }
         try check(first.status == 0 && output.contains("PARENT_CHECKS_PASSED"),
                   "R.app's R runs the user's ~/.Rprofile and .First, then the import; R_PROFILE_USER is unset and a child Rscript runs only the user's own profile", output)
         try check(at("USER_PROFILE_RAN") >= 0 && at("USER_PROFILE_RAN") < at("USER_FIRST_RAN") && at("USER_FIRST_RAN") < at("StatsDirect: running Sheet1 café Worksheet.R")
-                  && output.components(separatedBy: "StatsDirect: running ").count == 2 && output.contains("'data.frame':\t2 obs. of  1 variable:"),
+                  && first.count("StatsDirect: running ") == 1 && output.contains("'data.frame':\t2 obs. of  1 variable:"),
                   "the profile, then the user's .First, then the script once, with its str() output", output)
         try check(!exists(main.script) && !exists(main.profile) && !exists(main.record)
                   && exists(main.directory.appendingPathComponent("user-output.txt")) && exists(main.directory),
-                  "when R ends, the script copy, startup.R and the launch record go; R's working folder and the user's files stay")
+                  "when R ends, the script copy, \(profileName) and the launch record go; R's working folder and the user's files stay")
 
         // ./.Rprofile in the folder R starts in is used instead of ~/.Rprofile, as R would.
         let local = try folder(work.appendingPathComponent("start with profile", isDirectory: true))
-        try "options(statsdirect.test.profile = \"here\")\n".write(to: local.appendingPathComponent(".Rprofile"), atomically: true, encoding: .utf8)
+        try write("options(statsdirect.test.profile = \"here\")\n", to: local.appendingPathComponent(".Rprofile"))
         let here = try session()
-        let second = try runR(rscript, try checks("here", """
+        let second = try runR(rscript, try checks(work, "here", """
             stopifnot(identical(getOption("statsdirect.test.profile"), "here"), is.null(getOption("statsdirect.test.first")), \(expectedData))
-            """), in: local, home: home, profile: here.profile)
+            """), in: local, home: home, session: here)
         try check(second.status == 0 && second.output.contains("PARENT_CHECKS_PASSED") && !second.output.contains("USER_PROFILE_RAN"),
                   "./.Rprofile where R starts takes the place of ~/.Rprofile", second.output)
 
         // With no profile at all, nothing is reported and the import runs.
         let bare = try session(), empty = try folder(work.appendingPathComponent("empty home", isDirectory: true))
-        let third = try runR(rscript, try checks("bare", "stopifnot(is.null(getOption(\"statsdirect.test.profile\")), \(expectedData))"),
-                             in: empty, home: empty, profile: bare.profile)
+        let third = try runR(rscript, try checks(work, "bare", "stopifnot(is.null(getOption(\"statsdirect.test.profile\")), \(expectedData))"),
+                             in: empty, home: empty, session: bare)
         try check(third.status == 0 && third.output.contains("PARENT_CHECKS_PASSED") && !third.output.contains("Error"),
                   "without a user profile the import runs and nothing else is reported", third.output)
 
@@ -163,7 +209,7 @@ import Darwin
         // script pane's own code, the default, is still echoed command by command.
         let quiet = try RExternalSession(data: Data(worksheetScript.utf8), name: "Quiet Worksheet.R",
                                          directory: RExternalScript.launchFolder(in: root), echo: false)
-        let silent = try runR(rscript, try checks("quiet", "stopifnot(\(expectedData))"), in: empty, home: empty, profile: quiet.profile)
+        let silent = try runR(rscript, try checks(work, "quiet", "stopifnot(\(expectedData))"), in: empty, home: empty, session: quiet)
         try check(silent.status == 0 && silent.output.contains("PARENT_CHECKS_PASSED") && silent.output.contains("'data.frame':")
                   && !silent.output.contains("structure(list(c(1, 2))"),
                   "a worksheet import shows str() in R.app's console without echoing its data", silent.output)
@@ -172,33 +218,32 @@ import Darwin
         // An error in the user's profile stops the rest of it, as in R; an error in their .First is reported; the
         // import still runs.
         let failing = try folder(work.appendingPathComponent("failing home", isDirectory: true))
-        try #"""
+        try write(#"""
         options(statsdirect.test.profile = "partial")
         .First <- function() stop("user first failed")
         stop("user profile failed")
         options(statsdirect.test.after = TRUE)
 
-        """#.write(to: failing.appendingPathComponent(".Rprofile"), atomically: true, encoding: .utf8)
+        """#, to: failing.appendingPathComponent(".Rprofile"))
         let broken = try session()
-        let fourth = try runR(rscript, try checks("broken", """
+        let fourth = try runR(rscript, try checks(work, "broken", """
             stopifnot(identical(getOption("statsdirect.test.profile"), "partial"), is.null(getOption("statsdirect.test.after")), \(expectedData))
-            """), in: start, home: failing, profile: broken.profile)
+            """), in: start, home: failing, session: broken)
         try check(fourth.status == 0 && fourth.output.contains("PARENT_CHECKS_PASSED") && fourth.output.contains("user profile failed")
                   && fourth.output.contains("user first failed"),
                   "errors in the user's profile and .First are reported and do not stop the import", fourth.output)
 
-        // A script copy the user saved changes to (in R.app's editor) is theirs: only startup.R and the record go.
+        // A script copy the user saved changes to (in R.app's editor) is theirs: only the start-up file and the record go.
         let edited = try session()
-        let fifth = try runR(rscript, try checks("edited", "cat(\"# my own edit\\n\", file = \(rString(edited.script.path)), append = TRUE)"),
-                             in: start, home: home, profile: edited.profile)
-        try check(fifth.status == 0 && (try? String(contentsOf: edited.script, encoding: .utf8)) == worksheetScript + "# my own edit\n"
-                  && !exists(edited.profile) && !exists(edited.record),
-                  "a script copy saved with changes stays when R ends; startup.R and the launch record go", fifth.output)
+        let fifth = try runR(rscript, try checks(work, "edited", "cat(\"# my own edit\\n\", file = \(rString(edited.script.path)), append = TRUE)"),
+                             in: start, home: home, session: edited)
+        try check(fifth.status == 0 && text(edited.script) == worksheetScript + "# my own edit\n" && !exists(edited.profile) && !exists(edited.record),
+                  "a script copy saved with changes stays when R ends; \(profileName) and the launch record go", fifth.output)
 
         // Quitting with the workspace saved keeps it, and the user's files, in R's folder; the copies still go.
         let saving = try session()
-        let sixth = try runR(rscript, try checks("saving", "writeLines('kept', 'user-file.txt'); cat('PARENT_CHECKS_PASSED\\n'); q('yes')"),
-                             in: start, home: home, profile: saving.profile)
+        let sixth = try runR(rscript, try checks(work, "saving", "writeLines('kept', 'user-file.txt'); cat('PARENT_CHECKS_PASSED\\n'); q('yes')"),
+                             in: start, home: home, session: saving)
         try check(sixth.status == 0 && sixth.output.contains("PARENT_CHECKS_PASSED") && exists(saving.directory.appendingPathComponent(".RData"))
                   && exists(saving.directory.appendingPathComponent("user-file.txt")) && !exists(saving.script) && !exists(saving.profile)
                   && !exists(saving.record),
@@ -208,13 +253,257 @@ import Darwin
         // three files when R.app did not start, and keeps the folder.
         let recorded = try session()
         let me = RProcessIdentity.current!
+        let before = RExternalLaunchRecord.read(recorded.record)
         recorded.recordLaunch(me)
-        try check(RExternalLaunchRecord.read(recorded.record)?.app == me, "a launched R.app's process is added to its launch record")
+        let after = RExternalLaunchRecord.read(recorded.record)
+        try check(after?.app == me && after?.id == before?.id && after?.files == before?.files && after?.host == before?.host,
+                  "a launched R.app's process is added to its launch record, which keeps everything else")
         try fm.removeItem(at: recorded.record); recorded.recordLaunch(me)
         try check(!exists(recorded.record), "a launch record that R removed is not written again")
         recorded.discard()
         try check(!exists(recorded.script) && !exists(recorded.profile) && exists(recorded.directory),
                   "a launch whose R.app did not start leaves no files, and its folder")
+    }
+
+    // MARK: 6.1, the user's own R_PROFILE_USER
+
+    @MainActor static func userProfileVariable(rscript: String, work: URL) throws {
+        let root = try folder(work.appendingPathComponent("R Sessions", isDirectory: true))
+        let home = try folder(work.appendingPathComponent("home", isDirectory: true))
+        let start = try folder(work.appendingPathComponent("start", isDirectory: true))
+        let profiles = try folder(home.appendingPathComponent("profiles", isDirectory: true))
+        // ~/.Rprofile and ./.Rprofile are both there, and neither may run while the user's R_PROFILE_USER names a file.
+        try write("cat(\"HOME_PROFILE_RAN\\n\")\noptions(statsdirect.test.profile = \"home\")\n", to: home.appendingPathComponent(".Rprofile"))
+        try write("cat(\"LOCAL_PROFILE_RAN\\n\")\noptions(statsdirect.test.profile = \"here\")\n", to: start.appendingPathComponent(".Rprofile"))
+        try write(#"""
+        cat("USER_R_PROFILE_RAN ", Sys.getenv("R_PROFILE_USER", unset = "UNSET"), "\n", sep = "")
+        options(statsdirect.test.profile = "user")
+        "USER_PROFILE_VISIBLE"
+        .First <- function() cat("USER_FIRST_RAN\n")
+
+        """#, to: profiles.appendingPathComponent("user profile é.R"))
+        let child = work.appendingPathComponent("child.R")
+        try write(#"cat(paste("CHILD_STATE", Sys.getenv("R_PROFILE_USER", unset = "UNSET"), exists("worksheet_data"), getOption("statsdirect.test.profile", "none")), "\n", sep = "")"#,
+                  to: child)
+        let runChild = """
+            child <- system2(file.path(R.home("bin"), "Rscript"), shQuote(\(rString(child.path))), stdout = TRUE, stderr = TRUE)
+            writeLines(paste("CHILD:", child))
+            """
+        func session() throws -> RExternalSession {
+            try RExternalSession(data: Data(worksheetScript.utf8), name: "Sheet1 Worksheet.R", directory: RExternalScript.launchFolder(in: root))
+        }
+
+        // StatsDirect hands the user's own value to R.app in a variable of its own, only when it has one.
+        let handover = try session(), variable = RExternalSession.userProfileVariable
+        let given = handover.configuration(environment: ["R_PROFILE_USER": "~/profiles/user profile é.R", "HOME": "/elsewhere"]).environment
+        let blank = handover.configuration(environment: ["R_PROFILE_USER": ""]).environment
+        let none = handover.configuration(environment: ["HOME": "/elsewhere"]).environment
+        try check(given == ["R_PROFILE_USER": handover.profile.path, variable: "~/profiles/user profile é.R"]
+                  && blank == ["R_PROFILE_USER": handover.profile.path, variable: ""] && none == ["R_PROFILE_USER": handover.profile.path]
+                  && handover.configuration().environment[variable] == ProcessInfo.processInfo.environment["R_PROFILE_USER"]
+                  && handover.configuration().createsNewApplicationInstance,
+                  "R.app gets StatsDirect's start-up file, and \(variable) only when StatsDirect's own environment has R_PROFILE_USER",
+                  "\(given)\n\(blank)\n\(none)")
+        handover.discard()
+
+        // The file the user's R_PROFILE_USER names (here with ~, as a user may write it) runs in place of ./.Rprofile and
+        // ~/.Rprofile, printing what it prints, with R_PROFILE_USER already the user's own; R processes started from the
+        // session get it back, and run the user's profile, not StatsDirect's.
+        let userValue = "~/profiles/user profile é.R"
+        let named = try session()
+        let run = try runR(rscript, try checks(work, "named", """
+            stopifnot(identical(getOption("statsdirect.test.profile"), "user"), is.na(Sys.getenv("\(variable)", unset = NA)), \(expectedData))
+            cat("PARENT_R_PROFILE_USER=", Sys.getenv("R_PROFILE_USER", unset = "UNSET"), "\\n", sep = "")
+            \(runChild)
+            stopifnot(!any(grepl("StatsDirect|HOME_PROFILE_RAN|LOCAL_PROFILE_RAN", child)))
+            """), in: start, home: home, session: named, statsDirect: ["R_PROFILE_USER": userValue])
+        try check(run.status == 0 && run.output.contains("PARENT_CHECKS_PASSED") && run.values(after: "USER_R_PROFILE_RAN ") == [userValue]
+                  && run.count("[1] \"USER_PROFILE_VISIBLE\"") == 1 && run.count("USER_FIRST_RAN") == 1
+                  && run.count("HOME_PROFILE_RAN") == 0 && run.count("LOCAL_PROFILE_RAN") == 0
+                  && run.printed("USER_R_PROFILE_RAN", before: "USER_FIRST_RAN") && run.printed("USER_FIRST_RAN", before: "StatsDirect: running")
+                  && run.values(after: "PARENT_R_PROFILE_USER=") == [userValue]
+                  && !exists(named.script) && !exists(named.profile) && !exists(named.record),
+                  "the user's own R_PROFILE_USER file runs instead of ./.Rprofile and ~/.Rprofile, with that variable already the user's, and prints its values",
+                  run.output)
+        try check(run.values(after: "CHILD: USER_R_PROFILE_RAN ") == [userValue] && run.values(after: "CHILD: CHILD_STATE ") == [userValue + " FALSE user"],
+                  "a child Rscript gets the user's R_PROFILE_USER back, and runs that profile, not StatsDirect's", run.output)
+
+        // An empty R_PROFILE_USER means no user profile in R; it stays so, for R processes started from the session too.
+        let empty = try session()
+        let blankRun = try runR(rscript, try checks(work, "empty", """
+            stopifnot(is.null(getOption("statsdirect.test.profile")), identical(Sys.getenv("R_PROFILE_USER", unset = NA), ""), \(expectedData))
+            \(runChild)
+            stopifnot("CHILD_STATE  FALSE none" %in% child)
+            """), in: start, home: home, session: empty, statsDirect: ["R_PROFILE_USER": ""])
+        try check(blankRun.status == 0 && blankRun.output.contains("PARENT_CHECKS_PASSED") && !blankRun.output.contains("PROFILE_RAN"),
+                  "an empty R_PROFILE_USER of the user's runs no profile, and child processes get it back empty", blankRun.output)
+
+        // A value naming no file runs nothing, as in R, and does not fall back to ~/.Rprofile.
+        let missing = try session()
+        let missingRun = try runR(rscript, try checks(work, "missing", """
+            stopifnot(is.null(getOption("statsdirect.test.profile")), identical(Sys.getenv("R_PROFILE_USER"), "~/profiles/missing.R"), \(expectedData))
+            """), in: start, home: home, session: missing, statsDirect: ["R_PROFILE_USER": "~/profiles/missing.R"])
+        try check(missingRun.status == 0 && missingRun.output.contains("PARENT_CHECKS_PASSED") && !missingRun.output.contains("PROFILE_RAN")
+                  && !missingRun.output.contains("Error") && !missingRun.output.contains("cannot open"),
+                  "a user R_PROFILE_USER naming no file runs no profile and reports nothing, as R does", missingRun.output)
+    }
+
+    // MARK: 6.1, encodings
+
+    @MainActor static func encodings(rscript: String, work: URL) throws {
+        let root = try folder(work.appendingPathComponent("R Sessions", isDirectory: true))
+        let home = try folder(work.appendingPathComponent("home", isDirectory: true))
+        try write("options(encoding = \"latin1\")\n", to: home.appendingPathComponent(".Rprofile"))
+        // As a worksheet import writes it: UTF-8, with bidirectional-text controls as escapes and other characters as they are.
+        let cafe = "caf\u{E9}", naive = "na\u{EF}ve", shalom = "\u{5E9}\u{5DC}\u{5D5}\u{5DD}", emoji = "\u{1F600}"
+        let heading = "\u{3A9} \u{2067}x\u{2069}"
+        let script = """
+        worksheet_data <- structure(list(c("\(cafe)", "\(naive)"), c(1, 2), c("\(shalom)", "\(emoji)")), names = c("\(cafe)", "\u{3A9} \\u2067x\\u2069", "\(shalom)"), row.names = c(NA_integer_, -2L), class = "data.frame")
+        utils::str(worksheet_data)
+
+        """
+        try check(script.unicodeScalars.contains { $0.value == 0xE9 } && !script.unicodeScalars.contains { $0.value == 0x2067 },
+                  "the encoding test's script holds é as UTF-8 and its bidirectional-text controls as escapes")
+        // The expected object in printable ASCII, with every other character as an escape, which no setting can change.
+        let expected = """
+        expected <- structure(list(c(\(rString(cafe)), \(rString(naive))), c(1, 2), c(\(rString(shalom)), \(rString(emoji)))), names = c(\(rString(cafe)), \(rString(heading)), \(rString(shalom))), row.names = c(NA_integer_, -2L), class = "data.frame")
+        bytes <- function(x) lapply(c(names(x), unlist(lapply(x, as.character))), charToRaw)
+        stopifnot(identical(worksheet_data, expected), identical(bytes(worksheet_data), bytes(expected)))
+        """
+        func session() throws -> RExternalSession {
+            try RExternalSession(data: Data(script.utf8), name: "Sheet1 café Worksheet.R", directory: RExternalScript.launchFolder(in: root), echo: false)
+        }
+
+        let launch = try session()
+        let run = try runR(rscript, try checks(work, "latin1", """
+            stopifnot(identical(getOption("encoding"), "latin1"))
+            \(expected)
+            # The user's setting is in force: read with it, the same file would give other values.
+            reread <- new.env()
+            changed <- tryCatch({ capture.output(source(\(rString(launch.script.path)), local = reread)); !identical(reread$worksheet_data, expected) },
+                                error = function(e) TRUE)
+            stopifnot(changed)
+            """), in: home, home: home, session: launch)
+        try check(run.status == 0 && run.output.contains("PARENT_CHECKS_PASSED") && run.output.contains("StatsDirect: running Sheet1 café Worksheet.R")
+                  && run.output.contains("'data.frame':\t2 obs. of  3 variables:") && !run.output.contains("StatsDirect script:"),
+                  "options(encoding = \"latin1\") in the user's .Rprofile leaves café, a bidirectional heading, Hebrew and an emoji exactly as written",
+                  run.output)
+
+        // The user's own start-up file is read as R reads it, without re-encoding, even when a site profile sets
+        // options(encoding) before it runs.
+        let site = work.appendingPathComponent("Rprofile.site")
+        try write("options(encoding = \"latin1\")\n", to: site)
+        let siteHome = try folder(work.appendingPathComponent("site home", isDirectory: true))
+        try write("options(statsdirect.test.text = \"caf\u{E9} \u{3A9}\")\n", to: siteHome.appendingPathComponent(".Rprofile"))
+        let siteLaunch = try session()
+        let siteRun = try runR(rscript, try checks(work, "site", """
+            stopifnot(identical(getOption("encoding"), "latin1"), identical(charToRaw(getOption("statsdirect.test.text")), charToRaw(\(rString("caf\u{E9} \u{3A9}")))))
+            \(expected)
+            """), in: siteHome, home: siteHome, session: siteLaunch, extra: ["R_PROFILE": site.path])
+        try check(siteRun.status == 0 && siteRun.output.contains("PARENT_CHECKS_PASSED"),
+                  "the user's .Rprofile is read without re-encoding, and the import is exact, when a site profile sets options(encoding)", siteRun.output)
+    }
+
+    // MARK: 6.1, default packages
+
+    @MainActor static func basePackagesOnly(rscript: String, work: URL) throws {
+        let root = try folder(work.appendingPathComponent("R Sessions", isDirectory: true))
+        let home = try folder(work.appendingPathComponent("home", isDirectory: true))
+        try write("options(defaultPackages = \"base\")\n", to: home.appendingPathComponent(".Rprofile"))
+        let script = """
+        worksheet_data <- structure(list(c(1, 2)), names = "A", row.names = c(NA_integer_, -2L), class = "data.frame")
+        utils_attached <- "package:utils" %in% search()
+        utils::str(worksheet_data)
+
+        """
+        let launch = try RExternalSession(data: Data(script.utf8), name: "Sheet1 Worksheet.R", directory: RExternalScript.launchFolder(in: root), echo: false)
+        let run = try runR(rscript, try checks(work, "base", "stopifnot(!utils_attached, identical(getOption(\"defaultPackages\"), \"base\"), \(expectedData))"),
+                           in: home, home: home, session: launch)
+        try check(run.status == 0 && run.output.contains("PARENT_CHECKS_PASSED") && run.output.contains("'data.frame':\t2 obs. of  1 variable:")
+                  && !run.output.contains("StatsDirect script:") && !run.output.contains("Error") && !exists(launch.script) && !exists(launch.profile)
+                  && !exists(launch.record),
+                  "with a profile that sets options(defaultPackages = \"base\"), utils is not attached, and the import and utils::str() still work", run.output)
+    }
+
+    // MARK: 6.2, exact paths and the user's own files
+
+    @MainActor static func exactRemoval(rscript: String, work: URL) throws {
+        // A folder whose own path holds no pattern characters, so that R can read the copy's path as a pattern, as
+        // unlink() did.
+        let root = try folder(work.appendingPathComponent("R Sessions", isDirectory: true))
+        let home = try folder(work.appendingPathComponent("empty home", isDirectory: true))
+        let cases = [("survey [final] Worksheet.R", "survey f Worksheet.R"), ("draft* Worksheet.R", "draft-final Worksheet.R"),
+                     ("what? Worksheet.R", "whatX Worksheet.R"), ("a\\b Worksheet.R", "ab Worksheet.R")]
+        for (index, (name, other)) in cases.enumerated() {
+            let launch = try RExternalSession(data: Data(worksheetScript.utf8), name: name, directory: RExternalScript.launchFolder(in: root), echo: false)
+            let users = launch.directory.appendingPathComponent(other)
+            try write("# the user's own\n", to: users)
+            // R works in the launch folder: there the copy's name, read as a pattern, matches the user's file.
+            let run = try runR(rscript, try checks(work, "pattern \(index)", """
+                stopifnot(\(expectedData), \(rString(other)) %in% Sys.glob(\(rString(name))))
+                """), in: home, home: home, session: launch)
+            try check(run.status == 0 && run.output.contains("PARENT_CHECKS_PASSED") && !exists(launch.script) && !exists(launch.profile)
+                      && !exists(launch.record) && text(users) == "# the user's own\n",
+                      "when R ends, the copy \"\(name)\" goes by its exact path, and \"\(other)\", which that name read as a pattern matches, stays",
+                      run.output)
+        }
+
+        // The user's own files in the launch folder are theirs: one under the start-up file's old name, and StatsDirect's
+        // start-up file itself once the user has replaced it. Only what StatsDirect wrote, unchanged, goes.
+        let launch = try RExternalSession(data: Data(worksheetScript.utf8), name: "Sheet1 Worksheet.R", directory: RExternalScript.launchFolder(in: root), echo: false)
+        let run = try runR(rscript, try checks(work, "own files", """
+            writeLines("# my own set-up", "startup.R")
+            writeLines("# my own, in StatsDirect's place", \(rString(launch.profile.path)))
+            stopifnot(\(expectedData))
+            """), in: home, home: home, session: launch)
+        try check(run.status == 0 && run.output.contains("PARENT_CHECKS_PASSED") && !exists(launch.script) && !exists(launch.record)
+                  && text(launch.directory.appendingPathComponent("startup.R")) == "# my own set-up\n"
+                  && text(launch.profile) == "# my own, in StatsDirect's place\n",
+                  "when R ends, a startup.R the user saved stays, and so does \(profileName) once the user has replaced it; the copy and the record go",
+                  run.output)
+        // A file the user put in the record's place is not this launch's record, and stays.
+        let replaced = try RExternalSession(data: Data(worksheetScript.utf8), name: "Sheet1 Worksheet.R", directory: RExternalScript.launchFolder(in: root), echo: false)
+        let replacedRun = try runR(rscript, try checks(work, "own record", """
+            writeLines("my own notes", \(rString(replaced.record.path)))
+            stopifnot(\(expectedData))
+            """), in: home, home: home, session: replaced)
+        try check(replacedRun.status == 0 && replacedRun.output.contains("PARENT_CHECKS_PASSED") && !exists(replaced.script) && !exists(replaced.profile)
+                  && text(replaced.record) == "my own notes\n",
+                  "when R ends, a file the user saved in the launch record's place stays; the copy and the start-up file go", replacedRun.output)
+    }
+
+    // MARK: Reserved names
+
+    @MainActor static func reservedNames(rscript: String, work: URL) throws {
+        let root = try folder(work.appendingPathComponent("R Sessions", isDirectory: true))
+        let home = try folder(work.appendingPathComponent("home", isDirectory: true))
+        try write("cat(\"USER_PROFILE_RAN\\n\")\n", to: home.appendingPathComponent(".Rprofile"))
+        let code = "user_value <- \"the user's code\"\ncat(\"USER_CODE_RAN\\n\")\n"
+        // The start-up file's and the record's names in other letter cases, including a long s, which the Mac's disks
+        // also take for an s.
+        let reserved = [profileName, ".STATSDIRECT-STARTUP.R", ".Statsdirect-Startup.r", ".\u{17F}tatsdirect-startup.R",
+                        recordName, ".Statsdirect-Launch.JSON"]
+        for name in reserved {
+            let launch = try RExternalSession(data: Data(code.utf8), name: name, directory: RExternalScript.launchFolder(in: root))
+            let names = Set((try? fm.contentsOfDirectory(atPath: launch.directory.path)) ?? [])
+            try check(launch.script.lastPathComponent == "Script " + name && names == [recordName, profileName, "Script " + name]
+                      && text(launch.script) == code && RExternalLaunchRecord.read(launch.record)?.files.count == 2,
+                      "a script named \"\(name)\" is copied as \"Script \(name)\", beside the start-up file and the record", names.sorted().joined(separator: ", "))
+        }
+        try check([".statsdirect-startup.R.R", "startup.R", "Startup.R", "x.statsdirect-startup.R", ".Rprofile.R", "Sheet1 Worksheet.R"]
+                    .allSatisfy { RExternalSession.scriptName($0) == $0 },
+                  "every other name, startup.R included, is kept as it is")
+
+        // R runs the user's code once, from its own file, and the user's profile once.
+        for name in [profileName, "startup.R"] {
+            let launch = try RExternalSession(data: Data(code.utf8), name: name, directory: RExternalScript.launchFolder(in: root))
+            let run = try runR(rscript, try checks(work, "reserved " + name, "stopifnot(identical(user_value, \"the user's code\"))"),
+                               in: home, home: home, session: launch)
+            try check(run.status == 0 && run.output.contains("PARENT_CHECKS_PASSED") && run.count("USER_CODE_RAN\n") == 1
+                      && run.count("USER_PROFILE_RAN") == 1 && run.count("StatsDirect: running " + launch.script.lastPathComponent + "\n") == 1
+                      && !run.output.contains("Sys.unsetenv") && !exists(launch.script) && !exists(launch.profile) && !exists(launch.record),
+                      "a script named \(name) runs once as the user's code, and the user's profile once", run.output)
+        }
     }
 
     // MARK: R+ file names
@@ -239,28 +528,27 @@ import Darwin
         try check([first, second, third, console].map(\.lastPathComponent)
                     == ["Sheet1 Worksheet 2026-11-21 101530.R", "Sheet1 Worksheet 2026-11-21 101530 2.R",
                         "Sheet1 Worksheet 2026-11-21 101530 3.R", "R Console 1_ analysis 2026-11-21 101530.R"]
-                  && (try String(contentsOf: first, encoding: .utf8)) == "first <- 1\n"
-                  && (try String(contentsOf: second, encoding: .utf8)) == "second <- 2\n"
-                  && (try String(contentsOf: third, encoding: .utf8)) == "third <- 3\n",
+                  && text(first) == "first <- 1\n" && text(second) == "second <- 2\n" && text(third) == "third <- 3\n",
                   "RStudio gets one new file per import, named by date and time, numbered on a clash, never replacing another",
                   [first, second, third, console].map(\.lastPathComponent).joined(separator: "\n"))
         let saved = try RExternalScript.save("old <- 1\n", name: "Sheet1 Worksheet", in: scripts)
         let again = try RExternalScript.save("new <- 2\n", name: "Sheet1 Worksheet", in: scripts)
-        try check(saved == again && saved.lastPathComponent == "Sheet1 Worksheet.R" && (try String(contentsOf: again, encoding: .utf8)) == "new <- 2\n",
+        try check(saved == again && saved.lastPathComponent == "Sheet1 Worksheet.R" && text(again) == "new <- 2\n",
                   "without RStudio or R.app the script is saved in R Scripts under its own name, as before")
     }
 
     // MARK: Process identity
 
     static func spawnSleep() throws -> Process {
-        let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/sleep"); process.arguments = ["30"]
+        let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/sleep"); process.arguments = ["60"]
         try process.run(); return process
     }
+    static func stop(_ process: Process) { if process.isRunning { process.terminate(); process.waitUntilExit() } }
     /// The identity of a process that has since ended.
     static func endedProcess() throws -> RProcessIdentity {
         let process = try spawnSleep()
         guard let identity = RProcessIdentity.of(process.processIdentifier) else { throw Failure(description: "no identity for a child process") }
-        process.terminate(); process.waitUntilExit()
+        stop(process)
         return identity
     }
 
@@ -269,11 +557,11 @@ import Darwin
         try check(me.pid == getpid() && me.isRunning && !RProcessIdentity(pid: me.pid, started: me.started + 1).isRunning,
                   "a process is known by its id and start time, so a reused id does not match")
         let child = try spawnSleep()
-        defer { if child.isRunning { child.terminate(); child.waitUntilExit() } }
+        defer { stop(child) }
         let identity = RProcessIdentity.of(child.processIdentifier)
         try check(identity?.isRunning == true && RProcessIdentity.anyRunning(named: "sleep") && !RProcessIdentity.anyRunning(named: "no-such-statsdirect-process"),
                   "a running child is found by its identity and by its executable's name")
-        child.terminate(); child.waitUntilExit()
+        stop(child)
         try check(identity?.isRunning == false && RProcessIdentity.of(1) == nil,
                   "an ended process, or another user's process, is not taken for the one recorded")
     }
@@ -284,6 +572,10 @@ import Darwin
         let root = try folder(work.appendingPathComponent("R Sessions", isDirectory: true))
         let ended = try endedProcess(), me = RProcessIdentity.current!
         let reused = RProcessIdentity(pid: me.pid, started: me.started + 1)
+        // Another StatsDirect that is still running: a live process that is not this one.
+        let other = try spawnSleep()
+        defer { stop(other) }
+        guard let otherHost = RProcessIdentity.of(other.processIdentifier) else { throw Failure(description: "no identity for a child process") }
         func launch(in parent: URL, named name: String? = nil, app: RProcessIdentity?, host: RProcessIdentity?) throws -> RExternalSession {
             let session = try RExternalSession(data: Data("x <- 1\n".utf8), name: "Sheet1 Worksheet.R",
                                                directory: name.map { parent.appendingPathComponent($0, isDirectory: true) } ?? RExternalScript.launchFolder(in: parent))
@@ -305,6 +597,9 @@ import Darwin
         let reusedApp = try launch(in: root, app: reused, host: nil)
         let starting = try launch(in: root, app: nil, host: me)
         let unrecorded = try launch(in: root, app: nil, host: ended)
+        // Another running StatsDirect's launches are its own: one whose R.app has ended, and one still starting.
+        let otherEnded = try launch(in: root, app: ended, host: otherHost)
+        let otherStarting = try launch(in: root, app: nil, host: otherHost)
         let session = try folder(root.appendingPathComponent("Session-" + UUID().uuidString, isDirectory: true))
         let inSession = try launch(in: session, app: ended, host: nil)
         let tooDeep = try launch(in: try folder(session.appendingPathComponent("deeper", isDirectory: true)), app: ended, host: nil)
@@ -314,18 +609,29 @@ import Darwin
         let unknown = try folder(RExternalScript.launchFolder(in: root))
         try Data("x <- 1\n".utf8).write(to: unknown.appendingPathComponent("Sheet1 Worksheet.R"))
         try Data("x".utf8).write(to: unknown.appendingPathComponent("startup.R"))
+        // Nor is one whose record has the shape this branch's earlier builds wrote, before each file had a digest.
+        let earlier = try launch(in: root, app: ended, host: nil)
+        try Data(#"{"files":["startup.R"],"script":"Sheet1 Worksheet.R","scriptSHA256":"0"}"#.utf8).write(to: earlier.record)
         // A record that names files outside its folder, a folder, or itself removes only the plain files it names.
         let hostile = try launch(in: root, app: ended, host: nil)
-        try Data("outside".utf8).write(to: root.appendingPathComponent("outside.txt"))
+        let outside = root.appendingPathComponent("outside.txt")
+        try Data("outside".utf8).write(to: outside)
         _ = try folder(hostile.directory.appendingPathComponent("sub", isDirectory: true))
         try Data("inner".utf8).write(to: hostile.directory.appendingPathComponent("sub/inner.txt"))
         var hostileRecord = RExternalLaunchRecord.read(hostile.record)!
-        hostileRecord.files = ["startup.R", "../outside.txt", root.appendingPathComponent("outside.txt").path, "sub/inner.txt", "sub", ".", "..", "",
-                               RExternalLaunchRecord.fileName, "user.csv\0"]
+        let outsideDigest = RExternalLaunchRecord.digest(Data("outside".utf8)), innerDigest = RExternalLaunchRecord.digest(Data("inner".utf8))
+        for (name, digest) in ["../outside.txt": outsideDigest, outside.path: outsideDigest, "sub/inner.txt": innerDigest, "sub": "", ".": "",
+                               "..": "", "": "", recordName: "", "user.csv\0": RExternalLaunchRecord.digest(Data("user data".utf8))] {
+            hostileRecord.files[name] = digest
+        }
         try hostileRecord.write(to: hostile.record)
-        // A script copy the user changed is kept; one replaced by a link to an identical file loses only the link.
+        // A script copy the user changed is kept, and so is a start-up file the user replaced; one replaced by a link to an
+        // identical file loses only the link; a file the record does not list (the user's own startup.R) stays.
         let changed = try launch(in: root, app: ended, host: nil)
         try Data("x <- 2\n".utf8).write(to: changed.script)
+        let replaced = try launch(in: root, app: ended, host: nil)
+        try Data("# my own\n".utf8).write(to: replaced.profile)
+        try Data("# my own set-up\n".utf8).write(to: replaced.directory.appendingPathComponent("startup.R"))
         let linked = try launch(in: root, app: ended, host: nil)
         let target = root.appendingPathComponent("target.R")
         try Data("x <- 1\n".utf8).write(to: target)
@@ -341,21 +647,46 @@ import Darwin
         let removedWhileRApp = RExternalScript.removeLeftovers(in: [root, root], rAppRunning: { true })
         try check(cleaned(endedApp) && cleaned(reusedApp) && cleaned(inSession) && untouched(runningApp) && untouched(starting) && untouched(unrecorded),
                   "at quit or start, a launch whose R.app has ended (or whose id another process now has) loses its files; a running or starting one keeps them")
+        try check(untouched(otherEnded) && untouched(otherStarting),
+                  "another StatsDirect that is still running keeps its launches, both one whose R.app has ended and one still starting")
         try check(untouched(tooDeep) && untouched(retained) && untouched(lowercase) && exists(unknown.appendingPathComponent("Sheet1 Worksheet.R"))
-                  && exists(unknown.appendingPathComponent("startup.R")) && untouched(elsewhere) && exists(link) && untouched(corrupt),
+                  && exists(unknown.appendingPathComponent("startup.R")) && untouched(elsewhere) && exists(link) && untouched(corrupt) && untouched(earlier),
                   "only External R-<UUID> folders with a valid record, in R Sessions or one folder below, are looked at; links are not followed")
-        try check(cleaned(hostile) && exists(root.appendingPathComponent("outside.txt")) && exists(hostile.directory.appendingPathComponent("sub/inner.txt")),
+        try check(cleaned(hostile) && exists(outside) && exists(hostile.directory.appendingPathComponent("sub/inner.txt")),
                   "a record cannot remove anything but plain files in its own folder")
-        try check(exists(changed.script) && (try String(contentsOf: changed.script, encoding: .utf8)) == "x <- 2\n" && !exists(changed.profile) && !exists(changed.record),
-                  "a script copy the user changed stays; startup.R and the record go")
+        try check(text(changed.script) == "x <- 2\n" && !exists(changed.profile) && !exists(changed.record),
+                  "a script copy the user changed stays; the start-up file and the record go")
+        try check(text(replaced.profile) == "# my own\n" && text(replaced.directory.appendingPathComponent("startup.R")) == "# my own set-up\n"
+                  && !exists(replaced.script) && !exists(replaced.record),
+                  "a start-up file the user replaced stays, as does their own startup.R; the unchanged copy and the record go")
         try check(!exists(linked.script) && exists(target) && !exists(linked.profile), "a linked script copy loses only its link")
-        try check(Set(removedWhileRApp.map(\.path)).count == removedWhileRApp.count, "a root named twice is cleaned once")
+        try check(paths(removedWhileRApp).count == removedWhileRApp.count, "a root named twice is cleaned once")
 
         // Once no R.app runs, an unrecorded launch whose StatsDirect has gone loses its files too.
         let removedLater = RExternalScript.removeLeftovers(in: [root], rAppRunning: { false })
-        try check(cleaned(unrecorded) && untouched(starting) && untouched(runningApp)
-                  && Set(removedLater.map(\.path)) == Set([unrecorded.script, unrecorded.profile, unrecorded.record].map(\.path)),
-                  "an unrecorded launch goes once its StatsDirect has gone and no R.app runs", removedLater.map(\.path).joined(separator: "\n"))
+        try check(cleaned(unrecorded) && untouched(starting) && untouched(runningApp) && untouched(otherEnded) && untouched(otherStarting)
+                  && paths(removedLater) == paths([unrecorded.script, unrecorded.profile, unrecorded.record]),
+                  "an unrecorded launch goes once its StatsDirect has gone and no R.app runs; another running StatsDirect's launch still stays",
+                  removedLater.map(\.path).joined(separator: "\n"))
+
+        // This test process, too, is another running StatsDirect to a clean-up that is not its own: its launch whose R.app
+        // has ended, and its launch still starting, stay until it cleans up itself.
+        let mine = try launch(in: root, app: ended, host: me)
+        let removedByAnother = RExternalScript.removeLeftovers(in: [root], this: reused, rAppRunning: { false })
+        try check(removedByAnother.isEmpty && untouched(mine) && untouched(starting),
+                  "another StatsDirect's clean-up leaves this running one's launches alone, ended or starting", removedByAnother.map(\.path).joined(separator: "\n"))
+        let removedByMine = RExternalScript.removeLeftovers(in: [root], rAppRunning: { false })
+        try check(cleaned(mine) && untouched(starting) && paths(removedByMine) == paths([mine.script, mine.profile, mine.record]),
+                  "this StatsDirect's own clean-up removes its launch whose R.app has ended, and keeps the one still starting",
+                  removedByMine.map(\.path).joined(separator: "\n"))
+
+        // When that other StatsDirect has gone, its launches are leftovers like any other.
+        stop(other)
+        let removedAfterOther = RExternalScript.removeLeftovers(in: [root], rAppRunning: { false })
+        try check(cleaned(otherEnded) && cleaned(otherStarting) && untouched(starting) && untouched(runningApp)
+                  && paths(removedAfterOther) == paths([otherEnded.script, otherEnded.profile, otherEnded.record,
+                                                         otherStarting.script, otherStarting.profile, otherStarting.record]),
+                  "once the other StatsDirect has gone, and no R.app runs, its launches lose their files", removedAfterOther.map(\.path).joined(separator: "\n"))
     }
 
     // MARK: Console private folders (6.2, at start)
@@ -363,43 +694,65 @@ import Darwin
     static func privateFolders(work: URL) throws {
         let temporary = try folder(work.appendingPathComponent("T", isDirectory: true))
         let ended = try endedProcess(), me = RProcessIdentity.current!
-        func make(_ name: String, worker: RProcessIdentity?, raw: Data? = nil, hoursOld: Double = 0) throws -> URL {
+        let other = try spawnSleep()
+        defer { stop(other) }
+        guard let otherHost = RProcessIdentity.of(other.processIdentifier) else { throw Failure(description: "no identity for a child process") }
+        func make(_ name: String, host: RProcessIdentity? = nil, worker: RProcessIdentity?, record: Bool = true, raw: Data? = nil, hoursOld: Double = 0) throws -> URL {
             let folder = temporary.appendingPathComponent(name, isDirectory: true)
             try fm.createDirectory(at: folder.appendingPathComponent("Rtmp/RtmpABCDEF", isDirectory: true), withIntermediateDirectories: true)
             try Data("{\"type\":\"commandFinished\",\"source\":\"secret <- 'data'\"}\n".utf8).write(to: folder.appendingPathComponent("events.ndjson"))
             try Data("r temp".utf8).write(to: folder.appendingPathComponent("Rtmp/RtmpABCDEF/file1"))
             guard mkfifo(folder.appendingPathComponent("input").path, 0o600) == 0 else { throw Failure(description: "mkfifo failed") }
-            if let worker { try JSONEncoder().encode(worker).write(to: folder.appendingPathComponent(RConsoleSession.workerRecordName)) }
-            if let raw { try raw.write(to: folder.appendingPathComponent(RConsoleSession.workerRecordName)) }
+            let file = folder.appendingPathComponent(RConsoleSession.processRecordName)
+            if record { try JSONEncoder().encode(RConsolePrivateFolderRecord(host: host, worker: worker)).write(to: file) }
+            if let raw { try raw.write(to: file) }
             if hoursOld > 0 { try fm.setAttributes([.modificationDate: Date().addingTimeInterval(-hoursOld * 3600)], ofItemAtPath: folder.path) }
             return folder
         }
         let prefix = RConsoleSession.privateFolderPrefix
-        let endedWorker = try make(prefix + UUID().uuidString, worker: ended)
-        let runningWorker = try make(prefix + UUID().uuidString, worker: me)
-        let reusedWorker = try make(prefix + UUID().uuidString, worker: RProcessIdentity(pid: me.pid, started: me.started + 1))
-        let young = try make(prefix + UUID().uuidString, worker: nil)
-        let old = try make(prefix + UUID().uuidString, worker: nil, hoursOld: 2)
-        let corrupt = try make(prefix + UUID().uuidString, worker: nil, raw: Data("{\"pid\":".utf8), hoursOld: 2)
+        func named() -> String { prefix + UUID().uuidString }
+        let endedWorker = try make(named(), host: ended, worker: ended)
+        let runningWorker = try make(named(), host: ended, worker: me)
+        let reusedWorker = try make(named(), host: ended, worker: RProcessIdentity(pid: me.pid, started: me.started + 1))
+        // While the StatsDirect that made a folder runs, the folder is its own: another one's, or this one's.
+        let otherHostEnded = try make(named(), host: otherHost, worker: ended, hoursOld: 2)
+        let otherHostStarting = try make(named(), host: otherHost, worker: nil, hoursOld: 2)
+        let thisHostEnded = try make(named(), host: me, worker: ended, hoursOld: 2)
+        let thisHostStarting = try make(named(), host: me, worker: nil, hoursOld: 2)
+        // Its StatsDirect ended before recording a worker, which may still be running.
+        let endedHostStarting = try make(named(), host: ended, worker: nil)
+        // Without a record (an older version's folder), or with a corrupt one, age decides as well.
+        let young = try make(named(), worker: nil, record: false)
+        let old = try make(named(), worker: nil, record: false, hoursOld: 2)
+        let corrupt = try make(named(), worker: nil, record: false, raw: Data("{\"host\":".utf8), hoursOld: 2)
         let others = try [prefix + UUID().uuidString.lowercased(), prefix + "not-a-uuid", "StatsDirect-RConsoleX-" + UUID().uuidString,
-                          "Other-" + UUID().uuidString].map { try make($0, worker: ended, hoursOld: 2) }
-        let elsewhere = try make("elsewhere", worker: ended, hoursOld: 2)
-        let link = temporary.appendingPathComponent(prefix + UUID().uuidString)
+                          "Other-" + UUID().uuidString].map { try make($0, host: ended, worker: ended, hoursOld: 2) }
+        let elsewhere = try make("elsewhere", host: ended, worker: ended, hoursOld: 2)
+        let link = temporary.appendingPathComponent(named())
         try fm.createSymbolicLink(at: link, withDestinationURL: elsewhere)
-        let file = temporary.appendingPathComponent(prefix + UUID().uuidString)
+        let file = temporary.appendingPathComponent(named())
         try Data("a file".utf8).write(to: file)
+        let kept = [otherHostEnded, otherHostStarting, thisHostEnded, thisHostStarting]
 
         try check(RConsoleSession.removeLeftoverPrivateFolders(in: temporary, owner: getuid() + 1, anyWorkerRunning: { false }).isEmpty
                   && exists(endedWorker), "another user's folders are never removed")
         let whileWorking = RConsoleSession.removeLeftoverPrivateFolders(in: temporary, anyWorkerRunning: { true })
-        try check(Set(whileWorking.map(\.path)) == Set([endedWorker, reusedWorker].map(\.path)) && exists(runningWorker) && exists(young) && exists(old) && exists(corrupt),
-                  "a folder whose recorded worker has gone is removed, whole; a running worker's folder stays; unrecorded folders stay while any worker runs",
+        try check(paths(whileWorking) == paths([endedWorker, reusedWorker]) && exists(runningWorker) && exists(endedHostStarting)
+                  && exists(young) && exists(old) && exists(corrupt) && kept.allSatisfy(exists),
+                  "a folder whose StatsDirect and worker have both gone is removed, whole; a running worker's folder stays; folders without a worker stay while any worker runs",
                   whileWorking.map(\.path).joined(separator: "\n"))
+        try check(kept.allSatisfy(exists),
+                  "a folder whose StatsDirect still runs stays, whether that is another StatsDirect or this one, with its worker ended or not yet recorded")
         let afterwards = RConsoleSession.removeLeftoverPrivateFolders(in: temporary, anyWorkerRunning: { false })
-        try check(Set(afterwards.map(\.path)) == Set([old, corrupt].map(\.path)) && exists(young) && exists(runningWorker),
-                  "an unrecorded folder goes when it is old and no worker runs; a young one stays", afterwards.map(\.path).joined(separator: "\n"))
+        try check(paths(afterwards) == paths([endedHostStarting, old, corrupt]) && exists(young) && exists(runningWorker) && kept.allSatisfy(exists),
+                  "when no worker runs, a folder whose StatsDirect ended before its worker was recorded goes, and so does an old folder without a record; a young one stays",
+                  afterwards.map(\.path).joined(separator: "\n"))
         try check(others.allSatisfy(exists) && exists(link) && exists(elsewhere.appendingPathComponent("events.ndjson")) && exists(file),
                   "only real StatsDirect-RConsole-<UUID> folders are looked at: not other names, links or files")
+        stop(other)
+        let afterOther = RConsoleSession.removeLeftoverPrivateFolders(in: temporary, anyWorkerRunning: { false })
+        try check(paths(afterOther) == paths([otherHostEnded, otherHostStarting]) && exists(thisHostEnded) && exists(thisHostStarting),
+                  "once the other StatsDirect has gone, its folders go; this one's stay while it runs", afterOther.map(\.path).joined(separator: "\n"))
     }
 
     // MARK: A console worker whose host is killed
@@ -455,27 +808,29 @@ import Darwin
         let deadline = Date().addingTimeInterval(120)
         while !exists(info) {
             guard host.isRunning, Date() < deadline else {
-                throw Failure(description: "the host did not start its console:\n" + ((try? String(contentsOf: log, encoding: .utf8)) ?? ""))
+                throw Failure(description: "the host did not start its console:\n" + (text(log) ?? ""))
             }
             try await Task.sleep(nanoseconds: 50_000_000)
         }
         let details = try JSONSerialization.jsonObject(with: Data(contentsOf: info)) as! [String: Any]
         let pid = Int32(details["pid"] as! Int), directory = URL(fileURLWithPath: details["directory"] as! String)
         let ipc = URL(fileURLWithPath: details["temporary"] as! String).resolvingSymlinksInPath().deletingLastPathComponent().deletingLastPathComponent()
-        let record = try? JSONDecoder().decode(RProcessIdentity.self, from: Data(contentsOf: ipc.appendingPathComponent(RConsoleSession.workerRecordName)))
-        workerIdentity = record
+        let record = try? JSONDecoder().decode(RConsolePrivateFolderRecord.self,
+                                               from: Data(contentsOf: ipc.appendingPathComponent(RConsoleSession.processRecordName)))
+        workerIdentity = record?.worker
         try check(ipc.deletingLastPathComponent().path == temporary.resolvingSymlinksInPath().path
-                  && ipc.lastPathComponent.hasPrefix(RConsoleSession.privateFolderPrefix) && record?.pid == pid && record?.isRunning == true,
-                  "a console session records its worker's identity in its private folder", ipc.path)
-        let events = { (try? String(contentsOf: ipc.appendingPathComponent("events.ndjson"), encoding: .utf8)) ?? "" }
+                  && ipc.lastPathComponent.hasPrefix(RConsoleSession.privateFolderPrefix) && record?.worker?.pid == pid && record?.worker?.isRunning == true
+                  && record?.host?.pid == host.processIdentifier && record?.host?.isRunning == true,
+                  "a console session records its StatsDirect's identity and its worker's in its private folder", ipc.path)
+        let events = { text(ipc.appendingPathComponent("events.ndjson")) ?? "" }
         try check(events().contains("worksheet data 12345"), "the private event log holds the command's data, which is why a leftover matters")
         try check(RConsoleSession.removeLeftoverPrivateFolders(in: temporary).isEmpty && exists(ipc),
-                  "start-up keeps the private folder of a worker that is still running")
+                  "start-up keeps the private folder of a StatsDirect and worker that are still running")
 
         kill(host.processIdentifier, SIGKILL); host.waitUntilExit()
         let gone = Date().addingTimeInterval(20)
-        while record?.isRunning == true && Date() < gone { try await Task.sleep(nanoseconds: 50_000_000) }
-        try check(record?.isRunning == false && exists(ipc) && events().contains("worksheet data 12345"),
+        while record?.worker?.isRunning == true && Date() < gone { try await Task.sleep(nanoseconds: 50_000_000) }
+        try check(record?.worker?.isRunning == false && record?.host?.isRunning == false && exists(ipc) && events().contains("worksheet data 12345"),
                   "when its host is killed, the worker ends and its private folder, with the data, is left behind")
         let removed = RConsoleSession.removeLeftoverPrivateFolders(in: temporary)
         try check(removed.map(\.lastPathComponent) == [ipc.lastPathComponent] && !exists(ipc)

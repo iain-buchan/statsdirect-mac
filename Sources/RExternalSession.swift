@@ -6,9 +6,10 @@ import CryptoKit
 /// - RStudio opens a script for the user to run when they choose, so R+ gives it one uniquely named file per import in
 ///   R Scripts: the user's own file, and the only copy.
 /// - R.app is started to run a copy in "External R-<UUID>", which is also R's working directory, and shows that copy in
-///   its editor. When R ends, startup.R removes the copy (unless the user has saved changes to it) and itself. A launch
-///   record beside them lets StatsDirect do the same for an R.app that did not end normally, when StatsDirect quits or
-///   next starts. The folder always stays: users save files there.
+///   its editor. When R ends, StatsDirect's start-up file removes the copy and itself, each only while it is unchanged
+///   (a copy the user has saved changes to is theirs). A launch record beside them lets StatsDirect do the same for an
+///   R.app that did not end normally, when StatsDirect quits or next starts. The folder always stays: users save files
+///   there.
 /// - With neither installed, the script is saved in R Scripts under its own name.
 @MainActor enum RExternalScript {
     nonisolated(unsafe) static var opensExternally = true
@@ -169,11 +170,13 @@ import CryptoKit
     }
 
     /// Removes what R.app sessions that did not end normally left in External R-<UUID> folders, directly in each root or
-    /// one folder below it (a console session's or a script pane's folder): the files a launch record lists, the script
-    /// copy while it is unchanged, and the record itself. A launch whose R.app is still running, or may be, keeps
-    /// everything, and so does a folder without a record. Folders always stay. Returns the files removed.
+    /// one folder below it (a console session's or a script pane's folder): each file a launch record lists, while it is
+    /// still what the launch wrote, and then the record itself. A launch made by another StatsDirect that is still running
+    /// is that StatsDirect's own, whether or not its R.app has started, and keeps everything; so does a launch whose R.app
+    /// is still running, or may be, and a folder without a record (an earlier version's, or RStudio's). Folders always
+    /// stay. `this` is the StatsDirect calling. Returns the files removed.
     @discardableResult nonisolated static func removeLeftovers(
-        in roots: [URL], isRunning: (RProcessIdentity) -> Bool = { $0.isRunning },
+        in roots: [URL], this: RProcessIdentity? = .current, isRunning: (RProcessIdentity) -> Bool = { $0.isRunning },
         rAppRunning: () -> Bool = { !NSRunningApplication.runningApplications(withBundleIdentifier: rAppIdentifier).isEmpty }) -> [URL] {
         let fm = FileManager.default, owner = getuid()
         func isFolder(_ url: URL) -> Bool {
@@ -201,38 +204,46 @@ import CryptoKit
         for folder in folders where isFolder(folder) {
             let recordURL = folder.appendingPathComponent(RExternalLaunchRecord.fileName)
             guard let launch = RExternalLaunchRecord.read(recordURL) else { continue }
+            // Another StatsDirect that is still running looks after its own launches, even one still starting.
+            if let host = launch.host, host != this, isRunning(host) { continue }
             if let app = launch.app {
                 if isRunning(app) { continue }
             } else {
-                // Not yet recorded: still starting while the StatsDirect that launched it runs; afterwards, any R.app
-                // that is running might be the one using these files.
-                if let host = launch.host, isRunning(host) { continue }
+                // Not yet recorded: still starting, when this StatsDirect launched it; otherwise any R.app that is
+                // running might be the one using these files.
+                if let host = launch.host, host == this { continue }
                 if rApp == nil { rApp = rAppRunning() }
                 if rApp == true { continue }
             }
-            for name in Set(launch.files + [launch.script]).sorted() where RExternalLaunchRecord.isPlainName(name) {
+            var kept = false
+            for (name, digest) in launch.files.sorted(by: { $0.key < $1.key }) where RExternalLaunchRecord.isPlainName(name) {
                 let file = folder.appendingPathComponent(name)
                 var info = stat()
                 guard lstat(file.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG || info.st_mode & S_IFMT == S_IFLNK else { continue }
-                // A script copy the user has saved changes to, in R.app's editor, is the user's file.
-                if name == launch.script, fm.contents(atPath: file.path).map(RExternalLaunchRecord.digest) != launch.scriptSHA256 { continue }
-                if unlink(file.path) == 0 { removed.append(file) }
+                // A file that is no longer what this launch wrote is the user's: a script copy they saved changes to in
+                // R.app's editor, or their own file under that name.
+                guard fm.contents(atPath: file.path).map(RExternalLaunchRecord.digest) == digest else { continue }
+                if unlink(file.path) == 0 { removed.append(file) } else { kept = true }
             }
-            if unlink(recordURL.path) == 0 { removed.append(recordURL) }
+            // The record goes once what it lists is gone or the user's, so that a later run can retry the rest.
+            if !kept, unlink(recordURL.path) == 0 { removed.append(recordURL) }
         }
         return removed
     }
 }
 
-/// What one R.app launch leaves in its folder (rule 6.2): the script copy, which goes only while it is unchanged, the
-/// other files that go with it, and the processes that may still need them. R removes all of these when it ends;
+/// What one R.app launch leaves in its folder (rule 6.2): the script copy and StatsDirect's start-up file, each of which
+/// goes only while it is unchanged, and the processes that may still need them. R removes these when it ends;
 /// StatsDirect removes them, when it quits or next starts, after an R.app that did not end normally.
 struct RExternalLaunchRecord: Codable, Equatable {
     static let fileName = ".statsdirect-launch.json"
-    var script: String
-    var scriptSHA256: String
-    var files: [String]
-    /// The StatsDirect that launched R.app: while it runs, a launch it has not yet recorded is still starting.
+    /// This launch's own identifier. The start-up file holds it too, and R removes the record only while it still does.
+    var id: String
+    /// The files the launch wrote, by name, each with the SHA-256 of what was written. A file that is no longer that (a
+    /// script copy the user has saved changes to in R.app's editor, or their own file in its place) is the user's.
+    var files: [String: String]
+    /// The StatsDirect that launched R.app: while it runs, the launch is its own, and a launch it has not yet recorded
+    /// is still starting.
     var host: RProcessIdentity?
     /// R.app, once it has launched.
     var app: RProcessIdentity?
@@ -258,10 +269,38 @@ struct RExternalLaunchRecord: Codable, Equatable {
 /// in R.app opens its editor; the profile also runs it, as the Windows host does.
 /// Never change the user's .Rprofile or replace an existing R workspace.
 struct RExternalSession {
+    /// StatsDirect's start-up file in the launch folder, which is R's working directory: a reserved hidden name, which
+    /// no script copy takes and a user is unlikely to choose.
+    static let profileName = ".statsdirect-startup.R"
+    /// Where the user's own R_PROFILE_USER, when StatsDirect has one, reaches the start-up file (rule 6.1).
+    static let userProfileVariable = "STATSDIRECT_USER_R_PROFILE"
     let directory: URL
     let script: URL
     let profile: URL
     var record: URL { directory.appendingPathComponent(RExternalLaunchRecord.fileName) }
+
+    /// The name a script copy takes in the launch folder: its own, unless that is the start-up file's or the launch
+    /// record's in some letter case (compared as the Mac's disks compare names), when it becomes "Script <name>".
+    static func scriptName(_ name: String) -> String {
+        [profileName, RExternalLaunchRecord.fileName].contains { name.compare($0, options: .caseInsensitive) == .orderedSame }
+            ? "Script " + name : name
+    }
+
+    /// An R string literal in printable ASCII, with every other character as an escape: R reads it the same in any
+    /// locale, and never sees a raw bidirectional-text control, for which it refuses the whole file.
+    static func rLiteral(_ value: String) -> String {
+        var text = "\""
+        for scalar in value.unicodeScalars {
+            switch scalar.value {
+            case 0x22: text += "\\\""
+            case 0x5C: text += "\\\\"
+            case 0x20..<0x7F: text.unicodeScalars.append(scalar)
+            case 0..<0x10000: text += String(format: "\\u%04x", scalar.value)
+            default: text += String(format: "\\U%08x", scalar.value)
+            }
+        }
+        return text + "\""
+    }
 
     init(script source: URL, directory: URL) throws {
         try self.init(data: try Data(contentsOf: source), name: source.lastPathComponent, directory: directory)
@@ -271,41 +310,44 @@ struct RExternalSession {
     /// not for a worksheet import, whose data would fill the console before str() (rule 5.4).
     init(data: Data, name: String, directory: URL, echo: Bool = true) throws {
         self.directory = directory
-        script = directory.appendingPathComponent(name)
-        profile = directory.appendingPathComponent("startup.R")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        // The record comes first, so that whatever a crash interrupts can still be found and removed.
-        try RExternalLaunchRecord(script: name, scriptSHA256: RExternalLaunchRecord.digest(data), files: [profile.lastPathComponent],
-                                  host: .current, app: nil).write(to: record)
-        try data.write(to: script, options: .atomic)
-        // R refuses a whole file whose string literal holds a raw bidirectional-text control.
-        func literal(_ value: String) throws -> String {
-            let json = String(decoding: try JSONSerialization.data(withJSONObject: value, options: [.fragmentsAllowed, .withoutEscapingSlashes]), as: UTF8.self)
-            var text = ""
-            for scalar in json.unicodeScalars {
-                if (0x202A...0x202E).contains(scalar.value) || (0x2066...0x2069).contains(scalar.value) { text += String(format: "\\u%04x", scalar.value) }
-                else { text.unicodeScalars.append(scalar) }
-            }
-            return text
-        }
+        script = directory.appendingPathComponent(Self.scriptName(name))
+        profile = directory.appendingPathComponent(Self.profileName)
+        let id = UUID().uuidString
+        let literal = Self.rLiteral
         let text = """
-        # Only this R process uses the StatsDirect startup profile.
+        # Only this R process uses the StatsDirect start-up file.
         Sys.unsetenv("R_PROFILE_USER")
-        # When R ends, remove this file, the launch record and the script copy, unless the user has saved changes to the
-        # copy. The folder stays: it is R's working directory.
+        # When R ends, remove the script copy and this file, each only while it is unchanged (a copy the user has saved
+        # changes to is theirs), then the launch record. Exact paths, never patterns: R's unlink would read [ ], * and ?
+        # in a name as a pattern. The folder stays: it is R's working directory.
         invisible(try(local({
-          file <- \(try literal(script.path))
-          saved <- tools::md5sum(file)
-          reg.finalizer(globalenv(), function(e) {
-            try(if (identical(tools::md5sum(file), saved)) unlink(file), silent = TRUE)
-            unlink(c(\(try literal(profile.path)), \(try literal(record.path))))
-          }, onexit = TRUE)
+          files <- c(\(literal(script.path)), \(literal(profile.path)))
+          record <- \(literal(record.path))
+          saved <- tools::md5sum(files)
+          reg.finalizer(globalenv(), function(e) try({
+            now <- tools::md5sum(files)
+            unchanged <- !is.na(saved) & !is.na(now) & saved == now
+            suppressWarnings(file.remove(files[unchanged]))
+            if (!any(file.exists(files[unchanged])) && length(grepRaw(\(literal(id)), readBin(record, "raw", 65536L), fixed = TRUE)))
+              suppressWarnings(file.remove(record))
+          }, silent = TRUE), onexit = TRUE)
         }), silent = TRUE))
-        # The user's own start-up file, as R itself would have run it: ./.Rprofile, else ~/.Rprofile.
+        # The user's own start-up file, as R itself would have run it: the file the user's own R_PROFILE_USER names, when
+        # they had one, else ./.Rprofile, else ~/.Rprofile. R processes started from this session get the user's
+        # R_PROFILE_USER back, or none.
         local({
-          home <- Sys.getenv("HOME", unset = NA)
-          profile <- if (file.access(".Rprofile", 4L) == 0L) ".Rprofile" else if (!is.na(home)) file.path(home, ".Rprofile")
-          if (!is.null(profile) && file.access(profile, 4L) == 0L) try(source(profile, local = globalenv(), print.eval = TRUE))
+          user <- Sys.getenv("\(Self.userProfileVariable)", unset = NA)
+          Sys.unsetenv("\(Self.userProfileVariable)")
+          profile <- if (!is.na(user)) {
+            Sys.setenv(R_PROFILE_USER = user)
+            if (nzchar(user)) path.expand(user)
+          } else if (file.access(".Rprofile", 4L) == 0L) ".Rprofile" else {
+            home <- Sys.getenv("HOME", unset = NA)
+            if (!is.na(home)) file.path(home, ".Rprofile")
+          }
+          # As R reads it, without re-encoding, whatever options(encoding) says.
+          if (!is.null(profile) && file.access(profile, 4L) == 0L && !dir.exists(profile))
+            try(source(profile, local = globalenv(), print.eval = TRUE, encoding = "native.enc"))
           invisible(NULL)
         })
         .First <- local({
@@ -322,9 +364,10 @@ struct RExternalSession {
             folder <- Sys.getenv("STATSDIRECT_R_FOLDER", unset = path.expand("~/Library/Application Support/StatsDirect Viewer"))
             library <- file.path(folder, "R Library")
             if (dir.exists(library)) .libPaths(c(library, .libPaths()))
-            setwd(\(try literal(directory.path)))
-            file <- \(try literal(script.path))
+            setwd(\(literal(directory.path)))
+            file <- \(literal(script.path))
             cat("\\nStatsDirect: running ", basename(file), "\\n", sep = "")
+            # The script is UTF-8, whatever the user's start-up file sets options(encoding) to.
             tryCatch(source(file, local = .GlobalEnv, echo = \(echo ? "TRUE" : "FALSE"), print.eval = TRUE,
                             max.deparse.length = Inf, spaced = FALSE, encoding = "UTF-8"),
                      error = function(e) message("StatsDirect script: ", conditionMessage(e)))
@@ -335,13 +378,24 @@ struct RExternalSession {
         """
         // R's startup parser requires a final newline to evaluate the last
         // expression (source() alone would not expose this difference).
-        try (text + "\n").write(to: profile, atomically: true, encoding: .utf8)
+        let profileData = Data((text + "\n").utf8)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        // The record comes first, so that whatever a crash interrupts can still be found and removed.
+        var files = [profile.lastPathComponent: RExternalLaunchRecord.digest(profileData)]
+        files[script.lastPathComponent] = RExternalLaunchRecord.digest(data)
+        try RExternalLaunchRecord(id: id, files: files, host: .current, app: nil).write(to: record)
+        try data.write(to: script, options: .atomic)
+        try profileData.write(to: profile, options: .atomic)
     }
 
-    @MainActor func configuration() -> NSWorkspace.OpenConfiguration {
+    /// R.app's environment: StatsDirect's start-up file in place of the user's, and the user's own R_PROFILE_USER, when
+    /// StatsDirect's environment has one (`environment`), for the start-up file to run and give back (rule 6.1).
+    @MainActor func configuration(environment: [String: String] = ProcessInfo.processInfo.environment) -> NSWorkspace.OpenConfiguration {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
-        configuration.environment = ["R_PROFILE_USER": profile.path]
+        var variables = ["R_PROFILE_USER": profile.path]
+        if let user = environment["R_PROFILE_USER"] { variables[Self.userProfileVariable] = user }
+        configuration.environment = variables
         return configuration
     }
 

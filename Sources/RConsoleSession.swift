@@ -214,6 +214,12 @@ import CoreFoundation
         let ipc = temporaryRoot.appendingPathComponent(Self.privateFolderPrefix + UUID().uuidString, isDirectory: true)
         try fm.createDirectory(at: ipc, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         ipcDirectory = ipc
+        // A crash can leave this folder, whose event log holds each command's full text, data included. Naming this
+        // StatsDirect now, before anything is in it, and its worker once started, lets a later start remove the folder
+        // once both have gone, and keeps another StatsDirect's clean-up away while either runs (removeLeftoverPrivateFolders).
+        let processes = ipc.appendingPathComponent(Self.processRecordName)
+        var users = RConsolePrivateFolderRecord(host: .current, worker: nil)
+        try? JSONEncoder().encode(users).write(to: processes, options: .atomic)
         // R owns everything under this private temporary root. Retire it only
         // after its worker exits; never sweep the persistent session folder,
         // which can contain the user's charts, data and external-R scripts.
@@ -261,11 +267,8 @@ import CoreFoundation
             }
         ]
         try task.run()
-        // A crash can leave this folder, whose event log holds each command's full text, data included. Naming the
-        // worker lets a later start remove the folder once that worker has gone (removeLeftoverPrivateFolders).
-        if let worker = RProcessIdentity.of(task.processIdentifier), let record = try? JSONEncoder().encode(worker) {
-            try? record.write(to: ipc.appendingPathComponent(Self.workerRecordName), options: .atomic)
-        }
+        users.worker = RProcessIdentity.of(task.processIdentifier)
+        try? JSONEncoder().encode(users).write(to: processes, options: .atomic)
         try? stdout.fileHandleForWriting.close(); try? stderr.fileHandleForWriting.close()
         let source = DispatchSource.makeTimerSource(queue: .main)
         source.schedule(deadline: .now(), repeating: .milliseconds(30), leeway: .milliseconds(5))
@@ -543,17 +546,19 @@ import CoreFoundation
 
 extension RConsoleSession {
     nonisolated static let privateFolderPrefix = "StatsDirect-RConsole-"
-    nonisolated static let workerRecordName = "worker.json"
-    /// How old a private folder without a worker record must be before it can go: far longer than the moment between
-    /// creating a folder and starting its worker, in this or another running StatsDirect.
+    /// The private folder's record of the processes that use it (RConsolePrivateFolderRecord).
+    nonisolated static let processRecordName = "processes.json"
+    /// How old a private folder without a record must be before it can go: far longer than the moment between creating
+    /// a folder and recording it, in an older version of StatsDirect that may be running.
     nonisolated static let unrecordedFolderAge: TimeInterval = 600
 
     /// A session's private folder in the user's temporary folder ($TMPDIR) is removed when its worker ends and when
     /// StatsDirect quits (shutdown and releaseIO), but a crash leaves it, with the event log of every command and its
-    /// data. At start and at quit, this removes such folders from earlier runs once their worker has gone: only folders
-    /// named StatsDirect-RConsole-<UUID>, owned by this user, and judged by the worker recorded in each. A folder without
-    /// that record (from an older version, or a crash before its worker started) goes only when it is ten minutes old
-    /// and no console worker of this user is running at all. Returns the folders removed.
+    /// data. At start and at quit, this removes such folders from earlier runs once nothing uses them: only folders named
+    /// StatsDirect-RConsole-<UUID>, owned by this user, and judged by the processes recorded in each. A folder stays
+    /// while the StatsDirect that made it runs (this one, or another) or while its worker does. One whose StatsDirect
+    /// ended before recording a worker goes once no console worker of this user runs at all, and one without a record
+    /// (from an older version) only when it is also ten minutes old. Returns the folders removed.
     @discardableResult nonisolated static func removeLeftoverPrivateFolders(
         in temporary: URL = FileManager.default.temporaryDirectory, owner: uid_t = getuid(), now: Date = Date(),
         isRunning: (RProcessIdentity) -> Bool = { $0.isRunning },
@@ -561,32 +566,46 @@ extension RConsoleSession {
         let fm = FileManager.default
         guard let names = try? fm.contentsOfDirectory(atPath: temporary.path) else { return [] }
         var removed: [URL] = [], workerRunning: Bool?
+        func noWorkerRunning() -> Bool {
+            if workerRunning == nil { workerRunning = anyWorkerRunning() }
+            return workerRunning == false
+        }
         for name in names.sorted() where name.hasPrefix(privateFolderPrefix) {
             let id = String(name.dropFirst(privateFolderPrefix.count))
             guard UUID(uuidString: id)?.uuidString == id else { continue }
             let folder = temporary.appendingPathComponent(name, isDirectory: true)
             var info = stat()
             guard lstat(folder.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR, info.st_uid == owner else { continue }
-            if let worker = workerRecord(in: folder) {
+            let record = processRecord(in: folder)
+            if let host = record?.host, isRunning(host) { continue }
+            if let worker = record?.worker {
                 if isRunning(worker) { continue }
+            } else if record?.host != nil {
+                // Its StatsDirect ended before recording a worker, which may still have started.
+                guard noWorkerRunning() else { continue }
             } else {
                 let modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec))
-                guard now.timeIntervalSince(modified) > unrecordedFolderAge else { continue }
-                if workerRunning == nil { workerRunning = anyWorkerRunning() }
-                if workerRunning == true { continue }
+                guard now.timeIntervalSince(modified) > unrecordedFolderAge, noWorkerRunning() else { continue }
             }
             if (try? fm.removeItem(at: folder)) != nil { removed.append(folder) }
         }
         return removed
     }
 
-    nonisolated private static func workerRecord(in folder: URL) -> RProcessIdentity? {
-        let file = folder.appendingPathComponent(workerRecordName)
+    nonisolated private static func processRecord(in folder: URL) -> RConsolePrivateFolderRecord? {
+        let file = folder.appendingPathComponent(processRecordName)
         var info = stat()
         guard lstat(file.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_size < 4096,
               let data = FileManager.default.contents(atPath: file.path) else { return nil }
-        return try? JSONDecoder().decode(RProcessIdentity.self, from: data)
+        return try? JSONDecoder().decode(RConsolePrivateFolderRecord.self, from: data)
     }
+}
+
+/// The processes that use a console session's private folder: the StatsDirect that made it, and its worker once that
+/// has started (rule 6.2 of the worksheet R rules).
+struct RConsolePrivateFolderRecord: Codable, Equatable, Sendable {
+    var host: RProcessIdentity?
+    var worker: RProcessIdentity?
 }
 
 /// A process as the system knows it: its id and the moment it started, so that a reused process id is never taken for

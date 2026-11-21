@@ -2,7 +2,10 @@
 styles, column widths and every formula in the workbook re-referenced, or the save is refused where
 the prototype cannot move a feature. Run with the workbook driver and openpyxl."""
 import json, subprocess, sys, tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from stat import S_IMODE
+from threading import Event
 import openpyxl
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'Tests'))
@@ -11,7 +14,57 @@ driver = subprocess.Popen([sys.argv[1], str(ROOT / 'FullEngine/publish/StatsDire
 def request(**payload):
     driver.stdin.write(json.dumps(payload) + '\n'); driver.stdin.flush()
     return json.loads(driver.stdout.readline())
+
+def save_with_private_staging(destination, **payload):
+    """Observe live staging entries in an otherwise empty destination folder."""
+    ready, finished = Event(), Event()
+    def observe():
+        modes = {}
+        ready.set()
+        while not finished.is_set():
+            for entry in destination.parent.iterdir():
+                if entry == destination:
+                    continue
+                try:
+                    modes[entry.name] = modes.get(entry.name, 0) | S_IMODE(entry.stat().st_mode)
+                except FileNotFoundError:
+                    pass    # an entry already renamed or removed by the writer
+            finished.wait(0.001)
+        return modes
+    with ThreadPoolExecutor(max_workers=1) as readers:
+        observed = readers.submit(observe)
+        try:
+            assert ready.wait(5), 'The staging observer did not start'
+            result = request(action='save', path=str(destination), **payload)
+        finally:
+            finished.set()
+        modes = observed.result()
+    assert result.get('ok') and not result.get('recalculated'), result
+    assert modes, 'No in-progress staging entry was observed for the large workbook'
+    assert all(mode & 0o077 == 0 for mode in modes.values()), modes
+    assert S_IMODE(destination.stat().st_mode) == 0o600, destination
+    assert list(destination.parent.iterdir()) == [destination]
+
 def cell(col, row, text, kind='number'): return {'col': col, 'row': row, 'text': str(text), 'kind': kind}
+def with_results(path, results):
+    """Gives formulas the results Excel saves with them, which openpyxl does not write: {worksheet part: {cell: value}}.
+    This lets the insert tests verify that preexisting results are removed after a structural edit."""
+    import zipfile, xml.etree.ElementTree as ET
+    main = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+    ET.register_namespace('', main)
+    with zipfile.ZipFile(path) as source: items = [(item, source.read(item.filename)) for item in source.infolist()]
+    with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as target:
+        for item, data in items:
+            if item.filename in results:
+                root = ET.fromstring(data)
+                cells = {c.attrib['r']: c for c in root.iter('{%s}c' % main)}
+                for ref, value in results[item.filename].items():
+                    assert cells[ref].find('{%s}f' % main) is not None, ref
+                    v = cells[ref].find('{%s}v' % main)
+                    if v is None: v = ET.SubElement(cells[ref], '{%s}v' % main)
+                    v.text = repr(value)
+                data = ET.tostring(root, encoding='utf-8', xml_declaration=True)
+            target.writestr(item, data)
 
 try:
     with tempfile.TemporaryDirectory() as folder:
@@ -23,6 +76,7 @@ try:
         ws.column_dimensions['B'].width = 30
         other = wb.create_sheet('Other'); other['A1'] = '=Data!B2+1'
         wb.save(source)
+        with_results(source, {'xl/worksheets/sheet1.xml': {'A2': 1, 'A3': 0.5, 'A4': 0.25}, 'xl/worksheets/sheet2.xml': {'A1': 1.5}})
         opened = request(action='open', path=str(source)); assert 'error' not in opened, opened
         # The grid inserted one column before B (a log transform written after the selected column A):
         # B holds the output, y moved to C with its format, z to D; A's formulas and Other's formula still point at y.
@@ -60,12 +114,14 @@ try:
             for repeat in range(2):
                 result=request(action='save',id=opened['id'],path=str(dest),**grid[state]); assert result.get('ok'),result
             x=openpyxl.load_workbook(dest)['Data']
-            if state=='undone': assert x['B3'].value==21 and x['A3'].value=='=B3*2'
+            if state=='undone':
+                assert x['B3'].value==21 and x['A3'].value=='=B3*2'
+                assert openpyxl.load_workbook(dest,data_only=True)['Data']['A3'].value is None
             else:
                 assert x['C3'].value==21 and x['B3'].value=='=C3*2' and x['D3'].value==8
-                assert x['C3'].number_format=='0.00%' and openpyxl.load_workbook(dest,data_only=True)['Data']['B3'].value==42
+                assert x['C3'].number_format=='0.00%' and openpyxl.load_workbook(dest,data_only=True)['Data']['B3'].value is None
                 assert len(grid[state]['sheets'][0]['cells'])==5,grid[state]
-        print('PASS: real grid plan → export → native save, prior edits, moved formula cells, recalculation, repeated saves and undo/redo')
+        print('PASS: real grid plan → export → native save, prior edits, moved formula cells, cleared saved results, repeated saves and undo/redo')
 
         # Every refusal is checked at preflight as well as save; neither the source nor
         # an existing destination may change, and no temporary file may remain.
@@ -77,7 +133,7 @@ try:
         from openpyxl.worksheet.table import Table
         from openpyxl.worksheet.formula import ArrayFormula
         NS = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
-        def insert(path, col=1, count=1, stream=False, expect=None, sheet='Data', changes=None):
+        def insert(path, col=1, count=1, stream=False, expect=None, sheet='Data', changes=None, recalculated=None):
             opened=request(action='open',path=str(path)); assert 'error' not in opened, opened
             args=dict(id=opened['id'],inserts=[{'name':sheet,'inserts':[{'col':col,'count':count}]}])
             digest=hashlib.sha256(path.read_bytes()).digest()
@@ -91,7 +147,9 @@ try:
                 assert dest.read_bytes()==b'previous destination'
             else:
                 assert pre.get('ok') and result.get('ok'), (pre,result)
-                if stream and opened.get('formulaCount',0): assert result.get('uncachedFormulas',0)>0,result
+                if opened.get('formulaCount',0): assert result.get('uncachedFormulas',0)>0,result
+                # The patcher the save took: ClosedXML's (True) or streaming (False).
+                if recalculated is not None: assert result.get('recalculated') is recalculated, (path.name, stream, result)
             assert hashlib.sha256(path.read_bytes()).digest()==digest
             assert not list(Path(folder).glob('*.tmp*'))
             request(action='close',id=opened['id'])
@@ -112,10 +170,11 @@ try:
         w.defined_names.add(DefinedName('Results',attr_text="'Data'!$B$2:$C$6")); d.print_area='A1:C6'
         d.auto_filter.ref='A1:C6'; d.auto_filter.add_filter_column(1,['2'])
         d['C8']='=SUM($B2,C$2,$B$2,B:B,2:2)+N("B2")'
-        other=w.create_sheet('Other'); other['A1']="='Data'!B2+1"; other['A2']='=[1]Data!B2'
+        other=w.create_sheet('Other'); other['A1']="='Data'!B2+1"
         w.save(p)
+        with_results(p, {'xl/worksheets/sheet1.xml': {'C8': 15}, 'xl/worksheets/sheet2.xml': {'A1': 3}})
         for streaming in (False,True):
-            saved=insert(p,stream=streaming); loaded=openpyxl.load_workbook(saved); x=loaded['Data']
+            saved=insert(p,stream=streaming,recalculated=False); loaded=openpyxl.load_workbook(saved); x=loaded['Data']
             assert x['C2'].value==2 and x['C2'].number_format=='0.00%' and x['C2'].font.bold and x['C2'].font.name=='Arial'
             assert x['C2'].fill.fgColor.rgb=='0000FF00' and x['C2'].border.bottom.style=='thin'
             assert x.column_dimensions['C'].width==32 and x.column_dimensions['D'].hidden and x.row_dimensions[2].height==30
@@ -129,8 +188,32 @@ try:
             assert x.auto_filter.ref=='A1:D6' and x.auto_filter.filterColumn[0].colId==2
             assert x['D8'].value=='=SUM($C2,D$2,$C$2,C:C,2:2)+N("B2")', x['D8'].value
             assert loaded['Other']['A1'].value.replace("'",'')=='=Data!C2+1'
-            assert loaded['Other']['A2'].value=='=[1]Data!B2'
-        print('PASS: formatting, widths, hidden columns, merged ranges, conditional formats, validation, links, freeze panes, filters, names and cross-sheet/absolute/external references on both save paths')
+            values=openpyxl.load_workbook(saved,data_only=True)
+            assert values['Data']['D8'].value is None and values['Other']['A1'].value is None
+        # A reference to another workbook is kept as written and waits for Excel to recalculate.
+        w,d,p=book('external.xlsx'); other=w.create_sheet('Other'); other['A1']="='Data'!B2+1"; other['A2']='=[1]Data!B2'; w.save(p)
+        with_results(p, {'xl/worksheets/sheet2.xml': {'A1': 3, 'A2': 2}})
+        for streaming in (False,True):
+            loaded=openpyxl.load_workbook(insert(p,stream=streaming,recalculated=False))
+            assert loaded['Other']['A1'].value.replace("'",'')=='=Data!C2+1' and loaded['Other']['A2'].value=='=[1]Data!B2'
+        print('PASS: formatting, widths, hidden columns, merged ranges, conditional formats, validation, links, freeze panes, filters, names and cross-sheet/absolute/external references through an edited save')
+
+        # Both sheets start with the same figures, so a check of the saved result cannot tell that ClosedXML
+        # reads the local column. Inserting before the local B changes that wrong sum to 0, but Table1 stays at 6.
+        w=openpyxl.Workbook(); d=w.active; d.title='Data'; p=Path(folder)/'cross-sheet-table.xlsx'
+        values=w.create_sheet('Other')
+        values.append(['Name','Value'])
+        for r, (name, value) in enumerate(zip('abc',(1,2,3)),start=2):
+            d.cell(r,2,value); values.append([name,value])
+        values.add_table(Table(displayName='Table1',ref='A1:B4'))
+        d['C1']='=SUM(Table1[Value])'; w.save(p)
+        with_results(p, {'xl/worksheets/sheet1.xml': {'C1': 6}})
+        saved=insert(p,recalculated=False)
+        loaded=openpyxl.load_workbook(saved)
+        assert loaded['Data']['D1'].value=='=SUM(Table1[Value])'
+        assert openpyxl.load_workbook(saved,data_only=True)['Data']['D1'].value is None
+        assert [loaded['Other'][f'B{r}'].value for r in (2,3,4)]==[1,2,3]
+        print('PASS: an insertion clears a cross-sheet table formula cache even if the old result agreed by coincidence')
 
         w,d,p=book('table.xlsx'); d.add_table(Table(displayName='Trial',ref='A1:C2')); w.save(p)
         saved=insert(p,col=0); assert openpyxl.load_workbook(saved)['Data'].tables['Trial'].ref=='B1:D2'
@@ -219,7 +302,21 @@ try:
         large=Path(folder)/'large.xlsx'; w=openpyxl.Workbook(write_only=True); d=w.create_sheet('Data')
         for r in range(100001): d.append([r]*10)
         w.save(large)
-        saved=insert(large,col=1)
+        large.chmod(0o600)
+        opened = request(action='open', path=str(large), snapshot=str(Path(folder)/'large-snapshots'))
+        assert 'error' not in opened, opened
+        data = [{'name': 'Data', 'cells': [cell(1, 0, 'result', 'text')]}]
+        inserts = [{'name': 'Data', 'inserts': [{'col': 1, 'count': 1}]}]
+        digest = hashlib.sha256(large.read_bytes()).digest()
+        assert request(action='validateInserts', id=opened['id'], inserts=inserts).get('ok')
+        for label, options in (('streamed', {'stream': True}), ('inserted', {'inserts': inserts})):
+            destination_folder = Path(folder)/f'large-{label}'
+            destination_folder.mkdir(mode=0o755)
+            saved = destination_folder/'result.xlsx'
+            save_with_private_staging(saved, id=opened['id'], sheets=data, **options)
+        assert hashlib.sha256(large.read_bytes()).digest() == digest
+        assert request(action='close', id=opened['id'])['ok']
+        print('PASS: streaming and column insertion keep every observed in-progress workbook staging entry private')
         read=openpyxl.load_workbook(saved,read_only=True); rows=read['Data'].iter_rows(values_only=True)
         first=next(rows); assert first[:4]==(0,'result',0,0),first
         last=None

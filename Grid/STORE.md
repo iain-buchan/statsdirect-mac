@@ -52,16 +52,20 @@ so memory is spent only on the cells a sheet holds (shared strings and cell styl
 once per workbook; shared formulas are expanded for their dependant cells). The reply lists
 the cells as JSON, or, when the request names a `snapshot` directory, writes one typed
 columnar file per sheet (`snapshot.mjs` documents the format) that the grid fetches into
-typed arrays. A new workbook is written by a streaming XML writer with inline strings. An
-opened workbook is patched: through ClosedXML, which recalculates formulas and preserves
-styles, when the original plus the edits hold at most one million cells and ClosedXML can
-calculate every formula, and otherwise by streaming each worksheet part and merging the edited
-cells, in which case formula cells keep their expressions, lose their cached results and the
-workbook is marked for recalculation when Excel opens it (`uncachedFormulas` in the reply tells
-the user). ClosedXML cannot calculate a function it lacks, a link to another workbook, or any
-formula whose evaluation fails, which stops its calculation part way with other results stale.
-A workbook saved with no edited cell and no inserted column is copied as opened, with the
-results and calculation settings Excel saved.
+typed arrays. A new workbook is written by a streaming XML writer with inline strings.
+A workbook saved with no edited cell and no inserted column is copied as opened, with
+the results and calculation settings Excel saved. For an edited workbook without
+worksheet formulas, a small package that ClosedXML can load and preserve is patched
+through ClosedXML. Other edits stream, including any workbook with worksheet formulas,
+any save requested to stream, or a large workbook. Streaming merges the changed cells
+with each worksheet part, preserves formula expressions and clears formula results so
+Excel calculates them on open. The save reply reports the invalidated results in
+`uncachedFormulas`. After reopening a saved workbook in StatsDirect, analyses and R
+refuse those cells until Excel has saved fresh results. A match between ClosedXML
+and the old Excel results cannot establish a correct answer for an edited input.
+For an unedited save, the copy, like the private copy taken at open, is a new file with the same bytes, not a copy
+that carries the original's date, read-only permission or Finder lock. The private copy and every saved workbook can
+be read and written by those who could read and write the workbook as opened, and always by its owner.
 
 The prototype's 500,000-cell, 50 MB, 256 MB and 128-sheet limits are gone. Measured through
 the native driver on the 1,048,576-row × 4-column probe workbook (35 MB):

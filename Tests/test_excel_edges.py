@@ -219,15 +219,15 @@ try:
             ('<c r="B{r}" t="str"><f>IF(A1&gt;0,"",1)</f></c>', '', 'blank', FORMULA, None),   # no saved result
             ('<c r="B{r}"><f>IF(A1&gt;0,"",1)</f><v/></c>', '', 'blank', FORMULA, None),       # as openpyxl writes every formula
             ('<c r="B{r}" t="str"><f>"x"</f><v>x</v></c>', 'x', 'text', '"x"', None)]
-        def make_values(path, nonfinite):
+        def make_values(path, nonfinite, formulas=FORMULAS):
             source = folder/'values-source.xlsx'; book = openpyxl.Workbook(); ws = book.active; ws.title = 'Values'
             for r, (value, code, _, _) in enumerate(VALUES, 1): ws.cell(r, 1, value).number_format = code
-            for r in range(1, len(FORMULAS) + 1): ws.cell(r, 2, 2000 + r)
+            for r in range(1, len(formulas) + 1): ws.cell(r, 2, 2000 + r)
             for r in range(1, len(nonfinite) + 1): ws.cell(r, 3, 1000 + r).number_format = 'yyyy-mm-dd' if r % 2 else 'General'
             book.save(source)
             def special(xml):
                 for r, text in enumerate(nonfinite, 1): xml = xml.replace('<v>%d</v>' % (1000 + r), '<v>%s</v>' % text)
-                for r, (cell, *_) in enumerate(FORMULAS, 1): xml = re.sub(r'<c r="B%d"[^>]*>.*?</c>' % r, lambda m: cell.format(r=r), xml, count=1)
+                for r, (cell, *_) in enumerate(formulas, 1): xml = re.sub(r'<c r="B%d"[^>]*>.*?</c>' % r, lambda m: cell.format(r=r), xml, count=1)
                 return xml
             rewrite(source, path, 'xl/worksheets/sheet1.xml', special)
         def check_values(reply, nonfinite=NONFINITE):
@@ -312,18 +312,33 @@ try:
             assert result.get('ok') and result['recalculated'] is False and result['uncachedFormulas'] == len(FORMULAS), (stream, result)
             check_round_trip(out, f'streaming patch, stream={stream}', moved, uncached)
         assert request(action='close', id=opened['id'])['ok']
-        # ClosedXML recalculates every formula, so =IF(A1>0,"",1) then has a saved empty result.
+        # Even a workbook ClosedXML can load is saved by streaming when it contains formulas.
         READABLE = ['INF', '-INF']   # ClosedXML 0.105 loads these, which .NET does not read as numbers, in any style
         readable = folder/'values-readable.xlsx'; make_values(readable, READABLE)
         opened = request(action='open', path=str(readable)); check_values(opened, READABLE)
         moved, edits = edits_of(opened)
-        out = folder/'values-closedxml.xlsx'
+        out = folder/'values-unsaved-results.xlsx'
         result = request(action='save', id=opened['id'], path=str(out), sheets=edits)
-        assert result.get('ok') and result['recalculated'] is True and result['uncachedFormulas'] == 0, result
-        recalculated = [('', 'blank', formula, True) if formula == FORMULA else (text, kind, formula, None) for _, text, kind, formula, _ in FORMULAS]
-        check_round_trip(out, 'ClosedXML patch', moved, recalculated, READABLE)
+        assert result.get('ok') and result['recalculated'] is False and result['uncachedFormulas'] == len(FORMULAS), result
+        check_round_trip(out, 'streaming patch for formulas without saved results', moved, uncached, READABLE)
         assert request(action='close', id=opened['id'])['ok']
-        print('PASS: dates (1900-02-29 included), times of day and durations keep their text and kind through all three save paths; typed 26:00:00, R date-times and impossible dates save correctly, and dates before 1900-01-01 and durations beyond 9999-12-31 as text; a workbook ClosedXML cannot load is saved by streaming')
+        # Saved empty strings are kept in unedited copies and cleared like numeric caches after an edit.
+        SAVED = [f for f in FORMULAS if f[4] or f[3] != FORMULA]
+        assert len(SAVED) == 3
+        verified = folder/'values-verified.xlsx'; make_values(verified, READABLE, SAVED)
+        opened = request(action='open', path=str(verified)); check_values(opened, READABLE)
+        moved, edits = edits_of(opened)
+        out = folder/'values-byte-copy.xlsx'
+        result = request(action='save', id=opened['id'], path=str(out), sheets=[{'name':'Values','cells':[]}])
+        assert result.get('ok') and result['recalculated'] is False and result['uncachedFormulas'] == 0, result
+        assert out.read_bytes() == verified.read_bytes()
+        out = folder/'values-edited.xlsx'
+        result = request(action='save', id=opened['id'], path=str(out), sheets=edits)
+        assert result.get('ok') and result['recalculated'] is False and result['uncachedFormulas'] == len(SAVED), result
+        cleared = [('', 'blank', formula, None) for _, _, _, formula, _ in SAVED]
+        check_round_trip(out, 'edit after all results were saved', moved, cleared, READABLE)
+        assert request(action='close', id=opened['id'])['ok']
+        print('PASS: dates (1900-02-29 included), times of day and durations keep their text and kind through new, copied and edited workbooks; typed 26:00:00, R date-times and impossible dates save correctly, and dates before 1900-01-01 and durations beyond 9999-12-31 as text; a workbook ClosedXML cannot load is saved by streaming')
         # 11. The 1904 date system: a time of day is still a time, serial 0 is 1904-01-01, 60 is an ordinary day, a negative date
         #     stays a number, and 1900-02-29 is no date at all. A workbook without saved empty results has no extras group.
         MAC = [(14.5 / 24, 'h:mm', '14:30:00', 'timespan'), (0, 'yyyy-mm-dd', '1904-01-01 00:00:00', 'datetime'),
@@ -362,7 +377,7 @@ try:
         #     time format from 0 up to one day is a time of day, judged on the value itself and only then rounded, so 0.999999999
         #     reads 1.00:00:00 (24:00:00 in R). A date or date-time beyond the last day, or before the first day of its system, is
         #     a number, judged rounded to the millisecond, as its text is. Every rounding is half away from zero. Every value is
-        #     then saved, as it is and moved into a cell of the General style, through all three save paths and reopened. An
+        #     then saved, as it is and moved into a cell of the General style, through new, copied and edited workbooks and reopened. An
         #     in-place save of a time of day that rounds to a whole day writes 1, which a time format holds as a date-time (a
         #     value of one day or more in a format with no date): the two patch paths keep the cell's own format, so it reopens
         #     as that date-time (the fifth item), while moved into the General style, or into a new workbook, it takes the
@@ -485,6 +500,67 @@ try:
             for r, (value, _, text, kind) in enumerate(ISO): assert (got[(0, r)]['text'], got[(0, r)]['kind']) == (text, kind), (date1904, value, got[(0, r)])
             assert request(action='close', id=opened['id'])['ok']
         print('PASS: ISO 8601 cells keep the clock time written, whatever the zone, and a time with no date is a time of day')
+        # 15. A source that is old, read-only and locked in the Finder. The private copy taken at open and every saved file are
+        #     new files holding the workbook's bytes, not file-system copies that carry the date, the permission and the lock:
+        #     no save fails or leaves a locked temporary file, and a saved file is dated now and can be written to.
+        import shutil, stat, time
+        locked = folder/'locked.xlsx'; shutil.copyfile(verified, locked)
+        os.utime(locked, (978350400, 978350400)); os.chmod(locked, 0o444); os.chflags(locked, stat.UF_IMMUTABLE)
+        try:
+            copies = folder/'locked-snapshots'
+            opened = request(action='open', path=str(locked), snapshot=str(copies)); assert 'error' not in opened, opened
+            private = list(copies.glob('statsdirect-workbook-*.xlsx'))
+            assert len(private) == 1 and not private[0].stat().st_flags & stat.UF_IMMUTABLE and private[0].stat().st_mode & 0o200, private
+            edit = [{'name': 'Values', 'cells': [{'col': 9, 'row': 30, 'text': '5', 'kind': 'number'}]}]
+            unchanged = [{'name': 'Values', 'cells': []}]
+            for label, cells, stream in (('unedited', unchanged, False), ('edited', edit, False), ('edited-stream', edit, True)):
+                out = folder/f'locked-{label}.xlsx'
+                result = request(action='save', id=opened['id'], path=str(out), sheets=cells, stream=stream)
+                assert result.get('ok'), (label, result)
+                made = out.stat()
+                assert not made.st_flags & stat.UF_IMMUTABLE and made.st_mode & 0o200 and made.st_mtime > time.time() - 600, (label, made)
+                if label == 'unedited': assert out.read_bytes() == locked.read_bytes()
+            assert not list(folder.glob('*.tmp*')), list(folder.glob('*.tmp*'))
+            assert request(action='close', id=opened['id'])['ok'] and not list(copies.glob('statsdirect-workbook-*.xlsx'))
+        finally:
+            os.chflags(locked, 0); os.chmod(locked, 0o644)
+        print('PASS: an old, read-only, Finder-locked workbook opens and saves, unedited and edited, as new unlocked files dated now')
+        # 16. A workbook only its owner may read stays so: in the private copy, and saved unedited, edited and streamed.
+        #     One that others may read stays readable by them.
+        for mode in (0o600, 0o640, 0o644):
+            source = folder/f'mode-{mode:o}.xlsx'; shutil.copyfile(verified, source); os.chmod(source, mode)
+            copies = folder/f'mode-{mode:o}-snapshots'
+            opened = request(action='open', path=str(source), snapshot=str(copies)); assert 'error' not in opened, opened
+            private = list(copies.glob('statsdirect-workbook-*.xlsx'))
+            assert len(private) == 1 and stat.S_IMODE(private[0].stat().st_mode) == mode, (oct(mode), private)
+            for label, cells, stream in (('unedited', unchanged, False), ('edited', edit, False), ('edited-stream', edit, True)):
+                out = folder/f'mode-{mode:o}-{label}.xlsx'
+                result = request(action='save', id=opened['id'], path=str(out), sheets=cells, stream=stream)
+                assert result.get('ok') and stat.S_IMODE(out.stat().st_mode) == mode, (oct(mode), label, result, oct(out.stat().st_mode))
+            assert request(action='close', id=opened['id'])['ok']
+        print('PASS: a workbook keeps who may read and write it through the private copy and every save')
+        # 17. Replacing an existing workbook cannot widen its permissions. A formula-free
+        #     source exercises the unchanged, ClosedXML and forced streaming save paths.
+        for source_mode in (0o644, 0o664):
+            source = folder/f'overwrite-source-{source_mode:o}.xlsx'
+            shutil.copyfile(plain, source)
+            source.chmod(source_mode)
+            opened = request(action='open', path=str(source))
+            assert 'error' not in opened, opened
+            edited_data = [{'name': 'Data', 'cells': [{'col': 0, 'row': 0, 'text': '789', 'kind': 'number'}]}]
+            unedited_data = [{'name': 'Data', 'cells': []}]
+            for target_mode in (0o600, 0o640):
+                for label, save_data, stream in (('unedited', unedited_data, False), ('edited', edited_data, False),
+                                                ('streamed', edited_data, True)):
+                    out = folder/f'overwrite-{source_mode:o}-{target_mode:o}-{label}.xlsx'
+                    out.write_bytes(b'previous destination')
+                    out.chmod(target_mode)
+                    result = request(action='save', id=opened['id'], path=str(out), sheets=save_data, stream=stream)
+                    assert result.get('ok') and zipfile.is_zipfile(out), result
+                    saved_mode = stat.S_IMODE(out.stat().st_mode)
+                    assert saved_mode == target_mode, (oct(source_mode), oct(target_mode), label, oct(saved_mode))
+            assert request(action='close', id=opened['id'])['ok']
+        print('PASS: unchanged, edited and streamed saves preserve a more restrictive existing destination mode')
         # Formula-region caches must also stay safe through Save As/reopen, not only the initial import.
         from excel_formula_region_save import check_formula_region_saves
         check_formula_region_saves(request, sys.argv[2], folder)

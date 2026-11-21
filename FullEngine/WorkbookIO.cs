@@ -23,16 +23,15 @@ using ClosedXML.Excel;
 // that the grid loads into typed arrays without going through JSON.
 //
 // Saving writes a new workbook with a streaming XML writer. An unchanged source workbook
-// is copied with its original calculation settings and cached results. Edits are patched:
-// small workbooks through ClosedXML (which recalculates formulas and preserves styles),
-// others by streaming each worksheet part and merging the edited cells, leaving Excel to
-// recalculate formulas when it opens the file: large ones, and any whose formulas ClosedXML
-// cannot all calculate (a function it lacks, a link to another workbook, a failed evaluation).
+// is copied with its original calculation settings and cached results. An edited, small
+// workbook without formulas can use the ClosedXML patcher. Any edited workbook with
+// formulas streams: preserving the formula expressions but clearing their saved results
+// lets Excel calculate for the new inputs without sending a different engine's results to R.
 public static partial class WorkbookIO {
     // Above this many cells (original plus edits) a patch streams instead of loading ClosedXML.
     public const int ClosedXmlCells = 1000000;
     const int MaxRows = 1048576, MaxCols = 16384;
-    static readonly ConcurrentDictionary<string, (string path, long cells)> originals = new();
+    static readonly ConcurrentDictionary<string, (string path, long cells, bool hasFormulas)> originals = new();
     static WorkbookIO() {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { foreach (var original in originals.Values) { try { File.Delete(original.path); } catch { } } };
@@ -221,8 +220,19 @@ public static partial class WorkbookIO {
         var id = Guid.NewGuid().ToString("N");
         var sheets = new List<Sheet>();
         var written = new List<string>();
+        bool madeFolder = false;
         try {
-        using (var zip = ZipFile.OpenRead(path)) {
+        // The original is kept as a private copy so later edits on disk do not change what is patched. The copy is taken
+        // first and the cells are read from it, so the grid and the copy hold the same workbook even when the file is
+        // replaced while it is read (by a sync client, or Excel's AutoSave).
+        string copy = null;
+        if (!dataCopy) {
+            if (snapshotDir != null && !Directory.Exists(snapshotDir)) { Directory.CreateDirectory(snapshotDir); madeFolder = true; }
+            copy = System.IO.Path.Combine(snapshotDir ?? System.IO.Path.GetTempPath(), $"statsdirect-workbook-{id}.xlsx");
+            written.Add(copy);
+            CopyContents(path, copy);
+        }
+        using (var zip = ZipFile.OpenRead(copy ?? path)) {
             var package = new Package(zip);
             int index = 0;
             foreach (var info in package.Sheets) {
@@ -249,13 +259,54 @@ public static partial class WorkbookIO {
             return new { id, name = System.IO.Path.GetFileName(path), sheets, formulaCount = 0,
                 cellCount = sheets.Sum(s => (long)s.Count), dataCopy = true, importNotice = DataCopyNotice };
         }
-        // The original is kept as a private copy so later edits on disk do not change what is patched.
-        var copy = System.IO.Path.Combine(snapshotDir ?? System.IO.Path.GetTempPath(), $"statsdirect-workbook-{id}.xlsx");
-        written.Add(copy);
-        File.Copy(path, copy, true); originals[id] = (copy, sheets.Sum(x => (long)x.Count));
+        originals[id] = (copy, sheets.Sum(x => (long)x.Count), sheets.Any(x => x.FormulaCount > 0));
         return new { id, name = System.IO.Path.GetFileName(path), sheets, formulaCount = sheets.Sum(s => s.FormulaCount), cellCount = sheets.Sum(s => s.Count) };
-        } catch { foreach (var file in written) { try { File.Delete(file); } catch { } } throw; }
+        } catch {
+            foreach (var file in written) { try { File.Delete(file); } catch { } }
+            if (madeFolder) { try { Directory.Delete(snapshotDir); } catch { } }   // only while it is empty
+            throw;
+        }
     }
+    // A new file holding the source's bytes, which those who may read or write the source may read or write, and its
+    // owner always. A file-system copy would also give it the source's modification time, a read-only permission and
+    // Finder lock, and a locked copy can be neither patched nor removed.
+    static void CopyContents(string source, string target) {
+        using var input = File.OpenRead(source);
+        using var output = OperatingSystem.IsWindows() ? File.Create(target)
+            : new FileStream(target, new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write, UnixCreateMode = WorkbookPermissions(File.GetUnixFileMode(input.SafeFileHandle)) });
+        input.CopyTo(output);
+    }
+    // The owner's access is restored when saving a read-only source under another name.
+    static UnixFileMode WorkbookPermissions(UnixFileMode mode) =>
+        mode & (UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.OtherRead | UnixFileMode.OtherWrite)
+        | UnixFileMode.UserRead | UnixFileMode.UserWrite;
+
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    static void SetSavedWorkbookPermissions(string stagedFile, string opened, string destination) {
+        var mode = opened == null ? File.GetUnixFileMode(stagedFile) : WorkbookPermissions(File.GetUnixFileMode(opened));
+        // Replacing a file must also respect the destination's restrictions. Only absence means there is no mode to keep.
+        try { mode &= File.GetUnixFileMode(destination); } catch (FileNotFoundException) { }
+        File.SetUnixFileMode(stagedFile, mode);
+    }
+
+    // A Mac directory can inherit an ACL that grants access even when its POSIX mode is 0700.
+    // Remove it from the empty staging directory before writing any workbook data.
+    static void RemoveStagingAcl(string staging) {
+        const int extendedAcl = 0x100, operationNotSupported = 45;
+        var acl = acl_init(0);
+        if (acl == IntPtr.Zero) throw new IOException("Could not allocate an ACL for private workbook staging.");
+        try {
+            if (acl_set_file(staging, extendedAcl, acl) != 0 && Marshal.GetLastPInvokeError() != operationNotSupported)
+                throw new IOException("Could not make the workbook staging directory private.");
+        } finally { acl_free(acl); }
+    }
+
+    [DllImport("libSystem.B.dylib", SetLastError = true)]
+    static extern IntPtr acl_init(int count);
+    [DllImport("libSystem.B.dylib", SetLastError = true)]
+    static extern int acl_set_file([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int type, IntPtr acl);
+    [DllImport("libSystem.B.dylib")]
+    static extern int acl_free(IntPtr acl);
 
     sealed class SheetInfo { public string Name; public string Entry; public bool Hidden; }
     // Part names in a package are case-insensitive and relationship targets are percent-encoded.
@@ -699,14 +750,14 @@ public static partial class WorkbookIO {
     // ---- Save ------------------------------------------------------------------------
     static object Save(Request request) {
         if (!string.Equals(System.IO.Path.GetExtension(request.Path), ".xlsx", StringComparison.OrdinalIgnoreCase)) throw new Exception("Save the workbook with an .xlsx extension.");
-        string source = null; long originalCells = 0;
+        string source = null; long originalCells = 0; bool originalHasFormulas = false;
         if (!string.IsNullOrEmpty(request.Id)) {
             if (dataCopies.TryGetValue(request.Id, out var importedPath)) {
                 if (string.Equals(Path.GetFullPath(request.Path), importedPath, StringComparison.OrdinalIgnoreCase))
                     throw new Exception("Save the imported data under a new name to keep the original workbook intact.");
             } else {
                 if (!originals.TryGetValue(request.Id, out var original) || !File.Exists(original.path)) throw new Exception("The source workbook is no longer open.");
-                source = original.path; originalCells = original.cells;
+                source = original.path; originalCells = original.cells; originalHasFormulas = original.hasFormulas;
             }
         }
         List<SheetData> sheets;
@@ -716,32 +767,43 @@ public static partial class WorkbookIO {
         foreach (var sheet in sheets) foreach (var col in sheet.Columns.Values) foreach (var r in col.Rows) {
             if (r < 0 || r >= MaxRows || col.Col < 0 || col.Col >= MaxCols) throw new Exception("Cell is outside Excel's worksheet dimensions.");
         }
-        var temporary = request.Path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        var destination = Path.GetFullPath(request.Path);
+        // Keep all intermediate bytes behind an owner-only directory, on the same volume for atomic replacement.
+        var parent = Path.GetDirectoryName(destination);
+        if (!Directory.Exists(parent)) throw new DirectoryNotFoundException("The workbook destination folder was not found.");
+        var staging = Path.Combine(parent, ".statsdirect-save-" + Guid.NewGuid().ToString("N"));
+        var temporary = Path.Combine(staging, "workbook.xlsx");
         int uncached = 0, sheetCount = sheets.Count; bool recalculated = true;
         var inserts = (request.Inserts ?? new()).Where(i => i.Inserts != null && i.Inserts.Count > 0).ToList();
-        string insertedSource = null;
+        if (OperatingSystem.IsWindows()) Directory.CreateDirectory(staging);
+        else Directory.CreateDirectory(staging, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var opened = source;
         try {
+            if (OperatingSystem.IsMacOS()) RemoveStagingAcl(staging);
             if (source == null) { using var stream = File.Create(temporary); WriteWorkbook(stream, sheets); }   // a new workbook already holds the cells where the grid put them
             else {
                 long edits = sheets.Sum(s => s.Columns.Values.Sum(c => (long)c.Rows.Count));
                 if (edits == 0 && inserts.Count == 0) {
-                    File.Copy(source, temporary, true);
+                    CopyContents(source, temporary);
                     recalculated = false;
                 } else {
                     if (inserts.Count > 0) {
-                        insertedSource = temporary + ".inserted.xlsx";
+                        var insertedSource = Path.Combine(staging, "inserted.xlsx");
                         InsertWorkbookColumns(source, insertedSource, inserts, sheets);
                         source = insertedSource;
                     }
-                    int? patched = null;
-                    if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source) && ClosedXmlCalculates(source)) { File.Copy(source, temporary, true); patched = PatchWithClosedXml(temporary, source, sheets); }
-                    if (patched is int count) uncached = count;
-                    else { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
+                    bool patched = false;
+                    if (!request.Stream && !originalHasFormulas && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source)) {
+                        CopyContents(source, temporary);
+                        patched = PatchWithClosedXml(temporary, source, sheets);
+                    }
+                    if (!patched) { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 }
                 sheetCount = CountSheets(temporary);
             }
-            File.Move(temporary, request.Path, true);
-        } finally { if (File.Exists(temporary)) File.Delete(temporary); if (insertedSource != null && File.Exists(insertedSource)) File.Delete(insertedSource); }
+            if (!OperatingSystem.IsWindows()) SetSavedWorkbookPermissions(temporary, opened, destination);
+            File.Move(temporary, destination, true);
+        } finally { Directory.Delete(staging, recursive: true); }
         return new { ok = true, path = request.Path, sheets = sheetCount, uncachedFormulas = uncached, recalculated };
     }
     static int CountSheets(string path) { using var zip = ZipFile.OpenRead(path); return new Package(zip, true).Sheets.Count; }
@@ -884,73 +946,15 @@ public static partial class WorkbookIO {
         w.WriteEndElement();
     }
 
-    // ---- Which patcher: whether ClosedXML can calculate every function the formulas call --
-    // The ClosedXML patcher writes ClosedXML's own result for every formula (PatchOriginal). A function it does not implement
-    // comes out as #NAME?, and IFERROR, ISERROR and the like turn that into an ordinary value, such as 0 for
-    // IFERROR(NORM.S.INV(0.975),0): neither is the result Excel saved, and a reopened workbook would send it to R and the
-    // analyses as Excel's. Such a workbook goes to the streaming patcher, which keeps the formulas, removes their saved
-    // results (reported as uncached) and leaves Excel to recalculate them. The functions are those called by any worksheet
-    // formula, and by the defined names those formulas use (and the names those use), each read with its string literals,
-    // quoted sheet names and bracketed parts (structured and external references) left out; a name nothing uses, such as a
-    // chart's OFFSET range, does not count.
-    static readonly Regex FormulaFunction = new(@"(?<![\p{L}\p{N}_.\\?])([\p{L}_\\][\p{L}\p{N}_.\\?]*)\(", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    static readonly Regex FormulaWord = new(@"(?<![\p{L}\p{N}_.\\?])[\p{L}_\\][\p{L}\p{N}_.\\?]*", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    static readonly Regex FormulaLiteral = new(@"""(?:[^""]|"""")*""|'(?:[^']|'')*'|\[[^\[\]]*\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    static readonly ConcurrentDictionary<string, bool> closedXmlFunctions = new(StringComparer.OrdinalIgnoreCase);
-    // Called with no arguments, a function ClosedXML lacks gives #NAME?, while one it has refuses the call as too few
-    // arguments, needs a cell to evaluate in, or gives its value. A call that fails any other way (LOG10() does) is made
-    // again with one argument, and one that fails both ways counts as lacking. Each name is asked once.
-    static bool ClosedXmlImplements(string function) => closedXmlFunctions.GetOrAdd(function, name => {
-        foreach (var call in new[] { name + "()", name + "(1)" }) {
-            try { var result = XLWorkbook.EvaluateExpr(call); return !(result.IsError && result.GetError() == XLError.NameNotRecognized); }
-            catch (ClosedXML.Excel.CalcEngine.ExpressionParseException) { return true; }
-            catch (InvalidOperationException) { return true; }
-            catch (Exception) { }
-        }
-        return false;
-    });
-    static bool ClosedXmlCalculates(string path) {
-        using var zip = ZipFile.OpenRead(path);
-        var package = new Package(zip, true);
-        // The defined names' formulas by name; a sheet's own name shares its name with the workbook's, and both are read.
-        var names = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var name in ReadXml(zip, "xl/workbook.xml").Root.Element(S + "definedNames")?.Elements(S + "definedName") ?? Enumerable.Empty<XElement>()) {
-            var key = (string)name.Attribute("name") ?? "";
-            if (!names.TryGetValue(key, out var formulas)) names[key] = formulas = new List<string>();
-            formulas.Add(name.Value);
-        }
-        var functions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var pending = new Queue<string>();
-        void Read(string formula) {
-            var text = FormulaLiteral.Replace(formula, "\"\"");
-            foreach (Match m in FormulaFunction.Matches(text)) functions.Add(m.Groups[1].Value);
-            if (names.Count > 0) foreach (Match m in FormulaWord.Matches(text)) if (names.ContainsKey(m.Value) && used.Add(m.Value)) pending.Enqueue(m.Value);
-        }
-        foreach (var sheet in package.Sheets) {
-            var entry = Entry(zip, sheet.Entry);
-            if (entry == null) continue;
-            using var stream = entry.Open();
-            using var reader = XmlReader.Create(stream);
-            while (!reader.EOF) {
-                if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "f" && reader.NamespaceURI == MainNs)
-                    Read(reader.ReadElementContentAsString());   // leaves the reader on the node after the element
-                else reader.Read();
-            }
-        }
-        while (pending.Count > 0) foreach (var formula in names[pending.Dequeue()]) Read(formula);
-        return functions.All(ClosedXmlImplements);
-    }
-
     // ---- Patch an opened workbook through ClosedXML (small workbooks) ------------------
     // Preserve the source package's styles, rich text and other worksheet features.
     // ClosedXML rewrites some inherited fonts on a full save of StatsDirect's test.xlsx.
     // Existing workbooks therefore receive cell patches, rather than a package rebuild.
-    // Null when ClosedXML cannot load the workbook, as with a NaN or 1e999 cell value written by another program: the
-    // lossless streaming patcher then saves it, and Excel recalculates.
-    static int? PatchWithClosedXml(string temporary, string source, List<SheetData> sheets) {
+    // False when ClosedXML cannot load the workbook, as with a NaN or 1e999 cell value written by another program.
+    // The streaming patcher then saves the workbook.
+    static bool PatchWithClosedXml(string temporary, string source, List<SheetData> sheets) {
         XLWorkbook loaded;
-        try { loaded = new XLWorkbook(source); } catch (ArgumentException) { return null; }
+        try { loaded = new XLWorkbook(source); } catch (ArgumentException) { return false; }
         using var workbook = loaded;
         var patches = new List<Patch>();
         foreach (var data in sheets) {
@@ -973,24 +977,11 @@ public static partial class WorkbookIO {
             }
             patches.Add(new Patch(data.Name, cells));
         }
-        // Excel refreshes preserved formula expressions when it opens the exported workbook.
-        workbook.CalculateMode = XLCalculateMode.Auto;
-        workbook.FullCalculationOnLoad = true;
-        workbook.ForceFullCalculation = true;
-        return PatchOriginal(temporary, workbook, patches);
+        PatchOriginal(temporary, workbook, patches);
+        return true;
     }
-    // The number of formula results left for Excel to recalculate, or null when ClosedXML's results cannot be trusted.
-    static int? PatchOriginal(string path, XLWorkbook workbook, List<Patch> patches) {
-        foreach (var worksheet in workbook.Worksheets)
-            foreach (var cell in worksheet.CellsUsed(XLCellsUsedOptions.Contents).Where(c => c.HasFormula)) cell.InvalidateFormula();
-        // A formula ClosedXML cannot evaluate (a reference to a workbook it cannot read, a circular reference) stops its
-        // calculation part way, and formulas it has not reached keep their old results with no error, so a stale value
-        // would be saved as Excel's. Then no result of this calculation is trusted: the caller saves by streaming instead,
-        // which leaves every formula for Excel to recalculate. The file is not touched before this point.
-        foreach (var worksheet in workbook.Worksheets)
-            foreach (var cell in worksheet.CellsUsed(XLCellsUsedOptions.Contents).Where(c => c.HasFormula)) {
-                try { _ = cell.Value; } catch { return null; }
-            }
+
+    static void PatchOriginal(string path, XLWorkbook workbook, List<Patch> patches) {
         XNamespace s = S, rel = Rel, packageRel = PackageRel;
         using var zip = ZipFile.Open(path, ZipArchiveMode.Update);
         XDocument Read(string name) { using var stream = Entry(zip, name).Open(); return XDocument.Load(stream); }
@@ -1001,7 +992,7 @@ public static partial class WorkbookIO {
         var bookXml = Read("xl/workbook.xml");
         var relationships = Read("xl/_rels/workbook.xml.rels").Root.Elements(packageRel + "Relationship")
             .ToDictionary(e => (string)e.Attribute("Id"), e => (string)e.Attribute("Target"));
-        int uncached = 0, dateStyle = -1, durationStyle = -1;
+        int dateStyle = -1, durationStyle = -1;
         bool dates = patches.Any(p => p.Cells.Any(c => c.Kind == "datetime")), durations = patches.Any(p => p.Cells.Any(c => c.Kind == "timespan"));
         if (dates || durations) {
             var stylesEntry = relationships.Values.Select(ResolveTarget).FirstOrDefault(e => Entry(zip, e) != null && e.EndsWith("styles.xml", StringComparison.OrdinalIgnoreCase));
@@ -1016,8 +1007,7 @@ public static partial class WorkbookIO {
             var name = (string)sheetInfo.Attribute("name");
             if (!workbook.Worksheets.TryGetWorksheet(name, out var sheet)) continue;
             var edits = patches.FirstOrDefault(p => p.Name == name)?.Cells ?? new List<Cell>();
-            var formulas = sheet.CellsUsed(XLCellsUsedOptions.Contents).Where(c => c.HasFormula).ToList();
-            if (edits.Count == 0 && formulas.Count == 0) continue;
+            if (edits.Count == 0) continue;
             var target = relationships[(string)sheetInfo.Attribute(rel + "id")];
             var entry = ResolveTarget(target);
             var xml = Read(entry); var data = xml.Root.Element(s + "sheetData");
@@ -1048,14 +1038,14 @@ public static partial class WorkbookIO {
                 if (nextCell != null) nextCell.AddBeforeSelf(cell); else row.Add(cell);
                 cells[(r,c)] = cell; return cell;
             }
-            void SetValue(XElement xmlCell, XLCellValue value, bool formula) {
+            void SetValue(XElement xmlCell, XLCellValue value) {
                 xmlCell.Element(s + "v")?.Remove(); xmlCell.Element(s + "is")?.Remove(); xmlCell.Attribute("t")?.Remove();
                 string text;
                 switch (value.Type) {
                     case XLDataType.Blank: return;
                     case XLDataType.Text:
-                        if (formula) { xmlCell.SetAttributeValue("t", "str"); xmlCell.Add(new XElement(s + "v", value.GetText())); }
-                        else { xmlCell.SetAttributeValue("t", "inlineStr"); xmlCell.Add(new XElement(s + "is", new XElement(s + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), value.GetText()))); }
+                        xmlCell.SetAttributeValue("t", "inlineStr");
+                        xmlCell.Add(new XElement(s + "is", new XElement(s + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), value.GetText())));
                         return;
                     case XLDataType.Boolean: xmlCell.SetAttributeValue("t", "b"); text = value.GetBoolean() ? "1" : "0"; break;
                     case XLDataType.Error: xmlCell.SetAttributeValue("t", "e"); text = value.ToString(CultureInfo.InvariantCulture); break;
@@ -1070,15 +1060,9 @@ public static partial class WorkbookIO {
             }
             foreach (var edit in edits) {
                 var xmlCell = Find(edit.Row+1, edit.Col+1);
-                SetValue(xmlCell, edit.Kind == "text" ? (XLCellValue)edit.Text : sheet.Cell(edit.Row+1, edit.Col+1).Value, false);
+                SetValue(xmlCell, edit.Kind == "text" ? (XLCellValue)edit.Text : sheet.Cell(edit.Row+1, edit.Col+1).Value);
                 int formatStyle = edit.Kind == "datetime" ? dateStyle : edit.Kind == "timespan" ? durationStyle : -1;
                 if (formatStyle >= 0 && ((string)xmlCell.Attribute("s") ?? "0") == "0") xmlCell.SetAttributeValue("s", formatStyle);
-            }
-            foreach (var cell in formulas) {
-                XLCellValue value;
-                try { value = cell.Value; } catch { value = Blank.Value; uncached++; }
-                var xmlCell = Find(cell.Address.RowNumber, cell.Address.ColumnNumber);
-                SetValue(xmlCell, value, true);
             }
             var dimension = xml.Root.Element(s + "dimension");
             if (dimension != null && edits.Count > 0 && cells.Count > 0) {
@@ -1091,7 +1075,6 @@ public static partial class WorkbookIO {
         if (calc == null) { calc = new XElement(s + "calcPr"); bookXml.Root.Add(calc); }
         calc.SetAttributeValue("calcMode", "auto"); calc.SetAttributeValue("fullCalcOnLoad", "1"); calc.SetAttributeValue("forceFullCalc", "1");
         Write("xl/workbook.xml", bookXml);
-        return uncached;
     }
 
     // Index of a cellXfs entry with a built-in number format (22 a date-time, 46 [h]:mm:ss), added

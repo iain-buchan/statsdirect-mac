@@ -70,37 +70,132 @@ import CryptoKit
 
     /// A new file in R Scripts for each import, never replacing another: "Sheet1 Worksheet 2026-11-21 101530.R", then
     /// " 2", " 3" and so on when that name is taken. Only a name in use moves on to the next number: any other failure is
-    /// reported as it is, and leaves no file.
-    static func saveUnique(_ source: String, name: String, date: Date = Date(), in folder: URL? = nil) throws -> URL {
+    /// reported, naming the file, and leaves no file. `rename` moves the finished file to its name unless the name is
+    /// taken (0, or the error number); the tests replace it to stand for a disk that cannot do that.
+    static func saveUnique(_ source: String, name: String, date: Date = Date(), in folder: URL? = nil,
+                           rename: (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Int32 = { renamex_np($0, $1, UInt32(RENAME_EXCL)) == 0 ? 0 : errno }) throws -> URL {
         let folder = folder ?? scriptsFolder
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "yyyy-MM-dd HHmmss"
         let stem = (fileName(name) as NSString).deletingPathExtension + " " + formatter.string(from: date)
+        func candidate(_ number: Int) -> URL { folder.appendingPathComponent(stem + (number == 1 ? "" : " \(number)") + ".R") }
+        func failure(_ code: Int32) -> Error { fileError(code, candidate(1)) }
+        let data = Data(source.utf8)
         // Write to our own private file first. A failed open or write never touches any candidate's path, and no reader
-        // can see a partial script at the chosen name. The temporary file is on the same volume as its destination.
-        let template = folder.appendingPathComponent(".statsdirect-r-XXXXXX")
-        guard var temporary = template.withUnsafeFileSystemRepresentation({ path in
-            path.map { Array(UnsafeBufferPointer(start: $0, count: strlen($0) + 1)) }
-        }) else { throw CocoaError(.fileWriteInvalidFileName) }
-        let descriptor = mkstemp(&temporary)
-        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
-        var published = false
-        defer { if !published { unlink(temporary) } }
-        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
-        try handle.write(contentsOf: Data(source.utf8))
-        try handle.close()
-        for number in 1...1000 {
-            let url = folder.appendingPathComponent(stem + (number == 1 ? "" : " \(number)") + ".R")
-            let result = try url.withUnsafeFileSystemRepresentation { path in
+        // can see a partial script at the chosen name. The temporary file is on the same volume as its destination, and
+        // is made as any file StatsDirect writes, so the user's file-creation mask applies (mkstemp's would be private).
+        var temporary: [CChar] = [], descriptor: Int32 = -1, opened: Int32 = EEXIST
+        for _ in 0 ..< 100 where descriptor < 0 && opened == EEXIST {
+            let letters = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+            let url = folder.appendingPathComponent(temporaryPrefix + String((0 ..< 6).map { _ in letters.randomElement()! }))
+            guard let path = url.withUnsafeFileSystemRepresentation({ path in path.map { Array(UnsafeBufferPointer(start: $0, count: strlen($0) + 1)) } })
+            else { throw CocoaError(.fileWriteInvalidFileName) }
+            temporary = path
+            descriptor = Darwin.open(temporary, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o666)
+            opened = descriptor < 0 ? errno : 0
+        }
+        guard descriptor >= 0 else { throw failure(opened) }
+        var published = false, removed = false
+        defer { if !published && !removed { unlink(temporary) } }
+        let written = writeAll(descriptor, data), closed: Int32 = Darwin.close(descriptor) == 0 ? 0 : errno
+        guard written == 0, closed == 0 else { throw failure(written != 0 ? written : closed) }
+        var renames = true
+        for number in 1 ... 1000 {
+            let url = candidate(number)
+            let taken: Bool = try url.withUnsafeFileSystemRepresentation { path in
                 guard let path else { throw CocoaError(.fileWriteInvalidFileName) }
-                return renamex_np(temporary, path, UInt32(RENAME_EXCL)) == 0 ? 0 : errno
+                if renames {
+                    let result = rename(temporary, path)
+                    if result == 0 { published = true; return false }
+                    if result == EEXIST { return true }
+                    // A disk that cannot rename without replacing (FAT, exFAT, some network disks) says so: there the
+                    // script is written straight to its name, which is made only if it is free.
+                    guard result == ENOTSUP || result == EINVAL else { throw failure(result) }
+                    renames = false
+                    // The private file has done its work, and would take room on the disk that the script may need.
+                    unlink(temporary); removed = true
+                }
+                return try !createExclusively(path, data, failure)
             }
-            if result == 0 { published = true; return url }
-            if result != EEXIST { throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EIO) }
+            if !taken { return url }
         }
         throw CocoaError(.fileWriteFileExists)
+    }
+
+    /// The script written to a name that is free, on a disk that cannot rename without replacing; false when the name is
+    /// taken. A failed write removes the file, and only the very file this call made.
+    private static func createExclusively(_ path: UnsafePointer<CChar>, _ data: Data, _ failure: (Int32) -> Error) throws -> Bool {
+        let descriptor = Darwin.open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o666)
+        guard descriptor >= 0 else {
+            let code = errno
+            if code == EEXIST { return false }
+            throw failure(code)
+        }
+        let written = writeAll(descriptor, data)
+        // Which file this is, is asked after the write: on FAT and exFAT a file's number changes once it is written to.
+        var made = stat()
+        let known = fstat(descriptor, &made) == 0
+        let closed: Int32 = Darwin.close(descriptor) == 0 ? 0 : errno
+        if written == 0 && closed == 0 { return true }
+        var found = stat()
+        if known, lstat(path, &found) == 0, found.st_dev == made.st_dev, found.st_ino == made.st_ino { unlink(path) }
+        throw failure(written != 0 ? written : closed)
+    }
+
+    /// 0, or the error number of the write that failed.
+    private static func writeAll(_ descriptor: Int32, _ data: Data) -> Int32 {
+        data.withUnsafeBytes { buffer -> Int32 in
+            var offset = 0
+            while offset < buffer.count {
+                let count = Darwin.write(descriptor, buffer.baseAddress! + offset, buffer.count - offset)
+                if count < 0 {
+                    if errno == EINTR { continue }
+                    return errno
+                }
+                offset += count
+            }
+            return 0
+        }
+    }
+
+    /// A failed save worded as Foundation words its own, naming the file and its folder, with the system's error under it.
+    static func fileError(_ code: Int32, _ url: URL) -> Error {
+        var info: [String: Any] = [NSFilePathErrorKey: url.path, NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(code))]
+        let kind: CocoaError.Code
+        switch code {
+        case EACCES, EPERM: kind = .fileWriteNoPermission
+        case ENOSPC, EDQUOT: kind = .fileWriteOutOfSpace
+        case EROFS: kind = .fileWriteVolumeReadOnly
+        default:
+            // Foundation has no wording for the other reasons (too many open files, a file too large, an unsupported disk).
+            kind = .fileWriteUnknown
+            info[NSLocalizedDescriptionKey] = "The file “\(url.lastPathComponent)” couldn’t be saved in the folder “\(url.deletingLastPathComponent().lastPathComponent)”: \(String(cString: strerror(code)))."
+        }
+        return CocoaError(kind, userInfo: info)
+    }
+
+    /// The name of a save in progress in R Scripts, then six letters or digits: hidden, and never a script's name, as
+    /// fileName starts no name with ".".
+    nonisolated static let temporaryPrefix = ".statsdirect-r-"
+    /// Removes what a save that never finished left in R Scripts, when StatsDirect was stopped between writing its
+    /// private file and renaming it (rule 6.2: any copy left over is removed when StatsDirect closes or next starts).
+    /// Only this user's plain files under a private name go, and only those old enough that no running StatsDirect can
+    /// still be writing them.
+    @discardableResult nonisolated static func removeStaleTemporaries(in folder: URL, olderThan age: TimeInterval = 600, now: Date = Date()) -> [URL] {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return [] }
+        var removed: [URL] = []
+        for name in names where name.hasPrefix(temporaryPrefix) {
+            let tail = name.dropFirst(temporaryPrefix.count)
+            guard tail.count == 6, tail.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { continue }
+            let url = folder.appendingPathComponent(name)
+            var info = stat()
+            guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_uid == getuid(),
+                  now.timeIntervalSince1970 - TimeInterval(info.st_mtimespec.tv_sec) > age, unlink(url.path) == 0 else { continue }
+            removed.append(url)
+        }
+        return removed
     }
 
     /// Every worksheet fallback keeps a separate import, as the RStudio path does: a failed or declined external
@@ -385,9 +480,23 @@ struct RExternalSession {
             unchanged <- !is.na(saved) & !is.na(now) & saved == now
             suppressWarnings(file.remove(files[unchanged]))
             # The record goes only when each file it lists is gone or is known to be the user's (changed); a file R cannot
-            # read keeps the record, so that StatsDirect's own clean-up finds it later.
+            # read keeps the record, so that StatsDirect's own clean-up finds it later. The listing only proves absence
+            # if it includes the record itself: an unreadable folder can return an empty listing. Match plain names
+            # without case and other names by their ASCII letters and digits, so case and accent aliases keep the record.
+            # The name must also be gone for file.access, which asks the disk for the name alone, in whatever case and
+            # form of its accents the disk keeps it, where file.exists needs the file's attributes.
             changed <- !is.na(saved) & !is.na(now) & saved != now
-            if (all(!file.exists(files) | changed) && length(grepRaw(\(literal(id)), readBin(record, "raw", 65536L), fixed = TRUE)))
+            names <- list.files(dirname(record), all.files = TRUE, no.. = TRUE)
+            ascii <- function(x) !grepl("[^ -~]", x, useBytes = TRUE)
+            fold <- function(x) chartr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", x)
+            plainNames <- fold(names[ascii(names)])
+            key <- function(x) tolower(gsub("[^A-Za-z0-9]", "", iconv(x, "UTF-8", "ASCII", sub = "")))
+            base <- basename(files)
+            plain <- ascii(base)
+            listed <- key(base) %in% key(names)
+            listed[plain] <- fold(base[plain]) %in% plainNames
+            gone <- fold(basename(record)) %in% plainNames & !file.exists(files) & !listed & file.access(files, 0) != 0
+            if (all(gone | changed) && length(grepRaw(\(literal(id)), readBin(record, "raw", 65536L), fixed = TRUE)))
               suppressWarnings(file.remove(record))
           }, silent = TRUE), onexit = TRUE)
         }), silent = TRUE))

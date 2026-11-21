@@ -1,21 +1,12 @@
-"""Save As/reopen when a formula calls a function ClosedXML does not implement.
+"""Edited and unedited Save As/reopen for workbooks with worksheet formulas.
 
 Called by test_excel_edges.py in CI. Focused usage (optional retained work folder):
   python3 Tests/excel_closedxml_functions_save.py <workbook-driver> <node> [work-folder]
 
-The default save patches a small workbook through ClosedXML, which writes its own result for every formula. For a
-function it lacks that result is #NAME?, and IFERROR, ISERROR or IFNA turn it into an ordinary value, so a reopened
-workbook would send R a result Excel never computed. Such a workbook must take the streaming patcher instead: its
-formulas keep their expressions and lose their saved results, which Excel recalculates, and the reopened cells are
-refused for R until then; unedited, there is nothing to patch, and the Save As copies the workbook with Excel's saved
-results. A defined name a formula uses counts as that formula. So does a workbook ClosedXML cannot calculate whole: one
-that links to another workbook, or one with any formula ClosedXML fails to evaluate (a reference to a workbook it has no
-link for, a circular reference). Such a failure stops ClosedXML's calculation part way and leaves later formulas with
-their old results and no error, so a stale value would reach R after an edit. A workbook whose functions ClosedXML
-implements keeps the ClosedXML path and its recalculated results, even with such a name in a string literal, in a quoted
-sheet name, or in a defined name nothing uses.
-Every source is real OOXML with Excel's saved results; the actual grid model makes the edit, exports its edit snapshot
-and reads the reopened cells for R.
+An edited save preserves formula expressions and clears the saved results for Excel to recalculate, even if
+ClosedXML would reproduce all the old cached results. An unedited Save As preserves the workbook byte for byte.
+Every source is real OOXML with injected Excel-equivalent cached results. The grid makes the edit, exports its
+normal typed edit snapshot and checks whether the reopened cells can be used in R.
 """
 import json
 import math
@@ -29,6 +20,7 @@ import zipfile
 import openpyxl
 from openpyxl.packaging.relationship import Relationship
 from openpyxl.workbook.defined_name import DefinedName
+from openpyxl.worksheet.table import Table
 from openpyxl.workbook.external_link import external
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,33 +47,67 @@ FIXTURES = {
                           ('C6', 'ISNUMBER(_xlfn.T.TEST(A1:A6,B1:B6,2,1))', '1', 'b'),
                           ('C7', 'SUM(A1:A6)', '21', None),
                           ('D1', 'E1*2', '4', None)],
-                'names': {}, 'streams': True},
+                'names': {}},
     # Only a defined name calls the function ClosedXML lacks; the formula that uses it would become 0.
     'name': {'cells': [('C1', 'IFERROR(Crit,0)', Z, None), ('D1', 'E1*2', '4', None)],
-             'names': {'Crit': 'NORMSINV(0.975)'}, 'streams': True},
+             'names': {'Crit': 'NORMSINV(0.975)'}},
     'known': {'cells': [('C1', 'SUM(A1:A6)', '21', None),
                         ('C2', 'IF(A1>0,"NORM.S.INV(x)",1)', 'NORM.S.INV(x)', 'str'),
                         ("C3", "'NORMSINV(2)'!A1*2", '14', None),
-                        ('C4', 'ROUND(1.005,2)', '1.01', None),
                         ('D1', 'E1*2', '4', None)],
-              'names': {'Dyn': 'OFFSET(Data!$A$1,0,0,COUNTA(Data!$A:$A),1)'}, 'streams': False},
+              'names': {'Dyn': 'OFFSET(Data!$A$1,0,0,COUNTA(Data!$A:$A),1)'}},
+    # Ordinary statistics: editing E1 invalidates their saved results, even if ClosedXML could reproduce them.
+    'statistics': {'cells': [('C1', 'STDEV(A1:A6)', '1.8708286933869707', None),
+                             ('C2', 'AVERAGE(B1:B6)*E1', '11', None),
+                             ('D1', 'E1*2', '4', None)],
+                   'names': {}},
+    # A link that no formula reads still survives in the workbook package.
+    'phantom': {'cells': [('C1', 'E1*3', '6', None), ('D1', 'E1*2', '4', None)],
+                'names': {'Ext': '[1]Sheet!$A$1'}, 'external': True},
+    # Old results can disagree or agree before the edit. Neither establishes the result for new inputs.
+    'rounding': {'cells': [('C1', 'E1*3', '6', None), ('C4', 'ROUND(1.005,2)', '1.01', None), ('D1', 'E1*2', '4', None)],
+                 'names': {}},
+    # Both engines give the saved 2/1 for E1=2. For E1=1.005, Excel gives 1.01/1 while ClosedXML gives 1/0.
+    'rounding-after-edit': {'cells': [('C1', 'ROUND(E1,2)', '2', None), ('C2', 'IF(C1>=1.01,1,0)', '1', None),
+                                     ('D1', 'E1*2', '4', None)],
+                            'names': {}, 'edit': [4, 0, '1.005']},
+    # Table1 is on another sheet: ClosedXML reads the column in the formula's own sheet, and gives 14.
+    'table': {'cells': [('C1', 'E1*3', '6', None), ('C5', 'SUM(Table1[Value])', '6', None), ('D1', 'E1*2', '4', None)],
+              'names': {}, 'table': True},
+    # Both sheets start with the same numbers. The edit changes the range ClosedXML wrongly reads, leaving the table alone.
+    'table-after-edit': {'cells': [('C5', 'SUM(Table1[Value])', '14', None), ('D1', 'E1*2', '4', None)],
+                         'names': {}, 'table': True, 'table_values': [3, 5, 6], 'edit': [1, 1, '10']},
+    'text': {'cells': [('C1', 'E1*3', '6', None), ('C2', '(0.1+0.2)&""', '0.3', 'str'), ('D1', 'E1*2', '4', None)],
+             'names': {}},
+    # In C5 Excel takes the cell of the range in the formula's row, A5; ClosedXML takes the first, A1.
+    'intersection': {'cells': [('C1', 'E1*3', '6', None), ('C5', 'A1:A6*2', '10', None), ('D1', 'E1*2', '4', None)],
+                     'names': {}},
+    # Volatile formulas and formulas saved without a result also wait for Excel to recalculate.
+    'volatile': {'cells': [('C1', 'E1*3', '6', None), ('C2', 'TODAY()', '45000', None), ('D1', 'E1*2', '4', None)],
+                 'names': {}},
+    'unsaved': {'cells': [('C1', 'E1*3', None, None), ('D1', 'E1*2', '4', None)], 'names': {}},
     # The linked formula reads the edited E1 and comes after a local formula that ClosedXML reaches first: kept, its old
     # 99 would go to R where Excel gives 97 + 10 = 107.
     'external': {'cells': [('C1', 'E1*3', '6', None),
                            ('C2', 'IFERROR([1]Sheet!A1+E1,0)', '99', None),
                            ('D1', 'E1*2', '4', None)],
-                 'names': {}, 'streams': True, 'external': True},
-    # The same formulas with no link part: only ClosedXML's failure to evaluate C2 shows that its results cannot be kept.
+                 'names': {}, 'external': True},
+    # The same formulas with no link part (a file produced by another workbook writer).
     'unlinked': {'cells': [('C1', 'E1*3', '6', None),
                            ('C2', 'IFERROR([1]Sheet!A1+E1,0)', '99', None),
                            ('D1', 'E1*2', '4', None)],
-                 'names': {}, 'streams': True},
-    # A circular reference, which ClosedXML cannot evaluate either; Excel saved 0 for both cells.
+                 'names': {}},
+    # A three-dimensional reference, which ClosedXML cannot evaluate: kept, its old 10 would go to R where Excel gives 18.
+    'three-d': {'cells': [('C1', 'E1*3', '6', None),
+                          ('C2', "IFERROR(SUM('Data:NORMSINV(2)'!A1)+E1,0)", '10', None),
+                          ('D1', 'E1*2', '4', None)],
+                'names': {}},
+    # A circular reference, which ClosedXML cannot evaluate; Excel saved 0 for both cells.
     'circular': {'cells': [('C1', 'E1*3', '6', None),
                            ('C2', 'C3+1', '0', None),
                            ('C3', 'C2+1', '0', None),
                            ('D1', 'E1*2', '4', None)],
-                 'names': {}, 'streams': True},
+                 'names': {}},
 }
 
 
@@ -102,6 +128,12 @@ def fixture(path, spec):
     ws['E1'] = 2
     book.create_sheet('NORMSINV(2)')['A1'] = 7
     for name, text in spec['names'].items(): book.defined_names[name] = DefinedName(name, attr_text=text)
+    if spec.get('table'):
+        other = book.create_sheet('T')
+        other.append(['Name', 'Value', 'Qty'])
+        for name, value, quantity in zip('abc', spec.get('table_values', (1, 2, 3)), (4, 5, 6)):
+            other.append([name, value, quantity])
+        other.add_table(Table(displayName='Table1', ref='A1:C4'))
     if spec.get('external'):
         linked_path = path.with_name('linked.xlsx')
         linked = openpyxl.Workbook()
@@ -127,7 +159,7 @@ def fixture(path, spec):
                     if number not in rows: rows[number] = ET.SubElement(sheet_data, S + 'row', {'r': str(number)})
                     cell = ET.SubElement(rows[number], S + 'c', {'r': ref, **({'t': kind} if kind else {})})
                     ET.SubElement(cell, S + 'f').text = formula
-                    ET.SubElement(cell, S + 'v').text = value
+                    if value is not None: ET.SubElement(cell, S + 'v').text = value   # None: saved without a result
                 for row in rows.values(): row[:] = sorted(row, key=lambda c: column_index(c.attrib['r']))
                 sheet_data[:] = sorted(sheet_data, key=lambda row: int(row.attrib['r']))
                 data = ET.tostring(sheet, encoding='utf-8')
@@ -165,11 +197,13 @@ def check_closedxml_function_saves(request, node, folder):
         opened = request(action='open', path=str(source), snapshot=str(snapshots))
         assert 'error' not in opened, opened
         try:
-            seen, edits = grid(opened, refs, variant, edit=[4, 0, '10'])
+            edit = spec.get('edit', [4, 0, '10'])
+            edited_ref = openpyxl.utils.cell.get_column_letter(edit[0] + 1) + str(edit[1] + 1)
+            seen, edits = grid(opened, refs + [edited_ref], variant, edit=edit)
             fresh = {ref: cell for ref, cell in zip(refs, seen['before'])}
-            check(fresh['D1'].get('values') == ['4'] and all(cell.get('values') is not None for cell in fresh.values()),
+            check(fresh['D1'].get('values') == ['4'] and all((fresh[ref].get('values') is not None) == (value is not None) for ref, _, value, _ in spec['cells']),
                   variant + ': the freshly opened results go to R as Excel saved them')
-            check(all(cell.get('error') == REFUSAL for cell in seen['after']), variant + ': after the grid edit every formula result is refused for R')
+            check(all(cell.get('error') == REFUSAL for cell in seen['after'][:len(refs)]), variant + ': after the grid edit every formula result is refused for R')
             _, unchanged = grid(opened, refs, variant + '-unchanged', write_snapshot=True)
             saves = [('edited', edits, True, False),
                      ('unedited', unchanged, False, False),
@@ -184,32 +218,30 @@ def check_closedxml_function_saves(request, node, folder):
                 reopened = request(action='open', path=str(saved_path), snapshot=str(snapshots))
                 assert 'error' not in reopened, reopened
                 try:
-                    back, _ = grid(reopened, refs + ['A1', 'E1'], label + '-reopened')
-                    cells = {ref: cell for ref, cell in zip(refs + ['A1', 'E1'], back['before'])}
-                    check(cells['A1'].get('values') == ['1'] and cells['E1'].get('values') == (['10'] if edited else ['2']), label + ': the values around the formulas survive')
+                    reopened_refs = refs + ['A1', edited_ref]
+                    back, _ = grid(reopened, reopened_refs, label + '-reopened')
+                    cells = dict(zip(reopened_refs, back['before']))
+                    edit_text = edit[2] if edited else seen['before'][-1]['text']
+                    check(cells['A1'].get('values') == ['1'] and cells[edited_ref]['text'] == edit_text
+                          and cells[edited_ref]['kind'] == 'number',
+                          label + ': the values around the formulas survive')
                     if not edited:
                         check(saved_path.read_bytes() == source.read_bytes(), label + ': the workbook is copied byte for byte')
                         check(saved.get('recalculated') is False and saved.get('uncachedFormulas') == 0,
                               label + ': an unedited copy neither calculates nor invalidates formula results: ' + json.dumps(saved))
                         check(all(cells[ref].get('values') == fresh[ref].get('values') for ref in refs),
                               label + ': the reopened results are Excel\'s saved ones: ' + json.dumps([cells[ref] for ref in refs]))
-                    elif spec['streams']:
+                    else:
                         check(saved.get('recalculated') is False and saved.get('uncachedFormulas') == len(refs),
-                              label + ': a formula ClosedXML cannot calculate sends the workbook to the streaming patcher: ' + json.dumps(saved))
+                              label + ': an edited formula workbook is saved by streaming: ' + json.dumps(saved))
                         check(all(new_xml[ref].find(S + 'v') is None and 't' not in new_xml[ref].attrib for ref in refs),
                               label + ': no formula keeps a saved result: no #NAME?, no IFERROR or ISERROR fallback, no stale value')
                         check(all(cells[ref]['text'] == '' and cells[ref]['unavailable'] is True and cells[ref].get('error') == REFUSAL for ref in refs),
                               label + ': every reopened formula result is refused for R until Excel recalculates it: ' + json.dumps([cells[ref] for ref in refs]))
-                    else:
-                        expected = {'C1': ['21'], 'C2': ['NORM.S.INV(x)'], 'C3': ['14'], 'D1': ['20']}
-                        check(saved.get('recalculated') is True and saved.get('uncachedFormulas') == 0,
-                              label + ': functions ClosedXML implements keep the ClosedXML patcher: ' + json.dumps(saved))
-                        check(all(cells[ref].get('values') == values for ref, values in expected.items()),
-                              label + ': the reopened controls reach R with their recalculated results: ' + json.dumps([cells[ref] for ref in expected]))
                 finally: assert request(action='close', id=reopened['id']).get('ok')
         finally: assert request(action='close', id=opened['id']).get('ok')
     if failures: raise AssertionError(f'{len(failures)} ClosedXML function save/reopen checks failed: ' + '; '.join(failures))
-    print('PASS: Save As never writes ClosedXML\'s #NAME? or a wrong IFERROR, ISERROR or IFNA result as Excel\'s', flush=True)
+    print('PASS: edited Save As never substitutes a result from ClosedXML for Excel\'s; unedited Save As keeps Excel\'s original results', flush=True)
 
 
 def main():

@@ -20,6 +20,9 @@ export function planWriteBack(store, frames, placement, range, options = {}) {
   if (!selection && (position === 'BeforeSelection' || position === 'AfterSelection' || position === 'ReplaceSelection')) { position = 'LastColumn'; fellBack = true; }
   const virtual = store.cols.map(source => ({source, edits: new Map()}));
   const column = c => { while (virtual.length <= c) virtual.push({source: null, edits: new Map()}); return virtual[c]; };
+  // A column that an array, spill or data-table result reaches is used, even where the file saved none of its values:
+  // its rows are read-only results, which output never goes over.
+  for (let c = 0; c < store.columns.length; c++) if (store.formulaResultSpans(c).length) column(c).results = true;
   const movedCol = c => column(c).edits;
   const at = (c, r) => column(c).edits.get(r) ?? {text: column(c).source?.get(r) ?? ''};
   const rowsOf = c => {
@@ -29,7 +32,7 @@ export function planWriteBack(store, frames, placement, range, options = {}) {
   };
   const usedEnd = () => {
     let end = 0;
-    virtual.forEach((col,c) => { if (col.source?.count || col.source?.formula.size || col.source?.extra.size || col.source?.rMetadata || col.source?.displayWidth || [...col.edits.values()].some(v => v.text !== '')) end = c+1; });
+    virtual.forEach((col,c) => { if (col.results || col.source?.count || col.source?.formula.size || col.source?.extra.size || col.source?.rMetadata || col.source?.displayWidth || [...col.edits.values()].some(v => v.text !== '')) end = c+1; });
     return end;
   };
   frames.forEach((frame, index) => {

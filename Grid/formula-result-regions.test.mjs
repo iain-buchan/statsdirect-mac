@@ -143,14 +143,44 @@ test('a whole-column analysis takes in trailing results without saved values, as
     const reopened = book([...values, ...ids(rows), cell(1, 5, '', 'blank', {formula: '_xlfn.SEQUENCE(3,2)'}), cell(2, 5, ''), cell(2, 6, ''), cell(2, 7, '')], [spill], {headerRow: true});
     const missing = analyse(reopened);
     assert.deepEqual([missing.end, missing.first, missing.last], [8, 2, 8]);
-    assert.throws(missing.run, {message: rows === 7 ? 'Recalculate and save this workbook in Excel, then reopen it before analysing formula cells.' : 'Enter a valid first and last worksheet row.'});
+    assert.throws(missing.run, {message: 'Recalculate and save this workbook in Excel, then reopen it before analysing formula cells.'});
     assert.throws(() => worksheetRImport(reopened, 0, {columns: [2]}, 'selected'), {message: RECALCULATE});
   }
+  // Results and formula cells Excel saved as empty text are blank cells: a whole column stops at its last value, and
+  // nothing is refused, whether or not another column reaches further.
+  const savedEmpty = {savedEmpty: true};
+  for (const rows of [4, 7]) {
+    const spilled = book([...values, ...ids(rows), cell(1, 5, '', 'blank', {formula: '_xlfn.SEQUENCE(3,2)', ...savedEmpty}),
+      ...[6, 7].map(r => cell(1, r, '', 'blank', savedEmpty)), ...[5, 6, 7].map(r => cell(2, r, '', 'blank', savedEmpty))], [spill], {headerRow: true});
+    const formulas = book([...values, ...ids(rows), ...[5, 6, 7].map(r => cell(2, r, '', 'blank', {formula: 'IF(A2>9,A2,"")', ...savedEmpty}))], [], {headerRow: true});
+    for (const w of [spilled, formulas]) {
+      const read = analyse(w);
+      assert.deepEqual([read.end, read.first, read.last, read.run()], [5, 2, 5, ['11', '12', '13', '14']]);
+    }
+  }
+  // A trailing formula without a saved result is refused by name, even where no other column reaches its row.
+  const unsaved = analyse(book([...values, ...ids(4), cell(2, 5, '', 'blank', {formula: 'A2*2'})], [], {headerRow: true}));
+  assert.deepEqual([unsaved.end, unsaved.last], [6, 6]);
+  assert.throws(unsaved.run, {message: 'Recalculate and save this workbook in Excel, then reopen it before analysing formula cells.'});
   // Opened fresh, with the results Excel saved, the analysis reads all seven, and the R import sends them.
   const fresh = book([...values, ...ids(7), cell(1, 5, '1', 'number', {formula: '_xlfn.SEQUENCE(3,2)'}), cell(2, 5, '2'), cell(1, 6, '3'), cell(2, 6, '4'), cell(1, 7, '5'), cell(2, 7, '6')], [spill], {headerRow: true});
   const read = analyse(fresh);
   assert.deepEqual([read.end, read.first, read.last, read.run()], [8, 2, 8, ['11', '12', '13', '14', '2', '4', '6']]);
   assert.deepEqual(worksheetRImport(fresh, 0, {columns: [2]}, 'selected', {headings: true}).columns[0].values, ['11', '12', '13', '14', '2', '4', '6']);
+});
+
+test('analysis output after the last used column goes beyond a result region, even one with no saved values', () => {
+  // B2 spills over B2:C4. Reopened after a save that removed the saved results, column C holds no cell at all, yet its
+  // rows are read-only results: output written after the last used column must start in D.
+  const frame = {name: 'Out', columns: 1, rows: 3, headerRow: false, lengths: [2], missingIndicator: '*', cells: [{col: 0, row: 0, text: 'fit'}, {col: 0, row: 1, text: '1'}, {col: 0, row: 2, text: '2'}]};
+  const spill = [{firstRow: 1, lastRow: 3, firstColumn: 1, lastColumn: 2}];
+  for (const results of [[], [cell(1, 2, '3'), cell(2, 1, '2'), cell(2, 2, '4'), cell(1, 3, '5'), cell(2, 3, '6')]]) {
+    const store = book([cell(0, 1, '7'), cell(0, 2, '8'), cell(1, 1, results.length ? '1' : '', results.length ? 'number' : 'blank', {formula: '_xlfn.SEQUENCE(3,2)'}), ...results], spill).sheets[0].store;
+    const plan = planWriteBack(store, [frame], 'LastColumn', {firstRow: 2, lastRow: 3, columns: [0]});
+    assert.deepEqual(plan.written.map(w => w.x), [3]);
+    assert.equal(store.apply(plan.edits, Math.max(store.rows, plan.rows), Math.max(store.columns.length, plan.cols), plan.inserts), true);
+    assert.deepEqual([store.get(3, 1), store.get(3, 2), store.readOnly(2, 1)], ['1', '2', true]);
+  }
 });
 
 test('the Excel 97-2003 data copy refuses formula results that may be out of date or were never saved, as R data does', () => {

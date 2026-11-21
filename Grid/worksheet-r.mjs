@@ -445,20 +445,24 @@ function tooLarge(store, plan, start, list, maximumBytes) {
 // cannot be used (rule 7), within the plan's rows, or -1. While the workbook is unedited, a covered cell holding a value is
 // read anyway, so the search ends at the first that holds none (a saved empty text is no reason to refuse); once it is
 // edited, every covered cell is out of date, so it ends at the first.
-function firstUnavailable(store, c, span, plan, selected) {
-  const top = rowAt(plan, 0), from = Math.max(span.firstRow, top), to = Math.min(span.lastRow, rowAt(plan, rowCount(plan) - 1));
-  for (let r = from; r <= to; r++) if ((!selected || selected[r - top]) && store.formulaUnavailable(c, r)) return r;
+// With whole rows selected, only those rows are looked at, however many others the span covers between them.
+function firstUnavailable(store, c, span, plan) {
+  const from = Math.max(span.firstRow, rowAt(plan, 0)), to = Math.min(span.lastRow, rowAt(plan, rowCount(plan) - 1));
+  if (!plan.rows) return store.unavailableResultRow(c, from, to);
+  for (let i = firstIndex(plan.rows.length, k => plan.rows[k] >= from); i < plan.rows.length && plan.rows[i] <= to; i++)
+    if (store.formulaUnavailable(c, plan.rows[i])) return plan.rows[i];
   return -1;
 }
 // The rows of column c that a list reads, in sheet order: those holding a value or a formula, and the first formula result
 // cell it cannot use. Every other row of the plan is blank, so missing, and a list leaves it out (rule 5.3): a list reads
-// only the cells it may send, however large its area.
-function listRows(store, plan, c, selected) {
+// only the cells it may send, however large its area, and of whole rows only the rows selected, however far apart.
+function listRows(store, plan, c) {
   const top = rowAt(plan, 0), bottom = rowAt(plan, rowCount(plan) - 1), column = store.cols[c], found = [];
-  if (column) forEachFilledRow(column, top, bottom, r => { if (!selected || selected[r - top]) found.push(r); });
+  if (column && plan.rows) { for (const r of plan.rows) if (column.kindAt(r) !== 0 || column.formula.has(r)) found.push(r); }
+  else if (column) forEachFilledRow(column, top, bottom, r => found.push(r));
   const spans = store.formulaResultSpans(c);   // sorted by row: only those that meet the plan's rows are read
   for (let i = firstIndex(spans.length, k => spans[k].lastRow >= top); i < spans.length && spans[i].firstRow <= bottom; i++) {
-    const r = firstUnavailable(store, c, spans[i], plan, selected);
+    const r = firstUnavailable(store, c, spans[i], plan);
     if (r >= 0) found.push(r);
   }
   const sorted = Int32Array.from(found).sort();   // numeric order; a formula row may also hold a value
@@ -487,11 +491,11 @@ export function worksheetRImport(workbook, sheetIndex, selection = {}, scope, op
   if (!plan || typeof plan === 'string') throw new Error(scope === 'entire' ? 'The worksheet contains no data.' : 'Select worksheet cells, columns or rows to import.');
   const rows = rowCount(plan), headings = options?.headings === true && rows > 1, list = options?.list === true;
   if (tooLarge(store, plan, headings ? 1 : 0, list, maximumBytes)) throw new Error(TOO_LARGE);
-  const top = rowAt(plan, 0), selected = list ? selectedRows(plan) : null, names = [], columns = [];
+  const top = rowAt(plan, 0), names = [], columns = [];
   let bytes = 0, dates = false;
   for (const c of plan.columns) {
     // The rows read: every row of the plan for a data frame, and for a list only those that may hold a value.
-    const order = list ? listRows(store, plan, c, selected) : null, count = order ? order.length : rows;
+    const order = list ? listRows(store, plan, c) : null, count = order ? order.length : rows;
     const at = order ? k => order[k] : k => rowAt(plan, k);
     // The heading row is the first row read, when it is read: always for a data frame, and for a list unless it is blank.
     const start = headings && count > 0 && at(0) === top ? 1 : 0;

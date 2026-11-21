@@ -20,10 +20,9 @@ export function columnEnd(store, c) {
   if (col) for (const r of col.formula.keys()) if (r + 1 > end && store.formulaUnavailable(c, r)) end = r + 1;
   // Rows from end on hold no value, so only the last of them that cannot be used matters.
   const spans = store.formulaResultSpans(c);   // sorted by row
-  last: for (let i = spans.length - 1; i >= 0 && spans[i].lastRow + 1 > end; i--) {
-    for (let r = spans[i].lastRow, stop = Math.max(end, spans[i].firstRow); r >= stop; r--) {
-      if (store.formulaUnavailable(c, r)) { end = r + 1; break last; }
-    }
+  for (let i = spans.length - 1; i >= 0 && spans[i].lastRow + 1 > end; i--) {
+    const r = store.unavailableResultRow(c, Math.max(end, spans[i].firstRow), spans[i].lastRow, true);
+    if (r >= 0) { end = r + 1; break; }
   }
   return end;
 }

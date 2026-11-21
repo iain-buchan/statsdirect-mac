@@ -183,6 +183,42 @@ test('analysis output after the last used column goes beyond a result region, ev
   }
 });
 
+test('R data refuses a formula or result without a saved value below the last value, which it would otherwise leave out', () => {
+  const REFUSAL = 'Recalculate formula results in Excel before saving this table as R data.';
+  const values = [cell(0, 0, '1'), cell(0, 1, '2'), cell(0, 2, '3')];
+  // A6 is a formula the file saved no result for; B5 spills over B5:C7, and the file holds none of its cells.
+  assert.throws(() => rDataTables(book([...values, cell(0, 5, '', 'blank', {formula: 'A1*2'})], []), 0), {message: REFUSAL});
+  assert.throws(() => rDataTables(book(values, [{firstRow: 4, lastRow: 6, firstColumn: 1, lastColumn: 2}]), 0), {message: REFUSAL});
+  // Saved as empty text they are blank cells below the table, which has its three rows.
+  const empty = {savedEmpty: true};
+  const blank = book([...values, cell(0, 5, '', 'blank', {formula: 'IF(A1>9,A1,"")', ...empty}), cell(1, 4, '', 'blank', {formula: '_xlfn.SEQUENCE(3,2)', ...empty}),
+    ...[[2, 4], [1, 5], [2, 5], [1, 6], [2, 6]].map(([c, r]) => cell(c, r, '', 'blank', empty))], [{firstRow: 4, lastRow: 6, firstColumn: 1, lastColumn: 2}]);
+  assert.equal(rDataTables(blank, 0).tables[0].rows, 3);
+  // In the title row, which is not data, such a formula is no reason to refuse.
+  const titled = book([cell(0, 0, '', 'blank', {formula: 'B1&"x"'}), cell(0, 1, '2'), cell(0, 2, '3')], [], {headerRow: true});
+  assert.equal(rDataTables(titled, 0).tables[0].rows, 2);
+});
+
+test('a list of a few whole rows reads those rows alone, however many rows a result region covers between them', () => {
+  // B1 spills over B1:ALM1000000, a thousand columns and a million rows; the file saved values in its first and last
+  // rows only. Rows 1 and 1,000,000 are selected, and their two cells in each column are all a list needs to look at.
+  const n = 1000000, width = 1000;
+  const cells = [cell(0, 0, '1'), cell(0, n - 1, '2')];
+  for (let c = 1; c <= width; c++) cells.push(cell(c, 0, String(c), 'number', c === 1 ? {formula: `_xlfn.SEQUENCE(${n},${width})`} : {}), cell(c, n - 1, String(c + 1)));
+  const w = book(cells, [{firstRow: 0, lastRow: n - 1, firstColumn: 1, lastColumn: width}], {columns: width + 1, rows: n});
+  const started = performance.now();
+  const data = worksheetRImport(w, 0, {rows: [0, n - 1]}, 'selected', {list: true});
+  const elapsed = performance.now() - started;
+  assert.deepEqual([data.columns.length, data.columns[0].values, data.columns[1].values, data.columns[width].values], [width + 1, ['1', '2'], ['1', '2'], [String(width), String(width + 1)]]);
+  assert.ok(elapsed < 1000, `the list took ${elapsed.toFixed(0)} ms`);
+  // A selected row whose result the file did not save is still found, and refused.
+  assert.throws(() => worksheetRImport(w, 0, {rows: [0, 500, n - 1]}, 'selected', {list: true}), {message: RECALCULATE});
+  // A whole column's list reads the region a stored chunk at a time: the two values, then the first row without one.
+  assert.throws(() => worksheetRImport(w, 0, {columns: [5]}, 'selected', {list: true}), {message: RECALCULATE});
+  // And a whole-column analysis ends at the region's last row, which holds a value here.
+  assert.equal(analysisMetadata(w, 0, {columns: [5]}).columnEnds[5], n);
+});
+
 test('the Excel 97-2003 data copy refuses formula results that may be out of date or were never saved, as R data does', () => {
   // A1:B1 is {=E1+{0,1}} from A1 and F1 is =E1*2, saved with E1 = 2 as 2, 3 and 4.
   const array = () => book([cell(0, 0, '2', 'number', {formula: 'E1+{0,1}'}), cell(1, 0, '3'), cell(4, 0, '2'), cell(5, 0, '4', 'number', {formula: 'E1*2'})],

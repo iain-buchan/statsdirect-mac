@@ -2,7 +2,8 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {WorkbookStore} from './workbook.mjs';
 import {worksheetRImport} from './worksheet-r.mjs';
-import {columnValues} from './analysis-source.mjs';
+import {analysisMetadata, columnValues} from './analysis-source.mjs';
+import {worksheetRows, worksheetInput, worksheetInputFrom} from './operation-data.mjs';
 import {rDataTables} from './r-data.mjs';
 import {planWriteBack} from './write-back.mjs';
 
@@ -122,4 +123,31 @@ test('array, spill and data-table results are read-only, as formula cells are, a
   assert.equal(store.apply([[9, 4, '6']]), true);
   w.changed();
   assert.deepEqual(w.exportColumns().sheets[0].columns.map(c => [c.col, Array.from(c.rows), Array.from(c.nums)]), [[9, [4], [6]]]);
+});
+
+test('a whole-column analysis takes in trailing results without saved values, as the R import does, and refuses them', () => {
+  // C2:C5 hold 11 to 14 under the title in C1; B6 spills over B6:C8. Reopened after a save that removed the saved results
+  // (the streaming save writes C6:C8 empty), the results are missing, and a whole column C must not quietly stop at C5.
+  const values = [cell(2, 0, 'Value', 'text'), cell(0, 0, 'Id', 'text'), ...[11, 12, 13, 14].map((v, i) => cell(2, i + 1, String(v)))];
+  const spill = {firstRow: 5, lastRow: 7, firstColumn: 1, lastColumn: 2};
+  const ids = rows => Array.from({length: rows}, (_, i) => cell(0, i + 1, String(i + 1)));
+  const analyse = w => {
+    const meta = analysisMetadata(w, 0, {columns: [2]}), {first, last} = worksheetRows(meta, [2]);
+    return {end: meta.columnEnds[2], first, last, run: () => {
+      const pending = worksheetInput(meta, [2], first, last);
+      return worksheetInputFrom(pending, columnValues(w, 0, pending.request)).columns[0].values;
+    }};
+  };
+  for (const rows of [4, 7]) {   // column A ends with C5, or reaches C8
+    const reopened = book([...values, ...ids(rows), cell(1, 5, '', 'blank', {formula: '_xlfn.SEQUENCE(3,2)'}), cell(2, 5, ''), cell(2, 6, ''), cell(2, 7, '')], [spill], {headerRow: true});
+    const missing = analyse(reopened);
+    assert.deepEqual([missing.end, missing.first, missing.last], [8, 2, 8]);
+    assert.throws(missing.run, {message: rows === 7 ? 'Recalculate and save this workbook in Excel, then reopen it before analysing formula cells.' : 'Enter a valid first and last worksheet row.'});
+    assert.throws(() => worksheetRImport(reopened, 0, {columns: [2]}, 'selected'), {message: RECALCULATE});
+  }
+  // Opened fresh, with the results Excel saved, the analysis reads all seven, and the R import sends them.
+  const fresh = book([...values, ...ids(7), cell(1, 5, '1', 'number', {formula: '_xlfn.SEQUENCE(3,2)'}), cell(2, 5, '2'), cell(1, 6, '3'), cell(2, 6, '4'), cell(1, 7, '5'), cell(2, 7, '6')], [spill], {headerRow: true});
+  const read = analyse(fresh);
+  assert.deepEqual([read.end, read.first, read.last, read.run()], [8, 2, 8, ['11', '12', '13', '14', '2', '4', '6']]);
+  assert.deepEqual(worksheetRImport(fresh, 0, {columns: [2]}, 'selected', {headings: true}).columns[0].values, ['11', '12', '13', '14', '2', '4', '6']);
 });

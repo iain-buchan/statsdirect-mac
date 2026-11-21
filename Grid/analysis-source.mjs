@@ -10,11 +10,15 @@ import { worksheetSelection } from './operation-data.mjs';
 // through the same column bridge as worksheet inputs, without a cell-count limit.
 const INLINE_SCREEN_CELLS = 65536;
 
-// Last 1-based row of a column that holds a value or a formula (0 for an empty column).
+// Last 1-based row of a column that holds a value, a formula or an array, spill or data-table result (0 for an empty
+// column), so that a whole column takes in a trailing result without a saved value, as the R import does, and the
+// analysis refuses it rather than leaving it out.
 export function columnEnd(store, c) {
   let end = store.columnUsedRows(c);
   const col = store.cols[c];
   if (col) for (const r of col.formula.keys()) if (r + 1 > end) end = r + 1;
+  const spans = store.formulaResultSpans(c);   // sorted by row
+  if (spans.length && spans.at(-1).lastRow + 1 > end) end = spans.at(-1).lastRow + 1;
   return end;
 }
 

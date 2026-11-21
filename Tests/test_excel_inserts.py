@@ -12,6 +12,26 @@ def request(**payload):
     driver.stdin.write(json.dumps(payload) + '\n'); driver.stdin.flush()
     return json.loads(driver.stdout.readline())
 def cell(col, row, text, kind='number'): return {'col': col, 'row': row, 'text': str(text), 'kind': kind}
+def with_results(path, results):
+    """Gives formulas the results Excel saves with them, which openpyxl does not write: {worksheet part: {cell: value}}.
+    A save keeps ClosedXML's recalculation only for a workbook whose every formula has a saved result that ClosedXML
+    reproduces, so a workbook meant for that path needs them."""
+    import zipfile, xml.etree.ElementTree as ET
+    main = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+    ET.register_namespace('', main)
+    with zipfile.ZipFile(path) as source: items = [(item, source.read(item.filename)) for item in source.infolist()]
+    with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as target:
+        for item, data in items:
+            if item.filename in results:
+                root = ET.fromstring(data)
+                cells = {c.attrib['r']: c for c in root.iter('{%s}c' % main)}
+                for ref, value in results[item.filename].items():
+                    assert cells[ref].find('{%s}f' % main) is not None, ref
+                    v = cells[ref].find('{%s}v' % main)
+                    if v is None: v = ET.SubElement(cells[ref], '{%s}v' % main)
+                    v.text = repr(value)
+                data = ET.tostring(root, encoding='utf-8', xml_declaration=True)
+            target.writestr(item, data)
 
 try:
     with tempfile.TemporaryDirectory() as folder:
@@ -23,6 +43,7 @@ try:
         ws.column_dimensions['B'].width = 30
         other = wb.create_sheet('Other'); other['A1'] = '=Data!B2+1'
         wb.save(source)
+        with_results(source, {'xl/worksheets/sheet1.xml': {'A2': 1, 'A3': 0.5, 'A4': 0.25}, 'xl/worksheets/sheet2.xml': {'A1': 1.5}})
         opened = request(action='open', path=str(source)); assert 'error' not in opened, opened
         # The grid inserted one column before B (a log transform written after the selected column A):
         # B holds the output, y moved to C with its format, z to D; A's formulas and Other's formula still point at y.
@@ -77,7 +98,7 @@ try:
         from openpyxl.worksheet.table import Table
         from openpyxl.worksheet.formula import ArrayFormula
         NS = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
-        def insert(path, col=1, count=1, stream=False, expect=None, sheet='Data', changes=None):
+        def insert(path, col=1, count=1, stream=False, expect=None, sheet='Data', changes=None, recalculated=None):
             opened=request(action='open',path=str(path)); assert 'error' not in opened, opened
             args=dict(id=opened['id'],inserts=[{'name':sheet,'inserts':[{'col':col,'count':count}]}])
             digest=hashlib.sha256(path.read_bytes()).digest()
@@ -92,6 +113,8 @@ try:
             else:
                 assert pre.get('ok') and result.get('ok'), (pre,result)
                 if stream and opened.get('formulaCount',0): assert result.get('uncachedFormulas',0)>0,result
+                # The patcher the save took: ClosedXML's (True), whose results are kept, or the streaming one (False).
+                if recalculated is not None: assert result.get('recalculated') is recalculated, (path.name, stream, result)
             assert hashlib.sha256(path.read_bytes()).digest()==digest
             assert not list(Path(folder).glob('*.tmp*'))
             request(action='close',id=opened['id'])
@@ -112,10 +135,11 @@ try:
         w.defined_names.add(DefinedName('Results',attr_text="'Data'!$B$2:$C$6")); d.print_area='A1:C6'
         d.auto_filter.ref='A1:C6'; d.auto_filter.add_filter_column(1,['2'])
         d['C8']='=SUM($B2,C$2,$B$2,B:B,2:2)+N("B2")'
-        other=w.create_sheet('Other'); other['A1']="='Data'!B2+1"; other['A2']='=[1]Data!B2'
+        other=w.create_sheet('Other'); other['A1']="='Data'!B2+1"
         w.save(p)
+        with_results(p, {'xl/worksheets/sheet1.xml': {'C8': 15}, 'xl/worksheets/sheet2.xml': {'A1': 3}})
         for streaming in (False,True):
-            saved=insert(p,stream=streaming); loaded=openpyxl.load_workbook(saved); x=loaded['Data']
+            saved=insert(p,stream=streaming,recalculated=not streaming); loaded=openpyxl.load_workbook(saved); x=loaded['Data']
             assert x['C2'].value==2 and x['C2'].number_format=='0.00%' and x['C2'].font.bold and x['C2'].font.name=='Arial'
             assert x['C2'].fill.fgColor.rgb=='0000FF00' and x['C2'].border.bottom.style=='thin'
             assert x.column_dimensions['C'].width==32 and x.column_dimensions['D'].hidden and x.row_dimensions[2].height==30
@@ -129,7 +153,14 @@ try:
             assert x.auto_filter.ref=='A1:D6' and x.auto_filter.filterColumn[0].colId==2
             assert x['D8'].value=='=SUM($C2,D$2,$C$2,C:C,2:2)+N("B2")', x['D8'].value
             assert loaded['Other']['A1'].value.replace("'",'')=='=Data!C2+1'
-            assert loaded['Other']['A2'].value=='=[1]Data!B2'
+            if not streaming:   # ClosedXML's results for the moved formulas, which read the same cells as before
+                values=openpyxl.load_workbook(saved,data_only=True); assert values['Data']['D8'].value==15 and values['Other']['A1'].value==3, (values['Data']['D8'].value, values['Other']['A1'].value)
+        # A reference to another workbook is kept as written. ClosedXML cannot evaluate it, so both saves stream.
+        w,d,p=book('external.xlsx'); other=w.create_sheet('Other'); other['A1']="='Data'!B2+1"; other['A2']='=[1]Data!B2'; w.save(p)
+        with_results(p, {'xl/worksheets/sheet2.xml': {'A1': 3, 'A2': 2}})
+        for streaming in (False,True):
+            loaded=openpyxl.load_workbook(insert(p,stream=streaming,recalculated=False))
+            assert loaded['Other']['A1'].value.replace("'",'')=='=Data!C2+1' and loaded['Other']['A2'].value=='=[1]Data!B2'
         print('PASS: formatting, widths, hidden columns, merged ranges, conditional formats, validation, links, freeze panes, filters, names and cross-sheet/absolute/external references on both save paths')
 
         w,d,p=book('table.xlsx'); d.add_table(Table(displayName='Trial',ref='A1:C2')); w.save(p)

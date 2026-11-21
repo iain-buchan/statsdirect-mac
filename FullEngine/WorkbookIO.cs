@@ -23,14 +23,19 @@ using ClosedXML.Excel;
 // that the grid loads into typed arrays without going through JSON.
 //
 // Saving writes a new workbook with a streaming XML writer. An unchanged source workbook
-// is copied with its original calculation settings and cached results. Edits are patched:
-// small workbooks through ClosedXML (which recalculates formulas and preserves styles),
-// others by streaming each worksheet part and merging the edited cells, leaving Excel to
-// recalculate formulas when it opens the file: large ones, and any whose formulas ClosedXML
-// cannot all calculate (a function it lacks, a link to another workbook, a failed evaluation).
+// is copied with its original calculation settings and cached results. Edits are patched
+// through ClosedXML (which recalculates formulas and preserves styles) only where its
+// results can be trusted: a small workbook, of features ClosedXML keeps, every one of whose
+// formulas ClosedXML recalculates, before the edits, to the result Excel saved. Any other
+// workbook is patched by streaming each worksheet part and merging the edited cells, which
+// leaves Excel to recalculate the formulas when it opens the file.
 public static partial class WorkbookIO {
     // Above this many cells (original plus edits) a patch streams instead of loading ClosedXML.
     public const int ClosedXmlCells = 1000000;
+    // And above this many formula cells: ClosedXML's recalculation, which a save runs twice, takes time that grows faster
+    // than their number. On an M-series Mac a save at this limit takes about 3 s; one recalculation of 100,000 formulas
+    // takes about a minute, and of 500,000 over twenty minutes.
+    public const int ClosedXmlFormulas = 20000;
     const int MaxRows = 1048576, MaxCols = 16384;
     static readonly ConcurrentDictionary<string, (string path, long cells)> originals = new();
     static WorkbookIO() {
@@ -728,15 +733,19 @@ public static partial class WorkbookIO {
                     File.Copy(source, temporary, true);
                     recalculated = false;
                 } else {
+                    string opened = source;
                     if (inserts.Count > 0) {
                         insertedSource = temporary + ".inserted.xlsx";
                         InsertWorkbookColumns(source, insertedSource, inserts, sheets);
                         source = insertedSource;
                     }
-                    int? patched = null;
-                    if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source) && ClosedXmlCalculates(source)) { File.Copy(source, temporary, true); patched = PatchWithClosedXml(temporary, source, sheets); }
-                    if (patched is int count) uncached = count;
-                    else { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
+                    bool patched = false;
+                    if (!request.Stream && edits + originalCells <= ClosedXmlCells && !NeedsExcelCalculation(source) && ClosedXmlCalculates(source)) {
+                        // Inserting columns removes the saved result of every formula it writes, so ClosedXML's results
+                        // are then compared with Excel's in the workbook as opened, whose formulas are the same ones.
+                        if (insertedSource == null || ClosedXmlReproduces(opened)) { File.Copy(source, temporary, true); patched = PatchWithClosedXml(temporary, source, sheets, insertedSource == null); }
+                    }
+                    if (!patched) { uncached = PatchStreaming(source, temporary, sheets); recalculated = false; }
                 }
                 sheetCount = CountSheets(temporary);
             }
@@ -885,6 +894,8 @@ public static partial class WorkbookIO {
     }
 
     // ---- Which patcher: whether ClosedXML can calculate every function the formulas call --
+    // The first of two checks, made on the file before ClosedXML loads it; the second, ClosedXmlReproduces, compares
+    // ClosedXML's results with Excel's.
     // The ClosedXML patcher writes ClosedXML's own result for every formula (PatchOriginal). A function it does not implement
     // comes out as #NAME?, and IFERROR, ISERROR and the like turn that into an ordinary value, such as 0 for
     // IFERROR(NORM.S.INV(0.975),0): neither is the result Excel saved, and a reopened workbook would send it to R and the
@@ -892,7 +903,7 @@ public static partial class WorkbookIO {
     // results (reported as uncached) and leaves Excel to recalculate them. The functions are those called by any worksheet
     // formula, and by the defined names those formulas use (and the names those use), each read with its string literals,
     // quoted sheet names and bracketed parts (structured and external references) left out; a name nothing uses, such as a
-    // chart's OFFSET range, does not count.
+    // chart's OFFSET range, does not count. A workbook of more than ClosedXmlFormulas formula cells is not calculated either.
     static readonly Regex FormulaFunction = new(@"(?<![\p{L}\p{N}_.\\?])([\p{L}_\\][\p{L}\p{N}_.\\?]*)\(", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     static readonly Regex FormulaWord = new(@"(?<![\p{L}\p{N}_.\\?])[\p{L}_\\][\p{L}\p{N}_.\\?]*", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     static readonly Regex FormulaLiteral = new(@"""(?:[^""]|"""")*""|'(?:[^']|'')*'|\[[^\[\]]*\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -927,15 +938,17 @@ public static partial class WorkbookIO {
             foreach (Match m in FormulaFunction.Matches(text)) functions.Add(m.Groups[1].Value);
             if (names.Count > 0) foreach (Match m in FormulaWord.Matches(text)) if (names.ContainsKey(m.Value) && used.Add(m.Value)) pending.Enqueue(m.Value);
         }
+        int formulaCells = 0;
         foreach (var sheet in package.Sheets) {
             var entry = Entry(zip, sheet.Entry);
             if (entry == null) continue;
             using var stream = entry.Open();
             using var reader = XmlReader.Create(stream);
             while (!reader.EOF) {
-                if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "f" && reader.NamespaceURI == MainNs)
+                if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "f" && reader.NamespaceURI == MainNs) {
+                    if (++formulaCells > ClosedXmlFormulas) return false;   // a cell of a shared formula has an <f> of its own
                     Read(reader.ReadElementContentAsString());   // leaves the reader on the node after the element
-                else reader.Read();
+                } else reader.Read();
             }
         }
         while (pending.Count > 0) foreach (var formula in names[pending.Dequeue()]) Read(formula);
@@ -946,12 +959,14 @@ public static partial class WorkbookIO {
     // Preserve the source package's styles, rich text and other worksheet features.
     // ClosedXML rewrites some inherited fonts on a full save of StatsDirect's test.xlsx.
     // Existing workbooks therefore receive cell patches, rather than a package rebuild.
-    // Null when ClosedXML cannot load the workbook, as with a NaN or 1e999 cell value written by another program: the
-    // lossless streaming patcher then saves it, and Excel recalculates.
-    static int? PatchWithClosedXml(string temporary, string source, List<SheetData> sheets) {
+    // False when ClosedXML cannot load the workbook, as with a NaN or 1e999 cell value written by another program, or
+    // when its results cannot be trusted (ClosedXmlReproduces, and the evaluation in PatchOriginal): the lossless
+    // streaming patcher then saves the workbook, and Excel recalculates.
+    static bool PatchWithClosedXml(string temporary, string source, List<SheetData> sheets, bool compare) {
         XLWorkbook loaded;
-        try { loaded = new XLWorkbook(source); } catch (ArgumentException) { return null; }
+        try { loaded = new XLWorkbook(source); } catch (ArgumentException) { return false; }
         using var workbook = loaded;
+        if (compare && !ClosedXmlReproduces(workbook)) return false;
         var patches = new List<Patch>();
         foreach (var data in sheets) {
             if (!workbook.Worksheets.Contains(data.Name)) throw new Exception("The worksheet no longer exists in this workbook.");
@@ -979,17 +994,64 @@ public static partial class WorkbookIO {
         workbook.ForceFullCalculation = true;
         return PatchOriginal(temporary, workbook, patches);
     }
-    // The number of formula results left for Excel to recalculate, or null when ClosedXML's results cannot be trusted.
-    static int? PatchOriginal(string path, XLWorkbook workbook, List<Patch> patches) {
+    // ---- Which patcher: whether ClosedXML gives the results Excel saved -------------------
+    // ClosedXML's functions and references are not all Excel's, and where they differ nothing fails: SUM(Table1[Value])
+    // on another sheet than the table adds the wrong cells, ROUND(1.005,2) gives 1 where Excel gives 1.01, a number joined
+    // to text keeps 17 digits where Excel keeps 15, and a range in a single-cell formula gives its first cell, not the one
+    // in the formula's row. Saved after an edit, such a result would reach R and the analyses as Excel's. So before any
+    // edit, ClosedXML recalculates the workbook as it was opened, and its results are kept only if every formula comes
+    // out as Excel saved it: the same text, logical value or error, or a number equal to the 15 significant digits Excel
+    // works to. A formula with no saved result gives nothing to compare, so it fails the check too, as does one ClosedXML
+    // cannot evaluate, and one whose result changes with each calculation (TODAY, RAND). This is evidence, not proof: a
+    // formula could agree before the edit and differ after it.
+    static bool ClosedXmlReproduces(string path) {
+        XLWorkbook loaded;
+        try { loaded = new XLWorkbook(path); } catch (ArgumentException) { return false; }
+        using var workbook = loaded;
+        return ClosedXmlReproduces(workbook);
+    }
+    static bool ClosedXmlReproduces(XLWorkbook workbook) {
+        var formulas = workbook.Worksheets.SelectMany(sheet => sheet.CellsUsed(XLCellsUsedOptions.Contents).Where(c => c.HasFormula)).ToList();
+        var saved = new XLCellValue[formulas.Count];
+        for (int i = 0; i < formulas.Count; i++) {
+            if (formulas[i].NeedsRecalculation) return false;   // the file holds no result for this formula
+            saved[i] = formulas[i].CachedValue;
+            if (saved[i].IsBlank) return false;
+        }
+        foreach (var cell in formulas) cell.InvalidateFormula();
+        for (int i = 0; i < formulas.Count; i++) {
+            XLCellValue value;
+            try { value = formulas[i].Value; } catch { return false; }
+            if (!SameResult(saved[i], value)) return false;
+        }
+        return true;
+    }
+    static bool SameResult(XLCellValue saved, XLCellValue calculated) {
+        // A date or a time is a number to Excel; ClosedXML types a saved one by its cell's format.
+        if (saved.IsUnifiedNumber && calculated.IsUnifiedNumber) {
+            double x = saved.GetUnifiedNumber(), y = calculated.GetUnifiedNumber();
+            return x == y || x.ToString("G15", CultureInfo.InvariantCulture) == y.ToString("G15", CultureInfo.InvariantCulture);
+        }
+        if (saved.Type != calculated.Type) return false;
+        return saved.Type switch {
+            XLDataType.Text => saved.GetText() == calculated.GetText(),
+            XLDataType.Boolean => saved.GetBoolean() == calculated.GetBoolean(),
+            XLDataType.Error => saved.GetError() == calculated.GetError(),
+            _ => false
+        };
+    }
+
+    // False, with the file untouched, when ClosedXML cannot evaluate a formula after the edits.
+    static bool PatchOriginal(string path, XLWorkbook workbook, List<Patch> patches) {
         foreach (var worksheet in workbook.Worksheets)
             foreach (var cell in worksheet.CellsUsed(XLCellsUsedOptions.Contents).Where(c => c.HasFormula)) cell.InvalidateFormula();
-        // A formula ClosedXML cannot evaluate (a reference to a workbook it cannot read, a circular reference) stops its
-        // calculation part way, and formulas it has not reached keep their old results with no error, so a stale value
-        // would be saved as Excel's. Then no result of this calculation is trusted: the caller saves by streaming instead,
-        // which leaves every formula for Excel to recalculate. The file is not touched before this point.
+        // A formula ClosedXML cannot evaluate (a reference to another workbook, a three-dimensional or circular reference, a
+        // result that is not a number) makes its calculation of the whole workbook fail: results are lost, and the formula
+        // that failed can come back with its old result and no error. Then no result of this calculation is trusted, and
+        // the caller saves by streaming instead, which leaves every formula for Excel to recalculate.
         foreach (var worksheet in workbook.Worksheets)
             foreach (var cell in worksheet.CellsUsed(XLCellsUsedOptions.Contents).Where(c => c.HasFormula)) {
-                try { _ = cell.Value; } catch { return null; }
+                try { _ = cell.Value; } catch { return false; }
             }
         XNamespace s = S, rel = Rel, packageRel = PackageRel;
         using var zip = ZipFile.Open(path, ZipArchiveMode.Update);
@@ -1001,7 +1063,7 @@ public static partial class WorkbookIO {
         var bookXml = Read("xl/workbook.xml");
         var relationships = Read("xl/_rels/workbook.xml.rels").Root.Elements(packageRel + "Relationship")
             .ToDictionary(e => (string)e.Attribute("Id"), e => (string)e.Attribute("Target"));
-        int uncached = 0, dateStyle = -1, durationStyle = -1;
+        int dateStyle = -1, durationStyle = -1;
         bool dates = patches.Any(p => p.Cells.Any(c => c.Kind == "datetime")), durations = patches.Any(p => p.Cells.Any(c => c.Kind == "timespan"));
         if (dates || durations) {
             var stylesEntry = relationships.Values.Select(ResolveTarget).FirstOrDefault(e => Entry(zip, e) != null && e.EndsWith("styles.xml", StringComparison.OrdinalIgnoreCase));
@@ -1074,12 +1136,7 @@ public static partial class WorkbookIO {
                 int formatStyle = edit.Kind == "datetime" ? dateStyle : edit.Kind == "timespan" ? durationStyle : -1;
                 if (formatStyle >= 0 && ((string)xmlCell.Attribute("s") ?? "0") == "0") xmlCell.SetAttributeValue("s", formatStyle);
             }
-            foreach (var cell in formulas) {
-                XLCellValue value;
-                try { value = cell.Value; } catch { value = Blank.Value; uncached++; }
-                var xmlCell = Find(cell.Address.RowNumber, cell.Address.ColumnNumber);
-                SetValue(xmlCell, value, true);
-            }
+            foreach (var cell in formulas) SetValue(Find(cell.Address.RowNumber, cell.Address.ColumnNumber), cell.Value, true);   // evaluated above
             var dimension = xml.Root.Element(s + "dimension");
             if (dimension != null && edits.Count > 0 && cells.Count > 0) {
                 int lastRow = cells.Keys.Max(k => k.Item1), lastCol = cells.Keys.Max(k => k.Item2);
@@ -1091,7 +1148,7 @@ public static partial class WorkbookIO {
         if (calc == null) { calc = new XElement(s + "calcPr"); bookXml.Root.Add(calc); }
         calc.SetAttributeValue("calcMode", "auto"); calc.SetAttributeValue("fullCalcOnLoad", "1"); calc.SetAttributeValue("forceFullCalc", "1");
         Write("xl/workbook.xml", bookXml);
-        return uncached;
+        return true;
     }
 
     // Index of a cellXfs entry with a built-in number format (22 a date-time, 46 [h]:mm:ss), added

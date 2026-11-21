@@ -219,15 +219,15 @@ try:
             ('<c r="B{r}" t="str"><f>IF(A1&gt;0,"",1)</f></c>', '', 'blank', FORMULA, None),   # no saved result
             ('<c r="B{r}"><f>IF(A1&gt;0,"",1)</f><v/></c>', '', 'blank', FORMULA, None),       # as openpyxl writes every formula
             ('<c r="B{r}" t="str"><f>"x"</f><v>x</v></c>', 'x', 'text', '"x"', None)]
-        def make_values(path, nonfinite):
+        def make_values(path, nonfinite, formulas=FORMULAS):
             source = folder/'values-source.xlsx'; book = openpyxl.Workbook(); ws = book.active; ws.title = 'Values'
             for r, (value, code, _, _) in enumerate(VALUES, 1): ws.cell(r, 1, value).number_format = code
-            for r in range(1, len(FORMULAS) + 1): ws.cell(r, 2, 2000 + r)
+            for r in range(1, len(formulas) + 1): ws.cell(r, 2, 2000 + r)
             for r in range(1, len(nonfinite) + 1): ws.cell(r, 3, 1000 + r).number_format = 'yyyy-mm-dd' if r % 2 else 'General'
             book.save(source)
             def special(xml):
                 for r, text in enumerate(nonfinite, 1): xml = xml.replace('<v>%d</v>' % (1000 + r), '<v>%s</v>' % text)
-                for r, (cell, *_) in enumerate(FORMULAS, 1): xml = re.sub(r'<c r="B%d"[^>]*>.*?</c>' % r, lambda m: cell.format(r=r), xml, count=1)
+                for r, (cell, *_) in enumerate(formulas, 1): xml = re.sub(r'<c r="B%d"[^>]*>.*?</c>' % r, lambda m: cell.format(r=r), xml, count=1)
                 return xml
             rewrite(source, path, 'xl/worksheets/sheet1.xml', special)
         def check_values(reply, nonfinite=NONFINITE):
@@ -312,15 +312,27 @@ try:
             assert result.get('ok') and result['recalculated'] is False and result['uncachedFormulas'] == len(FORMULAS), (stream, result)
             check_round_trip(out, f'streaming patch, stream={stream}', moved, uncached)
         assert request(action='close', id=opened['id'])['ok']
-        # ClosedXML recalculates every formula, so =IF(A1>0,"",1) then has a saved empty result.
+        # ClosedXML's results are kept only when it reproduces every result Excel saved, and a formula with no saved result
+        # gives it nothing to reproduce: a workbook ClosedXML can load, but with such formulas, is saved by streaming too.
         READABLE = ['INF', '-INF']   # ClosedXML 0.105 loads these, which .NET does not read as numbers, in any style
         readable = folder/'values-readable.xlsx'; make_values(readable, READABLE)
         opened = request(action='open', path=str(readable)); check_values(opened, READABLE)
         moved, edits = edits_of(opened)
+        out = folder/'values-unsaved-results.xlsx'
+        result = request(action='save', id=opened['id'], path=str(out), sheets=edits)
+        assert result.get('ok') and result['recalculated'] is False and result['uncachedFormulas'] == len(FORMULAS), result
+        check_round_trip(out, 'streaming patch for formulas without saved results', moved, uncached, READABLE)
+        assert request(action='close', id=opened['id'])['ok']
+        # With every result saved, and reproduced, ClosedXML recalculates the formulas: =IF(A1>0,"",1) keeps a saved empty result.
+        SAVED = [f for f in FORMULAS if f[4] or f[3] != FORMULA]
+        assert len(SAVED) == 3
+        verified = folder/'values-verified.xlsx'; make_values(verified, READABLE, SAVED)
+        opened = request(action='open', path=str(verified)); check_values(opened, READABLE)
+        moved, edits = edits_of(opened)
         out = folder/'values-closedxml.xlsx'
         result = request(action='save', id=opened['id'], path=str(out), sheets=edits)
         assert result.get('ok') and result['recalculated'] is True and result['uncachedFormulas'] == 0, result
-        recalculated = [('', 'blank', formula, True) if formula == FORMULA else (text, kind, formula, None) for _, text, kind, formula, _ in FORMULAS]
+        recalculated = [('', 'blank', formula, True) if formula == FORMULA else (text, kind, formula, None) for _, text, kind, formula, _ in SAVED]
         check_round_trip(out, 'ClosedXML patch', moved, recalculated, READABLE)
         assert request(action='close', id=opened['id'])['ok']
         print('PASS: dates (1900-02-29 included), times of day and durations keep their text and kind through all three save paths; typed 26:00:00, R date-times and impossible dates save correctly, and dates before 1900-01-01 and durations beyond 9999-12-31 as text; a workbook ClosedXML cannot load is saved by streaming')

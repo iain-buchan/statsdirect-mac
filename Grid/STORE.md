@@ -52,16 +52,24 @@ so memory is spent only on the cells a sheet holds (shared strings and cell styl
 once per workbook; shared formulas are expanded for their dependant cells). The reply lists
 the cells as JSON, or, when the request names a `snapshot` directory, writes one typed
 columnar file per sheet (`snapshot.mjs` documents the format) that the grid fetches into
-typed arrays. A new workbook is written by a streaming XML writer with inline strings. An
-opened workbook is patched: through ClosedXML, which recalculates formulas and preserves
-styles, when the original plus the edits hold at most one million cells and ClosedXML can
-calculate every formula, and otherwise by streaming each worksheet part and merging the edited
+typed arrays. A new workbook is written by a streaming XML writer with inline strings.
+An opened workbook is patched. ClosedXML does it, recalculating the formulas and preserving
+styles, only where its results can be trusted: the original plus the edits hold at most one
+million cells and 20,000 formula cells; the package has none of the features ClosedXML cannot
+keep (pivots, slicers, query tables, form controls, ActiveX, threaded comments, dynamic-array
+metadata, connections, worksheet extension lists, array or data-table formulas); ClosedXML
+loads it and has every function its formulas call; recalculating the workbook as opened,
+ClosedXML gives every formula the result Excel saved (numbers to 15 significant digits); and
+after the edits it evaluates every formula without failing. Any other workbook, and any save
+that asks to stream, is patched by streaming each worksheet part and merging the edited
 cells, in which case formula cells keep their expressions, lose their cached results and the
-workbook is marked for recalculation when Excel opens it (`uncachedFormulas` in the reply tells
-the user). ClosedXML cannot calculate a function it lacks, a link to another workbook, or any
-formula whose evaluation fails, which stops its calculation part way with other results stale.
-A workbook saved with no edited cell and no inserted column is copied as opened, with the
-results and calculation settings Excel saved.
+workbook is marked for recalculation when Excel opens it (`uncachedFormulas` in the reply
+tells the user). So a workbook with a formula saved without a result, or one whose result
+changes at each calculation (TODAY, RAND), is always streamed, as is one where ClosedXML
+differs from Excel (a structured reference to a table on another sheet, ROUND(1.005,2)).
+With inserted columns, which remove the saved results of the formulas they move, the
+comparison is made on the workbook as opened. A workbook saved with no edited cell and no
+inserted column is copied as opened, with the results and calculation settings Excel saved.
 
 The prototype's 500,000-cell, 50 MB, 256 MB and 128-sheet limits are gone. Measured through
 the native driver on the 1,048,576-row × 4-column probe workbook (35 MB):

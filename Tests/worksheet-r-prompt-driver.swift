@@ -39,6 +39,12 @@ struct WorksheetRPromptDriver {
         try check(arranged.count == 7 && arranged[0] === r.entireButton && arranged[1] === r.selectedButton && arranged[2] === r.noneButton
                   && arranged[4] === r.formatHint && arranged[5] === r.headings && arranged[6] === r.rFriendlyNames,
                   "the data choices, Import as, its hint and the two boxes come in the rules' order")
+        // The alert must be as wide as its options: at its narrow default it cut them off on both sides.
+        r.alert.window.layoutIfNeeded()
+        let optionsInWindow = r.alert.accessoryView.map { $0.convert($0.bounds, to: nil) } ?? .zero
+        let promptWidth = r.alert.window.frame.width
+        try check(optionsInWindow.width >= 540 && optionsInWindow.minX >= 0 && optionsInWindow.maxX <= promptWidth,
+                  "the prompt is wide enough to show its options whole")
         try check(r.scope == .none && r.noneButton.state == .on && r.alert.window.initialFirstResponder === r.noneButton,
                   "No data is chosen, and has the focus, when the prompt opens")
         try check(r.format.itemTitles == ["Data frame (keep rows aligned)", "List of vectors (independent samples)"]

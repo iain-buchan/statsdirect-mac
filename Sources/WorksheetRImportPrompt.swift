@@ -154,6 +154,9 @@ final class WorksheetRImportPrompt: NSObject {
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.widthAnchor.constraint(equalToConstant: 540).isActive = true
         format.widthAnchor.constraint(greaterThanOrEqualToConstant: 170).isActive = true
+        // The alert takes its width from the size the options have when it is given them. Without a size it stays at
+        // its narrow default and cuts the options off on both sides.
+        stack.setFrameSize(NSSize(width: 540, height: stack.fittingSize.height))
         alert.accessoryView = stack
         updateControls(resetHeadings: true)
         alert.layout()

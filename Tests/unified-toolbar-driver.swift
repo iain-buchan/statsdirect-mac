@@ -622,5 +622,38 @@ import WebKit
             """, savedScripts()[0].path]
         try process.run(); process.waitUntilExit()
         try check(process.terminationStatus == 0,"the R+ script replays independently in R with unique headings and unequal vectors")
+
+        v.newWorksheet()
+        let blank = v.active!
+        try await wait("The new empty worksheet did not load") {
+            (try? await js(blank, "!!window.statsDirectGrid && !!document.querySelector('[data-command=worksheetR]')")) as? Bool == true
+        }
+        try await click(blank, "worksheetR")
+        try await wait("Worksheet R did not respond on an empty sheet") {
+            v.active?.rConsolePane != nil || v.window.attachedSheet != nil
+        }
+        let blankSession = v.active!
+        try check(v.window.attachedSheet == nil && blankSession.rConsolePane?.sourceText.isEmpty == true
+                  && blankSession.rConsolePane?.hasWorkspace == false,
+                  "Worksheet R opens an empty console without an import prompt on an empty worksheet")
+        v.remove(blankSession); v.tabs.selectTabViewItem(blank.item)
+
+        let directory = RExternalScript.scriptsFolder
+        func emptySessionFiles() -> Set<URL> {
+            Set(((try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
+                .filter { $0.lastPathComponent.hasPrefix("New R Session ") && $0.pathExtension == "R" })
+        }
+        let existing = emptySessionFiles()
+        try await click(blank, "worksheetRPlus")
+        try await wait("Worksheet R+ did not respond on an empty sheet") {
+            v.window.attachedSheet != nil || !emptySessionFiles().subtracting(existing).isEmpty
+        }
+        let handedOff = emptySessionFiles().subtracting(existing)
+        try check(v.window.attachedSheet == nil && v.active === blank && handedOff.count == 1,
+                  "Worksheet R+ hands off without an import prompt on an empty worksheet")
+        let scriptFile = handedOff.first!
+        defer { try? FileManager.default.removeItem(at: scriptFile) }
+        try check(try Data(contentsOf: scriptFile).isEmpty, "The empty worksheet R+ handoff contains no worksheet data")
+        v.remove(blank); v.tabs.selectTabViewItem(grid.item)
     }
 }

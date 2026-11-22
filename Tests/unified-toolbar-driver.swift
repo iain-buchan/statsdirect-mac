@@ -436,10 +436,16 @@ import WebKit
     @MainActor static func worksheetRTools(_ v: Viewer, grid: Document,
         js: (Document, String) async throws -> Any?, click: (Document, String) async throws -> Void,
         selected: String) async throws {
-        func view<T: NSView>(_ id: String, in root: NSView?) -> T? {
+        func view<T: NSView>(in root: NSView?, matching predicate: (T) -> Bool) -> T? {
             guard let root else { return nil }
-            if root.identifier?.rawValue == "worksheet-r-" + id { return root as? T }
-            return root.subviews.lazy.compactMap { view(id, in: $0) }.first
+            if let match = root as? T, predicate(match) { return match }
+            for child in root.subviews {
+                if let match = view(in: child, matching: predicate) { return match }
+            }
+            return nil
+        }
+        func view<T: NSView>(_ id: String, in root: NSView?) -> T? {
+            view(in: root) { $0.identifier?.rawValue == "worksheet-r-" + id }
         }
         func button(_ id: String, in sheet: NSWindow) throws -> NSButton {
             guard let control: NSButton = view(id, in: sheet.contentView) else {
@@ -459,6 +465,31 @@ import WebKit
             return (format, hint)
         }
         func choose(_ format: NSPopUpButton, _ index: Int) { format.selectItem(at: index); format.sendAction(format.action, to: format.target) }
+        func checkPromptVisibility(_ name: String, in sheet: NSWindow, showsListHint: Bool = false) throws {
+            let (format, hint) = try formatControls(in: sheet)
+            guard let content = sheet.contentView,
+                  let formatLabel: NSTextField = view(in: content, matching: { $0.stringValue == "Import as:" }) else {
+                throw NSError(domain:"ToolbarChecks",code:3,userInfo:[NSLocalizedDescriptionKey:"Missing R import sheet content or format label"])
+            }
+            var options: [NSView] = try ["entire", "selected", "none", "headings", "friendly-names", "open", "cancel"].map {
+                try button($0, in: sheet)
+            }
+            options += [formatLabel, format]
+            if showsListHint { options.append(hint) }
+            content.layoutSubtreeIfNeeded()
+            let clipped = options.filter { option in
+                let bounds = option.bounds
+                let inSheet = option.convert(bounds, to: content)
+                return option.isHiddenOrHasHiddenAncestor || bounds.isEmpty
+                    || !content.bounds.insetBy(dx: -0.5, dy: -0.5).contains(inSheet)
+                    || !option.visibleRect.insetBy(dx: -0.5, dy: -0.5).contains(bounds)
+                    || bounds.width + 0.5 < option.intrinsicContentSize.width
+            }
+            let state = showsListHint ? "with the List of vectors hint" : "on opening"
+            let names = clipped.map { $0.identifier?.rawValue ?? "Import as:" }.joined(separator: ", ")
+            try check(clipped.isEmpty, clipped.isEmpty ? "\(name) shows every import option \(state)"
+                      : "\(name) clips or hides import options \(state): \(names)")
+        }
         /// Every text the sheet shows, the alert's title and message among them.
         func texts(in sheet: NSWindow) -> [String] {
             func collect(_ view: NSView) -> [String] { ((view as? NSTextField).map { [$0.stringValue] } ?? []) + view.subviews.flatMap(collect) }
@@ -467,6 +498,7 @@ import WebKit
         let originalCount = v.documents.count
         try await click(grid,"worksheetR")
         let integrated = try await prompt()
+        try checkPromptVisibility("Worksheet R", in: integrated)
         let none = try button("none", in: integrated)
         let entireCells = try button("entire", in: integrated)
         let selectedCells = try button("selected", in: integrated)
@@ -490,6 +522,7 @@ import WebKit
         choose(format, 1)
         try check(!hint.isHidden && hint.stringValue == "Missing values are removed separately from each vector.",
                   "List of vectors shows its hint")
+        try checkPromptVisibility("Worksheet R", in: integrated, showsListHint: true)
         choose(format, 0)
         try check(hint.isHidden, "Data frame hides the list hint")
         try button("open", in: integrated).performClick(nil)
@@ -541,6 +574,7 @@ import WebKit
         defer { RExternalScript.opensExternally = launchExternal; for url in savedScripts() { try? FileManager.default.removeItem(at: url) } }
         try await click(grid,"worksheetRPlus")
         let cancelled = try await prompt()
+        try checkPromptVisibility("Worksheet R+", in: cancelled)
         try check(try button("none", in: cancelled).state == .on && texts(in: cancelled).contains("Open in R or RStudio")
                   && texts(in: cancelled).contains("Choose the data from “\(sheetName)” to copy into R as worksheet_data."),
                   "the external R+ command opens the same No data default sheet, titled Open in R or RStudio")
@@ -570,6 +604,7 @@ import WebKit
         let (externalFormat, externalHint) = try formatControls(in: external)
         choose(externalFormat, 1)
         try check(!externalHint.isHidden, "List of vectors shows its hint for R+ too")
+        try checkPromptVisibility("Worksheet R+", in: external, showsListHint: true)
         try button("open", in: external).performClick(nil)
         try await wait("R+ did not save the external script") { savedScripts().count == 1 }
         try check(v.active === grid && v.documents.count == originalCount,

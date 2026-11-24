@@ -90,6 +90,18 @@ class ContentPublicationTests(unittest.TestCase):
         with self.assertRaisesRegex(publication.InvalidPublication,'root manifest'):
             publication.verify_git_publication(self.repo,revision,raw)
 
+    def test_timestamps_with_any_fraction_the_publisher_writes_are_read(self):
+        # The publisher drops trailing zeros, so the fraction has one to seven digits or is absent (publication b7016a5a has five).
+        for fraction in ('','.4','.40','.408','.4081','.40811','.408110','.4081101'):
+            for zone in ('+00:00','Z'):
+                document=deepcopy(self.document);document['publishedAtUtc']='2026-11-24T19:42:22'+fraction+zone
+                raw=json.dumps(document,indent=2).encode()
+                result=publication.validate_publication(raw,'desktopHelp',self.inventories['desktopHelp'])
+                self.assertEqual(result['publicationManifestText'].encode(),raw,fraction+zone)
+        for bad in ('2026-11-24T19:42:22.40811101+00:00','2026-11-24T19:42:22.+00:00','2026-11-24T19:42:22.40811+01:00','2026-11-24T19:42:22.40811'):
+            document=deepcopy(self.document);document['publishedAtUtc']=bad
+            with self.assertRaises(publication.InvalidPublication,msg=bad):publication.validate_publication(json.dumps(document,indent=2).encode(),'desktopHelp',self.inventories['desktopHelp'])
+
     def test_root_schema_paths_counts_review_binding_and_duplicate_json_rejected(self):
         mutations=[lambda d:d.update(schemaVersion=2),lambda d:d.update(publicationId=d['publicationId'].upper()),
                    lambda d:d['artifacts']['tutor'].pop('trackCount'),lambda d:d['artifacts']['tutor'].update(reviewProofBinding='unknown'),

@@ -67,6 +67,7 @@ extension Viewer: NSMenuDelegate {
     func didOpenDocument(_ doc: Document, url: URL? = nil) {
         guard let url = url ?? doc.openedFileURL else { return }
         doc.openedFileURL = url
+        if doc.kind == "grid" { worksheetAI?.updateControls() }
         noteRecentDocument(url)
         // Discard only the untouched startup sheet after an import succeeds.
         // A failed import or a sheet edited while the file loads keeps it intact.

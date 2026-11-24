@@ -8,6 +8,9 @@ const post=value=>window.webkit?.messageHandlers.statsDirectAI.postMessage(value
 const copyInHost=value=>{const handler=window.webkit?.messageHandlers.statsDirectAICopy;return handler?handler.postMessage(value).then(copied=>copied===true,()=>false):false;};
 function render(state){
  const reading=state.generation===generation?conversationReading(messages):null;
+ const expanded=state.generation===generation&&state.collapseR
+  ?new Set(Array.from(messages.querySelectorAll('details[data-r-block][open]'),block=>block.dataset.rBlock))
+  :new Set();
  generation=state.generation;
  const fragment=document.createDocumentFragment();
  if(!state.messages.length){const p=document.createElement('p');p.className='intro';p.textContent=state.introduction;fragment.append(p);}
@@ -19,9 +22,25 @@ function render(state){
   if(row.role==='assistant')body.innerHTML=richText(row.text);else {body.classList.add('user-text');body.textContent=row.text;}
   article.append(body);fragment.append(article);
   const approvedGeneration=state.generation;
+  for(const [index,button] of Array.from(body.querySelectorAll('[data-code=r]')).entries()){
+   const block=button.closest('.code-block');
+   if(state.runRInSession){
+    button.textContent='Run in this R session';
+    const shown=block.querySelector('code').textContent;
+    button.disabled=row.pending||!row.rBlockTexts?.includes(shown);
+   }
+   if(state.collapseR){
+    const disclosure=document.createElement('details'),summary=document.createElement('summary');
+    disclosure.dataset.rBlock=row.id+':'+index;
+    disclosure.open=expanded.has(disclosure.dataset.rBlock);
+    summary.textContent='Suggested R code';
+    block.replaceWith(disclosure);
+    disclosure.append(summary,block);
+   }
+  }
   // Both buttons send the block's text as shown; the host uses only its own reading of the saved reply (code-blocks.mjs).
   bindRichText(body,{copy:code=>copyInHost({generation:approvedGeneration,messageID:row.id,code}),
-   openR:(code,info)=>post({action:'openR',generation:approvedGeneration,messageID:info.messageID,blockIndex:info.blockIndex,code})});
+   openR:(code,info)=>post({action:state.runRInSession?'runR':'openR',generation:approvedGeneration,messageID:info.messageID,blockIndex:info.blockIndex,code})});
   if(row.pending)body.querySelectorAll('[data-code]').forEach(button=>button.disabled=true);
  }
  messages.replaceChildren(fragment);

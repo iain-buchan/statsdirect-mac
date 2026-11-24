@@ -154,6 +154,14 @@ import WebKit
                     }
                     else if CommandLine.arguments.contains("--scroll-only") { try await transcriptFollowingChecks(viewer) }
                     else if CommandLine.arguments.contains("--history-only") { try await historyRecallChecks(viewer) }
+                    else if CommandLine.arguments.contains("--report-output-only") { try await reportOutputChecks(viewer) }
+                    else if CommandLine.arguments.contains("--ai-only") {
+                        let console = viewer.makeRConsole()
+                        try await makeConsoleVisible(viewer, console)
+                        try await ready(console)
+                        if let directory = console.rConsolePane?.session.workingDirectory { sessionFolders.append(directory) }
+                        sessionFolders += try await consoleAIChecks(viewer, console)
+                    }
                     else if !CommandLine.arguments.contains("--startup-only") { try await run(viewer) }
                     passed = true; print("PASS: live WebKit interactive R console integration completed"); fflush(stdout)
                 }
@@ -767,6 +775,7 @@ import WebKit
                   "closing R retains its original chart assets and leaves both SVG clipboard types and PNG available")
 
         try await graphicsDeviceChecks(viewer)
+        try await reportOutputChecks(viewer)
         try await historyRecallChecks(viewer)
         try await transcriptFollowingChecks(viewer)
         try await sessionGapChecks(viewer)
@@ -1081,6 +1090,82 @@ import WebKit
         _ = try await evaluate(doc, "(()=>{const f=window.__scrollFixture;Object.defineProperty(HTMLImageElement.prototype,'src',f.descriptor);document.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,pointerId:91}));getSelection().removeAllRanges();delete window.__scrollFixture;return true})()")
     }
 
+    @MainActor static func reportOutputChecks(_ viewer: Viewer) async throws {
+        let other = viewer.makeReport(), destination = viewer.makeReport()
+        let source = """
+        # SCRIPT_SOURCE_NOT_REPORT_OUTPUT
+        cat('omit from selection; keep & <text>\\n')
+        plot(1:3, pch=16); dev.off(); plot(1:3, pch=16); dev.off()
+        """
+        let doc = viewer.makeRScript(script: source, title: "Worksheet AI example", allowReportOutput: true)
+        defer { viewer.remove(doc); viewer.remove(destination); viewer.remove(other) }
+        try await makeConsoleVisible(viewer, doc)
+        try await ready(doc)
+        if let directory = doc.rConsolePane?.session.workingDirectory { sessionFolders.append(directory) }
+        try check(try await evaluate(doc, "document.getElementById('add-output-to-report').hidden") as? Bool == true,
+                  "worksheet AI review starts in Script with the output action available only in Console")
+        try await wait("the Script Run button and reviewed code are displayed") {
+            try await evaluate(doc, "!document.getElementById('run').disabled && document.getElementById('script-source').value.includes('SCRIPT_SOURCE_NOT_REPORT_OUTPUT')") as? Bool == true
+        }
+        _ = try await evaluate(doc, "document.getElementById('run').click(); true")
+        try await expectOutput(doc, "keep & <text>")
+        try await console(doc, "cat('LATER_UNSELECTED_RESULT\\n')")
+        try await expectOutput(doc, "LATER_UNSELECTED_RESULT")
+        try await wait("worksheet R chart previews and Add output action") {
+            try await evaluate(doc, """
+                (() => {
+                  const charts = [...document.querySelectorAll('figure.plot img')], add = document.getElementById('add-output-to-report');
+                  return charts.length === 2 && charts.every(img => img.complete && img.naturalWidth > 0) && !add.hidden && !add.disabled;
+                })()
+                """) as? Bool == true
+        }
+        let repeated = try await evaluate(doc, """
+            (() => {
+              const [first, second] = [...document.querySelectorAll('figure.plot img')].map(img => {
+                const parsed = new DOMParser().parseFromString(atob(img.src.split(',')[1]), 'image/svg+xml');
+                return new Set([...parsed.querySelectorAll('[id]')].map(node => node.id));
+              });
+              return [...first].some(id => second.has(id));
+            })()
+            """) as? Bool ?? false
+        try check(repeated, "the two real R charts reuse source SVG IDs")
+        _ = try await evaluate(doc, """
+            (() => {
+              const first = [...document.querySelectorAll('pre.output-entry')].find(node => node.textContent.includes('keep & <text>'));
+              const last = [...document.querySelectorAll('figure.plot')].at(-1);
+              const range = document.createRange();
+              range.setStart(first.firstChild, first.textContent.indexOf('keep & <text>')); range.setEndAfter(last);
+              const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+              document.getElementById('add-output-to-report').click();
+              return true;
+            })()
+            """)
+        try await wait("worksheet R output in its existing report") {
+            !destination.web.isLoading && destination.reportEntries?.count == 1
+        }
+        try check(viewer.active === destination && other.reportEntries?.isEmpty == true,
+                  "Add output to report routes the selected output to the current report")
+        let checkResult = try await evaluate(destination, #"""
+            (() => {
+              const report = document.querySelector('.report-entry'), charts = [...report.querySelectorAll('svg')];
+              const ids = charts.map(chart => new Set([...chart.querySelectorAll('[id]')].map(node => node.id)));
+              const scoped = charts.every((chart, index) => [...chart.querySelectorAll('*')].every(node =>
+                [...node.attributes].every(attr => [...attr.value.matchAll(/url\(#([^)]*)\)/g)].every(ref => ids[index].has(ref[1])))));
+              return report.textContent.includes('keep & <text>') && report.querySelector('text')?.namespaceURI !== 'http://www.w3.org/1999/xhtml'
+                && !report.textContent.includes('omit from selection') && !report.textContent.includes('LATER_UNSELECTED_RESULT')
+                && !report.textContent.includes('SCRIPT_SOURCE_NOT_REPORT_OUTPUT')
+                && charts.length === 2 && ids.every(set => set.size > 0) && [...ids[0]].every(id => !ids[1].has(id)) && scoped;
+            })()
+            """#) as? Bool == true
+        try check(checkResult, "the report includes only selected R results and two separately isolated SVG charts")
+        viewer.tabs.selectTabViewItem(doc.item)
+        let stale: [String: Any] = ["sessionId": "stale session", "generation": 0]
+        try await post(doc, "addOutputToReport", fields: ["entries": [["kind": "text", "text": "STALE"]]], envelope: stale)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        try check(destination.reportEntries?.count == 1 && other.reportEntries?.isEmpty == true,
+                  "stale R session output cannot add another report entry")
+    }
+
     @MainActor static func graphicsDeviceChecks(_ viewer: Viewer) async throws {
         let doc = viewer.makeRConsole(title: "Graphics device checks"), pane = doc.rConsolePane!
         defer { pane.shutdown() }
@@ -1219,6 +1304,8 @@ import WebKit
         viewer.window.minSize = NSSize(width: 300, height: 500)
         try await console(doc, "narrowValue <- 41; cat('NARROW_READY\\n')")
         try await expectOutput(doc, "NARROW_READY\n")
+        try check(try await evaluate(doc, "document.getElementById('add-output-to-report').hidden") as? Bool == true,
+                  "ordinary R consoles hide Add output to report")
         let nativeHorizontalInset = Double((viewer.window.contentView?.bounds.width ?? 0) - doc.web.bounds.width)
         for (pass, width) in [420, 320, 420, 320, 900].enumerated() {
             viewer.window.setContentSize(NSSize(width: CGFloat(width), height: 700))
@@ -1301,7 +1388,7 @@ import WebKit
             const inspectMode = async mode => {
               toolbar.scrollLeft=0; toolbar.scrollTop=0;
               const settledGeometry = await settle();
-              const buttons = Array.from(toolbar.querySelectorAll('button')), failedButtons = [];
+              const buttons = Array.from(toolbar.querySelectorAll('button:not([hidden])')), failedButtons = [];
               let reachable = buttons.length>0;
               for (let index=0; index<buttons.length; index++) {
                 const button=buttons[index];

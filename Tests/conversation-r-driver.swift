@@ -110,10 +110,31 @@ import Foundation
         let worksheet=try ConversationRScript.build([["role":"assistant","rData":rData,"text":"```r\nnumbers <- .statsdirect_data[['fixed-data']][['column_7']]\nwords <- .statsdirect_data[['fixed-data']][['column_2']]\n```"]],messageIndex:0)
         try runR(worksheet,"worksheet","stopifnot(identical(numbers,c(1.5,NA,-20)), identical(words[1]," + (try ConversationRScript.quote(special)) + "), is.na(words[2]), length(words)==3)")
         try check(!rData.contains("column_0"),"worksheet aliases retain their actual column indices")
+        let currentData=try ConversationRScript.dataset(["datasetId":"current-data","columns":[["index":0,"values":["3"]]]])
+        let liveMessages=[
+            ["role":"user","text":"```r\nstop('earlier user block')\n```","rSource":"stop('source snapshot')"],
+            ["role":"assistant","rData":rData,"text":"```r\nstop('earlier assistant block')\n```"],
+            ["role":"assistant","rData":"stop('incomplete binding')","text":"```r\nstop('incomplete reply')\n```","incomplete":"true"],
+            ["role":"assistant","rData":currentData,"text":"```r\nfirst <- 1L\n```\n```r\nsecond <- .statsdirect_data[['fixed-data']][['column_7']][1L] + .statsdirect_data[['current-data']][['column_0']]\n```"],
+            ["role":"assistant","rData":"stop('later data')","text":"```r\nstop('later assistant block')\n```"]
+        ]
+        try runR(ConversationRScript.executionCode(liveMessages,messageIndex:3,blockIndex:1), "live-single-block",
+                 "stopifnot(second == 4.5, !exists('first'))")
+        try runR(ConversationRScript.executionCode(liveMessages,messageIndex:3), "live-reply",
+                 "stopifnot(first == 1L, second == 4.5)")
+        let review=try ConversationRScript.build(liveMessages,messageIndex:3,currentReplyOnly:true)
+        try check(review.contains(currentData) && !review.contains("earlier assistant block") && !review.contains(rData),
+                  "worksheet review includes only the current reply's code and frozen data")
+        for index in [0,2] {
+            var rejected=false
+            do { _=try ConversationRScript.executionCode(liveMessages,messageIndex:index) }
+            catch is ConversationRScript.Failure { rejected=true }
+            try check(rejected,"live execution rejects learner code and incomplete assistant replies (row \(index))")
+        }
         var rejected=false; do { _=try ConversationRScript.quote("null\0text") } catch is ConversationRScript.Failure { rejected=true }; try check(rejected,"R-incompatible null character is rejected")
         rejected=false; do { _=try ConversationRScript.build([["role":"assistant","rSource":String(repeating:"x",count:2_000_001),"text":"```r\nx\n```"]],messageIndex:0) } catch is ConversationRScript.Failure { rejected=true }; try check(rejected,"oversized replay is rejected")
         let long=String(repeating:"# full local source\n",count:1000) + source
         try runR(ConversationRScript.build([["role":"user","text":"Long source","rSource":long],["role":"assistant","text":"```r\nd <- before-after\n```"]],messageIndex:1),"full-local-source","stopifnot(length(d)==9)")
-        print("PASS: \(checks) conversation R checks, including seven fresh real-R executions")
+        print("PASS: \(checks) conversation R checks, including nine fresh real-R executions")
     }
 }

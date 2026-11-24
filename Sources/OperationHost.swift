@@ -58,13 +58,20 @@ extension Viewer {
         if command.id == "calculator" { showCalculator(); return }
         openAnalysisOperation(command.id, label: command.label, sourceID: source.id)
     }
-    private func openAnalysisOperation(_ operation: String, label: String, sourceID: String?) {
+    func openAnalysisOperation(_ operation: String, label: String, sourceID: String?,
+                               initialSource: [String: Any]? = nil, reportDestination: WorksheetAIReportDestination? = nil) {
         guard let definition = analysisCatalog[operation] else { return }
-        if operation == "ExactChiRbyCScreen" { showChiSquare(sourceID: sourceID); return }
-        let title = nextAnalysisTitle(definition["title"] as? String ?? label)
-        let doc = newDocument(kind: "operation", title: title, url: root.appendingPathComponent("Grid/operation.html"))
-        doc.operationName = operation
+        let doc: Document
+        if operation == "ExactChiRbyCScreen" {
+            doc = showChiSquare(sourceID: sourceID)
+        } else {
+            let title = nextAnalysisTitle(definition["title"] as? String ?? label)
+            doc = newDocument(kind: "operation", title: title, url: root.appendingPathComponent("Grid/operation.html"))
+            doc.operationName = operation
+        }
         doc.operationSourceID = sourceID
+        doc.initialOperationSource = initialSource
+        doc.operationReportDestination = reportDestination
     }
     func handleOperation(_ message: WKScriptMessage) {
         guard message.name == "statsDirectOperation", message.frameInfo.isMainFrame,
@@ -75,6 +82,7 @@ extension Viewer {
         case "ready":
             var config = doc.operationName.flatMap { analysisCatalog[$0] } ?? doc.followOnDefinition ?? [:]; config["title"] = doc.title
             config["derivedOutput"] = supportsDerivedWorksheet(doc.operationName ?? "")
+            if let destination = doc.operationReportDestination { config["reportDestination"] = destination.title }
             if doc.managedScript != nil { config = ["title": doc.title, "id": "UserScript"] }
             doc.operationReady = true
             operationScript(doc, "configure", config)
@@ -197,7 +205,12 @@ extension Viewer {
     func operationError(_ doc: Document, _ text: String) { operationScript(doc, "error", text) }
     func refreshOperationSource(_ doc: Document, completion: (() -> Void)? = nil) {
         if let source = doc.initialOperationSource {
-            doc.initialOperationSource = nil; doc.operationSourceSnapshot=source; operationScript(doc, "setSource", source); completion?(); return
+            doc.initialOperationSource = nil
+            doc.operationSourceSnapshot = source
+            doc.operationSnapshotSourceID = doc.operationSourceID
+            operationScript(doc, "setSource", source)
+            completion?()
+            return
         }
         guard let source = documents.first(where: { $0.id == (doc.operationSourceID ?? analysisSourceID) }), source.kind == "grid" else { doc.operationSnapshotSourceID = nil; operationScript(doc, "setSource", NSNull()); completion?(); return }
         doc.operationSnapshotSourceID = source.id
@@ -288,7 +301,8 @@ extension Viewer {
         // user chose otherwise; an instant form, which recalculates on every edit, never writes back.
         let live = doc.operationSourceSnapshot?["lazy"] as? Bool == true && !doc.operationInputEntered
         let instant = doc.operationName.flatMap({ analysisCatalog[$0]?["instant"] as? Bool }) == true
-        let placement = instant ? "new" : (doc.outputPlacement ?? (live ? (output["placement"] as? String ?? "new") : "new"))
+        let placement = instant || doc.operationReportDestination != nil ? "new"
+            : (doc.outputPlacement ?? (live ? (output["placement"] as? String ?? "new") : "new"))
         if placement != "new", !frames.isEmpty, let sourceID = doc.operationSourceID ?? doc.operationSnapshotSourceID, let source = documents.first(where: { $0.id == sourceID }), source.kind == "grid" {
             var request: [String: Any] = ["frames": frames, "placement": placement]
             if let range = doc.operationInputRange { request["range"] = range }
@@ -359,7 +373,7 @@ extension Viewer {
         let record = output["record"] as? String
         let entry = ReportEntry(id: resultID, title: record.flatMap(RunRecordR.title(of:)) ?? recordTitle(doc), operation: operation, body: body,
                                 record: record, recipe: output["recipe"] as? Bool ?? false, helpPath: methodHelpPath(doc))
-        if instant { previewResult(entry, in: doc) } else { appendReport(entry) }
+        if instant { previewResult(entry, in: doc) } else { appendOperationReport(entry, from: doc) }
         if doc.repeatAnalysis, !instant, doc.parentDocumentID == nil, !doc.analysisCancelled {
             // Start a fresh acquisition after the report/write-back has finished.
             // Clearing selection prevents automatic input from replaying forever.

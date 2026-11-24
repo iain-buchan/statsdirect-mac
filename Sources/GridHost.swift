@@ -44,6 +44,16 @@ extension Viewer: WKScriptMessageHandler {
             guard active === doc, window.attachedSheet == nil, NSApp.modalWindow == nil,
                   let external = body["external"] as? Bool else { return }
             openWorksheetInR(doc, external: external)
+        case "worksheetLearn":
+            guard active === doc, window.attachedSheet == nil, NSApp.modalWindow == nil else { return }
+            openLearning()
+        case "worksheetAI":
+            guard active === doc, window.attachedSheet == nil, NSApp.modalWindow == nil else { return }
+            openWorksheetAI(doc)
+        case "worksheetAIMethod":
+            guard active === doc, let assistant = worksheetAI, assistant.workbookID == doc.id,
+                  let id = body["id"] as? String else { return }
+            assistant.prepareAnalysis(id)
         case "openCSV": openCSV()
         case "openRData": openRData()
         case "saveRDS": saveRData(doc, format: "rds")

@@ -68,9 +68,9 @@ def _document(raw):
         timestamp = document["publishedAtUtc"]
         require(isinstance(timestamp, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?(?:Z|\+00:00)", timestamp),
                 "Publication timestamp must be ISO UTC")
-        # Preserve the raw manifest; truncate only the parser input for Python
-        # versions whose datetime parser supports at most six fractional digits.
-        parse_timestamp = re.sub(r"(\.\d{6})\d(?=Z|\+00:00$)", r"\1", timestamp)
+        # Preserve the raw manifest; only the parser input is changed. The publisher writes one to seven fractional
+        # digits (it drops trailing zeros), and Python before 3.11 reads exactly three or six, so give it six.
+        parse_timestamp = re.sub(r"\.(\d{1,7})(?=Z$|\+00:00$)", lambda match: "." + match.group(1)[:6].ljust(6, "0"), timestamp)
         stamp = datetime.fromisoformat(parse_timestamp.replace("Z", "+00:00"))
         require(stamp.utcoffset() == timedelta(0), "Publication timestamp must be UTC")
     except (ValueError, KeyError, AttributeError) as error:

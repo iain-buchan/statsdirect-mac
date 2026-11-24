@@ -44,7 +44,8 @@ import WebKit
     private var replyID = UUID().uuidString
     private var dockWidth: CGFloat=460
     private var conversation: Conversation? { scriptID.flatMap{conversations[$0]} }
-    private var isReport: Bool { viewer.documents.first(where:{$0.id==scriptID})?.kind == "report" }
+    private var sourceDocument: Document? { viewer.documents.first(where:{$0.id==scriptID}) }
+    private var isReport: Bool { sourceDocument?.kind == "report" }
     var isBusy: Bool { task != nil }
     // Commands target this window's responder, even while macOS temporarily has
     // no key window (activation, menus or a returning system dialog). A sheet
@@ -57,6 +58,7 @@ import WebKit
     init(viewer: Viewer) {
         self.viewer=viewer;transcript=AIConversationView(root:viewer.root);super.init()
         transcript.openR = { [weak self] generation,id,index,shown in self?.openCode(generation:generation,messageID:id,blockIndex:index,shown:shown) }
+        transcript.runR = { [weak self] generation,id,index,shown in self?.runCode(generation:generation,messageID:id,blockIndex:index,shown:shown) }
         transcript.copyCode = { [weak self] generation,id,code in self?.copyCode(generation:generation,messageID:id,code:code) ?? false }
         heading.font = .systemFont(ofSize:13,weight:.semibold)
         heading.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
@@ -138,6 +140,7 @@ import WebKit
     }
     func open(_ doc: Document, reportResultID: String? = nil) {
         guard ["r","report"].contains(doc.kind) else { return }
+        viewer.worksheetAI?.hide()
         if scriptID != doc.id {
             saveChoices();stop();scriptID=doc.id
             if conversations[doc.id]==nil { conversations[doc.id]=Conversation() }
@@ -283,6 +286,7 @@ import WebKit
         if sharing { setContextExpanded(false) }
         let token=UUID();requestID=token;replyID=UUID().uuidString;saveChoices()
         let reportMode=source.kind=="report"
+        let rSessionID=source.rConsolePane?.session.sessionId
         let context=ScriptAIContext(viewer:viewer,script:shareScript.state == .on && !reportMode ? source:nil,workbook:workbook,
             report:shareScript.state == .on && reportMode ? source:nil,reportResultID:chat.reportResultID,active:{[weak self] in self?.requestID==token})
         let sharedNames=[shareScript.state == .on ? source.title:nil,workbook?.title].compactMap{$0}
@@ -299,11 +303,14 @@ import WebKit
                 let reply=try await viewer.chatGPTTutor.converse(context:reference,messages:messages,tools:context.tools,purpose:reportMode ? .report:.script,progress:{[weak self] text in
                     guard let self,self.requestID==token else { return };self.partial=text;self.render()
                 },toolHandler:{ name,args in try await context.call(name,args) })
-                try context.check();chat.messages.append(["id":replyID,"rData":context.rData,"role":"assistant","text":reply.text]);partial="";render()
+                try context.check()
+                var replyRow = ["id":replyID,"rData":context.rData,"role":"assistant","text":reply.text]
+                if let rSessionID, !rSessionID.isEmpty { replyRow["rSessionID"] = rSessionID }
+                chat.messages.append(replyRow);partial="";render()
                 showNotice(reportMode ? "Reply received. Ask a follow-up about the interpretation or method." : "Reply received. Review suggested code before running it in R.")
             } catch {
                 guard requestID==token else { return }
-                if !partial.isEmpty { chat.messages.append(["id":replyID,"rData":activeContext?.rData ?? "","role":"assistant","text":partial+"\n[Reply stopped before completion.]"]);partial="" }
+                savePartialReply();partial=""
                 render();showNotice(error is CancellationError ? "Reply stopped." : error.localizedDescription)
                 if input.string.isEmpty { input.string=question;chat.draft=question }
             }
@@ -311,8 +318,13 @@ import WebKit
         updateControls()
     }
     @objc func stop() {
-        if let chat=conversation, !partial.isEmpty { chat.messages.append(["id":replyID,"rData":activeContext?.rData ?? "","role":"assistant","text":partial+"\n[Reply stopped before completion.]"]) }
+        savePartialReply()
         task?.cancel();task=nil;requestID=nil;activeContext=nil;partial="";render();updateConnection()
+    }
+    private func savePartialReply() {
+        guard let chat=conversation, !partial.isEmpty else { return }
+        chat.messages.append(["id":replyID,"rData":activeContext?.rData ?? "","role":"assistant",
+                              "text":partial+"\n[Reply stopped before completion.]","incomplete":"true"])
     }
     @objc func hide() {
         guard visible else { return };saveChoices();stop();dockWidth=view.frame.width;visible=false
@@ -333,7 +345,8 @@ import WebKit
     func shutdown() { task?.cancel();task=nil;requestID=nil;activeContext=nil;transcript.shutdown() }
     @objc func openLastCode() {
         guard let chat=conversation, let index=chat.messages.lastIndex(where:{$0["role"]=="assistant"}), let id=chat.messages[index]["id"] else { return }
-        openCode(generation:chat.generation,messageID:id)
+        if sourceDocument?.rConsolePane != nil { runCode(generation:chat.generation,messageID:id) }
+        else { openCode(generation:chat.generation,messageID:id) }
     }
     /// Copy R code, as the Windows pane has it: the latest reply's completed R blocks alone, a blank line between them.
     @objc func copyLastCode() {
@@ -360,6 +373,32 @@ import WebKit
             viewer.status.stringValue="Review the source, earlier examples and suggested R code before choosing Run"
         } catch { showNotice(error.localizedDescription) }
     }
+    func runCode(generation: String, messageID: String, blockIndex: Int = -1, shown: String? = nil) {
+        guard visible, !TutorPolicy.disabled, viewer.window.attachedSheet == nil,
+              let chat=conversation, chat.generation==generation, let doc=sourceDocument, viewer.active === doc,
+              let pane=doc.rConsolePane else { return }
+        guard let index=chat.messages.firstIndex(where:{$0["id"]==messageID}),
+              chat.messages[index]["role"]=="assistant", chat.messages[index]["incomplete"] != "true" else {
+            showNotice("Wait for the reply to finish before running its R code.");return
+        }
+        let session=pane.session
+        guard !session.sessionId.isEmpty, chat.messages[index]["rSessionID"]==session.sessionId else {
+            showNotice("This reply belongs to an earlier R session. Ask again in the current session.");return
+        }
+        guard session.state=="ready" else { showNotice("Wait for R’s input prompt before running the suggestion.");return }
+        var block=blockIndex
+        if let shown {
+            block=ConversationRScript.findBlock(ConversationRScript.readBlocks(chat.messages[index]["text"] ?? ""),position:blockIndex,shown:shown)
+            guard block>=0 else { showNotice(ConversationRScript.unmatchedNotice);return }
+        }
+        do {
+            let code=try ConversationRScript.executionCode(chat.messages,messageIndex:index,blockIndex:block)
+            if session.submit(source:code,origin:"script") {
+                pane.showConsoleOutput()
+                showNotice("Running the suggestion in this R session…")
+            } else { showNotice("R could not accept the suggestion. Check the console.") }
+        } catch { showNotice(error.localizedDescription) }
+    }
     /// Copy on a block of the conversation: the page sends the code as it shows it, and what is copied is this pane's
     /// own reading of that block, with the reply's own tabs. Answers whether anything was copied; when the block
     /// cannot be matched it says so and copies nothing.
@@ -374,15 +413,27 @@ import WebKit
     }
     private func render() {
         let messages=conversation?.messages ?? []
-        let hasCode = messages.last(where:{$0["role"]=="assistant"}).map{!ConversationRScript.blocks($0["text"] ?? "").isEmpty} ?? false
-        openCodeButton.isEnabled=hasCode;copyCodeButton.isEnabled=hasCode
+        let console=sourceDocument?.rConsolePane
+        let canRun: ([String:String])->Bool = { row in
+            guard let console, !console.session.sessionId.isEmpty else { return false }
+            return row["role"]=="assistant" && row["incomplete"] != "true" && row["rSessionID"]==console.session.sessionId
+        }
+        let reply = messages.last(where:{$0["role"]=="assistant"})
+        let hasCode = reply.map{!ConversationRScript.blocks($0["text"] ?? "").isEmpty} ?? false
+        openCodeButton.title=console == nil ? "Open R code" : "Run in this R session"
+        openCodeButton.toolTip=console == nil ? "Open the latest reply with its original data and preceding R code; review before running"
+            : "Run the latest reply’s R blocks in the current R session"
+        openCodeButton.isEnabled=hasCode && (console == nil || reply.map(canRun)==true);copyCodeButton.isEnabled=hasCode
         var rows: [[String:Any]]=messages.map { row in
-            ["id":row["id"] ?? "", "role":row["role"] ?? "assistant", "text":row["text"] ?? "", "context":row["context"] ?? ""]
+            var display: [String:Any]=["id":row["id"] ?? "", "role":row["role"] ?? "assistant",
+                                       "text":row["text"] ?? "", "context":row["context"] ?? ""]
+            if canRun(row) { display["rBlockTexts"]=ConversationRScript.readBlocks(row["text"] ?? "").filter(\.r).map(\.shown) }
+            return display
         }
         if !partial.isEmpty { rows.append(["id":replyID,"role":"assistant","text":partial,"pending":true]) }
         let intro=isReport ? "Ask what your results mean, how the method works, or which assumptions to check. Report sharing includes text and chart labels. Describe any visual details you want to discuss."
             : "Ask for help understanding, improving or debugging your R script."
-        transcript.render(["generation":conversation?.generation ?? "", "messages":rows,
+        transcript.render(["generation":conversation?.generation ?? "", "messages":rows, "runRInSession":console != nil,
             "introduction":intro+"\n\nChoose whether to share documents or ask a question without them. Nothing is sent until you press Send."])
     }
 }

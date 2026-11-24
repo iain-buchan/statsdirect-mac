@@ -11,10 +11,14 @@ local({
   dir.create(rlib, recursive = TRUE, showWarnings = FALSE)
   .libPaths(c(rlib, .libPaths()))
 })
-cat(R.version.string, "\n", sep = "")
-cat("Working directory: ", getwd(), "\n", sep = "")
 local({
-  marker <- commandArgs(trailingOnly = TRUE)[1]
+  args <- commandArgs(trailingOnly = TRUE)
+  marker <- args[1L]
+  results_only <- identical(args[2L], "results-only")
+  if (!results_only) {
+    cat(R.version.string, "\n", sep = "")
+    cat("Working directory: ", getwd(), "\n", sep = "")
+  }
   session_directory <- getwd()
   input <- file("stdin", open = "r")
   run_number <- 0L
@@ -40,7 +44,7 @@ local({
     formals(automatic_device) <- formals(grDevices::pdf)
     options(device = automatic_device)
     devices_before <- grDevices::dev.list()
-    tryCatch(source(path, local = .GlobalEnv, echo = TRUE, print.eval = TRUE),
+    tryCatch(source(path, local = .GlobalEnv, echo = !results_only, print.eval = TRUE),
       error = function(e) cat("Error: ", conditionMessage(e), "\n", sep = ""),
       interrupt = function(e) cat("Interrupted\n"))
     # Flush every device opened by this run, including explicitly named PDFs,

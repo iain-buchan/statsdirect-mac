@@ -12,6 +12,13 @@ extension Viewer {
                 guard let options = try result.get() as? [String: Any], let sheet = options["sheet"] as? String else {
                     throw ConversationRScript.Failure(message: "The worksheet import options could not be read.")
                 }
+                if options["entire"] is NSNull, options["selected"] is NSNull {
+                    guard doc.gridVersion == version else {
+                        throw ConversationRScript.Failure(message: "The worksheet changed. Click R or R+ again.")
+                    }
+                    self.openWorksheetRSession("", title: nil, document: doc, external: external)
+                    return
+                }
                 let entire = WorksheetRImportPrompt.Option(options["entire"] as? [String: Any])
                 let selected = WorksheetRImportPrompt.Option(options["selected"] as? [String: Any])
                 WorksheetRImportPrompt.present(on: self.window, external: external, sheet: sheet, entire: entire, selected: selected,

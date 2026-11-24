@@ -156,11 +156,12 @@ jobs:
           fi
       - name: Startup, recent documents and guided R setup
         run: bash Scripts/test-startup-r-setup.sh
-      - name: Script and report AI docks and sharing
+      - name: Worksheet, Script and Report AI and sharing
         run: |
           Scripts/test-ai-sharing.sh
           Scripts/test-script-ai.sh
           Scripts/test-report-ai.sh
+          Scripts/test-worksheet-ai.sh
       - name: Conversation R replay and Learning recovery
         run: |
           RSCRIPT="$(command -v Rscript)" bash Scripts/test-conversation-r.sh

@@ -265,13 +265,12 @@ extension Viewer {
     }
 
     @discardableResult
-    func appendReport(_ entry: ReportEntry) -> Document {
+    func appendReport(_ entry: ReportEntry, to destination: Document? = nil) -> Document {
         // A repeated Add action must never duplicate an unchanged result.
         if let existing = documents.first(where: { $0.reportEntries?.contains(where: { $0.id == entry.id }) == true }) {
             tabs.selectTabViewItem(existing.item); return existing
         }
-        let report = documents.first(where: { $0.id == activeReportID && $0.reportEntries != nil })
-            ?? documents.last(where: { $0.reportEntries != nil }) ?? makeReport()
+        let report = destination ?? currentReportDestination ?? makeReport()
         report.reportEntries?.append(entry)
         report.reportRevision += 1
         // Engine output is outside edit history. Undo changes only the entries
@@ -294,8 +293,8 @@ extension Viewer {
     }
 
     func keepResult(_ doc: Document, id: String?) {
-        guard let entry = doc.pendingResult, entry.id == id else { return }
-        let report = appendReport(entry)
+        guard let entry = doc.pendingResult, entry.id == id,
+              let report = appendOperationReport(entry, from: doc) else { return }
         let bridge = doc.kind == "analysis" ? "statsDirectChiSquare" : "statsDirectOperation"
         doc.web.evaluateJavaScript("window.\(bridge)?.resultKept(\(jsString(report.title)))")
     }

@@ -17,6 +17,8 @@ import WebKit
     private var failureNotice: NSStackView!
     /// Open in R on a block: generation, message, the block's place among the message's R blocks, and the code as the page shows it.
     var openR: ((String,String,Int,String?)->Void)?
+    /// Run an explicitly selected block from a finished Script AI reply in its original interactive R session.
+    var runR: ((String,String,Int,String)->Void)?
     /// Copy on a block: generation, message and the code as the page shows it. Answers whether anything was copied.
     var copyCode: ((String,String,String)->Bool)?
     init(root: URL) {
@@ -141,6 +143,7 @@ import WebKit
         guard let generation=body["generation"] as? String,let id=body["messageID"] as? String else { return }
         // A click sends the block's text; a page that sent none could only go by a real position.
         if action=="openR",let index=body["blockIndex"] as? Int,body["code"] is String || index>=0 { openR?(generation,id,index,body["code"] as? String) }
+        if action=="runR",let index=body["blockIndex"] as? Int,index>=0,let code=body["code"] as? String { runR?(generation,id,index,code) }
     }
     func userContentController(_ controller: WKUserContentController,didReceive message: WKScriptMessage,replyHandler: @escaping @MainActor @Sendable (Any?,String?)->Void) {
         guard message.name=="statsDirectAICopy",message.webView === web,message.frameInfo.isMainFrame,message.frameInfo.request.url?.standardizedFileURL == page,

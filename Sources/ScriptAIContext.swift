@@ -8,7 +8,7 @@ import Cocoa
     let report: Document?
     let workbook: Document?
     private let version: Int?
-    private let consentRevision: Int
+    private let consentRevision: Int?
     private let scriptSnapshot: [String:Any]?
     private var reportSnapshot: [String:Any]?
     private let reportRevision: Int?
@@ -16,9 +16,10 @@ import Cocoa
     let rSource: String
     private(set) var rData = ""
     private let active: () -> Bool
-    init(viewer: Viewer, script: Document?, workbook: Document?, report: Document? = nil, reportResultID: String? = nil, active: @escaping () -> Bool) {
+    init(viewer: Viewer, script: Document?, workbook: Document?, report: Document? = nil, reportResultID: String? = nil,
+         usesSessionConsent: Bool = true, active: @escaping () -> Bool) {
         self.rSource=script?.rConsolePane?.sourceText ?? (script?.rPane?.language == "R" ? script?.rPane?.editor.string ?? "" : "")
-        self.consentRevision=viewer.aiSharing.revision
+        self.consentRevision=usesSessionConsent ? viewer.aiSharing.revision : nil
         self.viewer=viewer; self.script=script; self.workbook=workbook; self.version=workbook?.gridVersion; self.active=active
         self.report=report; self.reportRevision=report?.reportRevision; self.reportResultID=reportResultID
         if let script, let pane=script.rConsolePane {
@@ -50,7 +51,9 @@ import Cocoa
     func check() throws {
         try TutorPolicy.check(); try Task.checkCancellation()
         guard active() else { throw CancellationError() }
-        guard (script == nil && report == nil && workbook == nil) || viewer.aiSharing.revision==consentRevision else { throw ChatGPTTutor.Failure(message:"The selected data document changed. Confirm sharing for the new document before sending again.") }
+        if let consentRevision, (script != nil || report != nil || workbook != nil), viewer.aiSharing.revision != consentRevision {
+            throw ChatGPTTutor.Failure(message:"The selected data document changed. Confirm sharing for the new document before sending again.")
+        }
         for doc in [script,report,workbook].compactMap({$0}) {
             guard viewer.documents.contains(where:{$0 === doc}) else { throw ChatGPTTutor.Failure(message:"A shared document was closed. Send again to choose the current context.") }
         }

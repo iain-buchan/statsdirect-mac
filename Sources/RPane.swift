@@ -113,6 +113,10 @@ final class RPane: NSObject, NSTextViewDelegate {
     var languageChanged: ((String) -> Void)?
     var showAI: (() -> Void)?
     var showHelp: (() -> Void)?
+    var reportOutput: (([RReportOutputPart], UUID, Int) async -> Void)?
+    private let allowReportOutput: Bool
+    private var addingReportOutput = false
+    private var outputRevision = 0
     private let resources: URL
     private struct PlotStamp: Equatable { let modified: Date; let size: Int }
     @MainActor private final class PlotContext {
@@ -132,9 +136,12 @@ final class RPane: NSObject, NSTextViewDelegate {
     var hasUnsavedChanges: Bool { editor.string != savedScript }
     var isRunning: Bool { busy }
 
-    init(script: String = "", saved: Bool = false, resources: URL = Bundle.main.resourceURL!.appendingPathComponent("Content"), installer: RInstaller? = nil, executable: @escaping () -> String? = { RRuntime.executable() }) {
+    init(script: String = "", saved: Bool = false, resources: URL = Bundle.main.resourceURL!.appendingPathComponent("Content"),
+         installer: RInstaller? = nil, executable: @escaping () -> String? = { RRuntime.executable() },
+         allowReportOutput: Bool = false) {
         self.resources = resources
         self.installer = installer ?? .shared; self.executable = executable
+        self.allowReportOutput = allowReportOutput
         super.init()
         editor.string = script
         savedScript = saved ? script : ""
@@ -171,6 +178,8 @@ final class RPane: NSObject, NSTextViewDelegate {
         let openInR = NSButton(title: "Open in R", target: self, action: #selector(openInR))
         openInR.toolTip = "Open the script in RStudio, or run it in a new R application session with results and charts"
         let clear = NSButton(title: "Clear output", target: self, action: #selector(clearOutput))
+        let addToReport = NSButton(title: "Add output to report", target: self, action: #selector(addOutputToReport))
+        addToReport.toolTip = "Add the selected R output to the current report, or all visible output if nothing is selected"
         let ai = NSButton(title: "AI assistance", target: self, action: #selector(openAI))
         ai.toolTip = "Ask your AI for help with this script. You choose whether to share data and code."
         let help = NSButton(title: "Method Help", target: self, action: #selector(openHelp))
@@ -202,6 +211,7 @@ final class RPane: NSObject, NSTextViewDelegate {
             .init(button: style(runButton,"run",labelled: true), priority: 0),
             .init(button: style(stopButton,"stop"), priority: 20),
             .init(button: style(clear,"clear"), priority: 70), .init(button: style(folderButton,"folder"), priority: 60),
+            .init(button: addToReport, priority: 55),
             .init(button: style(help,"help"), priority: 25, groupStart: true),
             .init(button: style(ai,"ai"), priority: 25),
             .init(button: style(openInR,"rPlus"), priority: 25),
@@ -210,6 +220,9 @@ final class RPane: NSObject, NSTextViewDelegate {
         toolbar.validate = { [weak self] in
             guard let self else { return }
             openInR.isEnabled = self.language == "R"
+            addToReport.isHidden = !self.allowReportOutput || self.language != "R"
+            addToReport.isEnabled = self.process?.isRunning == true && !self.busy && !self.addingReportOutput
+                && !self.console.string.isEmpty
             self.languageButton.isEnabled = !self.busy
             let output = self.editingFocus === self.console
             let selection = (output ? self.console : self.editor).selectedRange().length > 0
@@ -309,6 +322,7 @@ final class RPane: NSObject, NSTextViewDelegate {
             guard FileManager.default.isReadableFile(atPath: script.path) else { throw CocoaError(.fileReadNoSuchFile) }
             let child = Process(), incoming = Pipe(), outgoing = Pipe()
             child.executableURL = URL(fileURLWithPath: executable); child.arguments = ["--vanilla", script.path, marker]
+            if allowReportOutput { child.arguments?.append("results-only") }
             child.currentDirectoryURL = folder
             child.standardInput = incoming; child.standardOutput = outgoing; child.standardError = outgoing
             outgoing.fileHandleForReading.readabilityHandler = { [weak self] handle in
@@ -365,12 +379,14 @@ final class RPane: NSObject, NSTextViewDelegate {
             if line.trimmingCharacters(in: .whitespacesAndNewlines) == marker {
                 showNewPlots(); listWrittenFiles()
                 busy = false; runButton.isEnabled = true; state.stringValue = "Ready · R session retained"
+                refreshToolbar()
             } else { append(line + "\n") }
         }
         // Bound unterminated output while retaining enough bytes for a split protocol marker.
         if pending.count > 65536 { let count = pending.count - 256; append(String(decoding: pending.prefix(count), as: UTF8.self)); pending.removeFirst(count) }
     }
     private func append(_ text: String) {
+        outputRevision += 1
         console.textStorage?.append(NSAttributedString(string: text, attributes: [.font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular), .foregroundColor: NSColor.textColor]))
         if let storage = console.textStorage, storage.length > 1_000_000 { storage.deleteCharacters(in: NSRange(location: 0, length: storage.length - 800_000)) }
         console.scrollToEndOfDocument(nil)
@@ -582,7 +598,44 @@ final class RPane: NSObject, NSTextViewDelegate {
         if let child, child.isRunning { child.terminate() }
         busy = false; runButton.isEnabled = true; stopButton.isEnabled = false
     }
-    @objc private func clearOutput() { console.string = "" }
+    @objc private func clearOutput() { console.string = ""; outputRevision += 1; refreshToolbar() }
+    func hasCurrentReportOutput(generation: UUID, revision: Int) -> Bool {
+        self.generation == generation && outputRevision == revision && !busy && process?.isRunning == true
+    }
+    @objc private func addOutputToReport() {
+        guard allowReportOutput, language == "R", let reportOutput, !addingReportOutput, !busy,
+              process?.isRunning == true, let storage = console.textStorage, storage.length > 0 else { return }
+        let selection = console.selectedRange()
+        let range = selection.length > 0 ? selection : NSRange(location: 0, length: storage.length)
+        let output = storage.attributedSubstring(from: range)
+        var parts: [RReportOutputPart] = []
+        do {
+            // The fallback transcript keeps original SVG bytes on each
+            // attachment, even when a later run overwrites its file.
+            var pictureError: Error?
+            output.enumerateAttribute(.attachment, in: NSRange(location: 0, length: output.length)) { value, span, stop in
+                if let attachment = value as? RPlotAttachment {
+                    if let svg = attachment.svgData { parts.append(.svg(svg)) }
+                    else if let image = attachment.image {
+                        do { parts.append(.png(try RChartExport.pngData(fromImage: image))) }
+                        catch { pictureError = error; stop.pointee = true }
+                    }
+                } else {
+                    let text = (output.string as NSString).substring(with: span)
+                    if !text.isEmpty { parts.append(.text(text)) }
+                }
+            }
+            if let pictureError { throw pictureError }
+            guard !parts.isEmpty else { return }
+            let generation = self.generation, revision = outputRevision
+            addingReportOutput = true; refreshToolbar()
+            Task { @MainActor [weak self] in
+                defer { self?.addingReportOutput = false; self?.refreshToolbar() }
+                guard let self, self.hasCurrentReportOutput(generation: generation, revision: revision) else { return }
+                await reportOutput(parts, generation, revision)
+            }
+        } catch { state.stringValue = error.localizedDescription }
+    }
     private func workingDirectory(fresh: Bool = false) throws -> URL {
         if let directory, !fresh { return directory }
         let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StatsDirect Viewer/R Sessions/" + UUID().uuidString, isDirectory: true)

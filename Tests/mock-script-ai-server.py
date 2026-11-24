@@ -49,6 +49,13 @@ for line in sys.stdin:
   if question=='PEFR_FOLLOWUP':
    assert context['documents']==[] and 'currentScript' not in context
    finish(thread,'```r\nstopifnot(length(d)==9)\nmean(d)\n```');continue
+  if question=='LIVE_R_ACTIONS':
+   finish(thread,"First block:\n```r\nlive_first <- 1L\ncat(paste0('LIVE_BLOCK_', 'ONE\\n'))\n```"
+    "\nSecond block:\n```r\nstopifnot(!exists('console_ai_must_not_execute', inherits=FALSE))\n"
+    "live_keep <- live_keep + 7L\ncat(paste0('LIVE_BLOCK_', 'TWO:', live_keep, ':', exists('live_first', inherits=FALSE), '\\n'))\n```");continue
+  if question=='PARTIAL_LIVE_ACTION':
+   notify('item/agentMessage/delta',{'threadId':thread,'turnId':'turn','itemId':'answer',
+    'delta':"Still replying.\n```r\ncat(paste0('INCOMPLETE_', 'RAN\\n'))\n```"});continue
   if question=='CANCEL_TEST':continue
   if question=='STREAM_TEST':
    assert context['documents']==[] and 'currentScript' not in context

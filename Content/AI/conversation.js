@@ -20325,6 +20325,7 @@ ${content}</tr>
   };
   function render3(state) {
     const reading = state.generation === generation ? conversationReading(messages) : null;
+    const expanded = state.generation === generation && state.collapseR ? new Set(Array.from(messages.querySelectorAll("details[data-r-block][open]"), (block2) => block2.dataset.rBlock)) : /* @__PURE__ */ new Set();
     generation = state.generation;
     const fragment = document.createDocumentFragment();
     if (!state.messages.length) {
@@ -20357,9 +20358,25 @@ ${content}</tr>
       article.append(body);
       fragment.append(article);
       const approvedGeneration = state.generation;
+      for (const [index, button] of Array.from(body.querySelectorAll("[data-code=r]")).entries()) {
+        const block2 = button.closest(".code-block");
+        if (state.runRInSession) {
+          button.textContent = "Run in this R session";
+          const shown = block2.querySelector("code").textContent;
+          button.disabled = row.pending || !row.rBlockTexts?.includes(shown);
+        }
+        if (state.collapseR) {
+          const disclosure = document.createElement("details"), summary = document.createElement("summary");
+          disclosure.dataset.rBlock = row.id + ":" + index;
+          disclosure.open = expanded.has(disclosure.dataset.rBlock);
+          summary.textContent = "Suggested R code";
+          block2.replaceWith(disclosure);
+          disclosure.append(summary, block2);
+        }
+      }
       bindRichText(body, {
         copy: (code) => copyInHost({ generation: approvedGeneration, messageID: row.id, code }),
-        openR: (code, info) => post({ action: "openR", generation: approvedGeneration, messageID: info.messageID, blockIndex: info.blockIndex, code })
+        openR: (code, info) => post({ action: state.runRInSession ? "runR" : "openR", generation: approvedGeneration, messageID: info.messageID, blockIndex: info.blockIndex, code })
       });
       if (row.pending) body.querySelectorAll("[data-code]").forEach((button) => button.disabled = true);
     }

@@ -11,15 +11,15 @@ enum TutorPolicy {
 @MainActor
 final class ChatGPTTutor {
     enum Purpose {
-        case learning, script, report
+        case learning, script, report, worksheet
         var instructionsFile: String {
-            switch self { case .learning: return "instructions.txt"; case .script: return "script-instructions.txt"; case .report: return "report-instructions.txt" }
+            switch self { case .learning: return "instructions.txt"; case .script: return "script-instructions.txt"; case .report: return "report-instructions.txt"; case .worksheet: return "worksheet-instructions.txt" }
         }
         var serviceName: String {
-            switch self { case .learning: return "statsdirect-learning"; case .script: return "statsdirect-script-assistant"; case .report: return "statsdirect-report-assistant" }
+            switch self { case .learning: return "statsdirect-learning"; case .script: return "statsdirect-script-assistant"; case .report: return "statsdirect-report-assistant"; case .worksheet: return "statsdirect-worksheet-assistant" }
         }
         var introduction: String {
-            switch self { case .learning: return "Continue this biostatistics teaching conversation."; case .script: return "Continue this StatsDirect script assistance conversation."; case .report: return "Continue this StatsDirect report interpretation conversation." }
+            switch self { case .learning: return "Continue this biostatistics teaching conversation."; case .script: return "Continue this StatsDirect script assistance conversation."; case .report: return "Continue this StatsDirect report interpretation conversation."; case .worksheet: return "Help choose and run an analysis in StatsDirect." }
         }
     }
     struct Failure: LocalizedError {

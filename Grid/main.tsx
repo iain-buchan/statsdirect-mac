@@ -168,7 +168,7 @@ function App() {
   useEffect(() => {
     window.statsDirectGrid = {
       setWorksheetCommands: (commands: unknown) => setCommandCatalogue(worksheetCommands(commands)),
-      showWorksheetCommands: () => window.dispatchEvent(new Event('statsdirect-open-worksheet-commands')),
+      showWorksheetCommands: (methods?: string[]) => window.dispatchEvent(new CustomEvent('statsdirect-open-worksheet-commands', {detail: methods})),
       // The R import prompt's preview (no arguments), then the chosen data ({headings, list} in options).
       // Edit ▸ Select All, until the selection next changes, is the entire worksheet (rule 2.6).
       worksheetRImport: (scope?: 'entire'|'selected', options?: {headings?: boolean, list?: boolean}) => {
@@ -207,6 +207,13 @@ function App() {
       },
       tutorInfo: () => tutorInfo(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
       tutorData: (options: any = {}) => tutorData(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range},options),
+      worksheetAISelection: () => {
+        const selection = selectionRef.current;
+        return {sheet: sheetIndex, sheetName: workbook.sheets[sheetIndex].name, workbookRevision: workbook.revision,
+          sheetRevision: store.version, columns: selection.columns.toArray(), rowCount: selection.rows.length,
+          firstRow: selection.rows.first() ?? null, lastRow: selection.rows.last() ?? null,
+          range: selection.current?.range ?? null, ranges: selection.current?.rangeStack ?? []};
+      },
       analysisSource: () => analysisMetadata(workbook, sheetIndex, {columns: selectionRef.current.columns.toArray(), range: selectionRef.current.current?.range}),
       columnValues: (request: any) => columnValues(workbook, sheetIndex, request),
       snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),
@@ -339,11 +346,13 @@ function App() {
     {id:'analyse',label:'Analyse worksheet (⇧⌘A)',text:'Analyse',icon:'analyse',priority:5,group:true},
     {id:'worksheetR',label:'Open in StatsDirect R',icon:'r',priority:25,run:()=>native('worksheetR',{external:false})},
     {id:'worksheetRPlus',label:'Open in R or RStudio',icon:'rPlus',priority:25,run:()=>native('worksheetR',{external:true})},
+    {id:'worksheetLearn',label:'Learning',text:'Learn',icon:'learn',priority:35,group:true,run:()=>native('worksheetLearn')},
+    {id:'worksheetAI',label:'AI Assist',icon:'ai',priority:35,run:()=>native('worksheetAI')},
     {id:'worksheetHelp',label:'Worksheet help',icon:'help',priority:25,group:true,run:()=>native('worksheetHelp')}
   ]} moreActions={[
     {id:'addRows',label:'Add 100 rows',icon:'addRows',priority:60,disabled:store.rows>=MAX_ROWS,run:()=>attempt(()=>{if(store.apply([],Math.min(MAX_ROWS,store.rows+100)))changed();})},
     {id:'addColumn',label:'Add column',icon:'addColumn',priority:60,disabled:store.columns.length>=MAX_COLS,run:()=>attempt(()=>{if(store.apply([],store.rows,store.columns.length+1))changed();})}
-  ]} commands={commandCatalogue} runAnalysis={id=>native('worksheetCommand',{id})}
+  ]} commands={commandCatalogue} runAnalysis={(id, fromAssistant)=>native(fromAssistant ? 'worksheetAIMethod' : 'worksheetCommand',{id})}
     searchHelp={query=>native('worksheetSearchHelp',{query})}/>
   {findOpen&&<div className="grid-find" role="search" aria-label="Find in worksheet">
     <label htmlFor="grid-find-text">Find</label><input ref={findInput} id="grid-find-text" value={findText} onChange={e=>setFindText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();findNext(e.shiftKey);}if(e.key==='Escape'){setFindOpen(false);grid.current?.focus();}}}/>

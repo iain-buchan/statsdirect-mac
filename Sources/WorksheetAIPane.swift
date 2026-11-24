@@ -24,10 +24,11 @@ import Cocoa
     private let workbookLabel = NSTextField(wrappingLabelWithString: "")
     let sharingButton = NSButton(title: "Sharing options", target: nil, action: nil)
     private let sharingPanel = NSStackView()
+    private let questionOnlyHint = NSTextField(wrappingLabelWithString: "Include the full question each time. Earlier messages aren’t sent.")
     private let notice = NSTextField(wrappingLabelWithString: "")
     private let methods = NSStackView()
     private let offerLabel = NSTextField(wrappingLabelWithString: "")
-    private let offerActions = NSStackView()
+    private let offerPanel = NSStackView()
     private let openCode = NSButton(title: "Open in R", target: nil, action: nil)
     private var conversations: [String: Conversation] = [:]
     private(set) var workbookID: String?
@@ -59,6 +60,7 @@ import Cocoa
         let fresh = NSButton(title: "New conversation", target: self, action: #selector(newConversation))
         let header = NSStackView(views: [label, NSView(), fresh, close])
         label.setContentHuggingPriority(.required, for: .horizontal)
+        workbookLabel.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-workbook")
         let warning = NSTextField(wrappingLabelWithString: "Share the named workbook with ChatGPT only after removing names, dates of birth, patient IDs and identifying free text.")
         warning.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         for control in [warning, share, confirm] { sharingPanel.addArrangedSubview(control) }
@@ -83,24 +85,35 @@ import Cocoa
         let actions = NSStackView(views: [sendButton, stopButton, chooseMethod])
         let proceed = NSButton(title: "Continue", target: self, action: #selector(continueAnalysis))
         let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelAnalysis))
-        offerActions.addArrangedSubview(proceed)
-        offerActions.addArrangedSubview(cancel)
+        proceed.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-continue")
+        offerLabel.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-confirmation")
+        let offerActions = NSStackView(views: [proceed, cancel])
+        offerPanel.orientation = .vertical
+        offerPanel.alignment = .leading
+        offerPanel.spacing = 4
+        offerPanel.addArrangedSubview(offerLabel)
+        offerPanel.addArrangedSubview(offerActions)
+        offerLabel.widthAnchor.constraint(equalTo: offerPanel.widthAnchor).isActive = true
+        offerPanel.isHidden = true
         methods.orientation = .vertical
         methods.alignment = .leading
         methods.spacing = 3
         methods.detachesHiddenViews = true
         notice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         notice.textColor = .secondaryLabelColor
+        questionOnlyHint.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-question-only-hint")
+        questionOnlyHint.font = notice.font
+        questionOnlyHint.textColor = .secondaryLabelColor
         let history = transcript.view
-        let stack = NSStackView(views: [header, workbookLabel, connection, sharingButton, sharingPanel, composer,
-                                       actions, notice, history, methods, offerLabel, offerActions, openCode])
+        let stack = NSStackView(views: [header, workbookLabel, offerPanel, connection, sharingButton, sharingPanel,
+                                       questionOnlyHint, composer, actions, notice, history, methods, openCode])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 7
         stack.detachesHiddenViews = true
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
-        for item in [header, workbookLabel, sharingPanel, composer, notice, history, methods, offerLabel] {
+        for item in [header, workbookLabel, offerPanel, sharingPanel, questionOnlyHint, composer, notice, history, methods] {
             item.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
         warning.widthAnchor.constraint(equalTo: sharingPanel.widthAnchor).isActive = true
@@ -112,7 +125,7 @@ import Cocoa
             composer.heightAnchor.constraint(equalToConstant: 68),
             history.heightAnchor.constraint(greaterThanOrEqualToConstant: 90)
         ])
-        for item in [workbookLabel, warning, offerLabel, notice] {
+        for item in [workbookLabel, warning, offerLabel, questionOnlyHint, notice] {
             item.setContentCompressionResistancePriority(.required, for: .vertical)
         }
         history.setContentHuggingPriority(.defaultLow, for: .vertical)
@@ -158,6 +171,7 @@ import Cocoa
         if doc.id != workbookID { cancelAnalysis() }
         if isBusy {
             pendingWorkbookID = doc.id
+            updateControls()
             return
         }
         select(doc.id)
@@ -177,7 +191,10 @@ import Cocoa
     func documentClosed(_ doc: Document) {
         conversations.removeValue(forKey: doc.id)
         if pendingWorkbookID == doc.id { pendingWorkbookID = nil }
-        guard workbookID == doc.id else { return }
+        guard workbookID == doc.id else {
+            if visible, doc.kind == "grid" { updateControls() }
+            return
+        }
         cancelAnalysis()
         if isBusy { stop() }
         workbookID = nil
@@ -193,6 +210,8 @@ import Cocoa
         cancelAnalysis()
         width = view.frame.width
         visible = false
+        pendingWorkbookID = nil
+        stop()
         view.removeFromSuperview()
         viewer.workspaceSplit.adjustSubviews()
     }
@@ -242,7 +261,7 @@ import Cocoa
         let chat = conversation
         let tutor = viewer.chatGPTTutor
         let disabled = TutorPolicy.disabled
-        let name = workbook.map { $0.openedFileURL?.lastPathComponent ?? $0.title } ?? "No workbook selected"
+        let name = workbook.map(displayName(for:)) ?? "No workbook selected"
         workbookLabel.stringValue = name
         workbookLabel.toolTip = name
         share.state = chat?.share == true ? .on : .off
@@ -251,6 +270,7 @@ import Cocoa
         confirm.isHidden = chat?.share != true
         confirm.isEnabled = share.isEnabled && chat?.share == true
         sharingPanel.isHidden = !expanded
+        questionOnlyHint.isHidden = disabled || chat == nil || chat?.share == true
         sharingButton.title = expanded ? "Sharing for this workbook ▾"
             : chat?.confirmed == true ? "Sharing: this workbook ▸" : "Question only · Sharing options ▸"
         connection.title = disabled ? "AI disabled by policy" : tutor.account != nil ? "ChatGPT connection…" : "Use my ChatGPT"
@@ -264,7 +284,7 @@ import Cocoa
     }
 
     @objc func send() {
-        guard !isBusy, !TutorPolicy.disabled, let workbook, let chat = conversation else { return }
+        guard visible, !isBusy, !TutorPolicy.disabled, let workbook, let chat = conversation else { return }
         let question = input.string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty else { showNotice("Enter a question for AI."); return }
         guard question.count <= 8000 else { showNotice("Shorten the question to 8,000 characters."); return }
@@ -282,7 +302,7 @@ import Cocoa
         input.string = ""
         chat.draft = ""
         let context = ScriptAIContext(viewer: viewer, script: nil, workbook: shared ? workbook : nil,
-                                      usesSessionConsent: false) { [weak self] in self?.requestID == token }
+                                      usesSessionConsent: false) { [weak self] in self?.acceptsRequest(token) == true }
         let tools = shared ? context.tools : []
         let reference = methodReference()
         let unsharedMessages = [row]
@@ -290,7 +310,7 @@ import Cocoa
         if shared { handler = { name, args in try await context.call(name, args) } }
         else { handler = nil }
         let progress: ChatGPTTutor.ProgressHandler = { [weak self] text in
-            guard let self, self.requestID == token else { return }
+            guard let self, self.acceptsRequest(token) else { return }
             self.partial = text
             self.render()
         }
@@ -305,15 +325,17 @@ import Cocoa
                 try context.check()
                 chat.messages.append(["id": replyID, "role": "assistant", "text": reply.text, "rData": context.rData])
                 showNotice("")
-            } catch is CancellationError {
-                if !partial.isEmpty {
-                    chat.messages.append(["id": replyID, "role": "assistant",
-                                          "text": partial + "\n[Reply stopped before completion.]", "incomplete": "true"])
-                }
-                showNotice("Reply stopped.")
             } catch {
-                showNotice(error.localizedDescription)
-                if input.string.isEmpty { input.string = question; chat.draft = question }
+                if Task.isCancelled || error is CancellationError {
+                    if !partial.isEmpty {
+                        chat.messages.append(["id": replyID, "role": "assistant",
+                                              "text": partial + "\n[Reply stopped before completion.]", "incomplete": "true"])
+                    }
+                    showNotice("Reply stopped.")
+                } else {
+                    showNotice(error.localizedDescription)
+                    if input.string.isEmpty { input.string = question; chat.draft = question }
+                }
             }
         }
         chat.messages = messages
@@ -323,6 +345,10 @@ import Cocoa
 
     @objc func stop() { task?.cancel() }
 
+    private func acceptsRequest(_ token: UUID) -> Bool {
+        visible && requestID == token && task?.isCancelled == false
+    }
+
     private func finishRequest(_ token: UUID) {
         guard requestID == token else { return }
         requestID = nil
@@ -330,8 +356,25 @@ import Cocoa
         partial = ""
         let next = pendingWorkbookID
         pendingWorkbookID = nil
-        if let next, viewer.documents.contains(where: { $0.id == next }) { select(next) }
+        if visible, let next, viewer.documents.contains(where: { $0.id == next }) { select(next) }
         render()
+    }
+
+    private func displayName(for document: Document) -> String {
+        func filename(_ doc: Document) -> String { doc.openedFileURL?.lastPathComponent ?? doc.title }
+        func folder(_ doc: Document) -> String? { doc.openedFileURL?.deletingLastPathComponent().standardizedFileURL.path }
+        let name = filename(document)
+        let matches = viewer.documents.filter {
+            $0.kind == "grid" && filename($0).caseInsensitiveCompare(name) == .orderedSame
+        }
+        guard matches.count > 1 else { return name }
+        let parent = folder(document)
+        let location = parent.map { ($0 as NSString).abbreviatingWithTildeInPath } ?? "Unsaved workbook"
+        let copies = matches.filter { folder($0) == parent }
+        if copies.count > 1, let index = copies.firstIndex(where: { $0 === document }) {
+            return name + "\n" + location + " · Open copy \(index + 1)"
+        }
+        return name + "\n" + location
     }
 
     private func methodReference() -> String {
@@ -369,8 +412,7 @@ import Cocoa
             }
         }
         methods.isHidden = methods.arrangedSubviews.isEmpty
-        offerLabel.isHidden = offer == nil
-        offerActions.isHidden = offer == nil
+        offerPanel.isHidden = offer == nil
         var rows: [[String: Any]] = (conversation?.messages ?? []).map { row in
             let body = row["text"] ?? ""
             let stripped = row["role"] == "assistant"
@@ -410,7 +452,7 @@ import Cocoa
                 let prepared = try await viewer.prepareWorksheetAIAnalysis(method, for: workbook)
                 guard !Task.isCancelled, visible, workbookID == workbook.id else { return }
                 offer = prepared
-                offerLabel.stringValue = prepared.methodTitle + "\nWorksheet: " + prepared.worksheetName
+                offerLabel.stringValue = prepared.methodTitle + "\nMenu: " + prepared.menuPath + "\nWorksheet: " + prepared.worksheetName
                     + "\nSelection: " + prepared.selectionLabel + "\nReport: " + prepared.reportTitle
                 showNotice("")
                 render()

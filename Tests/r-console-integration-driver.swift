@@ -1304,6 +1304,8 @@ import WebKit
         viewer.window.minSize = NSSize(width: 300, height: 500)
         try await console(doc, "narrowValue <- 41; cat('NARROW_READY\\n')")
         try await expectOutput(doc, "NARROW_READY\n")
+        try check(try await evaluate(doc, "document.getElementById('add-output-to-report').hidden") as? Bool == true,
+                  "ordinary R consoles hide Add output to report")
         let nativeHorizontalInset = Double((viewer.window.contentView?.bounds.width ?? 0) - doc.web.bounds.width)
         for (pass, width) in [420, 320, 420, 320, 900].enumerated() {
             viewer.window.setContentSize(NSSize(width: CGFloat(width), height: 700))
@@ -1386,7 +1388,7 @@ import WebKit
             const inspectMode = async mode => {
               toolbar.scrollLeft=0; toolbar.scrollTop=0;
               const settledGeometry = await settle();
-              const buttons = Array.from(toolbar.querySelectorAll('button')), failedButtons = [];
+              const buttons = Array.from(toolbar.querySelectorAll('button:not([hidden])')), failedButtons = [];
               let reachable = buttons.length>0;
               for (let index=0; index<buttons.length; index++) {
                 const button=buttons[index];

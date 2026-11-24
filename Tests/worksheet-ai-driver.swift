@@ -50,12 +50,15 @@ import WebKit
         defer { viewer.chatGPTTutor.shutdown() }
         viewer.window.setContentSize(NSSize(width: 1350, height: 850))
 
-        func openWorkbook(_ name: String, value: String) async throws -> Document {
-            let file = directory.appendingPathComponent(name)
+        func openWorkbook(in folder: String, value: String) async throws -> Document {
+            let location = directory.appendingPathComponent(folder, isDirectory: true)
+            try FileManager.default.createDirectory(at: location, withIntermediateDirectories: true)
+            let file = location.appendingPathComponent("Fictional.xlsx")
+            let path = file.resolvingSymlinksInPath()
             try FileManager.default.copyItem(at: viewer.root.appendingPathComponent("Examples/test.xlsx"), to: file)
             viewer.openExcelURL(file)
-            try await wait("Workbook did not open: " + name) {
-                guard let doc = viewer.active, doc.workbookName == name,
+            try await wait("Workbook did not open from " + folder) {
+                guard let doc = viewer.active, doc.openedFileURL?.resolvingSymlinksInPath() == path,
                       doc.pendingWorkbook == nil, !doc.web.isLoading else { return false }
                 return (try? await doc.web.evaluateJavaScript("!!window.statsDirectGrid")) as? Bool == true
             }
@@ -74,14 +77,25 @@ import WebKit
         func text(_ pane: WorksheetAIPane) async -> String {
             (try? await pane.transcript.web.evaluateJavaScript("document.body.innerText")) as? String ?? ""
         }
+        func control<T: NSView>(_ id: String, in view: NSView) -> T? {
+            if view.identifier?.rawValue == id, let match = view as? T { return match }
+            for child in view.subviews {
+                if let match: T = control(id, in: child) { return match }
+            }
+            return nil
+        }
 
-        let first = try await openWorkbook("Fictional A.xlsx", value: "142741")
+        let first = try await openWorkbook(in: "Workbook A", value: "142741")
         try await toolbar(first, "worksheetAI")
         try await wait("Worksheet toolbar did not open AI Assist") { viewer.worksheetAI?.workbookID == first.id }
         let pane = viewer.worksheetAI!
         try check(pane.share.state == .off && pane.confirm.state == .off, "worksheet sharing starts off")
-        let second = try await openWorkbook("Fictional B.xlsx", value: "281593")
+        let second = try await openWorkbook(in: "Workbook B", value: "281593")
         try check(pane.workbookID == second.id && pane.share.state == .off, "opening a workbook follows it without authorising it")
+        let workbookLabel: NSTextField? = control("worksheet-ai-workbook", in: pane.view)
+        let labelB = workbookLabel?.stringValue ?? ""
+        try check(labelB.contains("Fictional.xlsx") && labelB.contains("Workbook B") && !labelB.contains("Workbook A"),
+                  "the sharing label distinguishes same-named Excel files by folder")
         try JSONSerialization.data(withJSONObject: ["A": first.id, "B": second.id])
             .write(to: storage.appendingPathComponent("workbooks.json"))
         _ = try await viewer.chatGPTTutor.signIn()
@@ -89,6 +103,8 @@ import WebKit
 
         for (doc, name) in [(first, "A"), (second, "B")] {
             viewer.tabs.selectTabViewItem(doc.item)
+            try check(workbookLabel?.stringValue.contains("Workbook " + name) == true,
+                      "switching to workbook \(name) displays its folder")
             try check(pane.share.state == .off && pane.confirm.state == .off, "each workbook needs its own approval")
             pane.share.performClick(nil)
             try check(!pane.sendButton.isEnabled, "worksheet sharing requires confirmation")
@@ -131,6 +147,18 @@ import WebKit
         _ = try await second.web.evaluateJavaScript("document.querySelector('[data-worksheet-command=TPaired]').click()")
         try await wait("The method picker did not create a local confirmation") { pane.offer != nil }
         try check(viewer.documents.count == count, "choosing a method waits for Continue before opening an analysis")
+        let confirmation: NSTextField? = control("worksheet-ai-confirmation", in: pane.view)
+        let proceed: NSButton? = control("worksheet-ai-continue", in: pane.view)
+        try check(confirmation?.stringValue.contains("Menu: Analysis › Parametric") == true,
+                  "the inline confirmation gives the method's menu path")
+        viewer.window.contentView?.layoutSubtreeIfNeeded()
+        if let proceed {
+            let action = pane.view.convert(proceed.bounds, from: proceed)
+            let history = pane.view.convert(pane.transcript.view.bounds, from: pane.transcript.view)
+            let above = pane.view.isFlipped ? action.maxY <= history.minY : action.minY >= history.maxY
+            try check(above && !proceed.isHiddenOrHasHiddenAncestor,
+                      "Continue appears above the transcript beside the worksheet controls")
+        } else { throw ChatGPTTutor.Failure(message: "The visible Continue button was not found") }
         pane.cancelAnalysis()
         viewer.tabs.selectTabViewItem(second.item)
         pane.input.string = "Keep this draft for B"
@@ -167,8 +195,31 @@ import WebKit
         viewer.tabs.selectTabViewItem(first.item)
         try await wait("The stopped reply was lost") { (await text(pane)).contains("Reply stopped before completion") }
 
+        pane.input.string = "CLOSE_A"
+        pane.send()
+        try await wait("The fixture did not start the reply to close") {
+            (await text(pane)).contains("Close-test stream for A.")
+        }
+        viewer.tabs.selectTabViewItem(second.item)
+        pane.hide()
+        try await wait("Closing the pane did not interrupt the reply and reject a late read") {
+            !pane.isBusy && FileManager.default.fileExists(atPath: storage.appendingPathComponent("close-read-rejected").path)
+        }
+        try check(!pane.visible && pane.workbookID == first.id, "closing the dock stops sharing without switching the hidden conversation")
+        try await toolbar(second, "worksheetAI")
+        try await wait("The reopened dock did not follow the active workbook") { pane.visible && pane.workbookID == second.id }
+        try check(!(await text(pane)).contains("Close-test stream for A."), "the reopened dock does not show the other workbook's partial reply")
+        viewer.tabs.selectTabViewItem(first.item)
+        try await wait("Closing the dock lost the original stopped reply") {
+            let transcript = await text(pane)
+            return transcript.contains("Close-test stream for A.") && transcript.contains("Reply stopped before completion")
+        }
         pane.sharingButton.performClick(nil)
         pane.share.performClick(nil)
+        let questionHint: NSTextField? = control("worksheet-ai-question-only-hint", in: pane.view)
+        try check(questionHint?.isHiddenOrHasHiddenAncestor == false
+                  && questionHint?.stringValue.localizedCaseInsensitiveContains("full question each time") == true,
+                  "question-only mode explains that each send needs the full question")
         pane.input.string = "QUESTION_ONLY"
         pane.send()
         try await wait("Question-only mode did not send a clean payload") {

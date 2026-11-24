@@ -491,6 +491,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     func noteDocumentSaved(_ doc: Document, at url: URL) {
         doc.openedFileURL = url
         retitleDocument(doc, doc.kind == "grid" ? url.lastPathComponent : url.deletingPathExtension().lastPathComponent)
+        if doc.kind == "grid" { worksheetAI?.updateControls() }
     }
     @objc func selectDocumentTab(_ sender: NSButton) {
         if let doc = documents.first(where: { $0.id == sender.identifier?.rawValue }) { tabs.selectTabViewItem(doc.item) }

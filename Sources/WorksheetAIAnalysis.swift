@@ -17,6 +17,7 @@ enum WorksheetAIReportDestination: Equatable {
 @MainActor final class WorksheetAIAnalysisOffer {
     let id = UUID().uuidString
     let methodTitle: String
+    let menuPath: String
     let worksheetName: String
     let selectionLabel: String
     var reportTitle: String { destination.title }
@@ -33,6 +34,7 @@ enum WorksheetAIReportDestination: Equatable {
                      selection: WorksheetAISelection, destination: WorksheetAIReportDestination) {
         methodID = method.id
         methodTitle = method.title
+        menuPath = (method.path + [method.label]).joined(separator: " › ")
         workbookID = workbook.id
         gridVersion = workbook.gridVersion
         webID = ObjectIdentifier(workbook.web)

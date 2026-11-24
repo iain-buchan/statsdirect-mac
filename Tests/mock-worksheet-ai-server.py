@@ -11,6 +11,7 @@ assert root.name == "chatgpt-mock"
 assert "OPENAI_API_KEY" not in os.environ
 threads = {}
 pending = {}
+closing = set()
 signed = False
 
 
@@ -46,7 +47,10 @@ for line in sys.stdin:
         thread, stage, slot = pending.pop(request["id"])
         result = request["result"]
         identities = json.loads((root / "workbooks.json").read_text())
-        if stage == "foreign":
+        if stage == "closed":
+            assert not result["success"], result
+            (root / "close-read-rejected").touch()
+        elif stage == "foreign":
             assert not result["success"], result
             call(thread, "own", "statsdirect_read_data",
                  {"documentId": identities[slot], "columns": [0], "firstRow": 2, "lastRow": 2}, slot)
@@ -80,7 +84,7 @@ for line in sys.stdin:
         assert "Enabled StatsDirect method catalogue" in payload["referenceContext"]
         assert "TPaired:" in payload["referenceContext"]
         assert "142741" not in json.dumps(payload) and "281593" not in json.dumps(payload)
-        if payload["conversation"][-1]["text"] not in ("READ_A", "READ_B", "FINISH_A", "STOP_A"):
+        if payload["conversation"][-1]["text"] not in ("READ_A", "READ_B", "FINISH_A", "STOP_A", "CLOSE_A"):
             assert not threads[thread] and len(payload["conversation"]) == 1, payload
         send({"id": request["id"], "result": {"turn": {"id": "turn"}}})
         question = payload["conversation"][-1]["text"]
@@ -93,6 +97,10 @@ for line in sys.stdin:
                  {"documentId": identities[foreign], "columns": [0]}, slot)
         elif question == "STOP_A":
             event("item/agentMessage/delta", thread, itemId="answer", delta="Streaming for A.")
+        elif question == "CLOSE_A":
+            assert "statsdirect_read_data" in threads[thread]
+            closing.add(thread)
+            event("item/agentMessage/delta", thread, itemId="answer", delta="Close-test stream for A.")
         elif question == "FINISH_A":
             event("item/agentMessage/delta", thread, itemId="answer", delta="Reading A after the switch.")
             deadline = time.monotonic() + 12
@@ -105,6 +113,12 @@ for line in sys.stdin:
         else:
             finish(thread, "General guidance without workbook data.")
         continue
+    elif method == "turn/interrupt" and params["threadId"] in closing:
+        thread = params["threadId"]
+        closing.remove(thread)
+        identities = json.loads((root / "workbooks.json").read_text())
+        call(thread, "closed", "statsdirect_read_data",
+             {"documentId": identities["A"], "columns": [0], "firstRow": 2, "lastRow": 2}, "A")
     elif method not in ("initialize", "account/login/cancel", "turn/interrupt", "thread/unsubscribe"):
         raise AssertionError(method)
     send({"id": request["id"], "result": result})

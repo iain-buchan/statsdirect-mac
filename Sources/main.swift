@@ -59,6 +59,7 @@ final class Document {
     var initialLearningView: String?
     var initialOperationSource: [String: Any]?
     var operationSourceID: String?
+    var operationReportDestination: WorksheetAIReportDestination?
     var operationSourceSnapshot: [String: Any]?
     var operationInputRange: [String: Any]?
     var includeSourceColumns = true
@@ -148,6 +149,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     let calculatorPane = CalculatorPane()
     let aiSharing=AISharingConsent()
     lazy var scriptAI = ScriptAIPane(viewer: self)
+    var worksheetAI: WorksheetAIPane?
     var helpKeyMonitor: Any?
     let documentTabs = NSStackView()
     let documentTabScroll = NSScrollView()
@@ -165,6 +167,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             guard let self else { return }
             for doc in self.documents where doc.kind == "learn" { self.learningSettings(doc) }
             self.scriptAI.updateConnection()
+            self.worksheetAI?.updateControls()
         }
         return tutor
     }()
@@ -226,7 +229,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         documentSplit.addArrangedSubview(tabs)
         workspaceSplit.addArrangedSubview(documentSplit)
         helpPane.attach(to: workspaceSplit, owner: window)
-        helpPane.willShow = { [weak self] in self?.scriptAI.hide() }
+        helpPane.willShow = { [weak self] in
+            self?.scriptAI.hide()
+            self?.worksheetAI?.hide()
+        }
         calculatorPane.attach(to: documentSplit, owner: window)
         calculatorPane.showHelp = { [weak self] in self?.calculatorHelp() }
         calculatorPane.evaluate = { [weak self] expression, completion in
@@ -237,7 +243,10 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         helpKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if [36,76].contains(event.keyCode), event.modifierFlags.contains(.command),
-               let self, event.window === self.window, self.scriptAI.isFocused { self.scriptAI.send(); return nil }
+               let self, event.window === self.window {
+                if self.scriptAI.isFocused { self.scriptAI.send(); return nil }
+                if let assistant = self.worksheetAI, assistant.isFocused { assistant.send(); return nil }
+            }
             if event.keyCode == 122 { self?.currentMethodHelp(); return nil }; return event
         }
         for view in [documentTabScroll, workspaceSplit, status!] {
@@ -510,6 +519,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         }
         if let doc = active {
             if doc.kind == "grid" { analysisSourceID=doc.id;selectAIDataDocument(doc.id) }
+            worksheetAI?.activeDocumentChanged(doc)
             scriptAI.activeDocumentChanged(doc)
             if doc.kind == "operation", doc.operationReady, doc.repeatAnalysis { refreshOperationSource(doc) }
             if doc.kind == "learn" { recoverLearningRenderer(doc); refreshLearningWorkspace(doc) }
@@ -571,7 +581,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
             _ = key.firstResponder?.tryToPerform(NSSelectorFromString(command + ":"), with: self)
             return
         }
-        if calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused || active?.findBar?.isFocused == true { _ = fallback(); return }
+        if calculatorPane.isFocused || helpPane.isFocused || scriptAI.isFocused || worksheetAI?.isFocused == true || active?.findBar?.isFocused == true { _ = fallback(); return }
         if let doc=active, doc.kind=="report", ["copy","cut","paste"].contains(command), window.attachedSheet==nil { reportClipboardCommand(doc, command: command); return }
         if let doc=active, doc.kind=="report", doc.reportEditing, ["undo","redo","selectAll"].contains(command), window.attachedSheet==nil {
             doc.web.evaluateJavaScript("StatsDirectReportEditor.menuCommand(\(jsString(command)))") { handled, error in
@@ -589,16 +599,25 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
     }
     @objc func newCSharpScript() { makeRScript(language: "CSharp") }
     @objc func newVBScript() { makeRScript(language: "VB") }
-    @discardableResult func makeRScript(script: String = "", title: String? = nil, saved: Bool = false, language: String = "R") -> Document {
+    @discardableResult func makeRScript(script: String = "", title: String? = nil, saved: Bool = false, language: String = "R",
+                                        allowReportOutput: Bool = false) -> Document {
         if language == "R", InteractiveRConsole.enabled {
-            return makeRConsole(script: script, title: title, saved: saved, startInScript: true)
+            return makeRConsole(script: script, title: title, saved: saved, startInScript: true, allowReportOutput: allowReportOutput)
         }
         var number = 1
         while documents.contains(where: { $0.kind == "r" && ($0.title == "R Script \(number)" || $0.title.hasPrefix("R Script \(number): ")) }) { number += 1 }
         let name = "R Script \(number)" + (title.map { ": " + $0 } ?? "")
         let doc = newDocument(kind: "r", title: name)
-        let pane = RPane(script: script, saved: saved); pane.scriptName = name
+        let pane = RPane(script: script, saved: saved, allowReportOutput: allowReportOutput); pane.scriptName = name
         doc.rPane = pane; doc.item.view = pane.view
+        if allowReportOutput {
+            pane.reportOutput = { [weak self, weak doc, weak pane] parts, generation, revision in
+                guard let self, let doc, let pane, self.active === doc else { return }
+                await self.addROutputToReport(parts, from: doc, to: self.currentReportDestination) {
+                    pane.hasCurrentReportOutput(generation: generation, revision: revision)
+                }
+            }
+        }
         pane.showHelp = { [weak self, weak doc] in
             guard let self, let doc else { return }
             if let path = self.methodHelpPath(doc) { self.openHelp(self.root.appendingPathComponent(path), title: doc.title) }
@@ -642,6 +661,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         if helpPane.isFocused, NSApp.keyWindow !== window { helpPane.closeFocused(); return }
         if calculatorPane.isFocused, NSApp.keyWindow !== window { calculatorPane.hide(); return }
         if scriptAI.isFocused { scriptAI.hide(); return }
+        if worksheetAI?.isFocused == true { worksheetAI?.hide(); return }
         if calculatorPane.isFocused { calculatorPane.hide(); return }
         if helpPane.isFocused { helpPane.closeFocused(); return }
         guard let doc = active else { return }
@@ -702,6 +722,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         doc.rConsolePane?.shutdown()
         doc.web.stopLoading(); documents.removeAll { $0 === doc }
         scriptAI.documentClosed(doc)
+        worksheetAI?.documentClosed(doc)
         tabs.removeTabViewItem(doc.item)
         updateWindowMenu(); status.stringValue = "\(documents.count) open documents"
     }
@@ -861,6 +882,7 @@ final class Viewer: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUID
         helpPane.shutdown()
         calculatorPane.shutdown()
         scriptAI.shutdown()
+        worksheetAI?.shutdown()
         if let helpKeyMonitor { NSEvent.removeMonitor(helpKeyMonitor) }
         RInstaller.shared.shutdown()
         chatGPTTutor.runtime?.shutdown()

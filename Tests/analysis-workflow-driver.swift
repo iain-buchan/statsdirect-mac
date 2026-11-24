@@ -56,7 +56,8 @@ import PDFKit
           {col:0,row:0,text:'Before',kind:'text'},{col:1,row:0,text:'After',kind:'text'},
           ...[12,3,4,7,8].map((n,i)=>({col:0,row:i+1,text:String(n),kind:'number'})),
           ...[8,17,9,11,13].map((n,i)=>({col:1,row:i+1,text:String(n),kind:'number'})),
-          {col:5,row:99,text:'999',kind:'number'}]}]});return true;
+          {col:5,row:99,text:'999',kind:'number'}]},
+          {name:'Other sheet',rows:100,columns:6,cells:[]}]});return true;
         """, arguments: [:], in: nil, contentWorld: .page)
         // loadWorkbook schedules React updates; wait for the fixture's metadata,
         // then exercise one actual gesture, never a direct selection API or retry.
@@ -225,5 +226,81 @@ import PDFKit
         try check(try await yes(histogramScript,oneSVG), "Continue in R shows the two requested histogram panels in one decoded SVG chart")
         try check(hr.sourceText.contains("First selected histogram") && hr.sourceText.contains("Second selected histogram"), "histogram replay retains both selected titles")
         v.remove(histogramScript)
+
+        func refuses(_ offer: WorksheetAIAnalysisOffer, _ condition: String, current: Bool = true) async throws {
+            let count = v.documents.count
+            do {
+                try await v.continueWorksheetAIAnalysis(offer, for: grid, isCurrent: { current })
+                try check(false, "Worksheet AI opened an analysis after \(condition)")
+            } catch is ConversationRScript.Failure {
+                try check(v.documents.count == count, "Worksheet AI refuses to open an analysis after \(condition)")
+            }
+        }
+        func prepare() async throws -> WorksheetAIAnalysisOffer {
+            try await v.prepareWorksheetAIAnalysis("TPaired", for: grid)
+        }
+
+        let methods = Set(v.worksheetAIMethods.map(\.id))
+        try check(methods.contains("TPaired") && methods.contains("BoxWhiskerPlot")
+                  && methods.isDisjoint(with: ["calculator", "AnalysisOptions", "MetaCalculationOptions", "MetaPlotOptions"]),
+                  "Worksheet AI offers only enabled methods from Analyse")
+        try await select(1, rectangle: true)
+        let cancelled = try await prepare()
+        try await refuses(cancelled, "the user cancels", current: false)
+        let staleSelection = try await prepare()
+        _ = try await js(grid, "statsDirectGrid.clearSelection()")
+        try await refuses(staleSelection, "the selection changes")
+        let staleSheet = try await prepare()
+        _ = try await js(grid, "document.querySelector('.sheetbar button:last-child').click()")
+        try await wait { try await yes(grid, "statsDirectGrid.worksheetAISelection().sheetName==='Other sheet'") }
+        try await refuses(staleSheet, "the worksheet changes with no cells selected")
+        _ = try await js(grid, "document.querySelector('.sheetbar button:first-child').click()")
+        try await wait { try await yes(grid, "statsDirectGrid.worksheetAISelection().sheetName==='Data'") }
+        let staleData = try await prepare()
+        let originalVersion = grid.gridVersion
+        _ = try await js(grid, "statsDirectGrid.setCellText({col:5,row:99,text:'1000'})")
+        try await wait { grid.gridVersion != originalVersion }
+        try await refuses(staleData, "worksheet data changes")
+        let staleReport = try await prepare()
+        let otherReport = v.makeReport()
+        v.tabs.selectTabViewItem(grid.item)
+        try await refuses(staleReport, "the report destination changes")
+
+        try await select(1, rectangle: true)
+        let confirmed = try await prepare()
+        try check(confirmed.worksheetName == "Data" && confirmed.selectionLabel == "A2:B3"
+                  && confirmed.reportTitle == otherReport.title && confirmed.methodTitle == "Paired Student t test",
+                  "Worksheet AI shows the exact sheet, selection, method and report in the confirmation")
+        try await v.continueWorksheetAIAnalysis(confirmed, for: grid, isCurrent: { true })
+        guard let aiAnalysis = v.active else { try check(false, "Worksheet AI has no active operation form"); return }
+        try await wait { try await yes(aiAnalysis, "!!document.querySelector('.paired-inputs button[type=submit]:not(:disabled)')") }
+        try check(aiAnalysis.operationSourceID == grid.id && matches(aiAnalysis.operationSourceSnapshot ?? [:]),
+                  "Continue opens the standard paired t setup with the confirmed worksheet selection")
+        try await refuses(confirmed, "the same confirmation is used a second time")
+        v.tabs.selectTabViewItem(report.item)
+        let existingCount = report.reportEntries?.count
+        v.tabs.selectTabViewItem(aiAnalysis.item)
+        _ = try await js(aiAnalysis, "document.querySelector('.paired-inputs button[type=submit]').click()")
+        try await wait { otherReport.reportEntries?.count == 1 }
+        try check(report.reportEntries?.count == existingCount && otherReport.reportEntries?.last?.operation == "TPaired",
+                  "Worksheet AI keeps the confirmed destination even when another report becomes active")
+
+        let versionBeforeOutput = grid.gridVersion
+        let gridsBeforeOutput = v.documents.filter { $0.kind == "grid" }.count
+        aiAnalysis.outputPlacement = "ReplaceSelection"
+        let frame: [String: Any] = [
+            "name": "AI test output",
+            "rows": 2,
+            "columns": 1,
+            "headerRow": true,
+            "cells": [
+                ["col": 0, "row": 0, "text": "Output", "kind": "text"],
+                ["col": 0, "row": 1, "text": "4242", "kind": "number"]
+            ]
+        ]
+        v.showOperationReport(aiAnalysis, ["frames": [frame], "placement": "ReplaceSelection"])
+        try await wait { v.documents.filter { $0.kind == "grid" }.count == gridsBeforeOutput + 1 }
+        try check(grid.gridVersion == versionBeforeOutput && otherReport.reportEntries?.count == 2,
+                  "Worksheet AI routes output columns to a separate workbook and leaves the source unchanged")
     }
 }

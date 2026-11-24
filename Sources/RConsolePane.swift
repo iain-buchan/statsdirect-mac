@@ -35,6 +35,8 @@ enum InteractiveRConsole {
     private var autoRun: Bool
     private var rendererReady = false
     private var desiredMode: String
+    private let allowReportOutput: Bool
+    private var addingReportOutput = false
     private var setupRequest: UUID?
     private var closed = false
     private var chartCopyRequest = 0
@@ -52,9 +54,11 @@ enum InteractiveRConsole {
     var hasUnsavedChanges: Bool { sourceText != savedSource }
     var hasWorkspace: Bool { hasExecuted && session.isRunning }
 
-    init(viewer: Viewer, document: Document, script: String, saved: Bool, autoRun: Bool, startInScript: Bool = false) {
+    init(viewer: Viewer, document: Document, script: String, saved: Bool, autoRun: Bool, startInScript: Bool = false,
+         allowReportOutput: Bool = false) {
         self.viewer = viewer; self.document = document; sourceText = script
         desiredMode = startInScript ? "script" : "console"
+        self.allowReportOutput = allowReportOutput
         savedSource = saved ? script : ""; self.autoRun = autoRun; scriptName = document.title
         session = RConsoleSession(worker: Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/RConsoleWorker"),
                                   bootstrap: viewer.root.appendingPathComponent("R/console-bootstrap.R"),
@@ -89,6 +93,10 @@ enum InteractiveRConsole {
         document.web.loadFileURL(url, allowingReadAccessTo: document.access)
     }
     func focusInput() { document?.web.evaluateJavaScript("window.StatsDirectRConsole?.focusInput()") }
+    func showConsoleOutput() {
+        desiredMode = "console"
+        document?.web.evaluateJavaScript("window.StatsDirectRConsole?.setMode('console')")
+    }
     func shutdown() {
         closed = true
         if let setupRequest { RConsoleSetup.shared.cancel(setupRequest); self.setupRequest = nil }
@@ -149,6 +157,8 @@ enum InteractiveRConsole {
         case "saveScript":
             if let text = body["source"] as? String { sourceText = text }; saveScript()
         case "openInR": viewer?.openConsoleInExternalR(document)
+        case "addOutputToReport":
+            if let entries = body["entries"] as? [[String: Any]] { addOutputToReport(entries) }
         case "ai": viewer?.scriptAI.open(document)
         case "help":
             if let viewer, let path = viewer.methodHelpPath(document) { viewer.openHelp(viewer.root.appendingPathComponent(path), title: document.title) }
@@ -162,6 +172,48 @@ enum InteractiveRConsole {
             else { copyChart(plot) }
         default: break
         }
+    }
+
+    private func addOutputToReport(_ entries: [[String: Any]]) {
+        guard allowReportOutput, !addingReportOutput, !closed, hasWorkspace, session.state == "ready",
+              let viewer, let document, viewer.active === document, entries.count <= 500 else { return }
+        do {
+            var bytes = 0
+            let parts: [RReportOutputPart] = try entries.map { entry in
+                let invalid = LegacyReportError("The selected R output is no longer available.")
+                if entry["kind"] as? String == "text", let value = entry["text"] as? String {
+                    bytes += value.utf8.count
+                    guard bytes <= 30_000_000 else { throw invalid }
+                    return .text(value)
+                }
+                guard entry["kind"] as? String == "plot", let id = entry["plotId"] as? String,
+                      let revision = entry["revision"] as? Int, let plot = plots["\(id):\(revision)"],
+                      let preview = entry["preview"] as? String else { throw invalid }
+                bytes += preview.utf8.count
+                guard bytes <= 30_000_000 else { throw invalid }
+                let svg = plot.mime == "image/svg+xml"
+                let prefix = svg ? "data:image/svg+xml;base64," : "data:image/png;base64,"
+                guard preview.hasPrefix(prefix), let data = Data(base64Encoded: String(preview.dropFirst(prefix.count))),
+                      !data.isEmpty else { throw invalid }
+                return svg ? .svg(data) : .png(data)
+            }
+            guard !parts.isEmpty else {
+                viewer.status.stringValue = "Select R results or charts to add to the report."
+                return
+            }
+            let generation = session.generation, sequence = self.sequence, destination = viewer.currentReportDestination
+            addingReportOutput = true
+            Task { @MainActor [weak self] in
+                defer { self?.addingReportOutput = false }
+                guard let self, !self.closed, self.session.generation == generation, self.sequence == sequence,
+                      self.session.state == "ready" else { return }
+                await viewer.addROutputToReport(parts, from: document, to: destination) { [weak self] in
+                    guard let self else { return false }
+                    return !self.closed && self.session.isRunning && self.session.generation == generation
+                        && self.sequence == sequence && self.session.state == "ready"
+                }
+            }
+        } catch { viewer.status.stringValue = error.localizedDescription }
     }
 
     private func startConsole() {
@@ -317,7 +369,8 @@ enum InteractiveRConsole {
         if type == "session" {
             journal = []; journalBytes = 0; sequence = -1; plots = [:]; chartContextKey = nil; outputText = ""; hasExecuted = false
             event["script"] = sourceText
-            event["capabilities"] = ["plotMimes": ["image/svg+xml", "application/pdf"], "ai": true, "help": true, "openInR": true, "openPlot": true, "copyPlot": true]
+            event["capabilities"] = ["plotMimes": ["image/svg+xml", "application/pdf"], "ai": true, "help": true,
+                                     "openInR": true, "openPlot": true, "copyPlot": true, "addOutputToReport": allowReportOutput]
         }
         if type == "exited" { RConsoleSetup.shared.invalidate(library: InteractiveRConsole.privateLibrary) }
         if type == "inputEcho", let text = event["text"] as? String {
@@ -443,11 +496,13 @@ extension Viewer {
         return nil
     }
     @objc func newRConsolePrototype() { makeRConsole() }
-    @discardableResult func makeRConsole(script: String = "", title: String? = nil, saved: Bool = false, autoRun: Bool = false, startInScript: Bool = false) -> Document {
+    @discardableResult func makeRConsole(script: String = "", title: String? = nil, saved: Bool = false, autoRun: Bool = false,
+                                        startInScript: Bool = false, allowReportOutput: Bool = false) -> Document {
         var number = 1
         while documents.contains(where: { $0.kind == "r" && ($0.title == "R Console \(number)" || $0.title.hasPrefix("R Console \(number): ")) }) { number += 1 }
         let doc = newDocument(kind: "r", title: "R Console \(number)" + (title.map { ": " + $0 } ?? ""))
-        let pane = RConsolePane(viewer: self, document: doc, script: script, saved: saved, autoRun: autoRun, startInScript: startInScript)
+        let pane = RConsolePane(viewer: self, document: doc, script: script, saved: saved, autoRun: autoRun,
+                                startInScript: startInScript, allowReportOutput: allowReportOutput)
         doc.rConsolePane = pane
         pane.load()
         return doc

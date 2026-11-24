@@ -84,7 +84,7 @@ extension RConsoleIntegrationTests {
 
         try await makeConsoleVisible(viewer, doc)
         try await ready(doc)
-        try await console(doc, "cat('AI_CONSOLE_CONTEXT_READY\\n')")
+        try await console(doc, "live_keep <- 40L; cat('AI_CONSOLE_CONTEXT_READY\\n')")
         try await expectOutput(doc, "AI_CONSOLE_CONTEXT_READY\n")
         let approvedSource = "before <- c(312,242,340,388,296,254,391,402,290)\nafter <- c(300,201,232,312,220,256,328,330,231)\nconsole_ai_must_not_execute <- TRUE"
         try await setSource(approvedSource)
@@ -125,23 +125,74 @@ extension RConsoleIntegrationTests {
                   && snapshot["running"] as? Bool == false,
                   "console AI receives only the approved fixed source and real R output with an idle status")
 
-        try await setSource("before <- 999\nafter <- 1")
-        ai.openCodeButton.performClick(nil)
-        guard let suggestion = viewer.active, suggestion !== doc, let suggestionPane = suggestion.rConsolePane else {
-            throw ChatGPTTutor.Failure(message: "Open in R did not create a production console suggestion")
+        let edited = "before <- 999\nafter <- 1"
+        try await setSource(edited)
+        ai.input.string = "LIVE_R_ACTIONS"; ai.sendButton.performClick(nil)
+        try await wait("completed live execution controls") {
+            let buttons = try? await ai.transcript.web.evaluateJavaScript("""
+                Array.from(document.querySelectorAll('article.assistant:last-child [data-code=r]:not(:disabled)'), b=>b.textContent)
+                """)
+            return !ai.isBusy && buttons as? [String] == ["Run in this R session","Run in this R session"]
         }
-        try await makeConsoleVisible(viewer, suggestion)
-        try await ready(suggestion)
-        if let directory = suggestionPane.session.workingDirectory { createdDirectories.append(directory) }
-        try check(suggestion.rPane == nil && suggestionPane.sourceText.contains(approvedSource)
-                  && !suggestionPane.sourceText.contains("before <- 999")
-                  && suggestionPane.sourceText.contains("d <- before - after") && suggestionPane.sourceText.contains("wilcox.test")
-                  && suggestionPane.hasUnsavedChanges && !suggestionPane.hasWorkspace && !suggestionPane.isBusy
-                  && !suggestionPane.outputText.contains("console_ai_must_not_execute"),
-                  "Open in R preserves the approved console source and suggested blocks in an unsaved, unexecuted console")
-        ai.open(suggestion)
+        try check(ai.openCodeButton.title == "Run in this R session" && ai.openCodeButton.isEnabled,
+                  "interactive Script AI labels both execution actions with their destination")
+        let sessionId = pane.session.sessionId
+        let documentCount = viewer.documents.count
+        _ = try await evaluate(doc, "window.StatsDirectRConsole.setMode('script'); true")
+        _ = try await ai.transcript.web.evaluateJavaScript("document.querySelectorAll('article.assistant:last-child [data-code=r]')[1].click(); true")
+        try await expectOutput(doc, "LIVE_BLOCK_TWO:47:FALSE\n")
+        try await ready(doc)
+        try check(viewer.active === doc && viewer.documents.count == documentCount && pane.session.sessionId == sessionId
+                  && pane.sourceText == edited && !pane.outputText.contains("LIVE_BLOCK_ONE\n"),
+                  "the inline action runs only that block in the original R session and leaves the editor intact")
+        ai.openCodeButton.performClick(nil)
+        try await expectOutput(doc, "LIVE_BLOCK_ONE\n")
+        try await expectOutput(doc, "LIVE_BLOCK_TWO:54:TRUE\n")
+        try await ready(doc)
+        try check(viewer.active === doc && viewer.documents.count == documentCount && pane.session.sessionId == sessionId
+                  && pane.sourceText == edited && !pane.outputText.contains(approvedSource),
+                  "Run below the reply runs its two blocks in order, reusing variables without replaying the approved source")
+
+        guard let interactiveChat=ai.conversations[doc.id], let runnableID=interactiveChat.messages.last?["id"] else {
+            throw ChatGPTTutor.Failure(message:"The runnable reply was not saved")
+        }
+        try check(pane.session.submit(source:"Sys.sleep(1)",origin:"script"),"the test starts a command in the interactive session")
+        let runningCommand=pane.session.commandId
+        ai.runCode(generation:interactiveChat.generation,messageID:runnableID)
+        try check(pane.session.commandId == runningCommand && ai.notice.stringValue.contains("Wait for R"),
+                  "Run in this R session does not queue code while another command is running")
+        try await ready(doc)
+
+        ai.input.string = "PARTIAL_LIVE_ACTION"; ai.sendButton.performClick(nil)
+        try await wait("incomplete reply's visible disabled inline action") {
+            (try? await ai.transcript.web.evaluateJavaScript("!!document.querySelector('article.assistant:last-child [data-code=r]:disabled')")) as? Bool == true
+        }
+        ai.stopButton.performClick(nil)
+        try await wait("stopped reply's disabled inline action") {
+            (try? await ai.transcript.web.evaluateJavaScript("!!document.querySelector('article.assistant:last-child [data-code=r]:disabled')")) as? Bool == true
+        }
+        guard let conversation=ai.conversations[doc.id], let stopped=conversation.messages.last?["id"] else {
+            throw ChatGPTTutor.Failure(message:"The stopped reply was not kept in its conversation")
+        }
+        ai.runCode(generation:conversation.generation,messageID:stopped)
+        try check(!ai.openCodeButton.isEnabled && !pane.isBusy && !pane.outputText.contains("INCOMPLETE_RAN\n"),
+                  "a stopped reply cannot execute its R code through either action")
+
+        pane.session.restart()
+        try await ready(doc)
+        if let directory = pane.session.workingDirectory { createdDirectories.append(directory) }
+        ai.runCode(generation:interactiveChat.generation,messageID:runnableID)
+        try check(pane.session.sessionId != sessionId && !pane.isBusy && pane.sourceText == edited
+                  && ai.notice.stringValue.contains("earlier R session"),
+                  "a reply from an earlier session cannot execute after the worker restarts")
+
+        let other = viewer.makeRConsole()
+        try await makeConsoleVisible(viewer, other)
+        try await ready(other)
+        if let directory = other.rConsolePane?.session.workingDirectory { createdDirectories.append(directory) }
+        ai.open(other)
         try check(viewer.aiSharing.accepted && ai.acknowledgement.state == .on && ai.contextPanel.isHidden,
-                  "opening the suggestion AI dock reuses acceptance within the same data session")
+                  "opening another console AI dock reuses acceptance within the same data session")
         let report = viewer.newDocument(kind: "report", title: "Console AI consent fixture")
         ai.open(report)
         try check(viewer.aiSharing.accepted && ai.acknowledgement.state == .on && ai.contextPanel.isHidden,

@@ -191,11 +191,13 @@ import WebKit
         try await fit(grid)
         try check(try await js(grid,"""
             (()=>{const row=document.querySelector('.sd-toolbar-row'), get=id=>row.querySelector('[data-command='+id+']');
-                const analyse=get('analyse'), r=get('worksheetR'), external=get('worksheetRPlus'), help=get('worksheetHelp');
+                const analyse=get('analyse'), r=get('worksheetR'), external=get('worksheetRPlus');
+                const learn=get('worksheetLearn'), ai=get('worksheetAI'), help=get('worksheetHelp');
                 return analyse?.textContent.trim()==='Analyse'&&r?.previousElementSibling===analyse&&external?.previousElementSibling===r&&
-                    help?.previousElementSibling===external&&help.hasAttribute('data-group-start')&&
-                    [r,external,help].every(b=>b.title===b.getAttribute('aria-label')&&b.title.length>0);})()
-            """) as? Bool == true,"worksheet groups the labelled Analyse, R and R+ commands before the Help divider")
+                    learn?.previousElementSibling===external&&ai?.previousElementSibling===learn&&help?.previousElementSibling===ai&&
+                    learn.hasAttribute('data-group-start')&&help.hasAttribute('data-group-start')&&learn.textContent.trim()==='Learn'&&
+                    [r,external,learn,ai,help].every(b=>b.title===b.getAttribute('aria-label')&&b.title.length>0);})()
+            """) as? Bool == true,"worksheet groups Analyse, R and R+ before Learning, AI Assist and Help")
 
         let originalCount=v.documents.count
         try await click(grid,"analyse")

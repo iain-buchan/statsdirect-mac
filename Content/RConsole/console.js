@@ -287,6 +287,9 @@
     byId('ai').disabled = !model.capabilities.ai; byId('help').disabled = !model.capabilities.help;
     byId('open-in-r').hidden = !model.capabilities.openInR;
     byId('open-in-r').disabled = !model.script.trim();
+    const reportOutput = byId('add-output-to-report');
+    reportOutput.hidden = !model.capabilities.addOutputToReport || model.mode !== 'console';
+    reportOutput.disabled = model.state !== 'ready' || !model.entries.some(entry => entry.kind === 'output' || entry.kind === 'plot' && entry.preview);
     sizeInput();
     if (focusAfterRender) {
       focusAfterRender = false;
@@ -357,6 +360,31 @@
   byId('restart').onclick = () => {const previous = model.state, request = model.restart(); if (request && !post(request)) {model.restarting = false; showBridgeFailure(previous);} render();};
   byId('save').onclick = () => send('saveScript', {source: model.script});
   byId('open-in-r').onclick = () => send('openInR');
+  const reportOutput = byId('add-output-to-report');
+  // Pressing the button must not collapse a selection in the Console.
+  reportOutput.addEventListener('mousedown', event => { if (selectingTranscript()) event.preventDefault(); });
+  reportOutput.onclick = () => {
+    if (reportOutput.hidden || reportOutput.disabled) return;
+    const selection = global.getSelection();
+    const selected = selection?.rangeCount && !selection.isCollapsed ? selection.getRangeAt(0) : null;
+    const range = selected?.intersectsNode(transcript) ? selected : null;
+    const entries = [];
+    for (const node of transcript.querySelectorAll('pre.output-entry, figure.plot')) {
+      if (range && !range.intersectsNode(node)) continue;
+      if (node.matches('figure')) {
+        const image = node.querySelector('img');
+        if (image) entries.push({kind: 'plot', plotId: node.dataset.plotId, revision: Number(node.dataset.revision), preview: image.getAttribute('src')});
+      } else {
+        const content = doc.createRange();
+        content.selectNodeContents(node);
+        if (range?.compareBoundaryPoints(Range.START_TO_START, content) > 0) content.setStart(range.startContainer, range.startOffset);
+        if (range?.compareBoundaryPoints(Range.END_TO_END, content) < 0) content.setEnd(range.endContainer, range.endOffset);
+        const text = content.toString();
+        if (text) entries.push({kind: 'text', text});
+      }
+    }
+    send('addOutputToReport', {entries});
+  };
   byId('ai').onclick = () => send('ai'); byId('help').onclick = () => send('help');
   for (const name of ['console', 'script']) {
     const tab = byId(name + '-tab'); tab.onclick = () => mode(name);

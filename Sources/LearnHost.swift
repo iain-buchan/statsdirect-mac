@@ -153,6 +153,7 @@ extension Viewer {
     func configureLearningAI(_ doc: Document) {
         func notice(_ text: String) {
             if doc.kind == "learn" { self.learningScript(doc,"notice",text) }
+            else if doc.kind == "grid" { self.worksheetAI?.showNotice(text) }
             else { self.scriptAI.showNotice(text) }
         }
         guard !TutorPolicy.disabled else { learningSettings(doc); notice(TutorPolicy.message); return }
@@ -173,7 +174,10 @@ extension Viewer {
             if let account = tutor.account {
                 alert.messageText = "Connected to ChatGPT"
                 let identity = account.email.isEmpty ? "Your ChatGPT account" : account.email
-                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\n\(accountUse)\n\nEach Send shares your question and recent conversation with OpenAI. Learning also includes relevant learning options and course excerpts. Share documents only by selecting their context and confirming. This confirmation applies across Report, Script and Learning until you restart StatsDirect or select another data document. The Learning tutor can request StatsDirect calculations. Report and Script assistance can read selected context.\n\nYour learning record stays on this Mac when you sign out."
+                let sharing = doc.kind == "grid"
+                    ? "Send question only shares the current question and packaged method guidance with OpenAI. When you confirm sharing for the named workbook, AI Assist can read that workbook and use its conversation. Each workbook needs separate confirmation."
+                    : "Each Send shares your question and recent conversation with OpenAI. Learning also includes relevant learning options and course excerpts. Share documents only by selecting their context and confirming. This confirmation applies across Report, Script and Learning until you restart StatsDirect or select another data document. The Learning tutor can request StatsDirect calculations. Report and Script assistance can read selected context."
+                alert.informativeText = "\(identity)\(account.plan.isEmpty ? "" : " · " + account.plan.capitalized)\n\n\(accountUse)\n\n\(sharing)\n\nYour learning record stays on this Mac when you sign out."
                 alert.addButton(withTitle:"Done"); alert.addButton(withTitle:"Sign Out")
                 alert.beginSheetModal(for:self.window) { response in
                     if response == .alertSecondButtonReturn {

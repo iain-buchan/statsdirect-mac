@@ -1,6 +1,6 @@
 import Foundation
 
-/// Builds a local, reviewable replay. No evaluation or access to current documents.
+/// Builds local R source from saved replies and data snapshots. No access to current documents.
 enum ConversationRScript {
     struct Failure: LocalizedError {
         let message: String
@@ -120,20 +120,26 @@ enum ConversationRScript {
         if list.indices.contains(position) && list[position].shown.utf16.elementsEqual(wanted) { return position }
         return list.firstIndex { $0.shown.utf16.elementsEqual(wanted) } ?? -1
     }
-    static func build(_ messages: [[String:String]], messageIndex: Int, blockIndex: Int = -1) throws -> String {
+    static func build(_ messages: [[String:String]], messageIndex: Int, blockIndex: Int = -1,
+                      currentReplyOnly: Bool = false) throws -> String {
         guard messages.indices.contains(messageIndex), ["user","assistant"].contains(messages[messageIndex]["role"] ?? "") else {
             throw Failure(message:"Wait for the reply to finish before opening its R code.")
         }
         let selected = blocks(messages[messageIndex]["text"] ?? "")
         guard !selected.isEmpty, blockIndex >= -1, blockIndex < selected.count else { throw Failure(message:"This message contains no completed R code block.") }
-        var result = "# AI suggestion — review before running. Nothing has been run automatically.\n# Source snapshots and earlier R blocks are included in conversation order.\n# Review earlier examples too: running this script runs all included code.\n"
+        var result = "# AI suggestion — review before running. Nothing has been run automatically.\n"
+        if currentReplyOnly {
+            result += "# Frozen worksheet data and R code from this reply.\n"
+        } else {
+            result += "# Source snapshots and earlier R blocks are included in conversation order.\n# Review earlier examples too: running this script runs all included code.\n"
+        }
         var previousSource = ""
         func append(_ label: String,_ code: String) throws {
             guard !code.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else { return }
             guard result.utf8.count + code.utf8.count <= 2_000_000 else { throw Failure(message:"The conversation is too large for one R script. Start a new conversation with the relevant source.") }
             result += "\n# " + label + "\n" + code + "\n"
         }
-        for i in 0...messageIndex {
+        for i in (currentReplyOnly ? messageIndex : 0)...messageIndex {
             let message = messages[i], source = message["rSource"] ?? ""
             if !source.isEmpty && source != previousSource { try append("Source script snapshot shared for this question",source); previousSource = source }
             try append("Worksheet values read for this reply (fixed snapshot)",message["rData"] ?? "")
@@ -144,6 +150,29 @@ enum ConversationRScript {
             }
         }
         return result
+    }
+    /// Restore only app-generated data bindings, then evaluate the selected reply's R code in an existing session.
+    static func executionCode(_ messages: [[String:String]], messageIndex: Int, blockIndex: Int = -1) throws -> String {
+        guard messages.indices.contains(messageIndex), messages[messageIndex]["role"] == "assistant",
+              messages[messageIndex]["incomplete"] != "true" else {
+            throw Failure(message:"Wait for the reply to finish before running its R code.")
+        }
+        let completed = blocks(messages[messageIndex]["text"] ?? "")
+        guard !completed.isEmpty, blockIndex >= -1, blockIndex < completed.count else {
+            throw Failure(message:"This reply contains no completed R code block.")
+        }
+        let code = (blockIndex == -1 ? completed : [completed[blockIndex]]).map(\.code)
+        guard code.contains(where:{!$0.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty}) else {
+            throw Failure(message:"This reply contains no R code to run.")
+        }
+        let bindings = messages[...messageIndex].filter { $0["role"] == "assistant" && $0["incomplete"] != "true" }
+            .compactMap { $0["rData"] }.filter { !$0.isEmpty }
+        let parts = bindings + code
+        let size = parts.reduce(0) { $0 + $1.utf8.count + 2 }
+        guard size <= 2_000_000, !parts.contains(where:{$0.utf8.contains(0)}) else {
+            throw Failure(message:"This R submission is too large or contains a null character.")
+        }
+        return parts.joined(separator:"\n\n")
     }
     /// Text as an R string literal (worksheet R rules, 3.10). R strings cannot hold NUL, so it is refused, scalar by scalar.
     /// Control characters, and the bidi controls U+202A to U+202E and U+2066 to U+2069, which R refuses raw in a string

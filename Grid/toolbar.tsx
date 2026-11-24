@@ -7,22 +7,25 @@ export function Toolbar({actions, moreActions, commands, runAnalysis, searchHelp
   actions: ToolbarAction[];
   moreActions: ToolbarAction[];
   commands: WorksheetCommand[];
-  runAnalysis: (id: string) => void;
+  runAnalysis: (id: string, fromAssistant: boolean) => void;
   searchHelp: (query: string) => void;
 }) {
   const host=useRef<HTMLDivElement>(null);
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [assistantMethods, setAssistantMethods] = useState<ReadonlySet<string> | null>(null);
   const [analysisPosition, setAnalysisPosition] = useState({anchor: 35, width: 0});
   const [expandedBranches, setExpandedBranches] = useState<ReadonlySet<string>>(() => new Set());
-  function showAnalysis() {
+  function showAnalysis(methods: ReadonlySet<string> | null = null) {
     const popup = host.current?.querySelector<HTMLElement>('#grid-more-tools');
     if (popup) popup.hidden = true;
     host.current?.querySelector('[data-command=more]')?.setAttribute('aria-expanded', 'false');
+    setAssistantMethods(methods);
     setAnalysisOpen(true);
     host.current?.querySelector<HTMLInputElement>('#worksheet-analysis-search')?.focus();
   }
   function closeAnalysis(returnFocus = true) {
     setAnalysisOpen(false);
+    setAssistantMethods(null);
     if (returnFocus) {
       const analyse = host.current?.querySelector<HTMLButtonElement>('[data-command=analyse]');
       const target = analyse?.getClientRects().length ? analyse : host.current?.querySelector<HTMLButtonElement>('[data-command=more]');
@@ -57,11 +60,15 @@ export function Toolbar({actions, moreActions, commands, runAnalysis, searchHelp
     const dismiss = (event: PointerEvent) => {
       if (!host.current?.contains(event.target as Node)) closeAnalysis(false);
     };
+    const open = (event: Event) => {
+      const allowed = (event as CustomEvent<string[]>).detail;
+      showAnalysis(Array.isArray(allowed) ? new Set(allowed) : null);
+    };
     document.addEventListener('pointerdown', dismiss);
-    window.addEventListener('statsdirect-open-worksheet-commands', showAnalysis);
+    window.addEventListener('statsdirect-open-worksheet-commands', open);
     return () => {
       document.removeEventListener('pointerdown', dismiss);
-      window.removeEventListener('statsdirect-open-worksheet-commands', showAnalysis);
+      window.removeEventListener('statsdirect-open-worksheet-commands', open);
     };
   }, []);
   return <div ref={host} className="sd-toolbar" role="toolbar" aria-label="Worksheet commands"
@@ -90,7 +97,8 @@ export function Toolbar({actions, moreActions, commands, runAnalysis, searchHelp
         </button>)}
       </div>
     </div>
-    {analysisOpen && <WorksheetAnalysis commands={commands} run={runAnalysis} searchHelp={searchHelp} close={closeAnalysis}
+    {analysisOpen && <WorksheetAnalysis commands={assistantMethods ? commands.filter(command => assistantMethods.has(command.id)) : commands}
+      run={id => runAnalysis(id, assistantMethods !== null)} searchHelp={searchHelp} close={closeAnalysis}
       position={analysisPosition} expanded={expandedBranches} setExpanded={setExpandedBranches}/>}
   </div>;
 }

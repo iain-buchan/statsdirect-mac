@@ -390,8 +390,6 @@ import Cocoa
         return reply
     }
 
-    private static let methodMarker = try! NSRegularExpression(pattern: #"(?m)^[ \t]*\[\[method:([A-Za-z0-9_]+)\]\][ \t]*$"#)
-
     private func render() {
         let latest = latestReply()
         openCode.isHidden = latest.map { ConversationRScript.blocks($0["text"] ?? "").isEmpty } ?? true
@@ -400,9 +398,7 @@ import Cocoa
         if !isBusy, offer == nil, let reply = latest?["text"] {
             let catalogue = viewer.worksheetAIMethods
             var seen = Set<String>()
-            for match in Self.methodMarker.matches(in: reply, range: NSRange(reply.startIndex..., in: reply)) {
-                guard let range = Range(match.range(at: 1), in: reply) else { continue }
-                let id = String(reply[range])
+            for id in WorksheetAIMarkers.read(reply).ids {
                 guard seen.insert(id).inserted, let method = catalogue.first(where: { $0.id == id }) else { continue }
                 let button = NSButton(title: method.title, target: self, action: #selector(pickMethod(_:)))
                 button.identifier = NSUserInterfaceItemIdentifier(id)
@@ -415,13 +411,13 @@ import Cocoa
         offerPanel.isHidden = offer == nil
         var rows: [[String: Any]] = (conversation?.messages ?? []).map { row in
             let body = row["text"] ?? ""
-            let stripped = row["role"] == "assistant"
-                ? Self.methodMarker.stringByReplacingMatches(in: body, range: NSRange(body.startIndex..., in: body), withTemplate: "")
-                : body
+            let stripped = row["role"] == "assistant" ? WorksheetAIMarkers.read(body).text : body
             return ["id": row["id"] ?? "", "role": row["role"] ?? "assistant", "text": stripped,
                     "context": row["context"] ?? "", "pending": row["incomplete"] == "true"]
         }
-        if !partial.isEmpty { rows.append(["id": "pending", "role": "assistant", "text": partial, "pending": true]) }
+        if !partial.isEmpty {
+            rows.append(["id": "pending", "role": "assistant", "text": WorksheetAIMarkers.read(partial).text, "pending": true])
+        }
         transcript.render(["generation": conversation?.generation ?? "", "messages": rows, "collapseR": true,
                            "introduction": "Ask for help analysing this workbook. You can choose a method, review the selection and run it locally."])
         updateControls()

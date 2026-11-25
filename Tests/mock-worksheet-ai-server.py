@@ -110,6 +110,11 @@ for line in sys.stdin:
             identities = json.loads((root / "workbooks.json").read_text())
             call(thread, "finish-own", "statsdirect_read_data",
                  {"documentId": identities["A"], "columns": [0], "firstRow": 2, "lastRow": 2}, "A")
+        elif question == "INLINE_MARKER":
+            # A real reply does not always put a marker on a line of its own.
+            finish(thread, "Marker reply for the paired design. [[method:TPaired]]\n\n"
+                           "- `[[method:BoxWhiskerPlot]]` shows the pairs\n\n"
+                           "```r\n# [[method:TPaired]] stays in code\nmean(2:4)\n```\n")
         else:
             finish(thread, "General guidance without workbook data.")
         continue

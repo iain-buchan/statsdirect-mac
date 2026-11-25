@@ -227,6 +227,42 @@ import WebKit
             return (await text(pane)).contains("General guidance without workbook data.")
         }
         try check(true, "question-only payload omits workbook, data tools and earlier chat")
+
+        // Markers wherever a real reply puts them: after a sentence, in a list item, in backticks; never inside code.
+        let cases: [(String, String, [String])] = [
+            ("Use this.\n[[method:TPaired]]\nThen check.", "Use this.\n\nThen check.", ["TPaired"]),
+            ("I haven't run the test. [[method:TPaired]]", "I haven't run the test.", ["TPaired"]),
+            ("Try [[method:TPaired]] or `[[method:Wilcoxon]]` here.", "Try or here.", ["TPaired", "Wilcoxon"]),
+            ("- [[method:TPaired]]\n  1. `[[method:Wilcoxon]]`\n> [[method:TPaired]]", "\n\n", ["TPaired", "Wilcoxon", "TPaired"]),
+            ("[[method:TPaired]] is the paired test", " is the paired test", ["TPaired"]),
+            ("```r\n# [[method:TPaired]]\n```\n[[method:Wilcoxon]]", "```r\n# [[method:TPaired]]\n```\n", ["Wilcoxon"]),
+            ("~~~~\n[[method:TPaired]]\n~~~\n[[method:TPaired]]\n~~~~\nafter [[method:Wilcoxon]]", "~~~~\n[[method:TPaired]]\n~~~\n[[method:TPaired]]\n~~~~\nafter", ["Wilcoxon"]),
+            ("1. ```r\n   x <- '[[method:TPaired]]'\n   ```\n[[method:TPaired]]", "1. ```r\n   x <- '[[method:TPaired]]'\n   ```\n", ["TPaired"]),
+            ("Inline ```code``` then [[method:TPaired]]", "Inline ```code``` then", ["TPaired"]),
+            ("No marker: [[method:]] [[method:T Paired]] [method:TPaired]", "No marker: [[method:]] [[method:T Paired]] [method:TPaired]", [])
+        ]
+        for (reply, shown, ids) in cases {
+            let read = WorksheetAIMarkers.read(reply)
+            guard read.text == shown, read.ids == ids else {
+                throw ChatGPTTutor.Failure(message: "Method markers misread in \(reply.debugDescription): \(read.text.debugDescription) \(read.ids)")
+            }
+        }
+        try check(true, "method markers are read after a sentence, in a list item and in backticks, and never inside code (\(cases.count) cases)")
+        pane.input.string = "INLINE_MARKER"
+        pane.send()
+        try await wait("The reply with markers inside its text did not arrive") {
+            guard !pane.isBusy else { return false }
+            return (await text(pane)).contains("Marker reply for the paired design.")
+        }
+        let markerReply = await text(pane)
+        let paired: NSButton? = control("TPaired", in: pane.view), plot: NSButton? = control("BoxWhiskerPlot", in: pane.view)
+        let code = try await pane.transcript.web.evaluateJavaScript(
+            "document.querySelector('article.assistant:last-of-type code').textContent") as? String
+        try check(!markerReply.contains("[[method:") && markerReply.contains("Marker reply for the paired design.")
+                  && markerReply.contains("shows the pairs")
+                  && paired?.isHiddenOrHasHiddenAncestor == false && plot?.isHiddenOrHasHiddenAncestor == false
+                  && code?.contains("# [[method:TPaired]] stays in code") == true,
+                  "a marker inside a sentence or in backticks is not shown, still offers its method, and code keeps its text")
         viewer.remove(report)
         viewer.tabs.selectTabViewItem(first.item)
         try await toolbar(first, "worksheetLearn")

@@ -2820,3 +2820,24 @@ The rehearsal on Windows source e6a147fc verified 879 engine inputs, all 21 upst
   - on the first commit: Mac parity 21, analysis workflow 60, unified toolbar 181 and grid selection 18;
   - 229 JavaScript tests, 7 of them new, for the selection label, the empty-workbook test, the exact click fingerprint and the heading cells; the total also includes the 2 console tests from pull request 30.
 - Not tested: the real AI service; the narrow dock and VoiceOver on screen; macOS 14 and 26.
+
+## Engine pinned to Windows v5.3.22 — 27 November 2026
+
+- The shared engine moves from v5.3.14 (`4ffceaeb`) to the Windows tag v5.3.22 = `16b65e3d` (tag object `d0cf8571`), Latest on GitHub since 20:47 UTC. It carries the engine code of the AI Assist distribution cards (Windows pull requests 40 to 42), which the Mac adds in a later pull request: `Parametric.ShapiroWilkDiagnostics` and the size-calibrated box-plot fence `UI/PairedOutlierFence.cs`. The Mac does not use either yet.
+- The engine host compiles `UI/PairedOutlierFence.cs` with the other named UI files, and `import_upstream.py` records it. The host also excludes `R/WorksheetRLauncher.cs`, which starts RGui for the Windows worksheet R import through `RController` and `RInstallation`; both are already excluded.
+- Provenance now covers 881 files (879 before):
+  - `Builtins/Parametric.cs` gains the internal helper; nothing that existed changes.
+  - `R/Interactive/RScriptSession.cs` is Windows R console plumbing, compiled and unused on the Mac.
+  - `R/RController.cs` is hashed and still excluded.
+  - `StatsDirectUI.csproj` carries the version.
+  - The two new files are hashed; only the fence file is compiled.
+- No recipe, reference script, report editor, menu or notebook source changed; the notebook provenance moves its commit only. Learning is learning-v1.1.11 on both sides.
+- Not in this pin:
+  - the Help publication Windows 5.3.22 ships (statisticalhelp pull request 24); the Mac keeps `b7016a5a`, whose Mac sentences describe the Mac as it ships;
+  - a new Mac version (it stays 1.1.11). Windows 5.3.23 is expected soon.
+- Checks on this Mac. The pin was rehearsed against the release candidate `16b65e3d` in a separate checkout before the tag was published. The tree made from the tag is identical apart from git's index lines. On this tree:
+  - the provenance check (881 files);
+  - a clean build with its 1,552 distribution regression checks and the bundle check;
+  - `test.sh` (4,159 passes; 229 node tests);
+  - the 55 shared and Mac Learning tests.
+- The app-driving suites were not run here; they run in CI on this commit.

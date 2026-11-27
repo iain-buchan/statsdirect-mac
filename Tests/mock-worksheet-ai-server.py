@@ -13,6 +13,37 @@ threads = {}
 pending = {}
 closing = set()
 signed = False
+T_TEST = "statsdirect_choose_worksheet_t_test"
+CLARIFY = "statsdirect_clarify_worksheet_analysis"
+# Windows' tool (ScriptAIPane.cs) and its results: the card is staged, and nothing about the selection is returned.
+T_TEST_TOOL = {"type": "function", "name": T_TEST,
+               "description": "Open the Help decision tree for a quantitative comparison. Omit design when the study design is unclear. Use paired for matched pairs and independent for two independent samples. The card considers the relevant counts and distributions locally. This tool shares no diagnostic data and runs no analysis.",
+               "inputSchema": {"type": "object", "properties": {"design": {"type": "string", "enum": ["paired", "independent"]}},
+                               "required": [], "additionalProperties": False}}
+DESIGN = {"state": "awaiting_design",
+          "message": "Ask the user to choose “Same people or units” or “Separate groups” in the chat."}
+DISTRIBUTION = {"state": "awaiting_distribution",
+                "message": "The decision card lets the user check their selection locally and choose a branch. Ask them to review the card."}
+# A card's wording stays on the Mac: none of it may reach the provider.
+CARD_WORDS = ("Local check found", "Suggested branch", "Review the differences", "Shape check ·", "Suggested · ",
+              "Use these as separate samples", "Change sample choice", "is not numeric")
+SHARED = ("READ_A", "READ_B", "FINISH_A", "STOP_A", "CLOSE_A", "OVERVIEW_A", "CLARIFY_A", "READ_STOP_A", "READ_TEXT_STOP_A",
+          "READ_FAIL_A", "READ_BIG_A", "READ_MIX_A", "READ_PLACEHOLDER_A", "HOLD_A", "I want to compare means.",
+          "DESIGN_A", "PAIRED_A", "INDEPENDENT_A", "CLARIFY_THEN_CARD_A", "HOLD_CARD_A", "STOP_CARD_A", "AFTER_CARD_A", "NO_CARD_A")
+
+
+def private():
+    # The workbook, sheet, heading and cell texts the test writes before a question-only send: none may travel.
+    path = root / "private.json"
+    return json.loads(path.read_text()) if path.exists() else []
+
+
+def staged(result, expected):
+    assert result["success"] and json.loads(result["contentItems"][0]["text"]) == expected, result
+
+
+def refused(result, text):
+    assert not result["success"] and result["contentItems"][0]["text"] == text, result
 
 
 def send(value):
@@ -47,6 +78,9 @@ for line in sys.stdin:
         thread, stage, slot = pending.pop(request["id"])
         result = request["result"]
         identities = json.loads((root / "workbooks.json").read_text())
+        if threads[thread] <= {T_TEST}:
+            # A question-only result carries nothing from the workbook either.
+            assert not any(s in json.dumps(result, ensure_ascii=False) for s in private()), result
         if stage == "closed":
             assert not result["success"], result
             (root / "close-read-rejected").touch()
@@ -117,6 +151,63 @@ for line in sys.stdin:
             assert not result["success"], result
             call(thread, "own", "statsdirect_read_data",
                  {"documentId": identities[slot], "columns": [0], "firstRow": 2, "lastRow": 2}, slot)
+        elif stage == "design":
+            staged(result, DESIGN)
+            finish(thread, "Choose how the measurements were collected below.")
+        elif stage == "paired-bad":
+            # Windows' validation of design (ScriptAIPane.cs): a string paired or independent, and nothing else.
+            refused(result, "Omit design or set it to paired or independent.")
+            call(thread, "paired-extra", T_TEST, {"design": "paired", "columns": [0, 1]}, slot)
+        elif stage == "paired-extra":
+            refused(result, "Omit design or set it to paired or independent.")
+            call(thread, "paired", T_TEST, {"design": "paired"}, slot)
+        elif stage == "paired":
+            staged(result, DISTRIBUTION)
+            call(thread, "paired-again", T_TEST, {"design": "independent"}, slot)
+        elif stage == "paired-again":
+            # One staged card per reply, shared with the clarifying question.
+            refused(result, "A worksheet action is already waiting.")
+            call(thread, "paired-clarify", CLARIFY, {"dimension": "goal"}, slot)
+        elif stage == "paired-clarify":
+            refused(result, "A worksheet action is already waiting.")
+            finish(thread, "Check the paired card below.")
+        elif stage == "independent":
+            staged(result, DISTRIBUTION)
+            finish(thread, "Check the independent card below.")
+        elif stage == "clarify-first":
+            assert result["success"], result
+            call(thread, "card-after-clarify", T_TEST, {}, slot)
+        elif stage == "card-after-clarify":
+            refused(result, "A worksheet action is already waiting.")
+            finish(thread, "Which design?")
+        elif stage == "hold-card":
+            staged(result, DISTRIBUTION)
+            event("item/agentMessage/delta", thread, itemId="answer", delta="Card staged; reply still running.")
+            (root / "card-staged").touch()
+            deadline = time.monotonic() + 12
+            while not (root / "card-release").exists():
+                assert time.monotonic() < deadline, "Test did not release the card reply"
+                time.sleep(0.02)
+            finish(thread, "Card staged; reply complete.")
+        elif stage == "stop-card":
+            # The reply stays open until the test presses Stop.
+            staged(result, DISTRIBUTION)
+            event("item/agentMessage/delta", thread, itemId="answer", delta="Card staged before Stop.")
+            (root / "stop-card-staged").touch()
+        elif stage == "qo-clarify":
+            # Question only does not offer the clarifying question, so the tutor refuses it before the pane sees it.
+            refused(result, "This request is not available in the current learning question.")
+            call(thread, "qo-bad", T_TEST, {"design": "paired maybe"}, slot)
+        elif stage == "qo-bad":
+            # Windows' guidance-only text for any refusal of the card's tool.
+            refused(result, "The analysis proposal could not be staged.")
+            call(thread, "qo-card", T_TEST, {"design": "paired"}, slot)
+        elif stage == "qo-card":
+            staged(result, DISTRIBUTION)
+            call(thread, "qo-again", T_TEST, {}, slot)
+        elif stage == "qo-again":
+            refused(result, "The analysis proposal could not be staged.")
+            finish(thread, "Decision card offered without workbook data.")
         else:
             assert result["success"], result
             data = json.loads(result["contentItems"][0]["text"])
@@ -136,14 +227,19 @@ for line in sys.stdin:
         assert params["serviceName"] == "statsdirect-worksheet-assistant", params
         assert params["sandbox"] == "read-only" and params["ephemeral"]
         tools = {tool["name"] for tool in params["dynamicTools"]}
-        assert tools <= {"statsdirect_read_data", "statsdirect_workspace", "statsdirect_method_help",
-                         "statsdirect_clarify_worksheet_analysis"}
+        assert tools <= {"statsdirect_read_data", "statsdirect_workspace", "statsdirect_method_help", CLARIFY, T_TEST}
         for tool in params["dynamicTools"]:
             if tool["name"] == "statsdirect_workspace":
                 assert "no column headings" in tool["description"], tool
-        # The worksheet instructions the Mac sends: the clarification tool, the structure-only overview, no pasted data.
-        assert all(s in params["baseInstructions"] for s in ("statsdirect_clarify_worksheet_analysis",
-                                                             "but not column headings or cell values", "Never ask the user to paste")), params["baseInstructions"][:300]
+            if tool["name"] == T_TEST:
+                assert tool == T_TEST_TOOL, tool
+        # The worksheet instructions the Mac sends: the clarification tool, the structure-only overview, no pasted data,
+        # and Windows' sentences on the study-design card, with the question-only ones.
+        assert all(s in params["baseInstructions"] for s in (CLARIFY, "but not column headings or cell values", "Never ask the user to paste",
+                                                             T_TEST + " without arguments to offer Same people or units and Separate groups",
+                                                             "pass design paired to the same tool", "pass design independent",
+                                                             "The buttons collect the next details locally",
+                                                             "It does not share workbook data or results.")), params["baseInstructions"][:300]
         thread = f"worksheet-{len(threads) + 1}"
         threads[thread] = tools
         result = {"thread": {"id": thread}, "model": "worksheet-fixture"}
@@ -157,13 +253,14 @@ for line in sys.stdin:
         # Receipts and other local fields never travel: each row is its role and text, and no receipt wording appears.
         assert all(set(m) == {"role", "text"} for m in payload["conversation"]), payload
         prompt = params["input"][0]["text"]
-        assert not any(s in prompt for s in ("Data used", "(headings)", "part of the worksheet", "General guidance ·")), prompt
-        if payload["conversation"][-1]["text"] not in ("READ_A", "READ_B", "FINISH_A", "STOP_A", "CLOSE_A", "OVERVIEW_A",
-                                                       "CLARIFY_A", "READ_STOP_A", "READ_TEXT_STOP_A", "READ_FAIL_A", "READ_BIG_A", "READ_MIX_A", "READ_PLACEHOLDER_A", "HOLD_A",
-                                                       "I want to compare means."):
-            assert not threads[thread] and len(payload["conversation"]) == 1, payload
-            # Question only: nothing about the workbook, its sheets, headings or selection.
+        assert not any(s in prompt for s in ("Data used", "(headings)", "part of the worksheet", "General guidance ·") + CARD_WORDS), prompt
+        if payload["conversation"][-1]["text"] not in SHARED:
+            # Question only: the study-design card's tool at most, which shares nothing, and the current question alone.
+            assert threads[thread] <= {T_TEST} and len(payload["conversation"]) == 1, payload
+            # Nothing about the workbook, its sheets, headings, selection or cells.
+            request_text = json.dumps(params, ensure_ascii=False)
             assert not any(s in prompt for s in ("Fictional", "Qzheading", "Parametric!", "Untitled")), prompt
+            assert not any(s in request_text for s in private()), request_text
         send({"id": request["id"], "result": {"turn": {"id": "turn"}}})
         question = payload["conversation"][-1]["text"]
         if question in ("READ_A", "READ_B"):
@@ -220,6 +317,30 @@ for line in sys.stdin:
             finish(thread, "Marker reply for the paired design. [[method:TPaired]]\n\n"
                            "- `[[method:BoxWhiskerPlot]]` shows the pairs\n\n"
                            "```r\n# [[method:TPaired]] stays in code\nmean(2:4)\n```\n")
+        elif question == "DESIGN_A":
+            assert T_TEST in threads[thread] and CLARIFY in threads[thread], threads[thread]
+            call(thread, "design", T_TEST, {}, "A")
+        elif question == "PAIRED_A":
+            # As Windows' mock (tests/Learning/mock-server.mjs): an invalid design, an extra argument, then the card.
+            call(thread, "paired-bad", T_TEST, {"design": "paired maybe"}, "A")
+        elif question == "INDEPENDENT_A":
+            call(thread, "independent", T_TEST, {"design": "independent"}, "A")
+        elif question == "CLARIFY_THEN_CARD_A":
+            call(thread, "clarify-first", CLARIFY, {"dimension": "design"}, "A")
+        elif question in ("HOLD_CARD_A", "STOP_CARD_A"):
+            call(thread, "hold-card" if question == "HOLD_CARD_A" else "stop-card", T_TEST, {"design": "paired"}, "A")
+        elif question == "PAIRED_QO":
+            # Question only offers exactly the card's tool (Windows GuidanceOnly: the clarifying question is not offered).
+            assert threads[thread] == {T_TEST}, threads[thread]
+            call(thread, "qo-clarify", CLARIFY, {"dimension": "design"}, "Q")
+        elif question == "AFTER_CARD_A":
+            # Choosing on a card adds nothing to the conversation.
+            assert not any(m["text"] in ("Same people or units", "Separate groups") for m in payload["conversation"]), payload
+            finish(thread, "Follow-up without the card.")
+        elif question in ("NO_CARD_A", "NO_CARD_QO"):
+            # The workbook is not in front: no card is offered.
+            assert T_TEST not in threads[thread], threads[thread]
+            finish(thread, "No card offered.")
         else:
             finish(thread, "General guidance without workbook data.")
         continue

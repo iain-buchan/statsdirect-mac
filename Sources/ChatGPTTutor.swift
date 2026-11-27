@@ -73,7 +73,7 @@ final class ChatGPTTutor {
     private static let diagnosticTools: Set<String> = [
         "statsdirect_workspace", "statsdirect_read_data", "statsdirect_read_document",
         "statsdirect_method_help", "statsdirect_run_analysis", "statsdirect_open_analysis",
-        "statsdirect_clarify_worksheet_analysis"
+        "statsdirect_clarify_worksheet_analysis", "statsdirect_choose_worksheet_t_test"
     ]
     private let writer = DispatchQueue(label:"com.statsdirect.tutor-writer")
     /// Tool results with data still queued for the pipe, by reply, and the replies waiting for them (settleToolWrites).

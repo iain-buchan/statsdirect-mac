@@ -61,7 +61,16 @@ extension Viewer: WKScriptMessageHandler {
         case "openExcel": openExcel()
         case "openExample": openExampleWorkbook()
         case "saveExcel": saveExcel(doc)
-        case "changed": doc.gridDirty = true; doc.gridVersion += 1
+        case "changed":
+            doc.gridDirty = true; doc.gridVersion += 1
+            // An edit retires AI Assist's clarifying card, as a selection change does (Windows retires it on both).
+            worksheetAI?.worksheetStateChanged(doc)
+        case "aiWorksheet":
+            // The selection and whether the workbook holds anything, for AI Assist's label and choices. It is not an
+            // edit: it leaves gridDirty and gridVersion alone, which guard shared replies, saves and offers.
+            guard let state = WorksheetAIState(body), doc.aiWorksheet != state else { return }
+            doc.aiWorksheet = state
+            worksheetAI?.worksheetStateChanged(doc)
         case "saveDocument": saveWorksheet(doc)
         case "save": saveGrid(doc)
         case "cut":
@@ -128,7 +137,7 @@ extension Viewer: WKScriptMessageHandler {
             if let error {
                 self.remove(doc)
                 self.showError("CSV import failed: " + error.localizedDescription)
-            } else { self.didOpenDocument(doc); self.status.stringValue = "Opened " + doc.workbookName }
+            } else { doc.aiWorksheet = nil; self.worksheetAI?.refreshWorksheetState(doc); self.didOpenDocument(doc); self.status.stringValue = "Opened " + doc.workbookName }
         }
     }
     func saveGrid(_ doc: Document) {

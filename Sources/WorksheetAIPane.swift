@@ -1,5 +1,81 @@
 import Cocoa
 
+/// What the grid page tells AI Assist about a workbook: the active sheet, its selection as an A1 address, and whether
+/// the workbook holds anything. It stays in the app; nothing here is sent to the provider.
+struct WorksheetAIState: Equatable {
+    let sheet: Int
+    let sheetName: String
+    let label: String
+    let singleCell: Bool
+    let hasData: Bool
+
+    init(sheet: Int, sheetName: String, label: String, singleCell: Bool, hasData: Bool) {
+        self.sheet = sheet; self.sheetName = sheetName; self.label = label; self.singleCell = singleCell; self.hasData = hasData
+    }
+
+    /// The page's message or bridge result, checked as GridHost checks every grid message.
+    init?(_ body: [String: Any]) {
+        guard let sheet = body["sheet"] as? Int, let name = body["sheetName"] as? String, name.count <= 256,
+              let label = body["label"] as? String, label.count <= 200,
+              let single = body["singleCell"] as? Bool, let hasData = body["hasData"] as? Bool else { return nil }
+        self.init(sheet: sheet, sheetName: name, label: label, singleCell: single, hasData: hasData)
+    }
+
+    /// "Selection: Sheet 1!A1:B20" or "Current cell: Sheet 1!B3", as the Windows pane writes it; nil when nothing is selected.
+    var caption: String? {
+        label.isEmpty ? nil : (singleCell ? "Current cell: " : "Selection: ") + sheetName + "!" + label
+    }
+}
+
+/// A clarifying question with fixed answers, offered by the assistant through a local tool when the goal, the outcome
+/// scale or the study design is unclear. The wording matches the Windows card; choosing an answer sends its sentence.
+struct WorksheetAIClarification: Equatable {
+    struct Option: Equatable { let id: String; let label: String; let answer: String }
+    let dimension: String
+    let question: String
+    let options: [Option]
+
+    static let tool = "statsdirect_clarify_worksheet_analysis"
+    static var definition: [String: Any] {
+        TutorTools.tool(tool, "Show a fixed set of clickable answers for the next missing detail: goal, outcome scale or study design. Wait for the user's answer before suggesting a method. Does not inspect the worksheet or run an analysis.",
+                        ["dimension": ["type": "string", "enum": ["goal", "scale", "design"]]], required: ["dimension"])
+    }
+
+    static func make(_ dimension: String) -> WorksheetAIClarification? {
+        switch dimension {
+        case "goal":
+            return .init(dimension: dimension, question: "What would you like to find out?", options: [
+                .init(id: "means", label: "Compare means", answer: "I want to compare means."),
+                .init(id: "ordered", label: "Compare ordered scores", answer: "I want to compare ordered scores or relative ordering."),
+                .init(id: "proportions", label: "Compare proportions", answer: "I want to compare proportions."),
+                .init(id: "association", label: "Assess association", answer: "I want to assess an association between variables."),
+                .init(id: "agreement", label: "Assess agreement", answer: "I want to assess agreement between measurements."),
+                .init(id: "unsure", label: "I’m not sure", answer: "I am not sure what comparison best answers my question. Help me work it out.")])
+        case "scale":
+            return .init(dimension: dimension, question: "How was the outcome measured?", options: [
+                .init(id: "quantitative", label: "Numeric measurement", answer: "My outcome is a quantitative measurement."),
+                .init(id: "ordinal", label: "Ordered score or category", answer: "My outcome is an ordered score or category."),
+                .init(id: "binary", label: "Two categories", answer: "My outcome has two categories."),
+                .init(id: "nominal", label: "Unordered categories", answer: "My outcome has more than two unordered categories."),
+                .init(id: "unsure", label: "I’m not sure", answer: "I am not sure of the outcome scale. Help me identify it.")])
+        case "design":
+            return .init(dimension: dimension, question: "How were the observations collected?", options: [
+                .init(id: "paired", label: "Matched observations", answer: "The measurements are matched on the same people or units."),
+                .init(id: "independent", label: "Separate groups", answer: "The observations come from separate, independent groups."),
+                .init(id: "repeated", label: "Repeated or grouped observations", answer: "The observations are repeated over more than two occasions or grouped within clusters. Ask which applies if needed."),
+                .init(id: "unsure", label: "I’m not sure", answer: "I am not sure how the observations are related. Help me identify the study design.")])
+        default: return nil
+        }
+    }
+}
+
+/// A clarification answer button. It belongs to the card it was drawn for: a selection change, an edit or a new card
+/// retires the token, so a click that arrives late is refused rather than sent.
+final class WorksheetAIChoiceButton: NSButton {
+    var token = ""
+    var choice = ""
+}
+
 /// Worksheet conversations and consent are scoped to a document ID. A running
 /// request owns its original conversation even while the user changes tabs.
 @MainActor final class WorksheetAIPane: NSObject {
@@ -10,6 +86,12 @@ import Cocoa
         var share = false
         var confirmed = false
     }
+    /// What one question staged through its tools; shown only if its reply completes.
+    private final class RequestState { var clarification: WorksheetAIClarification? }
+
+    static let guidanceQuestion = "Help me choose a statistical method."
+    static let stoppedBeforeText = "[Reply stopped before any text.]"
+    static let noReply = "[No reply was received.]"
 
     unowned let viewer: Viewer
     let view = NSView()
@@ -19,7 +101,16 @@ import Cocoa
     let confirm = NSButton(checkboxWithTitle: "I have checked for person-identifiable data.", target: nil, action: nil)
     let sendButton = NSButton(title: "Send question only", target: nil, action: nil)
     let stopButton = NSButton(title: "Stop", target: nil, action: nil)
+    let replyActivity = NSTextField(labelWithString: "Reply in progress…")
+    let selectionLabel = NSTextField(wrappingLabelWithString: "")
     let chooseMethod = NSButton(title: "Choose a method", target: nil, action: nil)
+    let helpChoose = NSButton(title: "Help me choose a method", target: nil, action: nil)
+    let openExample = NSButton(title: "Open example workbook", target: nil, action: nil)
+    let workbookHelp = NSButton(title: "Workbook help", target: nil, action: nil)
+    let guidance = NSStackView()
+    private let emptyRow = NSStackView()
+    private let compareRow = NSStackView()
+    private let clarifyBox = NSStackView()
     private let connection = NSButton(title: "Use my ChatGPT", target: nil, action: nil)
     private let workbookLabel = NSTextField(wrappingLabelWithString: "")
     let sharingButton = NSButton(title: "Sharing options", target: nil, action: nil)
@@ -35,9 +126,18 @@ import Cocoa
     private var pendingWorkbookID: String?
     private var requestID: UUID?
     private var task: Task<Void, Never>?
+    private var stopRequested = false
     private var partial = ""
     private(set) var offer: WorksheetAIAnalysisOffer?
     private var offerTask: Task<Void, Never>?
+    /// The clarification card shown below the conversation, and the workbook whose conversation asked it.
+    private(set) var clarification: (card: WorksheetAIClarification, workbookID: String)?
+    /// The token every answer button of the current card carries.
+    private(set) var guidanceToken = UUID().uuidString
+    /// The exact selection, sheet and revisions the current token was issued for (worksheetAISelection, as JSON). A click
+    /// is accepted only while the live grid still matches it; until it has been read, clicks are refused.
+    private(set) var guidanceFingerprint: String?
+    private var renderedEmpty = false
     private var expanded = true
     private(set) var visible = false
     private var width: CGFloat = 460
@@ -61,6 +161,10 @@ import Cocoa
         let header = NSStackView(views: [label, NSView(), fresh, close])
         label.setContentHuggingPriority(.required, for: .horizontal)
         workbookLabel.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-workbook")
+        selectionLabel.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-selection")
+        selectionLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        selectionLabel.textColor = .secondaryLabelColor
+        selectionLabel.isHidden = true
         let warning = NSTextField(wrappingLabelWithString: "Share the named workbook with ChatGPT only after removing names, dates of birth, patient IDs and identifying free text.")
         warning.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         for control in [warning, share, confirm] { sharingPanel.addArrangedSubview(control) }
@@ -82,7 +186,15 @@ import Cocoa
         input.textContainer?.widthTracksTextView = true
         input.setAccessibilityLabel("Your worksheet question")
         input.send = { [weak self] in self?.send() }
-        let actions = NSStackView(views: [sendButton, stopButton, chooseMethod])
+        replyActivity.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-reply-activity")
+        replyActivity.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        replyActivity.textColor = .secondaryLabelColor
+        replyActivity.isHidden = true
+        // In a narrow dock the indicator gives way to the buttons rather than widening the row.
+        replyActivity.lineBreakMode = .byTruncatingTail
+        replyActivity.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let actions = NSStackView(views: [sendButton, stopButton, replyActivity])
+        actions.detachesHiddenViews = true
         let proceed = NSButton(title: "Continue", target: self, action: #selector(continueAnalysis))
         let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelAnalysis))
         proceed.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-continue")
@@ -99,21 +211,52 @@ import Cocoa
         methods.alignment = .leading
         methods.spacing = 3
         methods.detachesHiddenViews = true
+
+        // The choices below the conversation: an empty workbook's two starting points, the general guidance and the
+        // method list for a workbook with data, or the assistant's clarifying question with its fixed answers.
+        openExample.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-open-example")
+        workbookHelp.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-workbook-help")
+        helpChoose.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-help-choose")
+        chooseMethod.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-choose-method")
+        openExample.setAccessibilityHelp("Opens the bundled example workbook in a new tab.")
+        workbookHelp.setAccessibilityHelp("Opens the Help topic about workbooks.")
+        helpChoose.setAccessibilityHelp("Asks AI Assist to help choose a statistical method.")
+        chooseMethod.setAccessibilityHelp("Lists the StatsDirect methods to choose from locally.")
+        for (row, buttons) in [(emptyRow, [openExample, workbookHelp]), (compareRow, [helpChoose, chooseMethod])] {
+            for button in buttons { row.addArrangedSubview(button) }
+            row.orientation = .horizontal
+            row.spacing = 6
+        }
+        clarifyBox.orientation = .vertical
+        clarifyBox.alignment = .leading
+        clarifyBox.spacing = 3
+        clarifyBox.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-clarification")
+        guidance.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-choices")
+        guidance.orientation = .vertical
+        // Each part fills the choices' width, so the clarifying question wraps however often the part is shown again.
+        guidance.alignment = .width
+        guidance.spacing = 4
+        guidance.detachesHiddenViews = true
+        for part in [emptyRow, compareRow, clarifyBox] { part.isHidden = true; guidance.addArrangedSubview(part) }
+        guidance.setAccessibilityElement(true)
+        guidance.setAccessibilityRole(.group)
+        guidance.setAccessibilityLabel("Suggested next steps")
+
         notice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         notice.textColor = .secondaryLabelColor
         questionOnlyHint.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-question-only-hint")
         questionOnlyHint.font = notice.font
         questionOnlyHint.textColor = .secondaryLabelColor
         let history = transcript.view
-        let stack = NSStackView(views: [header, workbookLabel, offerPanel, connection, sharingButton, sharingPanel,
-                                       questionOnlyHint, composer, actions, notice, history, methods, openCode])
+        let stack = NSStackView(views: [header, workbookLabel, selectionLabel, offerPanel, connection, sharingButton, sharingPanel,
+                                       questionOnlyHint, composer, actions, notice, history, guidance, methods, openCode])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 7
         stack.detachesHiddenViews = true
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
-        for item in [header, workbookLabel, offerPanel, sharingPanel, questionOnlyHint, composer, notice, history, methods] {
+        for item in [header, workbookLabel, selectionLabel, offerPanel, sharingPanel, questionOnlyHint, composer, notice, history, guidance, methods] {
             item.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
         warning.widthAnchor.constraint(equalTo: sharingPanel.widthAnchor).isActive = true
@@ -125,7 +268,7 @@ import Cocoa
             composer.heightAnchor.constraint(equalToConstant: 68),
             history.heightAnchor.constraint(greaterThanOrEqualToConstant: 90)
         ])
-        for item in [workbookLabel, warning, offerLabel, questionOnlyHint, notice] {
+        for item in [workbookLabel, selectionLabel, warning, offerLabel, questionOnlyHint, notice] {
             item.setContentCompressionResistancePriority(.required, for: .vertical)
         }
         history.setContentHuggingPriority(.defaultLow, for: .vertical)
@@ -136,6 +279,9 @@ import Cocoa
         sendButton.target = self; sendButton.action = #selector(send)
         stopButton.target = self; stopButton.action = #selector(stop)
         chooseMethod.target = self; chooseMethod.action = #selector(chooseLocalMethod)
+        helpChoose.target = self; helpChoose.action = #selector(askForGuidance)
+        openExample.target = self; openExample.action = #selector(openExampleWorkbook)
+        workbookHelp.target = self; workbookHelp.action = #selector(openWorkbookHelp)
         openCode.target = self; openCode.action = #selector(openLastCode)
         transcript.openR = { [weak self] generation, message, block, shown in
             self?.openReply(generation, message, block, shown)
@@ -158,6 +304,7 @@ import Cocoa
             viewer.workspaceSplit.setPosition(max(320, split - width - viewer.workspaceSplit.dividerThickness), ofDividerAt: 0)
         }
         activeDocumentChanged(doc)
+        refreshWorksheetState(doc)
         viewer.window.makeFirstResponder(input)
         Task { @MainActor [weak self] in
             guard let self, !TutorPolicy.disabled else { return }
@@ -181,16 +328,19 @@ import Cocoa
         guard workbookID != id else { updateControls(); return }
         conversation?.draft = input.string
         workbookID = id
+        clarification = nil
         if conversations[id] == nil { conversations[id] = Conversation() }
         input.string = conversation?.draft ?? ""
         expanded = conversation?.confirmed != true
         showNotice("")
+        if let doc = workbook, doc.aiWorksheet == nil { refreshWorksheetState(doc) }
         render()
     }
 
     func documentClosed(_ doc: Document) {
         conversations.removeValue(forKey: doc.id)
         if pendingWorkbookID == doc.id { pendingWorkbookID = nil }
+        if clarification?.workbookID == doc.id { clarification = nil }
         guard workbookID == doc.id else {
             if visible, doc.kind == "grid" { updateControls() }
             return
@@ -202,6 +352,63 @@ import Cocoa
         if let active = viewer.active, active !== doc, active.kind == "grid" { activeDocumentChanged(active) }
         else if !viewer.documents.contains(where: { $0.kind == "grid" }) { hide() }
         else { render() }
+    }
+
+    /// The grid page reported a new selection, an edit, a load or a sheet switch (GridHost "aiWorksheet").
+    func worksheetStateChanged(_ doc: Document) {
+        guard visible, doc.id == workbookID else { return }
+        // A clarifying question belongs to the selection and contents it was asked about: a late click on its
+        // previous buttons is refused, and the card is drawn again with a new token.
+        issueGuidanceToken()
+        // The conversation is drawn again only when the workbook becomes empty or stops being empty (its introduction
+        // changes); a selection change redraws only the label and the choices.
+        if !hasData(doc) != renderedEmpty { render() } else { renderGuidance(); updateControls() }
+    }
+
+    /// A new token for the current card, with the live selection it belongs to read from the grid.
+    private func issueGuidanceToken() {
+        let token = UUID().uuidString
+        guidanceToken = token
+        guidanceFingerprint = nil
+        guard let doc = workbook, clarification?.workbookID == doc.id else { return }
+        Task { @MainActor [weak self] in
+            guard let self, let fingerprint = await self.selectionFingerprint(doc), self.guidanceToken == token else { return }
+            self.guidanceFingerprint = fingerprint
+        }
+    }
+
+    /// The grid's exact selection, with whole rows and columns as compact slices, its sheet and the workbook and sheet
+    /// revisions, which every edit changes (Grid/ai-selection.mjs selectionFingerprint).
+    private func selectionFingerprint(_ doc: Document) async -> String? {
+        let web = doc.web
+        let value = try? await web.evaluateJavaScript("window.statsDirectGrid.aiSelectionFingerprint()")
+        guard doc.web === web, viewer.documents.contains(where: { $0 === doc }) else { return nil }
+        return value as? String
+    }
+
+    /// Asks the page for its state when the pane has not heard from it: a workbook loaded before the pane opened, or a
+    /// load that has just finished (the page posts only when its state changes, and a new empty sheet's does not).
+    func refreshWorksheetState(_ doc: Document) {
+        let web = doc.web
+        web.evaluateJavaScript("window.statsDirectGrid && window.statsDirectGrid.aiWorksheetState ? window.statsDirectGrid.aiWorksheetState() : null") { [weak self, weak doc] value, _ in
+            guard let self, let doc, doc.web === web, let body = value as? [String: Any], let state = WorksheetAIState(body) else { return }
+            doc.aiWorksheet = state
+            self.worksheetStateChanged(doc)
+        }
+    }
+
+    /// An empty workbook is offered the example and the workbook Help. While a file is still loading, or before the
+    /// page has reported, an opened file counts as having data and an untouched new sheet as empty.
+    private func hasData(_ doc: Document) -> Bool {
+        if let pending = doc.pendingCSV { return !pending.isEmpty }
+        if let pending = doc.pendingWorkbook {
+            // A file read by the engine brings cells or a snapshot; File ▸ New Worksheet brings an empty sheet.
+            return (pending["sheets"] as? [[String: Any]] ?? []).contains { sheet in
+                sheet["snapshot"] is String || !((sheet["cells"] as? [Any]) ?? []).isEmpty
+            }
+        }
+        if let state = doc.aiWorksheet { return state.hasData }
+        return doc.openedFileURL != nil || doc.gridVersion > 0 || doc.gridDirty
     }
 
     @objc func hide() {
@@ -243,12 +450,15 @@ import Cocoa
         chat.share = share.state == .on
         chat.confirmed = chat.share && confirm.state == .on
         if chat.confirmed { expanded = false }
+        // A clarifying question needs the conversation it came from, which only a shared workbook sends.
+        if !chat.confirmed, clarification?.workbookID == workbookID { clarification = nil; render() }
         updateControls()
     }
 
     @objc private func newConversation() {
         guard let chat = conversation, !isBusy else { return }
         cancelAnalysis()
+        clarification = nil
         chat.generation = UUID().uuidString
         chat.messages.removeAll()
         chat.draft = ""
@@ -264,6 +474,9 @@ import Cocoa
         let name = workbook.map(displayName(for:)) ?? "No workbook selected"
         workbookLabel.stringValue = name
         workbookLabel.toolTip = name
+        let caption = workbook?.aiWorksheet?.caption
+        selectionLabel.stringValue = caption ?? ""
+        selectionLabel.isHidden = caption == nil || disabled
         share.state = chat?.share == true ? .on : .off
         confirm.state = chat?.confirmed == true ? .on : .off
         share.isEnabled = !disabled && !isBusy && chat != nil
@@ -279,18 +492,33 @@ import Cocoa
         sendButton.isEnabled = !disabled && !isBusy && tutor.account != nil && chat != nil
             && (chat?.share != true || chat?.confirmed == true)
         stopButton.isEnabled = isBusy
+        replyActivity.stringValue = stopRequested ? "Stopping…" : "Reply in progress…"
+        replyActivity.isHidden = !isBusy
         chooseMethod.isEnabled = !isBusy && !disabled && workbook != nil
+        helpChoose.isEnabled = !isBusy && !disabled && chat != nil
+        openExample.isEnabled = !isBusy && !disabled
+        workbookHelp.isEnabled = !isBusy && !disabled
         if disabled { showNotice(TutorPolicy.message) }
     }
 
     @objc func send() {
-        guard visible, !isBusy, !TutorPolicy.disabled, let workbook, let chat = conversation else { return }
-        let question = input.string.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !question.isEmpty else { showNotice("Enter a question for AI."); return }
-        guard question.count <= 8000 else { showNotice("Shorten the question to 8,000 characters."); return }
-        guard viewer.chatGPTTutor.account != nil else { showNotice("Choose Use my ChatGPT first."); return }
-        guard !chat.share || chat.confirmed else { showNotice("Check the workbook for person identifiers, then confirm before sending."); return }
+        submit(input.string.trimmingCharacters(in: .whitespacesAndNewlines), typed: true)
+    }
+
+    /// Sends a question: one the user typed, or a fixed sentence from a button (the guidance question or a
+    /// clarification answer), which leaves the user's draft in the composer. Returns whether it was sent.
+    @discardableResult
+    private func submit(_ question: String, typed: Bool) -> Bool {
+        guard visible, !isBusy, !TutorPolicy.disabled, let workbook, let chat = conversation else { return false }
+        guard !question.isEmpty else { showNotice("Enter a question for AI."); return false }
+        guard question.count <= 8000 else { showNotice("Shorten the question to 8,000 characters."); return false }
+        guard viewer.chatGPTTutor.account != nil else {
+            if !typed, input.string.isEmpty { input.string = question; chat.draft = question }
+            showNotice("Choose Use my ChatGPT first."); return false
+        }
+        guard !chat.share || chat.confirmed else { showNotice("Check the workbook for person identifiers, then confirm before sending."); return false }
         cancelAnalysis()
+        clarification = nil
         let token = UUID()
         let replyID = UUID().uuidString
         let shared = chat.share && chat.confirmed
@@ -298,17 +526,37 @@ import Cocoa
                    "context": shared ? "Shared for this question: " + workbook.title : "Question only"]
         let messages = chat.messages + [row]
         requestID = token
+        stopRequested = false
         partial = ""
-        input.string = ""
-        chat.draft = ""
+        if typed { input.string = ""; chat.draft = "" }
         let context = ScriptAIContext(viewer: viewer, script: nil, workbook: shared ? workbook : nil,
-                                      usesSessionConsent: false) { [weak self] in self?.acceptsRequest(token) == true }
-        let tools = shared ? context.tools : []
+                                      usesSessionConsent: false, worksheetAssist: true) { [weak self] in self?.acceptsRequest(token) == true }
+        // The clarifying card is offered only with a shared workbook that holds data: a question-only send carries no
+        // earlier messages, so a one-line answer would reach the provider without the question it answers.
+        let offersClarification = shared && hasData(workbook)
+        let tools = shared ? context.tools + (offersClarification ? [WorksheetAIClarification.definition] : []) : []
         let reference = methodReference()
         let unsharedMessages = [row]
+        let staged = RequestState()
         let handler: ChatGPTTutor.ToolHandler?
-        if shared { handler = { name, args in try await context.call(name, args) } }
-        else { handler = nil }
+        if shared {
+            handler = { name, args in
+                if name == WorksheetAIClarification.tool {
+                    guard offersClarification else { throw ChatGPTTutor.Failure(message: "This question does not allow that AI action.") }
+                    try context.check()
+                    guard args.count == 1, let dimension = args["dimension"] as? String,
+                          let card = WorksheetAIClarification.make(dimension) else { throw ChatGPTTutor.Failure(message: "Choose goal, scale or design.") }
+                    guard staged.clarification == nil else { throw ChatGPTTutor.Failure(message: "A worksheet action is already waiting.") }
+                    staged.clarification = card
+                    return ["state": "awaiting_clarification",
+                            "message": "The question and its answers are shown in the chat. Ask the user to choose an answer."]
+                }
+                return try await context.call(name, args)
+            }
+        } else { handler = nil }
+        // The tutor reports each result it sent; only then does a read join Data used and the reply's R data.
+        let delivered: ChatGPTTutor.ToolDelivery?
+        if shared { delivered = { name, value in context.delivered(name, value) } } else { delivered = nil }
         let progress: ChatGPTTutor.ProgressHandler = { [weak self] text in
             guard let self, self.acceptsRequest(token) else { return }
             self.partial = text
@@ -321,17 +569,33 @@ import Cocoa
                 try context.check()
                 let reply = try await viewer.chatGPTTutor.converse(context: reference,
                     messages: shared ? messages : unsharedMessages, tools: tools, purpose: .worksheet,
-                    progress: progress, toolHandler: handler)
+                    progress: progress, toolHandler: handler, toolDelivered: delivered)
                 try context.check()
-                chat.messages.append(["id": replyID, "role": "assistant", "text": reply.text, "rData": context.rData])
+                chat.messages.append(["id": replyID, "role": "assistant", "text": reply.text, "rData": context.rData,
+                                      "reads": Self.encode(context.reads)])
+                if let card = staged.clarification, workbookID == workbook.id {
+                    clarification = (card, workbook.id)
+                    issueGuidanceToken()
+                }
                 showNotice("")
             } catch {
-                if Task.isCancelled || error is CancellationError {
-                    if !partial.isEmpty {
-                        chat.messages.append(["id": replyID, "role": "assistant",
-                                              "text": partial + "\n[Reply stopped before completion.]", "incomplete": "true"])
-                    }
-                    showNotice("Reply stopped.")
+                // The receipt survives a reply that stops or fails once cells have been read, as on Windows. Its fields
+                // stay in the app: ChatGPTTutor sends only each row's role and text.
+                let stopped = Task.isCancelled || error is CancellationError
+                let reads = Self.encode(context.reads)
+                if !partial.isEmpty {
+                    chat.messages.append(["id": replyID, "role": "assistant", "text": partial + "\n[Reply stopped before completion.]",
+                                          "incomplete": "true", "reads": reads])
+                } else if !context.reads.isEmpty {
+                    chat.messages.append(["id": replyID, "role": "assistant", "text": stopped ? Self.stoppedBeforeText : Self.noReply,
+                                          "incomplete": "true", "reads": reads])
+                }
+                if stopped {
+                    // As on Windows, the question waits in the composer unless something else was typed since.
+                    if input.string.isEmpty, workbookID == workbook.id {
+                        input.string = question; chat.draft = question
+                        showNotice("Reply stopped. Your question is kept here.")
+                    } else { showNotice("Reply stopped.") }
                 } else {
                     showNotice(error.localizedDescription)
                     if input.string.isEmpty { input.string = question; chat.draft = question }
@@ -341,9 +605,15 @@ import Cocoa
         chat.messages = messages
         showNotice(shared ? "Sending with the approved workbook…" : "Sending your question only…")
         render()
+        return true
     }
 
-    @objc func stop() { task?.cancel() }
+    @objc func stop() {
+        guard let task else { return }
+        stopRequested = true
+        task.cancel()
+        updateControls()
+    }
 
     private func acceptsRequest(_ token: UUID) -> Bool {
         visible && requestID == token && task?.isCancelled == false
@@ -353,11 +623,20 @@ import Cocoa
         guard requestID == token else { return }
         requestID = nil
         task = nil
+        stopRequested = false
         partial = ""
         let next = pendingWorkbookID
         pendingWorkbookID = nil
         if visible, let next, viewer.documents.contains(where: { $0.id == next }) { select(next) }
         render()
+    }
+
+    private static func encode(_ reads: [WorksheetAIRead]) -> String {
+        (try? JSONEncoder().encode(reads)).map { String(decoding: $0, as: UTF8.self) } ?? "[]"
+    }
+
+    private static func decode(_ reads: String) -> [WorksheetAIRead]? {
+        try? JSONDecoder().decode([WorksheetAIRead].self, from: Data(reads.utf8))
     }
 
     private func displayName(for document: Document) -> String {
@@ -392,10 +671,13 @@ import Cocoa
 
     private func render() {
         let latest = latestReply()
+        let empty = workbook.map { !hasData($0) } ?? false
+        // An emptied workbook drops its clarifying question and offers no methods, as on Windows.
+        if empty, clarification?.workbookID == workbookID { clarification = nil }
         openCode.isHidden = latest.map { ConversationRScript.blocks($0["text"] ?? "").isEmpty } ?? true
         openCode.isEnabled = !isBusy && !TutorPolicy.disabled
         for button in methods.arrangedSubviews { methods.removeArrangedSubview(button); button.removeFromSuperview() }
-        if !isBusy, offer == nil, let reply = latest?["text"] {
+        if !isBusy, offer == nil, !empty, let reply = latest?["text"] {
             let catalogue = viewer.worksheetAIMethods
             var seen = Set<String>()
             for id in WorksheetAIMarkers.read(reply).ids {
@@ -409,18 +691,107 @@ import Cocoa
         }
         methods.isHidden = methods.arrangedSubviews.isEmpty
         offerPanel.isHidden = offer == nil
+        renderGuidance()
         var rows: [[String: Any]] = (conversation?.messages ?? []).map { row in
             let body = row["text"] ?? ""
             let stripped = row["role"] == "assistant" ? WorksheetAIMarkers.read(body).text : body
-            return ["id": row["id"] ?? "", "role": row["role"] ?? "assistant", "text": stripped,
-                    "context": row["context"] ?? "", "pending": row["incomplete"] == "true"]
+            var shown: [String: Any] = ["id": row["id"] ?? "", "role": row["role"] ?? "assistant", "text": stripped,
+                                        "context": row["context"] ?? "", "pending": row["incomplete"] == "true"]
+            if row["role"] == "assistant", let reads = row["reads"].flatMap(Self.decode) {
+                if reads.isEmpty { shown["generalGuidance"] = true } else { shown["dataUsed"] = reads.map(\.line) }
+            }
+            return shown
         }
         if !partial.isEmpty {
             rows.append(["id": "pending", "role": "assistant", "text": WorksheetAIMarkers.read(partial).text, "pending": true])
         }
+        renderedEmpty = empty
         transcript.render(["generation": conversation?.generation ?? "", "messages": rows, "collapseR": true,
-                           "introduction": "Ask for help analysing this workbook. You can choose a method, review the selection and run it locally."])
+                           "introduction": empty ? "This workbook is empty."
+                               : "Ask for help analysing this workbook. You can choose a method, review the selection and run it locally."])
         updateControls()
+    }
+
+    /// One card at a time, as on Windows, and none while a reply runs or a method waits for confirmation.
+    private func renderGuidance() {
+        // Drawing the card again (a new token) must not drop the keyboard focus on one of its answers.
+        let focused = (viewer.window.firstResponder as? WorksheetAIChoiceButton).flatMap { $0.isDescendant(of: clarifyBox) ? $0.choice : nil }
+        for part in clarifyBox.arrangedSubviews { clarifyBox.removeArrangedSubview(part); part.removeFromSuperview() }
+        guard visible, !isBusy, offer == nil, !TutorPolicy.disabled, let workbook else {
+            for part in [emptyRow, compareRow, clarifyBox] { part.isHidden = true }
+            guidance.isHidden = true
+            return
+        }
+        let empty = !hasData(workbook)
+        let card = empty ? nil : clarification.flatMap { $0.workbookID == workbook.id ? $0.card : nil }
+        emptyRow.isHidden = !empty
+        compareRow.isHidden = empty || card != nil
+        clarifyBox.isHidden = card == nil
+        guidance.setAccessibilityLabel(empty ? "Getting started with a workbook" : card != nil ? "Analysis question" : "Choose a worksheet method")
+        if let card {
+            let question = NSTextField(wrappingLabelWithString: card.question)
+            question.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-clarification-question")
+            clarifyBox.addArrangedSubview(question)
+            question.widthAnchor.constraint(equalTo: clarifyBox.widthAnchor).isActive = true
+            for option in card.options {
+                let button = WorksheetAIChoiceButton(title: option.label, target: self, action: #selector(chooseAnswer(_:)))
+                button.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-choice-" + option.id)
+                button.token = guidanceToken
+                button.choice = option.id
+                clarifyBox.addArrangedSubview(button)
+                if option.id == focused { viewer.window.makeFirstResponder(button) }
+            }
+        }
+        guidance.isHidden = false
+    }
+
+    @objc private func chooseAnswer(_ button: WorksheetAIChoiceButton) {
+        let choice = button.choice, token = button.token
+        Task { @MainActor [weak self] in _ = await self?.answerClarification(choice, token: token) }
+    }
+
+    /// Sends the fixed sentence of one answer to the current clarifying question. A token from an earlier card, a
+    /// changed workbook or sharing that has since been turned off refuses the click. So does any difference between the
+    /// live grid and the selection and revisions the card was drawn for, as on Windows: the page reports a selection
+    /// only once it settles and only when its short caption changes, so a click can arrive before that report or after
+    /// a change the caption does not show. A refused card is drawn again with a new token. Returns whether it was sent.
+    @discardableResult
+    func answerClarification(_ choice: String, token: String) async -> Bool {
+        func current() -> (Document, WorksheetAIClarification.Option)? {
+            guard visible, !isBusy, !TutorPolicy.disabled, token == guidanceToken, let workbook, workbookID == workbook.id,
+                  let pending = clarification, pending.workbookID == workbook.id,
+                  let option = pending.card.options.first(where: { $0.id == choice }) else { return nil }
+            return (workbook, option)
+        }
+        guard let before = current(), let expected = guidanceFingerprint else { return false }
+        let live = await selectionFingerprint(before.0)
+        guard let after = current(), after.0 === before.0, let chat = conversation else { return false }
+        let option = after.1
+        guard live == expected else {
+            issueGuidanceToken()
+            renderGuidance()
+            return false
+        }
+        guard chat.share && chat.confirmed else {
+            showNotice("Share this workbook again to answer, or type your full question."); return false
+        }
+        // submit retires the card once the answer is on its way; a send it refuses keeps the card for another try.
+        return submit(option.answer, typed: false)
+    }
+
+    @objc private func askForGuidance() {
+        guard visible, !isBusy, !TutorPolicy.disabled else { return }
+        submit(Self.guidanceQuestion, typed: false)
+    }
+
+    @objc private func openExampleWorkbook() {
+        guard visible, !isBusy, !TutorPolicy.disabled else { return }
+        viewer.openExampleWorkbook()
+    }
+
+    @objc private func openWorkbookHelp() {
+        guard visible, !isBusy, !TutorPolicy.disabled else { return }
+        viewer.openHelp(viewer.root.appendingPathComponent("Help/basics/worksheet.htm"), title: "Workbook")
     }
 
     @objc private func pickMethod(_ button: NSButton) {

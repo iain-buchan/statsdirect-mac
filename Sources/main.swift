@@ -19,6 +19,8 @@ final class Document {
     var rConsolePane: RConsolePane?
     var gridDirty = false
     var gridVersion = 0
+    /// The grid page's latest selection and empty-workbook state for AI Assist (GridHost "aiWorksheet"); local only.
+    var aiWorksheet: WorksheetAIState?
     var workbookID: String?
     var workbookName = "Untitled.xlsx"
     var workbookSourceURL: URL?

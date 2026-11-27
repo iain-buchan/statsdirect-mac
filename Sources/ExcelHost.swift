@@ -153,7 +153,7 @@ extension Viewer {
             for id in doc.snapshotIDs { SnapshotStore.shared.forget(id) }; doc.snapshotIDs = []
             switch result {
             case .failure(let error): self.showError("The worksheet could not be displayed: " + self.javaScriptMessage(error))
-            case .success: doc.pendingWorkbook = nil; self.didOpenDocument(doc)
+            case .success: doc.pendingWorkbook = nil; doc.aiWorksheet = nil; self.worksheetAI?.refreshWorksheetState(doc); self.didOpenDocument(doc)
             }
         }
     }

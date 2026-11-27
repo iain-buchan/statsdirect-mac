@@ -20323,9 +20323,34 @@ ${content}</tr>
     const handler2 = window.webkit?.messageHandlers.statsDirectAICopy;
     return handler2 ? handler2.postMessage(value).then((copied) => copied === true, () => false) : false;
   };
+  function receipt(row, opened) {
+    if (row.role !== "assistant") return null;
+    if (Array.isArray(row.dataUsed) && row.dataUsed.length) {
+      const details = document.createElement("details"), summary = document.createElement("summary"), list = document.createElement("ul");
+      details.className = "data-used";
+      details.dataset.receipt = row.id;
+      details.open = opened.has(row.id);
+      summary.textContent = "Data used";
+      for (const line of row.dataUsed) {
+        const item = document.createElement("li");
+        item.textContent = String(line);
+        list.append(item);
+      }
+      details.append(summary, list);
+      return details;
+    }
+    if (row.generalGuidance === true) {
+      const p = document.createElement("p");
+      p.className = "scope data-used-none";
+      p.textContent = "General guidance \xB7 No worksheet cells read for this reply";
+      return p;
+    }
+    return null;
+  }
   function render3(state) {
     const reading = state.generation === generation ? conversationReading(messages) : null;
     const expanded = state.generation === generation && state.collapseR ? new Set(Array.from(messages.querySelectorAll("details[data-r-block][open]"), (block2) => block2.dataset.rBlock)) : /* @__PURE__ */ new Set();
+    const opened = state.generation === generation ? new Set(Array.from(messages.querySelectorAll("article>details[data-receipt][open]"), (block2) => block2.dataset.receipt)) : /* @__PURE__ */ new Set();
     generation = state.generation;
     const fragment = document.createDocumentFragment();
     if (!state.messages.length) {
@@ -20356,6 +20381,8 @@ ${content}</tr>
         body.textContent = row.text;
       }
       article.append(body);
+      const used = receipt(row, opened);
+      if (used) article.append(used);
       fragment.append(article);
       const approvedGeneration = state.generation;
       for (const [index, button] of Array.from(body.querySelectorAll("[data-code=r]")).entries()) {

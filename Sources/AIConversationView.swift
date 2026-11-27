@@ -123,6 +123,17 @@ import WebKit
                         body.style.whiteSpace = 'pre-wrap';
                         body.textContent = row.text;
                         fragment.append(body);
+                        if (row.role === 'assistant' && Array.isArray(row.dataUsed) && row.dataUsed.length) {
+                            const used = document.createElement('p');
+                            used.className = 'scope';
+                            used.textContent = 'Data used: ' + row.dataUsed.map(String).join('; ');
+                            fragment.append(used);
+                        } else if (row.role === 'assistant' && row.generalGuidance === true) {
+                            const used = document.createElement('p');
+                            used.className = 'scope';
+                            used.textContent = 'General guidance · No worksheet cells read for this reply';
+                            fragment.append(used);
+                        }
                     }
                     container.replaceChildren(fragment);
                     container.scrollTop = container.scrollHeight;

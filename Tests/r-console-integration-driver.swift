@@ -414,15 +414,42 @@ import WebKit
             rejectedAll = rejectedAll && guardBoard.changeCount == prior && guardBoard.string(forType: .string) == "clipboard must survive"
         }
         try check(rejectedAll, "invalid, missing, nonlocal, oversized and non-SVG chart files leave the existing clipboard unchanged")
-        let survivesFocus = try await doc.web.callAsyncJavaScript("""
-        const button = document.querySelector('figure.plot button');
-        window.__rConsoleFocusOpen = button;
-        button.focus(); document.dispatchEvent(new Event('selectionchange'));
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        return button.isConnected && document.querySelector('figure.plot button') === button;
-        """, arguments: [:], in: nil, contentWorld: .page) as? Bool == true
-        try check(survivesFocus, "focusing a chart action and changing selection preserves the original clickable DOM node")
-        _ = try await evaluate(doc, "window.__rConsoleFocusOpen.click(); delete window.__rConsoleFocusOpen; true")
+        _ = try await evaluate(doc, """
+        (() => {
+          const figure = document.querySelector('figure.plot');
+          window.__chartFocusFixture = {figure, buttons: [...figure.querySelectorAll('button')]};
+          return true;
+        })()
+        """)
+        for (index, action) in ["Open chart", "Copy chart"].enumerated() {
+            let focused = try await evaluate(doc, """
+            (() => {
+              const button = window.__chartFocusFixture.buttons[\(index)];
+              button.focus();
+              document.dispatchEvent(new Event('selectionchange'));
+              return document.activeElement === button;
+            })()
+            """) as? Bool == true
+            try check(focused, "\(action) can receive focus before console output arrives")
+            let marker = "CHART_FOCUS_HOST_OUTPUT_\(index)"
+            // Submit through the native session so the command input cannot take focus.
+            try check(pane.session.submit(source: "cat('\(marker)\\n')", origin: "script"), "R accepts host output while \(action) is focused")
+            try await expectOutput(doc, marker + "\n")
+            try await wait("native R output repaints the transcript while \(action) is focused") {
+                try await evaluate(doc, "[...document.querySelectorAll('pre.output-entry')].some(node => node.textContent.includes('\(marker)'))") as? Bool == true
+            }
+            let keptFocus = try await evaluate(doc, """
+            (() => {
+              const {figure, buttons} = window.__chartFocusFixture;
+              const paintedFigure = document.querySelector('figure.plot');
+              const paintedButtons = [...paintedFigure.querySelectorAll('button')];
+              return figure === paintedFigure && buttons.every((button, i) => button === paintedButtons[i])
+                && document.activeElement === buttons[\(index)];
+            })()
+            """) as? Bool == true
+            try check(keptFocus, "\(action) keeps keyboard focus and both original chart buttons survive native R output")
+        }
+        _ = try await evaluate(doc, "window.__chartFocusFixture.buttons[0].click(); delete window.__chartFocusFixture; true")
         try await wait("the native SVG window") { vectorWindows().count == 1 }
         let vectorWindow = vectorWindows()[0]
         defer { vectorWindow.performClose(nil) }
@@ -1164,6 +1191,36 @@ import WebKit
         try await Task.sleep(nanoseconds: 200_000_000)
         try check(destination.reportEntries?.count == 1 && other.reportEntries?.isEmpty == true,
                   "stale R session output cannot add another report entry")
+
+        _ = try await evaluate(doc, "getSelection().removeAllRanges(); StatsDirectRConsole.clearOutput(); true")
+        let budget = 200_000
+        let line = String(repeating: "x", count: 79) + "\n"
+        let lastRow = "TAIL_ORIGINAL_LAST_ROW\n"
+        let longOutput = "TAIL_ORIGINAL_FIRST_ROW\n" + String(repeating: line, count: 2_625) + lastRow
+        try await console(doc, "cat(paste0('TAIL_ORIGINAL_FIRST_ROW\\n', strrep(paste0(strrep('x', 79L), '\\n'), 2625L), 'TAIL_ORIGINAL_LAST_ROW\\n'))")
+        try await expectOutput(doc, lastRow)
+        let boundedOutput = try await renderedOutput(doc)
+        try check(boundedOutput == String(longOutput.suffix(budget)),
+                  "a real R command exceeding the transcript budget retains its latest output")
+
+        let nextOutput = "TAIL_NEXT_COMMAND_RESULT\n"
+        let nextCommand = "cat('TAIL_NEXT_COMMAND_RESULT\\n')"
+        try await console(doc, nextCommand)
+        try await expectOutput(doc, nextOutput)
+        let keptCount = budget - nextCommand.utf16.count - nextOutput.utf16.count
+        let expected = String(longOutput.suffix(keptCount)) + nextOutput
+        try await wait("later R command output painted in the transcript") {
+            try await evaluate(doc, "[...document.querySelectorAll('pre.output-entry')].some(node => node.textContent.includes('TAIL_NEXT_COMMAND_RESULT'))") as? Bool == true
+        }
+        let displayed = try await evaluate(doc, "[...document.querySelectorAll('pre.output-entry')].map(node => node.textContent).join('')") as? String
+        try check(displayed == expected, "the next real R command keeps the earlier visible output tail and adds its own result")
+
+        _ = try await evaluate(doc, "document.getElementById('add-output-to-report').click(); true")
+        try await wait("both retained R outputs in the report") {
+            !destination.web.isLoading && destination.reportEntries?.count == 2
+        }
+        let reported = try await evaluate(destination, "[...document.querySelectorAll('.report-entry:last-of-type pre')].map(node => node.textContent).join('')") as? String
+        try check(reported == expected, "Add output to report includes the retained tail and the subsequent R result")
     }
 
     @MainActor static func graphicsDeviceChecks(_ viewer: Viewer) async throws {

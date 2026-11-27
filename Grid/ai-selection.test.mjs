@@ -87,6 +87,18 @@ test('a heading counts when its row-1 cell holds text, even text that reads like
 test('the state the pane receives names the sheet and holds no cell values', () => {
   const w = book([{name: 'Sheet 1', rows: 20, columns: 4, cells: [{col: 0, row: 0, text: 'Qzheading', kind: 'text'}, {col: 0, row: 1, text: '142741', kind: 'number'}]}]);
   const state = aiWorksheetState(w, 0, rect(0, 0, 2, 3));
-  assert.deepEqual(state, {sheet: 0, sheetName: 'Sheet 1', label: 'A1:B3', singleCell: false, hasData: true});
+  assert.deepEqual(state, {sheet: 0, sheetName: 'Sheet 1', label: 'A1:B3', singleCell: false, hasData: true, headerRow: true});
   assert.equal(JSON.stringify(state).includes('142741') || JSON.stringify(state).includes('Qzheading'), false);
+});
+
+test('the "First row has column names" setting is part of the state, so the page posts a change of it', () => {
+  const w = book([{name: 'Sheet 1', rows: 20, columns: 4, headerRow: true, cells: [{col: 0, row: 0, text: 'Before', kind: 'text'}, {col: 0, row: 1, text: '12', kind: 'number'}]}]);
+  // main.tsx posts the state when this text differs from the last one it posted.
+  const posted = () => JSON.stringify(aiWorksheetState(w, 0, rect(0, 0, 2, 3)));
+  const headed = posted();
+  w.sheets[0].store.headerRow = false;
+  assert.notEqual(posted(), headed);
+  assert.equal(aiWorksheetState(w, 0, rect(0, 0, 2, 3)).headerRow, false);
+  w.sheets[0].store.headerRow = true;
+  assert.equal(posted(), headed);
 });

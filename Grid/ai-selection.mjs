@@ -1,6 +1,6 @@
-// What AI Assist shows locally about the worksheet: the current selection in A1 notation and whether the workbook
-// holds anything at all. None of this is sent to the provider; the pane uses it for its Selection label and for the
-// choices it offers an empty workbook.
+// What AI Assist shows locally about the worksheet: the current selection in A1 notation, whether the workbook holds
+// anything at all and whether row 1 holds the column names. None of this is sent to the provider; the pane uses it for
+// its Selection label, for the choices it offers an empty workbook and to read its distribution card again.
 import {columnName} from './store.mjs';
 
 const MAX_AREAS = 4;
@@ -95,5 +95,6 @@ export function headingCells(workbook, sheetIndex, columns) {
 export function aiWorksheetState(workbook, sheetIndex, selection) {
   const sheet = workbook.sheets[sheetIndex], store = sheet.store;
   const {label, singleCell} = selectionAddress(selection, {columns: store.columns.length, rows: store.rows});
-  return {sheet: sheetIndex, sheetName: sheet.name, label, singleCell, hasData: workbookHasData(workbook)};
+  // The "First row has column names" setting changes what the distribution card reads, so a change is posted too.
+  return {sheet: sheetIndex, sheetName: sheet.name, label, singleCell, hasData: workbookHasData(workbook), headerRow: !!store.headerRow};
 }

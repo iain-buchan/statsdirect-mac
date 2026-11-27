@@ -96,6 +96,10 @@ hold, duplicate sheet names and cleanup after a failed open.)
   transfer optimisation, not an input limit. When a step is submitted the form asks for chosen
   columns (`columnValues`), which match `FullEngine/HostParameters.cs` `ReadFrame`'s
   `{columns: [{title, values}]}`. A lesson's fictional data still travels with `cells`.
+- AI Assist's distribution card reads the two selected columns by the analysis's rules
+  (`measurement-columns.mjs`, the bridge member `aiMeasurementColumns`). Its paired differences
+  are posted as a one-column typed snapshot for the engine; its independent samples travel
+  inline, as counts with at most 100 values a column.
 
 Reviewed behaviour worth knowing: a form's lazy request names the sheet its metadata came
 from and is refused if that sheet is gone or renamed; a step cannot be submitted twice while

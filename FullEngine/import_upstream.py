@@ -29,7 +29,7 @@ def snapshot():
                      if p.suffix in ('.cs', '.g4') and 'obj' not in p.parts and 'bin' not in p.parts)
     for folder in ['Operations', 'UserOperations', 'Template']:
         files.extend(p for p in (source / 'StatsDirectUI/Assets' / folder).rglob('*') if p.is_file())
-    for name in ['OperationTestHost', 'OperationsTester', 'Pane', 'PaneAndPosition', 'ChartOptionsParameter', 'FillableParameter', 'Settings']:
+    for name in ['OperationTestHost', 'OperationsTester', 'Pane', 'PaneAndPosition', 'ChartOptionsParameter', 'FillableParameter', 'Settings', 'PairedOutlierFence']:
         files.append(source / 'StatsDirectUI/UI' / f'{name}.cs')
     # the axis layout the Windows application compiles (its csproj's default glob); the repository's top-level Layout/ is an older copy
     files.extend(p for p in (source / 'StatsDirectUI/Layout').rglob('*.cs') if 'obj' not in p.parts and 'bin' not in p.parts)

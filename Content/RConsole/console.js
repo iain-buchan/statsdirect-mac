@@ -109,20 +109,31 @@
         const index = this.entries.findIndex(entry => !(entry.kind === 'question' && entry.requestId === this.requestId));
         if (index < 0) break;
         const candidate = this.entries[index];
-        // With only an active question and the newest output left, retain the
-        // newest output tail instead of dropping it merely to pin the question.
-        if (index === this.entries.length - 1 && this.entries.length <= this.entryBudget) {
-          const remaining = Math.max(0, this.textBudget - (chars - (candidate.text?.length || 0)));
-          if (candidate.text?.length > remaining) { chars -= candidate.text.length - remaining; candidate.text = remaining ? candidate.text.slice(-remaining) : ''; this.trimmed = true; }
-          if (media > this.mediaBudget && candidate.preview) { media -= candidate.preview.length; candidate.preview = null; this.trimmed = true; }
-          if (chars <= this.textBudget && media <= this.mediaBudget) break;
+        const newest = index === this.entries.length - 1;
+        const remaining = Math.max(0, this.textBudget - (chars - (candidate.text?.length || 0)));
+        // Cut only the overflow from the oldest output that still fits in part.
+        // The newest entry may also share the budget with a pinned question.
+        const keepOutputTail = candidate.kind === 'output' && remaining > 0 && media <= this.mediaBudget;
+        if (this.entries.length <= this.entryBudget && (keepOutputTail || newest)) {
+          if (candidate.text?.length > remaining) chars -= this.trimText(candidate, remaining);
+          if (newest && media > this.mediaBudget && candidate.preview) { media -= candidate.preview.length; candidate.preview = null; this.trimmed = true; }
+          if (chars <= this.textBudget && media <= this.mediaBudget && (newest || candidate.text)) break;
         }
         const [entry] = this.entries.splice(index, 1); chars -= entry.text?.length || 0; media -= entry.preview?.length || 0; this.trimmed = true;
       }
       const first = this.entries[0];
-      if (first?.text?.length > this.textBudget && !(first.kind === 'question' && first.requestId === this.requestId)) { first.text = first.text.slice(-this.textBudget); this.trimmed = true; }
+      if (first?.text?.length > this.textBudget && !(first.kind === 'question' && first.requestId === this.requestId)) this.trimText(first, this.textBudget);
       // Large plot previews can be reopened from their original native assets.
       if (first?.preview?.length > this.mediaBudget) { first.preview = null; this.trimmed = true; }
+    }
+    trimText(entry, remaining) {
+      let start = entry.text.length - remaining;
+      // Do not retain the second half of a UTF-16 surrogate pair by itself.
+      const first = entry.text.charCodeAt(start), preceding = entry.text.charCodeAt(start - 1);
+      if (first >= 0xdc00 && first <= 0xdfff && preceding >= 0xd800 && preceding <= 0xdbff) start++;
+      entry.text = entry.text.slice(start);
+      this.trimmed = true;
+      return start;
     }
     remember(source) {
       if (this.history[this.history.length - 1] !== source) this.history.push(source);
@@ -172,6 +183,7 @@
   const byId = id => doc.getElementById(id), input = byId('console-input'), script = byId('script-source'), transcript = byId('transcript');
   let scheduled = false, renderingScript = false, focusAfterRender = false, transcriptDirty = true;
   const transcriptPointers = new Set();
+  const chartRows = new WeakMap();
   let followEnd = true, lastTranscriptTop = 0, transcriptVersion = 0, followScheduled = false, followVersion = 0;
   function selectingTranscript() {
     const range = global.getSelection();
@@ -215,25 +227,40 @@
   }
   function schedule() { if (!scheduled) { scheduled = true; global.requestAnimationFrame(() => {scheduled = false; render();}); } }
   function element(tag, className, value) { const node = doc.createElement(tag); if (className) node.className = className; if (value !== undefined) node.textContent = value; return node; }
+  function updateTranscript(rows) {
+    const retained = new Set(rows.filter(row => row.parentNode === transcript));
+    if (!retained.size) { transcript.replaceChildren(...rows); return; }
+
+    // Retained charts stay connected and in their original relative order.
+    // Replacing or moving them would discard focus on their action buttons.
+    for (const row of [...transcript.children]) if (!retained.has(row)) row.remove();
+    const pending = doc.createDocumentFragment();
+    for (const row of rows) {
+      if (retained.has(row)) transcript.insertBefore(pending, row);
+      else pending.append(row);
+    }
+    transcript.append(pending);
+  }
   function render() {
     trackTranscriptScroll();
     const selecting = selectingTranscript();
     // Keep copied text selected and keep a pressed plot button alive until its click.
     // Control, focus and selection changes alone must not replace transcript nodes.
     if (transcriptDirty && !selecting && !transcriptPointers.size) {
-      const version = ++transcriptVersion;
-      const fragment = doc.createDocumentFragment();
-      if (model.trimmed) fragment.append(element('p', 'notice', 'Earlier output is omitted from this view. Your R script is retained.'));
-      if (!model.entries.length) fragment.append(element('p', 'notice', model.sessionId ? 'Enter R commands below, or switch to Script.' : 'An interactive R session will start here.'));
+      transcriptVersion++;
+      const rows = [];
+      const canOpenChart = Boolean(model.capabilities.openPlot), canCopyChart = Boolean(model.capabilities.copyPlot);
+      if (model.trimmed) rows.push(element('p', 'notice', 'Earlier output is omitted from this view. Your R script is retained.'));
+      if (!model.entries.length) rows.push(element('p', 'notice', model.sessionId ? 'Enter R commands below, or switch to Script.' : 'An interactive R session will start here.'));
       for (const entry of model.entries) {
         if (entry.kind === 'input') {
           const row = element('div', 'input-entry' + (entry.origin === 'input' ? ' reply' : ''));
-          row.append(element('pre', 'echo-prompt', entry.prompt), element('pre', '', entry.text)); fragment.append(row);
+          row.append(element('pre', 'echo-prompt', entry.prompt), element('pre', '', entry.text)); rows.push(row);
         } else if (entry.kind === 'question') {
           const row = element('pre', 'question-entry', entry.text);
           row.dataset.requestId = entry.requestId; if (entry.commandId) row.dataset.commandId = entry.commandId;
-          fragment.append(row);
-        } else if (entry.kind === 'output') fragment.append(element('pre', 'output-entry ' + entry.stream, entry.text));
+          rows.push(row);
+        } else if (entry.kind === 'output') rows.push(element('pre', 'output-entry ' + entry.stream, entry.text));
         else if (entry.kind === 'notice') {
           const row = element('p', 'notice', entry.text);
           if (entry.filePath) {
@@ -242,24 +269,30 @@
             link.href = 'file:///' + encodeURI(entry.filePath.replace(/\\/g, '/')).replace(/#/g, '%23').replace(/\?/g, '%3F');
             link.onclick = event => {event.preventDefault(); send('openFile', {path: entry.filePath});}; row.append(link);
           }
-          fragment.append(row);
+          rows.push(row);
         }
         else if (entry.kind === 'plot') {
+          const cached = chartRows.get(entry);
+          if (cached && cached.preview === entry.preview && cached.canOpenChart === canOpenChart && cached.canCopyChart === canCopyChart) {
+            rows.push(cached.figure); continue;
+          }
           const figure = element('figure', 'plot');
           figure.dataset.plotId = entry.plotId; figure.dataset.revision = entry.revision;
           if (entry.preview) {
             const image = element('img');
-            image.addEventListener('load', () => {if (image.isConnected) followTranscriptEnd(version);}, {once: true});
+            image.addEventListener('load', () => {if (image.isConnected) followTranscriptEnd();}, {once: true});
             image.src = entry.preview; image.alt = entry.label; figure.append(image);
           }
           figure.append(element('figcaption', '', entry.label));
           const actions = element('div', 'plot-actions');
-          if (model.capabilities.openPlot) { const open = element('button', '', entry.mime === 'application/pdf' ? 'Open vector PDF' : 'Open chart'); open.type = 'button'; open.onclick = () => {const request = model.plotAction('openPlot', entry); if (request) post(request);}; actions.append(open); }
-          if (model.capabilities.copyPlot) { const copy = element('button', '', 'Copy chart'); copy.type = 'button'; copy.onclick = () => {const request = model.plotAction('copyPlot', entry); if (request) post(request);}; actions.append(copy); }
-          if (actions.childNodes.length) figure.append(actions); fragment.append(figure);
+          if (canOpenChart) { const open = element('button', '', entry.mime === 'application/pdf' ? 'Open vector PDF' : 'Open chart'); open.type = 'button'; open.onclick = () => {const request = model.plotAction('openPlot', entry); if (request) post(request);}; actions.append(open); }
+          if (canCopyChart) { const copy = element('button', '', 'Copy chart'); copy.type = 'button'; copy.onclick = () => {const request = model.plotAction('copyPlot', entry); if (request) post(request);}; actions.append(copy); }
+          if (actions.childNodes.length) figure.append(actions);
+          chartRows.set(entry, {figure, preview: entry.preview, canOpenChart, canCopyChart});
+          rows.push(figure);
         }
       }
-      transcript.replaceChildren(fragment);
+      updateTranscript(rows);
       transcriptDirty = false;
       lastTranscriptTop = transcript.scrollTop;
     }

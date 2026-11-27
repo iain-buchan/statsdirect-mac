@@ -450,6 +450,7 @@ final class WorksheetAIChoiceButton: NSButton {
         guard doc.kind == "grid", !TutorPolicy.disabled else { return }
         viewer.scriptAI.hide()
         viewer.helpPane.hide()
+        let reopened = !visible
         if !visible {
             visible = true
             viewer.workspaceSplit.addArrangedSubview(view)
@@ -458,6 +459,10 @@ final class WorksheetAIChoiceButton: NSButton {
             viewer.workspaceSplit.setPosition(max(320, split - width - viewer.workspaceSplit.dividerThickness), ofDividerAt: 0)
         }
         activeDocumentChanged(doc)
+        // Hidden, the pane drew nothing for the page's reports, so shown again it draws its choices for the selection as it
+        // now stands. Already shown, it keeps what it shows unless the page's state has changed (Windows' Open for the same
+        // document keeps the card, ScriptAIPane.cs:182 and :217).
+        if reopened { worksheetStateChanged(doc) }
         refreshWorksheetState(doc)
         viewer.window.makeFirstResponder(input)
         Task { @MainActor [weak self] in
@@ -515,7 +520,8 @@ final class WorksheetAIChoiceButton: NSButton {
     func worksheetStateChanged(_ doc: Document) {
         guard visible, doc.id == workbookID else { return }
         // A card belongs to the selection and contents it was drawn for: a late click on its previous buttons is
-        // refused, and the card is drawn again with a new token (an interval card once it has been read again).
+        // refused, and the card is drawn again with a new token (an interval card once it has been read again, unless
+        // the live selection is still the one it was read for).
         issueGuidanceToken()
         // The conversation is drawn again only when the workbook becomes empty or stops being empty (its introduction
         // changes); a selection change redraws only the label and the choices.
@@ -524,8 +530,23 @@ final class WorksheetAIChoiceButton: NSButton {
 
     /// A new token for the current card, with the live selection it belongs to read from the grid. An interval card is
     /// read again, as Windows reads it on every selection or content change: only the newest reading is drawn, with a
-    /// token of its own, so a click on the card as it stood before is refused.
-    private func issueGuidanceToken() {
+    /// token of its own, so a click on the card as it stood before is refused. An interval card already read for the live
+    /// selection stays as it is, with its token, its feedback and its confirmation of separate samples (Windows
+    /// WithCurrentWorksheetSelection, ScriptAIPane.WorksheetAnalysis.cs:296). `changed`: the caller knows the live
+    /// selection is not the one the card was read for.
+    private func issueGuidanceToken(changed: Bool = false) {
+        if !changed, let doc = workbook, let shown = distribution, shown.workbookID == doc.id, shown.card.kind != .choose,
+           shown.card.check != nil, guidanceFingerprint != nil {
+            Task { @MainActor [weak self] in
+                let live = await self?.selectionFingerprint(doc)
+                // Compared with the reading the card shows by then: a check or a newer reading may have replaced it.
+                guard let self, self.workbookID == doc.id, let shown = self.distribution, shown.workbookID == doc.id,
+                      shown.card.kind != .choose, shown.card.check != nil, let read = self.guidanceFingerprint, live != read else { return }
+                self.issueGuidanceToken(changed: true)
+                self.renderGuidance()
+            }
+            return
+        }
         let token = UUID().uuidString
         guidanceToken = token
         guidanceFingerprint = nil
@@ -626,11 +647,13 @@ final class WorksheetAIChoiceButton: NSButton {
     }
 
     /// Asks the page for its state when the pane has not heard from it: a workbook loaded before the pane opened, or a
-    /// load that has just finished (the page posts only when its state changes, and a new empty sheet's does not).
+    /// load that has just finished (the page posts only when its state changes, and a new empty sheet's does not). A
+    /// state the pane already has changes nothing, as for the page's own posts (GridHost); a load clears it first.
     func refreshWorksheetState(_ doc: Document) {
         let web = doc.web
         web.evaluateJavaScript("window.statsDirectGrid && window.statsDirectGrid.aiWorksheetState ? window.statsDirectGrid.aiWorksheetState() : null") { [weak self, weak doc] value, _ in
-            guard let self, let doc, doc.web === web, let body = value as? [String: Any], let state = WorksheetAIState(body) else { return }
+            guard let self, let doc, doc.web === web, let body = value as? [String: Any], let state = WorksheetAIState(body),
+                  doc.aiWorksheet != state else { return }
             doc.aiWorksheet = state
             self.worksheetStateChanged(doc)
         }
@@ -1095,7 +1118,7 @@ final class WorksheetAIChoiceButton: NSButton {
         let live = await selectionFingerprint(before.0)
         guard let (workbook, card) = current(), workbook === before.0 else { return false }
         guard live == expected else {
-            issueGuidanceToken()
+            issueGuidanceToken(changed: true)
             renderGuidance()
             return false
         }
@@ -1300,7 +1323,7 @@ final class WorksheetAIChoiceButton: NSButton {
         if let live, live == origin.fingerprint {
             guidanceToken = UUID().uuidString
             guidanceFingerprint = live
-        } else { issueGuidanceToken() }
+        } else { issueGuidanceToken(changed: true) }
         render()
         return true
     }

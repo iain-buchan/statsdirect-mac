@@ -11,8 +11,10 @@ statsdirect_measurement_check entry (FullEngine/MeasurementChecks.cs) and the li
 - PEFR's card, and a card with the shape lines of more than 100 pairs, in en-GB and de-DE; a culture .NET does not know; a selection
   the grid could not read; requests in no recognised form.
 - A full worksheet column of differences through a snapshot.
-- Each block copied from Windows is still the lines it cites in FullEngine/Upstream, and the fixtures' fence table is the pinned one.
-- When R is installed, the oracle regenerates its four tables byte for byte.
+- Each block copied from Windows is still the lines it cites in FullEngine/Upstream; each segment of the Windows code the Mac rewrote
+  instead (MIRRORS) still stands, line for line, in its pinned Windows file; and the fixtures' fence table is the pinned one.
+- When R is installed, the oracle regenerates its four tables with the committed cases, rows, counts, flags and branches and every other
+  number within the same tolerance; in R 4.6.1, which wrote them, byte for byte.
 """
 import csv
 import json
@@ -274,7 +276,7 @@ entry.close()
 
 # --- The Windows code copied into FullEngine/MeasurementChecks.cs: each block between "// windows-copy begin <file>:<first>-<last>" and
 # "// windows-copy end" is those lines of the pinned Windows source, line for line with leading and trailing white space trimmed, so a
-# change on Windows shows here at the next engine pin.
+# change to a copied line, or the lines moving, shows here at the next engine pin. MIRRORS below covers the code the Mac rewrote.
 MARK = re.compile(r'\s*// windows-copy begin (\S+):(\d+)(?:-(\d+))?\s*$')
 blocks, block = [], None
 for at, line in enumerate(COPIES.read_text(encoding='utf-8').split('\n'), 1):
@@ -309,18 +311,565 @@ check(all(member in inside for member in members), 'the records, summaries, row 
 check((FIXTURES / 'paired-outlier-fence.csv').read_bytes() == (UPSTREAM / 'tests/Learning/paired-outlier-fence.csv').read_bytes(),
       'the oracle\'s fence table is the pinned Windows tests/Learning/paired-outlier-fence.csv')
 
-# --- The oracle itself: base R regenerates the four tables exactly. The script finds the fence table beside itself through Rscript's
-# --file argument, which cannot hold a space, so it runs by its bare name in its own folder, writing to a folder named relative to it.
+# --- The Windows code the Mac rewrote rather than copied: each segment is whole lines of the pinned Windows file it is listed under,
+# with the Mac code that mirrors it. A segment must still stand in that file, its lines together and each as listed once leading and
+# trailing white space is trimmed (as the copied blocks are compared), wherever it now is. Lines moving and edits elsewhere in the file
+# pass; a change to a segment fails here at the next engine pin, naming the Mac code to review. After that review, copy the segment's
+# new Windows lines into MIRRORS.
+MIRRORS = {
+    'StatsDirectUI/UI/frmSpreadsheetGear.MeasurementDiagnostics.cs': (
+        ('LargeSampleThreshold', "Grid/measurement-columns.mjs LARGE_SAMPLE_THRESHOLD, up to which the grid sends a column's values", r'''
+            internal sealed record MeasurementDistributionDiagnostics(int Count, double? ShapiroWilkW, double? ShapiroWilkP)
+            {
+                internal const int LargeSampleThreshold = 100;
+            }
+            '''),
+        ('CheckSelectedPairedDifferences',
+         'Grid/measurement-columns.mjs measurementColumns (paired: the rows with both values, the first column minus the '
+         'second, the overflow refusal) with SELECTION.paired and TOO_LARGE, and FullEngine/MeasurementChecks.cs '
+         'MeasurementDiagnostics.CheckPairedDifferences', r'''
+            internal PairedDifferenceDiagnostics CheckSelectedPairedDifferences()
+            {
+                var differences = new List<double>();
+                double minimum = double.PositiveInfinity, maximum = double.NegativeInfinity;
+                ReadSelectedMeasurementRows("Select two adjacent, visible columns of matched measurements in one worksheet range.", (before, after) =>
+                {
+                    if (RunRecord.Missing(before) || RunRecord.Missing(after)) return;
+                    double difference = before - after;
+                    if (RunRecord.Missing(difference))
+                        throw new InvalidOperationException("A paired difference is too large to check. Rescale the measurements and try again.");
+                    differences.Add(difference);
+                    minimum = Math.Min(minimum, difference);
+                    maximum = Math.Max(maximum, difference);
+                });
+                return SummarizePaired(differences, minimum, maximum);
+            }
+            '''),
+        ('CheckSelectedIndependentSamples',
+         "Grid/measurement-columns.mjs measurementColumns (independent: each column's usable values on their own) with "
+         'SELECTION.independent, and FullEngine/MeasurementChecks.cs Samples', r'''
+            internal IndependentSampleDiagnostics CheckSelectedIndependentSamples()
+            {
+                var first = new MeasurementAccumulator();
+                var second = new MeasurementAccumulator();
+                ReadSelectedMeasurementRows("Select the two adjacent, visible sample columns in one worksheet range.", (left, right) =>
+                {
+                    if (!RunRecord.Missing(left)) first.Add(left);
+                    if (!RunRecord.Missing(right)) second.Add(right);
+                });
+                return new IndependentSampleDiagnostics(first.Summarize(), second.Summarize());
+            }
+            '''),
+        ('ReadSelectedMeasurementRows',
+         'Grid/measurement-columns.mjs selectedPair (one area two columns wide), measurementColumns (its first and last '
+         "rows, both columns in one pass) and cellValue (a cell as the Mac's analysis reads it)", r'''
+            private void ReadSelectedMeasurementRows(string selectionError, Action<double, double> collect) => workbookView.WithLock(() =>
+            {
+                CheckWorksheetAnalysisReady();
+                IRange selection = workbookView.RangeSelection;
+                if (selection.AreaCount != 1 || selection.ColumnCount != 2
+                    || IsHiddenColumn(selection.Column) || IsHiddenColumn(selection.Column + 1))
+                    throw new InvalidOperationException(selectionError);
+
+                IRange used = workbookView.ActiveWorksheet.UsedRange;
+                int first = Math.Max(selection.Row, used.Row);
+                int last = Math.Min(selection.Row + selection.RowCount, used.Row + used.RowCount) - 1;
+                IGetCells grid = this;
+
+                // Both columns use the native numeric reader and the same visible row bounds.
+                // A missing value in either column cannot shift the other column for paired calculations.
+                const int batchSize = 8192;
+                for (int start = first; start <= last; start += batchSize)
+                {
+                    int end = Math.Min(last, start + batchSize - 1);
+                    var (left, rows) = grid.GetCellValues(selection.Column, start, end);
+                    var (right, _) = grid.GetCellValues(selection.Column + 1, start, end);
+                    for (int row = 0; row < rows; row++)
+                        collect(left[row], right[row]);
+                }
+            });
+            '''),
+        ('MeasurementAccumulator',
+         "Grid/measurement-columns.mjs measurementColumns (independent: a column's values while it has at most 100), and "
+         'FullEngine/MeasurementChecks.cs Sample and MeasurementDiagnostics.SummarizeSample', r'''
+            private sealed class MeasurementAccumulator
+            {
+                private readonly List<double> smallSample = new(MeasurementDistributionDiagnostics.LargeSampleThreshold);
+                private int count;
+
+                internal void Add(double value)
+                {
+                    count++;
+                    if (count <= MeasurementDistributionDiagnostics.LargeSampleThreshold)
+                        smallSample.Add(value);
+                }
+
+                internal MeasurementDistributionDiagnostics Summarize()
+                {
+                    var normality = count <= MeasurementDistributionDiagnostics.LargeSampleThreshold
+                        ? Parametric.ShapiroWilkDiagnostics(smallSample.ToArray()) : null;
+                    return new MeasurementDistributionDiagnostics(count, normality?.W, normality?.P);
+                }
+            }
+            '''),
+    ),
+    'StatsDirectUI/UI/Learning/ScriptAIPane.WorksheetAnalysis.cs': (
+        ('IntervalDecision.ReadSelection',
+         'FullEngine/MeasurementChecks.cs Execute (the decision from what the grid read) and '
+         "Sources/WorksheetAIPane.swift readCard (separate samples only for the user's Check)", r'''
+            internal IntervalDecision ReadSelection(frmSpreadsheetGear grid, bool confirmSeparateSamples = false) => Paired
+                ? this with { Pairs = grid.CheckSelectedPairedDifferences() }
+                : this with { Columns = grid.CheckSelectedIndependentSamples(), SeparateSamples = confirmSeparateSamples };
+            '''),
+        ('WorksheetAction.Display up to the feedback',
+         'FullEngine/MeasurementChecks.cs IntervalCard.Display (the card without its token, which the pane keeps), and '
+         'Sources/WorksheetAIPane.swift drawDistribution (the feedback) and WorksheetAIClarification', r'''
+            internal JsonObject Display()
+            {
+                var card = new JsonObject { ["token"] = Token, ["kind"] = Kind };
+                if (Clarification != null)
+                {
+                    card["dimension"] = Clarification.Dimension;
+                    card["question"] = Clarification.Question;
+                    card["options"] = new JsonArray(Clarification.Options.Select(option => (JsonNode)new JsonObject
+                    {
+                        ["id"] = option.Id, ["label"] = option.Label
+                    }).ToArray());
+                }
+                Interval?.AddDetails(card);
+                if (Kind == "paired-interval" && Interval?.Pairs is { } pairs)
+                {
+                    var (branch, reason) = IntervalDecision.SuggestPairedBranch(pairs);
+                    card["suggestedBranch"] = branch;
+                    card["recommendation"] = reason;
+                }
+                if (Feedback != null) card["feedback"] = Feedback;
+            '''),
+        ("Display's interval advice", 'Sources/WorksheetAIPane.swift prepareAnalysis(_:from:) (offerDetails)', r'''
+            if (Interval is { } interval) card["intervalAdvice"] = interval.Advice(IntervalBranch);
+            '''),
+        ('VisibleWorksheetAction', 'Sources/WorksheetAIPane.swift renderGuidance and answerCard (no card while a reply runs or AI is disabled)', r'''
+            private WorksheetAction VisibleWorksheetAction =>
+                WorksheetMode && pending == null && !service.Tutor.Disabled
+                    ? workbookHasData ? worksheetAction ?? chooseMethod : emptyWorkbook
+                    : null;
+            '''),
+        ("RefreshWorksheetContents' emptied workbook", 'Sources/WorksheetAIPane.swift render (an emptied workbook drops its card)', r'''
+            if (workbookHasData == hasData) return false;
+            workbookHasData = hasData;
+            if (!hasData) ClearWorksheetAnalysis();
+            return true;
+            '''),
+        ('QueueWorksheetRefresh, on each selection and content change',
+         'Grid/main.tsx (the page posts its AI state once a change settles) and Sources/WorksheetAIPane.swift '
+         'worksheetStateChanged', r'''
+            private void WorkbookContentsChanged(object sender, EventArgs e) => QueueWorksheetRefresh(contentsChanged: true);
+            private void WorkbookSelectionChanged(object sender, EventArgs e) => QueueWorksheetRefresh(contentsChanged: false);
+
+            private void QueueWorksheetRefresh(bool contentsChanged)
+            {
+                if (disposed || !IsOpen || !view.IsHandleCreated) return;
+                workbookContentsDirty |= contentsChanged;
+                if (worksheetRefreshQueued) return;
+                worksheetRefreshQueued = true;
+                view.BeginInvoke(new Action(() =>
+                {
+                    worksheetRefreshQueued = false;
+                    bool refreshContents = workbookContentsDirty;
+                    workbookContentsDirty = false;
+                    if (disposed || !IsOpen || !WorksheetMode) return;
+
+                    UpdateWorksheetSelection();
+                    if (pending != null) return;
+                    bool changed = refreshContents && RefreshWorksheetContents();
+                    if (RefreshWorksheetGuidance() || changed) Render();
+                }));
+            }
+            '''),
+        ('RefreshWorksheetGuidance', 'Sources/WorksheetAIPane.swift worksheetStateChanged and issueGuidanceToken', r'''
+            private bool RefreshWorksheetGuidance()
+            {
+                var updated = WithCurrentWorksheetSelection(worksheetAction);
+                if (ReferenceEquals(updated, worksheetAction)) return false;
+                worksheetAction = updated;
+                return true;
+            }
+            '''),
+        ('ConfirmWorksheetAnalysis',
+         "Sources/WorksheetAIPane.swift prepareAnalysis(_:from:) and OfferOrigin (the offer keeps the card's decision "
+         'and branch)', r'''
+            private static WorksheetAction ConfirmWorksheetAnalysis(WorksheetAnalysisTarget source, WorksheetCommand command,
+                IntervalDecision interval = null, string intervalBranch = null)
+            {
+                var proposal = source.Propose(command);
+                string design = command.Operation switch
+                {
+                    "TPaired" => "paired",
+                    "TUnpaired" => "independent",
+                    _ => null
+                };
+                return new WorksheetAction("confirm", proposal.Source, proposal, design, Interval: interval, IntervalBranch: intervalBranch);
+            }
+            '''),
+        ('WithCurrentWorksheetSelection',
+         'Sources/WorksheetAIPane.swift worksheetStateChanged and issueGuidanceToken (the card refresh: a new token, no '
+         'feedback, an interval card read again)', r'''
+            private static WorksheetAction WithCurrentWorksheetSelection(WorksheetAction action, bool newCard = false)
+            {
+                // Guidance is still a question. A specific proposal keeps the cells and version the user saw.
+                if (action?.Kind is not ("choose" or "clarify" or "paired-interval" or "independent-interval"))
+                    return action;
+                WorksheetAnalysisTarget current;
+                try { current = CaptureCurrentGuidanceTarget(action.Source); }
+                catch (InvalidOperationException) { return action; }
+
+                if (!newCard && current == action.Source) return action;
+                // A delayed click belongs to the selection and evidence the user saw.
+                var updated = action with { Source = current, Feedback = null, Token = Guid.NewGuid().ToString("N") };
+                if (action.Interval == null) return updated;
+
+                var interval = new IntervalDecision(action.Interval.Paired);
+                try { interval = interval.ReadSelection(current.Grid); }
+                catch (InvalidOperationException) { /* The user can describe the layout if it cannot be read as two columns. */ }
+                return updated with { Interval = interval };
+            }
+            '''),
+        ("ChooseWorksheetAction's token check", 'Sources/WorksheetAIPane.swift answerCard (the token and the live fingerprint, compared first)', r'''
+            UpdateWorksheetSelection();
+            bool changed = RefreshWorksheetContents();
+            if (RefreshWorksheetGuidance() || changed) Render();
+            var action = VisibleWorksheetAction;
+            if (action == null || action.Token != token) return;
+            '''),
+        ("ChooseWorksheetAction's paired and independent case", 'Sources/WorksheetAIPane.swift answerCard (paired, independent)', r'''
+            case ("choose", "paired" or "independent"):
+                grid.ResolveWorksheetAnalysisTarget(action.Source, allowSelectionChanges: false);
+                var interval = new IntervalDecision(choice == "paired");
+                worksheetAction = WithCurrentWorksheetSelection(
+                    new WorksheetAction(interval.Kind, action.Source, Interval: interval), newCard: true);
+                break;
+            '''),
+        ("ChooseWorksheetAction's check case", 'Sources/WorksheetAIPane.swift answerCard (check) and readCard', r'''
+            case ("paired-interval" or "independent-interval", "check") when action.Interval.CanCheck:
+                try
+                {
+                    var selected = grid.ResolveWorksheetAnalysisTarget(action.Source, allowSelectionChanges: true).Source;
+                    worksheetAction = new WorksheetAction(action.Kind, selected, Interval: action.Interval.ReadSelection(grid, confirmSeparateSamples: true));
+                }
+                catch (InvalidOperationException ex)
+                {
+                    ShowIntervalFeedback(action, ex.Message);
+                    return;
+                }
+                break;
+            '''),
+        ("ChooseWorksheetAction's branch case (the conflict rule)",
+         'Sources/WorksheetAIPane.swift answerCard (large, normal, non-normal), FullEngine/MeasurementChecks.cs Execute '
+         '(conflict) and allowed() in this test', r'''
+            case ("paired-interval" or "independent-interval", "large" or "normal" or "non-normal"):
+                grid.ResolveWorksheetAnalysisTarget(action.Source, allowSelectionChanges: false);
+                var decision = action.Interval;
+                if (decision.LargeSample is bool large && large != (choice == "large") && choice != "non-normal")
+                {
+                    ShowIntervalFeedback(action, decision.Conflict(large));
+                    return;
+                }
+                worksheetAction = ConfirmWorksheetAnalysis(action.Source,
+                    FindWorksheetCommand(main, decision.Method(choice)), decision, choice);
+                break;
+            '''),
+        ("ChooseWorksheetAction's back case", 'Sources/WorksheetAIPane.swift answerCard (back)', r'''
+            case ("paired-interval" or "independent-interval", "back"):
+                worksheetAction = new WorksheetAction("choose", action.Source);
+                break;
+            '''),
+        ("ChooseWorksheetAction's sample case", 'Sources/WorksheetAIPane.swift changeSample', r'''
+            case ("confirm", "sample") when action.Interval is { } previous:
+                worksheetAction = WithCurrentWorksheetSelection(new WorksheetAction(previous.Kind, action.Source, Interval: previous));
+                break;
+            '''),
+        ("ChooseWorksheetAction's error handler",
+         'Sources/WorksheetAIPane.swift answerCard (an unavailable method) and prepareAnalysis(_:from:) (an offer that '
+         'cannot be prepared)', r'''
+            catch (InvalidOperationException ex)
+            {
+                ClearWorksheetAnalysis();
+                status.Text = ex.Message;
+                Render();
+            }
+            '''),
+        ('ShowIntervalFeedback', 'Sources/WorksheetAIPane.swift showCardFeedback (the card keeps its token)', r'''
+            private void ShowIntervalFeedback(WorksheetAction action, string message)
+            {
+                worksheetAction = action with { Feedback = message };
+                status.Text = "";
+                Render();
+            }
+            '''),
+        ('FindWorksheetCommand', "Sources/WorksheetAIPane.swift answerCard (the branch's method in viewer.worksheetAIMethods)", r'''
+            private static WorksheetCommand FindWorksheetCommand(frmMain main, string operation) =>
+                main.WorksheetCommands().FirstOrDefault(method => method.Operation == operation && method.CanRun);
+            '''),
+    ),
+    'StatsDirectUI/UI/Learning/ScriptAIPane.cs': (
+        ("Open's switch to another document", 'Sources/WorksheetAIPane.swift select (another workbook clears the card; the same one keeps it)', r'''
+            if (script != document)
+            {
+                SaveDraft(); Stop(); ClearWorksheetAnalysis(); status.Text = "";
+            '''),
+        ("Open's refresh of the card", 'Sources/WorksheetAIPane.swift open and refreshWorksheetState', r'''
+            RefreshWorksheetContents();
+            UpdateWorksheetSelection();
+            if (pending == null) RefreshWorksheetGuidance();
+            '''),
+        ("SendAsync's condition for the worksheet tools", 'Sources/WorksheetAIPane.swift submit (cardReady)', r'''
+            if (workbookHasData && grid.MdiParent is frmMain main && ReferenceEquals(main.ActiveMdiChild, grid)
+                && !main.InOperation && !main.LearningCalculationRunning)
+            {
+                try { analysisTarget = grid.CaptureWorksheetAnalysisTarget(worksheetShared); }
+                catch (InvalidOperationException) { /* The question can proceed without a local analysis target. */ }
+            '''),
+        ("SendAsync's definition of the card's tool (and of the clarifying question's)",
+         'Sources/WorksheetAIPane.swift WorksheetAIDistribution.definition and submit (its tools), and the copy in '
+         'Tests/mock-worksheet-ai-server.py', r'''
+            tools.Add(QuestionContext.Tool(ChatGPTTutor.WorksheetTTestChoiceTool,
+                "Open the Help decision tree for a quantitative comparison. Omit design when the study design is unclear. Use paired for matched pairs and independent for two independent samples. The card considers the relevant counts and distributions locally. This tool shares no diagnostic data and runs no analysis.",
+                new() { ["design"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("paired", "independent") } }));
+            if (!guidanceOnly)
+                tools.Add(QuestionContext.Tool(ChatGPTTutor.WorksheetClarificationTool,
+                    "Show a fixed set of clickable answers for the next missing detail: goal, outcome scale or study design. Wait for the user's answer before proposing a method. Does not inspect the worksheet or run an analysis.",
+                    new() { ["dimension"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("goal", "scale", "design") } }, "dimension"));
+            '''),
+        ("CallTool for the card's tool", 'Sources/WorksheetAIPane.swift submit (stageCard), and the copies in Tests/mock-worksheet-ai-server.py', r'''
+            if (worksheetMode && name == ChatGPTTutor.WorksheetTTestChoiceTool)
+            {
+                context.Check();
+                if (analysisTarget == null || service.Tutor.Disabled)
+                    throw new InvalidOperationException("Choose an active worksheet before offering a study-design choice.");
+                if (stagedAnalysis != null) throw new InvalidOperationException("A worksheet action is already waiting.");
+                IntervalDecision interval = null;
+                if (args.Count != 0)
+                {
+                    if (args.Count != 1 || args["design"] is not JsonValue designValue
+                        || !designValue.TryGetValue<string>(out var design) || design is not ("paired" or "independent"))
+                        throw new ArgumentException("Omit design or set it to paired or independent.");
+                    interval = new IntervalDecision(design == "paired");
+                }
+                stagedAnalysis = new WorksheetAction(interval?.Kind ?? "choose", CaptureCurrentGuidanceTarget(analysisTarget), Interval: interval);
+                return Task.FromResult<JsonNode>(new JsonObject
+                {
+                    ["state"] = interval == null ? "awaiting_design" : "awaiting_distribution",
+                    ["message"] = interval == null
+                        ? "Ask the user to choose “Same people or units” or “Separate groups” in the chat."
+                        : "The decision card lets the user check their selection locally and choose a branch. Ask them to review the card."
+                });
+            }
+            '''),
+        ("SendAsync's staged card after the reply", 'Sources/WorksheetAIPane.swift submit (the card drawn once the reply completes)', r'''
+            if (chat == current && script == origin && IsOpen)
+            {
+                worksheetAction = WithCurrentWorksheetSelection(stagedAnalysis, newCard: true);
+                Render();
+            '''),
+    ),
+    'StatsDirectUI/UI/Learning/ChatGPTTutor.cs': (
+        ('WorksheetTTestChoiceTool', 'Sources/WorksheetAIPane.swift WorksheetAIDistribution.tool and Sources/ChatGPTTutor.swift diagnosticTools', r'''
+            internal const string WorksheetTTestChoiceTool = "statsdirect_choose_worksheet_t_test";
+            '''),
+        ('RestrictedWorksheetClarification', 'Content/Tutor/worksheet-instructions.txt (the paragraph for a question sent alone)', r'''
+            private const string RestrictedWorksheetClarification = "You receive only the current question and cannot see earlier messages. When clarification is needed, ask for all missing non-confidential details together before naming or staging a test. Ask the user to restate the full question with those details in one message. If the current message depends on earlier messages, ask for a self-contained question. Use the study-design buttons if the current question establishes a quantitative outcome and a comparison of means and pairing is unclear. If matched quantitative measurements are already established and the user asks which method to choose, pass design paired to the same tool. For two known independent quantitative samples, pass design independent. The buttons collect the next details locally, so ask the user to select a button instead of sending an answer that depends on an earlier message.";
+            '''),
+        ("WorksheetInstructions on the card's tool", 'Content/Tutor/worksheet-instructions.txt', r'''
+            When a quantitative scale and a comparison of means are established and matching is unclear, use statsdirect_choose_worksheet_t_test without arguments to offer Same people or units and Separate groups. If the user asks which method to choose and the quantitative design is clear, set design to paired or independent for the corresponding decision card when size or distribution remains uncertain. The card can check a suitable selection locally. If the user seeks inference about the mean, explain that a rank-based method addresses a different question. The usual signed-rank location interpretation assumes symmetric differences. If the outcome scale or comparison goal is still unclear, follow the clarification instructions.
+            '''),
+        ("ToolCallAsync's text for a guidance-only error",
+         'Sources/WorksheetAIPane.swift submit (the question-only handler) and Sources/ChatGPTTutor.swift toolCall (its '
+         'refusals)', r'''
+            catch (Exception ex)
+            {
+                string error = ex is OperationCanceledException ? "Request stopped."
+                    : current?.GuidanceOnly == true
+                        ? args.S("tool") is WorksheetAnalysisTool or WorksheetTTestChoiceTool or WorksheetClarificationTool ? "The analysis proposal could not be staged." : "This help request could not be completed."
+                        : ex.Message;
+                result = ToolResult(false, error);
+            '''),
+        ("ConverseAsync's guidance-only tools and instructions",
+         "Sources/WorksheetAIPane.swift submit (question only offers the card's tool alone) and "
+         'Content/Tutor/worksheet-instructions.txt (the sentence, for the one tool)', r'''
+            if (guidanceOnly)
+            {
+                tools = new JsonArray(tools.Where(tool => tool.S("name") == "statsdirect_method_help"
+                    || (worksheet && tool.S("name") is (WorksheetAIHelp.SearchTool or WorksheetAIHelp.ReadTopicTool or WorksheetMethodSearchTool or WorksheetAnalysisTool or WorksheetTTestChoiceTool))).Select(tool => tool.DeepClone()).ToArray());
+                instructions += GuidanceInstructions;
+                if (worksheet)
+                    instructions += "\nThe worksheet analysis tools can offer a study-design choice or propose a method for the user to confirm locally. They do not share workbook data or results.";
+            }
+            '''),
+    ),
+    'Learning/conversation.mjs': (
+        ("updateWorksheetAction's focus inside the old card",
+         'Sources/WorksheetAIPane.swift drawDistribution (focus on a card drawn again stays on the card)', r'''
+            const transferFocus = worksheetActionElement?.contains(document.activeElement);
+            '''),
+        ("the cards' aria labels", 'Sources/WorksheetAIPane.swift WorksheetAIDistribution.accessibilityLabel and renderGuidance', r'''
+            section.setAttribute('aria-label', action.kind === 'confirm' ? 'Proposed worksheet method'
+              : action.kind === 'empty' ? 'Getting started with a workbook'
+              : action.kind === 'choose' ? 'Study design'
+              : action.kind === 'paired-interval' ? 'Paired interval measurements'
+              : action.kind === 'independent-interval' ? 'Independent interval measurements'
+              : action.kind === 'clarify' ? 'Analysis question' : 'Choose a worksheet method');
+            '''),
+        ("button()'s suggested branch", 'Sources/WorksheetAIPane.swift WorksheetAIDistribution.buttons and drawDistribution', r'''
+            const suggested = choice === action.suggestedBranch;
+            option.textContent = suggested ? 'Suggested · ' + label : label;
+            if (suggested) option.dataset.recommended = 'true';
+            '''),
+        ('the study-design and interval cards',
+         'Sources/WorksheetAIPane.swift WorksheetAIDistribution (question, lines, buttons) and drawDistribution, and the '
+         'texts in Tests/worksheet-ai-driver.swift', r'''
+            } else if (action.kind === 'choose') {
+              const question = document.createElement('p');
+              question.textContent = 'Were these measurements taken from the same people or units?';
+              section.append(question);
+              button('Same people or units', 'paired');
+              button('Separate groups', 'independent');
+            } else if (action.kind === 'paired-interval' || action.kind === 'independent-interval') {
+              const paired = action.kind === 'paired-interval';
+              const {sizeKnown, diagnostics = []} = action;
+              for (const line of diagnostics) paragraph(line);
+              if (!sizeKnown && !diagnostics.length)
+                paragraph(paired ? 'How many complete pairs are there?' : 'How many observations are there in each group?');
+              if (action.recommendation) {
+                const explanation = paragraph(action.recommendation);
+                explanation.className = 'worksheet-analysis-recommendation';
+                const heading = document.createElement('strong');
+                heading.textContent = action.suggestedBranch ? 'Suggested branch' : 'Review the differences';
+                explanation.prepend(heading, document.createElement('br'));
+              } else {
+                paragraph(paired ? 'How are the within-pair differences distributed?' : 'How are the observations distributed within each group?');
+                paragraph('Look at the shape and any influential points. A large Shapiro–Wilk P value is inconclusive.');
+              }
+              if (action.feedback) {
+                const feedback = paragraph(action.feedback);
+                feedback.className = 'worksheet-analysis-feedback';
+                feedback.setAttribute('role', 'status');
+              }
+              if (action.canCheck)
+                button(paired ? 'Check selected pairs' : diagnostics.length ? 'Use these as separate samples' : 'Check two sample columns', 'check');
+              button(paired ? 'Large sample (more than 100 complete pairs)' : 'Large samples (more than 100 in each group)', 'large');
+              button(paired ? 'Small or medium · Approximately normal differences' : 'Small or medium · Approximately normal within groups', 'normal');
+              button(paired ? 'Non-normal differences' : 'Non-normal distributions within groups', 'non-normal');
+              button('Change design', 'back');
+            '''),
+        ('the method offer from a card', 'Sources/WorksheetAIPane.swift prepareAnalysis(_:from:) (offerDetails) and changeSample', r'''
+            for (const line of action.diagnostics ?? []) paragraph(line);
+            if (action.intervalAdvice) paragraph(action.intervalAdvice);
+            button('Continue to analysis', 'continue');
+            if (action.intervalAdvice) button('Change sample choice', 'sample');
+            '''),
+        ("updateWorksheetAction's focus on the new card's first button",
+         'Sources/WorksheetAIPane.swift drawDistribution (focus on a card drawn again stays on the card)', r'''
+            if (transferFocus) actions.querySelector('button')?.focus({ preventScroll: true });
+            '''),
+    ),
+    'StatsDirectUI/UI/Learning/WorksheetAnalysisProposal.cs': (
+        ('WorksheetAnalysisTarget (its equality ties a card to its selection)',
+         'Grid/ai-selection.mjs selectionFingerprint and Sources/WorksheetAIPane.swift answerCard', r'''
+            internal sealed record WorksheetAnalysisTarget(
+                frmSpreadsheetGear Grid, IWorkbook Workbook, IWorksheet Worksheet,
+                string WorkbookName, string WorksheetName, string Selection, int Version, bool WorkbookShared)
+            '''),
+        ('the text for an unavailable method', 'Sources/WorksheetAIPane.swift answerCard', r'''
+            if (command == null || !command.CanRun)
+                throw new InvalidOperationException("That method is unavailable. Choose another method in Analyse.");
+            '''),
+    ),
+    'StatsDirectUI/Templates/RunRecord.cs': (
+        ('RunRecord.Missing',
+         'Grid/measurement-columns.mjs MISSING, cellValue and measurementColumns (a difference that is not finite or is '
+         'double.MinValue is refused)', r'''
+            public static bool Missing(double x) => Constant.MISSING == x || double.IsNaN(x) || double.IsInfinity(x);
+            '''),
+    ),
+}
+absent = []
+for file, segments in MIRRORS.items():
+    path = UPSTREAM / file
+    source = [line.strip() for line in path.read_text(encoding='utf-8').split('\n')] if path.is_file() else []
+    for what, mac, text in segments:
+        lines = [line.strip() for line in text.strip().split('\n')]
+        if any(source[i:i + len(lines)] == lines for i in range(len(source) - len(lines) + 1)):
+            check(True, '%s still holds %s, mirrored in %s' % (file, what, mac))
+            continue
+        if not source: why = 'the file is not in the pinned source'
+        elif (gone := next((line for line in lines if line not in source), None)) is None: why = 'its lines are no longer together'
+        else: why = 'its line "%s" is not in the file' % (gone if len(gone) <= 160 else gone[:160] + '…')
+        absent.append('%s: %s: %s. Review %s' % (file, what, why, mac))
+if absent:
+    check(False, 'the pinned Windows source no longer holds, as listed, %s the Mac mirrors. Review the Mac code each names against the '
+          'new Windows code, then copy the new Windows lines into MIRRORS in Tests/test_measurement_check.py:\n  %s'
+          % ('1 segment' if len(absent) == 1 else '%d segments' % len(absent), '\n  '.join(absent)))
+
+# --- The oracle itself: base R regenerates the four tables. The script finds the fence table beside itself through Rscript's --file
+# argument, which cannot hold a space, so it runs by its bare name in its own folder, writing to a folder named relative to it. The
+# tables must agree with the committed ones field by field: the identifiers, counts, flags and branches exactly, and every other number
+# within the engine comparisons' tolerance (near), which absorbs noise-level values such as a skewness of 1e-16, whose digits another
+# R's arithmetic can change. Only the R that wrote the tables must regenerate them byte for byte; any other R lists the fields whose
+# text differs, for information.
+RECORDED_R = 'R version 4.6.1 (2026-06-24)'   # R.version.string of the R that wrote the tables (Tests/Fixtures/distribution/README.md)
+EXACT = {'case', 'row', 'n', 'n1', 'n2', 'farOut', 'varying', 'fenceWarning', 'skewWarning', 'heavyTailWarning', 'large',
+         'suggestedBranch', 'allowed', 'allowedWhenSeparate'}
+NUMBERS = {'first', 'second', 'W', 'P', 'Q1', 'Q3', 'skewness', 'excessKurtosis', 'W1', 'P1', 'W2', 'P2'}
+def regenerated(out, name):
+    """The table R wrote to out against the committed one: the fields that disagree, and every field whose text differs."""
+    def rows(path):
+        with open(path, newline='', encoding='utf-8') as file: return list(csv.reader(file, delimiter='\t'))
+    def agree(new, old):
+        try: return near(number(new), number(old))
+        except ValueError: return False
+    if not (out / name).is_file(): return [name + ' was not written'], []
+    new, old = rows(out / name), rows(FIXTURES / name)
+    header = old[0]
+    if unknown := [field for field in header if field not in EXACT | NUMBERS]:
+        return ['%s has columns this test does not compare: %s' % (name, ', '.join(unknown))], []
+    if not new or new[0] != header or len(new) != len(old) or any(len(row) != len(header) for row in new):
+        return ['%s has %d rows of %s, the committed table %d rows of %s'
+                % (name, len(new) - 1, ', '.join(new[0]) if new else 'nothing', len(old) - 1, ', '.join(header))], []
+    wrong, changed = [], []
+    for fresh, committed in zip(new[1:], old[1:]):
+        record = dict(zip(header, committed))
+        where = name + ' ' + record['case'] + (' row ' + record['row'] if 'row' in record else '')
+        for field, x, y in zip(header, fresh, committed):
+            if x == y: continue
+            changed.append('%s %s: %s committed, %s regenerated' % (where, field, y or '(empty)', x or '(empty)'))
+            if field in EXACT or not agree(x, y): wrong.append(changed[-1])
+    return wrong, changed
 try:
     r = rscript()
 except SystemExit as missing:
     print('SKIP regenerating the fixtures in R:', missing, flush=True)
 else:
+    version = subprocess.run([r, '--vanilla', '-e', 'cat(R.version.string)'], capture_output=True, text=True, timeout=60).stdout.strip()
     with tempfile.TemporaryDirectory(prefix='measurement-oracle-', dir=ROOT / '.build') as scratch:
         out = Path(scratch) / 'tables'
         run = subprocess.run([r, '--vanilla', 'distribution-oracle.R', os.path.relpath(out, FIXTURES)], cwd=FIXTURES, capture_output=True, text=True, timeout=300)
         check(run.returncode == 0 and 'PASS: 26 paired and 5 independent fixtures, plus paired-overflow rejection.' in run.stdout,
               'the oracle\'s own checks pass in %s%s' % (r, '' if run.returncode == 0 else ':\n' + run.stdout + run.stderr))
-        differing = [name for name in TABLES if not (out / name).is_file() or (out / name).read_bytes() != (FIXTURES / name).read_bytes()]
-        check(not differing, 'R regenerates the four fixture tables byte for byte' + (': ' + ', '.join(differing) + ' differ' if differing else ''))
+        wrong, changed = [], []
+        for name in TABLES:
+            disagree, differ = regenerated(out, name)
+            wrong += disagree; changed += differ
+        check(not wrong, '%s regenerates the four fixture tables with their cases, rows, counts, flags and branches, and every other number '
+              'within 2e-10 relative (absolute below 1)%s' % (version or r, ':\n  ' + '\n  '.join(wrong) if wrong else ''))
+        identical = all((out / name).read_bytes() == (FIXTURES / name).read_bytes() for name in TABLES)
+        if version == RECORDED_R:
+            check(identical, '%s, which wrote the four tables, regenerates them byte for byte%s'
+                  % (version, '' if identical else ': ' + ('; '.join(changed) if changed else 'their fields are the same, laid out differently')))
+        else:
+            if identical: detail = 'they are identical'
+            elif changed: detail = '%d fields differ in their text, each within the comparison above:' % len(changed)
+            else: detail = 'their fields are the same, laid out differently'
+            print('INFO %s is not %s, which wrote the four tables, so their bytes are compared for information only: %s'
+                  % (version or 'this R (it reports no version)', RECORDED_R, detail), flush=True)
+            for field in changed: print('INFO   ' + field, flush=True)
 print('PASS: %d measurement check checks' % checks, flush=True)

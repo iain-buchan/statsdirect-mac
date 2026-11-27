@@ -64,6 +64,16 @@ import Foundation
             ["text":String(repeating:"\\",count:120_000)]
         }, toolDelivered: { _,_ in largeSent = true })
         precondition(largeReply.text == "Tool returned nine actual rows." && !largeSent)
+        // Stop while a large result is still being written to the pipe: the reply waits for the write, which counts as sent.
+        var slowSent = false
+        let slowStart = Date()
+        let slow = Task { try await tutor.converse(context:"",messages:[["role":"user","text":"TOOL_SLOW_WRITE"]],tools:tools,toolHandler: { _,_ in
+            ["text":String(repeating:"x",count:190_000)]
+        }, toolDelivered: { _,_ in slowSent = true }) }
+        try await Task.sleep(nanoseconds:400_000_000)
+        slow.cancel()
+        do { _ = try await slow.value; fatalError("Stop during a tool result write was ignored") } catch is CancellationError {}
+        precondition(slowSent && Date().timeIntervalSince(slowStart) >= 1.2)
         print("Dynamic tool round trip, allowlist, thread/turn correlation, duplicate rejection, running-tool cancellation and sent-result reporting passed")
         let limited = Task { try await tutor.converse(context:"",messages:[["role":"user","text":"LIMIT_TEST"]]) }
         do { _ = try await limited.value; fatalError("Usage limit not detected") }
@@ -83,6 +93,18 @@ import Foundation
         try await tutor.refreshAccount(); precondition(tutor.account == nil)
         _ = try await tutor.signIn()
         for _ in 0..<30 where tutor.account == nil { try await Task.sleep(nanoseconds:100_000_000) }
+        // A result queued for the pipe whose write then fails (the runtime stopped reading) is not reported sent, and
+        // the app survives the broken pipe.
+        var failedSent = false
+        do {
+            _ = try await tutor.converse(context:"",messages:[["role":"user","text":"TOOL_WRITE_FAIL"]],tools:tools,toolHandler: { _,_ in ["rows":9] },
+                                         toolDelivered: { _,_ in failedSent = true })
+            fatalError("A failed tool result write was ignored")
+        } catch { precondition(!failedSent && error.localizedDescription.contains("disconnected")) }
+        try await tutor.refreshAccount(); precondition(tutor.account == nil)
+        _ = try await tutor.signIn()
+        for _ in 0..<30 where tutor.account == nil { try await Task.sleep(nanoseconds:100_000_000) }
+        print("Tool results are reported sent only once written: a failed pipe write is not, and a Stop waits for a write in progress")
         do { _ = try await tutor.converse(context:"",messages:[["role":"user","text":"PRIVATE_PARSE_TEST"]]); fatalError("Malformed response ignored") }
         catch { precondition(!error.localizedDescription.contains("PRIVATE_SENTINEL")) }
         let diagnosticFile = folder.appendingPathComponent("test-diagnostics.json")

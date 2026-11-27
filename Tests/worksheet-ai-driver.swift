@@ -359,6 +359,16 @@ import WebKit
         try check(pane.guidanceToken == captionToken, "the page reports nothing for a change its short caption does not show")
         let hidden = await pane.answerClarification("means", token: captionToken)
         try check(!hidden && pane.clarification != nil && !pane.isBusy, "a click after a change the caption does not show is refused against the live grid")
+        // Sparse whole rows: 2, 3, 6 and 2, 4, 6 share the caption "2:6 (some rows)" but not the fingerprint.
+        try await grid(first, "statsDirectGrid.selectRows([[1,3],[5,6]])")
+        try await wait("The sparse rows were not shown") { pane.selectionLabel.stringValue == "Selection: Parametric!2:6 (some rows)" }
+        try await wait("The card's selection was not read for the sparse rows") { pane.guidanceFingerprint != nil }
+        let rowsToken = pane.guidanceToken
+        try await grid(first, "statsDirectGrid.selectRows([[1,2],[3,4],[5,6]])")
+        try await Task.sleep(for: .milliseconds(400))
+        try check(pane.guidanceToken == rowsToken, "the page reports nothing when sparse rows change under the same caption")
+        let sparse = await pane.answerClarification("means", token: rowsToken)
+        try check(!sparse && pane.clarification != nil, "a click after sparse rows changed under the same caption is refused against the live grid")
         let staleToken = pane.guidanceToken
         try await grid(first, "statsDirectGrid.selectCells({x:0,y:1,width:1,height:3})")
         try await wait("A selection change did not retire the card's token") { pane.guidanceToken != staleToken }
@@ -371,6 +381,20 @@ import WebKit
         let afterEdit = await pane.answerClarification("means", token: editToken)
         try check(!afterEdit && pane.clarification != nil, "a late click on the card drawn before an edit is refused")
         try await wait("The card's selection was not read after the edit") { pane.guidanceFingerprint != nil }
+        // Keyboard focus on an answer stays on it when the card is drawn again. Buttons take focus only with Full
+        // Keyboard Access, so without it the check is reported and skipped.
+        let focusTarget: NSButton? = control("worksheet-ai-choice-ordered", in: pane.view)
+        if let focusTarget, viewer.window.makeFirstResponder(focusTarget), viewer.window.firstResponder === focusTarget {
+            let focusToken = pane.guidanceToken
+            try await grid(first, "statsDirectGrid.selectCells({x:2,y:2,width:1,height:1})")
+            try await wait("A selection change did not draw the card again") { pane.guidanceToken != focusToken }
+            let responder = viewer.window.firstResponder as? WorksheetAIChoiceButton
+            try check(responder?.choice == "ordered" && responder?.token == pane.guidanceToken && responder !== focusTarget,
+                      "keyboard focus stays on the same answer when the card is drawn again")
+            try await wait("The card's selection was not read after the redraw") { pane.guidanceFingerprint != nil }
+        } else {
+            print("INFO: answer buttons do not take keyboard focus here (Full Keyboard Access is off); focus across a redraw not exercised")
+        }
         let current: NSButton? = control("worksheet-ai-choice-means", in: pane.view)
         current?.performClick(nil)
         try await wait("The chosen answer was not sent") {

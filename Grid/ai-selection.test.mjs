@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {CompactSelection} from '@glideapps/glide-data-grid';
 import {WorkbookStore} from './workbook.mjs';
-import {selectionAddress, workbookHasData, aiWorksheetState} from './ai-selection.mjs';
+import {selectionAddress, workbookHasData, aiWorksheetState, selectionFingerprint} from './ai-selection.mjs';
 
 const bounds = {columns: 8, rows: 100};
 const pieces = (...ranges) => ranges.reduce((selection, range) => selection.add(range), CompactSelection.empty());
@@ -53,6 +53,22 @@ test('the workbook is empty only when no sheet holds a cell, a formula or a resu
   const edited = new WorkbookStore();
   edited.sheets[0].store.paste(0, 0, '3');
   assert.equal(workbookHasData(edited), true);
+});
+
+test('the click fingerprint is exact for sparse rows and columns, without expanding them', () => {
+  const w = book([{name: 'One', rows: 1048576, columns: 16384, cells: []}]);
+  const print = selection => selectionFingerprint(w, 0, selection);
+  // Rows 2, 3, 6 and 2, 4, 6 share their caption but not their fingerprint.
+  assert.equal(selectionAddress(rows([1, 3], [5, 6]), bounds).label, selectionAddress(rows([1, 2], [3, 4], [5, 6]), bounds).label);
+  assert.notEqual(print(rows([1, 3], [5, 6])), print(rows([1, 2], [3, 4], [5, 6])));
+  assert.notEqual(print(columns([0, 1], [2, 3])), print(columns([0, 1], [3, 4])));
+  assert.equal(print(rows([1, 3], [5, 6])), print(rows([5, 6], [1, 3])));
+  // A whole-sheet row selection stays a few numbers long.
+  assert.ok(print(rows([0, 1048576])).length < 300);
+  // An edit changes it although the selection does not.
+  const before = print(rect(0, 0, 1, 1));
+  w.sheets[0].store.paste(0, 0, '3'); w.changed();
+  assert.notEqual(print(rect(0, 0, 1, 1)), before);
 });
 
 test('the state the pane receives names the sheet and holds no cell values', () => {

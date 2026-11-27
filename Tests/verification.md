@@ -2778,11 +2778,14 @@ The rehearsal on Windows source e6a147fc verified 879 engine inputs, all 21 upst
 - An empty workbook shows "This workbook is empty." with **Open example workbook**, which opens `test.xlsx` as Help ▸ Example workbook does, and **Workbook help**. A workbook with data shows **Help me choose a method**, which sends "Help me choose a statistical method.", beside **Choose a method**. **Choose a method** keeps its Mac label: the shared Help (statisticalhelp pull request 24) keeps the Mac text, and the Windows label "Browse methods" waits for the Mac Help to be reconciled with Mac Codex.
 - Clarifying card:
   - With the workbook shared and holding data, the assistant can ask for the goal, the outcome scale or the study design through the local tool `statsdirect_clarify_worksheet_analysis`. The question appears under its reply with the Windows answers, and choosing one sends its sentence with the conversation.
-  - A click is accepted only while the live grid has the selection, workbook revision and sheet revision the card was drawn for. A click that arrives before the page reports a new selection, or after a change its short caption does not show, is refused, and the card is drawn again.
+  - A click is accepted only while the live grid has the selection, workbook revision and sheet revision the card was drawn for. The selection is compared exactly, with whole rows and columns as compact slices: rows 2, 3, 6 and 2, 4, 6 differ although both read "2:6 (some rows)".
+  - A click that arrives before the page reports a new selection, or after a change its short caption does not show, is refused, and the card is drawn again. Keyboard focus on an answer stays on it when the card is drawn again.
   - Question-only mode does not offer the tool: it sends no earlier messages, so an answer would arrive without its question.
 - A label under the workbook name follows the selection, for example "Selection: Parametric!A2:B5" or "Current cell: Parametric!B3". The grid page reports it once the selection settles, without marking the workbook as edited.
 - **Data used** under each reply lists the bounded reads whose results were sent: workbook, sheet and ranges. Row-1 headings sent as column titles are listed as their own "(headings)" range, and "(part of the worksheet’s used range)" marks a partial read. A reply that read nothing says "General guidance · No worksheet cells read for this reply".
-- A read joins Data used and the reply's R data only after ChatGPTTutor has handed its result to the ChatGPT process, as Windows pull request 44 does. A result refused as larger than 200,000 bytes, or held back because Stop came first, adds neither.
+- A read joins Data used and the reply's R data only after ChatGPTTutor's writer has written its result to the pipe, as Windows pull request 44 does. A result refused as larger than 200,000 bytes, held back because Stop came first, or whose queued write fails, adds neither.
+  - A reply does not return while such a write is still queued: up to 5 seconds, then the connection is closed. A Stop that races a write therefore still lists a read that went out.
+  - The tutor's pipe is set not to raise SIGPIPE, so a write after the runtime has stopped reading fails and closes the connection instead of ending the app.
   - A reply that stops or fails after a sent read keeps its receipt, as "[Reply stopped before any text.]" or "[No reply was received.]".
   - A failed reply now keeps any partial text, as on Windows and in Script AI.
   - Receipts are stored beside the message text, never in it, and the provider receives only role and text.
@@ -2795,6 +2798,9 @@ The rehearsal on Windows source e6a147fc verified 879 engine inputs, all 21 upst
   - a click on the card was accepted before the selection report arrived.
 
   Codex's boundary case is now a check: two cells of 20,000 backslashes pass the grid's 50,000-character limit but come to 240,284 bytes with their R code.
+- Mac Codex then rechecked `46d612ac`, confirming the oversized read and the rectangular stale click, and found two narrower faults, corrected in the fourth commit:
+  - the read was reported sent when its write was only queued;
+  - sparse whole rows were compared only by their ends and count.
 - A further review of the first commit, by four reviewers with different concerns, added these corrections in the third commit:
   - Stop leaves the question in the composer, as on Windows.
   - A send that cannot start keeps the clarifying card.
@@ -2805,9 +2811,10 @@ The rehearsal on Windows source e6a147fc verified 879 engine inputs, all 21 upst
   - The instructions keep the Windows guards: ask only for non-confidential details, never ask for pasted data, and the per-method conditions.
   - The checks now read each reply's own receipt and cover a stop after streamed text.
 - Checks on this Mac (macOS 27.2.1), in suites that compile this branch into a build of `54fc2954` (main with Codex's console page):
-  - the worksheet AI driver with its stand-in AI server, 66 checks (29 before);
-  - the tutor protocol suite, where a valid result is reported sent and a stopped tool or an oversized result is not;
+  - the worksheet AI driver with its stand-in AI server, 69 checks (29 before);
+  - the tutor protocol suite: a valid result is reported sent; a stopped tool, an oversized result and a queued write that then fails are not; a Stop waits for a large result still being written;
+  - the real-R console suite, 152 checks;
   - Script AI 80 and Report AI 59;
   - on the first commit: Mac parity 21, analysis workflow 60, unified toolbar 181 and grid selection 18;
-  - 225 JavaScript tests, 5 of them new for the selection label and the empty-workbook test.
+  - 226 JavaScript tests, 6 of them new, for the selection label, the empty-workbook test and the exact click fingerprint.
 - Not tested: the real AI service; the narrow dock and VoiceOver on screen; macOS 14 and 26.

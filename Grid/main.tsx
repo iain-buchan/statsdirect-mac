@@ -13,7 +13,7 @@ import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
 import { tutorInfo, tutorData } from './tutor-data.mjs';
-import { aiWorksheetState } from './ai-selection.mjs';
+import { aiWorksheetState, selectionFingerprint } from './ai-selection.mjs';
 import { decodeSnapshot, encodeSnapshot } from './snapshot.mjs';
 import {analysisMetadata, columnValues, snapshotColumns, requestedSheet} from './analysis-source.mjs';
 import {planWriteBack} from './write-back.mjs';
@@ -217,6 +217,7 @@ function App() {
       },
       // AI Assist's local view of the sheet: the selection as an A1 address and whether the workbook holds anything.
       aiWorksheetState: () => aiWorksheetState(workbook, sheetIndex, selectionRef.current),
+      aiSelectionFingerprint: () => selectionFingerprint(workbook, sheetIndex, selectionRef.current),
       analysisSource: () => analysisMetadata(workbook, sheetIndex, {columns: selectionRef.current.columns.toArray(), range: selectionRef.current.current?.range}),
       columnValues: (request: any) => columnValues(workbook, sheetIndex, request),
       snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),
@@ -301,6 +302,12 @@ function App() {
       // Command-drag in `stack`.
       selectCells: ({x, y, width, height, stack = []}: {x: number, y: number, width: number, height: number, stack?: any[]}) => {
         const next: GridSelection = {columns: CompactSelection.empty(), rows: CompactSelection.empty(), current: {cell: [x, y], range: {x, y, width, height}, rangeStack: stack}};
+        selectionRef.current = next;
+        setSelection(next);
+      },
+      // A test hook: selects whole rows given as 0-based [start, end) slices, as Command-clicks on row markers do.
+      selectRows: (slices: [number, number][]) => {
+        const next: GridSelection = {columns: CompactSelection.empty(), rows: slices.reduce((rows, slice) => rows.add(slice), CompactSelection.empty())};
         selectionRef.current = next;
         setSelection(next);
       },

@@ -62,7 +62,7 @@ for line in sys.stdin:
     if method is None:
         kind, thread, turn = tool_pending.pop(request['id'])
         success = request.get('result',{}).get('success',False)
-        assert success == (kind == 'valid'), (kind,request)
+        assert success == (kind in ('valid','slow')), (kind,request)
         if kind == 'valid': assert json.loads(request['result']['contentItems'][0]['text'])['rows'] == 9
         if kind == 'large': assert 'too large' in request['result']['contentItems'][0]['text'], request
         if not tool_pending:
@@ -167,6 +167,18 @@ for line in sys.stdin:
             continue
         if 'TOOL_CANCEL' in text:
             send({'id':'cancel-tool','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'cancel-call','tool':'statsdirect_read_data','arguments':{'documentId':'worksheet'}}})
+            continue
+        if 'TOOL_WRITE_FAIL' in text:
+            # Stop reading once the tool call is out: the app's result is queued, then its pipe write fails (EPIPE).
+            send({'id':thread + '-writefail','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'write-fail-call','tool':'statsdirect_read_data','arguments':{'documentId':'worksheet'}}})
+            os.close(0)
+            time.sleep(30)
+            os._exit(0)
+        if 'TOOL_SLOW_WRITE' in text:
+            # Read nothing for a while: the app's large result fills the pipe and its write waits on this side.
+            tool_pending[thread + '-slow'] = ('slow',thread,turn)
+            send({'id':thread + '-slow','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'slow-call','tool':'statsdirect_read_data','arguments':{'documentId':'worksheet'}}})
+            time.sleep(1.5)
             continue
         if 'TOOL_LARGE' in text:
             tool_pending[thread + '-large'] = ('large',thread,turn)

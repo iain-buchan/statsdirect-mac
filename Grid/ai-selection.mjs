@@ -61,6 +61,28 @@ export function workbookHasData(workbook) {
     || (store.formulaRegions?.length ?? 0) > 0);
 }
 
+// Whole columns or rows as [start, end) slices. Glide's CompactSelection already keeps them so (its `items`), which
+// encodes a million-row selection in a few numbers; anything else is walked only when small.
+function slices(compact) {
+  const items = compact?.items;
+  if (Array.isArray(items) && items.every(slice => Array.isArray(slice) && slice.length === 2)) return items.map(([a, b]) => [a, b]);
+  if (!compact?.length) return [];
+  if (compact.length > 100000) return [[compact.first(), compact.last() + 1, compact.length]];
+  const out = [];
+  for (const i of compact) { const last = out[out.length - 1]; if (last && last[1] === i) last[1] = i + 1; else out.push([i, i + 1]); }
+  return out;
+}
+
+// The exact selection, with the sheet and the workbook and sheet revisions every edit changes, for AI Assist's check
+// that a clarification click still belongs to the selection its card was drawn for. Sparse rows such as 2, 3, 6 and
+// 2, 4, 6 differ here although their caption ("2:6 (some rows)") is the same.
+export function selectionFingerprint(workbook, sheetIndex, selection) {
+  const store = workbook.sheets[sheetIndex].store, current = selection?.current;
+  return JSON.stringify({sheet: sheetIndex, workbookRevision: workbook.revision, sheetRevision: store.version,
+    cell: current?.cell ?? null, range: current?.range ?? null, stack: current?.rangeStack ?? [],
+    columns: slices(selection?.columns), rows: slices(selection?.rows)});
+}
+
 export function aiWorksheetState(workbook, sheetIndex, selection) {
   const sheet = workbook.sheets[sheetIndex], store = sheet.store;
   const {label, singleCell} = selectionAddress(selection, {columns: store.columns.length, rows: store.rows});

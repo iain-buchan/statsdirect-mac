@@ -377,10 +377,11 @@ final class WorksheetAIChoiceButton: NSButton {
         }
     }
 
-    /// The grid's exact selection with its sheet and the workbook and sheet revisions, which every edit changes.
+    /// The grid's exact selection, with whole rows and columns as compact slices, its sheet and the workbook and sheet
+    /// revisions, which every edit changes (Grid/ai-selection.mjs selectionFingerprint).
     private func selectionFingerprint(_ doc: Document) async -> String? {
         let web = doc.web
-        let value = try? await web.evaluateJavaScript("JSON.stringify(window.statsDirectGrid.worksheetAISelection())")
+        let value = try? await web.evaluateJavaScript("window.statsDirectGrid.aiSelectionFingerprint()")
         guard doc.web === web, viewer.documents.contains(where: { $0 === doc }) else { return nil }
         return value as? String
     }
@@ -713,6 +714,8 @@ final class WorksheetAIChoiceButton: NSButton {
 
     /// One card at a time, as on Windows, and none while a reply runs or a method waits for confirmation.
     private func renderGuidance() {
+        // Drawing the card again (a new token) must not drop the keyboard focus on one of its answers.
+        let focused = (viewer.window.firstResponder as? WorksheetAIChoiceButton).flatMap { $0.isDescendant(of: clarifyBox) ? $0.choice : nil }
         for part in clarifyBox.arrangedSubviews { clarifyBox.removeArrangedSubview(part); part.removeFromSuperview() }
         guard visible, !isBusy, offer == nil, !TutorPolicy.disabled, let workbook else {
             for part in [emptyRow, compareRow, clarifyBox] { part.isHidden = true }
@@ -736,6 +739,7 @@ final class WorksheetAIChoiceButton: NSButton {
                 button.token = guidanceToken
                 button.choice = option.id
                 clarifyBox.addArrangedSubview(button)
+                if option.id == focused { viewer.window.makeFirstResponder(button) }
             }
         }
         guidance.isHidden = false

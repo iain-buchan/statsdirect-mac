@@ -76,6 +76,9 @@ final class ChatGPTTutor {
         "statsdirect_clarify_worksheet_analysis"
     ]
     private let writer = DispatchQueue(label:"com.statsdirect.tutor-writer")
+    /// Tool results with data still queued for the pipe, by reply, and the replies waiting for them (settleToolWrites).
+    private var toolWrites: [UUID:Int] = [:]
+    private var toolWriteWaiters: [UUID:[CheckedContinuation<Void,Never>]] = [:]
     private var policyObserver: NSObjectProtocol?
     private var process: Process?
     private var input: FileHandle?
@@ -142,6 +145,9 @@ final class ChatGPTTutor {
         task.environment = environment
         task.standardInput = stdin; task.standardOutput = stdout; task.standardError = FileHandle.nullDevice
         let current = UUID(); generation = current; buffer.removeAll()
+        // A write after the runtime stops reading must fail (EPIPE), which shuts the connection down, rather than
+        // raise SIGPIPE, which would end the app.
+        _ = fcntl(stdin.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
         process = task; input = stdin.fileHandleForWriting; output = stdout.fileHandleForReading
         task.terminationHandler = { [weak self] _ in
             DispatchQueue.main.async {
@@ -165,14 +171,21 @@ final class ChatGPTTutor {
             try write(["method":"initialized"])
         } catch { shutdown(message:"The ChatGPT connection could not start. Reopen Tutor connection to try again."); throw error }
     }
-    private func write(_ message: [String:Any]) throws {
+    /// Queues a message for the runtime. `written`, when given, is told on the main actor whether the writer queue
+    /// actually wrote it to the pipe (after its own policy check), which happens after this returns.
+    private func write(_ message: [String:Any], written: (@MainActor (Bool) -> Void)? = nil) throws {
         try TutorPolicy.check()
         guard let input, process?.isRunning == true else { throw Failure(message:"ChatGPT is disconnected. Choose Use my ChatGPT to reconnect.") }
         var data = try JSONSerialization.data(withJSONObject:message); data.append(10)
         let bytes = data, current = generation
         writer.async { [weak self] in
+            var ok = true
             do { try TutorPolicy.check(); try input.write(contentsOf:bytes) }
-            catch { DispatchQueue.main.async { guard let self, self.generation == current else { return }; self.shutdown(message:"ChatGPT disconnected while sending the question. Reconnect and try again.") } }
+            catch {
+                ok = false
+                DispatchQueue.main.async { guard let self, self.generation == current else { return }; self.shutdown(message:"ChatGPT disconnected while sending the question. Reconnect and try again.") }
+            }
+            if let written { DispatchQueue.main.async { written(ok) } }
         }
     }
     private func request(_ method: String, _ params: [String:Any] = [:], timeout: UInt64 = 30) async throws -> [String:Any] {
@@ -243,9 +256,34 @@ final class ChatGPTTutor {
             } catch { result = ["success":false,"contentItems":[["type":"inputText","text":error is CancellationError ? "Request stopped." : error.localizedDescription]]] }
             guard self.activeReply?.token == reply.token, !Task.isCancelled else { return }
             self.activeReply?.toolTasks.removeValue(forKey:call)
-            do { try self.write(["id":id,"result":result]) } catch { return }
-            if let sent { reply.delivered?(name,sent) }
+            guard let sent else { try? self.write(["id":id,"result":result]); return }
+            // A result carrying data is reported sent only after the writer queue has written it to the pipe; until
+            // then the reply does not return (settleToolWrites), so a Stop or the turn completing cannot outrun it.
+            self.toolWrites[reply.token, default: 0] += 1
+            do {
+                try self.write(["id":id,"result":result]) { [weak self] ok in
+                    if ok { reply.delivered?(name,sent) }
+                    self?.toolWriteSettled(reply.token)
+                }
+            } catch { self.toolWriteSettled(reply.token) }
         }
+    }
+    private func toolWriteSettled(_ token: UUID) {
+        guard let count = toolWrites[token] else { return }
+        if count > 1 { toolWrites[token] = count - 1; return }
+        toolWrites[token] = nil
+        for waiter in toolWriteWaiters.removeValue(forKey: token) ?? [] { waiter.resume() }
+    }
+    /// Waits for this reply's tool results that are still queued for the pipe. A stalled pipe is not waited for:
+    /// after 5 seconds the connection is closed, which fails those writes, so they are not reported sent.
+    private func settleToolWrites(_ token: UUID) async {
+        guard toolWrites[token] != nil else { return }
+        let timer = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds:5_000_000_000) } catch { return }
+            self?.shutdown(message:"ChatGPT disconnected while receiving worksheet data. Choose Use my ChatGPT to reconnect.")
+        }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void,Never>) in toolWriteWaiters[token, default: []].append(continuation) }
+        timer.cancel()
     }
     static func providerError(_ value: [String:Any]) -> Failure {
         // Never show raw provider bodies, URLs or authentication material in the learner's record.
@@ -366,7 +404,8 @@ final class ChatGPTTutor {
         defer { Task { @MainActor in _ = try? await self.request("thread/unsubscribe",["threadId":thread]) } }
         try Task.checkCancellation()
         let token = UUID()
-        return try await withTaskCancellationHandler {
+        let outcome: Result<Reply,Error>
+        do { outcome = .success(try await withTaskCancellationHandler {
             try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 let timer = Task { @MainActor [weak self] in
@@ -385,7 +424,12 @@ final class ChatGPTTutor {
                     } catch { if self.activeReply?.token == token { self.finishReply(.failure(error)) } }
                 }
             }
-        } onCancel: { Task { @MainActor in self.cancelReply(token:token) } }
+        } onCancel: { Task { @MainActor in self.cancelReply(token:token) } }) }
+        catch { outcome = .failure(error) }
+        // A result already queued can still reach ChatGPT after Stop or the turn's end: let it settle first, so
+        // the caller's record of what was sent (AI Assist's Data used) neither misses it nor counts a failed write.
+        await settleToolWrites(token)
+        return try outcome.get()
     }
     func cancelReply(token: UUID? = nil, error: Error = CancellationError()) {
         guard let reply = activeReply, token == nil || reply.token == token else { return }
@@ -404,6 +448,9 @@ final class ChatGPTTutor {
         if task?.isRunning == true { task?.terminate() }
         for id in Array(requests.keys) { complete(id,.failure(Failure(message:message))) }
         finishReply(.failure(Failure(message:message)))
+        toolWrites = [:]
+        for waiter in toolWriteWaiters.values.flatMap({ $0 }) { waiter.resume() }
+        toolWriteWaiters = [:]
         loginID = nil; loginURL = nil; account = nil; status = message; changed?()
     }
 }

@@ -29,7 +29,8 @@ CARD_WORDS = ("Local check found", "Suggested branch", "Review the differences",
               "Use these as separate samples", "Change sample choice", "is not numeric")
 SHARED = ("READ_A", "READ_B", "FINISH_A", "STOP_A", "CLOSE_A", "OVERVIEW_A", "CLARIFY_A", "READ_STOP_A", "READ_TEXT_STOP_A",
           "READ_FAIL_A", "READ_BIG_A", "READ_MIX_A", "READ_PLACEHOLDER_A", "HOLD_A", "I want to compare means.",
-          "DESIGN_A", "PAIRED_A", "INDEPENDENT_A", "CLARIFY_THEN_CARD_A", "HOLD_CARD_A", "STOP_CARD_A", "AFTER_CARD_A", "NO_CARD_A")
+          "DESIGN_A", "PAIRED_A", "INDEPENDENT_A", "CLARIFY_THEN_CARD_A", "HOLD_CARD_A", "STOP_CARD_A", "AFTER_CARD_A", "NO_CARD_A",
+          "FIXTURE_PAIRED_A", "FIXTURE_INDEPENDENT_A")
 
 
 def private():
@@ -208,6 +209,10 @@ for line in sys.stdin:
         elif stage == "qo-again":
             refused(result, "The analysis proposal could not be staged.")
             finish(thread, "Decision card offered without workbook data.")
+        elif stage in ("fixture-paired", "fixture-independent"):
+            # The preflight's cases are checked on the Mac; the result is the card's state and message, nothing of the selection.
+            staged(result, DISTRIBUTION)
+            finish(thread, "Check the fixture " + stage.split("-")[1] + " card below.")
         else:
             assert result["success"], result
             data = json.loads(result["contentItems"][0]["text"])
@@ -337,6 +342,11 @@ for line in sys.stdin:
             # Choosing on a card adds nothing to the conversation.
             assert not any(m["text"] in ("Same people or units", "Separate groups") for m in payload["conversation"]), payload
             finish(thread, "Follow-up without the card.")
+        elif question in ("FIXTURE_PAIRED_A", "FIXTURE_INDEPENDENT_A"):
+            # Codex's preflight through the worksheet UI: one card of each design, staged for the selection the user makes.
+            assert T_TEST in threads[thread] and CLARIFY in threads[thread], threads[thread]
+            design = "paired" if question == "FIXTURE_PAIRED_A" else "independent"
+            call(thread, "fixture-" + design, T_TEST, {"design": design}, "A")
         elif question in ("NO_CARD_A", "NO_CARD_QO"):
             # The workbook is not in front: no card is offered.
             assert T_TEST not in threads[thread], threads[thread]

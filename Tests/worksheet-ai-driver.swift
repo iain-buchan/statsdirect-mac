@@ -31,8 +31,9 @@ import WebKit
                 app.terminate(nil)
             }
         }
-        // Generous for a loaded build Mac: the distribution cards' cases more than doubled the run.
-        DispatchQueue.global().asyncAfter(deadline: .now() + 600) {
+        // Generous for a loaded build Mac: the distribution cards' cases more than doubled the run, and the preflight's 31 cases
+        // through the worksheet UI add about a minute more.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 900) {
             print("FAIL: Worksheet AI test timed out"); exit(1)
         }
         app.run()
@@ -1184,6 +1185,10 @@ import WebKit
                                                           "Suggested · Small or medium · Approximately normal differences"], "The example's PEFR columns were not checked")
         try check(!pefr.choices.contains("check"), "the example's PEFR columns A:B give Windows' 9 pairs, W = 0.9393 and P = 0.5746 (R 4.6.1: 0.939305, 0.574604)")
 
+        // Codex's preflight of the distribution cards through the worksheet UI, with Continue to the report its offer names. It is a
+        // function of its own: inside this one, already long, it made the compiler take more than ten minutes.
+        try await preflight(viewer, pane, storage: storage, root: root, report: report)
+
         // A policy that disables AI hides the card and refuses its clicks. Setting it can end the ChatGPT connection, so it comes last.
         UserDefaults.standard.set(true, forKey: "DisableOnlineTutor")
         pane.updateControls()
@@ -1195,7 +1200,7 @@ import WebKit
         viewer.remove(cards)
         viewer.tabs.selectTabViewItem(first.item)
         try await wait("AI Assist did not return to workbook A after the card checks") { pane.workbookID == first.id }
-        viewer.remove(report)
+        if viewer.documents.contains(where: { $0 === report }) { viewer.remove(report) }   // the preflight's routing closes it to leave no report open
         viewer.tabs.selectTabViewItem(first.item)
         try await toolbar(first, "worksheetLearn")
         try await wait("Learn did not open from the toolbar") { viewer.active?.kind == "learn" }
@@ -1204,5 +1209,584 @@ import WebKit
         pane.updateControls()
         try check(!pane.sendButton.isEnabled && !pane.share.isEnabled, "managed online AI disable blocks worksheet sending and sharing")
         UserDefaults.standard.set(false, forKey: "DisableOnlineTutor")
+    }
+
+    // Codex's preflight of the distribution cards (Tests/Fixtures/distribution: base R 4.6.1, 26 paired and 5 independent cases)
+    // through the worksheet UI. Every case sits in its own pair of columns of one real worksheet, under headings in row 1 with
+    // "First row has column names" ticked (D1); the page's own hooks select each pair, as whole columns or as a rectangle from the
+    // headings down, and the card reads it as the pane reads any selection. The pane keeps only the card's text, so the numbers are
+    // held to R, at the preflight's tolerance (2e-10 relative, absolute below 1), through the engine's reply to the pane's own request
+    // for that same reading, which must be exactly the check the pane drew. The card's text is held to Windows' with W and P as R's
+    // values give them; every branch is refused with Windows' feedback or offers its method with Windows' advice, and Change sample
+    // choice returns to the same card. Continue then routes a result to the report its offer names: an open one, or a new one.
+    @MainActor static func preflight(_ viewer: Viewer, _ pane: WorksheetAIPane, storage: URL, root: URL, report: Document) async throws {
+        // The driver's helpers, as run defines them for the rest of this suite.
+        func control<T: NSView>(_ id: String, in view: NSView) -> T? {
+            if view.identifier?.rawValue == id, let match = view as? T { return match }
+            for child in view.subviews {
+                if let match: T = control(id, in: child) { return match }
+            }
+            return nil
+        }
+        func views<T: NSView>(_ type: T.Type, in view: NSView) -> [T] {
+            ((view as? T).map { [$0] } ?? []) + view.subviews.flatMap { views(type, in: $0) }
+        }
+        func label(_ id: String) -> String {
+            viewer.window.contentView?.layoutSubtreeIfNeeded()
+            return (control(id, in: pane.view) as NSTextField?)?.stringValue ?? ""
+        }
+        func grid(_ doc: Document, _ script: String) async throws {
+            _ = try await doc.web.callAsyncJavaScript(script + "; return true;", arguments: [:], in: nil, contentWorld: .page)
+        }
+        func text(_ pane: WorksheetAIPane) async -> String {
+            (try? await pane.transcript.web.evaluateJavaScript("document.body.innerText")) as? String ?? ""
+        }
+        func requestLines() -> [String] {
+            ((try? String(contentsOf: storage.appendingPathComponent("requests.jsonl"), encoding: .utf8)) ?? "")
+                .split(separator: "\n").map(String.init)
+        }
+        // Windows WorksheetAnalysisDataTraffic: the questions and tool results that reached the provider.
+        func dataTraffic() -> [String] {
+            requestLines().filter { line in
+                guard let request = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any] else { return false }
+                return request["method"] as? String == "turn/start" || request["result"] != nil
+            }
+        }
+        // The shown card as Windows' WorksheetActionSnapshot gives it: its kind, its buttons' token, its paragraphs and its choices
+        // with their titles.
+        struct Card {
+            let kind: String, token: String, lines: [String], choices: [String], titles: [String]
+            var text: String { (lines + titles).joined(separator: "\n") }
+        }
+        func card() -> Card? {
+            viewer.window.contentView?.layoutSubtreeIfNeeded()
+            guard let box: NSView = control("worksheet-ai-distribution", in: pane.view), !box.isHiddenOrHasHiddenAncestor,
+                  let kind = pane.distribution?.card.kind.rawValue else { return nil }
+            let buttons = views(WorksheetAIChoiceButton.self, in: box)
+            return Card(kind: kind, token: buttons.first?.token ?? "", lines: views(NSTextField.self, in: box).map(\.stringValue),
+                        choices: buttons.map(\.choice), titles: buttons.map(\.title))
+        }
+        func feedback(_ text: String, _ message: String) async throws {
+            try await wait(message + ": " + label("worksheet-ai-distribution-feedback").debugDescription) {
+                label("worksheet-ai-distribution-feedback") == text
+            }
+        }
+        let previous = viewer.active, requestsBefore = requestLines().count
+        let fixtureFolder = root.appendingPathComponent("Tests/Fixtures/distribution")
+        func fixtureTable(_ name: String) throws -> [[String: String]] {
+            let lines = try String(contentsOf: fixtureFolder.appendingPathComponent(name), encoding: .utf8).split(separator: "\n").map(String.init)
+            guard let header = lines.first?.components(separatedBy: "\t") else { throw ChatGPTTutor.Failure(message: name + " is empty") }
+            return lines.dropFirst().map { line in
+                let fields = line.components(separatedBy: "\t")
+                var row: [String: String] = [:]
+                for (index, column) in header.enumerated() { row[column] = index < fields.count ? fields[index] : "" }
+                return row
+            }
+        }
+        struct Fixture {
+            let paired: Bool, name: String, index: Int
+            let rows: [(first: String, second: String)]
+        }
+        // The cases in the oracle's order, each with its cells as the oracle wrote them ("" for a missing value).
+        var fixtures: [Fixture] = []
+        for (file, paired) in [("paired-input.tsv", true), ("independent-input.tsv", false)] {
+            var order: [String] = [], cells: [String: [(first: String, second: String)]] = [:]
+            for row in try fixtureTable(file) {
+                let name = row["case"] ?? ""
+                if cells[name] == nil { order.append(name); cells[name] = [] }
+                guard Int(row["row"] ?? "") == cells[name]!.count + 1 else { throw ChatGPTTutor.Failure(message: file + " lists the rows of " + name + " out of order") }
+                cells[name]!.append((row["first"] ?? "", row["second"] ?? ""))
+            }
+            for name in order { fixtures.append(Fixture(paired: paired, name: name, index: fixtures.count, rows: cells[name]!)) }
+        }
+        var expected: [String: [String: String]] = [:]
+        for file in ["paired-expected.tsv", "independent-expected.tsv"] { for row in try fixtureTable(file) { expected[row["case"] ?? ""] = row } }
+        try check(fixtures.filter(\.paired).count == 26 && fixtures.filter { !$0.paired }.count == 5 && Set(fixtures.map(\.name)) == Set(expected.keys),
+                  "the preflight's 26 paired and 5 independent cases each have R's expected values")
+
+        func letters(_ index: Int) -> String {
+            var column = index + 1, name = ""
+            while column > 0 { column -= 1; name = String(Character(UnicodeScalar(UInt8(65 + column % 26)))) + name; column /= 26 }
+            return name
+        }
+        var fixtureCells: [[String: Any]] = []
+        func put(_ col: Int, _ heading: String, _ texts: [String]) {
+            fixtureCells.append(["col": col, "row": 0, "text": heading, "kind": "text"])
+            for (row, text) in texts.enumerated() where !text.isEmpty { fixtureCells.append(["col": col, "row": row + 1, "text": text, "kind": "number"]) }
+        }
+        // The oracle's overflow, 1e308 minus -1e308, in the pair after the cases.
+        let overflow = Fixture(paired: true, name: "overflow", index: fixtures.count, rows: [("1e+308", "-1e+308")])
+        for fixture in fixtures + [overflow] {
+            put(2 * fixture.index, fixture.name + " first", fixture.rows.map { $0.first })
+            put(2 * fixture.index + 1, fixture.name + " second", fixture.rows.map { $0.second })
+        }
+        let book = viewer.newDocument(kind: "grid", title: "Preflight fixtures", url: viewer.root.appendingPathComponent("Grid/index.html"))
+        book.workbookName = "Preflight fixtures.xlsx"
+        book.pendingWorkbook = ["name": "Preflight fixtures", "formulaCount": 0,
+                                "sheets": [["name": "Preflight", "rows": 1100, "columns": 2 * overflow.index + 2, "headerRow": true, "cells": fixtureCells]]]
+        try await wait("AI Assist did not follow the fixture workbook") {
+            pane.workbookID == book.id && book.pendingWorkbook == nil && book.aiWorksheet?.hasData == true && book.aiWorksheet?.headerRow == true
+        }
+        pane.share.performClick(nil)
+        pane.confirm.performClick(nil)
+        let headerOption = "document.querySelector('.worksheet-options input[type=checkbox]')"
+        let ticked = try await book.web.evaluateJavaScript(headerOption + ".checked") as? Bool
+        let stored = try await book.web.evaluateJavaScript("statsDirectGrid.excelData().sheets[0].cells.length") as? Int
+        try check(ticked == true && stored == fixtureCells.count && pane.share.state == .on && pane.confirm.state == .on,
+                  "the \(stored ?? 0) cells load into one worksheet, each case in its own pair of columns under its headings, with First row has column names ticked")
+
+        // Windows' mapping and texts (StatsDirectUI/UI/Learning/ScriptAIPane.WorksheetAnalysis.cs Method, Advice, Conflict and
+        // SuggestPairedBranch; Learning/conversation.mjs for the choices), and the five methods' titles and menu paths in Analyse.
+        let branches = ["large", "normal", "non-normal"]
+        let methodFor: [Bool: [String: String]] = [true: ["large": "TPaired", "normal": "TPaired", "non-normal": "Wilcoxon"],
+                                                   false: ["large": "ZUnpaired", "normal": "TUnpaired", "non-normal": "MannWhitney"]]
+        let adviceFor: [Bool: [String: String]] = [
+            true: ["large": "The large-sample branch recommends the paired t test for the mean difference.",
+                   "normal": "The paired t test addresses the mean difference. This branch assumes approximately normal differences.",
+                   "non-normal": "The signed-rank test concerns a shift in location and assumes roughly symmetric differences. If the aim is specifically to estimate or test the mean difference, consider whether this answers your question."],
+            false: ["large": "The Help routes large, well-behaved samples to the two-sample Z test for the difference in means.",
+                    "normal": "The unpaired t test compares means. Consider the spread in each group before using an equal-variance result.",
+                    "non-normal": "Mann–Whitney compares relative ordering between groups. Use that question to decide whether it fits your goal."]]
+        let conflictFor: [Bool: [Bool: String]] = [   // by design (paired), then by size (more than 100)
+            true: [true: "The local check found more than 100 complete pairs. Choose the large-sample route for the mean difference or the non-normal route for Wilcoxon signed ranks.",
+                   false: "The local check found at most 100 complete pairs. Choose the branch for the distribution of the differences."],
+            false: [true: "The local check found more than 100 observations in each sample. Review their distributions before choosing a method.",
+                    false: "The local check found at most 100 observations in at least one sample. Choose the branch for the distributions within groups."]]
+        let branchTitles: [Bool: [String]] = [
+            true: ["Large sample (more than 100 complete pairs)", "Small or medium · Approximately normal differences", "Non-normal differences"],
+            false: ["Large samples (more than 100 in each group)", "Small or medium · Approximately normal within groups", "Non-normal distributions within groups"]]
+        let methodTitles = ["TPaired": "Paired Student t test", "Wilcoxon": "Wilcoxon signed ranks test",
+                            "ZUnpaired": "Unpaired two-sample z(normal distribution) test", "MannWhitney": "Mann-Whitney U (two-sample Wilcoxon) test",
+                            "TUnpaired": "Unpaired Student t test"]
+        let menuPaths = ["TPaired": "Analysis › Parametric › Paired t", "Wilcoxon": "Analysis › Nonparametric › Wilcoxon Signed Ranks",
+                         "ZUnpaired": "Analysis › Parametric › Unpaired z", "MannWhitney": "Analysis › Nonparametric › Mann-Whitney",
+                         "TUnpaired": "Analysis › Parametric › Unpaired t"]
+        let tooLarge = "A paired difference is too large to check. Rescale the measurements and try again."
+        let groupQuestions = ["How are the observations distributed within each group?",
+                              "Look at the shape and any influential points. A large Shapiro–Wilk P value is inconclusive."]
+        // SuggestPairedBranch from the oracle's count, variation, warnings and P: the branch the card suggests and the reason it gives.
+        func pairedReason(_ n: Int, varying: Bool, outlier: Bool, skew: Bool, heavy: Bool, p: Double?) -> (branch: String?, reason: String) {
+            if n < 3 { return (nil, "There are too few complete pairs to assess the distribution. Check the selected measurements before choosing.") }
+            if !varying { return (nil, "All the paired differences are the same, leaving zero variation for the test. Check the selected measurements.") }
+            if n > 100 {
+                let signals = [("far-out differences", outlier), ("pronounced skew", skew), ("heavy tails", heavy)].filter { $0.1 }.map { $0.0 }
+                if signals.isEmpty {
+                    return ("large", "There are more than 100 complete pairs and the shape checks found no substantial departure. A paired t test answers the question about the mean difference.")
+                }
+                let signedRanks = skew
+                    ? "Wilcoxon signed ranks addresses a shift in location and assumes roughly symmetric differences. Pronounced skew makes that assumption doubtful."
+                    : "Consider Wilcoxon signed ranks for a shift in location if the differences look roughly symmetric."
+                return (nil, "The shape checks flagged " + signals.joined(separator: ", ") + ". " + signedRanks
+                        + " A paired t test still answers the question about the mean difference. Review any influential differences before choosing.")
+            }
+            if outlier { return (nil, "The box-plot check flagged an unusually distant difference. Review whether it reflects a data error or strongly affects the mean before choosing.") }
+            if skew { return (nil, "The skewness check flagged an uneven shape. Examine the differences before choosing. Signed-rank inference about a shift in location requires roughly symmetric differences.") }
+            guard let p else { return (nil, "The normality check could not assess these differences. Look at their shape before choosing.") }
+            if p < 0.05 { return ("non-normal", "Shapiro–Wilk found evidence of non-normal differences. Consider Wilcoxon signed-rank if the differences look roughly symmetric and a shift in location answers your question.") }
+            return ("normal", "A paired t test answers the question about the mean difference. Shapiro–Wilk found no clear departure from normality, and the shape checks flagged no unusual differences. With this sample, those checks provide limited evidence.")
+        }
+        // The preflight's comparison: both unavailable, or within 2e-10 of R's value relative to it (absolute below 1).
+        func agrees(_ actual: Double?, _ wanted: Double?) -> Bool {
+            guard let actual, let wanted else { return actual == nil && wanted == nil }
+            return abs(actual - wanted) <= 2e-10 * max(1, abs(wanted))
+        }
+        func decimal(_ text: String?) -> Double? { text.flatMap { $0.isEmpty ? nil : Double($0) } }
+        // .NET's G4 and G3 for these values are C's %G, as the engine's own test renders them.
+        func g4(_ x: Double) -> String { String(format: "%.4G", x) }
+        func g3(_ x: Double) -> String { String(format: "%.3G", x) }
+        func normality(_ w: Double?, _ p: Double?) -> String {
+            guard let w, let p else { return "" }
+            return ". Shapiro–Wilk W = \(g4(w)), P = \(g4(p))."
+        }
+
+        struct Selected { let caption: String, offer: String, columns: [Int] }
+        // Even cases as whole columns (selectColumns), odd ones as a rectangle from the headings to the case's last row (selectCells).
+        func selectPair(_ fixture: Fixture) async throws -> Selected {
+            let left = 2 * fixture.index, a = letters(left), b = letters(left + 1), bottom = fixture.rows.count + 1, whole = fixture.index % 2 == 0
+            let caption = whole ? "Selection: Preflight!\(a):\(b)" : "Selection: Preflight!\(a)1:\(b)\(bottom)"
+            try await grid(book, "statsDirectGrid." + (whole ? "selectColumns([[\(left),\(left + 2)]])" : "selectCells({x:\(left),y:0,width:2,height:\(bottom)})"))
+            try await wait("The selection label did not show " + caption + " for " + fixture.name) { pane.selectionLabel.stringValue == caption }
+            return Selected(caption: caption, offer: whole ? "Columns \(a):\(b)" : "\(a)1:\(b)\(bottom)", columns: [left, left + 1])
+        }
+        // The card drawn for the live selection: of this kind, read, with the live token and the fingerprint of its reading.
+        func cardFor(_ kind: String, _ what: String) async throws -> Card {
+            let live = (try? await book.web.evaluateJavaScript("window.statsDirectGrid.aiSelectionFingerprint()")) as? String
+            for _ in 0..<300 {
+                if let drawn = card(), drawn.kind == kind, drawn.token == pane.guidanceToken, live != nil, pane.guidanceFingerprint == live,
+                   pane.distribution?.card.check != nil { return drawn }
+                try await Task.sleep(for: .milliseconds(50))
+            }
+            throw ChatGPTTutor.Failure(message: what + ": " + (card()?.text.debugDescription ?? "no card") + ", notice " + label("worksheet-ai-notice").debugDescription)
+        }
+        // Use these as separate samples, done: the independent card drawn again, with a new token and no Check.
+        func confirmedCard(_ counting: Card, _ what: String) async throws -> Card {
+            for _ in 0..<300 {
+                if let drawn = card(), drawn.kind == "independent-interval", drawn.token == pane.guidanceToken, drawn.token != counting.token,
+                   pane.distribution?.card.check?.canCheck == false { return drawn }
+                try await Task.sleep(for: .milliseconds(50))
+            }
+            throw ChatGPTTutor.Failure(message: "Use these as separate samples did not confirm \(what): " + (card()?.text.debugDescription ?? "no card")
+                                       + ", feedback " + label("worksheet-ai-distribution-feedback").debugDescription)
+        }
+        // The pane's own request for the live selection (WorksheetAIPane readCard and measurementCheck): the page's reading of the two
+        // selected columns, with the paired differences as a snapshot file, and the engine's check of it, unrounded values included.
+        let culture = Locale.current.identifier.components(separatedBy: "@")[0].replacingOccurrences(of: "_", with: "-")
+        func engineCheck(paired: Bool, separateSamples: Bool) async throws -> (page: [String: Any], reply: [String: Any]?) {
+            let page = try await book.web.callAsyncJavaScript("return await window.statsDirectGrid.aiMeasurementColumns(design)",
+                arguments: ["design": paired ? "paired" : "independent"], in: nil, contentWorld: .page) as? [String: Any] ?? [:]
+            let snapshot = (page["snapshot"] as? [String: Any])?["id"] as? String
+            defer { if let snapshot { SnapshotStore.shared.forget(snapshot) } }
+            var read: [String: Any]?
+            if page["error"] == nil, paired, let pairs = page["pairs"] as? Int {
+                if pairs == 0 { read = ["differences": [Double]()] }
+                else if let snapshot, let file = SnapshotStore.shared.file(for: snapshot) { read = ["snapshot": file.path, "pairs": pairs] }
+            } else if page["error"] == nil, !paired, let samples = page["samples"] as? [[String: Any]] { read = ["samples": samples] }
+            guard let read else { return (page, nil) }
+            let request: [String: Any] = ["design": paired ? "paired" : "independent", "culture": culture, "separateSamples": separateSamples, "read": read]
+            let reply = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
+                viewer.analysisRequest(request, entry: "statsdirect_measurement_check") { continuation.resume(with: $0) }
+            }
+            return (page, reply)
+        }
+        // D1: the reading starts below the headings and stops at the case's last value.
+        func readRows(_ page: [String: Any], _ fixture: Fixture) -> Bool {
+            let last = (fixture.rows.lastIndex { !$0.first.isEmpty || !$0.second.isEmpty } ?? -1) + 2
+            return page["headerRow"] as? Bool == true && page["firstRow"] as? Int == 2 && page["lastRow"] as? Int == last
+        }
+        // A choice on the live card, clicked as the user clicks it; handled once the card is drawn again (the button gone) or an offer shows.
+        func press(_ choice: String, _ what: String) async throws {
+            guard let button: WorksheetAIChoiceButton = control("worksheet-ai-card-" + choice, in: pane.view), !button.isHiddenOrHasHiddenAncestor,
+                  button.isEnabled, button.token == pane.guidanceToken else {
+                throw ChatGPTTutor.Failure(message: "The card for \(what) shows no live \(choice) button: " + (card()?.text.debugDescription ?? "no card"))
+            }
+            button.performClick(nil)
+            try await wait("Choosing \(choice) for \(what) was not handled") { button.superview == nil || pane.offer != nil }
+        }
+        var offers: [String: [String]] = [:], mismatches: [String] = []
+        // Every branch of a read card: first each one the oracle does not allow, which must be refused with the card's conflict text and
+        // keep its token; then each allowed one, which must offer its method (title, catalogue id, menu path, sheet, selection, report)
+        // with the card's check and Windows' advice, after which Change sample choice must return to the same card.
+        func branchesOf(_ fixture: Fixture, _ before: Card, _ parsed: WorksheetAIDistribution.Check, allowed: Set<String>,
+                        _ selected: Selected) async throws -> (offered: [String], refused: [String], problems: [String]) {
+            var offered: [String] = [], refused: [String] = [], problems: [String] = []
+            for branch in branches.filter({ !allowed.contains($0) }) + branches.filter({ allowed.contains($0) }) {
+                let token = pane.guidanceToken
+                try await press(branch, fixture.name)
+                guard let offer = pane.offer else {
+                    let shown = label("worksheet-ai-distribution-feedback")
+                    guard !shown.isEmpty else {
+                        throw ChatGPTTutor.Failure(message: "Choosing \(branch) for \(fixture.name) gave neither an offer nor feedback: "
+                                                   + (card()?.text.debugDescription ?? "no card") + ", notice " + label("worksheet-ai-notice").debugDescription)
+                    }
+                    refused.append(branch)
+                    if shown != parsed.conflict || card()?.token != token { problems.append("\(branch) refused with \(shown.debugDescription), token kept \(card()?.token == token)") }
+                    continue
+                }
+                let method = methodFor[fixture.paired]![branch]!
+                let id = Mirror(reflecting: offer).children.first(where: { $0.label == "methodID" })?.value as? String
+                offered.append(branch)
+                offers[fixture.name, default: []].append(branch + " " + (id ?? "?"))
+                let destination = viewer.currentReportDestination?.title ?? "New report"
+                let confirmation = label("worksheet-ai-confirmation"), details = label("worksheet-ai-offer-details")
+                let sample: NSButton? = control("worksheet-ai-change-sample", in: pane.view)
+                var wrong: [String] = []
+                if offer.methodTitle != methodTitles[method] || id != method { wrong.append("method \(offer.methodTitle) (\(id ?? "no id"))") }
+                if confirmation != [methodTitles[method]!, "Menu: " + menuPaths[method]!, "Worksheet: Preflight", "Selection: " + selected.offer,
+                                    "Report: " + destination].joined(separator: "\n") { wrong.append("confirmation " + confirmation.debugDescription) }
+                if details != (parsed.diagnostics + [adviceFor[fixture.paired]![branch]!]).joined(separator: "\n") { wrong.append("details " + details.debugDescription) }
+                if card() != nil || sample?.title != "Change sample choice" || sample?.isHiddenOrHasHiddenAncestor != false { wrong.append("the card or Change sample choice") }
+                if !wrong.isEmpty { problems.append("\(branch) offer: " + wrong.joined(separator: "; ")) }
+                sample?.performClick(nil)
+                let back = try await cardFor(before.kind, "Change sample choice did not return to the card for \(fixture.name) after \(branch)")
+                if back.lines != before.lines || back.titles != before.titles || back.choices != before.choices || back.token == token || pane.offer != nil {
+                    problems.append("Change sample choice after \(branch) returned " + back.text.debugDescription)
+                }
+            }
+            return (offered, refused, problems)
+        }
+        // The card the pane drew is the engine's check of the reading, field by field.
+        func same(_ parsed: WorksheetAIDistribution.Check, _ reply: [String: Any]) -> Bool {
+            guard parsed.diagnostics == (reply["diagnostics"] as? [String] ?? []), parsed.recommendation == reply["recommendation"] as? String,
+                  parsed.suggestedBranch == reply["suggestedBranch"] as? String, parsed.largeSample == reply["largeSample"] as? Bool,
+                  parsed.conflict == reply["conflict"] as? String, parsed.sizeKnown == reply["sizeKnown"] as? Bool, parsed.canCheck == reply["canCheck"] as? Bool
+            else { return false }
+            return parsed.methods == (reply["methods"] as? [String: String] ?? [:]) && parsed.advice == (reply["advice"] as? [String: String] ?? [:])
+        }
+        // Windows' size rule for a read card: the size known, its conflict text, and each branch's method and advice.
+        func windows(_ parsed: WorksheetAIDistribution.Check, paired: Bool, large: Bool) -> Bool {
+            parsed.largeSample == large && parsed.conflict == conflictFor[paired]![large] && parsed.methods == methodFor[paired]! && parsed.advice == adviceFor[paired]!
+        }
+        func record(_ fixture: Fixture, _ problems: [String], _ summary: String) throws {
+            if problems.isEmpty { try check(true, summary); return }
+            print("MISMATCH: preflight \(fixture.name): " + problems.joined(separator: " | "))
+            fflush(stdout)
+            mismatches.append(fixture.name)
+        }
+
+        // One paired card, staged by the assistant, then every paired case selected in turn.
+        let pairedFixtures = fixtures.filter(\.paired), independentFixtures = fixtures.filter { !$0.paired }
+        _ = try await selectPair(pairedFixtures[0])
+        pane.input.string = "FIXTURE_PAIRED_A"
+        pane.send()
+        _ = try await cardFor("paired-interval", "The staged paired card did not read " + pairedFixtures[0].name)
+        try check((await text(pane)).contains("Check the fixture paired card below.") && !pane.isBusy && pane.clarification == nil,
+                  "the tool stages one paired card, which reads the first case's columns when the reply completes")
+        let quietPaired = dataTraffic()
+        for fixture in pairedFixtures {
+            let row = expected[fixture.name] ?? [:]
+            let selected = try await selectPair(fixture)
+            let drawn = try await cardFor("paired-interval", "The card did not read " + fixture.name + " at " + selected.caption)
+            guard let parsed = pane.distribution?.card.check else { throw ChatGPTTutor.Failure(message: "The card for \(fixture.name) has no check") }
+            let (page, answer) = try await engineCheck(paired: true, separateSamples: false)
+            guard let reply = answer else { throw ChatGPTTutor.Failure(message: "The page did not read \(fixture.name): \(page)") }
+            var problems: [String] = []
+            func expect(_ ok: Bool, _ what: @autoclosure () -> String) { if !ok { problems.append(what()) } }
+            let n = Int(row["n"] ?? "") ?? -1, large = n > 100, varying = row["varying"] == "TRUE"
+            let w = decimal(row["W"]), p = decimal(row["P"])
+            let outlier = row["fenceWarning"] == "TRUE", skew = row["skewWarning"] == "TRUE", heavy = row["heavyTailWarning"] == "TRUE"
+            let values = reply["values"] as? [String: Any] ?? [:], shape = values["shape"] as? [String: Any]
+            expect(readRows(page, fixture), "rows read \(page["firstRow"] ?? "none") to \(page["lastRow"] ?? "none"), header row \(page["headerRow"] ?? "none")")
+            expect(values["count"] as? Int == n, "n \(values["count"] ?? "none")")
+            expect(agrees(values["w"] as? Double, w) && agrees(values["p"] as? Double, p), "W \(values["w"] ?? "none"), P \(values["p"] ?? "none")")
+            expect(values["hasVariation"] as? Bool == varying, "variation \(values["hasVariation"] ?? "none")")
+            expect(values["hasPotentialOutlier"] as? Bool == outlier && values["hasSkewSignal"] as? Bool == skew && (shape?["hasHeavyTails"] as? Bool ?? false) == heavy,
+                   "warnings: far-out \(values["hasPotentialOutlier"] ?? "none"), skew \(values["hasSkewSignal"] ?? "none"), heavy tails \(shape?["hasHeavyTails"] ?? "none")")
+            expect((shape != nil) == !(row["Q1"] ?? "").isEmpty, "shape \(shape.map { "\($0)" } ?? "none")")
+            if let shape, !(row["Q1"] ?? "").isEmpty {
+                expect(agrees(shape["lowerQuartile"] as? Double, decimal(row["Q1"])) && agrees(shape["upperQuartile"] as? Double, decimal(row["Q3"]))
+                       && shape["farOutCount"] as? Int == Int(row["farOut"] ?? "") && agrees(shape["skewness"] as? Double, decimal(row["skewness"]))
+                       && agrees(shape["excessKurtosis"] as? Double, decimal(row["excessKurtosis"])), "shape \(shape)")
+            }
+            let suggested = (row["suggestedBranch"] ?? "").isEmpty ? nil : row["suggestedBranch"]
+            let (branch, reason) = pairedReason(n, varying: varying, outlier: outlier, skew: skew, heavy: heavy, p: p)
+            expect(branch == suggested, "Windows' rule gives \(branch ?? "no branch") from the oracle's values, which suggest \(suggested ?? "no branch")")
+            expect(reply["suggestedBranch"] as? String == suggested && parsed.suggestedBranch == suggested, "suggested \(parsed.suggestedBranch ?? "no branch")")
+            // The card as Windows writes it: the count, with W and P as R's values give them; above 100 pairs the shape lines
+            // (D3: a skewness at rounding noise is the engine's own); then the reason under its heading.
+            var lines = [(n == 1 ? "Local check found 1 complete pair" : "Local check found \(n) complete pairs")
+                         + (w != nil ? normality(w, p) : large ? "" : ". Shapiro–Wilk needs at least three finite differences with some variation.")]
+            if let farOut = row["farOut"], !farOut.isEmpty {
+                lines.append("Shape check · \(farOut) beyond the 3× IQR fences")
+                if let skewness = decimal(row["skewness"]), let kurtosis = decimal(row["excessKurtosis"]) {
+                    let shown = abs(skewness) < 1e-10 ? (shape?["skewness"] as? Double).map(g3) ?? "none" : g3(skewness)
+                    lines.append("Skewness \(shown) · Excess kurtosis \(g3(kurtosis))")
+                }
+            }
+            expect(drawn.lines == lines + [(suggested != nil ? "Suggested branch" : "Review the differences") + "\n" + reason], "card text \(drawn.lines)")
+            let titles: [String] = zip(branches, branchTitles[true]!).map { pair in (pair.0 == suggested ? "Suggested · " : "") + pair.1 } + ["Change design"]
+            expect(drawn.choices == branches + ["back"] && drawn.titles == titles, "choices \(drawn.titles)")
+            // The card the pane drew is the engine's check of this reading, and its size rule is Windows'.
+            expect(same(parsed, reply), "the pane's check differs from the engine's reply \(reply)")
+            expect(windows(parsed, paired: true, large: large), "size \(parsed.largeSample.map { "\($0)" } ?? "unknown"), its conflict, methods or advice")
+            let allowed = Set((row["allowed"] ?? "").components(separatedBy: ","))
+            let outcome = try await branchesOf(fixture, drawn, parsed, allowed: allowed, selected)
+            problems += outcome.problems
+            expect(Set(outcome.offered) == allowed, "offered \(outcome.offered), refused \(outcome.refused), but the oracle allows \(allowed.sorted())")
+            let warnings = [("far-out", outlier), ("skew", skew), ("heavy tails", heavy)].filter { $0.1 }.map { $0.0 }
+            let alsoCompared = (w != nil ? ", W, P" : "") + (shape != nil && !(row["Q1"] ?? "").isEmpty ? ", quartiles, far-out count, skewness, kurtosis" : "")
+            try record(fixture, problems, "preflight \(fixture.name) (paired, \(selected.caption.dropFirst(11))): n \(n)\(alsoCompared) "
+                       + (alsoCompared.isEmpty ? "agrees" : "agree") + " with R; warnings "
+                       + (warnings.isEmpty ? "none" : warnings.joined(separator: ", ")) + "; suggests \(suggested ?? "no branch"); Windows' card text; "
+                       + outcome.refused.map { $0 + " refused" }.joined(separator: ", ") + (outcome.refused.isEmpty ? "" : "; ")
+                       + outcome.offered.map { $0 + " offers " + methodFor[true]![$0]! }.joined(separator: ", ") + " with Windows' advice; Change sample choice returns")
+        }
+
+        // The oracle's overflow through Check, and D1: with the option unticked, row 1 is read, and refused as the analysis refuses it.
+        _ = try await selectPair(overflow)
+        let unread = try await cardFor("paired-interval", "The card did not show the overflowing pair unread")
+        let refusedOverflow = try await engineCheck(paired: true, separateSamples: false)
+        try check(unread.lines.first == "How many complete pairs are there?" && unread.choices.first == "check" && unread.titles.first == "Check selected pairs"
+                  && refusedOverflow.page["error"] as? String == tooLarge && refusedOverflow.reply == nil,
+                  "the oracle's 1e308 and -1e308 leave the paired card unread, with Check selected pairs")
+        try await press("check", "the overflowing pair")
+        try await feedback(tooLarge, "Check did not refuse 1e308 minus -1e308")
+        try check(card()?.choices.first == "check", "Check refuses 1e308 minus -1e308 with Windows' text, and stays offered")
+        let pefr = pairedFixtures[0]
+        _ = try await selectPair(pefr)
+        let headed = try await cardFor("paired-interval", "The card did not read pefr again")
+        try await grid(book, headerOption + ".click()")
+        try await wait("The page did not report First row has column names unticked") { book.aiWorksheet?.headerRow == false }
+        let unheaded = try await cardFor("paired-interval", "Unticking First row has column names did not read pefr again")
+        try await press("check", "pefr without its headings")
+        try await feedback("Cell A1: ‘pefr first’ is not numeric. Correct it or use * for a missing value. If row 1 holds column names, tick “First row has column names”.",
+                           "Check did not refuse pefr's heading read as data")
+        try await grid(book, headerOption + ".click()")
+        try await wait("The page did not report First row has column names ticked") { book.aiWorksheet?.headerRow == true }
+        let reheaded = try await cardFor("paired-interval", "Ticking First row has column names did not read pefr again")
+        try check(unheaded.lines.first == "How many complete pairs are there?" && reheaded.lines == headed.lines && reheaded.token != headed.token,
+                  "the headings are read as data only with First row has column names unticked, when Check names cell A1 and the setting")
+
+        // Continue with an open report as the current destination: the card's offer names it, Continue opens the analysis for the
+        // selected columns with it as the destination, and running it adds the result to that report and to no other.
+        let savedDefaults = UserDefaults.standard.object(forKey: "analysisDefaults")
+        defer { UserDefaults.standard.set(savedDefaults, forKey: "analysisDefaults") }
+        UserDefaults.standard.set(["use-default-ci": true, "default-ci": "95", "selectGroupsByIdentifier": false], forKey: "analysisDefaults")
+        // The data an analysis ran on, as the engine recorded its inputs (as Tests/analysis-workflow-driver.swift reads them).
+        func dataColumns(_ run: Document) async throws -> [[Any]] {
+            guard let job = run.completedJobID else { return [] }
+            let history = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String: Any], Error>) in
+                viewer.analysisRequest(["action": "poll", "id": job], entry: "statsdirect_operation") { continuation.resume(with: $0) }
+            }
+            let data = (history["history"] as? [[String: Any]] ?? []).first(where: { $0["name"] as? String == "data" })?["value"] as? [String: Any]
+            return (data?["columns"] as? [[String: Any]] ?? []).map { $0["values"] as? [Any] ?? [] }
+        }
+        // A recorded input column's usable values: the form records the cells' texts, an empty or * cell being missing.
+        func numbers(_ values: [Any]) -> [Double] {
+            values.compactMap { value in (value as? String).flatMap { Double($0) } ?? (value as? NSNumber)?.doubleValue }.filter { $0.isFinite && $0 != -Double.greatestFiniteMagnitude }
+        }
+        func cellValues(_ fixture: Fixture) -> [[Double]] {
+            [fixture.rows.compactMap { Double($0.first) }, fixture.rows.compactMap { Double($0.second) }]
+        }
+        func continued(_ what: String, destination: String) async throws -> Document {
+            let before = viewer.documents.count
+            (control("worksheet-ai-continue", in: pane.view) as NSButton?)?.performClick(nil)
+            try await wait("Continue did not open " + what) { viewer.documents.count == before + 1 && viewer.active?.kind == "operation" }
+            let run = viewer.active!
+            try await wait("The \(what) form did not show its report destination") {
+                let shown = (try? await run.web.evaluateJavaScript("document.querySelector('main header p')?.textContent ?? ''")) as? String
+                return run.operationSourceSnapshot != nil && shown == "Report destination: " + destination
+            }
+            return run
+        }
+        func finished(_ run: Document, _ what: String, until done: () -> Bool) async throws {
+            for _ in 0..<600 {
+                if run.completedJobID != nil && done() { return }
+                try await Task.sleep(for: .milliseconds(50))
+            }
+            let page = (try? await run.web.evaluateJavaScript("document.body.innerText")) as? String ?? ""
+            throw ChatGPTTutor.Failure(message: what + " did not reach its report: " + String(page.prefix(600)).debugDescription)
+        }
+        let routed = viewer.makeReport()
+        viewer.tabs.selectTabViewItem(book.item)
+        try await wait("AI Assist did not return to the fixture workbook") { viewer.active === book && pane.workbookID == book.id }
+        _ = try await cardFor("paired-interval", "The card did not keep pefr while the report opened")
+        try await press("normal", "pefr")
+        guard let routedOffer = pane.offer else { throw ChatGPTTutor.Failure(message: "Small or medium did not offer the paired t test for pefr") }
+        try check(viewer.currentReportDestination === routed && routedOffer.reportTitle == routed.title
+                  && label("worksheet-ai-confirmation").hasSuffix("\nSelection: Columns A:B\nReport: " + routed.title),
+                  "with \(routed.title) open as the current report, the card's paired t offer for pefr names it")
+        let others = viewer.documents.filter { $0.reportEntries != nil && $0 !== routed }.map { ($0, $0.reportEntries?.count ?? 0) }
+        let quietRouting = dataTraffic()
+        let pairedRun = try await continued("the paired t test", destination: routed.title)
+        try check(pairedRun.operationName == "TPaired" && pairedRun.operationSourceID == book.id
+                  && pairedRun.operationReportDestination == .existing(id: routed.id, title: routed.title)
+                  && pairedRun.operationSourceSnapshot?["selection"] as? [Int] == [0, 1] && pane.offer == nil && pane.distribution == nil,
+                  "Continue opens the paired t test for pefr's two selected columns with \(routed.title) as its destination, and retires the card")
+        try await wait("The paired t test did not offer Run") {
+            (try? await pairedRun.web.evaluateJavaScript("!!document.querySelector('.paired-inputs button[type=submit]:not(:disabled)')")) as? Bool == true
+        }
+        _ = try await pairedRun.web.evaluateJavaScript("document.querySelector('.paired-inputs button[type=submit]').click(); true")
+        try await finished(pairedRun, "The paired t result") { routed.reportEntries?.count == 1 }
+        let pairedColumns = try await dataColumns(pairedRun), pairedEntry = routed.reportEntries![0]
+        let pairedValues = pairedColumns.map(numbers), untouched = others.allSatisfy { $0.0.reportEntries?.count == $0.1 }
+        let reportCount = viewer.documents.filter { $0.reportEntries != nil }.count, routingQuiet = dataTraffic() == quietRouting
+        let routedRight = pairedEntry.operation == "TPaired" && pairedEntry.body.contains("56.111111") && pairedValues == cellValues(pefr)
+            && pairedValues.map(\.count) == [9, 9] && untouched && reportCount == others.count + 1 && routingQuiet
+        try check(routedRight, "running it on pefr's nine pairs adds the paired t result (mean difference 56.111111) to \(routed.title) and to no other report, and sends nothing"
+                  + (routedRight ? "" : " (operation \(pairedEntry.operation), mean difference shown \(pairedEntry.body.contains("56.111111")), values \(pairedValues),"
+                  + " other reports unchanged \(untouched), reports \(reportCount) for \(others.count) others, quiet \(routingQuiet); data \(String(describing: pairedColumns).prefix(300)))"))
+        viewer.remove(pairedRun)
+        try check(dataTraffic() == quietPaired, "checking the paired cases, their branches, offers and the analysis sends nothing to the provider")
+
+        // One independent card, staged by the assistant, then every independent case, confirmed as separate samples first.
+        viewer.tabs.selectTabViewItem(book.item)
+        try await wait("AI Assist did not return to the fixture workbook after the paired t test") { viewer.active === book && pane.workbookID == book.id && !pane.isBusy }
+        _ = try await selectPair(independentFixtures[0])
+        pane.input.string = "FIXTURE_INDEPENDENT_A"
+        pane.send()
+        _ = try await cardFor("independent-interval", "The staged independent card did not count " + independentFixtures[0].name)
+        try check((await text(pane)).contains("Check the fixture independent card below.") && !pane.isBusy && pane.clarification == nil,
+                  "the tool stages one independent card, which counts the first independent case when the reply completes")
+        let quietIndependent = dataTraffic()
+        for fixture in independentFixtures {
+            let row = expected[fixture.name] ?? [:]
+            let selected = try await selectPair(fixture)
+            let counting = try await cardFor("independent-interval", "The card did not count " + fixture.name + " at " + selected.caption)
+            guard let unconfirmed = pane.distribution?.card.check else { throw ChatGPTTutor.Failure(message: "The card for \(fixture.name) has no check") }
+            var problems: [String] = []
+            func expect(_ ok: Bool, _ what: @autoclosure () -> String) { if !ok { problems.append(what()) } }
+            let n1 = Int(row["n1"] ?? "") ?? -1, n2 = Int(row["n2"] ?? "") ?? -1, large = row["large"] == "TRUE"
+            let w1 = decimal(row["W1"]), p1 = decimal(row["P1"]), w2 = decimal(row["W2"]), p2 = decimal(row["P2"])
+            let counted = ["Column 1: n = \(n1)" + normality(w1, p1), "Column 2: n = \(n2)" + normality(w2, p2)]
+            expect(counting.lines == ["Selected columns, if they hold the two samples separately:"] + counted + groupQuestions
+                   && counting.choices == ["check"] + branches + ["back"] && counting.titles == ["Use these as separate samples"] + branchTitles[false]! + ["Change design"]
+                   && unconfirmed.largeSample == nil && unconfirmed.conflict == nil,
+                   "before Use these as separate samples \(counting.lines), \(counting.titles)")
+            try await press("check", fixture.name)
+            let drawn = try await confirmedCard(counting, fixture.name)
+            guard let parsed = pane.distribution?.card.check else { throw ChatGPTTutor.Failure(message: "The confirmed card for \(fixture.name) has no check") }
+            let (page, answer) = try await engineCheck(paired: false, separateSamples: true)
+            guard let reply = answer else { throw ChatGPTTutor.Failure(message: "The page did not read \(fixture.name): \(page)") }
+            let values = reply["values"] as? [String: Any] ?? [:]
+            let a = values["first"] as? [String: Any] ?? [:], b = values["second"] as? [String: Any] ?? [:]
+            expect(readRows(page, fixture), "rows read \(page["firstRow"] ?? "none") to \(page["lastRow"] ?? "none"), header row \(page["headerRow"] ?? "none")")
+            expect(a["count"] as? Int == n1 && agrees(a["w"] as? Double, w1) && agrees(a["p"] as? Double, p1), "column 1 \(a)")
+            expect(b["count"] as? Int == n2 && agrees(b["w"] as? Double, w2) && agrees(b["p"] as? Double, p2), "column 2 \(b)")
+            expect(drawn.lines == counted + groupQuestions && drawn.choices == branches + ["back"] && drawn.titles == branchTitles[false]! + ["Change design"],
+                   "card \(drawn.lines), \(drawn.titles)")
+            expect(same(parsed, reply) && parsed.recommendation == nil && parsed.suggestedBranch == nil, "the pane's check differs from the engine's reply \(reply)")
+            expect(windows(parsed, paired: false, large: large), "size \(parsed.largeSample.map { "\($0)" } ?? "unknown"), its conflict, methods or advice")
+            let allowed = Set((row["allowedWhenSeparate"] ?? "").components(separatedBy: ","))
+            let outcome = try await branchesOf(fixture, drawn, parsed, allowed: allowed, selected)
+            problems += outcome.problems
+            expect(Set(outcome.offered) == allowed, "offered \(outcome.offered), refused \(outcome.refused), but the oracle allows \(allowed.sorted())")
+            try record(fixture, problems, "preflight \(fixture.name) (independent, \(selected.caption.dropFirst(11))): n \(n1) and \(n2)"
+                       + (w1 != nil || w2 != nil ? " with W and P" : "") + " agree with R; \(large ? "" : "not ")large once confirmed as separate samples; Windows' card text; "
+                       + outcome.refused.map { $0 + " refused" }.joined(separator: ", ") + (outcome.refused.isEmpty ? "" : "; ")
+                       + outcome.offered.map { $0 + " offers " + methodFor[false]![$0]! }.joined(separator: ", ") + " with Windows' advice; Change sample choice returns")
+        }
+        try check(dataTraffic() == quietIndependent, "checking the independent cases, their branches and offers sends nothing to the provider")
+        let named = ["pefr", "small_bimodal", "normal_101", "large_skewed", "uneven_missing", "n101_n101"]
+        try check(named.allSatisfy { offers[$0] != nil } && expected["large_skewed"]?["suggestedBranch"] == "",
+                  "the offers name Windows' methods with its advice: " + named.map { $0 + " (" + (offers[$0] ?? []).joined(separator: ", ") + ")" }.joined(separator: ", ")
+                  + ", large_skewed suggesting no branch")
+
+        // Continue with no report open: the offer says New report, and the result goes to a new report.
+        viewer.remove(routed)
+        if viewer.documents.contains(where: { $0 === report }) { viewer.remove(report) }
+        viewer.tabs.selectTabViewItem(book.item)
+        try await wait("AI Assist did not return to the fixture workbook with no report open") {
+            viewer.active === book && pane.workbookID == book.id && viewer.currentReportDestination == nil
+        }
+        guard let uneven = independentFixtures.first(where: { $0.name == "uneven_missing" }) else { throw ChatGPTTutor.Failure(message: "No uneven_missing case") }
+        let unevenSelection = try await selectPair(uneven)
+        let unevenCount = try await cardFor("independent-interval", "The card did not count uneven_missing again")
+        try await press("check", "uneven_missing")
+        _ = try await confirmedCard(unevenCount, "uneven_missing")
+        try await press("normal", "uneven_missing")
+        guard let newOffer = pane.offer else { throw ChatGPTTutor.Failure(message: "Small or medium did not offer the unpaired t test for uneven_missing") }
+        try check(newOffer.reportTitle == "New report" && label("worksheet-ai-confirmation").hasSuffix("\nSelection: " + unevenSelection.offer + "\nReport: New report"),
+                  "with no report open, the card's unpaired t offer for uneven_missing says New report")
+        let quietNew = dataTraffic()
+        let unpairedRun = try await continued("the unpaired t test", destination: "New report")
+        try check(unpairedRun.operationName == "TUnpaired" && unpairedRun.operationSourceID == book.id && unpairedRun.operationReportDestination == .new
+                  && unpairedRun.operationSourceSnapshot?["selection"] as? [Int] == unevenSelection.columns && pane.offer == nil && pane.distribution == nil,
+                  "Continue opens the unpaired t test for uneven_missing's two selected columns with a new report as its destination")
+        try await finished(unpairedRun, "The unpaired t result") { viewer.documents.contains { $0.reportEntries?.count == 1 } }
+        let created = viewer.documents.filter { $0.reportEntries != nil }
+        let unpairedColumns = try await dataColumns(unpairedRun)
+        let unpairedValues = unpairedColumns.map(numbers), newQuiet = dataTraffic() == quietNew
+        let newDestination = created.count == 1 && unpairedRun.operationReportDestination == .existing(id: created[0].id, title: created[0].title)
+        let newRight = newDestination && created[0].reportEntries?.first?.operation == "TUnpaired" && unpairedValues == cellValues(uneven)
+            && unpairedValues == [[1, 2, 4, 6, 8], [0, 1, 2]] && newQuiet
+        try check(newRight, "running it on uneven_missing's 5 and 3 values puts the unpaired t result in a new report, \(created.first?.title ?? "none"), and sends nothing"
+                  + (newRight ? "" : " (reports \(created.map(\.title)), destination \(String(describing: unpairedRun.operationReportDestination)),"
+                  + " operation \(created.first?.reportEntries?.first?.operation ?? "none"), values \(unpairedValues), quiet \(newQuiet);"
+                  + " data \(String(describing: unpairedColumns).prefix(300)))"))
+        viewer.remove(unpairedRun)
+        for made in created { viewer.remove(made) }
+
+        viewer.remove(book)
+        if let previous, viewer.documents.contains(where: { $0 === previous }) {
+            viewer.tabs.selectTabViewItem(previous.item)
+            if previous.kind == "grid" { try await wait("AI Assist did not return to the workbook open before the fixtures") { pane.workbookID == previous.id } }
+        }
+        let traffic = requestLines()[requestsBefore...].joined(separator: "\n")
+        try check(!(["Local check found", "Suggested branch", "Review the differences", "Shape check ·", "Suggested · ", "Use these as separate samples",
+                     "Change sample choice", "is not numeric", "too large to check"] + fixtures.flatMap { [$0.name + " first", $0.name + " second"] })
+                    .contains(where: traffic.contains),
+                  "no request carries a fixture's heading or any card's wording")
+        try check(mismatches.isEmpty, "every one of the preflight's 26 paired and 5 independent cases agrees with R and Windows through the worksheet UI"
+                  + (mismatches.isEmpty ? "" : ": mismatched " + mismatches.joined(separator: ", ")))
     }
 }

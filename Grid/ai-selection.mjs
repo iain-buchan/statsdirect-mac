@@ -78,9 +78,18 @@ function slices(compact) {
 // 2, 4, 6 differ here although their caption ("2:6 (some rows)") is the same.
 export function selectionFingerprint(workbook, sheetIndex, selection) {
   const store = workbook.sheets[sheetIndex].store, current = selection?.current;
-  return JSON.stringify({sheet: sheetIndex, workbookRevision: workbook.revision, sheetRevision: store.version,
+  // The "First row has column names" setting changes what a read sends without advancing either revision.
+  return JSON.stringify({sheet: sheetIndex, workbookRevision: workbook.revision, sheetRevision: store.version, headerRow: !!store.headerRow,
     cell: current?.cell ?? null, range: current?.range ?? null, stack: current?.rangeStack ?? [],
     columns: slices(selection?.columns), rows: slices(selection?.rows)});
+}
+
+// The read columns whose row-1 cell holds text, with the header row on: their heading travelled as the column's
+// title. A blank one sends only the stand-in "Column X"; a real heading that reads "Column X" is still a heading.
+export function headingCells(workbook, sheetIndex, columns) {
+  const store = workbook.sheets[sheetIndex]?.store;
+  if (!store?.headerRow || !Array.isArray(columns)) return [];
+  return columns.filter(c => Number.isInteger(c) && c >= 0 && c < store.columns.length && store.get(c, 0) !== '');
 }
 
 export function aiWorksheetState(workbook, sheetIndex, selection) {

@@ -369,6 +369,16 @@ import WebKit
         try check(pane.guidanceToken == rowsToken, "the page reports nothing when sparse rows change under the same caption")
         let sparse = await pane.answerClarification("means", token: rowsToken)
         try check(!sparse && pane.clarification != nil, "a click after sparse rows changed under the same caption is refused against the live grid")
+        // The header-row setting changes what a read sends without advancing any revision, so the page reports nothing.
+        try await wait("The card's selection was not read after the sparse-row refusal") { pane.guidanceFingerprint != nil }
+        let headerToken = pane.guidanceToken
+        try await grid(first, "document.querySelector('.worksheet-options input[type=checkbox]').click()")
+        try await Task.sleep(for: .milliseconds(400))
+        let afterToggle = await pane.answerClarification("means", token: headerToken)
+        try check(!afterToggle && pane.clarification != nil, "a click after the header-row setting changed is refused against the live grid")
+        try await grid(first, "document.querySelector('.worksheet-options input[type=checkbox]').click()")
+        let headerRestored = try await first.web.evaluateJavaScript("document.querySelector('.worksheet-options input[type=checkbox]').checked") as? Bool
+        try check(headerRestored == true, "the header-row setting is back on for the reads that follow")
         let staleToken = pane.guidanceToken
         try await grid(first, "statsDirectGrid.selectCells({x:0,y:1,width:1,height:3})")
         try await wait("A selection change did not retire the card's token") { pane.guidanceToken != staleToken }
@@ -482,6 +492,21 @@ import WebKit
         viewer.tabs.selectTabViewItem(first.item)
         try await wait("AI Assist did not return to workbook A after Open in R") { pane.workbookID == first.id }
 
+        // A real heading that reads like the stand-in still counts (Codex's recheck); a blank one does not (the node
+        // and receipt-rule checks).
+        let beforeHeadings = first.gridVersion
+        try await grid(first, "statsDirectGrid.setCellText({col:2,row:0,text:'Column C'})")
+        try await wait("The heading edit did not settle") { first.gridVersion > beforeHeadings }
+        pane.input.string = "READ_PLACEHOLDER_A"
+        pane.send()
+        try await wait("The heading read did not finish") {
+            guard !pane.isBusy else { return false }
+            return (await text(pane)).contains("Placeholder heading read.")
+        }
+        let placeholder = await lastReceipt().lines
+        try check(placeholder == ["Fictional.xlsx · Parametric · C1 (headings), C2 (part of the worksheet’s used range)"],
+                  "a heading that reads \"Column C\" is listed as sent: \(placeholder)")
+
         // The same boundary without a provider: a read waits until the tutor reports its result sent, as it does not
         // when Stop comes first or the result is refused.
         let direct = ScriptAIContext(viewer: viewer, script: nil, workbook: first, usesSessionConsent: false, worksheetAssist: true) { true }
@@ -496,8 +521,14 @@ import WebKit
                   == ["A1 (headings)", "D1 (headings)", "A2:B5", "D2:D5"]
                   && ScriptAIContext.receipt(["sheet": "S", "firstRow": 2, "lastRow": 3, "headerRow": true,
                                               "columns": [["index": 0, "title": "Before"], ["index": 2, "title": "Column C"]]],
-                                             used: nil, workbook: "W.xlsx")?.ranges == ["A1 (headings)", "A2:A3", "C2:C3"],
-                  "receipts group adjacent columns and list only real headings, not the Column X stand-in for a blank one")
+                                             used: nil, headings: [0], workbook: "W.xlsx")?.ranges == ["A1 (headings)", "A2:A3", "C2:C3"]
+                  && ScriptAIContext.receipt(["sheet": "S", "firstRow": 2, "lastRow": 3, "headerRow": true,
+                                              "columns": [["index": 0, "title": "Before"], ["index": 2, "title": "Column C"]]],
+                                             used: nil, headings: [0, 2], workbook: "W.xlsx")?.ranges == ["A1 (headings)", "C1 (headings)", "A2:A3", "C2:C3"]
+                  && ScriptAIContext.receipt(["sheet": "S", "firstRow": 2, "lastRow": 3, "headerRow": false,
+                                              "columns": [["index": 0, "title": "Column A"]]],
+                                             used: nil, headings: [0], workbook: "W.xlsx")?.ranges == ["A2:A3"],
+                  "receipts group adjacent columns and list the headings whose cells hold text, whatever their text")
         try check(direct.reads.map(\.line) == [readLine] && direct.rData.components(separatedBy: heldID).count == 2 && direct.rData.contains("142741"),
                   "once reported sent, the read joins Data used and the R data, once")
 

@@ -13,7 +13,7 @@ import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
 import { tutorInfo, tutorData } from './tutor-data.mjs';
-import { aiWorksheetState, selectionFingerprint } from './ai-selection.mjs';
+import { aiWorksheetState, selectionFingerprint, headingCells } from './ai-selection.mjs';
 import { decodeSnapshot, encodeSnapshot } from './snapshot.mjs';
 import {analysisMetadata, columnValues, snapshotColumns, requestedSheet} from './analysis-source.mjs';
 import {planWriteBack} from './write-back.mjs';
@@ -218,6 +218,7 @@ function App() {
       // AI Assist's local view of the sheet: the selection as an A1 address and whether the workbook holds anything.
       aiWorksheetState: () => aiWorksheetState(workbook, sheetIndex, selectionRef.current),
       aiSelectionFingerprint: () => selectionFingerprint(workbook, sheetIndex, selectionRef.current),
+      aiHeadingCells: (sheet: number, columns: number[]) => headingCells(workbook, sheet, columns),
       analysisSource: () => analysisMetadata(workbook, sheetIndex, {columns: selectionRef.current.columns.toArray(), range: selectionRef.current.current?.range}),
       columnValues: (request: any) => columnValues(workbook, sheetIndex, request),
       snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),

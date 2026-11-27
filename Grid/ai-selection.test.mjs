@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {CompactSelection} from '@glideapps/glide-data-grid';
 import {WorkbookStore} from './workbook.mjs';
-import {selectionAddress, workbookHasData, aiWorksheetState, selectionFingerprint} from './ai-selection.mjs';
+import {selectionAddress, workbookHasData, aiWorksheetState, selectionFingerprint, headingCells} from './ai-selection.mjs';
 
 const bounds = {columns: 8, rows: 100};
 const pieces = (...ranges) => ranges.reduce((selection, range) => selection.add(range), CompactSelection.empty());
@@ -69,6 +69,19 @@ test('the click fingerprint is exact for sparse rows and columns, without expand
   const before = print(rect(0, 0, 1, 1));
   w.sheets[0].store.paste(0, 0, '3'); w.changed();
   assert.notEqual(print(rect(0, 0, 1, 1)), before);
+  // So does the header-row setting, which advances neither revision.
+  const headed = print(rect(0, 0, 1, 1));
+  w.sheets[0].store.headerRow = !w.sheets[0].store.headerRow;
+  assert.notEqual(print(rect(0, 0, 1, 1)), headed);
+});
+
+test('a heading counts when its row-1 cell holds text, even text that reads like the stand-in', () => {
+  const w = book([{name: 'One', rows: 10, columns: 4, headerRow: true, cells: [
+    {col: 0, row: 0, text: 'Before', kind: 'text'}, {col: 1, row: 0, text: 'Column B', kind: 'text'},
+    {col: 0, row: 1, text: '1', kind: 'number'}, {col: 2, row: 1, text: '2', kind: 'number'}]}]);
+  assert.deepEqual(headingCells(w, 0, [0, 1, 2]), [0, 1]);
+  w.sheets[0].store.headerRow = false;
+  assert.deepEqual(headingCells(w, 0, [0, 1, 2]), []);
 });
 
 test('the state the pane receives names the sheet and holds no cell values', () => {

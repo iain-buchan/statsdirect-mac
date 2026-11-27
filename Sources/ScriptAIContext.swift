@@ -199,7 +199,8 @@ struct WorksheetAIRead: Codable, Equatable {
             // agrees with the cells read. Only `data` is returned to the provider; `used` stays here.
             let evaluated=try await viewer.learningJavaScript(workbook,"""
                 (() => { const grid = window.statsDirectGrid, data = grid.tutorData(\(json)), sheet = grid.tutorInfo().sheets[data.sheetIndex];
-                  return {data, used: {firstDataRow: sheet.firstDataRow, lastDataRow: sheet.lastDataRow, columnCount: sheet.columnCount, columns: sheet.columns.map(c => c.index)}}; })()
+                  return {data, used: {firstDataRow: sheet.firstDataRow, lastDataRow: sheet.lastDataRow, columnCount: sheet.columnCount, columns: sheet.columns.map(c => c.index)},
+                          headings: data.headerRow ? grid.aiHeadingCells(data.sheetIndex, data.columns.map(c => c.index)) : []}; })()
                 """)
             try check()
             guard var result=evaluated["data"] as? [String:Any] else { throw ChatGPTTutor.Failure(message:"The worksheet could not be read. Try again.") }
@@ -209,7 +210,8 @@ struct WorksheetAIRead: Codable, Equatable {
             result["rCode"]=code
             // Held until ChatGPTTutor reports the result sent (as Windows does, pull request 44): a result it refuses as
             // larger than 200,000 bytes, or holds back because Stop came first, adds neither R data nor a receipt line.
-            pendingReads[id]=(code, Self.receipt(result, used: evaluated["used"] as? [String:Any], workbook: workbook.openedFileURL?.lastPathComponent ?? workbook.title))
+            pendingReads[id]=(code, Self.receipt(result, used: evaluated["used"] as? [String:Any], headings: evaluated["headings"] as? [Int] ?? [],
+                                                 workbook: workbook.openedFileURL?.lastPathComponent ?? workbook.title))
             return result
         case "statsdirect_method_help":
             guard let operation=arguments["operation"] as? String, let path=viewer.analysisCatalog[operation]?["help"] as? String else { throw ChatGPTTutor.Failure(message:"Choose a documented StatsDirect method.") }
@@ -226,18 +228,15 @@ struct WorksheetAIRead: Codable, Equatable {
         if let receipt=read.receipt, !reads.contains(receipt) { reads.append(receipt) }
     }
     /// What a read sent, from the read's own result. With the header row on, each column's row-1 heading travelled as
-    /// its title; a blank heading sends only the stand-in "Column X", not a cell, so only real headings are listed as
-    /// "(headings)", as on Windows.
-    static func receipt(_ result: [String:Any], used: [String:Any]?, workbook: String) -> WorksheetAIRead? {
+    /// its title; a blank heading sends only the stand-in "Column X", not a cell. `headings` are the read columns whose
+    /// row-1 cell holds text, taken by the same evaluation as the read (a heading may itself read "Column X"), so only
+    /// they are listed as "(headings)", as on Windows.
+    static func receipt(_ result: [String:Any], used: [String:Any]?, headings: [Int], workbook: String) -> WorksheetAIRead? {
         guard let sheet = result["sheet"] as? String, let first = result["firstRow"] as? Int, let last = result["lastRow"] as? Int,
               let read = result["columns"] as? [[String:Any]] else { return nil }
         let columns = read.compactMap { $0["index"] as? Int }
         guard !columns.isEmpty else { return nil }
-        let headingColumns = result["headerRow"] as? Bool == true ? read.compactMap { column -> Int? in
-            guard let index = column["index"] as? Int, let title = column["title"] as? String,
-                  title != "Column " + WorksheetAIRead.columnName(index) else { return nil }
-            return index
-        } : []
+        let headingColumns = result["headerRow"] as? Bool == true ? headings.filter(columns.contains) : []
         var whole = false
         if let used, let count = used["columnCount"] as? Int, let usedColumns = used["columns"] as? [Int],
            let firstData = used["firstDataRow"] as? Int, let lastData = used["lastDataRow"] as? Int {

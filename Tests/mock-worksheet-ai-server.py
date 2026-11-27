@@ -61,11 +61,11 @@ def finish(thread, text):
     event("turn/completed", thread, turn={"id": "turn", "status": "completed"})
 
 
-def call(thread, stage, name, args, slot):
+def call(thread, stage, name, args, slot, call_id=None):
     request = stage + thread
     pending[request] = (thread, stage, slot)
     send({"id": request, "method": "item/tool/call", "params": {
-        "threadId": thread, "turnId": "turn", "callId": request, "tool": name, "arguments": args}})
+        "threadId": thread, "turnId": "turn", "callId": call_id or request, "tool": name, "arguments": args}})
 
 
 for line in sys.stdin:
@@ -196,8 +196,9 @@ for line in sys.stdin:
             event("item/agentMessage/delta", thread, itemId="answer", delta="Card staged before Stop.")
             (root / "stop-card-staged").touch()
         elif stage == "qo-clarify":
-            # Question only does not offer the clarifying question, so the tutor refuses it before the pane sees it.
-            refused(result, "This request is not available in the current learning question.")
+            # Question only does not offer the clarifying question, so the tutor refuses it before the pane sees it, with
+            # Windows' guidance-only text for its worksheet tools (ChatGPTTutor.cs:354, :365-369).
+            refused(result, "The analysis proposal could not be staged.")
             call(thread, "qo-bad", T_TEST, {"design": "paired maybe"}, slot)
         elif stage == "qo-bad":
             # Windows' guidance-only text for any refusal of the card's tool.
@@ -207,6 +208,10 @@ for line in sys.stdin:
             staged(result, DISTRIBUTION)
             call(thread, "qo-again", T_TEST, {}, slot)
         elif stage == "qo-again":
+            refused(result, "The analysis proposal could not be staged.")
+            # The card's own tool refused by the tutor before the pane sees it (a repeated call): the same text.
+            call(thread, "qo-repeat", T_TEST, {"design": "paired"}, slot, call_id="qo-card" + thread)
+        elif stage == "qo-repeat":
             refused(result, "The analysis proposal could not be staged.")
             finish(thread, "Decision card offered without workbook data.")
         elif stage in ("fixture-paired", "fixture-independent"):

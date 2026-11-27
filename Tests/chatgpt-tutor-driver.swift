@@ -74,7 +74,16 @@ import Foundation
         slow.cancel()
         do { _ = try await slow.value; fatalError("Stop during a tool result write was ignored") } catch is CancellationError {}
         precondition(slowSent && Date().timeIntervalSince(slowStart) >= 1.2)
+        // A question-only worksheet reply (Windows guidance-only): the tutor's refusals of Windows' worksheet tools take the
+        // reply's text, whatever the reason; other tools, and the learning replies above, keep the tutor's own texts.
+        let cardTool = [["type":"function","name":"statsdirect_choose_worksheet_t_test","description":"Offer the study-design card","inputSchema":["type":"object","properties":[String:Any](),"required":[String](),"additionalProperties":false]]] as [[String:Any]]
+        var cardCalls = 0
+        let masked = try await tutor.converse(context:"",messages:[["role":"user","text":"TOOL_MASKED"]],tools:cardTool + tools,toolHandler: { name,_ in
+            cardCalls += 1; precondition(name == "statsdirect_choose_worksheet_t_test"); return ["state":"awaiting_design"]
+        }, guidanceRefusal:"The analysis proposal could not be staged.")
+        precondition(cardCalls == 1 && masked.text == "Tool returned nine actual rows.")
         print("Dynamic tool round trip, allowlist, thread/turn correlation, duplicate rejection, running-tool cancellation and sent-result reporting passed")
+        print("Question-only worksheet replies refuse Windows' worksheet tools with the reply's text, and other tools and learning replies with the tutor's own")
         let limited = Task { try await tutor.converse(context:"",messages:[["role":"user","text":"LIMIT_TEST"]]) }
         do { _ = try await limited.value; fatalError("Usage limit not detected") }
         catch { precondition(error.localizedDescription.contains("allowance") && !error.localizedDescription.contains("SECRET")) }

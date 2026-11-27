@@ -9,6 +9,13 @@ signed_in = False
 sequence = 0
 tool_pending = {}
 tool_modes = {}
+# The tutor's refusals: its own texts, and the one a question-only worksheet reply gives Windows' worksheet tools.
+UNAVAILABLE = 'This request is not available in the current learning question.'
+REPEATED = 'Repeated request or tool limit reached. Continue with the results already supplied.'
+MASKED = 'The analysis proposal could not be staged.'
+REFUSALS = {'duplicate': REPEATED, 'foreign': UNAVAILABLE, 'wrongturn': UNAVAILABLE, 'unknown': UNAVAILABLE,
+            'masked-duplicate': MASKED, 'masked-wrongturn': MASKED, 'masked-clarify': MASKED, 'masked-propose': MASKED,
+            'masked-read': UNAVAILABLE, 'masked-unknown': UNAVAILABLE}
 lock = threading.Lock()
 def send(value):
     raw = json.dumps(value) + '\n'
@@ -62,8 +69,10 @@ for line in sys.stdin:
     if method is None:
         kind, thread, turn = tool_pending.pop(request['id'])
         success = request.get('result',{}).get('success',False)
-        assert success == (kind in ('valid','slow')), (kind,request)
+        assert success == (kind in ('valid','slow','masked-valid')), (kind,request)
         if kind == 'valid': assert json.loads(request['result']['contentItems'][0]['text'])['rows'] == 9
+        if kind == 'masked-valid': assert json.loads(request['result']['contentItems'][0]['text'])['state'] == 'awaiting_design', request
+        if kind in REFUSALS: assert request['result']['contentItems'][0]['text'] == REFUSALS[kind], (kind, request)
         if kind == 'large': assert 'too large' in request['result']['contentItems'][0]['text'], request
         if not tool_pending:
             notify('item/completed',{'threadId':thread,'turnId':turn,'item':{'id':'answer','type':'agentMessage','text':'Tool returned nine actual rows.'}})
@@ -164,6 +173,20 @@ for line in sys.stdin:
             for kind in ['valid','duplicate','foreign','wrongturn','unknown']:
                 tool_id = thread + '-' + kind
                 send({'id':tool_id,'method':'item/tool/call','params':{'threadId':'foreign' if kind=='foreign' else thread,'turnId':'wrong' if kind=='wrongturn' else turn,'callId':'same-call' if kind in ['valid','duplicate'] else kind,'tool':'shell' if kind=='unknown' else 'statsdirect_read_data','arguments':{'documentId':'worksheet'},'namespace':None}})
+            continue
+        if 'TOOL_MASKED' in text:
+            # A question-only worksheet reply: the card's tool once, then calls the tutor refuses before any handler sees them.
+            # Windows' three worksheet tools get the masked text whatever the reason; any other tool keeps the tutor's own.
+            calls = [('masked-valid', turn, 'card-call', 'statsdirect_choose_worksheet_t_test'),
+                     ('masked-duplicate', turn, 'card-call', 'statsdirect_choose_worksheet_t_test'),
+                     ('masked-wrongturn', 'wrong', 'card-other-turn', 'statsdirect_choose_worksheet_t_test'),
+                     ('masked-clarify', turn, 'clarify-call', 'statsdirect_clarify_worksheet_analysis'),
+                     ('masked-propose', turn, 'propose-call', 'statsdirect_propose_worksheet_analysis'),
+                     ('masked-read', 'wrong', 'read-other-turn', 'statsdirect_read_data'),
+                     ('masked-unknown', turn, 'shell-call', 'shell')]
+            for kind, *_ in calls: tool_pending[thread + '-' + kind] = (kind,thread,turn)
+            for kind, call_turn, call_id, tool in calls:
+                send({'id':thread + '-' + kind,'method':'item/tool/call','params':{'threadId':thread,'turnId':call_turn,'callId':call_id,'tool':tool,'arguments':{},'namespace':None}})
             continue
         if 'TOOL_CANCEL' in text:
             send({'id':'cancel-tool','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'cancel-call','tool':'statsdirect_read_data','arguments':{'documentId':'worksheet'}}})

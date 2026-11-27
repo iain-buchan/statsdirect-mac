@@ -114,6 +114,8 @@ struct WorksheetAIDistribution {
     init(kind: Kind, check: Check? = nil) { self.kind = kind; self.check = check }
 
     static let tool = "statsdirect_choose_worksheet_t_test"
+    /// Windows' guidance-only answer to any refusal of the card's tool (ChatGPTTutor.cs:369), which says nothing about the workbook.
+    static let questionOnlyRefusal = "The analysis proposal could not be staged."
     static var definition: [String: Any] {
         TutorTools.tool(tool, "Open the Help decision tree for a quantitative comparison. Omit design when the study design is unclear. Use paired for matched pairs and independent for two independent samples. The card considers the relevant counts and distributions locally. This tool shares no diagnostic data and runs no analysis.",
                         ["design": ["type": "string", "enum": ["paired", "independent"]]])
@@ -865,7 +867,7 @@ final class WorksheetAIChoiceButton: NSButton {
             handler = { name, args in
                 do { return try await stageCard(name, args) }
                 catch let stop as CancellationError { throw stop }
-                catch { throw ChatGPTTutor.Failure(message: "The analysis proposal could not be staged.") }
+                catch { throw ChatGPTTutor.Failure(message: WorksheetAIDistribution.questionOnlyRefusal) }
             }
         } else { handler = nil }
         // The tutor reports each result it sent; only then does a read join Data used and the reply's R data.
@@ -881,9 +883,11 @@ final class WorksheetAIChoiceButton: NSButton {
             defer { finishRequest(token) }
             do {
                 try context.check()
+                // Question only: the tutor's own refusals of the worksheet tools are masked as the handler's are.
                 let reply = try await viewer.chatGPTTutor.converse(context: reference,
                     messages: shared ? messages : unsharedMessages, tools: tools, purpose: .worksheet,
-                    progress: progress, toolHandler: handler, toolDelivered: delivered)
+                    progress: progress, toolHandler: handler, toolDelivered: delivered,
+                    guidanceRefusal: shared ? nil : WorksheetAIDistribution.questionOnlyRefusal)
                 try context.check()
                 chat.messages.append(["id": replyID, "role": "assistant", "text": reply.text, "rData": context.rData,
                                       "reads": Self.encode(context.reads)])

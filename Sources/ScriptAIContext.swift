@@ -25,17 +25,21 @@ struct WorksheetAIRead: Codable, Equatable {
         return String(decoding: letters.reversed(), as: UTF8.self)
     }
 
-    /// Adjacent columns read together become one A1 range ("A2:B10"); others are listed separately.
-    static func ranges(columns: [Int], firstRow: Int, lastRow: Int, headings: Bool) -> [String] {
-        var runs: [(Int, Int)] = []
-        for column in Set(columns).sorted() {
-            if let last = runs.last, column == last.1 + 1 { runs[runs.count - 1].1 = column } else { runs.append((column, column)) }
+    /// Adjacent columns become one A1 range ("A2:B10"); others are listed separately. The row-1 headings that travelled
+    /// as titles come first, as their own "(headings)" ranges, as on Windows.
+    static func ranges(columns: [Int], headingColumns: [Int], firstRow: Int, lastRow: Int) -> [String] {
+        func runs(_ columns: [Int]) -> [(Int, Int)] {
+            var runs: [(Int, Int)] = []
+            for column in Set(columns).sorted() {
+                if let last = runs.last, column == last.1 + 1 { runs[runs.count - 1].1 = column } else { runs.append((column, column)) }
+            }
+            return runs
         }
         func area(_ run: (Int, Int), _ top: Int, _ bottom: Int) -> String {
             let first = columnName(run.0) + String(top), last = columnName(run.1) + String(bottom)
             return first == last ? first : first + ":" + last
         }
-        return (headings ? runs.map { area($0, 1, 1) + " (headings)" } : []) + runs.map { area($0, firstRow, lastRow) }
+        return runs(headingColumns).map { area($0, 1, 1) + " (headings)" } + runs(columns).map { area($0, firstRow, lastRow) }
     }
 }
 
@@ -221,12 +225,19 @@ struct WorksheetAIRead: Codable, Equatable {
         rData += read.code + "\n"
         if let receipt=read.receipt, !reads.contains(receipt) { reads.append(receipt) }
     }
-    /// What a read sent, from the read's own result: with the header row on, the row-1 heading of every column read
-    /// travelled as its title (a blank heading as "Column X"), so row 1 of those columns is listed as "(headings)".
+    /// What a read sent, from the read's own result. With the header row on, each column's row-1 heading travelled as
+    /// its title; a blank heading sends only the stand-in "Column X", not a cell, so only real headings are listed as
+    /// "(headings)", as on Windows.
     static func receipt(_ result: [String:Any], used: [String:Any]?, workbook: String) -> WorksheetAIRead? {
         guard let sheet = result["sheet"] as? String, let first = result["firstRow"] as? Int, let last = result["lastRow"] as? Int,
-              let columns = (result["columns"] as? [[String:Any]])?.compactMap({ $0["index"] as? Int }), !columns.isEmpty else { return nil }
-        let headings = result["headerRow"] as? Bool == true
+              let read = result["columns"] as? [[String:Any]] else { return nil }
+        let columns = read.compactMap { $0["index"] as? Int }
+        guard !columns.isEmpty else { return nil }
+        let headingColumns = result["headerRow"] as? Bool == true ? read.compactMap { column -> Int? in
+            guard let index = column["index"] as? Int, let title = column["title"] as? String,
+                  title != "Column " + WorksheetAIRead.columnName(index) else { return nil }
+            return index
+        } : []
         var whole = false
         if let used, let count = used["columnCount"] as? Int, let usedColumns = used["columns"] as? [Int],
            let firstData = used["firstDataRow"] as? Int, let lastData = used["lastDataRow"] as? Int {
@@ -234,7 +245,7 @@ struct WorksheetAIRead: Codable, Equatable {
                 && first <= firstData && last >= lastData
         }
         return WorksheetAIRead(workbook: workbook, sheet: sheet,
-                               ranges: WorksheetAIRead.ranges(columns: columns, firstRow: first, lastRow: last, headings: headings),
+                               ranges: WorksheetAIRead.ranges(columns: columns, headingColumns: headingColumns, firstRow: first, lastRow: last),
                                partial: !whole)
     }
 }

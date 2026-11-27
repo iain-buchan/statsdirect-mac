@@ -2795,8 +2795,17 @@ The rehearsal on Windows source e6a147fc verified 879 engine inputs, all 21 upst
   - a click on the card was accepted before the selection report arrived.
 
   Codex's boundary case is now a check: two cells of 20,000 backslashes pass the grid's 50,000-character limit but come to 240,284 bytes with their R code.
+- A further review of the first commit, by four reviewers with different concerns, added these corrections in the third commit:
+  - Stop leaves the question in the composer, as on Windows.
+  - A send that cannot start keeps the clarifying card.
+  - An emptied workbook drops its card and its suggested methods.
+  - "(headings)" lists only real row-1 headings, not the "Column C" stand-in sent for a blank one.
+  - A new worksheet counts as empty while it loads.
+  - Only the receipt the app adds under a reply is styled and read as one, so a reply's own HTML cannot pass for a receipt.
+  - The instructions keep the Windows guards: ask only for non-confidential details, never ask for pasted data, and the per-method conditions.
+  - The checks now read each reply's own receipt and cover a stop after streamed text.
 - Checks on this Mac (macOS 27.2.1), in suites that compile this branch into a build of `54fc2954` (main with Codex's console page):
-  - the worksheet AI driver with its stand-in AI server, 63 checks (29 before);
+  - the worksheet AI driver with its stand-in AI server, 66 checks (29 before);
   - the tutor protocol suite, where a valid result is reported sent and a stopped tool or an oversized result is not;
   - Script AI 80 and Report AI 59;
   - on the first commit: Mac parity 21, analysis workflow 60, unified toolbar 181 and grid selection 18;

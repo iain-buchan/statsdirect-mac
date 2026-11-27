@@ -399,7 +399,13 @@ final class WorksheetAIChoiceButton: NSButton {
     /// An empty workbook is offered the example and the workbook Help. While a file is still loading, or before the
     /// page has reported, an opened file counts as having data and an untouched new sheet as empty.
     private func hasData(_ doc: Document) -> Bool {
-        if doc.pendingWorkbook != nil || doc.pendingCSV != nil { return true }
+        if let pending = doc.pendingCSV { return !pending.isEmpty }
+        if let pending = doc.pendingWorkbook {
+            // A file read by the engine brings cells or a snapshot; File ▸ New Worksheet brings an empty sheet.
+            return (pending["sheets"] as? [[String: Any]] ?? []).contains { sheet in
+                sheet["snapshot"] is String || !((sheet["cells"] as? [Any]) ?? []).isEmpty
+            }
+        }
         if let state = doc.aiWorksheet { return state.hasData }
         return doc.openedFileURL != nil || doc.gridVersion > 0 || doc.gridDirty
     }
@@ -499,16 +505,17 @@ final class WorksheetAIChoiceButton: NSButton {
     }
 
     /// Sends a question: one the user typed, or a fixed sentence from a button (the guidance question or a
-    /// clarification answer), which leaves the user's draft in the composer.
-    private func submit(_ question: String, typed: Bool) {
-        guard visible, !isBusy, !TutorPolicy.disabled, let workbook, let chat = conversation else { return }
-        guard !question.isEmpty else { showNotice("Enter a question for AI."); return }
-        guard question.count <= 8000 else { showNotice("Shorten the question to 8,000 characters."); return }
+    /// clarification answer), which leaves the user's draft in the composer. Returns whether it was sent.
+    @discardableResult
+    private func submit(_ question: String, typed: Bool) -> Bool {
+        guard visible, !isBusy, !TutorPolicy.disabled, let workbook, let chat = conversation else { return false }
+        guard !question.isEmpty else { showNotice("Enter a question for AI."); return false }
+        guard question.count <= 8000 else { showNotice("Shorten the question to 8,000 characters."); return false }
         guard viewer.chatGPTTutor.account != nil else {
             if !typed, input.string.isEmpty { input.string = question; chat.draft = question }
-            showNotice("Choose Use my ChatGPT first."); return
+            showNotice("Choose Use my ChatGPT first."); return false
         }
-        guard !chat.share || chat.confirmed else { showNotice("Check the workbook for person identifiers, then confirm before sending."); return }
+        guard !chat.share || chat.confirmed else { showNotice("Check the workbook for person identifiers, then confirm before sending."); return false }
         cancelAnalysis()
         clarification = nil
         let token = UUID()
@@ -583,7 +590,11 @@ final class WorksheetAIChoiceButton: NSButton {
                                           "incomplete": "true", "reads": reads])
                 }
                 if stopped {
-                    showNotice("Reply stopped.")
+                    // As on Windows, the question waits in the composer unless something else was typed since.
+                    if input.string.isEmpty, workbookID == workbook.id {
+                        input.string = question; chat.draft = question
+                        showNotice("Reply stopped. Your question is kept here.")
+                    } else { showNotice("Reply stopped.") }
                 } else {
                     showNotice(error.localizedDescription)
                     if input.string.isEmpty { input.string = question; chat.draft = question }
@@ -593,6 +604,7 @@ final class WorksheetAIChoiceButton: NSButton {
         chat.messages = messages
         showNotice(shared ? "Sending with the approved workbook…" : "Sending your question only…")
         render()
+        return true
     }
 
     @objc func stop() {
@@ -658,10 +670,13 @@ final class WorksheetAIChoiceButton: NSButton {
 
     private func render() {
         let latest = latestReply()
+        let empty = workbook.map { !hasData($0) } ?? false
+        // An emptied workbook drops its clarifying question and offers no methods, as on Windows.
+        if empty, clarification?.workbookID == workbookID { clarification = nil }
         openCode.isHidden = latest.map { ConversationRScript.blocks($0["text"] ?? "").isEmpty } ?? true
         openCode.isEnabled = !isBusy && !TutorPolicy.disabled
         for button in methods.arrangedSubviews { methods.removeArrangedSubview(button); button.removeFromSuperview() }
-        if !isBusy, offer == nil, let reply = latest?["text"] {
+        if !isBusy, offer == nil, !empty, let reply = latest?["text"] {
             let catalogue = viewer.worksheetAIMethods
             var seen = Set<String>()
             for id in WorksheetAIMarkers.read(reply).ids {
@@ -689,7 +704,6 @@ final class WorksheetAIChoiceButton: NSButton {
         if !partial.isEmpty {
             rows.append(["id": "pending", "role": "assistant", "text": WorksheetAIMarkers.read(partial).text, "pending": true])
         }
-        let empty = workbook.map { !hasData($0) } ?? false
         renderedEmpty = empty
         transcript.render(["generation": conversation?.generation ?? "", "messages": rows, "collapseR": true,
                            "introduction": empty ? "This workbook is empty."
@@ -710,6 +724,7 @@ final class WorksheetAIChoiceButton: NSButton {
         emptyRow.isHidden = !empty
         compareRow.isHidden = empty || card != nil
         clarifyBox.isHidden = card == nil
+        guidance.setAccessibilityLabel(empty ? "Getting started with a workbook" : card != nil ? "Analysis question" : "Choose a worksheet method")
         if let card {
             let question = NSTextField(wrappingLabelWithString: card.question)
             question.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-clarification-question")
@@ -722,7 +737,6 @@ final class WorksheetAIChoiceButton: NSButton {
                 button.choice = option.id
                 clarifyBox.addArrangedSubview(button)
             }
-            clarifyBox.setAccessibilityLabel(card.question)
         }
         guidance.isHidden = false
     }
@@ -757,9 +771,8 @@ final class WorksheetAIChoiceButton: NSButton {
         guard chat.share && chat.confirmed else {
             showNotice("Share this workbook again to answer, or type your full question."); return false
         }
-        clarification = nil
-        submit(option.answer, typed: false)
-        return true
+        // submit retires the card once the answer is on its way; a send it refuses keeps the card for another try.
+        return submit(option.answer, typed: false)
     }
 
     @objc private func askForGuidance() {

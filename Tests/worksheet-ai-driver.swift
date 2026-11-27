@@ -89,6 +89,29 @@ import WebKit
         try await toolbar(first, "worksheetAI")
         try await wait("Worksheet toolbar did not open AI Assist") { viewer.worksheetAI?.workbookID == first.id }
         let pane = viewer.worksheetAI!
+        // Windows pull request 40, engine-independent part: the live selection, the Data used receipt (headings, Stop
+        // and failure), Reply in progress, the clarifying card, the structure-only overview and the empty-workbook choices.
+        func grid(_ doc: Document, _ script: String) async throws {
+            _ = try await doc.web.callAsyncJavaScript(script + "; return true;", arguments: [:], in: nil, contentWorld: .page)
+        }
+        func exists(_ name: String) -> Bool { FileManager.default.fileExists(atPath: storage.appendingPathComponent(name).path) }
+        // A stack view detaches a hidden control only at its next layout pass, so "not shown" is hidden or absent.
+        func shown(_ id: String) -> Bool {
+            let found: NSView? = control(id, in: pane.view)
+            return found?.isHiddenOrHasHiddenAncestor == false
+        }
+        // The receipt under the latest reply only: its Data used lines, and whether it says no cells were read.
+        func lastReceipt() async -> (lines: [String], none: Bool) {
+            let value = (try? await pane.transcript.web.evaluateJavaScript("""
+                (() => { const rows = document.querySelectorAll('article.assistant'), last = rows[rows.length - 1];
+                  return last ? {lines: [...last.querySelectorAll(':scope > details[data-receipt] li')].map(item => item.textContent),
+                                 none: !!last.querySelector(':scope > .data-used-none')} : {lines: [], none: false}; })()
+                """)) as? [String: Any]
+            return ((value?["lines"] as? [String]) ?? [], value?["none"] as? Bool == true)
+        }
+        func assistantRows() async -> Int {
+            (try? await pane.transcript.web.evaluateJavaScript("document.querySelectorAll('article.assistant').length")) as? Int ?? -1
+        }
         try check(pane.share.state == .off && pane.confirm.state == .off, "worksheet sharing starts off")
         let second = try await openWorkbook(in: "Workbook B", value: "281593")
         try check(pane.workbookID == second.id && pane.share.state == .off, "opening a workbook follows it without authorising it")
@@ -227,8 +250,8 @@ import WebKit
             return (await text(pane)).contains("General guidance without workbook data.")
         }
         try check(true, "question-only payload omits workbook, data tools and earlier chat")
-        try check((await text(pane)).contains("General guidance · No worksheet cells read for this reply"),
-                  "a reply that read no cells says so under it")
+        let questionOnlyReceipt = await lastReceipt()
+        try check(questionOnlyReceipt.none && questionOnlyReceipt.lines.isEmpty, "a reply that read no cells says so under it")
 
         // Markers wherever a real reply puts them: after a sentence, in a list item, in backticks; never inside code.
         let cases: [(String, String, [String])] = [
@@ -266,35 +289,6 @@ import WebKit
                   && code?.contains("# [[method:TPaired]] stays in code") == true,
                   "a marker inside a sentence or in backticks is not shown, still offers its method, and code keeps its text")
 
-        // Windows pull request 40, engine-independent part: the live selection, the Data used receipt (headings, Stop
-        // and failure), Reply in progress, the clarifying card, the structure-only overview and the empty-workbook choices.
-        func grid(_ doc: Document, _ script: String) async throws {
-            _ = try await doc.web.callAsyncJavaScript(script + "; return true;", arguments: [:], in: nil, contentWorld: .page)
-        }
-        func exists(_ name: String) -> Bool { FileManager.default.fileExists(atPath: storage.appendingPathComponent(name).path) }
-        func receiptLines() async -> [String] {
-            (try? await pane.transcript.web.evaluateJavaScript("""
-                (() => { const all = [...document.querySelectorAll('details[data-receipt]')], last = all[all.length - 1];
-                  return last ? [...last.querySelectorAll('li')].map(item => item.textContent) : []; })()
-                """)) as? [String] ?? []
-        }
-        // A stack view detaches a hidden control only at its next layout pass, so "not shown" is hidden or absent.
-        func shown(_ id: String) -> Bool {
-            let found: NSView? = control(id, in: pane.view)
-            return found?.isHiddenOrHasHiddenAncestor == false
-        }
-        // The receipt under the latest reply only: its Data used lines, and whether it says no cells were read.
-        func lastReceipt() async -> (lines: [String], none: Bool) {
-            let value = (try? await pane.transcript.web.evaluateJavaScript("""
-                (() => { const rows = document.querySelectorAll('article.assistant'), last = rows[rows.length - 1];
-                  return last ? {lines: [...last.querySelectorAll('details[data-receipt] li')].map(item => item.textContent),
-                                 none: !!last.querySelector('.data-used-none')} : {lines: [], none: false}; })()
-                """)) as? [String: Any]
-            return ((value?["lines"] as? [String]) ?? [], value?["none"] as? Bool == true)
-        }
-        func assistantRows() async -> Int {
-            (try? await pane.transcript.web.evaluateJavaScript("document.querySelectorAll('article.assistant').length")) as? Int ?? -1
-        }
         viewer.tabs.selectTabViewItem(first.item)
         try await wait("AI Assist did not return to workbook A") { pane.workbookID == first.id && !pane.isBusy }
         let beforeHeading = first.gridVersion
@@ -329,13 +323,12 @@ import WebKit
         try check(exists("overview-checked"), "the shared overview gives sheets, extents, column letters and the selection, but no headings or cell values")
         let overviewRead = try JSONSerialization.jsonObject(with: Data(contentsOf: storage.appendingPathComponent("overview-read.json"))) as? [String: Any]
         let headings = overviewRead?["headerRow"] as? Bool == true
-        if headings {
-            try check((overviewRead?["titles"] as? [String]) == ["Score", "Qzheading"], "the row-1 headings travel only as the titles of a bounded read")
-        }
-        let overviewLines = await receiptLines()
-        try check(overviewLines == ["Fictional.xlsx · Parametric · " + (headings ? "A1:B1 (headings), " : "") + "A2:B3 (part of the worksheet’s used range)"],
+        try check(headings && (overviewRead?["titles"] as? [String]) == ["Score", "Qzheading"],
+                  "the row-1 headings travel only as the titles of a bounded read")
+        let overviewLines = await lastReceipt().lines
+        try check(overviewLines == ["Fictional.xlsx · Parametric · A1:B1 (headings), A2:B3 (part of the worksheet’s used range)"],
                   "Data used lists the range read and the headings sent as titles: \(overviewLines)")
-        let summary = try await pane.transcript.web.evaluateJavaScript("document.querySelector('details[data-receipt] summary').textContent") as? String
+        let summary = try await pane.transcript.web.evaluateJavaScript("document.querySelector('article > details[data-receipt] > summary').textContent") as? String
         try check(summary == "Data used", "the receipt is a Data used disclosure under the reply")
 
         pane.input.string = "CLARIFY_A"
@@ -394,10 +387,24 @@ import WebKit
         try check(!pane.isBusy || pane.replyActivity.stringValue == "Stopping…", "Stop shows that the reply is stopping")
         try await wait("Stop did not end the reply") { !pane.isBusy }
         try check(pane.replyActivity.isHidden, "Reply in progress… goes when the reply is stopped")
-        let readLine = "Fictional.xlsx · Parametric · " + (headings ? "A1 (headings), " : "") + "A2 (part of the worksheet’s used range)"
-        let stoppedLines = await receiptLines()
+        let readLine = "Fictional.xlsx · Parametric · A1 (headings), A2 (part of the worksheet’s used range)"
+        let stoppedLines = await lastReceipt().lines
         try check((await text(pane)).contains("[Reply stopped before any text.]") && stoppedLines == [readLine],
                   "a reply stopped after a read but before any text keeps its Data used receipt: \(stoppedLines)")
+        try check(pane.input.string == "READ_STOP_A", "after Stop the question waits in the composer, as on Windows")
+
+        // Stopped after a sent read and some streamed text: the partial text keeps the receipt.
+        pane.input.string = "READ_TEXT_STOP_A"
+        pane.send()
+        try await wait("The fixture did not stream after its read") {
+            guard exists("text-streamed") else { return false }
+            return (await text(pane)).contains("Partial text after a read.")
+        }
+        pane.stop()
+        try await wait("Stop did not end the streamed reply") { !pane.isBusy }
+        let streamedLines = await lastReceipt().lines
+        try check((await text(pane)).contains("[Reply stopped before completion.]") && streamedLines == [readLine],
+                  "a reply stopped after a read and some text keeps its partial text and its receipt: \(streamedLines)")
 
         pane.input.string = "READ_FAIL_A"
         pane.send()
@@ -405,7 +412,7 @@ import WebKit
             guard !pane.isBusy else { return false }
             return (await text(pane)).contains("[No reply was received.]")
         }
-        let failedLines = await receiptLines()
+        let failedLines = await lastReceipt().lines
         try check(failedLines == [readLine] && pane.input.string == "READ_FAIL_A",
                   "a reply that fails after a read keeps its receipt and returns the question to the composer: \(failedLines)")
         pane.input.string = ""
@@ -461,6 +468,12 @@ import WebKit
         direct.delivered("statsdirect_read_data", held)
         direct.delivered("statsdirect_workspace", held)
         let heldID = held["datasetId"] as? String ?? "missing"
+        try check(WorksheetAIRead.ranges(columns: [3, 0, 1], headingColumns: [0, 3], firstRow: 2, lastRow: 5)
+                  == ["A1 (headings)", "D1 (headings)", "A2:B5", "D2:D5"]
+                  && ScriptAIContext.receipt(["sheet": "S", "firstRow": 2, "lastRow": 3, "headerRow": true,
+                                              "columns": [["index": 0, "title": "Before"], ["index": 2, "title": "Column C"]]],
+                                             used: nil, workbook: "W.xlsx")?.ranges == ["A1 (headings)", "A2:A3", "C2:C3"],
+                  "receipts group adjacent columns and list only real headings, not the Column X stand-in for a blank one")
         try check(direct.reads.map(\.line) == [readLine] && direct.rData.components(separatedBy: heldID).count == 2 && direct.rData.contains("142741"),
                   "once reported sent, the read joins Data used and the R data, once")
 
@@ -495,7 +508,10 @@ import WebKit
             let guide: NSButton? = control("worksheet-ai-help-choose", in: pane.view)
             return guide?.isHiddenOrHasHiddenAncestor == false
         }
-        try check(!(await text(pane)).contains("This workbook is empty."), "a workbook with data offers Help me choose a method and Choose a method")
+        let titled: NSButton? = control("worksheet-ai-help-choose", in: pane.view), chooser: NSButton? = control("worksheet-ai-choose-method", in: pane.view)
+        try check(!(await text(pane)).contains("This workbook is empty.") && titled?.title == "Help me choose a method"
+                  && chooser?.title == "Choose a method" && chooser?.isHiddenOrHasHiddenAncestor == false,
+                  "a workbook with data offers Help me choose a method and Choose a method")
         let guide: NSButton? = control("worksheet-ai-help-choose", in: pane.view)
         guide?.performClick(nil)
         try await wait("Help me choose a method did not send its question") {

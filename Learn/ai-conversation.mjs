@@ -27,7 +27,7 @@ function render(state){
   ?new Set(Array.from(messages.querySelectorAll('details[data-r-block][open]'),block=>block.dataset.rBlock))
   :new Set();
  const opened=state.generation===generation
-  ?new Set(Array.from(messages.querySelectorAll('details[data-receipt][open]'),block=>block.dataset.receipt))
+  ?new Set(Array.from(messages.querySelectorAll('article>details[data-receipt][open]'),block=>block.dataset.receipt))
   :new Set();
  generation=state.generation;
  const fragment=document.createDocumentFragment();

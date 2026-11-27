@@ -137,7 +137,7 @@ extension Viewer: WKScriptMessageHandler {
             if let error {
                 self.remove(doc)
                 self.showError("CSV import failed: " + error.localizedDescription)
-            } else { self.worksheetAI?.refreshWorksheetState(doc); self.didOpenDocument(doc); self.status.stringValue = "Opened " + doc.workbookName }
+            } else { doc.aiWorksheet = nil; self.worksheetAI?.refreshWorksheetState(doc); self.didOpenDocument(doc); self.status.stringValue = "Opened " + doc.workbookName }
         }
     }
     func saveGrid(_ doc: Document) {

@@ -20350,7 +20350,7 @@ ${content}</tr>
   function render3(state) {
     const reading = state.generation === generation ? conversationReading(messages) : null;
     const expanded = state.generation === generation && state.collapseR ? new Set(Array.from(messages.querySelectorAll("details[data-r-block][open]"), (block2) => block2.dataset.rBlock)) : /* @__PURE__ */ new Set();
-    const opened = state.generation === generation ? new Set(Array.from(messages.querySelectorAll("details[data-receipt][open]"), (block2) => block2.dataset.receipt)) : /* @__PURE__ */ new Set();
+    const opened = state.generation === generation ? new Set(Array.from(messages.querySelectorAll("article>details[data-receipt][open]"), (block2) => block2.dataset.receipt)) : /* @__PURE__ */ new Set();
     generation = state.generation;
     const fragment = document.createDocumentFragment();
     if (!state.messages.length) {

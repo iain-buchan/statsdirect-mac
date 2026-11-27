@@ -57,6 +57,11 @@ for line in sys.stdin:
             overview = json.loads(text)
             sheets = [s for d in overview["documents"] for s in d["worksheet"]["sheets"]]
             assert sheets and all("title" not in c for s in sheets for c in s["columns"]), overview
+            # ... and the structure the model needs: names, extents, column letters and the active sheet's selection.
+            assert all({"index", "name", "firstDataRow", "lastDataRow", "columnCount"} <= set(s) for s in sheets), overview
+            assert all(c.get("letter") for s in sheets for c in s["columns"]), overview
+            active = overview["documents"][0]["worksheet"]["activeSheet"]
+            assert "selection" in next(s for s in sheets if s["index"] == active), overview
             assert all(set(c) <= {"index", "letter", "withheld"} for s in sheets for c in s["columns"]), overview
             assert "Qzheading" not in text and "Score" not in text and "142741" not in text, text
             (root / "overview-checked").touch()
@@ -68,10 +73,21 @@ for line in sys.stdin:
             assert data["columns"][0]["values"][0] == "142741", data
             (root / "overview-read.json").write_text(json.dumps({"headerRow": data["headerRow"], "titles": [c["title"] for c in data["columns"]]}))
             finish(thread, "Overview checked for A.")
+        elif stage == "clarify-bad":
+            assert not result["success"] and "Choose goal, scale or design." in result["contentItems"][0]["text"], result
+            call(thread, "clarify", "statsdirect_clarify_worksheet_analysis", {"dimension": "goal"}, slot)
         elif stage == "clarify":
             assert result["success"], result
             assert json.loads(result["contentItems"][0]["text"])["state"] == "awaiting_clarification", result
+            call(thread, "clarify-again", "statsdirect_clarify_worksheet_analysis", {"dimension": "scale"}, slot)
+        elif stage == "clarify-again":
+            # One card per reply.
+            assert not result["success"] and "already waiting" in result["contentItems"][0]["text"], result
             finish(thread, "Which comparison do you need?")
+        elif stage == "text-stop":
+            assert result["success"], result
+            event("item/agentMessage/delta", thread, itemId="answer", delta="Partial text after a read.")
+            (root / "text-streamed").touch()
         elif stage == "read-stop":
             # A read that reached the provider, then no text: the test presses Stop.
             assert result["success"], result
@@ -119,6 +135,9 @@ for line in sys.stdin:
         for tool in params["dynamicTools"]:
             if tool["name"] == "statsdirect_workspace":
                 assert "no column headings" in tool["description"], tool
+        # The worksheet instructions the Mac sends: the clarification tool, the structure-only overview, no pasted data.
+        assert all(s in params["baseInstructions"] for s in ("statsdirect_clarify_worksheet_analysis",
+                                                             "but not column headings or cell values", "Never ask the user to paste")), params["baseInstructions"][:300]
         thread = f"worksheet-{len(threads) + 1}"
         threads[thread] = tools
         result = {"thread": {"id": thread}, "model": "worksheet-fixture"}
@@ -134,7 +153,7 @@ for line in sys.stdin:
         prompt = params["input"][0]["text"]
         assert not any(s in prompt for s in ("Data used", "(headings)", "part of the worksheet", "General guidance ·")), prompt
         if payload["conversation"][-1]["text"] not in ("READ_A", "READ_B", "FINISH_A", "STOP_A", "CLOSE_A", "OVERVIEW_A",
-                                                       "CLARIFY_A", "READ_STOP_A", "READ_FAIL_A", "READ_BIG_A", "READ_MIX_A", "HOLD_A",
+                                                       "CLARIFY_A", "READ_STOP_A", "READ_TEXT_STOP_A", "READ_FAIL_A", "READ_BIG_A", "READ_MIX_A", "HOLD_A",
                                                        "I want to compare means."):
             assert not threads[thread] and len(payload["conversation"]) == 1, payload
             # Question only: nothing about the workbook, its sheets, headings or selection.
@@ -167,10 +186,11 @@ for line in sys.stdin:
             call(thread, "overview", "statsdirect_workspace", {}, "A")
         elif question == "CLARIFY_A":
             assert "statsdirect_clarify_worksheet_analysis" in threads[thread], threads[thread]
-            call(thread, "clarify", "statsdirect_clarify_worksheet_analysis", {"dimension": "goal"}, "A")
-        elif question in ("READ_STOP_A", "READ_FAIL_A"):
+            call(thread, "clarify-bad", "statsdirect_clarify_worksheet_analysis", {"dimension": "colour"}, "A")
+        elif question in ("READ_STOP_A", "READ_TEXT_STOP_A", "READ_FAIL_A"):
             identities = json.loads((root / "workbooks.json").read_text())
-            call(thread, "read-stop" if question == "READ_STOP_A" else "read-fail", "statsdirect_read_data",
+            stage = {"READ_STOP_A": "read-stop", "READ_TEXT_STOP_A": "text-stop", "READ_FAIL_A": "read-fail"}[question]
+            call(thread, stage, "statsdirect_read_data",
                  {"documentId": identities["A"], "columns": [0], "firstRow": 2, "lastRow": 2}, "A")
         elif question == "READ_BIG_A":
             identities = json.loads((root / "workbooks.json").read_text())

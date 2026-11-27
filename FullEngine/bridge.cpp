@@ -24,6 +24,8 @@ static workbook_fn calculatorRequest = nullptr;
 static free_fn calculatorFree = nullptr;
 static workbook_fn rScriptRequest = nullptr;
 static free_fn rScriptFree = nullptr;
+static workbook_fn measurementRequest = nullptr;
+static free_fn measurementFree = nullptr;
 static std::once_flag initialized;
 static void initialize() {
     Dl_info location{};
@@ -75,6 +77,10 @@ static void initialize() {
     if (code < 0) rScriptRequest = nullptr;
     code = load(assembly.c_str(), "RScriptIO, StatsDirect.Headless", "Free", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&rScriptFree);
     if (code < 0) rScriptFree = nullptr;
+    code = load(assembly.c_str(), "MeasurementChecks, StatsDirect.Headless", "Invoke", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&measurementRequest);
+    if (code < 0) measurementRequest = nullptr;
+    code = load(assembly.c_str(), "MeasurementChecks, StatsDirect.Headless", "Free", UNMANAGEDCALLERSONLY_METHOD, nullptr, (void**)&measurementFree);
+    if (code < 0) measurementFree = nullptr;
 }
 extern "C" int statsdirect_paired_t(const double* before, const double* after, int count, double confidence, double* output, int capacity) {
     std::call_once(initialized, initialize);
@@ -126,3 +132,10 @@ extern "C" char* statsdirect_r_script(const char* request) {
     return rScriptRequest && rScriptFree ? rScriptRequest(request) : nullptr;
 }
 extern "C" void statsdirect_r_script_free(char* result) { if (rScriptFree) rScriptFree(result); }
+
+// The local check behind AI Assist's distribution cards: two selected columns' diagnostics and the card's lines (MeasurementChecks).
+extern "C" char* statsdirect_measurement_check(const char* request) {
+    std::call_once(initialized, initialize);
+    return measurementRequest && measurementFree ? measurementRequest(request) : nullptr;
+}
+extern "C" void statsdirect_measurement_check_free(char* result) { if (measurementFree) measurementFree(result); }

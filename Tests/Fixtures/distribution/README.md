@@ -1,0 +1,9 @@
+Base-R fixtures for the local measurement check of AI Assist's distribution cards (Windows 5.3.22, pull requests 40–42). They are Codex's preflight of 27 November 2026, copied unchanged: the oracle `distribution-oracle.R`, the calibrated paired fence multipliers it reads (`paired-outlier-fence.csv`, identical to Windows `tests/Learning/paired-outlier-fence.csv`), and the four tables it writes (`paired-input.tsv`, `paired-expected.tsv`, `independent-input.tsv`, `independent-expected.tsv`). R 4.6.1 on this Mac regenerated all four tables byte for byte. The values are fictional or the bundled PEFR example; there is no participant data.
+
+The oracle has 26 paired cases (pair alignment, the Shapiro–Wilk decision near 0.05, the calibrated fences at 8 and 100 pairs, the 100/101 transition, strict outer fences, the 0.1% far-out rate, shape warnings and finite extreme values) and five independent ones, and checks that an overflowing difference is refused. Paired differences are the first column minus the second; an empty field is a missing value or an unavailable statistic. Its header names Windows `6460e327`; the Windows sources the check copies are unchanged from there to the 5.3.22 candidate `16b65e3d`.
+
+`Tests/test_measurement_check.py` runs every case through the engine's `statsdirect_measurement_check` entry and, when R is installed, regenerates the tables in a temporary folder and requires them to be identical to these. To regenerate them here, run this from this folder:
+
+    Rscript --vanilla distribution-oracle.R .
+
+Run the script by its bare name from its own folder: it finds the fence table beside itself through Rscript's `--file` argument, which cannot hold a space. It writes its inputs with R's default 15 significant digits, so the engine computes on those rounded values; the test compares with the preflight's tolerance, 2e-10 relative to the expected value (absolute below 1).

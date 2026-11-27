@@ -1,0 +1,6 @@
+case	n1	W1	P1	n2	W2	P2	large	allowedWhenSeparate
+uneven_missing	5	0.962224613489161	0.823383596821918	3	1	0.999999999999993	FALSE	normal,non-normal
+n101_n4	101			4	0.952784022081107	0.733541472148277	FALSE	normal,non-normal
+n101_n100	101			100	0.999562922527547	0.999999999999914	FALSE	normal,non-normal
+n101_n101	101			101			TRUE	large,non-normal
+constant_and_empty	4			0			FALSE	normal,non-normal

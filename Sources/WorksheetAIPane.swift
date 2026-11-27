@@ -256,6 +256,7 @@ final class WorksheetAIChoiceButton: NSButton {
     private let methods = NSStackView()
     private let offerLabel = NSTextField(wrappingLabelWithString: "")
     private let offerDetails = NSTextField(wrappingLabelWithString: "")
+    private let proceed = NSButton(title: "Continue", target: nil, action: nil)
     private let changeSample = NSButton(title: "Change sample choice", target: nil, action: nil)
     private let offerPanel = NSStackView()
     private let openCode = NSButton(title: "Open in R", target: nil, action: nil)
@@ -274,6 +275,11 @@ final class WorksheetAIChoiceButton: NSButton {
     /// selection has been read for it.
     private(set) var distribution: (card: WorksheetAIDistribution, workbookID: String)?
     private var offerOrigin: OfferOrigin?
+    /// Set when a choice on the distribution card, Change sample choice or Continue is taken with the keyboard focus on
+    /// it: whatever is drawn in its place (the next card once it has been read, the method offer, the card again, or the
+    /// general choices) takes the focus on its first button, as Windows' page moves it (Learning/conversation.mjs:112,
+    /// :227). Cleared once that is drawn, or when a question is sent.
+    private var cardFocus = false
     /// The token every answer button of the current card carries.
     private(set) var guidanceToken = UUID().uuidString
     /// The exact selection, sheet and revisions the current token was issued for (worksheetAISelection, as JSON). A click
@@ -289,6 +295,12 @@ final class WorksheetAIChoiceButton: NSButton {
     var isBusy: Bool { task != nil }
     var isFocused: Bool {
         visible && (viewer.window.firstResponder as? NSView)?.isDescendant(of: view) == true
+    }
+    /// Whether the keyboard focus is where a card left it: on its choices or the offer, or on the window itself once the
+    /// focused button has gone with what it was on. Focus the user has since put elsewhere is not taken back.
+    private var focusLeftOnCard: Bool {
+        guard let responder = viewer.window.firstResponder, responder !== viewer.window else { return true }
+        return (responder as? NSView).map { $0.isDescendant(of: guidance) || $0.isDescendant(of: offerPanel) } ?? false
     }
 
     init(viewer: Viewer) {
@@ -337,7 +349,7 @@ final class WorksheetAIChoiceButton: NSButton {
         replyActivity.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let actions = NSStackView(views: [sendButton, stopButton, replyActivity])
         actions.detachesHiddenViews = true
-        let proceed = NSButton(title: "Continue", target: self, action: #selector(continueAnalysis))
+        proceed.target = self; proceed.action = #selector(continueAnalysis)
         let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelAnalysis))
         proceed.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-continue")
         offerLabel.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-confirmation")
@@ -487,6 +499,7 @@ final class WorksheetAIChoiceButton: NSButton {
         guard workbookID != id else { updateControls(); return }
         conversation?.draft = input.string
         workbookID = id
+        cardFocus = false
         clarification = nil
         distribution = nil
         if conversations[id] == nil { conversations[id] = Conversation() }
@@ -676,6 +689,7 @@ final class WorksheetAIChoiceButton: NSButton {
     @objc func hide() {
         guard visible else { return }
         conversation?.draft = input.string
+        cardFocus = false
         cancelAnalysis()
         distribution = nil
         width = view.frame.width
@@ -720,6 +734,7 @@ final class WorksheetAIChoiceButton: NSButton {
 
     @objc private func newConversation() {
         guard let chat = conversation, !isBusy else { return }
+        cardFocus = false
         cancelAnalysis()
         clarification = nil
         distribution = nil
@@ -783,6 +798,8 @@ final class WorksheetAIChoiceButton: NSButton {
             showNotice("Choose Use my ChatGPT first."); return false
         }
         guard !chat.share || chat.confirmed else { showNotice("Check the workbook for person identifiers, then confirm before sending."); return false }
+        // As on Windows, the focus does not follow a card across a reply.
+        cardFocus = false
         cancelAnalysis()
         clarification = nil
         distribution = nil
@@ -1017,16 +1034,21 @@ final class WorksheetAIChoiceButton: NSButton {
 
     /// One card at a time, as on Windows, and none while a reply runs or a method waits for confirmation.
     private func renderGuidance() {
-        // Drawing the card again (a new token) must not drop the keyboard focus on one of its answers.
+        // Drawing the card again (a new token) must not drop the keyboard focus on one of its answers, and focus on a card
+        // that goes passes to whatever is drawn in its place.
         let focused = (viewer.window.firstResponder as? WorksheetAIChoiceButton).flatMap {
             $0.isDescendant(of: clarifyBox) || $0.isDescendant(of: distributionBox) ? $0.choice : nil
         }
+        let follows = focused != nil || cardFocus && focusLeftOnCard
         for box in [clarifyBox, distributionBox] {
             for part in box.arrangedSubviews { box.removeArrangedSubview(part); part.removeFromSuperview() }
         }
+        // Nothing is drawn while an offer or a reply is shown: focus on a card that goes waits for the offer to take it. It
+        // does not follow a card across a reply, as on Windows.
         guard visible, !isBusy, offer == nil, !TutorPolicy.disabled, let workbook else {
             for part in [emptyRow, compareRow, clarifyBox, distributionBox] { part.isHidden = true }
             guidance.isHidden = true
+            if focused != nil, !isBusy { cardFocus = true }
             return
         }
         let empty = !hasData(workbook)
@@ -1039,7 +1061,7 @@ final class WorksheetAIChoiceButton: NSButton {
         distributionBox.isHidden = decision.map { $0.kind != .choose && $0.check == nil } ?? true
         guidance.setAccessibilityLabel(empty ? "Getting started with a workbook" : card != nil ? "Analysis question"
             : decision?.accessibilityLabel ?? "Choose a worksheet method")
-        if let decision, !distributionBox.isHidden { drawDistribution(decision, focused: focused) }
+        if let decision, !distributionBox.isHidden { drawDistribution(decision, focused: focused, follows: follows) }
         if let card {
             let question = NSTextField(wrappingLabelWithString: card.question)
             question.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-clarification-question")
@@ -1055,11 +1077,26 @@ final class WorksheetAIChoiceButton: NSButton {
             }
         }
         guidance.isHidden = [emptyRow, compareRow, clarifyBox, distributionBox].allSatisfy(\.isHidden)
+        // An interval card not yet read takes the focus when its reading is drawn.
+        guard !guidance.isHidden else { if focused != nil { cardFocus = true }; return }
+        // Focus that was on a card that has gone moves to the first of the general choices, as on Windows.
+        if follows, card == nil, decision == nil, let first = (empty ? emptyRow : compareRow).arrangedSubviews.first {
+            passCardFocus(to: first)
+        }
+        cardFocus = false
+    }
+
+    /// Gives the focus that was on a card to `target`, drawn in its place, once the target is in the window: a stack view
+    /// attaches a part shown again only when it next lays out.
+    private func passCardFocus(to target: NSView) {
+        if target.window == nil { view.layoutSubtreeIfNeeded() }
+        viewer.window.makeFirstResponder(target)
     }
 
     /// A distribution card as Windows lays it out (Learning/conversation.mjs): its paragraphs, the recommendation under
-    /// its heading, any feedback, then its choices, whose titles wrap to the card's width.
-    private func drawDistribution(_ card: WorksheetAIDistribution, focused: String?) {
+    /// its heading, any feedback, then its choices, whose titles wrap to the card's width. `follows`: the keyboard focus
+    /// was on the card, or on what this card replaces.
+    private func drawDistribution(_ card: WorksheetAIDistribution, focused: String?, follows: Bool) {
         func paragraph(_ text: String, _ id: String) -> NSTextField {
             let field = NSTextField(wrappingLabelWithString: text)
             field.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-distribution-" + id)
@@ -1091,14 +1128,16 @@ final class WorksheetAIChoiceButton: NSButton {
             button.widthAnchor.constraint(lessThanOrEqualTo: distributionBox.widthAnchor).isActive = true
             if choice == focused { restored = viewer.window.makeFirstResponder(button) }
         }
-        // As on Windows, focus that was on the card moves to its first choice when its own choice has gone.
-        if focused != nil, !restored, let first = distributionBox.arrangedSubviews.first(where: { $0 is WorksheetAIChoiceButton }) {
-            viewer.window.makeFirstResponder(first)
+        // As on Windows, focus that was on the card moves to its first choice when its own choice has gone, and so does focus
+        // that was on the card or offer this one replaces.
+        if follows, !restored, let first = distributionBox.arrangedSubviews.first(where: { $0 is WorksheetAIChoiceButton }) {
+            passCardFocus(to: first)
         }
     }
 
     @objc private func chooseCard(_ button: WorksheetAIChoiceButton) {
         let choice = button.choice, token = button.token
+        cardFocus = (viewer.window.firstResponder as? NSView)?.isDescendant(of: distributionBox) == true
         Task { @MainActor [weak self] in _ = await self?.answerCard(choice, token: token) }
     }
 
@@ -1272,6 +1311,9 @@ final class WorksheetAIChoiceButton: NSButton {
                     + "\nSelection: " + prepared.selectionLabel + "\nReport: " + prepared.reportTitle
                 showNotice("")
                 render()
+                // A branch taken with the keyboard leaves the focus on Continue, the offer's first button, as on Windows.
+                if cardFocus, focusLeftOnCard { passCardFocus(to: proceed) }
+                cardFocus = false
             } catch {
                 guard !Task.isCancelled else { return }
                 if let origin, guidanceToken == origin.token, distribution?.workbookID == workbook.id { distribution = nil; render() }
@@ -1282,6 +1324,7 @@ final class WorksheetAIChoiceButton: NSButton {
 
     @objc func continueAnalysis() {
         guard let offer, let workbook, !isBusy, !TutorPolicy.disabled else { return }
+        cardFocus = (viewer.window.firstResponder as? NSView)?.isDescendant(of: offerPanel) == true
         offerTask?.cancel()
         offerTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -1289,6 +1332,8 @@ final class WorksheetAIChoiceButton: NSButton {
                 try await viewer.continueWorksheetAIAnalysis(offer, for: workbook) {
                     !Task.isCancelled && self.visible && self.workbookID == workbook.id && self.offer?.id == offer.id
                 }
+                // The analysis opened has the focus.
+                cardFocus = false
                 cancelAnalysis()
             } catch {
                 if !Task.isCancelled { cancelAnalysis(); showNotice(error.localizedDescription) }
@@ -1305,6 +1350,7 @@ final class WorksheetAIChoiceButton: NSButton {
     }
 
     @objc private func changeSampleChoice() {
+        cardFocus = (viewer.window.firstResponder as? NSView)?.isDescendant(of: offerPanel) == true
         Task { @MainActor [weak self] in _ = await self?.changeSample() }
     }
 
@@ -1316,10 +1362,11 @@ final class WorksheetAIChoiceButton: NSButton {
               let shown = offer else { return false }
         let live = await selectionFingerprint(workbook)
         guard visible, !isBusy, !TutorPolicy.disabled, offer === shown, offerOrigin != nil, self.workbook === workbook else { return false }
-        cancelAnalysis()
+        // The card is drawn in the offer's place as the offer goes, so focus on the offer passes to it.
         var card = origin.card
         card.feedback = nil
         distribution = (card, workbook.id)
+        cancelAnalysis()
         if let live, live == origin.fingerprint {
             guidanceToken = UUID().uuidString
             guidanceFingerprint = live

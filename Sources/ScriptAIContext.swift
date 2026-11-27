@@ -1,5 +1,44 @@
 import Cocoa
 
+/// One bounded read of a worksheet, as AI Assist's local "Data used" receipt lists it: the workbook as the
+/// Document names it, the sheet, the ranges read (row-1 headings that travelled as column titles as a separate
+/// "(headings)" range) and whether the read covered less than the sheet's used range. It stays in the app.
+struct WorksheetAIRead: Codable, Equatable {
+    let workbook: String
+    let sheet: String
+    let ranges: [String]
+    let partial: Bool
+
+    /// "Fictional.xlsx · Parametric · A1:B1 (headings), A2:B10 (part of the worksheet’s used range)"
+    var line: String {
+        [workbook, sheet, ranges.joined(separator: ", ")].joined(separator: " · ") + (partial ? " (part of the worksheet’s used range)" : "")
+    }
+
+    static func columnName(_ index: Int) -> String {
+        var column = index + 1
+        var letters: [UInt8] = []
+        while column > 0 {
+            column -= 1
+            letters.append(65 + UInt8(column % 26))
+            column /= 26
+        }
+        return String(decoding: letters.reversed(), as: UTF8.self)
+    }
+
+    /// Adjacent columns read together become one A1 range ("A2:B10"); others are listed separately.
+    static func ranges(columns: [Int], firstRow: Int, lastRow: Int, headings: Bool) -> [String] {
+        var runs: [(Int, Int)] = []
+        for column in Set(columns).sorted() {
+            if let last = runs.last, column == last.1 + 1 { runs[runs.count - 1].1 = column } else { runs.append((column, column)) }
+        }
+        func area(_ run: (Int, Int), _ top: Int, _ bottom: Int) -> String {
+            let first = columnName(run.0) + String(top), last = columnName(run.1) + String(bottom)
+            return first == last ? first : first + ":" + last
+        }
+        return (headings ? runs.map { area($0, 1, 1) + " (headings)" } : []) + runs.map { area($0, firstRow, lastRow) }
+    }
+}
+
 /// Read-only, per-question access. No document names or contents enter the
 /// provider request until the pane has checked the user's sharing confirmation.
 @MainActor final class ScriptAIContext {
@@ -15,11 +54,17 @@ import Cocoa
     private let reportResultID: String?
     let rSource: String
     private(set) var rData = ""
+    /// AI Assist's rules (the Windows LearningInfo boundary): the overview gives the workbook's structure only, so row-1
+    /// headings and cell values travel only through the bounded read, and every read is recorded for the receipt.
+    let worksheetAssist: Bool
+    /// The bounded reads this question made, in order and without repeats (worksheetAssist only).
+    private(set) var reads: [WorksheetAIRead] = []
     private let active: () -> Bool
     init(viewer: Viewer, script: Document?, workbook: Document?, report: Document? = nil, reportResultID: String? = nil,
-         usesSessionConsent: Bool = true, active: @escaping () -> Bool) {
+         usesSessionConsent: Bool = true, worksheetAssist: Bool = false, active: @escaping () -> Bool) {
         self.rSource=script?.rConsolePane?.sourceText ?? (script?.rPane?.language == "R" ? script?.rPane?.editor.string ?? "" : "")
         self.consentRevision=usesSessionConsent ? viewer.aiSharing.revision : nil
+        self.worksheetAssist=worksheetAssist
         self.viewer=viewer; self.script=script; self.workbook=workbook; self.version=workbook?.gridVersion; self.active=active
         self.report=report; self.reportRevision=report?.reportRevision; self.reportResultID=reportResultID
         if let script, let pane=script.rConsolePane {
@@ -40,8 +85,12 @@ import Cocoa
         }.map { row in
             var tool=row
             switch tool["name"] as? String {
+            case "statsdirect_workspace" where worksheetAssist:
+                tool["description"]="List the approved workbook's sheets, their row and column extents, column letters and the current selection. It gives no column headings or cell values: read those with statsdirect_read_data. No unapproved documents are exposed."
             case "statsdirect_workspace": tool["description"]="List only documents approved for this question, with worksheet headings and selections. No unapproved documents are exposed."
             case "statsdirect_read_document": tool["description"]="Read the approved, fixed report or script/output snapshot. Returns explicit bounds and truncation. Does not read other documents, run R or alter content."
+            case "statsdirect_read_data" where worksheetAssist:
+                tool["description"]="Read cells from the approved workbook. Defaults to its selected or used range. Rows are 1-based worksheet numbers; columns and sheetIndex are 0-based. When the first row holds column names, each column's heading is returned as its title. Values preserve missing cells and their original text. At most 32 columns and 4,000 cells per read; never silently sampled. StatsDirect shows the user the ranges each reply read. No engine execution is available."
             case "statsdirect_read_data": tool["description"]="Read cells from the approved workbook. Defaults to its selected or used range. Rows are 1-based worksheet numbers; columns and sheetIndex are 0-based. Values preserve missing cells and their original text. At most 32 columns and 4,000 cells per read; never silently sampled. No engine execution is available."
             default: break
             }
@@ -66,9 +115,29 @@ import Cocoa
         if let workbook {
             let info=try await viewer.learningJavaScript(workbook,"window.statsDirectGrid.tutorInfo()")
             try check()
-            documents.append(["documentId":workbook.id,"title":workbook.title,"kind":"grid","worksheet":info])
+            documents.append(["documentId":workbook.id,"title":workbook.title,"kind":"grid","worksheet":worksheetAssist ? Self.structure(info) : info])
         }
         return ["documents":documents,"sharing":documents.isEmpty ? "Question and conversation only; no application documents are shared." : "Only the listed documents are shared for this question. Reports and script/output are fixed snapshots; workbook reads are bounded and reject content changes."]
+    }
+    /// The overview AI Assist sends: the fields named here and nothing else, so a field added to tutorInfo later
+    /// cannot leak headings. Column titles are left out; `withheld` (a heading that looks like a person identifier,
+    /// which the bounded read refuses) is kept, as it carries no heading text and stops a read that would fail.
+    static func structure(_ info: [String:Any]) -> [String:Any] {
+        let sheetKeys: Set<String> = ["index","name","hidden","firstDataRow","lastDataRow","columnCount","columnsTruncated","selection","range","noncontiguousRows"]
+        let sheets = (info["sheets"] as? [[String:Any]] ?? []).map { sheet -> [String:Any] in
+            var kept = sheet.filter { sheetKeys.contains($0.key) }
+            kept["columns"] = (sheet["columns"] as? [[String:Any]] ?? []).map { column -> [String:Any] in
+                var shown: [String:Any] = [:]
+                if let index = column["index"] { shown["index"] = index }
+                if let letter = column["letter"] { shown["letter"] = letter }
+                if column["withheld"] as? Bool == true { shown["withheld"] = true }
+                return shown
+            }
+            return kept
+        }
+        var structure: [String:Any] = ["sheets":sheets]
+        if let active = info["activeSheet"] { structure["activeSheet"] = active }
+        return structure
     }
     func context() async throws -> String {
         if report != nil { _ = try await readReport() }
@@ -112,11 +181,31 @@ import Cocoa
             guard let workbook, arguments["documentId"] as? String==workbook.id else { throw ChatGPTTutor.Failure(message:"That workbook was not approved for this question.") }
             var options=arguments; options.removeValue(forKey:"documentId")
             let json=String(decoding:try JSONSerialization.data(withJSONObject:options),as:UTF8.self)
-            var result=try await viewer.learningJavaScript(workbook,"window.statsDirectGrid.tutorData(\(json))")
+            guard worksheetAssist else {
+                var result=try await viewer.learningJavaScript(workbook,"window.statsDirectGrid.tutorData(\(json))")
+                try check()
+                result["datasetId"]=UUID().uuidString
+                let code=try ConversationRScript.dataset(result)
+                result["rCode"]=code; rData += code + "\n"
+                return result
+            }
+            // The sheet's used range comes from the same evaluation as the read, so the receipt's "part of the used range"
+            // agrees with the cells read. Only `data` is returned to the provider; `used` stays here.
+            let evaluated=try await viewer.learningJavaScript(workbook,"""
+                (() => { const grid = window.statsDirectGrid, data = grid.tutorData(\(json)), sheet = grid.tutorInfo().sheets[data.sheetIndex];
+                  return {data, used: {firstDataRow: sheet.firstDataRow, lastDataRow: sheet.lastDataRow, columnCount: sheet.columnCount, columns: sheet.columns.map(c => c.index)}}; })()
+                """)
             try check()
+            guard var result=evaluated["data"] as? [String:Any] else { throw ChatGPTTutor.Failure(message:"The worksheet could not be read. Try again.") }
             result["datasetId"]=UUID().uuidString
             let code=try ConversationRScript.dataset(result)
             result["rCode"]=code; rData += code + "\n"
+            // ChatGPTTutor refuses a result over 200,000 bytes, so such a read is never sent and is not recorded.
+            if (try? JSONSerialization.data(withJSONObject:result,options:[.sortedKeys]).count).map({ $0 <= 200_000 }) == true,
+               let read=Self.receipt(result, used: evaluated["used"] as? [String:Any], workbook: workbook.openedFileURL?.lastPathComponent ?? workbook.title),
+               !reads.contains(read) {
+                reads.append(read)
+            }
             return result
         case "statsdirect_method_help":
             guard let operation=arguments["operation"] as? String, let path=viewer.analysisCatalog[operation]?["help"] as? String else { throw ChatGPTTutor.Failure(message:"Choose a documented StatsDirect method.") }
@@ -124,5 +213,21 @@ import Cocoa
             return ["operation":operation,"text":LearningWorkspace.plain(try String(contentsOf:file,encoding:.utf8)),"boundedExcerpt":true]
         default: throw ChatGPTTutor.Failure(message:"Unknown AI action.")
         }
+    }
+    /// What a read sent, from the read's own result: with the header row on, the row-1 heading of every column read
+    /// travelled as its title (a blank heading as "Column X"), so row 1 of those columns is listed as "(headings)".
+    static func receipt(_ result: [String:Any], used: [String:Any]?, workbook: String) -> WorksheetAIRead? {
+        guard let sheet = result["sheet"] as? String, let first = result["firstRow"] as? Int, let last = result["lastRow"] as? Int,
+              let columns = (result["columns"] as? [[String:Any]])?.compactMap({ $0["index"] as? Int }), !columns.isEmpty else { return nil }
+        let headings = result["headerRow"] as? Bool == true
+        var whole = false
+        if let used, let count = used["columnCount"] as? Int, let usedColumns = used["columns"] as? [Int],
+           let firstData = used["firstDataRow"] as? Int, let lastData = used["lastDataRow"] as? Int {
+            whole = count <= 32 && count == usedColumns.count && Set(usedColumns).isSubset(of: Set(columns))
+                && first <= firstData && last >= lastData
+        }
+        return WorksheetAIRead(workbook: workbook, sheet: sheet,
+                               ranges: WorksheetAIRead.ranges(columns: columns, firstRow: first, lastRow: last, headings: headings),
+                               partial: !whole)
     }
 }

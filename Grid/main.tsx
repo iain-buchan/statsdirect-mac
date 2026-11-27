@@ -13,6 +13,7 @@ import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
 import { tutorInfo, tutorData } from './tutor-data.mjs';
+import { aiWorksheetState } from './ai-selection.mjs';
 import { decodeSnapshot, encodeSnapshot } from './snapshot.mjs';
 import {analysisMetadata, columnValues, snapshotColumns, requestedSheet} from './analysis-source.mjs';
 import {planWriteBack} from './write-back.mjs';
@@ -214,6 +215,8 @@ function App() {
           firstRow: selection.rows.first() ?? null, lastRow: selection.rows.last() ?? null,
           range: selection.current?.range ?? null, ranges: selection.current?.rangeStack ?? []};
       },
+      // AI Assist's local view of the sheet: the selection as an A1 address and whether the workbook holds anything.
+      aiWorksheetState: () => aiWorksheetState(workbook, sheetIndex, selectionRef.current),
       analysisSource: () => analysisMetadata(workbook, sheetIndex, {columns: selectionRef.current.columns.toArray(), range: selectionRef.current.current?.range}),
       columnValues: (request: any) => columnValues(workbook, sheetIndex, request),
       snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),
@@ -294,12 +297,31 @@ function App() {
       renameWorkbook: (name: string) => { workbook.name = String(name); refresh(n => n + 1); },
       // A test hook: one cell's text through the store's paste path (one undo step); row 0 is the header row when the sheet has one.
       setCellText: ({col, row, text}: {col: number, row: number, text: string}) => { attempt(() => { if (store.paste(col, row, String(text))) changed(); }); },
+      // A test hook: selects one rectangle of 0-based cells, as a drag would.
+      selectCells: ({x, y, width, height}: {x: number, y: number, width: number, height: number}) => {
+        const next: GridSelection = {columns: CompactSelection.empty(), rows: CompactSelection.empty(), current: {cell: [x, y], range: {x, y, width, height}, rangeStack: []}};
+        selectionRef.current = next;
+        setSelection(next);
+      },
       setStatus: setMessage
     };
   });
   useEffect(() => {
     native('ready');
   }, []);
+  // AI Assist follows the selection and whether the workbook is empty. Drags change the selection on every pointer
+  // move, so the state is posted once it settles, and only when it differs from the last one posted. Edits, loads and
+  // sheet switches all change the revision or the sheet, so they are covered too. Nothing here reaches the provider.
+  const postedAIState = useRef('');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const state = aiWorksheetState(workbook, sheetIndex, selectionRef.current), key = JSON.stringify(state);
+      if (key === postedAIState.current) return;
+      postedAIState.current = key;
+      native('aiWorksheet', state);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [selection, sheetIndex, revision]);
   useEffect(() => {
     const handler = (event: ClipboardEvent) => {
       if ((event.target as HTMLElement)?.matches('input,textarea')) return;

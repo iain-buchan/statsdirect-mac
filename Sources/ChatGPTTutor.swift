@@ -67,7 +67,8 @@ final class ChatGPTTutor {
     ]
     private static let diagnosticTools: Set<String> = [
         "statsdirect_workspace", "statsdirect_read_data", "statsdirect_read_document",
-        "statsdirect_method_help", "statsdirect_run_analysis", "statsdirect_open_analysis"
+        "statsdirect_method_help", "statsdirect_run_analysis", "statsdirect_open_analysis",
+        "statsdirect_clarify_worksheet_analysis"
     ]
     private let writer = DispatchQueue(label:"com.statsdirect.tutor-writer")
     private var policyObserver: NSObjectProtocol?

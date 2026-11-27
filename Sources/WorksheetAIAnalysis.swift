@@ -13,6 +13,13 @@ enum WorksheetAIReportDestination: Equatable {
     }
 }
 
+/// The selection, its sheet, the workbook's revisions or "First row has column names" changed since the distribution card
+/// an offer was chosen on was read, so the card's check is not the evidence for the offer any more.
+struct WorksheetAICardChanged: LocalizedError {
+    static let message = "The workbook, selection, or report destination changed. Choose the method again."
+    var errorDescription: String? { Self.message }
+}
+
 /// The offer holds only local worksheet metadata. It is never sent to the provider.
 @MainActor final class WorksheetAIAnalysisOffer {
     let id = UUID().uuidString
@@ -21,6 +28,8 @@ enum WorksheetAIReportDestination: Equatable {
     let worksheetName: String
     let selectionLabel: String
     var reportTitle: String { destination.title }
+    /// The click fingerprint of the moment the selection was captured (Grid/ai-selection.mjs worksheetAISelection).
+    let fingerprint: String?
 
     fileprivate let methodID: String
     fileprivate let workbookID: String
@@ -30,8 +39,8 @@ enum WorksheetAIReportDestination: Equatable {
     fileprivate let destination: WorksheetAIReportDestination
     fileprivate var consumed = false
 
-    fileprivate init(method: WorksheetCommand, workbook: Document,
-                     selection: WorksheetAISelection, destination: WorksheetAIReportDestination) {
+    fileprivate init(method: WorksheetCommand, workbook: Document, selection: WorksheetAISelection, fingerprint: String?,
+                     destination: WorksheetAIReportDestination) {
         methodID = method.id
         methodTitle = method.title
         menuPath = (method.path + [method.label]).joined(separator: " › ")
@@ -41,6 +50,7 @@ enum WorksheetAIReportDestination: Equatable {
         worksheetName = selection.sheetName
         selectionLabel = selection.label
         self.selection = selection
+        self.fingerprint = fingerprint
         self.destination = destination
     }
 }
@@ -133,25 +143,32 @@ extension Viewer {
             throw ConversationRScript.Failure(message: "Choose an available method from Analyse.")
         }
         let destination = worksheetAIReportDestination
-        let (selection, _) = try await worksheetAIAnalysisSource(workbook, includeSource: false)
+        let (selection, fingerprint, _) = try await worksheetAIAnalysisSource(workbook, includeSource: false)
         guard selection.canOpenAnalysis else {
             throw ConversationRScript.Failure(message: "Select one rectangle, worksheet columns, or consecutive rows before choosing a method.")
         }
         guard destination == worksheetAIReportDestination else { throw worksheetAIAnalysisChanged }
-        return WorksheetAIAnalysisOffer(method: method, workbook: workbook, selection: selection, destination: destination)
+        return WorksheetAIAnalysisOffer(method: method, workbook: workbook, selection: selection, fingerprint: fingerprint,
+                                        destination: destination)
     }
 
-    func continueWorksheetAIAnalysis(_ offer: WorksheetAIAnalysisOffer, for workbook: Document,
+    /// Opens the offered method for the selection it was made for. `fingerprint`, for an offer chosen on a distribution card,
+    /// is the card's reading: a live fingerprint that differs, taken with the source the method is opened with, throws
+    /// WorksheetAICardChanged.
+    func continueWorksheetAIAnalysis(_ offer: WorksheetAIAnalysisOffer, for workbook: Document, fingerprint: String? = nil,
                                      isCurrent: () -> Bool) async throws {
         guard !offer.consumed, isCurrent() else { throw worksheetAIAnalysisChanged }
         offer.consumed = true
+        // An edit since a card's reading is that card's to show (its fingerprint holds both revisions), so it is checked below.
         guard offer.workbookID == workbook.id, offer.webID == ObjectIdentifier(workbook.web),
-              offer.gridVersion == workbook.gridVersion, offer.destination == worksheetAIReportDestination,
+              offer.gridVersion == workbook.gridVersion || fingerprint != nil, offer.destination == worksheetAIReportDestination,
               let method = worksheetAIMethods.first(where: { $0.id == offer.methodID }) else {
             throw worksheetAIAnalysisChanged
         }
-        let (selection, captured) = try await worksheetAIAnalysisSource(workbook, includeSource: true)
-        guard isCurrent(), offer.gridVersion == workbook.gridVersion, active?.kind != "grid" || active === workbook,
+        let (selection, live, captured) = try await worksheetAIAnalysisSource(workbook, includeSource: true)
+        guard isCurrent() else { throw worksheetAIAnalysisChanged }
+        if let fingerprint, live != fingerprint { throw WorksheetAICardChanged() }
+        guard offer.gridVersion == workbook.gridVersion, active?.kind != "grid" || active === workbook,
               window.attachedSheet == nil, NSApp.modalWindow == nil,
               let captured, selection == offer.selection, offer.destination == worksheetAIReportDestination else {
             throw worksheetAIAnalysisChanged
@@ -165,10 +182,11 @@ extension Viewer {
     }
 
     private var worksheetAIAnalysisChanged: ConversationRScript.Failure {
-        ConversationRScript.Failure(message: "The workbook, selection, or report destination changed. Choose the method again.")
+        ConversationRScript.Failure(message: WorksheetAICardChanged.message)
     }
 
-    private func worksheetAIAnalysisSource(_ workbook: Document, includeSource: Bool) async throws -> (WorksheetAISelection, [String: Any]?) {
+    /// The selection, with the click fingerprint the page took with it, and, for Continue, the source the analysis opens with.
+    private func worksheetAIAnalysisSource(_ workbook: Document, includeSource: Bool) async throws -> (WorksheetAISelection, String?, [String: Any]?) {
         guard workbook.kind == "grid", documents.contains(where: { $0 === workbook }), !workbook.fileBusy else {
             throw worksheetAIAnalysisChanged
         }
@@ -183,7 +201,7 @@ extension Viewer {
               workbook.gridVersion == version, !workbook.fileBusy, let value = value as? [String: Any],
               let selection = value["selection"] as? [String: Any] else { throw worksheetAIAnalysisChanged }
         let json = try JSONSerialization.data(withJSONObject: selection)
-        return (try JSONDecoder().decode(WorksheetAISelection.self, from: json), value["source"] as? [String: Any])
+        return (try JSONDecoder().decode(WorksheetAISelection.self, from: json), selection["fingerprint"] as? String, value["source"] as? [String: Any])
     }
 
     @discardableResult

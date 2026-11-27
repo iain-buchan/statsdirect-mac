@@ -84,6 +84,17 @@ export function selectionFingerprint(workbook, sheetIndex, selection) {
     columns: slices(selection?.columns), rows: slices(selection?.rows)});
 }
 
+// The selection AI Assist's method offer is made for and Continue checks (WorksheetAIAnalysis.swift WorksheetAISelection),
+// with the click fingerprint of the same moment: an offer chosen on a distribution card is held to the reading the card
+// showed, which "First row has column names" changes although the selection and both revisions do not.
+export function worksheetAISelection(workbook, sheetIndex, selection) {
+  return {sheet: sheetIndex, sheetName: workbook.sheets[sheetIndex].name, workbookRevision: workbook.revision,
+    sheetRevision: workbook.sheets[sheetIndex].store.version, columns: selection.columns.toArray(), rowCount: selection.rows.length,
+    firstRow: selection.rows.first() ?? null, lastRow: selection.rows.last() ?? null,
+    range: selection.current?.range ?? null, ranges: selection.current?.rangeStack ?? [],
+    fingerprint: selectionFingerprint(workbook, sheetIndex, selection)};
+}
+
 // The read columns whose row-1 cell holds text, with the header row on: their heading travelled as the column's
 // title. A blank one sends only the stand-in "Column X"; a real heading that reads "Column X" is still a heading.
 export function headingCells(workbook, sheetIndex, columns) {

@@ -1297,8 +1297,10 @@ final class WorksheetAIChoiceButton: NSButton {
                 let prepared = try await viewer.prepareWorksheetAIAnalysis(method, for: workbook)
                 guard !Task.isCancelled, visible, workbookID == workbook.id else { return }
                 if let origin {
-                    // The card the branch was chosen on must still be the one shown.
+                    // The card the branch was chosen on must still be the one shown, and the offer must be for the selection
+                    // it was read for: a change the page has not yet reported is read in the same call as the selection.
                     guard guidanceToken == origin.token, distribution?.workbookID == workbook.id else { return }
+                    guard prepared.fingerprint == origin.fingerprint else { returnToCard(origin, workbook); return }
                     distribution = nil
                     offerDetails.stringValue = ((origin.card.check?.diagnostics ?? []) + [origin.card.check?.advice[origin.branch] ?? ""])
                         .filter { !$0.isEmpty }.joined(separator: "\n")
@@ -1325,20 +1327,39 @@ final class WorksheetAIChoiceButton: NSButton {
     @objc func continueAnalysis() {
         guard let offer, let workbook, !isBusy, !TutorPolicy.disabled else { return }
         cardFocus = (viewer.window.firstResponder as? NSView)?.isDescendant(of: offerPanel) == true
+        // An offer chosen on a distribution card opens only for the reading the card showed.
+        let origin = offerOrigin
         offerTask?.cancel()
         offerTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await viewer.continueWorksheetAIAnalysis(offer, for: workbook) {
+                try await viewer.continueWorksheetAIAnalysis(offer, for: workbook, fingerprint: origin?.fingerprint) {
                     !Task.isCancelled && self.visible && self.workbookID == workbook.id && self.offer?.id == offer.id
                 }
                 // The analysis opened has the focus.
                 cardFocus = false
                 cancelAnalysis()
             } catch {
-                if !Task.isCancelled { cancelAnalysis(); showNotice(error.localizedDescription) }
+                guard !Task.isCancelled else { return }
+                if let origin, error is WorksheetAICardChanged { returnToCard(origin, workbook) }
+                else { cancelAnalysis(); showNotice(error.localizedDescription) }
             }
         }
+    }
+
+    /// An offer chosen on a distribution card whose selection, revisions or "First row has column names" have changed
+    /// since the card was read (Windows binds its proposal to the card's selection and version the same way,
+    /// frmSpreadsheetGear.WorksheetAnalysis.cs:27-35): the offer goes with the offer's refusal text, and the card is read
+    /// again for the live selection, as Change sample choice does after a change.
+    private func returnToCard(_ origin: OfferOrigin, _ workbook: Document) {
+        guard visible, workbookID == workbook.id, origin.workbookID == workbook.id else { cancelAnalysis(); return }
+        var card = origin.card
+        card.feedback = nil
+        distribution = (card, workbook.id)
+        cancelAnalysis()
+        issueGuidanceToken(changed: true)
+        render()
+        showNotice(WorksheetAICardChanged.message)
     }
 
     /// Cancel, and every other end of an offer: a method chosen on a distribution card takes the card with it.

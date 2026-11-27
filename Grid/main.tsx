@@ -13,7 +13,7 @@ import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
 import { tutorInfo, tutorData } from './tutor-data.mjs';
-import { aiWorksheetState, selectionFingerprint, headingCells } from './ai-selection.mjs';
+import { aiWorksheetState, selectionFingerprint, headingCells, worksheetAISelection } from './ai-selection.mjs';
 import { measurementColumns, measurementTransfer } from './measurement-columns.mjs';
 import { decodeSnapshot, encodeSnapshot } from './snapshot.mjs';
 import {analysisMetadata, columnValues, snapshotColumns, requestedSheet} from './analysis-source.mjs';
@@ -209,13 +209,8 @@ function App() {
       },
       tutorInfo: () => tutorInfo(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
       tutorData: (options: any = {}) => tutorData(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range},options),
-      worksheetAISelection: () => {
-        const selection = selectionRef.current;
-        return {sheet: sheetIndex, sheetName: workbook.sheets[sheetIndex].name, workbookRevision: workbook.revision,
-          sheetRevision: store.version, columns: selection.columns.toArray(), rowCount: selection.rows.length,
-          firstRow: selection.rows.first() ?? null, lastRow: selection.rows.last() ?? null,
-          range: selection.current?.range ?? null, ranges: selection.current?.rangeStack ?? []};
-      },
+      // The selection a method offer is made for, with the click fingerprint of the same moment (ai-selection.mjs).
+      worksheetAISelection: () => worksheetAISelection(workbook, sheetIndex, selectionRef.current),
       // AI Assist's local view of the sheet: the selection as an A1 address and whether the workbook holds anything.
       aiWorksheetState: () => aiWorksheetState(workbook, sheetIndex, selectionRef.current),
       aiSelectionFingerprint: () => selectionFingerprint(workbook, sheetIndex, selectionRef.current),

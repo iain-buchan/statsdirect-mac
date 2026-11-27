@@ -178,6 +178,36 @@ test('large output is bounded without discarding the full source script', () => 
   assert.equal(model.snapshot().outputText.endsWith('b'.repeat(64)), true);
 });
 
+test('a later command keeps as much of the previous output tail as fits', () => {
+  const textBudget = 64;
+  const model = new ConsoleModel({textBudget}), emit = session(model);
+  const lastLine = 'LAST LINE\n';
+  const output = 'x'.repeat(textBudget) + lastLine;
+  const command = 'cat(42)', laterOutput = '42\n';
+  emit('output', {stream: 'stdout', text: output});
+  assert.equal(model.snapshot().outputText, output.slice(-textBudget));
+
+  emit('inputEcho', {text: command, origin: 'console', prompt: '> '});
+  emit('output', {stream: 'stdout', text: laterOutput});
+  const tail = output.slice(-(textBudget - command.length - laterOutput.length));
+  assert.equal(model.snapshot().outputText, `${tail}\n> ${command}\n${laterOutput}`);
+  assert.equal(model.entries[0].stream, 'stdout');
+  assert.equal(model.trimmed, true);
+});
+
+test('trimming output keeps intact characters and retains an active question', () => {
+  const single = new ConsoleModel({textBudget: 4}), emitSingle = session(single);
+  emitSingle('output', {text: '🙂abc'});
+  assert.equal(single.snapshot().outputText, 'abc');
+
+  const model = new ConsoleModel({textBudget: 6}), emit = session(model);
+  emit('output', {text: 'ab🙂cd'});
+  emit('inputRequested', {requestId: 'q1', prompt: 'Q? '});
+  assert.equal(model.snapshot().outputText, 'cd\nQ? ');
+  assert.equal(model.requestId, 'q1');
+  assert.equal(model.trimmed, true);
+});
+
 test('an unanswered question is transcript data immediately and survives Stop or an R error', () => {
   for (const status of ['interrupted', 'error']) {
     const source = '# authored source only\n', model = new ConsoleModel(), emit = session(model, 0, status, source);

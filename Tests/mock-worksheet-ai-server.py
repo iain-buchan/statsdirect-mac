@@ -76,6 +76,18 @@ for line in sys.stdin:
             # A read that reached the provider, then no text: the test presses Stop.
             assert result["success"], result
             (root / "read-served").touch()
+        elif stage == "read-big":
+            # Two cells of 20,000 backslashes pass the grid's 50,000-character limit but encode, with rCode, to more than
+            # ChatGPTTutor's 200,000 bytes: the app sends a refusal, so nothing of them was shared.
+            assert not result["success"] and "too large" in result["contentItems"][0]["text"], result
+            finish(thread, "Big read refused.")
+        elif stage == "mix-ok":
+            assert result["success"], result
+            call(thread, "mix-big", "statsdirect_read_data",
+                 {"documentId": identities[slot], "columns": [3], "firstRow": 2, "lastRow": 3}, slot)
+        elif stage == "mix-big":
+            assert not result["success"] and "too large" in result["contentItems"][0]["text"], result
+            finish(thread, "Mixed reads.\n```r\nmean(2:4)\n```")
         elif stage == "read-fail":
             assert result["success"], result
             event("turn/completed", thread, turn={"id": "turn", "status": "failed", "error": {"message": "Fixture failure"}})
@@ -122,7 +134,7 @@ for line in sys.stdin:
         prompt = params["input"][0]["text"]
         assert not any(s in prompt for s in ("Data used", "(headings)", "part of the worksheet", "General guidance ·")), prompt
         if payload["conversation"][-1]["text"] not in ("READ_A", "READ_B", "FINISH_A", "STOP_A", "CLOSE_A", "OVERVIEW_A",
-                                                       "CLARIFY_A", "READ_STOP_A", "READ_FAIL_A", "HOLD_A",
+                                                       "CLARIFY_A", "READ_STOP_A", "READ_FAIL_A", "READ_BIG_A", "READ_MIX_A", "HOLD_A",
                                                        "I want to compare means."):
             assert not threads[thread] and len(payload["conversation"]) == 1, payload
             # Question only: nothing about the workbook, its sheets, headings or selection.
@@ -159,6 +171,14 @@ for line in sys.stdin:
         elif question in ("READ_STOP_A", "READ_FAIL_A"):
             identities = json.loads((root / "workbooks.json").read_text())
             call(thread, "read-stop" if question == "READ_STOP_A" else "read-fail", "statsdirect_read_data",
+                 {"documentId": identities["A"], "columns": [0], "firstRow": 2, "lastRow": 2}, "A")
+        elif question == "READ_BIG_A":
+            identities = json.loads((root / "workbooks.json").read_text())
+            call(thread, "read-big", "statsdirect_read_data",
+                 {"documentId": identities["A"], "columns": [3], "firstRow": 2, "lastRow": 3}, "A")
+        elif question == "READ_MIX_A":
+            identities = json.loads((root / "workbooks.json").read_text())
+            call(thread, "mix-ok", "statsdirect_read_data",
                  {"documentId": identities["A"], "columns": [0], "firstRow": 2, "lastRow": 2}, "A")
         elif question == "HOLD_A":
             pass  # nothing until the test presses Stop

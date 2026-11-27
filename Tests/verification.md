@@ -2772,3 +2772,33 @@ The rehearsal on Windows source e6a147fc verified 879 engine inputs, all 21 upst
 - Then, on Iain's word, the same signed app was tried with the real AI service, using only the bundled example workbook: five questions, one sharing the workbook. A question-only reply, its folded R code, Open in R, Run and Add output to report; a method suggested by a reply and its confirmation; a shared-workbook reply whose R paired t test agreed with StatsDirect's own (t = 4.9258, p = 0.001156); the pane staying with its workbook while a reply arrived and following the other workbook afterwards; Stop; and Run in this R session, which printed 42 from `print(x + 2)` after `x <- 40` in the same console.
 - That trial found one defect, corrected in this release before publication: one reply ended a sentence with `[[method:TPaired]]`, which was shown as text and offered no method. A marker was recognised only on a line of its own, as the instructions ask and as the stand-in server always writes it. Markers are now read wherever they stand outside fenced code, also in a list item or in backticks, and taken out of what is shown; code keeps its text (`Sources/WorksheetAIMarkers.swift`). The worksheet AI driver has ten cases for the reader and a stand-in reply with markers after a sentence, in backticks and inside code (29 checks; the new ones fail under the old rule). The first signed build was never published.
 - Not tested: macOS 14 and 26; the Add output to report button of the Rscript fallback on screen; RStudio (R.app was started by R+ from an empty worksheet); and what the 1.1.9 entry lists.
+
+## AI Assist: Windows pull request 40 without the distribution cards — 27 November 2026
+
+- An empty workbook shows "This workbook is empty." with **Open example workbook**, which opens `test.xlsx` as Help ▸ Example workbook does, and **Workbook help**. A workbook with data shows **Help me choose a method**, which sends "Help me choose a statistical method.", beside **Choose a method**. **Choose a method** keeps its Mac label: the shared Help (statisticalhelp pull request 24) keeps the Mac text, and the Windows label "Browse methods" waits for the Mac Help to be reconciled with Mac Codex.
+- Clarifying card:
+  - With the workbook shared and holding data, the assistant can ask for the goal, the outcome scale or the study design through the local tool `statsdirect_clarify_worksheet_analysis`. The question appears under its reply with the Windows answers, and choosing one sends its sentence with the conversation.
+  - A click is accepted only while the live grid has the selection, workbook revision and sheet revision the card was drawn for. A click that arrives before the page reports a new selection, or after a change its short caption does not show, is refused, and the card is drawn again.
+  - Question-only mode does not offer the tool: it sends no earlier messages, so an answer would arrive without its question.
+- A label under the workbook name follows the selection, for example "Selection: Parametric!A2:B5" or "Current cell: Parametric!B3". The grid page reports it once the selection settles, without marking the workbook as edited.
+- **Data used** under each reply lists the bounded reads whose results were sent: workbook, sheet and ranges. Row-1 headings sent as column titles are listed as their own "(headings)" range, and "(part of the worksheet’s used range)" marks a partial read. A reply that read nothing says "General guidance · No worksheet cells read for this reply".
+- A read joins Data used and the reply's R data only after ChatGPTTutor has handed its result to the ChatGPT process, as Windows pull request 44 does. A result refused as larger than 200,000 bytes, or held back because Stop came first, adds neither.
+  - A reply that stops or fails after a sent read keeps its receipt, as "[Reply stopped before any text.]" or "[No reply was received.]".
+  - A failed reply now keeps any partial text, as on Windows and in Script AI.
+  - Receipts are stored beside the message text, never in it, and the provider receives only role and text.
+- **Reply in progress…** shows beside **Stop** while a reply runs, and reads "Stopping…" after Stop until the reply has ended.
+- With sharing confirmed, the overview now gives the workbook's structure only, as Windows `LearningInfo` does: sheets, extents, column letters and the selection, with the flag on a heading that looks like a person identifier. Headings therefore travel only through the bounded read, whose receipt lists them. Script AI, Report AI and Learning keep their overview. Question-only mode is unchanged.
+- The worksheet instructions carry the Windows guidance on goal, scale, design, sample size and distribution, the rules on the current selection and on reading in each turn, the clarification tool, and a question-only paragraph.
+- Not here: the distribution cards, which wait for the Windows 5.3.22 tag (with `Parametric.ShapiroWilkDiagnostics` and `PairedOutlierFence.cs`) and the re-pin. They cover paired and independent samples, Wilcoxon above 100 pairs (Windows pull request 41) and the size-calibrated fence (pull request 42). A scratch build of the engine at Windows `34f61c44` compiled once `R/WorksheetRLauncher.cs` was excluded, and its Shapiro–Wilk agreed with R 4.6.1 within 4 ulps for W and 6.7e-15 for P.
+- Review. Mac Codex reviewed the first commit, `8dbb3a46`, and reproduced two faults in native runs, both corrected in the second commit:
+  - a read refused as too large still reached Open in R;
+  - a click on the card was accepted before the selection report arrived.
+
+  Codex's boundary case is now a check: two cells of 20,000 backslashes pass the grid's 50,000-character limit but come to 240,284 bytes with their R code.
+- Checks on this Mac (macOS 27.2.1), in suites that compile this branch into a build of `54fc2954` (main with Codex's console page):
+  - the worksheet AI driver with its stand-in AI server, 63 checks (29 before);
+  - the tutor protocol suite, where a valid result is reported sent and a stopped tool or an oversized result is not;
+  - Script AI 80 and Report AI 59;
+  - on the first commit: Mac parity 21, analysis workflow 60, unified toolbar 181 and grid selection 18;
+  - 225 JavaScript tests, 5 of them new for the selection label and the empty-workbook test.
+- Not tested: the real AI service; the narrow dock and VoiceOver on screen; macOS 14 and 26.

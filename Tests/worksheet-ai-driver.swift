@@ -283,6 +283,15 @@ import WebKit
             let found: NSView? = control(id, in: pane.view)
             return found?.isHiddenOrHasHiddenAncestor == false
         }
+        // The receipt under the latest reply only: its Data used lines, and whether it says no cells were read.
+        func lastReceipt() async -> (lines: [String], none: Bool) {
+            let value = (try? await pane.transcript.web.evaluateJavaScript("""
+                (() => { const rows = document.querySelectorAll('article.assistant'), last = rows[rows.length - 1];
+                  return last ? {lines: [...last.querySelectorAll('details[data-receipt] li')].map(item => item.textContent),
+                                 none: !!last.querySelector('.data-used-none')} : {lines: [], none: false}; })()
+                """)) as? [String: Any]
+            return ((value?["lines"] as? [String]) ?? [], value?["none"] as? Bool == true)
+        }
         func assistantRows() async -> Int {
             (try? await pane.transcript.web.evaluateJavaScript("document.querySelectorAll('article.assistant').length")) as? Int ?? -1
         }
@@ -339,16 +348,36 @@ import WebKit
                   && means?.isHiddenOrHasHiddenAncestor == false && general?.isHiddenOrHasHiddenAncestor != false,
                   "the assistant's clarifying question shows its fixed answers below the reply, in place of the general choices"
                   + " (\(question?.stringValue ?? "no question"); \(means?.title ?? "no means"); \(unsure?.title ?? "no unsure"); general shown: \(general?.isHiddenOrHasHiddenAncestor == false))")
+        try await wait("The card's selection was not read") { pane.guidanceFingerprint != nil }
+        // A click that arrives before the page reports a new selection, which it does once the selection settles.
+        let earlyToken = pane.guidanceToken
+        try await grid(first, "statsDirectGrid.selectCells({x:1,y:1,width:1,height:2})")
+        let early = await pane.answerClarification("means", token: earlyToken)
+        let earlyTranscript = await text(pane)
+        try check(!early && pane.clarification != nil && !pane.isBusy && !earlyTranscript.contains("I want to compare means."),
+                  "a click delivered before the page reports a new selection is refused against the live grid")
+        // Five areas read "A1,B1,C1,D1,…", so a change to the fifth leaves the caption, and the page, quiet.
+        try await grid(first, "statsDirectGrid.selectCells({x:0,y:0,width:1,height:1,stack:[1,2,3,4].map(x => ({x, y:0, width:1, height:1}))})")
+        try await wait("The five-area selection was not shown") { pane.selectionLabel.stringValue == "Selection: Parametric!A1,B1,C1,D1,…" }
+        try await wait("The card's selection was not read again") { pane.guidanceFingerprint != nil }
+        let captionToken = pane.guidanceToken
+        try await grid(first, "statsDirectGrid.selectCells({x:0,y:0,width:1,height:1,stack:[1,2,3,5].map(x => ({x, y:0, width:1, height:1}))})")
+        try await Task.sleep(for: .milliseconds(400))
+        try check(pane.guidanceToken == captionToken, "the page reports nothing for a change its short caption does not show")
+        let hidden = await pane.answerClarification("means", token: captionToken)
+        try check(!hidden && pane.clarification != nil && !pane.isBusy, "a click after a change the caption does not show is refused against the live grid")
         let staleToken = pane.guidanceToken
         try await grid(first, "statsDirectGrid.selectCells({x:0,y:1,width:1,height:3})")
         try await wait("A selection change did not retire the card's token") { pane.guidanceToken != staleToken }
-        try check(!pane.answerClarification("means", token: staleToken) && pane.clarification != nil && !pane.isBusy,
+        let afterSelection = await pane.answerClarification("means", token: staleToken)
+        try check(!afterSelection && pane.clarification != nil && !pane.isBusy,
                   "a late click on the card drawn before the selection changed is refused")
         let editToken = pane.guidanceToken, beforeEdit = first.gridVersion
         try await grid(first, "statsDirectGrid.setCellText({col:2,row:4,text:'5'})")
         try await wait("An edit did not retire the card's token") { first.gridVersion > beforeEdit && pane.guidanceToken != editToken }
-        try check(!pane.answerClarification("means", token: editToken) && pane.clarification != nil,
-                  "a late click on the card drawn before an edit is refused")
+        let afterEdit = await pane.answerClarification("means", token: editToken)
+        try check(!afterEdit && pane.clarification != nil, "a late click on the card drawn before an edit is refused")
+        try await wait("The card's selection was not read after the edit") { pane.guidanceFingerprint != nil }
         let current: NSButton? = control("worksheet-ai-choice-means", in: pane.view)
         current?.performClick(nil)
         try await wait("The chosen answer was not sent") {
@@ -381,6 +410,60 @@ import WebKit
                   "a reply that fails after a read keeps its receipt and returns the question to the composer: \(failedLines)")
         pane.input.string = ""
 
+        // Codex's boundary: two cells within the grid's character limit whose result exceeds the tutor's byte limit.
+        let beforeBig = first.gridVersion
+        _ = try await first.web.callAsyncJavaScript("""
+            const cell = '\\\\'.repeat(20000);
+            statsDirectGrid.setCellText({col:3,row:1,text:cell});
+            statsDirectGrid.setCellText({col:3,row:2,text:cell});
+            return true;
+            """, arguments: [:], in: nil, contentWorld: .page)
+        try await wait("The large cells did not settle") { first.gridVersion >= beforeBig + 2 }
+        pane.input.string = "READ_BIG_A"
+        pane.send()
+        try await wait("The refused read did not end its reply") {
+            guard !pane.isBusy else { return false }
+            return (await text(pane)).contains("Big read refused.")
+        }
+        let big = await lastReceipt()
+        try check(big.lines.isEmpty && big.none, "a read the tutor refuses as too large never appears in Data used: \(big.lines)")
+
+        // A read that was sent, then one refused as too large, in one reply: only the first counts, in Data used and in
+        // the R data that Open in R gives the reply's code.
+        pane.input.string = "READ_MIX_A"
+        pane.send()
+        try await wait("The mixed reply did not finish") {
+            guard !pane.isBusy else { return false }
+            return (await text(pane)).contains("Mixed reads.")
+        }
+        let mixed = await lastReceipt()
+        try check(mixed.lines == [readLine], "after a sent read and a refused one, Data used lists only the sent read: \(mixed.lines)")
+        _ = try await pane.transcript.web.evaluateJavaScript("""
+            (() => { const rows = document.querySelectorAll('article.assistant'), last = rows[rows.length - 1];
+              last.querySelector('details[data-r-block]').open = true; last.querySelector('[data-code=r]').click(); return true; })()
+            """)
+        try await wait("Open in R did not open the mixed reply's code") { viewer.active?.rConsolePane != nil && viewer.active !== first }
+        let mixedReview = viewer.active!
+        let mixedSource = mixedReview.rConsolePane?.sourceText ?? ""
+        try check(mixedSource.contains("142741") && !mixedSource.contains(String(repeating: "\\", count: 100)),
+                  "Open in R carries the sent read's values and none of the refused read's")
+        viewer.remove(mixedReview)
+        viewer.tabs.selectTabViewItem(first.item)
+        try await wait("AI Assist did not return to workbook A after Open in R") { pane.workbookID == first.id }
+
+        // The same boundary without a provider: a read waits until the tutor reports its result sent, as it does not
+        // when Stop comes first or the result is refused.
+        let direct = ScriptAIContext(viewer: viewer, script: nil, workbook: first, usesSessionConsent: false, worksheetAssist: true) { true }
+        let held = try await direct.call("statsdirect_read_data", ["documentId": first.id, "columns": [0], "firstRow": 2, "lastRow": 2])
+        try check(direct.reads.isEmpty && direct.rData.isEmpty,
+                  "a read made but not reported sent adds neither a Data used line nor R data")
+        direct.delivered("statsdirect_read_data", held)
+        direct.delivered("statsdirect_read_data", held)
+        direct.delivered("statsdirect_workspace", held)
+        let heldID = held["datasetId"] as? String ?? "missing"
+        try check(direct.reads.map(\.line) == [readLine] && direct.rData.components(separatedBy: heldID).count == 2 && direct.rData.contains("142741"),
+                  "once reported sent, the read joins Data used and the R data, once")
+
         let rowsBefore = await assistantRows()
         pane.input.string = "HOLD_A"
         pane.send()
@@ -403,7 +486,7 @@ import WebKit
             return pane.workbookID == blank.id && blank.pendingWorkbook == nil && example?.isHiddenOrHasHiddenAncestor == false
         }
         let workbookHelp: NSButton? = control("worksheet-ai-workbook-help", in: pane.view)
-        let browse: NSButton? = control("worksheet-ai-browse-methods", in: pane.view)
+        let browse: NSButton? = control("worksheet-ai-choose-method", in: pane.view)
         try check((await text(pane)).contains("This workbook is empty.") && workbookHelp?.isHiddenOrHasHiddenAncestor == false
                   && browse?.isHiddenOrHasHiddenAncestor != false && !shown("worksheet-ai-help-choose"),
                   "an empty workbook offers the example workbook and the workbook Help instead of method guidance")
@@ -412,7 +495,7 @@ import WebKit
             let guide: NSButton? = control("worksheet-ai-help-choose", in: pane.view)
             return guide?.isHiddenOrHasHiddenAncestor == false
         }
-        try check(!(await text(pane)).contains("This workbook is empty."), "a workbook with data offers Help me choose a method and Browse methods")
+        try check(!(await text(pane)).contains("This workbook is empty."), "a workbook with data offers Help me choose a method and Choose a method")
         let guide: NSButton? = control("worksheet-ai-help-choose", in: pane.view)
         guide?.performClick(nil)
         try await wait("Help me choose a method did not send its question") {

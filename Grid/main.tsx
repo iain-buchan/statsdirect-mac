@@ -297,9 +297,10 @@ function App() {
       renameWorkbook: (name: string) => { workbook.name = String(name); refresh(n => n + 1); },
       // A test hook: one cell's text through the store's paste path (one undo step); row 0 is the header row when the sheet has one.
       setCellText: ({col, row, text}: {col: number, row: number, text: string}) => { attempt(() => { if (store.paste(col, row, String(text))) changed(); }); },
-      // A test hook: selects one rectangle of 0-based cells, as a drag would.
-      selectCells: ({x, y, width, height}: {x: number, y: number, width: number, height: number}) => {
-        const next: GridSelection = {columns: CompactSelection.empty(), rows: CompactSelection.empty(), current: {cell: [x, y], range: {x, y, width, height}, rangeStack: []}};
+      // A test hook: selects one rectangle of 0-based cells, as a drag would, with any further rectangles of a
+      // Command-drag in `stack`.
+      selectCells: ({x, y, width, height, stack = []}: {x: number, y: number, width: number, height: number, stack?: any[]}) => {
+        const next: GridSelection = {columns: CompactSelection.empty(), rows: CompactSelection.empty(), current: {cell: [x, y], range: {x, y, width, height}, rangeStack: stack}};
         selectionRef.current = next;
         setSelection(next);
       },

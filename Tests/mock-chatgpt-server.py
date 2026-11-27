@@ -64,6 +64,7 @@ for line in sys.stdin:
         success = request.get('result',{}).get('success',False)
         assert success == (kind == 'valid'), (kind,request)
         if kind == 'valid': assert json.loads(request['result']['contentItems'][0]['text'])['rows'] == 9
+        if kind == 'large': assert 'too large' in request['result']['contentItems'][0]['text'], request
         if not tool_pending:
             notify('item/completed',{'threadId':thread,'turnId':turn,'item':{'id':'answer','type':'agentMessage','text':'Tool returned nine actual rows.'}})
             notify('turn/completed',{'threadId':thread,'turn':{'id':turn,'status':'completed'}})
@@ -166,6 +167,10 @@ for line in sys.stdin:
             continue
         if 'TOOL_CANCEL' in text:
             send({'id':'cancel-tool','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'cancel-call','tool':'statsdirect_read_data','arguments':{'documentId':'worksheet'}}})
+            continue
+        if 'TOOL_LARGE' in text:
+            tool_pending[thread + '-large'] = ('large',thread,turn)
+            send({'id':thread + '-large','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'large-call','tool':'statsdirect_read_data','arguments':{'documentId':'worksheet'}}})
             continue
         if 'LIMIT_TEST' in text:
             notify('turn/completed',{'threadId':thread,'turn':{'id':turn,'status':'failed','error':{'message':'Usage limit SECRET TOKEN'}}}); continue

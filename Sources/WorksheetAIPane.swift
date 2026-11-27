@@ -103,7 +103,7 @@ final class WorksheetAIChoiceButton: NSButton {
     let stopButton = NSButton(title: "Stop", target: nil, action: nil)
     let replyActivity = NSTextField(labelWithString: "Reply in progress…")
     let selectionLabel = NSTextField(wrappingLabelWithString: "")
-    let chooseMethod = NSButton(title: "Browse methods", target: nil, action: nil)
+    let chooseMethod = NSButton(title: "Choose a method", target: nil, action: nil)
     let helpChoose = NSButton(title: "Help me choose a method", target: nil, action: nil)
     let openExample = NSButton(title: "Open example workbook", target: nil, action: nil)
     let workbookHelp = NSButton(title: "Workbook help", target: nil, action: nil)
@@ -134,6 +134,9 @@ final class WorksheetAIChoiceButton: NSButton {
     private(set) var clarification: (card: WorksheetAIClarification, workbookID: String)?
     /// The token every answer button of the current card carries.
     private(set) var guidanceToken = UUID().uuidString
+    /// The exact selection, sheet and revisions the current token was issued for (worksheetAISelection, as JSON). A click
+    /// is accepted only while the live grid still matches it; until it has been read, clicks are refused.
+    private(set) var guidanceFingerprint: String?
     private var renderedEmpty = false
     private var expanded = true
     private(set) var visible = false
@@ -214,7 +217,7 @@ final class WorksheetAIChoiceButton: NSButton {
         openExample.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-open-example")
         workbookHelp.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-workbook-help")
         helpChoose.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-help-choose")
-        chooseMethod.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-browse-methods")
+        chooseMethod.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-choose-method")
         openExample.setAccessibilityHelp("Opens the bundled example workbook in a new tab.")
         workbookHelp.setAccessibilityHelp("Opens the Help topic about workbooks.")
         helpChoose.setAccessibilityHelp("Asks AI Assist to help choose a statistical method.")
@@ -356,10 +359,30 @@ final class WorksheetAIChoiceButton: NSButton {
         guard visible, doc.id == workbookID else { return }
         // A clarifying question belongs to the selection and contents it was asked about: a late click on its
         // previous buttons is refused, and the card is drawn again with a new token.
-        guidanceToken = UUID().uuidString
+        issueGuidanceToken()
         // The conversation is drawn again only when the workbook becomes empty or stops being empty (its introduction
         // changes); a selection change redraws only the label and the choices.
         if !hasData(doc) != renderedEmpty { render() } else { renderGuidance(); updateControls() }
+    }
+
+    /// A new token for the current card, with the live selection it belongs to read from the grid.
+    private func issueGuidanceToken() {
+        let token = UUID().uuidString
+        guidanceToken = token
+        guidanceFingerprint = nil
+        guard let doc = workbook, clarification?.workbookID == doc.id else { return }
+        Task { @MainActor [weak self] in
+            guard let self, let fingerprint = await self.selectionFingerprint(doc), self.guidanceToken == token else { return }
+            self.guidanceFingerprint = fingerprint
+        }
+    }
+
+    /// The grid's exact selection with its sheet and the workbook and sheet revisions, which every edit changes.
+    private func selectionFingerprint(_ doc: Document) async -> String? {
+        let web = doc.web
+        let value = try? await web.evaluateJavaScript("JSON.stringify(window.statsDirectGrid.worksheetAISelection())")
+        guard doc.web === web, viewer.documents.contains(where: { $0 === doc }) else { return nil }
+        return value as? String
     }
 
     /// Asks the page for its state when the pane has not heard from it: a workbook loaded before the pane opened, or a
@@ -523,6 +546,9 @@ final class WorksheetAIChoiceButton: NSButton {
                 return try await context.call(name, args)
             }
         } else { handler = nil }
+        // The tutor reports each result it sent; only then does a read join Data used and the reply's R data.
+        let delivered: ChatGPTTutor.ToolDelivery?
+        if shared { delivered = { name, value in context.delivered(name, value) } } else { delivered = nil }
         let progress: ChatGPTTutor.ProgressHandler = { [weak self] text in
             guard let self, self.acceptsRequest(token) else { return }
             self.partial = text
@@ -535,13 +561,13 @@ final class WorksheetAIChoiceButton: NSButton {
                 try context.check()
                 let reply = try await viewer.chatGPTTutor.converse(context: reference,
                     messages: shared ? messages : unsharedMessages, tools: tools, purpose: .worksheet,
-                    progress: progress, toolHandler: handler)
+                    progress: progress, toolHandler: handler, toolDelivered: delivered)
                 try context.check()
                 chat.messages.append(["id": replyID, "role": "assistant", "text": reply.text, "rData": context.rData,
                                       "reads": Self.encode(context.reads)])
                 if let card = staged.clarification, workbookID == workbook.id {
                     clarification = (card, workbook.id)
-                    guidanceToken = UUID().uuidString
+                    issueGuidanceToken()
                 }
                 showNotice("")
             } catch {
@@ -702,16 +728,32 @@ final class WorksheetAIChoiceButton: NSButton {
     }
 
     @objc private func chooseAnswer(_ button: WorksheetAIChoiceButton) {
-        _ = answerClarification(button.choice, token: button.token)
+        let choice = button.choice, token = button.token
+        Task { @MainActor [weak self] in _ = await self?.answerClarification(choice, token: token) }
     }
 
     /// Sends the fixed sentence of one answer to the current clarifying question. A token from an earlier card, a
-    /// changed workbook or sharing that has since been turned off refuses the click. Returns whether it was sent.
+    /// changed workbook or sharing that has since been turned off refuses the click. So does any difference between the
+    /// live grid and the selection and revisions the card was drawn for, as on Windows: the page reports a selection
+    /// only once it settles and only when its short caption changes, so a click can arrive before that report or after
+    /// a change the caption does not show. A refused card is drawn again with a new token. Returns whether it was sent.
     @discardableResult
-    func answerClarification(_ choice: String, token: String) -> Bool {
-        guard visible, !isBusy, !TutorPolicy.disabled, token == guidanceToken, let workbook, let chat = conversation,
-              let pending = clarification, pending.workbookID == workbook.id,
-              let option = pending.card.options.first(where: { $0.id == choice }) else { return false }
+    func answerClarification(_ choice: String, token: String) async -> Bool {
+        func current() -> (Document, WorksheetAIClarification.Option)? {
+            guard visible, !isBusy, !TutorPolicy.disabled, token == guidanceToken, let workbook, workbookID == workbook.id,
+                  let pending = clarification, pending.workbookID == workbook.id,
+                  let option = pending.card.options.first(where: { $0.id == choice }) else { return nil }
+            return (workbook, option)
+        }
+        guard let before = current(), let expected = guidanceFingerprint else { return false }
+        let live = await selectionFingerprint(before.0)
+        guard let after = current(), after.0 === before.0, let chat = conversation else { return false }
+        let option = after.1
+        guard live == expected else {
+            issueGuidanceToken()
+            renderGuidance()
+            return false
+        }
         guard chat.share && chat.confirmed else {
             showNotice("Share this workbook again to answer, or type your full question."); return false
         }

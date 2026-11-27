@@ -57,8 +57,10 @@ struct WorksheetAIRead: Codable, Equatable {
     /// AI Assist's rules (the Windows LearningInfo boundary): the overview gives the workbook's structure only, so row-1
     /// headings and cell values travel only through the bounded read, and every read is recorded for the receipt.
     let worksheetAssist: Bool
-    /// The bounded reads this question made, in order and without repeats (worksheetAssist only).
+    /// The bounded reads whose results ChatGPTTutor sent for this question, in order and without repeats (worksheetAssist only).
     private(set) var reads: [WorksheetAIRead] = []
+    /// Reads made but not yet reported sent, by datasetId: their R data and receipt join the reply only in delivered(_:_:).
+    private var pendingReads: [String:(code: String, receipt: WorksheetAIRead?)] = [:]
     private let active: () -> Bool
     init(viewer: Viewer, script: Document?, workbook: Document?, report: Document? = nil, reportResultID: String? = nil,
          usesSessionConsent: Bool = true, worksheetAssist: Bool = false, active: @escaping () -> Bool) {
@@ -197,15 +199,13 @@ struct WorksheetAIRead: Codable, Equatable {
                 """)
             try check()
             guard var result=evaluated["data"] as? [String:Any] else { throw ChatGPTTutor.Failure(message:"The worksheet could not be read. Try again.") }
-            result["datasetId"]=UUID().uuidString
+            let id=UUID().uuidString
+            result["datasetId"]=id
             let code=try ConversationRScript.dataset(result)
-            result["rCode"]=code; rData += code + "\n"
-            // ChatGPTTutor refuses a result over 200,000 bytes, so such a read is never sent and is not recorded.
-            if (try? JSONSerialization.data(withJSONObject:result,options:[.sortedKeys]).count).map({ $0 <= 200_000 }) == true,
-               let read=Self.receipt(result, used: evaluated["used"] as? [String:Any], workbook: workbook.openedFileURL?.lastPathComponent ?? workbook.title),
-               !reads.contains(read) {
-                reads.append(read)
-            }
+            result["rCode"]=code
+            // Held until ChatGPTTutor reports the result sent (as Windows does, pull request 44): a result it refuses as
+            // larger than 200,000 bytes, or holds back because Stop came first, adds neither R data nor a receipt line.
+            pendingReads[id]=(code, Self.receipt(result, used: evaluated["used"] as? [String:Any], workbook: workbook.openedFileURL?.lastPathComponent ?? workbook.title))
             return result
         case "statsdirect_method_help":
             guard let operation=arguments["operation"] as? String, let path=viewer.analysisCatalog[operation]?["help"] as? String else { throw ChatGPTTutor.Failure(message:"Choose a documented StatsDirect method.") }
@@ -213,6 +213,13 @@ struct WorksheetAIRead: Codable, Equatable {
             return ["operation":operation,"text":LearningWorkspace.plain(try String(contentsOf:file,encoding:.utf8)),"boundedExcerpt":true]
         default: throw ChatGPTTutor.Failure(message:"Unknown AI action.")
         }
+    }
+    /// ChatGPTTutor sent a tool result (its ToolDelivery). A worksheet read's R data and receipt now belong to the reply;
+    /// anything else, an unknown dataset or a repeat report, changes nothing.
+    func delivered(_ name: String, _ result: [String:Any]) {
+        guard name=="statsdirect_read_data", let id=result["datasetId"] as? String, let read=pendingReads.removeValue(forKey:id) else { return }
+        rData += read.code + "\n"
+        if let receipt=read.receipt, !reads.contains(receipt) { reads.append(receipt) }
     }
     /// What a read sent, from the read's own result: with the header row on, the row-1 heading of every column read
     /// travelled as its title (a blank heading as "Column X"), so row 1 of those columns is listed as "(headings)".

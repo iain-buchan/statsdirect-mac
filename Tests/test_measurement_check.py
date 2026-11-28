@@ -551,7 +551,8 @@ MIRRORS = {
             '''),
         ('ConfirmWorksheetAnalysis',
          "Sources/WorksheetAIPane.swift prepareAnalysis(_:from:) and OfferOrigin (the offer keeps the card's decision "
-         'and branch)', r'''
+         "and branch), and Sources/WorksheetAIAnalysis.swift WorksheetAIAnalysisOffer.design (a t test's design, for "
+         'Change design)', r'''
             private static WorksheetAction ConfirmWorksheetAnalysis(WorksheetAnalysisTarget source, WorksheetCommand command,
                 IntervalDecision interval = null, string intervalBranch = null)
             {
@@ -594,6 +595,24 @@ MIRRORS = {
             if (RefreshWorksheetGuidance() || changed) Render();
             var action = VisibleWorksheetAction;
             if (action == null || action.Token != token) return;
+            '''),
+        ("ChooseWorksheetAction's rule for another window in front",
+         'Sources/WorksheetAIPane.swift inFront, which answerCard, answerClarification, changeSample, backToDesign and '
+         'continueAnalysis call (refused with this notice, the card or offer kept); for the general choices, '
+         'chooseLocalMethod (it brings the workbook forward) and askForGuidance', r'''
+            // The pane stays with its workbook when an analysis brings a report forward.
+            // Asking for help or browsing can bring it back. Confirmation still requires it to be active.
+            if (main.ActiveMdiChild != grid && action.Kind == "compare" && choice is "browse" or "guide"
+                && !main.InOperation && !main.LearningCalculationRunning)
+            {
+                grid.Activate();
+                if (script != grid || !ReferenceEquals(action, VisibleWorksheetAction)) return;
+            }
+            if (!ReferenceEquals(main.ActiveMdiChild, grid))
+            {
+                status.Text = "Activate “" + WorksheetName + "” to continue this analysis.";
+                return;
+            }
             '''),
         ("ChooseWorksheetAction's paired and independent case", 'Sources/WorksheetAIPane.swift answerCard (paired, independent)', r'''
             case ("choose", "paired" or "independent"):
@@ -655,13 +674,16 @@ MIRRORS = {
                 return;
             '''),
         ("ChooseWorksheetAction's change case",
-         "Sources/WorksheetAIPane.swift cancelAnalysis (the Mac's offer has Cancel in place of Change design)", r'''
+         'Sources/WorksheetAIPane.swift backToDesign and changeDesignChoice (Change design on the offer of a paired or '
+         "unpaired t test that no card made, back to the study-design question; the Mac's offer also has Cancel, "
+         'cancelOffer)', r'''
             case ("confirm", "change") when action.Design != null:
                 worksheetAction = WithCurrentWorksheetSelection(new WorksheetAction("choose", action.Source));
                 break;
             '''),
         ("ChooseWorksheetAction's continue case",
-         'Sources/WorksheetAIPane.swift continueAnalysis and cancelAnalysis (the offer retired as the method opens) and '
+         'Sources/WorksheetAIPane.swift continueAnalysis (refused through inFront while another document is in front; the '
+         'method opened takes the keyboard focus) and cancelAnalysis (the offer retired as the method opens), and '
          'Sources/WorksheetAIAnalysis.swift continueWorksheetAIAnalysis (an offer used once)', r'''
             case ("confirm", "continue"):
                 // Retire the token before native controls can open a modal message loop.
@@ -671,8 +693,9 @@ MIRRORS = {
                 return;
             '''),
         ("ChooseWorksheetAction's other choices, and the status line after a choice",
-         'Sources/WorksheetAIPane.swift answerCard (a choice the card does not show is ignored; the notice line after a '
-         'choice)', r'''
+         'Sources/WorksheetAIPane.swift answerCard (a choice the card does not show is ignored; paired, independent, back '
+         "and check clear the notice line, and a branch's offer clears it as it is drawn), changeSample and backToDesign "
+         '(each clears it)', r'''
                     default:
                         return;
                 }
@@ -774,6 +797,59 @@ MIRRORS = {
                 worksheetAction = WithCurrentWorksheetSelection(stagedAnalysis, newCard: true);
                 Render();
             '''),
+        ('the viewport the pane scrolls in, and its layout',
+         "Sources/WorksheetAIPane.swift init (the scroll view, which never scrolls sideways) and reveal (what is drawn, "
+         'and the control the focus passes to, scrolled into view)', r'''
+            private readonly Panel viewport = new() { Dock = DockStyle.Fill, AutoScroll = true };
+            private readonly TableLayoutPanel layout = new() { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1, RowCount = 10, Padding = new Padding(8) };
+            '''),
+        ('the layout in the viewport', "Sources/WorksheetAIPane.swift init (the stack in the scroll view's content)", r'''
+            viewport.Controls.Add(layout); view.Controls.Add(viewport); view.Controls.Add(heading);
+            '''),
+        ("the dock's minimum length",
+         'Sources/WorksheetAIPane.swift keepNarrowest and narrowest (the pane kept at the narrowest the divider allows, 339 '
+         'points)', r'''
+            session = new ToolPaneSession(main, view, "Script AI", DockStyle.Right, 440, new Size(500, 760),
+                (floating, canDock) => { pop.Text = floating ? "Dock" : "Pop out"; pop.Enabled = !floating || canDock; }, () => Composer.Focus(), text => status.Text = text, minimumDockLength: 330);
+            '''),
+        ("FitContent's layout at least as tall as the viewport",
+         "Sources/WorksheetAIPane.swift init (the content at least the clip view's height, and equal to it at priority 251)", r'''
+            layout.MinimumSize = new Size(0, viewport.ClientSize.Height);
+            }
+            viewport.ClientSizeChanged += (_, _) => FitContent(); view.FontChanged += (_, _) => FitContent();
+            '''),
+    ),
+    'StatsDirectUI/UI/ToolWindows/ToolDockHost.cs': (
+        ('HostResized and FitLength (the dock keeps its minimum length in a smaller window)',
+         'Sources/WorksheetAIPane.swift keepNarrowest (the pane given back the narrowest width while the documents keep the '
+         "split delegate's 320 points)", r'''
+            private void HostResized(object sender, EventArgs e) { if (Panel.Visible) FitLength(); }
+            private void SplitterMoved(object sender, SplitterEventArgs e)
+            {
+                if (!sizing) preferredLength = edge == DockStyle.Bottom ? Panel.Height : Panel.Width;
+            }
+            private void FitLength()
+            {
+                sizing = true;
+                try
+                {
+                    int available = edge == DockStyle.Bottom
+                        ? host.ClientSize.Height - host.Controls.Cast<Control>().Where(c => c.Visible && c.Dock == DockStyle.Top).Sum(c => c.Height) - Divider.Height
+                        : host.ClientSize.Width - Divider.Width;
+                    available = Math.Max(0, available);
+                    // The drag limits must agree with the fitted size, including in a
+                    // small window at high DPI. Keep room for both tool and workspace.
+                    int minimum = Math.Min((int)(minimumLength * host.DeviceDpi / 96f), available / 2);
+                    Divider.MinSize = minimum;
+                    Divider.MinExtra = Math.Min((int)(240 * host.DeviceDpi / 96f), available / 2);
+                    int maximum = available - Divider.MinExtra;
+                    int length = Math.Clamp(preferredLength, minimum, maximum);
+                    if (edge == DockStyle.Bottom) Panel.Height = length;
+                    else Panel.Width = length;
+                }
+                finally { sizing = false; }
+            }
+            '''),
     ),
     'StatsDirectUI/UI/Learning/ChatGPTTutor.cs': (
         ('WorksheetTTestChoiceTool', 'Sources/WorksheetAIPane.swift WorksheetAIDistribution.tool and Sources/ChatGPTTutor.swift diagnosticTools', r'''
@@ -786,8 +862,8 @@ MIRRORS = {
             When a quantitative scale and a comparison of means are established and matching is unclear, use statsdirect_choose_worksheet_t_test without arguments to offer Same people or units and Separate groups. If the user asks which method to choose and the quantitative design is clear, set design to paired or independent for the corresponding decision card when size or distribution remains uncertain. The card can check a suitable selection locally. If the user seeks inference about the mean, explain that a rank-based method addresses a different question. The usual signed-rank location interpretation assumes symmetric differences. If the outcome scale or comparison goal is still unclear, follow the clarification instructions.
             '''),
         ("ToolCallAsync's gate, inside the try",
-         "Sources/ChatGPTTutor.swift toolCall (the gate's conditions; in a guidance-only reply, reject gives its "
-         "refusals of the worksheet tools the reply's text)", r'''
+         "Sources/ChatGPTTutor.swift toolCall (the gate's conditions; in a question-only reply, reject answers its refusals "
+         "through guidanceOnlyText: the reply's text for the worksheet tools, Windows' help text for any other)", r'''
             try
             {
                 string name = args.S("tool"), call = args.S("callId");
@@ -795,8 +871,8 @@ MIRRORS = {
                     throw new InvalidOperationException("This request is not available for this question.");
             '''),
         ("ToolCallAsync's text for a guidance-only error",
-         'Sources/WorksheetAIPane.swift submit (the question-only handler) and Sources/ChatGPTTutor.swift toolCall (its '
-         'refusals)', r'''
+         'Sources/WorksheetAIPane.swift submit (the question-only handler) and Sources/ChatGPTTutor.swift guidanceOnlyText '
+         "(for the gate's refusals and for the handler, size and JSON failures in toolCall's catch alike)", r'''
             catch (Exception ex)
             {
                 string error = ex is OperationCanceledException ? "Request stopped."
@@ -873,11 +949,20 @@ MIRRORS = {
               button(paired ? 'Non-normal differences' : 'Non-normal distributions within groups', 'non-normal');
               button('Change design', 'back');
             '''),
-        ('the method offer from a card', 'Sources/WorksheetAIPane.swift prepareAnalysis(_:from:) (offerDetails) and changeSample', r'''
+        ('the method offer, from a card or for a t test',
+         "Sources/WorksheetAIPane.swift prepareAnalysis(_:from:) (offerDetails; Change sample choice for a card's offer, "
+         "otherwise Change design for a t test's), changeSample and backToDesign", r'''
             for (const line of action.diagnostics ?? []) paragraph(line);
             if (action.intervalAdvice) paragraph(action.intervalAdvice);
             button('Continue to analysis', 'continue');
             if (action.intervalAdvice) button('Change sample choice', 'sample');
+            else if (action.choice === 'paired' || action.choice === 'independent') button('Change design', 'change');
+            '''),
+        ("the card's buttons after its paragraphs, and the card after the conversation",
+         "Sources/WorksheetAIPane.swift linkKeyViews (Tab meets a card's choices after the conversation, in the pane's "
+         'visual order)', r'''
+            section.append(actions);
+            container.append(section);
             '''),
         ("updateWorksheetAction's focus on the new card's first button",
          'Sources/WorksheetAIPane.swift drawDistribution (focus on a card drawn again stays on the card)', r'''

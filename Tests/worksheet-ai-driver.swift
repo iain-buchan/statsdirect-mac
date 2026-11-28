@@ -8,6 +8,16 @@ import WebKit
         fflush(stdout)
     }
 
+    /// A card's wording, which stays on this Mac (the mock's CARD_WORDS): its fixed texts, and the markers of the lines that carry
+    /// what was computed locally (each check's results, the conflict and advice texts, the recommendations), none of which occurs
+    /// in the instructions, the Help page sent as reference, the tool descriptions or the mock's replies.
+    static let cardWords = ["Local check found", "Suggested branch", "Review the differences", "Shape check ·", "Suggested · ",
+                            "Use these as separate samples", "Change sample choice", "is not numeric",
+                            "Shapiro–Wilk W =", "Column 1: n =", "Column 2: n =", "Selected columns, if they hold", "The local check found",
+                            "This branch assumes", "compares relative ordering", "The signed-rank test concerns",
+                            "The large-sample branch recommends", "The Help routes large", "The unpaired t test compares means",
+                            "Shapiro–Wilk found", "The shape checks flagged", "The box-plot check flagged"]
+
     @MainActor static func wait(_ message: String, until condition: () async -> Bool) async throws {
         for _ in 0..<300 {
             if await condition() { return }
@@ -73,6 +83,7 @@ import WebKit
         try await h.stagedCards(cards)
         try await h.cardsInReplies(cards)
         try await h.cardsStayLocal(first, cards)
+        try await h.offersHeldToTheCard(cards)
         try await h.cardNeedsWorkbookInFront(cards, report)
         let (qz, pefr) = try await h.questionOnlyCards()
 
@@ -654,8 +665,7 @@ import WebKit
             if previous.kind == "grid" { try await wait("AI Assist did not return to the workbook open before the fixtures") { pane.workbookID == previous.id } }
         }
         let traffic = requestLines()[requestsBefore...].joined(separator: "\n")
-        try check(!(["Local check found", "Suggested branch", "Review the differences", "Shape check ·", "Suggested · ", "Use these as separate samples",
-                     "Change sample choice", "is not numeric", "too large to check"] + fixtures.flatMap { [$0.name + " first", $0.name + " second"] })
+        try check(!(cardWords + ["too large to check"] + fixtures.flatMap { [$0.name + " first", $0.name + " second"] })
                     .contains(where: traffic.contains),
                   "no request carries a fixture's heading or any card's wording")
         try check(mismatches.isEmpty, "every one of the preflight's 26 paired and 5 independent cases agrees with R and Windows through the worksheet UI"
@@ -818,6 +828,67 @@ import WebKit
     func select(_ doc: Document, _ script: String, _ caption: String) async throws {
         try await grid(doc, "statsDirectGrid." + script)
         try await wait("The selection label did not show " + caption) { pane.selectionLabel.stringValue == caption }
+    }
+
+    /// AI Assist pressed in the worksheet toolbar with the pane already open, as the user does to get back to the composer:
+    /// once the pane has asked the page for its state, and a reading that would follow has had time to land, the card must
+    /// be exactly as it was, with its token, its text, its feedback and its check (Windows keeps a card whose selection is
+    /// unchanged, ScriptAIPane.WorksheetAnalysis.cs:296, and its test WorksheetAnalysis.cs:432-434).
+    func keptThroughToolbar(_ doc: Document, _ what: String) async throws {
+        guard let before = card(), let reading = pane.distribution?.card.check else {
+            throw ChatGPTTutor.Failure(message: "No read card before AI Assist was pressed for " + what)
+        }
+        let feedback: String = label("worksheet-ai-distribution-feedback")
+        viewer.window.makeFirstResponder(nil)
+        try await toolbar(doc, "worksheetAI")
+        try await wait("AI Assist in the toolbar did not reach the open pane") { viewer.window.firstResponder === pane.input }
+        try await grid(doc, "0")                          // after the pane's own request for the page's state
+        try await Task.sleep(for: .milliseconds(1000))     // a reading the engine would make lands well within this
+        let after: Card? = card(), now: WorksheetAIDistribution.Check? = pane.distribution?.card.check
+        let kept: Bool = after?.token == before.token && after?.text == before.text && after?.choices == before.choices
+            && label("worksheet-ai-distribution-feedback") == feedback && now?.largeSample == reading.largeSample
+            && now?.canCheck == reading.canCheck && pane.guidanceToken == before.token && pane.offer == nil
+        try check(kept, "AI Assist pressed in the toolbar with the pane open keeps " + what
+                  + (kept ? "" : ": card \(after?.text.debugDescription ?? "none"), token kept \(after?.token == before.token)"))
+    }
+
+    /// A branch of the other size chosen again on the card as it stands: refused with the card's feedback, the card and its
+    /// token kept, and no offer.
+    func refusedAgain(_ choice: String, _ conflict: String, _ message: String) async throws {
+        guard let before = card(), let button: WorksheetAIChoiceButton = control("worksheet-ai-card-" + choice, in: pane.view),
+              !button.isHiddenOrHasHiddenAncestor, button.token == pane.guidanceToken else {
+            throw ChatGPTTutor.Failure(message: "The card shows no live \(choice) button")
+        }
+        button.performClick(nil)
+        try await wait("Choosing \(choice) again was not handled") { button.superview == nil || pane.offer != nil }
+        try check(pane.offer == nil && label("worksheet-ai-distribution-feedback") == conflict && card()?.token == before.token, message)
+    }
+
+    /// The live card's button given the keyboard focus, as Tab gives it with Full Keyboard Access, then pressed as Space presses
+    /// it. False when this Mac's buttons cannot take the focus; the button is pressed all the same.
+    func pressWithFocus(_ choice: String) throws -> Bool {
+        guard let button: WorksheetAIChoiceButton = control("worksheet-ai-card-" + choice, in: pane.view),
+              !button.isHiddenOrHasHiddenAncestor, button.token == pane.guidanceToken else {
+            throw ChatGPTTutor.Failure(message: "The card shows no live \(choice) button")
+        }
+        let focused: Bool = viewer.window.makeFirstResponder(button) && viewer.window.firstResponder === button
+        button.performClick(nil)
+        return focused
+    }
+
+    /// Whether the first choice of the card now drawn has the keyboard focus.
+    func focusOnFirstChoice() -> Bool {
+        guard let responder = viewer.window.firstResponder as? WorksheetAIChoiceButton, let shown = card() else { return false }
+        return responder.choice == shown.choices.first && responder.token == pane.guidanceToken && !responder.isHiddenOrHasHiddenAncestor
+    }
+
+    /// A check of where the keyboard focus went (Windows moves it to the first button of whatever replaces a card that held it,
+    /// Learning/conversation.mjs:112 and :227). Buttons take the focus only with Full Keyboard Access, so without it the check
+    /// is reported and skipped, as the earlier focus checks are. The focus then goes back to the composer.
+    func checkFocus(_ focusable: Bool, _ condition: Bool, _ message: String) throws {
+        if focusable { try check(condition, message) }
+        else { print("INFO: buttons do not take keyboard focus here (Full Keyboard Access is off); not exercised: " + message) }
+        viewer.window.makeFirstResponder(pane.input)
     }
 }
 
@@ -1402,13 +1473,15 @@ extension WorksheetAIHarness {
         let designReceipt = await lastReceipt()
         try check(designReceipt.none && designReceipt.lines.isEmpty, "offering a card reads no cells, and the reply says so")
         let quiet = dataTraffic()
-        try click("paired")
+        // Pressed with the keyboard, as each choice of this part is: the focus moves on to whatever replaces it.
+        let designFocus: Bool = try pressWithFocus("paired")
         let four = try await waitCard("paired-interval", ["Local check found 4 complete pairs. Shapiro–Wilk W = 0.9929, P = 0.9719.", "Suggested branch"],
                                       "Same people or units did not check Y1:Z8 as pairs")
         try check(four.titles == ["Large sample (more than 100 complete pairs)", "Suggested · Small or medium · Approximately normal differences",
                                   "Non-normal differences", "Change design"] && four.token != design.token
                   && pane.guidance.accessibilityLabel() == "Paired interval measurements" && dataTraffic() == quiet,
                   "Same people or units checks the selection on this Mac at once, suggests a branch and sends nothing")
+        try checkFocus(designFocus, focusOnFirstChoice(), "the keyboard focus on Same people or units moves to the paired card's first choice once its reading is drawn")
 
         // Stale clicks (Windows' WorksheetAnalysis.cs:432-448): a selection change before the page reports it, then an edit.
         try await grid(cards, "statsDirectGrid.selectCells({x:0,y:0,width:2,height:13})")
@@ -1431,17 +1504,21 @@ extension WorksheetAIHarness {
         try check(!edited && six.token != twelve.token, "an edit checks the selection again, and a click on the card drawn before it is refused")
 
         // A branch offers its method with the card's check and Windows' advice; Change sample choice comes back to the card.
-        try click("normal")
+        let branchFocus: Bool = try pressWithFocus("normal")
         let pairedOffer = try await offered("Paired Student t test")
         let sample: NSButton? = control("worksheet-ai-change-sample", in: pane.view)
         try check(pairedOffer.contains("Menu: Analysis › Parametric › Paired t") && pairedOffer.contains("Selection: A1:B13")
                   && pairedOffer.contains("Local check found 12 complete pairs. Shapiro–Wilk W = 0.9669, P = 0.8757.\nThe paired t test addresses the mean difference. This branch assumes approximately normal differences.")
                   && card() == nil && sample?.title == "Change sample choice" && sample?.isHiddenOrHasHiddenAncestor == false,
                   "Small or medium offers the paired t test with the card's check and Windows' advice, in place of the card")
+        let proceed: NSButton? = control("worksheet-ai-continue", in: pane.view)
+        try checkFocus(branchFocus, proceed != nil && viewer.window.firstResponder === proceed, "the keyboard focus on a branch moves to Continue, the first button of its offer")
+        let sampleFocus: Bool = sample.map { viewer.window.makeFirstResponder($0) && viewer.window.firstResponder === $0 } ?? false
         sample?.performClick(nil)
         let returned = try await waitCard("paired-interval", ["Local check found 12 complete pairs. Shapiro–Wilk W = 0.9669, P = 0.8757."],
                                           "Change sample choice did not return to the card")
         try check(pane.offer == nil && returned.token != six.token, "Change sample choice returns to the card as it was, with a new token")
+        try checkFocus(sampleFocus, focusOnFirstChoice(), "the keyboard focus on Change sample choice moves to the first choice of the card it returns to")
     }
 
     func largePairsAndNarrowDock(_ cards: Document) async throws {
@@ -1457,6 +1534,7 @@ extension WorksheetAIHarness {
         try await feedback("The local check found more than 100 complete pairs. Choose the large-sample route for the mean difference or the non-normal route for Wilcoxon signed ranks.",
                            "Small or medium above 100 pairs gave no feedback")
         try check(pane.offer == nil && card()?.token == large.token, "a branch of the other size gets Windows' feedback on the card, which keeps its token")
+        try await keptThroughToolbar(cards, "the paired card for G1:H103 and its conflict feedback")
         try click("non-normal")
         let wilcoxon = try await offered("Wilcoxon signed ranks test")
         try check(wilcoxon.contains("Menu: Analysis › Nonparametric › Wilcoxon Signed Ranks")
@@ -1580,6 +1658,7 @@ extension WorksheetAIHarness {
         try await waitCard("paired-interval", ["How many complete pairs are there?"], "AN1:AO6 did not leave the card unread", absent: ["too large"])
         try click("check")
         try await feedback("Cell AN5: ‘abc’ is not numeric. Correct it or use * for a missing value.", "Text in a pair was not refused")
+        try await keptThroughToolbar(cards, "the paired card for AN1:AO6 and its Check feedback")
         try check(true, "Check refuses a difference too large to check and text in a pair, with the cell named, as the analysis would")
         // Five areas read "A1,B1,C1,D1,…", so a change to the fifth leaves the caption, and the page, quiet.
         try await select(cards, "selectCells({x:0,y:0,width:1,height:1,stack:[1,2,3,4].map(x => ({x, y:0, width:1, height:1}))})", "Selection: Cards!A1,B1,C1,D1,…")
@@ -1617,6 +1696,9 @@ extension WorksheetAIHarness {
         try click("large")
         try await feedback("The local check found at most 100 observations in at least one sample. Choose the branch for the distributions within groups.",
                            "Large samples at 7 and 4 gave no feedback")
+        try await keptThroughToolbar(cards, "the independent card for Y1:Z8, its confirmation of separate samples and its conflict feedback")
+        try await refusedAgain("large", "The local check found at most 100 observations in at least one sample. Choose the branch for the distributions within groups.",
+                               "Large samples is still refused for the 7 and 4 observations confirmed as separate samples, as on Windows")
         try click("non-normal")
         let mannWhitney = try await offered("Mann-Whitney U (two-sample Wilcoxon) test")
         try check(mannWhitney.contains("Menu: Analysis › Nonparametric › Mann-Whitney")
@@ -1683,12 +1765,14 @@ extension WorksheetAIHarness {
             throw ChatGPTTutor.Failure(message: "Wilcoxon is not in the Analyse catalogue")
         }
         viewer.worksheetCommands[unavailable].disabled = true
-        try click("non-normal")
+        let unavailableFocus: Bool = try pressWithFocus("non-normal")
         try await wait("An unavailable method did not clear the card") {
             pane.distribution == nil && label("worksheet-ai-notice") == "That method is unavailable. Choose another method in Analyse."
         }
         viewer.worksheetCommands[unavailable].disabled = false
         try check(pane.offer == nil, "a branch whose method is unavailable clears the card with Windows' text")
+        try checkFocus(unavailableFocus, viewer.window.firstResponder === pane.helpChoose,
+                       "the keyboard focus on a branch whose method is unavailable moves to Help me choose a method, the first of the general choices")
         pane.input.string = "CLARIFY_THEN_CARD_A"
         pane.send()
         try await wait("The clarifying question did not appear") { !pane.isBusy && pane.clarification != nil }
@@ -1744,8 +1828,7 @@ extension WorksheetAIHarness {
             return (await text(pane)).contains("Follow-up without the card.")
         }
         let cardLog = requestLines().joined(separator: "\n")
-        try check(!["Local check found", "Suggested branch", "Review the differences", "Shape check ·", "Suggested · ", "Use these as separate samples",
-                    "Change sample choice", "is not numeric"].contains(where: cardLog.contains),
+        try check(!WorksheetAIChecks.cardWords.contains(where: cardLog.contains),
                   "no request carries a card's wording, and the follow-up's conversation holds no card choice")
 
         // A new conversation, hiding the dock and switching workbook each retire the card.
@@ -1767,6 +1850,70 @@ extension WorksheetAIHarness {
             }
             try check(pane.distribution == nil && card() == nil, retire == "workbook" ? "switching workbook retires the card" : retire + " retires the card")
         }
+    }
+
+    /// An offer chosen on a card stands on the card's reading (Windows binds its proposal to the card's selection and version,
+    /// frmSpreadsheetGear.WorksheetAnalysis.cs:27-35): a change of "First row has column names" after the branch, or of the
+    /// selection before the offer is prepared, refuses it with the offer's text, reads the card again and opens nothing.
+    func offersHeldToTheCard(_ cards: Document) async throws {
+        try await select(cards, "selectCells({x:42,y:0,width:2,height:5})", "Selection: Cards!AQ1:AR5")
+        pane.input.string = "PAIRED_A"
+        pane.send()
+        let headed: String = "Local check found 4 complete pairs. Shapiro–Wilk W = 0.8634, P = 0.2725."
+        try await waitCard("paired-interval", [headed], "The paired card was not staged for AQ1:AR5")
+        try click("normal")
+        _ = try await offered("Paired Student t test")
+        let proceed: NSButton? = control("worksheet-ai-continue", in: pane.view)
+        let continueFocus: Bool = proceed.map { viewer.window.makeFirstResponder($0) && viewer.window.firstResponder === $0 } ?? false
+        let documents: Int = viewer.documents.count, quiet: [String] = dataTraffic()
+        try await grid(cards, checkbox)
+        try await wait("The page did not report First row has column names unticked") { cards.aiWorksheet?.headerRow == false }
+        pane.showNotice("")
+        proceed?.performClick(nil)
+        try await wait("Continue after the header toggle was not refused: notice \(label("worksheet-ai-notice").debugDescription)") {
+            label("worksheet-ai-notice") == WorksheetAICardChanged.message && pane.offer == nil
+        }
+        try await waitCard("paired-interval", ["Local check found 5 complete pairs. Shapiro–Wilk W = 0.9609, P = 0.814."], "Continue did not read the card again with row 1")
+        try check(viewer.documents.count == documents && viewer.active === cards && pane.offer == nil && dataTraffic() == quiet,
+                  "Continue after First row has column names was unticked refuses with the offer's text, reads the card again with row 1, opens nothing and sends nothing")
+        try checkFocus(continueFocus, focusOnFirstChoice(), "the keyboard focus on a refused Continue moves to the first choice of the card read again")
+        try await grid(cards, checkbox)
+        try await waitCard("paired-interval", [headed], "Ticking the setting did not read the card again")
+
+        // The selection changed between the branch click and the offer's preparation, which the page reports only once it
+        // settles: made inside the very page call that captures the selection for the offer, by wrapping it once.
+        _ = try await cards.web.callAsyncJavaScript("""
+            const grid = window.statsDirectGrid, original = grid.worksheetAISelection;
+            grid.worksheetAISelection = () => {
+              grid.worksheetAISelection = original; window.statsDirectTestMoved = true;
+              grid.selectCells({x:0,y:0,width:2,height:13}); return original();
+            };
+            return true;
+            """, arguments: [:], in: nil, contentWorld: .page)
+        let raced: [String] = dataTraffic()
+        pane.showNotice("")
+        try click("normal")
+        try await wait("An offer for a selection changed under the card was not refused: notice \(label("worksheet-ai-notice").debugDescription)") {
+            label("worksheet-ai-notice") == WorksheetAICardChanged.message
+        }
+        let moved = try await cards.web.evaluateJavaScript("window.statsDirectTestMoved === true") as? Bool
+        try await wait("The page did not report A1:B13") { pane.selectionLabel.stringValue == "Selection: Cards!A1:B13" }
+        try await waitCard("paired-interval", ["Local check found 12 complete pairs. Shapiro–Wilk W = 0.9669, P = 0.8757."], "The card was not read again for A1:B13")
+        try check(moved == true && pane.offer == nil && dataTraffic() == raced,
+                  "an offer whose selection changed between the branch click and its preparation is refused, and the card is read again for the selection as it now stands")
+
+        // An error preparing the offer clears the card, with the error in the notice line, and the focus that was on the branch
+        // moves to the first of the general choices.
+        pane.showNotice("")
+        cards.fileBusy = true
+        let errorFocus: Bool = try pressWithFocus("normal")
+        try await wait("An error preparing the offer did not clear the card") {
+            pane.distribution == nil && label("worksheet-ai-notice") == WorksheetAICardChanged.message
+        }
+        cards.fileBusy = false
+        try check(pane.offer == nil && card() == nil && shown("worksheet-ai-help-choose"), "an error preparing the offer clears the card and shows the error in the notice line")
+        try checkFocus(errorFocus, viewer.window.firstResponder === pane.helpChoose,
+                       "the keyboard focus on a branch whose offer cannot be prepared moves to Help me choose a method, the first of the general choices")
     }
 
     func cardNeedsWorkbookInFront(_ cards: Document, _ report: Document) async throws {
@@ -1797,7 +1944,8 @@ extension WorksheetAIHarness {
             privateCells += [["col": 0, "row": row + 1, "text": String(100_000 + pair.0), "kind": "number"],
                              ["col": 1, "row": row + 1, "text": String(100_000 + pair.1), "kind": "number"]]
         }
-        let secret = ["QZPRIVATE_BOOK", "QZPRIVATE_SHEET", "Qzbefore", "Qzafter", "100312", "100300", "Local check found", "W = 0.9393"]
+        let secret = ["QZPRIVATE_BOOK", "QZPRIVATE_SHEET", "Qzbefore", "Qzafter", "100312", "100300", "Local check found", "W = 0.9393",
+                      "W = 0.919", "W = 0.8906"]
         try JSONSerialization.data(withJSONObject: secret).write(to: storage.appendingPathComponent("private.json"))
         let qz = viewer.newDocument(kind: "grid", title: "QZPRIVATE_BOOK", url: viewer.root.appendingPathComponent("Grid/index.html"))
         qz.workbookName = "QZPRIVATE_BOOK.xlsx"
@@ -1849,6 +1997,16 @@ extension WorksheetAIHarness {
                   && dataTraffic() == quietQuestion,
                   "Continue opens the chosen method for the private workbook on this Mac, retires the card and sends nothing")
         viewer.remove(operation)
+        // A question-only question after the card's choices, while the private list holds: nothing of the card may go with it.
+        viewer.tabs.selectTabViewItem(qz.item)
+        try await wait("AI Assist did not return to the private workbook") { pane.workbookID == qz.id && !pane.isBusy }
+        pane.input.string = "QZ_AFTER_CARDS"
+        pane.send()
+        try await wait("The question after the private card's choices was not answered") {
+            guard !pane.isBusy else { return false }
+            return (await text(pane)).contains("General guidance without workbook data.")
+        }
+        try check(pane.distribution == nil && pane.offer == nil, "a question-only question after the private card's choices is answered with no card")
         let questionLog = requestLines()[start...].joined(separator: "\n")
         try check(!secret.contains(where: questionLog.contains), "no question-only request carries the workbook, its sheet, headings, cells or the card's wording")
 

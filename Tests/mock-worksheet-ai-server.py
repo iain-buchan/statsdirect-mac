@@ -24,9 +24,15 @@ DESIGN = {"state": "awaiting_design",
           "message": "Ask the user to choose “Same people or units” or “Separate groups” in the chat."}
 DISTRIBUTION = {"state": "awaiting_distribution",
                 "message": "The decision card lets the user check their selection locally and choose a branch. Ask them to review the card."}
-# A card's wording stays on the Mac: none of it may reach the provider.
+# A card's wording stays on the Mac: none of it may reach the provider. Its fixed texts, and the markers of the lines that carry
+# what was computed locally: each check's results, the conflict and advice texts and the recommendations. None of these occurs
+# in the instructions, the Help page sent as reference, the tool descriptions or the replies below ("complete pairs" does).
 CARD_WORDS = ("Local check found", "Suggested branch", "Review the differences", "Shape check ·", "Suggested · ",
-              "Use these as separate samples", "Change sample choice", "is not numeric")
+              "Use these as separate samples", "Change sample choice", "is not numeric",
+              "Shapiro–Wilk W =", "Column 1: n =", "Column 2: n =", "Selected columns, if they hold", "The local check found",
+              "This branch assumes", "compares relative ordering", "The signed-rank test concerns",
+              "The large-sample branch recommends", "The Help routes large", "The unpaired t test compares means",
+              "Shapiro–Wilk found", "The shape checks flagged", "The box-plot check flagged")
 SHARED = ("READ_A", "READ_B", "FINISH_A", "STOP_A", "CLOSE_A", "OVERVIEW_A", "CLARIFY_A", "READ_STOP_A", "READ_TEXT_STOP_A",
           "READ_FAIL_A", "READ_BIG_A", "READ_MIX_A", "READ_PLACEHOLDER_A", "HOLD_A", "I want to compare means.",
           "DESIGN_A", "PAIRED_A", "INDEPENDENT_A", "CLARIFY_THEN_CARD_A", "HOLD_CARD_A", "STOP_CARD_A", "AFTER_CARD_A", "NO_CARD_A",

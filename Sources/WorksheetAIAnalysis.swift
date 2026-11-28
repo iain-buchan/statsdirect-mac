@@ -20,6 +20,11 @@ struct WorksheetAICardChanged: LocalizedError {
     var errorDescription: String? { Self.message }
 }
 
+/// Another document came in front of the workbook while the grid answered for Continue. Windows takes Continue without waiting,
+/// and refuses it while another window is in front, keeping the offer (ScriptAIPane.WorksheetAnalysis.cs:331-335): the offer is
+/// left unconsumed, for Continue once the workbook is in front again.
+struct WorksheetAINotInFront: Error {}
+
 /// The offer holds only local worksheet metadata. It is never sent to the provider.
 @MainActor final class WorksheetAIAnalysisOffer {
     let id = UUID().uuidString
@@ -157,7 +162,9 @@ extension Viewer {
 
     /// Opens the offered method for the selection it was made for. `fingerprint`, for an offer chosen on a distribution card,
     /// is the card's reading: a live fingerprint that differs, taken with the source the method is opened with, throws
-    /// WorksheetAICardChanged.
+    /// WorksheetAICardChanged. The workbook must still be the document in front once the page has answered, as the pane requires
+    /// it to be when Continue is pressed: a report or any other document brought forward meanwhile throws WorksheetAINotInFront,
+    /// the offer unconsumed, and nothing opens behind it.
     func continueWorksheetAIAnalysis(_ offer: WorksheetAIAnalysisOffer, for workbook: Document, fingerprint: String? = nil,
                                      isCurrent: () -> Bool) async throws {
         guard !offer.consumed, isCurrent() else { throw worksheetAIAnalysisChanged }
@@ -170,9 +177,14 @@ extension Viewer {
         }
         let (selection, live, captured) = try await worksheetAIAnalysisSource(workbook, includeSource: true)
         guard isCurrent() else { throw worksheetAIAnalysisChanged }
+        // Checked before the selection, as Windows refuses Continue for another window in front before it opens the proposal,
+        // whose target it checks then (ScriptAIPane.WorksheetAnalysis.cs:331-335, :393-397).
+        guard active === workbook else {
+            offer.consumed = false
+            throw WorksheetAINotInFront()
+        }
         if let fingerprint, live != fingerprint { throw WorksheetAICardChanged() }
-        guard offer.gridVersion == workbook.gridVersion, active?.kind != "grid" || active === workbook,
-              window.attachedSheet == nil, NSApp.modalWindow == nil,
+        guard offer.gridVersion == workbook.gridVersion, window.attachedSheet == nil, NSApp.modalWindow == nil,
               let captured, selection == offer.selection, offer.destination == worksheetAIReportDestination else {
             throw worksheetAIAnalysisChanged
         }

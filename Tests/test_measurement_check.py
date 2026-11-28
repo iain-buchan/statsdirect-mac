@@ -455,8 +455,9 @@ MIRRORS = {
             '''),
         ('CheckWorksheetAnalysisReady',
          'Sources/WorksheetAIPane.swift prepareAnalysis(_:from:) (the workbook in front) and '
-         'Sources/WorksheetAIAnalysis.swift continueWorksheetAIAnalysis (no other workbook in front, and no sheet or '
-         'modal window open; a cell edit refuses nothing, design D13)', r'''
+         'Sources/WorksheetAIAnalysis.swift continueWorksheetAIAnalysis (the workbook in front once the page has answered, '
+         'otherwise WorksheetAINotInFront with the offer kept, and no sheet or modal window open; a cell edit refuses '
+         'nothing, design D13)', r'''
             private frmMain CheckWorksheetAnalysisReady()
             {
                 if (IsDisposed || Disposing || MdiParent is not frmMain main || main.ActiveMdiChild != this)
@@ -597,9 +598,10 @@ MIRRORS = {
             if (action == null || action.Token != token) return;
             '''),
         ("ChooseWorksheetAction's rule for another window in front",
-         'Sources/WorksheetAIPane.swift inFront, which answerCard, answerClarification, changeSample, backToDesign and '
-         'continueAnalysis call (refused with this notice, the card or offer kept); for the general choices, '
-         'chooseLocalMethod (it brings the workbook forward) and askForGuidance', r'''
+         'Sources/WorksheetAIPane.swift inFront, which answerCard (its Check too), answerClarification, prepareAnalysis(_:from:) '
+         "(a card's branch), changeSample, backToDesign and continueAnalysis call, for a choice that waits for the page both "
+         'when it is made and once the page has answered (refused with this notice, the card or offer kept); for the general '
+         'choices, chooseLocalMethod (it brings the workbook forward) and askForGuidance', r'''
             // The pane stays with its workbook when an analysis brings a report forward.
             // Asking for help or browsing can bring it back. Confirmation still requires it to be active.
             if (main.ActiveMdiChild != grid && action.Kind == "compare" && choice is "browse" or "guide"
@@ -682,9 +684,11 @@ MIRRORS = {
                 break;
             '''),
         ("ChooseWorksheetAction's continue case",
-         'Sources/WorksheetAIPane.swift continueAnalysis (refused through inFront while another document is in front; the '
-         'method opened takes the keyboard focus) and cancelAnalysis (the offer retired as the method opens), and '
-         'Sources/WorksheetAIAnalysis.swift continueWorksheetAIAnalysis (an offer used once)', r'''
+         'Sources/WorksheetAIPane.swift continueAnalysis (refused through inFront while another document is in front, when '
+         'pressed and once the page has answered; a second press while it waits is dropped; the method opened takes the '
+         'keyboard focus) and cancelAnalysis (the offer retired as the method opens), and '
+         'Sources/WorksheetAIAnalysis.swift continueWorksheetAIAnalysis (an offer used once; one refused for another '
+         'document in front is not used up)', r'''
             case ("confirm", "continue"):
                 // Retire the token before native controls can open a modal message loop.
                 ClearWorksheetAnalysis();
@@ -727,7 +731,7 @@ MIRRORS = {
             '''),
         ('ClearWorksheetAnalysis',
          'Sources/WorksheetAIPane.swift cancelAnalysis, and select, documentClosed, hide, newConversation and submit '
-         '(each clears the card and any offer)', r'''
+         '(each clears the card and any offer), and continueAnalysis and cancelOffer (each also clears the notice line)', r'''
             private bool ClearWorksheetAnalysis()
             {
                 if (worksheetAction == null) return false;

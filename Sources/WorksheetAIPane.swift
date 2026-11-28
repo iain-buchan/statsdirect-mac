@@ -281,6 +281,9 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
     private var partial = ""
     private(set) var offer: WorksheetAIAnalysisOffer?
     private var offerTask: Task<Void, Never>?
+    /// The offer whose Continue is waiting for the page: a second press meanwhile is dropped, as Windows' Continue retires the
+    /// card's token before it opens the method (ScriptAIPane.WorksheetAnalysis.cs:393-397).
+    private var continuing: String?
     /// The clarification card shown below the conversation, and the workbook whose conversation asked it.
     private(set) var clarification: (card: WorksheetAIClarification, workbookID: String)?
     /// The distribution card shown below the conversation, and its workbook. An interval card is drawn once the
@@ -1316,9 +1319,11 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
             renderGuidance()
         case "check":
             // Windows' Check: the live selection, confirmed for an independent card as two separate samples. A refusal
-            // stays on the card; a check redraws it with a new token. A change meanwhile wins over the check.
+            // stays on the card; a check redraws it with a new token. A change meanwhile wins over the check, and another
+            // document brought in front while the selection was read refuses it, the card kept with its token (inFront).
             let read = await readCard(workbook, card.kind, confirm: true)
             guard token == guidanceToken, offer == nil, distribution?.workbookID == workbook.id, distribution?.card.kind == card.kind else { return true }
+            guard inFront(workbook) else { return false }
             switch read {
             case .refused(let message): showCardFeedback(message)
             case .read(let check, let fingerprint):
@@ -1344,6 +1349,9 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
             }
             prepareAnalysis(method, from: OfferOrigin(card: card, workbookID: workbook.id, fingerprint: expected, token: token, branch: choice))
             await offerTask?.value
+            // Refused when the card is still shown with its token and no offer took its place: another document came in front
+            // while the offer was prepared (prepareAnalysis).
+            return offer != nil || guidanceToken != token || distribution?.workbookID != workbook.id
         }
         return true
     }
@@ -1431,7 +1439,8 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
     /// Offers a method for the current selection. `origin` is the distribution card the method was chosen on (Windows
     /// ConfirmWorksheetAnalysis with the decision and branch): the offer then also shows the card's check and Windows'
     /// advice for the branch, with Change sample choice, and takes the card's place; an error preparing it, or a selection
-    /// that changed since the card was read, clears the card.
+    /// that changed since the card was read, clears the card. Another document brought in front while the page answered
+    /// refuses the card's branch as the click would have been refused (inFront), the card kept with its token and no offer.
     private func prepareAnalysis(_ method: String, from origin: OfferOrigin?) {
         guard visible, !isBusy, let workbook, viewer.active === workbook, !TutorPolicy.disabled else {
             showNotice("Select the worksheet you want to analyse."); return
@@ -1448,6 +1457,7 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
                     // changed one clears the card, with the offer's text, for the general choices, as Windows refuses a card's
                     // target that changed (WorksheetAnalysisProposal.cs:41, ScriptAIPane.WorksheetAnalysis.cs:405-410).
                     guard guidanceToken == origin.token, distribution?.workbookID == workbook.id else { return }
+                    guard inFront(workbook) else { return }
                     distribution = nil
                     guard prepared.fingerprint == origin.fingerprint else { render(); showNotice(WorksheetAICardChanged.message); return }
                     offerDetails.stringValue = ((origin.card.check?.diagnostics ?? []) + [origin.card.check?.advice[origin.branch] ?? ""])
@@ -1475,23 +1485,32 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
     }
 
     @objc func continueAnalysis() {
-        // With another document in front, Continue is refused and the offer kept, as on Windows (inFront).
-        guard let offer, let workbook, !isBusy, !TutorPolicy.disabled, inFront(workbook) else { return }
+        // With another document in front, Continue is refused and the offer kept, as on Windows (inFront): when it is pressed,
+        // and again once the page has answered (WorksheetAINotInFront). A press while one is waiting for the page is dropped.
+        guard let offer, let workbook, !isBusy, !TutorPolicy.disabled, continuing != offer.id, inFront(workbook) else { return }
         cardFocus = (viewer.window.firstResponder as? NSView)?.isDescendant(of: offerPanel) == true
         // An offer chosen on a distribution card opens only for the reading the card showed.
         let origin = offerOrigin
         offerTask?.cancel()
+        continuing = offer.id
         offerTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            defer { if continuing == offer.id { continuing = nil } }
             do {
                 try await viewer.continueWorksheetAIAnalysis(offer, for: workbook, fingerprint: origin?.fingerprint) {
                     !Task.isCancelled && self.visible && self.workbookID == workbook.id && self.offer?.id == offer.id
                 }
                 // The method opens in a tab in front, which takes the keyboard focus, as Windows' dialog takes it once Continue
-                // has retired the confirmation (ScriptAIPane.WorksheetAnalysis.cs:393-397).
+                // has retired the confirmation and cleared the notice line (ScriptAIPane.WorksheetAnalysis.cs:393-397, :441-445).
                 if let opened = viewer.active, opened !== workbook { viewer.window.makeFirstResponder(opened.web) }
                 cardFocus = false
                 cancelAnalysis()
+                showNotice("")
+            } catch is WorksheetAINotInFront {
+                // Another document came in front while the page answered: refused as a press would be then, the offer kept
+                // for Continue once the workbook is in front again.
+                guard !Task.isCancelled else { return }
+                _ = inFront(workbook)
             } catch {
                 guard !Task.isCancelled else { return }
                 // Any refusal ends the offer and the card it came from, a selection that no longer matches the card's reading
@@ -1514,11 +1533,14 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
     /// The offer's Cancel, a Mac control (Windows' confirm card has none). Keyboard focus on the offer as it goes passes to the
     /// first button of what is drawn in its place, as after Change sample choice or a refused Continue (Windows moves focus
     /// inside a card that goes the same way, Learning/conversation.mjs:112, :227). Focus elsewhere, where a mouse press leaves
-    /// it, stays there; an offer ended from code (cancelAnalysis) moves no focus.
+    /// it, stays there; an offer ended from code (cancelAnalysis) moves no focus. The notice line is cleared with the offer, as
+    /// Windows clears it whenever a worksheet action ends (ScriptAIPane.WorksheetAnalysis.cs:441-445): a refusal shown for the
+    /// offer, such as the one for another document in front, does not outlive it.
     @objc private func cancelOffer() {
         guard offer != nil else { return }
         cardFocus = (viewer.window.firstResponder as? NSView)?.isDescendant(of: offerPanel) == true
         cancelAnalysis()
+        showNotice("")
     }
 
     @objc private func changeSampleChoice() {
@@ -1527,13 +1549,16 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
     }
 
     /// Change sample choice (Windows' confirm "sample"): back from the offer to the distribution card it came from, as
-    /// it was while the live selection is the one the card was read for, otherwise read again. Returns whether it went back.
+    /// it was while the live selection is the one the card was read for, otherwise read again. Refused, the offer kept, while
+    /// another document is in front (inFront): when it is pressed, and again once the page has answered. Returns whether it
+    /// went back.
     @discardableResult
     func changeSample() async -> Bool {
         guard visible, !isBusy, !TutorPolicy.disabled, let workbook, let origin = offerOrigin, origin.workbookID == workbook.id,
               let shown = offer, inFront(workbook) else { return false }
         let live = await selectionFingerprint(workbook)
         guard visible, !isBusy, !TutorPolicy.disabled, offer === shown, offerOrigin != nil, self.workbook === workbook else { return false }
+        guard inFront(workbook) else { return false }
         // The card is drawn in the offer's place as the offer goes, so focus on the offer passes to it.
         var card = origin.card
         card.feedback = nil
@@ -1572,7 +1597,9 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
 
     /// Whether `workbook` is the document in front. Windows refuses a card's choice, and Continue, while another window is in front
     /// of the card's workbook, keeping the card, with this notice (ScriptAIPane.WorksheetAnalysis.cs:331-335): the pane stays with
-    /// its workbook while an analysis brings its report forward.
+    /// its workbook while an analysis brings its report forward. Windows takes a choice without waiting; the Mac waits for the
+    /// grid's page, so a choice that waits is held to this both when it is made and once the page has answered, and a document
+    /// brought in front in between refuses it in the same way.
     private func inFront(_ workbook: Document) -> Bool {
         guard viewer.active !== workbook else { return true }
         // What was clicked stays, so the keyboard focus stays where it is.

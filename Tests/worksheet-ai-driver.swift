@@ -2429,12 +2429,17 @@ extension WorksheetAIHarness {
         let back = await route(from: controls[controls.count - 1], back: true)
         let reached = !buttons.isEmpty && buttons.allSatisfy { button in forward.visited.contains { $0 === button } }
         let inOrder = same(forward.visited, controls[...]), retraced = same(back.visited, ArraySlice(controls.reversed()))
-        try check(reached && inOrder && stopped.isEmpty && retraced,
-                  "\(state), Keyboard navigation on: Tab from New conversation meets the pane's \(controls.count) controls in visual order, every one of the "
-                  + "\(buttons.count) buttons of the \(group) among them (Control-Tab out of the composer); from each of the \(end - 1) other controls "
-                  + "before the choices Tab meets every one that follows; Shift-Tab retraces the route"
-                  + (reached && inOrder && stopped.isEmpty && retraced ? "" : ": Tab " + forward.steps.joined(separator: ", ") + "; Shift-Tab "
-                     + back.steps.joined(separator: ", ") + (stopped.isEmpty ? "" : "; " + stopped.joined(separator: "; "))))
+        // In steps: as one expression, Swift 6.1 (Xcode 16.4, as on GitHub's runner) cannot type-check it in reasonable time.
+        let met: Bool = reached && inOrder && stopped.isEmpty && retraced
+        let others: Int = end - 1
+        var message: String = "\(state), Keyboard navigation on: Tab from New conversation meets the pane's \(controls.count) controls in visual order, "
+        message += "every one of the \(buttons.count) buttons of the \(group) among them (Control-Tab out of the composer); "
+        message += "from each of the \(others) other controls before the choices Tab meets every one that follows; Shift-Tab retraces the route"
+        if !met {
+            message += ": Tab " + forward.steps.joined(separator: ", ") + "; Shift-Tab " + back.steps.joined(separator: ", ")
+            if !stopped.isEmpty { message += "; " + stopped.joined(separator: "; ") }
+        }
+        try check(met, message)
     }
 
     /// The keyboard alone, from a card to its method, with Keyboard navigation on: from the composer, Control-Tab and Tab to the

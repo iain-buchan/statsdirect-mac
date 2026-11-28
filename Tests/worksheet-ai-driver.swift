@@ -140,6 +140,7 @@ import WebKit
         try await h.cardsInReplies(cards)
         try await h.cardsStayLocal(first, cards)
         try await h.offersHeldToTheCard(cards)
+        try await h.keyboardCards(cards)
         try await h.cardNeedsWorkbookInFront(cards, report)
         let (qz, pefr) = try await h.questionOnlyCards()
 
@@ -2172,5 +2173,352 @@ extension WorksheetAIHarness {
         pane.updateControls()
         try check(!pane.sendButton.isEnabled && !pane.share.isEnabled, "managed online AI disable blocks worksheet sending and sharing")
         UserDefaults.standard.set(false, forKey: "DisableOnlineTutor")
+    }
+}
+
+// The cards with the keyboard and in a narrow window: Codex's preflight checklist asks for both in the Mac build
+// (distribution-preflight/README.md:11).
+extension WorksheetAIHarness {
+    /// Whether the run prints the routes Tab takes through the pane (pass --keyboard-report after the app's path to
+    /// Scripts/test-worksheet-ai.sh).
+    var keyboardReport: Bool { CommandLine.arguments.contains("--keyboard-report") }
+
+    /// Keyboard navigation (System Settings ▸ Keyboard), on for this process only while it is set. With it off, as on this Mac, AppKit
+    /// lets a view take part in Tab only when it needs its window to be key to take keys (needsPanelToBecomeKey: text and web views),
+    /// so no button does; with it on, every enabled, shown button does. While this is set the driver gives NSButton that answer,
+    /// and otherwise leaves the question to AppKit. The system setting is neither read nor changed.
+    nonisolated(unsafe) static var keyboardNavigation = false
+    nonisolated(unsafe) static var keyboardNavigationHooked = false
+    func keyboardNavigation(_ on: Bool) {
+        if !Self.keyboardNavigationHooked {
+            Self.keyboardNavigationHooked = true
+            let selector = #selector(getter: NSView.needsPanelToBecomeKey)
+            typealias Getter = @convention(c) (AnyObject, Selector) -> Bool
+            let appKit = unsafeBitCast(class_getMethodImplementation(NSButton.self, selector), to: Getter.self)
+            let answer: @convention(block) (AnyObject) -> Bool = { button in WorksheetAIHarness.keyboardNavigation || appKit(button, selector) }
+            let implementation = imp_implementationWithBlock(answer)
+            if let own = class_getInstanceMethod(NSButton.self, selector), own != class_getInstanceMethod(NSControl.self, selector) {
+                method_setImplementation(own, implementation)
+            } else {
+                class_addMethod(NSButton.self, selector, implementation, "B@:")
+            }
+        }
+        Self.keyboardNavigation = on
+    }
+
+    /// A key pressed and released as a person's reaches the window, built as Tests/help-pane-driver.swift:246 builds its Tab, with the
+    /// characters the system gives: under Shift, Tab's backtab in charactersIgnoringModifiers too, from which AppKit takes the
+    /// direction. WebKit takes the focus and hands it on in its own time, so a press that leaves the focus in a web view waits.
+    func press(_ code: UInt16, _ characters: String, _ modifiers: NSEvent.ModifierFlags = []) async {
+        let window: NSWindow = viewer.window
+        for type in [NSEvent.EventType.keyDown, .keyUp] {
+            if let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: modifiers, timestamp: ProcessInfo.processInfo.systemUptime,
+                                            windowNumber: window.windowNumber, context: nil, characters: characters,
+                                            charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code) {
+                window.sendEvent(event)
+            }
+        }
+        try? await Task.sleep(for: .milliseconds(window.firstResponder is WKWebView ? 400 : 10))
+    }
+    static let backtab = String(UnicodeScalar(UInt8(0x19)))
+    /// Tab (keyCode 48), Shift-Tab (back) and their Control forms, which leave a text view whose Tab types a tab.
+    func tab(back: Bool = false, control: Bool = false) async {
+        var modifiers: NSEvent.ModifierFlags = back ? [.shift] : []
+        if control { modifiers.insert(.control) }
+        await press(48, back ? Self.backtab : "\t", modifiers)
+    }
+    /// Space (keyCode 49), which presses the focused button.
+    func space() async { await press(49, " ") }
+
+    /// Where the keyboard focus is, as the routes name it.
+    func focusName(_ responder: NSResponder?) -> String {
+        guard let responder else { return "nothing" }
+        if responder === viewer.window { return "the window" }
+        if responder === pane.input { return "the composer" }
+        if responder === pane.transcript.web { return "the transcript" }
+        if let web = responder as? WKWebView {
+            return viewer.documents.first(where: { $0.web === web }).map { "the page of " + $0.title } ?? "a web page"
+        }
+        if let button = responder as? NSButton { return "[" + button.title + "]" }
+        if let view = responder as? NSView, let id = view.identifier?.rawValue, !id.isEmpty { return id }
+        return String(describing: type(of: responder))
+    }
+
+    /// The pane's controls a keyboard user meets, in its visual order (its stack top to bottom, each row leading to trailing): its
+    /// buttons, the composer and the transcript, the shown ones only.
+    func paneControls() -> [NSView] {
+        viewer.window.contentView?.layoutSubtreeIfNeeded()
+        var found: [NSView] = []
+        func walk(_ view: NSView) {
+            guard !view.isHidden, view.window != nil else { return }
+            if view is NSButton || view === pane.input || view === pane.transcript.web { found.append(view); return }
+            if let stack = view as? NSStackView { stack.arrangedSubviews.forEach(walk) }
+            else if let scroll = view as? NSScrollView { if let document = scroll.documentView { walk(document) } }
+            else { view.subviews.forEach(walk) }
+        }
+        pane.view.subviews.forEach(walk)
+        return found
+    }
+
+    /// The buttons a keyboard user must reach in the pane as it stands, in its visual order: the card's choices, the general choices,
+    /// the offer's buttons and the clarifying question's answers, each group with what is shown of it.
+    func keyboardTargets() -> [(group: String, buttons: [NSView])] {
+        let controls = paneControls()
+        func inside(_ id: String) -> [NSView] {
+            guard let box: NSView = control(id, in: pane.view) else { return [] }
+            return controls.filter { $0.isDescendant(of: box) }
+        }
+        let choices: [NSButton] = [pane.openExample, pane.workbookHelp, pane.helpChoose, pane.chooseMethod]
+        let general: [NSView] = controls.filter { control in choices.contains { $0 === control } }
+        let proceed: NSButton? = control("worksheet-ai-continue", in: pane.view)
+        let offer: [NSView] = proceed?.superview?.superview.map { panel in controls.filter { $0.isDescendant(of: panel) } } ?? []
+        let groups: [(group: String, buttons: [NSView])] = [("card", inside("worksheet-ai-distribution")), ("general choices", general),
+                                                              ("offer", offer), ("clarification", inside("worksheet-ai-clarification"))]
+        return groups.filter { !$0.buttons.isEmpty }
+    }
+
+    /// Where Tab, or Shift-Tab with `back`, takes the focus from `start`, press by press, until it stays or comes round again. From the
+    /// composer, whose Tab types a tab, Control-Tab (Control-Shift-Tab) is pressed instead, as a keyboard user leaves a text view;
+    /// anything typed is taken out again.
+    func route(from start: NSView, back: Bool = false, presses: Int = 40) async -> (steps: [String], visited: [NSResponder]) {
+        _ = viewer.window.makeFirstResponder(start)
+        var current: NSResponder? = viewer.window.firstResponder
+        var visited: [NSResponder] = current.map { [$0] } ?? []
+        var steps: [String] = [], inPage = 0
+        for _ in 0..<presses {
+            let inComposer = current === pane.input, draft = pane.input.string
+            await tab(back: back, control: inComposer)
+            if inComposer { pane.input.string = draft }
+            let now = viewer.window.firstResponder
+            let key = (inComposer ? "Control-" : "") + (back ? "Shift-Tab" : "Tab")
+            if now === current, now is WKWebView, inPage < 3 { inPage += 1; continue }
+            if inPage > 0 { steps.append(key + " pressed \(inPage + 1) times in the page" + (now === current ? "" : " then")) }
+            inPage = 0
+            if now === current { steps.append(key + " stays"); break }
+            steps.append(key + " → " + focusName(now))
+            guard let now, !visited.contains(where: { $0 === now }) else { steps.append("(round again)"); break }
+            visited.append(now)
+            current = now
+        }
+        return (steps, visited)
+    }
+
+    /// The keyboard's routes through the pane as it stands: Tab in the composer; from each control before the choices, in the pane's
+    /// visual order, the route Tab takes and how many of each group's buttons it meets; and Shift-Tab back from each group's last
+    /// button. Printed with --keyboard-report.
+    @discardableResult
+    func measureKeyboard(_ state: String) async -> [String] {
+        let setting = Self.keyboardNavigation ? "Keyboard navigation on (this process)" : "Keyboard navigation as set on this Mac (off)"
+        let controls = paneControls(), targets = keyboardTargets()
+        let end = controls.firstIndex { $0 === pane.transcript.web }.map { $0 + 1 }
+            ?? controls.firstIndex { $0.isDescendant(of: pane.guidance) } ?? controls.count
+        var lines: [String] = []
+        let draft = pane.input.string
+        _ = viewer.window.makeFirstResponder(pane.input)
+        pane.input.string = ""
+        await tab()
+        let typed = pane.input.string, kept = viewer.window.firstResponder === pane.input
+        lines.append("in the composer Tab " + (typed == "\t" && kept ? "types a tab and keeps the focus"
+                                                : "gives \(typed.debugDescription) and the focus to \(focusName(viewer.window.firstResponder))"))
+        pane.input.string = draft
+        for start in controls[..<end] where (start as? NSControl)?.isEnabled != false {
+            let (steps, visited) = await route(from: start)
+            let met = targets.map { "\($0.group) \($0.buttons.filter { button in visited.contains { $0 === button } }.count)/\($0.buttons.count)" }
+            lines.append("from \(focusName(start)): " + (steps.isEmpty ? "no press" : steps.joined(separator: ", ")) + " · reached " + met.joined(separator: ", "))
+        }
+        for group in targets {
+            guard let last = group.buttons.last else { continue }
+            let (steps, _) = await route(from: last, back: true)
+            lines.append("back from \(focusName(last)): " + steps.joined(separator: ", "))
+        }
+        if keyboardReport { for line in lines { print("KEYBOARD: \(setting) · \(state) · " + line) } }
+        fflush(stdout)
+        _ = viewer.window.makeFirstResponder(pane.input)
+        return lines
+    }
+
+    /// Space pressed on the focused button and the keyboard focus put at once on `elsewhere`, before anything the press began has run:
+    /// the user moving on while a card is read or comes back.
+    func spaceThenFocus(_ elsewhere: NSResponder) {
+        let window: NSWindow = viewer.window
+        for type in [NSEvent.EventType.keyDown, .keyUp] {
+            if let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                            windowNumber: window.windowNumber, context: nil, characters: " ", charactersIgnoringModifiers: " ",
+                                            isARepeat: false, keyCode: 49) {
+                window.sendEvent(event)
+            }
+        }
+        window.makeFirstResponder(elsewhere)
+    }
+}
+
+extension WorksheetAIHarness {
+    /// The keyboard in the pane, in each state it must get through (the study-design question, the paired card, the offer, the
+    /// general choices and the clarifying question), then the keyboard alone from a card to its method, and focus the user moves
+    /// elsewhere. Tab reached nothing in the pane before it linked its controls (linkKeyViews): it joins the window after the
+    /// window has made its key view loop.
+    func keyboardCards(_ cards: Document) async throws {
+        if keyboardReport {
+            let window: NSWindow = viewer.window
+            print("KEYBOARD: the window: key \(window.isKeyWindow), autorecalculatesKeyViewLoop \(window.autorecalculatesKeyViewLoop), initial first responder "
+                  + focusName(window.initialFirstResponder) + ", the composer's next key view " + focusName(pane.input.nextKeyView))
+        }
+        try await select(cards, "selectCells({x:24,y:0,width:2,height:8})", "Selection: Cards!Y1:Z8")
+        pane.input.string = "DESIGN_A"
+        pane.send()
+        _ = try await waitCard("choose", [chooseLine], "The study-design question did not appear for the keyboard's routes")
+        try await checkRoutes("the study-design question", "card")
+        try click("paired")
+        _ = try await waitCard("paired-interval", ["Local check found 4 complete pairs."], "The paired card did not appear for the keyboard's routes")
+        try await checkRoutes("the paired card", "card")
+        try click("normal")
+        _ = try await offered("Paired Student t test")
+        try await checkRoutes("the offer", "offer")
+        button("Cancel")?.performClick(nil)
+        try await wait("Cancel did not bring back the general choices for the keyboard's routes") { pane.offer == nil && shown("worksheet-ai-help-choose") }
+        try await checkRoutes("the general choices", "general choices")
+        pane.input.string = "CLARIFY_THEN_CARD_A"
+        pane.send()
+        try await wait("The clarifying question did not appear for the keyboard's routes") { !pane.isBusy && pane.clarification != nil }
+        try await checkRoutes("the clarifying question", "clarification")
+        try await keyboardOnlyPath(cards)
+        try await focusMovedElsewhere(cards)
+    }
+
+    /// The routes in the pane as it stands. With Keyboard navigation off, as on this Mac, Tab passes over buttons as it does on every
+    /// Mac: Tab types a tab in the composer, and from New conversation Tab reaches the composer, whose Control-Tab reaches the
+    /// transcript. With it on, Tab from New conversation meets every enabled control of the pane in visual order (Control-Tab out of
+    /// the composer), the buttons of the card, the general choices, the offer or the clarifying question among them; from each
+    /// control before the choices it meets every one that follows; and Shift-Tab from the last retraces the route to the first.
+    func checkRoutes(_ state: String, _ group: String) async throws {
+        if keyboardReport { for on in [false, true] { keyboardNavigation(on); await measureKeyboard(state) } }
+        keyboardNavigation(false)
+        defer { keyboardNavigation(false); viewer.window.makeFirstResponder(pane.input) }
+        guard let first = paneControls().first else { throw ChatGPTTutor.Failure(message: "The pane shows no control for the keyboard") }
+        let draft = pane.input.string
+        pane.input.string = ""
+        viewer.window.makeFirstResponder(pane.input)
+        await tab()
+        let typed = pane.input.string == "\t" && viewer.window.firstResponder === pane.input
+        pane.input.string = draft
+        let plain = await route(from: first)
+        let passed = plain.visited.count == 3 && plain.visited[1] === pane.input && plain.visited[2] === pane.transcript.web
+        try check(typed && passed, "\(state), Keyboard navigation off as on this Mac: Tab types a tab in the composer, and from New conversation Tab passes over "
+                  + "the buttons to the composer, whose Control-Tab reaches the transcript" + (typed && passed ? "" : ": " + plain.steps.joined(separator: ", ")))
+        keyboardNavigation(true)
+        let controls = paneControls().filter { ($0 as? NSControl)?.isEnabled != false }
+        let buttons = keyboardTargets().first(where: { $0.group == group })?.buttons ?? []
+        func same(_ visited: [NSResponder], _ expected: ArraySlice<NSView>) -> Bool {
+            visited.count == expected.count && zip(visited, expected).allSatisfy { $0 === $1 }
+        }
+        let forward = await route(from: controls[0])
+        let end = controls.firstIndex { $0 === pane.transcript.web }.map { $0 + 1 } ?? controls.count
+        var stopped: [String] = []
+        for index in 1..<end {
+            let from = await route(from: controls[index])
+            if !same(from.visited, controls[index...]) { stopped.append("from \(focusName(controls[index])): " + from.steps.joined(separator: ", ")) }
+        }
+        let back = await route(from: controls[controls.count - 1], back: true)
+        let reached = !buttons.isEmpty && buttons.allSatisfy { button in forward.visited.contains { $0 === button } }
+        let inOrder = same(forward.visited, controls[...]), retraced = same(back.visited, ArraySlice(controls.reversed()))
+        try check(reached && inOrder && stopped.isEmpty && retraced,
+                  "\(state), Keyboard navigation on: Tab from New conversation meets the pane's \(controls.count) controls in visual order, every one of the "
+                  + "\(buttons.count) buttons of the \(group) among them (Control-Tab out of the composer); from each of the \(end - 1) other controls "
+                  + "before the choices Tab meets every one that follows; Shift-Tab retraces the route"
+                  + (reached && inOrder && stopped.isEmpty && retraced ? "" : ": Tab " + forward.steps.joined(separator: ", ") + "; Shift-Tab "
+                     + back.steps.joined(separator: ", ") + (stopped.isEmpty ? "" : "; " + stopped.joined(separator: "; "))))
+    }
+
+    /// The keyboard alone, from a card to its method, with Keyboard navigation on: from the composer, Control-Tab and Tab to the
+    /// study-design question's first answer and Space; the paired card is read with the focus on its first choice (as the mouse path
+    /// in designAndStaleClicks); Tab to the suggested branch and Space; the offer comes with the focus on Continue; Tab past Cancel to
+    /// Change sample choice and Shift-Tab back to Continue (Change sample choice follows Continue and Cancel, on its own row); Tab to it
+    /// again and Space: the card comes back with the focus on its first choice; Tab and Space on the branch again, and Space on
+    /// Continue: the method opens for the selection with the report its offer names, as the preflight's mouse path checks.
+    func keyboardOnlyPath(_ cards: Document) async throws {
+        keyboardNavigation(true)
+        defer { keyboardNavigation(false) }
+        func focused(_ choice: String) -> Bool {
+            (viewer.window.firstResponder as? WorksheetAIChoiceButton).map { $0.choice == choice && $0.token == pane.guidanceToken && !$0.isHiddenOrHasHiddenAncestor } ?? false
+        }
+        try await select(cards, "selectCells({x:24,y:0,width:2,height:8})", "Selection: Cards!Y1:Z8")
+        pane.input.string = "DESIGN_A"
+        pane.send()
+        _ = try await waitCard("choose", [chooseLine], "The study-design question did not appear for the keyboard alone")
+        viewer.window.makeFirstResponder(pane.input)
+        var presses: [String] = []
+        while !focused("paired"), presses.count < 12 {
+            let control = viewer.window.firstResponder === pane.input
+            await tab(control: control)
+            presses.append((control ? "Control-Tab → " : "Tab → ") + focusName(viewer.window.firstResponder))
+        }
+        try check(focused("paired"), "with the keyboard alone, from the composer " + presses.joined(separator: ", ") + " reaches the study-design question's first answer")
+        await space()
+        _ = try await waitCard("paired-interval", ["Local check found 4 complete pairs."], "Space on Same people or units did not read the paired card")
+        try check(focusOnFirstChoice(), "Space on Same people or units reads the paired card with the focus on its first choice")
+        await tab()
+        let onBranch = focused("normal")
+        await space()
+        let offer = try await offered("Paired Student t test")
+        let proceed: NSButton? = control("worksheet-ai-continue", in: pane.view), sample: NSButton? = control("worksheet-ai-change-sample", in: pane.view)
+        try check(onBranch && proceed != nil && viewer.window.firstResponder === proceed && offer.contains("Selection: Y1:Z8"),
+                  "Tab moves to the suggested branch, and Space on it offers the paired t test with the focus on Continue")
+        await tab(); await tab()
+        let onSample = sample != nil && viewer.window.firstResponder === sample
+        await tab(back: true); await tab(back: true)
+        try check(onSample && viewer.window.firstResponder === proceed, "Tab reaches Change sample choice past Cancel, and Shift-Tab goes back to Continue")
+        await tab(); await tab()
+        await space()
+        _ = try await waitCard("paired-interval", ["Local check found 4 complete pairs."], "Space on Change sample choice did not return to the card")
+        try check(pane.offer == nil && focusOnFirstChoice(), "Space on Change sample choice returns to the card with the focus on its first choice")
+        await tab()
+        await space()
+        _ = try await offered("Paired Student t test")
+        let destination = viewer.currentReportDestination, before = viewer.documents.count
+        let named = destination?.title ?? "New report"
+        try check(viewer.window.firstResponder === proceed && pane.offer?.reportTitle == named,
+                  "Space on the branch again offers the method with the focus on Continue and \(named) as its report")
+        await space()
+        try await wait("Space on Continue did not open the paired t test") { viewer.documents.count == before + 1 && viewer.active?.kind == "operation" }
+        let run = viewer.active!
+        try await wait("The paired t test opened with the keyboard did not show its report destination") {
+            let shown = (try? await run.web.evaluateJavaScript("document.querySelector('main header p')?.textContent ?? ''")) as? String
+            return run.operationSourceSnapshot != nil && shown == "Report destination: " + named
+        }
+        let routed = run.operationName == "TPaired" && run.operationSourceID == cards.id
+            && run.operationReportDestination == (destination.map { .existing(id: $0.id, title: $0.title) } ?? .new)
+            && run.operationSourceSnapshot?["selection"] as? [Int] == [24, 25] && pane.offer == nil && pane.distribution == nil
+        try check(routed, "Space on Continue opens the paired t test for Y1:Z8's two columns with \(named) as its destination, as the mouse path does, and retires the card"
+                  + (routed ? "" : " (operation \(run.operationName ?? "none"), destination \(String(describing: run.operationReportDestination)), selection "
+                     + String(describing: run.operationSourceSnapshot?["selection"]) + ")"))
+        viewer.remove(run)
+        viewer.tabs.selectTabViewItem(cards.item)
+        try await wait("AI Assist did not return to the card workbook after the keyboard's method") { viewer.active === cards && pane.workbookID == cards.id }
+    }
+
+    /// Focus the user puts elsewhere while a card is read, or while the card comes back after Change sample choice, is left there
+    /// (Keyboard navigation on): the pane passes on only the focus a card or the offer had, or that AppKit moved on as the offer went.
+    func focusMovedElsewhere(_ cards: Document) async throws {
+        keyboardNavigation(true)
+        defer { keyboardNavigation(false); viewer.window.makeFirstResponder(pane.input) }
+        pane.input.string = "DESIGN_A"
+        pane.send()
+        _ = try await waitCard("choose", [chooseLine], "The study-design question did not appear for the focus moved elsewhere")
+        guard let answer: WorksheetAIChoiceButton = control("worksheet-ai-card-paired", in: pane.view), viewer.window.makeFirstResponder(answer) else {
+            throw ChatGPTTutor.Failure(message: "Same people or units did not take the keyboard focus")
+        }
+        spaceThenFocus(pane.input)
+        _ = try await waitCard("paired-interval", ["Local check found 4 complete pairs."], "Space on Same people or units did not read the paired card")
+        try check(viewer.window.firstResponder === pane.input,
+                  "Space on Same people or units with the focus then put in the composer before the card is read: the focus stays in the composer")
+        try click("normal")
+        _ = try await offered("Paired Student t test")
+        guard let sample: NSButton = control("worksheet-ai-change-sample", in: pane.view), viewer.window.makeFirstResponder(sample) else {
+            throw ChatGPTTutor.Failure(message: "Change sample choice did not take the keyboard focus")
+        }
+        spaceThenFocus(cards.web)
+        _ = try await waitCard("paired-interval", ["Local check found 4 complete pairs."], "Space on Change sample choice did not return to the card")
+        try check(pane.offer == nil && viewer.window.firstResponder === cards.web,
+                  "Space on Change sample choice with the focus then put on the worksheet before the card comes back: the focus stays on the worksheet")
     }
 }

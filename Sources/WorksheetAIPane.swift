@@ -281,7 +281,10 @@ final class WorksheetAIChoiceButton: NSButton {
     /// on it: whatever is drawn in its place (the next card once it has been read, the method offer, the card again, or the
     /// general choices) takes the focus on its first button, as Windows' page moves it (Learning/conversation.mjs:112,
     /// :227). Cleared once that is drawn, or when a question is sent.
-    private var cardFocus = false
+    private var cardFocus = false { didSet { if !cardFocus { offerFocusMovedTo = nil } } }
+    /// Where AppKit put the keyboard focus that was on the offer when the pane hid the offer to pass that focus on: the next
+    /// control of the pane's key view chain (linkKeyViews), or the window. Focus still there is the card's to pass on.
+    private weak var offerFocusMovedTo: NSResponder?
     /// The token every answer button of the current card carries.
     private(set) var guidanceToken = UUID().uuidString
     /// The exact selection, sheet and revisions the current token was issued for (worksheetAISelection, as JSON). A click
@@ -298,10 +301,11 @@ final class WorksheetAIChoiceButton: NSButton {
     var isFocused: Bool {
         visible && (viewer.window.firstResponder as? NSView)?.isDescendant(of: view) == true
     }
-    /// Whether the keyboard focus is where a card left it: on its choices or the offer, or on the window itself once the
-    /// focused button has gone with what it was on. Focus the user has since put elsewhere is not taken back.
+    /// Whether the keyboard focus is where a card left it: on its choices or the offer, on the window itself once the focused
+    /// button has gone with what it was on, or where AppKit moved it as the pane hid the offer that held it. Focus the user has
+    /// since put elsewhere is not taken back.
     private var focusLeftOnCard: Bool {
-        guard let responder = viewer.window.firstResponder, responder !== viewer.window else { return true }
+        guard let responder = viewer.window.firstResponder, responder !== viewer.window, responder !== offerFocusMovedTo else { return true }
         return (responder as? NSView).map { $0.isDescendant(of: guidance) || $0.isDescendant(of: offerPanel) } ?? false
     }
 
@@ -1014,7 +1018,11 @@ final class WorksheetAIChoiceButton: NSButton {
             }
         }
         methods.isHidden = methods.arrangedSubviews.isEmpty
+        // Hidden with the keyboard focus on it, the offer gives the focus to the next shown control of the key view chain: when
+        // that focus is the card's to pass on, it still counts as left on the card (focusLeftOnCard).
+        let passing = cardFocus && (viewer.window.firstResponder as? NSView)?.isDescendant(of: offerPanel) == true
         offerPanel.isHidden = offer == nil
+        if passing, offerPanel.isHidden { offerFocusMovedTo = viewer.window.firstResponder }
         renderGuidance()
         var rows: [[String: Any]] = (conversation?.messages ?? []).map { row in
             let body = row["text"] ?? ""
@@ -1038,6 +1046,7 @@ final class WorksheetAIChoiceButton: NSButton {
 
     /// One card at a time, as on Windows, and none while a reply runs or a method waits for confirmation.
     private func renderGuidance() {
+        defer { linkKeyViews() }
         // Drawing the card again (a new token) must not drop the keyboard focus on one of its answers, and focus on a card
         // that goes passes to whatever is drawn in its place.
         let focused = (viewer.window.firstResponder as? WorksheetAIChoiceButton).flatMap {
@@ -1095,6 +1104,25 @@ final class WorksheetAIChoiceButton: NSButton {
     private func passCardFocus(to target: NSView) {
         if target.window == nil { view.layoutSubtreeIfNeeded() }
         viewer.window.makeFirstResponder(target)
+    }
+
+    /// Tab and Shift-Tab take the keyboard through the pane in its visual order, as through Help's toolbar (HelpPane
+    /// linkNavigationKeyViews): its buttons, the composer and the transcript, top to bottom and each row leading to trailing, from
+    /// New conversation to Open in R, so a card's choices come after the conversation, as the Windows card's buttons follow the
+    /// messages in its page (Learning/conversation.mjs:131-133, :224-225). The pane joins the window after the window has made its
+    /// key view loop, so without this Tab reaches nothing in it. Linked again whenever the choices are drawn, as a card's and the
+    /// methods' buttons are made for each drawing; hidden and disabled controls keep their place, and AppKit's Tab passes over
+    /// them, so what updateControls shows or enables needs no new link. The rest of the window's key view loop is left as it is.
+    private func linkKeyViews() {
+        var controls: [NSView] = []
+        func collect(_ part: NSView) {
+            if part is NSButton || part === input || part === transcript.web { controls.append(part); return }
+            if let stack = part as? NSStackView { stack.arrangedSubviews.forEach(collect) }
+            else if let scroll = part as? NSScrollView { if let document = scroll.documentView { collect(document) } }
+            else { part.subviews.forEach(collect) }
+        }
+        view.subviews.forEach(collect)
+        for (previous, next) in zip(controls, controls.dropFirst()) { previous.nextKeyView = next }
     }
 
     /// A distribution card as Windows lays it out (Learning/conversation.mjs): its paragraphs, the recommendation under

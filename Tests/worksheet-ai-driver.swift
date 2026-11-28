@@ -1478,6 +1478,7 @@ extension WorksheetAIHarness {
         try check((await text(pane)).contains("This workbook is empty.") && workbookHelp?.isHiddenOrHasHiddenAncestor == false
                   && browse?.isHiddenOrHasHiddenAncestor != false && !shown("worksheet-ai-help-choose"),
                   "an empty workbook offers the example workbook and the workbook Help instead of method guidance")
+        try checkAccessibility("an empty workbook's choices", group: "Getting started with a workbook")
         try await grid(blank, "statsDirectGrid.setCellText({col:0,row:0,text:'7'})")
         try await wait("Data did not bring back the general choices") {
             let guide: NSButton? = control("worksheet-ai-help-choose", in: pane.view)
@@ -2724,8 +2725,8 @@ extension WorksheetAIHarness {
             }
         }
         if let proceed, offer != nil, (proceed.accessibilityParent() as? NSView) !== offer { problems.append("Continue is outside the offer's group") }
-        try check(problems.isEmpty, "\(state) gives accessibility a group labelled \(label.debugDescription), as Windows' page does, with each of its buttons "
-                  + "by its title and each of its paragraphs as text" + (problems.isEmpty ? "" : ": " + problems.joined(separator: "; ")))
+        try check(problems.isEmpty, "\(state): the pane gives accessibility a group labelled \(label.debugDescription), as Windows' page does, with each of its "
+                  + "buttons by its title and each of its paragraphs as text" + (problems.isEmpty ? "" : ": " + problems.joined(separator: "; ")))
     }
 
     /// Each card state in the narrowest pane the divider allows and at the window's minimum size (where the pane keeps that width, the
@@ -2736,7 +2737,7 @@ extension WorksheetAIHarness {
         let window: NSWindow = viewer.window, split = viewer.workspaceSplit, dock = pane.view.frame.width
         let narrowest = 340 - split.dividerThickness
         var pictures: [String] = [], states: [String] = []
-        func measure(_ state: String, _ label: String) async throws {
+        func measure(_ state: String, _ name: String, _ label: String) async throws {
             var failures: [String] = [], widths: [String] = []
             for size in ["normal", "narrowest", "minimum"] {
                 applySize(size, dock: dock)
@@ -2748,33 +2749,33 @@ extension WorksheetAIHarness {
                 if !problems.isEmpty { failures.append(size + " (pane \(pane.view.frame.size)): " + problems.joined(separator: "; ")) }
             }
             applySize("normal", dock: dock)
-            try check(failures.isEmpty, "\(state): in the narrowest pane the divider allows (\(narrowest) points), and at the window's minimum size, where the pane keeps "
+            try check(failures.isEmpty, "\(name): in the narrowest pane the divider allows (\(narrowest) points), and at the window's minimum size, where the pane keeps "
                       + "that width, no button is cut off, overlaps another or lies outside the pane once scrolled into view, every title and text shows whole, the "
                       + "card fills the pane's width from its leading margin and nothing scrolls sideways" + (failures.isEmpty ? "" : ": " + failures.joined(separator: " | ")))
-            try checkAccessibility(state, group: label)
+            try checkAccessibility(name, group: label)
             states.append(state)
         }
         try await select(cards, "selectCells({x:0,y:0,width:1,height:1})", "Current cell: Cards!A1")
         pane.input.string = "DESIGN_A"
         pane.send()
         _ = try await waitCard("choose", [chooseLine], "The study-design question did not appear for the narrow checks")
-        try await measure("choose", "Study design")
+        try await measure("choose", "the study-design question", "Study design")
         try click("paired")
         _ = try await waitCard("paired-interval", ["How many complete pairs are there?", "Check selected pairs"], "The unread paired card did not appear")
-        try await measure("paired-unread", "Paired interval measurements")
+        try await measure("paired-unread", "the paired card unread", "Paired interval measurements")
         try await select(cards, "selectCells({x:24,y:0,width:2,height:8})", "Selection: Cards!Y1:Z8")
         _ = try await waitCard("paired-interval", ["Local check found 4 complete pairs.", "Suggested branch"], "The read paired card did not appear")
-        try await measure("paired-read", "Paired interval measurements")
+        try await measure("paired-read", "the paired card read, with its recommendation", "Paired interval measurements")
         try await select(cards, "selectCells({x:6,y:0,width:2,height:103})", "Selection: Cards!G1:H103")
         _ = try await waitCard("paired-interval", ["Local check found 101 complete pairs"], "The paired card for more than 100 pairs did not appear")
-        try await measure("paired-large", "Paired interval measurements")
+        try await measure("paired-large", "the paired card for more than 100 pairs", "Paired interval measurements")
         try click("normal")
         try await feedback("The local check found more than 100 complete pairs. Choose the large-sample route for the mean difference or the non-normal route for Wilcoxon signed ranks.",
                            "The conflict feedback did not appear for the narrow checks")
-        try await measure("paired-feedback", "Paired interval measurements")
+        try await measure("paired-feedback", "the paired card with its conflict feedback", "Paired interval measurements")
         try click("large")
         _ = try await offered("Paired Student t test")
-        try await measure("offer", "Proposed worksheet method")
+        try await measure("offer", "the offer with the card's check and advice", "Proposed worksheet method")
         _ = await pane.changeSample()
         _ = try await waitCard("paired-interval", ["Local check found 101 complete pairs"], "Change sample choice did not return for the narrow checks")
         try click("back")
@@ -2785,19 +2786,19 @@ extension WorksheetAIHarness {
         // The counts are Y1:Z8's: the card for G1:H103 shows the same question until Y1:Z8 is read.
         _ = try await waitCard("independent-interval", ["Selected columns, if they hold", "Column 1: n = 7", "Use these as separate samples"],
                                "The independent card did not count Y1:Z8")
-        try await measure("independent-unconfirmed", "Independent interval measurements")
+        try await measure("independent-unconfirmed", "the independent card asking to use the columns as separate samples", "Independent interval measurements")
         try click("check")
         _ = try await waitCard("independent-interval", ["Column 1: n = 7"], "The independent card was not confirmed", absent: ["Selected columns, if they hold"])
-        try await measure("independent-confirmed", "Independent interval measurements")
+        try await measure("independent-confirmed", "the independent card confirmed as separate samples", "Independent interval measurements")
         try click("non-normal")
         _ = try await offered("Mann-Whitney U (two-sample Wilcoxon) test")
         button("Cancel")?.performClick(nil)
         try await wait("Cancel did not bring back the general choices for the narrow checks") { pane.offer == nil && shown("worksheet-ai-help-choose") }
-        try await measure("general", "Choose a worksheet method")
+        try await measure("general", "the general choices", "Choose a worksheet method")
         pane.input.string = "CLARIFY_THEN_CARD_A"
         pane.send()
         try await wait("The clarifying question did not appear for the narrow checks") { !pane.isBusy && pane.clarification != nil }
-        try await measure("clarification", "Analysis question")
+        try await measure("clarification", "the clarifying question", "Analysis question")
         applySize("normal", dock: dock)
         try check(states.count == 10 && pictures.count >= 30 && abs(pane.view.frame.width - dock) < 0.5 && window.frame.size != window.minSize,
                   "pictures of the pane in the \(states.count) states, at the suite's size, in the narrowest pane and at the window's minimum size, are in "

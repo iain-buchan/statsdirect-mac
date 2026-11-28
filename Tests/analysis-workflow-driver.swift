@@ -266,6 +266,28 @@ import PDFKit
         v.tabs.selectTabViewItem(grid.item)
         try await refuses(staleReport, "the report destination changes")
 
+        // The report the offer names in front of the worksheet when the page answers: Windows refuses Continue while another
+        // window is in front (ScriptAIPane.WorksheetAnalysis.cs:331-335). Nothing opens from the report's tab, and the offer is
+        // not used up, so Continue takes it once the worksheet is in front again.
+        try await select(1, rectangle: true)
+        let behind = try await prepare()
+        v.tabs.selectTabViewItem(otherReport.item)
+        let beforeBehind = v.documents.count
+        do {
+            try await v.continueWorksheetAIAnalysis(behind, for: grid, isCurrent: { true })
+            try check(false, "Worksheet AI opened an analysis with the report its offer names in front of the worksheet")
+        } catch is WorksheetAINotInFront {
+            try check(v.documents.count == beforeBehind && v.active === otherReport,
+                      "Worksheet AI opens nothing while the report its offer names is in front of the worksheet")
+        }
+        try await select(1, rectangle: true)
+        try await v.continueWorksheetAIAnalysis(behind, for: grid, isCurrent: { true })
+        guard let reopened = v.active, reopened.kind == "operation" else { try check(false, "Worksheet AI did not open the kept offer"); return }
+        try check(v.documents.count == beforeBehind + 1 && reopened.operationSourceID == grid.id
+                  && reopened.operationReportDestination == .existing(id: otherReport.id, title: otherReport.title),
+                  "the offer refused with the report in front is not used up: with the worksheet in front, Continue opens it for that report")
+        v.remove(reopened)
+
         try await select(1, rectangle: true)
         let confirmed = try await prepare()
         try check(confirmed.worksheetName == "Data" && confirmed.selectionLabel == "A2:B3"

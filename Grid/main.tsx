@@ -13,7 +13,8 @@ import { columnName, MAX_ROWS, MAX_COLS } from './store.mjs';
 import { rDataTables } from './r-data.mjs';
 import { csvWorkbook } from './csv.mjs';
 import { tutorInfo, tutorData } from './tutor-data.mjs';
-import { aiWorksheetState, selectionFingerprint, headingCells } from './ai-selection.mjs';
+import { aiWorksheetState, selectionFingerprint, headingCells, worksheetAISelection } from './ai-selection.mjs';
+import { measurementColumns, measurementTransfer } from './measurement-columns.mjs';
 import { decodeSnapshot, encodeSnapshot } from './snapshot.mjs';
 import {analysisMetadata, columnValues, snapshotColumns, requestedSheet} from './analysis-source.mjs';
 import {planWriteBack} from './write-back.mjs';
@@ -208,17 +209,15 @@ function App() {
       },
       tutorInfo: () => tutorInfo(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range}),
       tutorData: (options: any = {}) => tutorData(workbook,sheetIndex,{columns:selectionRef.current.columns.toArray(),rows:selectionRef.current.rows.toArray(),range:selectionRef.current.current?.range},options),
-      worksheetAISelection: () => {
-        const selection = selectionRef.current;
-        return {sheet: sheetIndex, sheetName: workbook.sheets[sheetIndex].name, workbookRevision: workbook.revision,
-          sheetRevision: store.version, columns: selection.columns.toArray(), rowCount: selection.rows.length,
-          firstRow: selection.rows.first() ?? null, lastRow: selection.rows.last() ?? null,
-          range: selection.current?.range ?? null, ranges: selection.current?.rangeStack ?? []};
-      },
+      // The selection a method offer is made for, with the click fingerprint of the same moment (ai-selection.mjs).
+      worksheetAISelection: () => worksheetAISelection(workbook, sheetIndex, selectionRef.current),
       // AI Assist's local view of the sheet: the selection as an A1 address and whether the workbook holds anything.
       aiWorksheetState: () => aiWorksheetState(workbook, sheetIndex, selectionRef.current),
       aiSelectionFingerprint: () => selectionFingerprint(workbook, sheetIndex, selectionRef.current),
       aiHeadingCells: (sheet: number, columns: number[]) => headingCells(workbook, sheet, columns),
+      // The distribution card's read of the two selected columns ('paired' or 'independent'), with the click fingerprint of
+      // the same moment; the paired differences travel as a typed snapshot (measurement-columns.mjs). Returns a Promise.
+      aiMeasurementColumns: (design: string) => measurementTransfer(measurementColumns(workbook, sheetIndex, selectionRef.current, design), postSnapshot),
       analysisSource: () => analysisMetadata(workbook, sheetIndex, {columns: selectionRef.current.columns.toArray(), range: selectionRef.current.current?.range}),
       columnValues: (request: any) => columnValues(workbook, sheetIndex, request),
       snapshotColumns: (request: any) => postSnapshot([{name: workbook.sheets[Number.isInteger(request?.sheet) ? request.sheet : sheetIndex]?.name ?? '', columns: snapshotColumns(workbook, sheetIndex, request)}]),
@@ -312,15 +311,22 @@ function App() {
         selectionRef.current = next;
         setSelection(next);
       },
+      // A test hook: selects whole columns given as 0-based [start, end) slices, as clicks on column headings do.
+      selectColumns: (slices: [number, number][]) => {
+        const next: GridSelection = {columns: slices.reduce((columns, slice) => columns.add(slice), CompactSelection.empty()), rows: CompactSelection.empty()};
+        selectionRef.current = next;
+        setSelection(next);
+      },
       setStatus: setMessage
     };
   });
   useEffect(() => {
     native('ready');
   }, []);
-  // AI Assist follows the selection and whether the workbook is empty. Drags change the selection on every pointer
-  // move, so the state is posted once it settles, and only when it differs from the last one posted. Edits, loads and
-  // sheet switches all change the revision or the sheet, so they are covered too. Nothing here reaches the provider.
+  // AI Assist follows the selection, whether the workbook is empty and the "First row has column names" setting. Drags
+  // change the selection on every pointer move, so the state is posted once it settles, and only when it differs from the
+  // last one posted. Edits, loads, sheet switches and the setting all change the revision or the sheet, so they are
+  // covered too. Nothing here reaches the provider.
   const postedAIState = useRef('');
   useEffect(() => {
     const timer = setTimeout(() => {

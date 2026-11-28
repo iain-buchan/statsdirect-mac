@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {CompactSelection} from '@glideapps/glide-data-grid';
 import {WorkbookStore} from './workbook.mjs';
-import {selectionAddress, workbookHasData, aiWorksheetState, selectionFingerprint, headingCells} from './ai-selection.mjs';
+import {selectionAddress, workbookHasData, aiWorksheetState, selectionFingerprint, headingCells, worksheetAISelection} from './ai-selection.mjs';
 
 const bounds = {columns: 8, rows: 100};
 const pieces = (...ranges) => ranges.reduce((selection, range) => selection.add(range), CompactSelection.empty());
@@ -87,6 +87,44 @@ test('a heading counts when its row-1 cell holds text, even text that reads like
 test('the state the pane receives names the sheet and holds no cell values', () => {
   const w = book([{name: 'Sheet 1', rows: 20, columns: 4, cells: [{col: 0, row: 0, text: 'Qzheading', kind: 'text'}, {col: 0, row: 1, text: '142741', kind: 'number'}]}]);
   const state = aiWorksheetState(w, 0, rect(0, 0, 2, 3));
-  assert.deepEqual(state, {sheet: 0, sheetName: 'Sheet 1', label: 'A1:B3', singleCell: false, hasData: true});
+  assert.deepEqual(state, {sheet: 0, sheetName: 'Sheet 1', label: 'A1:B3', singleCell: false, hasData: true, headerRow: true});
   assert.equal(JSON.stringify(state).includes('142741') || JSON.stringify(state).includes('Qzheading'), false);
+});
+
+test('the "First row has column names" setting is part of the state, so the page posts a change of it', () => {
+  const w = book([{name: 'Sheet 1', rows: 20, columns: 4, headerRow: true, cells: [{col: 0, row: 0, text: 'Before', kind: 'text'}, {col: 0, row: 1, text: '12', kind: 'number'}]}]);
+  // main.tsx posts the state when this text differs from the last one it posted.
+  const posted = () => JSON.stringify(aiWorksheetState(w, 0, rect(0, 0, 2, 3)));
+  const headed = posted();
+  w.sheets[0].store.headerRow = false;
+  assert.notEqual(posted(), headed);
+  assert.equal(aiWorksheetState(w, 0, rect(0, 0, 2, 3)).headerRow, false);
+  w.sheets[0].store.headerRow = true;
+  assert.equal(posted(), headed);
+});
+
+test('the selection a method offer is made for carries the click fingerprint of the same moment', () => {
+  const w = book([{name: 'Sheet 1', rows: 20, columns: 4, headerRow: true, cells: [
+    {col: 0, row: 0, text: 'Qzheading', kind: 'text'}, {col: 0, row: 1, text: '11', kind: 'number'}, {col: 1, row: 1, text: '10', kind: 'number'}]}]);
+  const selection = rect(0, 0, 2, 5);
+  const offered = worksheetAISelection(w, 0, selection);
+  // The fields WorksheetAIAnalysis.swift decodes, as main.tsx gave them before, and no cell value.
+  assert.deepEqual(offered, {sheet: 0, sheetName: 'Sheet 1', workbookRevision: w.revision, sheetRevision: w.sheets[0].store.version,
+    columns: [], rowCount: 0, firstRow: null, lastRow: null, range: {x: 0, y: 0, width: 2, height: 5}, ranges: [],
+    fingerprint: selectionFingerprint(w, 0, selection)});
+  assert.equal(/Qzheading|"11"|"10"/.test(JSON.stringify(offered)), false);
+  assert.deepEqual(worksheetAISelection(w, 0, columns([0, 2])).columns, [0, 1]);
+  const picked = worksheetAISelection(w, 0, rows([1, 4]));
+  assert.deepEqual([picked.rowCount, picked.firstRow, picked.lastRow], [3, 1, 3]);
+  // "First row has column names" leaves the selection and both revisions as they were, so only the fingerprint tells an
+  // offer chosen on a distribution card that its card was read with the other setting.
+  const {fingerprint: headed, ...before} = offered;
+  w.sheets[0].store.headerRow = false;
+  const {fingerprint: unheaded, ...after} = worksheetAISelection(w, 0, selection);
+  assert.deepEqual(after, before);
+  assert.notEqual(unheaded, headed);
+  assert.equal(unheaded, selectionFingerprint(w, 0, selection));
+  // A selection changed in the same call is the one both name.
+  const moved = rect(2, 0, 2, 5), then = worksheetAISelection(w, 0, moved);
+  assert.deepEqual([then.range, then.fingerprint], [moved.current.range, selectionFingerprint(w, 0, moved)]);
 });

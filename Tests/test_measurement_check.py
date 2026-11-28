@@ -413,6 +413,60 @@ MIRRORS = {
             }
             '''),
     ),
+    'StatsDirectUI/UI/frmSpreadsheetGear.WorksheetAnalysis.cs': (
+        ('CaptureWorksheetAnalysisTarget',
+         "Sources/WorksheetAIAnalysis.swift prepareWorksheetAIAnalysis (an offer's workbook, version and selection, with "
+         "the fingerprint of the same moment) and Sources/WorksheetAIPane.swift issueGuidanceToken (a card's "
+         'fingerprint)', r'''
+            internal WorksheetAnalysisTarget CaptureWorksheetAnalysisTarget(bool workbookShared = false) => workbookView.WithLock(() =>
+            {
+                CheckWorksheetAnalysisReady();
+                if (workbookView.ActiveWorkbook is not IWorkbook book || workbookView.ActiveWorksheet is not IWorksheet sheet)
+                    throw new InvalidOperationException("Select a worksheet before asking for an analysis.");
+                return new WorksheetAnalysisTarget(this, book, sheet, Text, sheet.Name,
+                    workbookView.RangeSelection.Address, LearningVersion, workbookShared);
+            });
+            '''),
+        ('ResolveWorksheetAnalysisTarget (the version and selection compared, and its refusals)',
+         'Sources/WorksheetAIAnalysis.swift prepareWorksheetAIAnalysis and continueWorksheetAIAnalysis (an offer only '
+         "for its workbook, version and selection, or its card's reading, refused with one text), and "
+         'Sources/WorksheetAIPane.swift prepareAnalysis(_:from:), continueAnalysis and cancelAnalysis (a refused offer '
+         "goes), answerCard and answerClarification (a card's choices only for its own selection) and readCard (Check "
+         'reads the live selection)', r'''
+            internal (frmMain Main, WorksheetAnalysisTarget Source) ResolveWorksheetAnalysisTarget(
+                WorksheetAnalysisTarget target, bool allowSelectionChanges) => workbookView.WithLock(() =>
+            {
+                var main = CheckWorksheetAnalysisReady();
+                if (target.Grid != this || target.Workbook != workbookView.ActiveWorkbook ||
+                    target.Worksheet != workbookView.ActiveWorksheet || target.WorksheetName != target.Worksheet.Name ||
+                    target.WorkbookName != Text)
+                    throw new InvalidOperationException("The workbook or worksheet changed. Choose the method again.");
+
+                string selection = workbookView.RangeSelection.Address;
+                if (target.Version == LearningVersion && target.Selection == selection) return (main, target);
+                if (allowSelectionChanges && !target.WorkbookShared)
+                    return (main, target with { Selection = selection, Version = LearningVersion });
+
+                string reason = target.WorkbookShared
+                    ? "The shared worksheet or selection changed. Ask for a new analysis suggestion."
+                    : "The worksheet or selection changed. Choose the method again.";
+                throw new InvalidOperationException(reason);
+            });
+            '''),
+        ('CheckWorksheetAnalysisReady',
+         'Sources/WorksheetAIPane.swift prepareAnalysis(_:from:) (the workbook in front) and '
+         'Sources/WorksheetAIAnalysis.swift continueWorksheetAIAnalysis (no other workbook in front, and no sheet or '
+         'modal window open; a cell edit refuses nothing, design D13)', r'''
+            private frmMain CheckWorksheetAnalysisReady()
+            {
+                if (IsDisposed || Disposing || MdiParent is not frmMain main || main.ActiveMdiChild != this)
+                    throw new InvalidOperationException("Open the worksheet you asked about before starting an analysis.");
+                if (main.InOperation || main.LearningCalculationRunning || workbookView.IsEditing)
+                    throw new InvalidOperationException("Finish the current analysis or cell edit before starting an analysis.");
+                return main;
+            }
+            '''),
+    ),
     'StatsDirectUI/UI/Learning/ScriptAIPane.WorksheetAnalysis.cs': (
         ('IntervalDecision.ReadSelection',
          'FullEngine/MeasurementChecks.cs Execute (the decision from what the grid read) and '
@@ -588,9 +642,47 @@ MIRRORS = {
                 worksheetAction = WithCurrentWorksheetSelection(new WorksheetAction(previous.Kind, action.Source, Interval: previous));
                 break;
             '''),
+        ("ChooseWorksheetAction's clarify case",
+         "Sources/WorksheetAIPane.swift answerClarification (an answer only for the card's selection, sent by submit, "
+         'which retires the card)', r'''
+            case ("clarify", _):
+                var answer = action.Clarification.Options.FirstOrDefault(option => option.Id == choice);
+                if (answer == null || service.Tutor.DataSharingDisabled) return;
+                grid.ResolveWorksheetAnalysisTarget(action.Source, allowSelectionChanges: false);
+                ClearWorksheetAnalysis();
+                Render();
+                _ = SendAsync(answer.Answer, isClarificationReply: true);
+                return;
+            '''),
+        ("ChooseWorksheetAction's change case",
+         "Sources/WorksheetAIPane.swift cancelAnalysis (the Mac's offer has Cancel in place of Change design)", r'''
+            case ("confirm", "change") when action.Design != null:
+                worksheetAction = WithCurrentWorksheetSelection(new WorksheetAction("choose", action.Source));
+                break;
+            '''),
+        ("ChooseWorksheetAction's continue case",
+         'Sources/WorksheetAIPane.swift continueAnalysis and cancelAnalysis (the offer retired as the method opens) and '
+         'Sources/WorksheetAIAnalysis.swift continueWorksheetAIAnalysis (an offer used once)', r'''
+            case ("confirm", "continue"):
+                // Retire the token before native controls can open a modal message loop.
+                ClearWorksheetAnalysis();
+                Render();
+                action.Proposal.Open();
+                return;
+            '''),
+        ("ChooseWorksheetAction's other choices, and the status line after a choice",
+         'Sources/WorksheetAIPane.swift answerCard (a choice the card does not show is ignored; the notice line after a '
+         'choice)', r'''
+                    default:
+                        return;
+                }
+                status.Text = "";
+                Render();
+            }
+            '''),
         ("ChooseWorksheetAction's error handler",
-         'Sources/WorksheetAIPane.swift answerCard (an unavailable method) and prepareAnalysis(_:from:) (an offer that '
-         'cannot be prepared)', r'''
+         'Sources/WorksheetAIPane.swift answerCard (an unavailable method), prepareAnalysis(_:from:) (an offer that '
+         'cannot be prepared) and continueAnalysis and cancelAnalysis (an offer refused at Continue)', r'''
             catch (InvalidOperationException ex)
             {
                 ClearWorksheetAnalysis();
@@ -609,6 +701,17 @@ MIRRORS = {
         ('FindWorksheetCommand', "Sources/WorksheetAIPane.swift answerCard (the branch's method in viewer.worksheetAIMethods)", r'''
             private static WorksheetCommand FindWorksheetCommand(frmMain main, string operation) =>
                 main.WorksheetCommands().FirstOrDefault(method => method.Operation == operation && method.CanRun);
+            '''),
+        ('ClearWorksheetAnalysis',
+         'Sources/WorksheetAIPane.swift cancelAnalysis, and select, documentClosed, hide, newConversation and submit '
+         '(each clears the card and any offer)', r'''
+            private bool ClearWorksheetAnalysis()
+            {
+                if (worksheetAction == null) return false;
+                worksheetAction = null;
+                status.Text = "";
+                return true;
+            }
             '''),
     ),
     'StatsDirectUI/UI/Learning/ScriptAIPane.cs': (
@@ -630,8 +733,8 @@ MIRRORS = {
                 catch (InvalidOperationException) { /* The question can proceed without a local analysis target. */ }
             '''),
         ("SendAsync's definition of the card's tool (and of the clarifying question's)",
-         'Sources/WorksheetAIPane.swift WorksheetAIDistribution.definition and submit (its tools), and the copy in '
-         'Tests/mock-worksheet-ai-server.py', r'''
+         'Sources/WorksheetAIPane.swift WorksheetAIDistribution.definition, WorksheetAIClarification.definition and '
+         'submit (its tools), and the copy in Tests/mock-worksheet-ai-server.py', r'''
             tools.Add(QuestionContext.Tool(ChatGPTTutor.WorksheetTTestChoiceTool,
                 "Open the Help decision tree for a quantitative comparison. Omit design when the study design is unclear. Use paired for matched pairs and independent for two independent samples. The card considers the relevant counts and distributions locally. This tool shares no diagnostic data and runs no analysis.",
                 new() { ["design"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("paired", "independent") } }));
@@ -681,6 +784,15 @@ MIRRORS = {
             '''),
         ("WorksheetInstructions on the card's tool", 'Content/Tutor/worksheet-instructions.txt', r'''
             When a quantitative scale and a comparison of means are established and matching is unclear, use statsdirect_choose_worksheet_t_test without arguments to offer Same people or units and Separate groups. If the user asks which method to choose and the quantitative design is clear, set design to paired or independent for the corresponding decision card when size or distribution remains uncertain. The card can check a suitable selection locally. If the user seeks inference about the mean, explain that a rank-based method addresses a different question. The usual signed-rank location interpretation assumes symmetric differences. If the outcome scale or comparison goal is still unclear, follow the clarification instructions.
+            '''),
+        ("ToolCallAsync's gate, inside the try",
+         "Sources/ChatGPTTutor.swift toolCall (the gate's conditions; in a guidance-only reply, reject gives its "
+         "refusals of the worksheet tools the reply's text)", r'''
+            try
+            {
+                string name = args.S("tool"), call = args.S("callId");
+                if (current == null || current.Token.IsCancellationRequested || args.S("threadId") != current.Thread || current.Turn != null && args.S("turnId") != current.Turn || args["namespace"] != null || !current.Tools.Contains(name) || call.Length == 0 || current.Calls.Count >= 16 || !current.Calls.Add(call) || args["arguments"] is not JsonObject arguments)
+                    throw new InvalidOperationException("This request is not available for this question.");
             '''),
         ("ToolCallAsync's text for a guidance-only error",
          'Sources/WorksheetAIPane.swift submit (the question-only handler) and Sources/ChatGPTTutor.swift toolCall (its '
@@ -779,9 +891,31 @@ MIRRORS = {
                 frmSpreadsheetGear Grid, IWorkbook Workbook, IWorksheet Worksheet,
                 string WorkbookName, string WorksheetName, string Selection, int Version, bool WorkbookShared)
             '''),
+        ("WorksheetAnalysisProposal's target, resolved as the method is proposed",
+         "Sources/WorksheetAIPane.swift prepareAnalysis(_:from:) (an offer from a card only for the card's reading) and "
+         'Sources/WorksheetAIAnalysis.swift prepareWorksheetAIAnalysis', r'''
+            internal WorksheetAnalysisProposal(WorksheetAnalysisTarget target, WorksheetCommand command)
+            {
+                var (main, source) = target.Grid.ResolveWorksheetAnalysisTarget(target, allowSelectionChanges: false);
+            '''),
         ('the text for an unavailable method', 'Sources/WorksheetAIPane.swift answerCard', r'''
             if (command == null || !command.CanRun)
                 throw new InvalidOperationException("That method is unavailable. Choose another method in Analyse.");
+            '''),
+        ('WorksheetAnalysisProposal.Open (the target and the report destination checked again)',
+         'Sources/WorksheetAIAnalysis.swift continueWorksheetAIAnalysis (the selection, version and report destination '
+         'checked again before the method opens) and Sources/WorksheetAIPane.swift continueAnalysis', r'''
+            internal void Open()
+            {
+                var (main, _) = Source.Grid.ResolveWorksheetAnalysisTarget(Source, allowSelectionChanges: false);
+                if (DestinationTitle != null)
+                {
+                    var currentDestination = main.ExistingReportDestination;
+                    if (!ReferenceEquals(currentDestination, destination) || (destination != null && destination.Text != DestinationTitle))
+                        throw new InvalidOperationException("The report destination changed. Choose the method again.");
+                }
+                main.OpenReviewedWorksheetCommand(command);
+            }
             '''),
     ),
     'StatsDirectUI/Templates/RunRecord.cs': (

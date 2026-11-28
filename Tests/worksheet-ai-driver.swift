@@ -141,6 +141,7 @@ import WebKit
         try await h.cardsStayLocal(first, cards)
         try await h.offersHeldToTheCard(cards)
         try await h.keyboardCards(cards)
+        try await h.narrowCards(cards)
         try await h.cardNeedsWorkbookInFront(cards, report)
         let (qz, pefr) = try await h.questionOnlyCards()
 
@@ -2520,5 +2521,286 @@ extension WorksheetAIHarness {
         _ = try await waitCard("paired-interval", ["Local check found 4 complete pairs."], "Space on Change sample choice did not return to the card")
         try check(pane.offer == nil && viewer.window.firstResponder === cards.web,
                   "Space on Change sample choice with the focus then put on the worksheet before the card comes back: the focus stays on the worksheet")
+    }
+}
+
+extension WorksheetAIHarness {
+    /// An accessibility element's role, its label, title and value, its children and its parent, for the views, elements and
+    /// windows AppKit gives the pane's tree.
+    func accessibility(_ element: Any) -> (role: String, words: [String], children: [Any], parent: Any?) {
+        func words(_ label: String?, _ title: String?, _ value: Any?) -> [String] {
+            var words: [String] = []
+            if let label, !label.isEmpty { words.append("label " + label.debugDescription) }
+            if let title, !title.isEmpty { words.append("title " + title.debugDescription) }
+            if let value = value as? String, !value.isEmpty { words.append("value " + value.debugDescription) }
+            if let value = value as? NSAttributedString, value.length > 0 { words.append("value " + value.string.debugDescription) }
+            return words
+        }
+        if let view = element as? NSView {
+            return (view.accessibilityRole()?.rawValue ?? "?", words(view.accessibilityLabel(), view.accessibilityTitle(), view.accessibilityValue()),
+                    view.accessibilityChildren() ?? [], view.accessibilityParent())
+        }
+        if let item = element as? NSAccessibilityElement {
+            return (item.accessibilityRole()?.rawValue ?? "?", words(item.accessibilityLabel(), item.accessibilityTitle(), item.accessibilityValue()),
+                    item.accessibilityChildren() ?? [], item.accessibilityParent())
+        }
+        if let cell = element as? NSCell {
+            return (cell.accessibilityRole()?.rawValue ?? "?", words(cell.accessibilityLabel(), cell.accessibilityTitle(), cell.accessibilityValue()),
+                    cell.accessibilityChildren() ?? [], cell.accessibilityParent())
+        }
+        if let window = element as? NSWindow {
+            return (window.accessibilityRole()?.rawValue ?? "?", words(window.accessibilityLabel(), window.accessibilityTitle(), nil), [], nil)
+        }
+        return (String(describing: type(of: element)), [], [], nil)
+    }
+
+    /// What the pane shows to accessibility from `element` down: each element's role and its label, title or value.
+    func accessibilityTree(_ element: Any, depth: Int = 0) -> [String] {
+        let shown = accessibility(element)
+        var lines = [String(repeating: "  ", count: depth) + shown.role + (shown.words.isEmpty ? "" : " " + shown.words.joined(separator: ", "))]
+        if depth < 4 { for child in shown.children { lines += accessibilityTree(child, depth: depth + 1) } }
+        return lines
+    }
+
+    /// The pane's shown buttons and text fields at the size it has: what cannot be seen whole once scrolled into view, overlaps
+    /// another, lies outside the pane, does not show its whole title or text, or scrolls sideways. Empty when the layout holds. On
+    /// this macOS a view does not clip to its own bounds, so visibleRect is the part of the pane's visible area the view could draw
+    /// in: a view is seen whole when its bounds lie within it.
+    func layoutProblems() async -> [String] {
+        viewer.window.contentView?.layoutSubtreeIfNeeded()
+        let width = pane.view.bounds.width
+        // Frames for the overlaps are taken in the pane's content, which scrolling does not move.
+        let content: NSView = (pane.view.subviews.first as? NSScrollView)?.documentView ?? pane.view
+        var problems: [String] = [], frames: [(String, NSView, NSRect)] = []
+        func seen(_ part: NSView, _ name: String) {
+            frames.append((name, part, content.convert(part.bounds, from: part)))
+            part.scrollToVisible(part.bounds)
+            let frame = pane.view.convert(part.bounds, from: part)
+            if part.bounds.isEmpty || part.visibleRect.intersection(part.bounds) != part.bounds {
+                problems.append(name + " cannot be seen whole: \(part.visibleRect.intersection(part.bounds)) of \(part.bounds)")
+            }
+            if frame.minX < -0.5 || frame.maxX > width + 0.5 { problems.append(name + " lies outside the pane: \(frame) in \(width)") }
+        }
+        for button in views(NSButton.self, in: pane.view) where !button.isHiddenOrHasHiddenAncestor && button.window != nil {
+            let name = "[" + button.title + "]"
+            seen(button, name)
+            if let choice = button as? WorksheetAIChoiceButton, choice.wrapsTitle {
+                let needed = choice.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: button.bounds.width, height: 10_000)).height ?? .infinity
+                if needed > button.bounds.height + 0.5 { problems.append(name + " shows \(button.bounds.height) of its wrapped title's \(needed)") }
+            } else {
+                let natural = button.intrinsicContentSize
+                if natural.width > button.bounds.width + 0.5 || natural.height > button.bounds.height + 0.5 {
+                    problems.append(name + " is \(button.bounds.size) for its title's \(natural)")
+                }
+            }
+        }
+        for field in views(NSTextField.self, in: pane.view) where !field.isHiddenOrHasHiddenAncestor && field.window != nil && !field.stringValue.isEmpty {
+            let name = field.stringValue.prefix(40).debugDescription
+            seen(field, name)
+            if field.cell?.wraps == true {
+                let needed = field.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: field.bounds.width, height: 10_000)).height ?? .infinity
+                if needed > field.bounds.height + 0.5 { problems.append(name + " shows \(field.bounds.height) of its text's \(needed)") }
+            } else if field !== pane.replyActivity, field.intrinsicContentSize.width > field.bounds.width + 0.5 {
+                problems.append(name + " is \(field.bounds.width) wide for its text's \(field.intrinsicContentSize.width)")
+            }
+        }
+        for (index, (name, part, frame)) in frames.enumerated() {
+            for (other, second, rect) in frames[(index + 1)...] where !part.isDescendant(of: second) && !second.isDescendant(of: part)
+                && frame.insetBy(dx: 0.5, dy: 0.5).intersects(rect.insetBy(dx: 0.5, dy: 0.5)) {
+                problems.append(name + " overlaps " + other + ": \(frame) and \(rect)")
+            }
+        }
+        // The card, the clarifying question, the general choices and the offer fill the pane's width from its leading margin, as
+        // Windows' cards fill its conversation.
+        if let stack = content.subviews.first(where: { $0 is NSStackView }) {
+            let proceed: NSButton? = control("worksheet-ai-continue", in: pane.view)
+            let parts: [(String, NSView?)] = [("the card", control("worksheet-ai-distribution", in: pane.view)),
+                                              ("the clarifying question", control("worksheet-ai-clarification", in: pane.view)),
+                                              ("the general choices", pane.helpChoose.superview), ("the empty workbook's choices", pane.openExample.superview),
+                                              ("the offer", proceed?.superview?.superview)]
+            for (name, part) in parts {
+                guard let part, !part.isHiddenOrHasHiddenAncestor, part.window != nil else { continue }
+                let frame = content.convert(part.bounds, from: part)
+                if abs(frame.minX - stack.frame.minX) > 0.5 || abs(frame.width - stack.frame.width) > 0.5 {
+                    problems.append(name + " does not fill the pane's width from its leading margin: \(frame) in \(stack.frame)")
+                }
+            }
+        }
+        let sideways = (try? await pane.transcript.web.evaluateJavaScript("document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth")) as? Int ?? 0
+        if sideways > 0 { problems.append("the transcript scrolls sideways by \(sideways)") }
+        if let scroller = pane.view.subviews.first as? NSScrollView, let document = scroller.documentView {
+            if document.frame.width > scroller.contentView.bounds.width + 0.5 || scroller.hasHorizontalScroller {
+                problems.append("the pane scrolls sideways: its content is \(document.frame.width) wide in \(scroller.contentView.bounds.width)")
+            }
+            scroller.contentView.scroll(to: .zero)
+            scroller.reflectScrolledClipView(scroller.contentView)
+        }
+        return problems
+    }
+
+    /// Pictures of the pane as it is drawn now, taken from its own views (cacheDisplay; no screen capture): the pane with the card,
+    /// the clarifying question, the choices or the offer scrolled into view, and, when the pane scrolls, its whole content. Their paths.
+    func snapshot(_ name: String) -> [String] {
+        let folder = root.appendingPathComponent(".build/worksheet-ai-narrow", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        viewer.window.contentView?.layoutSubtreeIfNeeded()
+        let parts: [NSView?] = [control("worksheet-ai-distribution", in: pane.view), control("worksheet-ai-clarification", in: pane.view),
+                                (control("worksheet-ai-continue", in: pane.view) as NSButton?)?.superview?.superview, pane.guidance]
+        if let shown = parts.compactMap({ $0 }).first(where: { !$0.isHiddenOrHasHiddenAncestor }) { shown.scrollToVisible(shown.bounds) }
+        var paths: [String] = []
+        func picture(_ view: NSView, _ file: String) {
+            guard let image = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+            view.cacheDisplay(in: view.bounds, to: image)
+            let url = folder.appendingPathComponent(file + ".png")
+            if let data = image.representation(using: .png, properties: [:]), (try? data.write(to: url)) != nil { paths.append(url.path) }
+        }
+        picture(pane.view, name)
+        if let scroller = pane.view.subviews.first as? NSScrollView, let document = scroller.documentView,
+           document.frame.height > scroller.contentView.bounds.height + 0.5 {
+            picture(document, name + "-whole")
+        }
+        (pane.view.subviews.first as? NSScrollView).map { $0.contentView.scroll(to: .zero); $0.reflectScrolledClipView($0.contentView) }
+        return paths
+    }
+}
+
+extension WorksheetAIHarness {
+    /// The sizes the narrow checks use: the suite's own (the pane 460 points wide), the narrowest pane the divider allows in that
+    /// window (its delegate, HelpPane, stops it 340 points from the right edge, where a drag ends), and the window at its minimum
+    /// size, the pane as the window leaves it.
+    func applySize(_ size: String, dock: CGFloat) {
+        let window: NSWindow = viewer.window, split = viewer.workspaceSplit
+        func layout() { window.contentView?.layoutSubtreeIfNeeded(); split.layoutSubtreeIfNeeded() }
+        func narrowest() {
+            let limit = split.delegate?.splitView?(split, constrainMaxCoordinate: split.bounds.width, ofSubviewAt: 0) ?? split.bounds.width - 340
+            split.setPosition(limit, ofDividerAt: 0)
+        }
+        window.setContentSize(NSSize(width: 1350, height: 850)); layout()
+        split.setPosition(split.bounds.width - dock - split.dividerThickness, ofDividerAt: 0); layout()
+        switch size {
+        case "narrowest": narrowest()
+        case "minimum":
+            let frame = window.frame
+            window.setFrame(NSRect(x: frame.minX, y: frame.maxY - window.minSize.height, width: window.minSize.width, height: window.minSize.height), display: true)
+        default: break
+        }
+        layout()
+    }
+
+    /// What `element` and every element under it give accessibility: the role, and the title, label and text of each.
+    func accessibilityElements(_ element: Any, depth: Int = 0) -> [(role: String, title: String, text: String)] {
+        let shown = accessibility(element)
+        func text(_ value: Any?) -> String { (value as? String) ?? (value as? NSAttributedString)?.string ?? "" }
+        var title = "", label = "", value = ""
+        if let view = element as? NSView { title = view.accessibilityTitle() ?? ""; label = view.accessibilityLabel() ?? ""; value = text(view.accessibilityValue()) }
+        else if let cell = element as? NSCell { title = cell.accessibilityTitle() ?? ""; label = cell.accessibilityLabel() ?? ""; value = text(cell.accessibilityValue()) }
+        var found = [(role: shown.role, title: title.isEmpty ? label : title, text: value)]
+        if depth < 6 { for child in shown.children { found += accessibilityElements(child, depth: depth + 1) } }
+        return found
+    }
+
+    /// What a state gives accessibility, as Windows' page gives it: the choices are a group with Windows' aria label for what they
+    /// show (Learning/conversation.mjs:122-127), and so is the offer ('Proposed worksheet method'); each of their buttons is a button
+    /// titled with the text the suite holds to Windows'; and every paragraph of the card, the question and the offer is static text
+    /// with its whole text.
+    func checkAccessibility(_ state: String, group label: String) throws {
+        viewer.window.contentView?.layoutSubtreeIfNeeded()
+        var problems: [String] = []
+        let proceed: NSButton? = control("worksheet-ai-continue", in: pane.view)
+        let offer = proceed.flatMap { $0.isHiddenOrHasHiddenAncestor ? nil : $0.superview?.superview }
+        let box: NSView = offer ?? pane.guidance
+        if box.accessibilityRole() != .group || box.accessibilityLabel() != label {
+            problems.append("its group is \(box.accessibilityRole()?.rawValue ?? "none") labelled \((box.accessibilityLabel() ?? "nothing").debugDescription)")
+        }
+        let elements = accessibilityElements(box).dropFirst()
+        for button in views(NSButton.self, in: box) where !button.isHiddenOrHasHiddenAncestor {
+            if !elements.contains(where: { $0.role == NSAccessibility.Role.button.rawValue && $0.title == button.title }) {
+                problems.append("no button titled \(button.title.debugDescription)")
+            }
+        }
+        for field in views(NSTextField.self, in: box) where !field.isHiddenOrHasHiddenAncestor && !field.stringValue.isEmpty {
+            if !elements.contains(where: { $0.role == NSAccessibility.Role.staticText.rawValue && $0.text == field.stringValue }) {
+                problems.append("no static text reading \(field.stringValue.prefix(60).debugDescription)")
+            }
+        }
+        if let proceed, offer != nil, (proceed.accessibilityParent() as? NSView) !== offer { problems.append("Continue is outside the offer's group") }
+        try check(problems.isEmpty, "\(state) gives accessibility a group labelled \(label.debugDescription), as Windows' page does, with each of its buttons "
+                  + "by its title and each of its paragraphs as text" + (problems.isEmpty ? "" : ": " + problems.joined(separator: "; ")))
+    }
+
+    /// Each card state in the narrowest pane the divider allows and at the window's minimum size (where the pane keeps that width, the
+    /// split would otherwise share it out to 287.5 points): no button cut off, overlapping or outside the pane once scrolled into view,
+    /// every title and text whole, nothing scrolling sideways (layoutProblems); pictures of each, and at the suite's size, in
+    /// .build/worksheet-ai-narrow; and what each state gives accessibility (checkAccessibility).
+    func narrowCards(_ cards: Document) async throws {
+        let window: NSWindow = viewer.window, split = viewer.workspaceSplit, dock = pane.view.frame.width
+        let narrowest = 340 - split.dividerThickness
+        var pictures: [String] = [], states: [String] = []
+        func measure(_ state: String, _ label: String) async throws {
+            var failures: [String] = [], widths: [String] = []
+            for size in ["normal", "narrowest", "minimum"] {
+                applySize(size, dock: dock)
+                let problems = await layoutProblems()
+                pictures += snapshot(state + "-" + size)
+                widths.append(size + " \(pane.view.frame.width)")
+                if size != "normal", abs(pane.view.frame.width - narrowest) > 0.5 { failures.append(size + ": the pane is \(pane.view.frame.width) wide") }
+                if size == "minimum", window.frame.size != window.minSize { failures.append("the window is \(window.frame.size), not its minimum \(window.minSize)") }
+                if !problems.isEmpty { failures.append(size + " (pane \(pane.view.frame.size)): " + problems.joined(separator: "; ")) }
+            }
+            applySize("normal", dock: dock)
+            try check(failures.isEmpty, "\(state): in the narrowest pane the divider allows (\(narrowest) points), and at the window's minimum size, where the pane keeps "
+                      + "that width, no button is cut off, overlaps another or lies outside the pane once scrolled into view, every title and text shows whole, the "
+                      + "card fills the pane's width from its leading margin and nothing scrolls sideways" + (failures.isEmpty ? "" : ": " + failures.joined(separator: " | ")))
+            try checkAccessibility(state, group: label)
+            states.append(state)
+        }
+        try await select(cards, "selectCells({x:0,y:0,width:1,height:1})", "Current cell: Cards!A1")
+        pane.input.string = "DESIGN_A"
+        pane.send()
+        _ = try await waitCard("choose", [chooseLine], "The study-design question did not appear for the narrow checks")
+        try await measure("choose", "Study design")
+        try click("paired")
+        _ = try await waitCard("paired-interval", ["How many complete pairs are there?", "Check selected pairs"], "The unread paired card did not appear")
+        try await measure("paired-unread", "Paired interval measurements")
+        try await select(cards, "selectCells({x:24,y:0,width:2,height:8})", "Selection: Cards!Y1:Z8")
+        _ = try await waitCard("paired-interval", ["Local check found 4 complete pairs.", "Suggested branch"], "The read paired card did not appear")
+        try await measure("paired-read", "Paired interval measurements")
+        try await select(cards, "selectCells({x:6,y:0,width:2,height:103})", "Selection: Cards!G1:H103")
+        _ = try await waitCard("paired-interval", ["Local check found 101 complete pairs"], "The paired card for more than 100 pairs did not appear")
+        try await measure("paired-large", "Paired interval measurements")
+        try click("normal")
+        try await feedback("The local check found more than 100 complete pairs. Choose the large-sample route for the mean difference or the non-normal route for Wilcoxon signed ranks.",
+                           "The conflict feedback did not appear for the narrow checks")
+        try await measure("paired-feedback", "Paired interval measurements")
+        try click("large")
+        _ = try await offered("Paired Student t test")
+        try await measure("offer", "Proposed worksheet method")
+        _ = await pane.changeSample()
+        _ = try await waitCard("paired-interval", ["Local check found 101 complete pairs"], "Change sample choice did not return for the narrow checks")
+        try click("back")
+        _ = try await waitCard("choose", [chooseLine], "Change design did not return for the narrow checks")
+        try click("independent")
+        _ = try await waitCard("independent-interval", [], "Separate groups did not draw the independent card")
+        try await select(cards, "selectCells({x:24,y:0,width:2,height:8})", "Selection: Cards!Y1:Z8")
+        // The counts are Y1:Z8's: the card for G1:H103 shows the same question until Y1:Z8 is read.
+        _ = try await waitCard("independent-interval", ["Selected columns, if they hold", "Column 1: n = 7", "Use these as separate samples"],
+                               "The independent card did not count Y1:Z8")
+        try await measure("independent-unconfirmed", "Independent interval measurements")
+        try click("check")
+        _ = try await waitCard("independent-interval", ["Column 1: n = 7"], "The independent card was not confirmed", absent: ["Selected columns, if they hold"])
+        try await measure("independent-confirmed", "Independent interval measurements")
+        try click("non-normal")
+        _ = try await offered("Mann-Whitney U (two-sample Wilcoxon) test")
+        button("Cancel")?.performClick(nil)
+        try await wait("Cancel did not bring back the general choices for the narrow checks") { pane.offer == nil && shown("worksheet-ai-help-choose") }
+        try await measure("general", "Choose a worksheet method")
+        pane.input.string = "CLARIFY_THEN_CARD_A"
+        pane.send()
+        try await wait("The clarifying question did not appear for the narrow checks") { !pane.isBusy && pane.clarification != nil }
+        try await measure("clarification", "Analysis question")
+        applySize("normal", dock: dock)
+        try check(states.count == 10 && pictures.count >= 30 && abs(pane.view.frame.width - dock) < 0.5 && window.frame.size != window.minSize,
+                  "pictures of the pane in the \(states.count) states, at the suite's size, in the narrowest pane and at the window's minimum size, are in "
+                  + ".build/worksheet-ai-narrow (\(pictures.count) files), and the window and the pane are back at the suite's size")
     }
 }

@@ -195,6 +195,11 @@ final class WorksheetAIChoiceButton: NSButton {
     }
 }
 
+/// The pane's content in its scroll view, flipped so that it starts at the top however much of it the pane shows.
+@MainActor private final class WorksheetAIPaneContent: NSView {
+    override var isFlipped: Bool { true }
+}
+
 /// Worksheet conversations and consent are scoped to a document ID. A running
 /// request owns its original conversation even while the user changes tabs.
 @MainActor final class WorksheetAIPane: NSObject {
@@ -373,6 +378,10 @@ final class WorksheetAIChoiceButton: NSButton {
         offerLabel.widthAnchor.constraint(equalTo: offerPanel.widthAnchor).isActive = true
         offerDetails.widthAnchor.constraint(equalTo: offerPanel.widthAnchor).isActive = true
         offerPanel.isHidden = true
+        // Windows' aria label for its confirmation of a method (Learning/conversation.mjs:122), as the choices carry the cards'.
+        offerPanel.setAccessibilityElement(true)
+        offerPanel.setAccessibilityRole(.group)
+        offerPanel.setAccessibilityLabel("Proposed worksheet method")
         methods.orientation = .vertical
         methods.alignment = .leading
         methods.spacing = 3
@@ -404,11 +413,17 @@ final class WorksheetAIChoiceButton: NSButton {
         distributionBox.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-distribution")
         guidance.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-choices")
         guidance.orientation = .vertical
-        // Each part fills the choices' width, so a card's text wraps however often the part is shown again.
-        guidance.alignment = .width
+        // Each part fills the choices' width from their leading edge, as Windows' card fills the conversation, so a card's text
+        // wraps however often the part is shown again. A stack view takes no .width alignment (it keeps none, and a part then took
+        // its content's width at the trailing edge), so each part is given the width.
+        guidance.alignment = .leading
         guidance.spacing = 4
         guidance.detachesHiddenViews = true
-        for part in [emptyRow, compareRow, clarifyBox, distributionBox] { part.isHidden = true; guidance.addArrangedSubview(part) }
+        for part in [emptyRow, compareRow, clarifyBox, distributionBox] {
+            part.isHidden = true
+            guidance.addArrangedSubview(part)
+            part.widthAnchor.constraint(equalTo: guidance.widthAnchor).isActive = true
+        }
         guidance.setAccessibilityElement(true)
         guidance.setAccessibilityRole(.group)
         guidance.setAccessibilityLabel("Suggested next steps")
@@ -427,16 +442,42 @@ final class WorksheetAIChoiceButton: NSButton {
         stack.spacing = 7
         stack.detachesHiddenViews = true
         stack.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(stack)
+        // Shorter than its controls need (the window at its minimum size, with a card or an offer drawn), the pane scrolls as a
+        // whole rather than squeezing them, as the Windows pane scrolls its layout in a viewport that it fills when taller
+        // (ScriptAIPane.cs:24, :106, :154); it never scrolls sideways. Taller, it is as before: the conversation takes the room.
+        let scroller = NSScrollView()
+        scroller.hasVerticalScroller = true
+        scroller.autohidesScrollers = true
+        scroller.drawsBackground = false
+        scroller.translatesAutoresizingMaskIntoConstraints = false
+        let content = WorksheetAIPaneContent()
+        content.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(stack)
+        scroller.documentView = content
+        view.addSubview(scroller)
         for item in [header, workbookLabel, selectionLabel, offerPanel, sharingPanel, questionOnlyHint, composer, notice, history, guidance, methods] {
             item.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
         warning.widthAnchor.constraint(equalTo: sharingPanel.widthAnchor).isActive = true
+        let clip = scroller.contentView
+        let fill = content.heightAnchor.constraint(equalTo: clip.heightAnchor)
+        fill.priority = NSLayoutConstraint.Priority(rawValue: NSLayoutConstraint.Priority.defaultLow.rawValue + 1)
+        NotificationCenter.default.addObserver(self, selector: #selector(keepNarrowest), name: NSSplitView.didResizeSubviewsNotification,
+                                               object: viewer.workspaceSplit)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
-            stack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8),
-            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            scroller.topAnchor.constraint(equalTo: view.topAnchor),
+            scroller.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            scroller.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scroller.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            content.topAnchor.constraint(equalTo: clip.topAnchor),
+            content.leadingAnchor.constraint(equalTo: clip.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: clip.trailingAnchor),
+            content.heightAnchor.constraint(greaterThanOrEqualTo: clip.heightAnchor),
+            fill,
+            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
+            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -8),
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 10),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -10),
             composer.heightAnchor.constraint(equalToConstant: 68),
             history.heightAnchor.constraint(greaterThanOrEqualToConstant: 90)
         ])
@@ -704,6 +745,20 @@ final class WorksheetAIChoiceButton: NSButton {
         stop()
         view.removeFromSuperview()
         viewer.workspaceSplit.adjustSubviews()
+    }
+
+    /// The narrowest the divider can make the pane: the split's delegate (HelpPane) stops it 340 points from the right edge.
+    private var narrowest: CGFloat { 340 - viewer.workspaceSplit.dividerThickness }
+
+    /// A smaller window shares its width out between the documents and the pane, as the split's delegate has it, which can leave
+    /// the pane narrower than the divider can make it and than its rows need. The pane gets that width back while the documents keep
+    /// the delegate's 320 points, as Windows' dock keeps at least its minimum length (330 for this pane) when its window is resized
+    /// (ToolDockHost.cs:61, :66-84; ScriptAIPane.cs:108).
+    @objc private func keepNarrowest() {
+        let split = viewer.workspaceSplit
+        guard visible, view.superview === split, view.frame.width < narrowest - 0.5,
+              split.bounds.width - narrowest - split.dividerThickness >= 320 else { return }
+        split.setPosition(split.bounds.width - narrowest - split.dividerThickness, ofDividerAt: 0)
     }
 
     func shutdown() {

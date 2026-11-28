@@ -377,8 +377,9 @@ for line in sys.stdin:
             design = "paired" if question == "FIXTURE_PAIRED_A" else "independent"
             call(thread, "fixture-" + design, T_TEST, {"design": design}, "A")
         elif question in ("NO_CARD_A", "NO_CARD_QO"):
-            # The workbook is not in front: no card is offered.
-            assert T_TEST not in threads[thread], threads[thread]
+            # The workbook is not in front: neither the card nor the clarifying question is offered, as Windows offers both only
+            # while the grid is active (ScriptAIPane.cs:415-433).
+            assert T_TEST not in threads[thread] and CLARIFY not in threads[thread], threads[thread]
             finish(thread, "No card offered.")
         else:
             finish(thread, "General guidance without workbook data.")

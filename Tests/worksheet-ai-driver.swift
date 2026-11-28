@@ -2067,7 +2067,7 @@ extension WorksheetAIHarness {
             guard !pane.isBusy else { return false }
             return (await text(pane)).components(separatedBy: "No card offered.").count == 3
         }
-        try check(pane.workbookID == cards.id, "with another document in front, neither mode offers the card's tool")
+        try check(pane.workbookID == cards.id, "with another document in front, neither mode offers the card's tool, nor the clarifying question's")
     }
 
     func questionOnlyCards() async throws -> (Document, WorksheetAIHarness.Card) {
@@ -2874,9 +2874,13 @@ extension WorksheetAIHarness {
         await space()
         _ = try await offered("Paired Student t test")
         let proceed: NSButton? = control("worksheet-ai-continue", in: pane.view)
-        await settle { focused() === proceed && inView(proceed) }
-        try check(focused() === proceed && inView(proceed),
-                  "Space on the card's first choice (\(answer.choice)): the offer at the top of the pane comes into view with the focus on Continue")
+        // The offer's confirmation (its method, menu, sheet, selection and report) as well as Continue: Continue alone stays in view
+        // at every scroll position this pane allows, so only the confirmation shows the offer was scrolled into view.
+        let confirmation: NSTextField? = control("worksheet-ai-confirmation", in: pane.view)
+        await settle { focused() === proceed && inView(proceed) && inView(confirmation) }
+        try check(focused() === proceed && inView(proceed) && inView(confirmation),
+                  "Space on the card's first choice (\(answer.choice)): the offer at the top of the pane comes into view, its confirmation with it, "
+                  + "with the focus on Continue")
         await tab(); await tab()
         await space()
         _ = try await waitCard("paired-interval", ["Local check found 101 complete pairs"], "Space on Change sample choice did not return to the card in the short pane")
@@ -2912,7 +2916,7 @@ extension WorksheetAIHarness {
         func notice() -> String { label("worksheet-ai-notice") }
         try await select(cards, "selectCells({x:24,y:0,width:2,height:8})", "Selection: Cards!Y1:Z8")
         let quiet = dataTraffic()
-        let activate = "Activate “" + label("worksheet-ai-workbook") + "” to continue this analysis."
+        let activate = "Activate “" + label("worksheet-ai-workbook").components(separatedBy: "\n")[0] + "” to continue this analysis."
         pane.prepareAnalysis("TPaired")
         _ = try await offered("Paired Student t test")
         let design: NSButton? = control("worksheet-ai-change-design", in: pane.view)
@@ -3009,7 +3013,8 @@ extension WorksheetAIHarness {
     /// A delayed grid capture: the page's next call to `method` of statsDirectGrid keeps the page busy for `milliseconds` before
     /// it answers, as a large worksheet keeps it busy reading a selection. The page says when it has taken the call, before the
     /// delay, and records when it took it and when it answered by this Mac's clock (statsDirectHeld). It assigns statsDirectGrid
-    /// again as it draws, so the delay is put on whatever it assigns until the call has been taken.
+    /// again as it draws, so the delay is put on whatever it assigns until the call has been taken; releaseHold takes it off a page
+    /// that was never asked.
     func holdNext(_ doc: Document, _ method: String, milliseconds: Int = 1500) async throws -> WorksheetAIHeldCall {
         let held = WorksheetAIHeldCall(), controller = doc.web.configuration.userContentController
         controller.removeScriptMessageHandler(forName: "statsDirectHeldCall")
@@ -3017,17 +3022,21 @@ extension WorksheetAIHarness {
         _ = try await doc.web.callAsyncJavaScript("""
             let current = window.statsDirectGrid, pending = true;
             window.statsDirectHeld = null;
+            const release = () => {
+              pending = false;
+              Object.defineProperty(window, 'statsDirectGrid', {value: current, writable: true, configurable: true, enumerable: true});
+            };
+            window.statsDirectReleaseHold = release;
             const hold = grid => {
               if (!grid || !pending || typeof grid[method] !== 'function') return grid;
               const original = grid[method];
               grid[method] = function (...args) {
                 if (pending) {
-                  pending = false;
                   const start = Date.now();
+                  release();
                   window.webkit?.messageHandlers?.statsDirectHeldCall?.postMessage(method);
                   while (Date.now() < start + delay) {}
                   window.statsDirectHeld = {method, start, end: Date.now()};
-                  Object.defineProperty(window, 'statsDirectGrid', {value: current, writable: true, configurable: true, enumerable: true});
                 }
                 return original.apply(this, args);
               };
@@ -3041,26 +3050,47 @@ extension WorksheetAIHarness {
         return held
     }
 
+    /// The hold holdNext put on a page that has not taken it, taken off.
+    func releaseHold(_ doc: Document) async throws {
+        _ = try await doc.web.callAsyncJavaScript("window.statsDirectReleaseHold?.(); return true;", arguments: [:], in: nil, contentWorld: .page)
+    }
+
+    /// The names of the tools each conversation the suite's mock was asked to start was offered, in order.
+    func startedTools() -> [Set<String>] {
+        requestLines().compactMap { line in
+            guard let request = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
+                  request["method"] as? String == "thread/start", let params = request["params"] as? [String: Any],
+                  let tools = params["dynamicTools"] as? [[String: Any]] else { return nil }
+            return Set(tools.compactMap { $0["name"] as? String })
+        }
+    }
+
     /// Codex's review of 2c9cbc0c: a choice taken with the workbook in front, then a report brought in front while the grid's page
     /// is still answering for it (holdNext). Continue, with the report its offer names brought forward so, opened the method from
     /// that report's tab and gave it the focus. Windows takes these choices without waiting, and refuses each while another window
     /// is in front (ScriptAIPane.WorksheetAnalysis.cs:331-335); the Mac holds each choice that waits for the page to that rule when
-    /// it is made and again once the page has answered: a card's answer, its branch (the offer prepared), its Check, Change sample
-    /// choice, Continue and a clarifying question's answer are each refused with Windows' notice, and keep their card, question or
-    /// offer, Continue's offer unconsumed. With the workbook in front again each is taken; a second Continue while the first is
-    /// waiting is dropped, as Windows retires the token before it opens the method (:393-397), and Continue clears the notice (:441-445).
+    /// it is made and again once the page has answered: a card's answer, its branch (the offer prepared, whichever report comes
+    /// forward), its Check, Change sample choice, Continue and a clarifying question's answer are each refused with Windows' notice,
+    /// and keep their card, question or offer, Continue's offer unconsumed; a card's answer or a question's answer clicked with the
+    /// report in front is refused at once, before the page is asked. With the workbook in front again each is taken. A second
+    /// Continue, or Change design, while Continue waits is dropped, as Windows retires the confirmation before it opens the method
+    /// (:393-397); Continue clears the notice (:441-445); and Help me choose a method brings the workbook forward before it sends,
+    /// as Windows' guide choice does (:323-330), so that its question is offered the card and the clarifying question.
     func heldPage(_ cards: Document) async throws {
         func notice() -> String { label("worksheet-ai-notice") }
         func toCards() async throws {
             viewer.tabs.selectTabViewItem(cards.item)
             try await wait("The card workbook did not come back in front") { viewer.active === cards && pane.workbookID == cards.id }
         }
+        func toReport(_ report: Document) async throws {
+            viewer.tabs.selectTabViewItem(report.item)
+            try await wait("\(report.title) did not come in front") { viewer.active === report && pane.workbookID == cards.id }
+        }
         guard let named = viewer.currentReportDestination else { throw ChatGPTTutor.Failure(message: "No report is open for the held page") }
-        // The report the offers name, brought in front once the page has taken the held call: when, by this Mac's clock.
-        func reportWhileHeld(_ held: WorksheetAIHeldCall, _ what: String) async throws -> Double {
+        // A report brought in front once the page has taken the held call: when, by this Mac's clock.
+        func reportWhileHeld(_ held: WorksheetAIHeldCall, _ what: String, _ report: Document) async throws -> Double {
             try await wait("The page did not take the held call for " + what) { held.taken }
-            viewer.tabs.selectTabViewItem(named.item)
-            try await wait("The report did not come in front during " + what) { viewer.active === named && pane.workbookID == cards.id }
+            try await toReport(report)
             return Date().timeIntervalSince1970 * 1000
         }
         // The page's record of the held call: it answers this only after that call.
@@ -3077,16 +3107,30 @@ extension WorksheetAIHarness {
 
         try await toCards()
         try await select(cards, "selectCells({x:24,y:0,width:2,height:8})", "Selection: Cards!Y1:Z8")
-        let activate = "Activate “" + label("worksheet-ai-workbook") + "” to continue this analysis."
+        let activate = "Activate “" + label("worksheet-ai-workbook").components(separatedBy: "\n")[0] + "” to continue this analysis."
         pane.input.string = "DESIGN_A"
         pane.send()
         let design = try await waitCard("choose", [chooseLine], "The study-design question did not appear for the held page")
         showNoticeCleared()
 
-        // An answer on the card: the click's own reading of the selection held (answerCard).
+        // An answer on the card clicked with the report in front: refused at once, before the page is asked, so the workbook
+        // brought back while the page would have been answering does not let it through.
         var held = try await holdNext(cards, "aiSelectionFingerprint")
+        try await toReport(named)
         try click("paired")
-        var at = try await reportWhileHeld(held, "Same people or units")
+        try await Task.sleep(for: .milliseconds(300))
+        try await toCards()
+        try await Task.sleep(for: .milliseconds(1800))
+        try check(!held.taken && notice() == activate && card()?.kind == "choose" && card()?.token == design.token && pane.offer == nil,
+                  "Same people or units clicked with \(named.title) in front: refused at once with Windows' notice, before the page is asked, and the "
+                  + "workbook brought back meanwhile does not let it through; the question is kept with its token")
+        try await releaseHold(cards)
+        showNoticeCleared()
+
+        // An answer on the card: the click's own reading of the selection held (answerCard).
+        held = try await holdNext(cards, "aiSelectionFingerprint")
+        try click("paired")
+        var at = try await reportWhileHeld(held, "Same people or units", named)
         var span = try await answered("Same people or units")
         await settle { notice() == activate }
         try check(during(at, span) && notice() == activate && card()?.kind == "choose" && card()?.token == design.token && pane.offer == nil,
@@ -3100,12 +3144,30 @@ extension WorksheetAIHarness {
         // A branch: the page held while its offer is prepared (prepareAnalysis).
         held = try await holdNext(cards, "worksheetAISelection")
         try click("normal")
-        at = try await reportWhileHeld(held, "the branch's offer")
+        at = try await reportWhileHeld(held, "the branch's offer", named)
         span = try await answered("the branch's offer")
         await settle { notice() == activate }
         try check(during(at, span) && notice() == activate && pane.offer == nil && card()?.kind == "paired-interval" && card()?.token == four.token,
                   "a branch, then the report brought in front while the page read the selection for its offer: refused with Windows' notice, no offer, "
                   + "the card kept with its token")
+        // The same with another report, not the one the offer would name: bringing it forward also makes it the report destination
+        // (Viewer.tabView(_:didSelect:)), which the offer's preparation would otherwise take as a change that ends the card.
+        let other = viewer.makeReport()
+        try await toReport(named)
+        try await toCards()
+        showNoticeCleared()
+        try check(viewer.currentReportDestination === named, "\(named.title) is the report destination again, with \(other.title) open beside it")
+        held = try await holdNext(cards, "worksheetAISelection")
+        try click("normal")
+        at = try await reportWhileHeld(held, "the branch's offer, with another report", other)
+        span = try await answered("the branch's offer, with another report")
+        await settle { !notice().isEmpty }
+        try check(during(at, span) && notice() == activate && pane.offer == nil && card()?.kind == "paired-interval" && card()?.token == four.token
+                  && viewer.currentReportDestination === other,
+                  "a branch, then \(other.title), not the report the offer would name, brought in front while the page read the selection, which also changes "
+                  + "the report destination: refused with Windows' notice, no offer, the card kept with its token" + " (notice \(notice().debugDescription))")
+        viewer.remove(other)
+        try await toReport(named)
         try await toCards()
         try click("normal")
         _ = try await offered("Paired Student t test")
@@ -3117,12 +3179,13 @@ extension WorksheetAIHarness {
         let sample: NSButton? = control("worksheet-ai-change-sample", in: pane.view)
         held = try await holdNext(cards, "aiSelectionFingerprint")
         sample?.performClick(nil)
-        at = try await reportWhileHeld(held, "Change sample choice")
+        at = try await reportWhileHeld(held, "Change sample choice", named)
         span = try await answered("Change sample choice")
         await settle { notice() == activate }
         try check(during(at, span) && notice() == activate && pane.offer === kept && card() == nil,
                   "Change sample choice, then the report brought in front while the page read the selection: refused with Windows' notice, the offer kept")
         try await toCards()
+        showNoticeCleared()
 
         // Continue (Codex's case): the page held while it reads the selection and source the method opens with, and the report the
         // offer names brought in front meanwhile.
@@ -3130,7 +3193,7 @@ extension WorksheetAIHarness {
         let documents = viewer.documents.count
         held = try await holdNext(cards, "worksheetAISelection")
         proceed?.performClick(nil)
-        at = try await reportWhileHeld(held, "Continue")
+        at = try await reportWhileHeld(held, "Continue", named)
         span = try await answered("Continue")
         await settle { notice() == activate || viewer.documents.count != documents }
         try check(during(at, span) && notice() == activate && viewer.documents.count == documents && viewer.active === named
@@ -3159,6 +3222,52 @@ extension WorksheetAIHarness {
         viewer.remove(run)
         try await toCards()
 
+        // Change design while Continue waits for the page: dropped, and the method opens.
+        pane.prepareAnalysis("TPaired")
+        _ = try await offered("Paired Student t test")
+        let designButton: NSButton? = control("worksheet-ai-change-design", in: pane.view)
+        let beforeDesign = viewer.documents.count
+        held = try await holdNext(cards, "worksheetAISelection")
+        proceed?.performClick(nil)
+        try await wait("The page did not take the held call for Continue before Change design") { held.taken }
+        designButton?.performClick(nil)
+        _ = try await answered("Continue before Change design")
+        try await wait("Continue did not open the paired t test with Change design pressed while it waited") {
+            viewer.documents.count > beforeDesign && viewer.active?.kind == "operation"
+        }
+        let designRun = viewer.active!
+        try check(designButton?.title == "Change design" && viewer.documents.count == beforeDesign + 1 && designRun.operationName == "TPaired"
+                  && pane.offer == nil && card() == nil,
+                  "Change design pressed while Continue waited for the page is dropped: the paired t test opens, and no study-design question replaces it")
+        viewer.remove(designRun)
+        try await toCards()
+
+        // Help me choose a method with the report in front, in question-only mode, where the mock holds the question to that mode's
+        // checks: the workbook comes forward first, and the question is offered the card's tool, which needs the workbook in front, as
+        // Windows' guide choice sends with the grid active. Sharing is turned on again afterwards, confirmed, for the parts that follow.
+        pane.share.state = .on
+        pane.share.performClick(nil)
+        try check(pane.share.state == .off, "sharing is off for Help me choose a method")
+        try await toReport(named)
+        try check(shown("worksheet-ai-help-choose"), "the general choices are shown with \(named.title) in front")
+        let starts = startedTools().count
+        let replies = (await text(pane)).components(separatedBy: "General guidance without workbook data.").count
+        pane.helpChoose.performClick(nil)
+        let forward = viewer.active === cards
+        try await wait("Help me choose a method was not answered") {
+            guard !pane.isBusy, startedTools().count > starts else { return false }
+            return (await text(pane)).components(separatedBy: "General guidance without workbook data.").count > replies
+        }
+        let guided = startedTools().last ?? []
+        try check(forward && guided == ["statsdirect_choose_worksheet_t_test"],
+                  "Help me choose a method with \(named.title) in front brings the workbook forward first, as Windows' guide choice does, so its question "
+                  + "is offered the card's tool: \(guided.sorted())")
+        pane.share.state = .off
+        pane.share.performClick(nil)
+        pane.confirm.state = .off
+        pane.confirm.performClick(nil)
+        try check(pane.share.state == .on && pane.confirm.state == .on, "sharing is on again, confirmed, for the card workbook")
+
         // Check on the independent card: the page held while it reads the selection as two separate samples (answerCard).
         pane.input.string = "DESIGN_A"
         pane.send()
@@ -3168,7 +3277,7 @@ extension WorksheetAIHarness {
                                           "The independent card did not count Y1:Z8 for the held page")
         held = try await holdNext(cards, "aiMeasurementColumns")
         try click("check")
-        at = try await reportWhileHeld(held, "Use these as separate samples")
+        at = try await reportWhileHeld(held, "Use these as separate samples", named)
         span = try await answered("Use these as separate samples")
         await settle { notice() == activate }
         try check(during(at, span) && notice() == activate && card()?.token == separate.token && card()?.text.contains("Selected columns, if they hold") == true,
@@ -3180,22 +3289,41 @@ extension WorksheetAIHarness {
                                absent: ["Selected columns, if they hold"])
         try check(notice().isEmpty, "with the workbook in front again, Use these as separate samples confirms the card and clears the notice")
 
-        // A clarifying question's answer: the page held while it reads the selection (answerClarification).
+        // A clarifying question's answer: clicked with the report in front (refused at once), then with the page held while it reads
+        // the selection (answerClarification).
         pane.input.string = "CLARIFY_THEN_CARD_A"
         pane.send()
-        try await wait("The clarifying question did not appear for the held page") { !pane.isBusy && pane.clarification != nil }
+        try await wait("The clarifying question did not appear for the held page") { !pane.isBusy && pane.clarification != nil && pane.guidanceFingerprint != nil }
         guard let box: NSView = control("worksheet-ai-clarification", in: pane.view), let option = views(WorksheetAIChoiceButton.self, in: box).first else {
             throw ChatGPTTutor.Failure(message: "The clarifying question shows no answer for the held page")
         }
         let traffic = dataTraffic()
         held = try await holdNext(cards, "aiSelectionFingerprint")
+        try await toReport(named)
         option.performClick(nil)
-        at = try await reportWhileHeld(held, "the clarifying question's answer")
+        try await Task.sleep(for: .milliseconds(300))
+        try await toCards()
+        try await Task.sleep(for: .milliseconds(1800))
+        try check(!held.taken && notice() == activate && pane.clarification != nil && !pane.isBusy && dataTraffic() == traffic,
+                  "an answer to the clarifying question clicked with the report in front: refused at once with Windows' notice, before the page is asked, "
+                  + "and the workbook brought back meanwhile does not let it through; the question is kept and nothing is sent")
+        try await releaseHold(cards)
+        showNoticeCleared()
+        held = try await holdNext(cards, "aiSelectionFingerprint")
+        option.performClick(nil)
+        at = try await reportWhileHeld(held, "the clarifying question's answer", named)
         span = try await answered("the clarifying question's answer")
         await settle { notice() == activate }
         try check(during(at, span) && notice() == activate && pane.clarification != nil && !pane.isBusy && dataTraffic() == traffic,
                   "an answer to the clarifying question, then the report brought in front while the page read the selection: refused with Windows' notice, "
                   + "the question kept, nothing sent")
         try await toCards()
+
+        // AI Assist closed with that refusal shown, then opened again from the worksheet's toolbar: the notice line is clear, as
+        // Windows' Hide clears its status line with the worksheet action (ScriptAIPane.cs:625).
+        pane.hide()
+        try await toolbar(cards, "worksheetAI")
+        try await wait("AI Assist did not open again from the card workbook's toolbar") { pane.visible && pane.workbookID == cards.id }
+        try check(notice().isEmpty, "AI Assist closed with a refusal shown and opened again from the toolbar: the notice line is clear")
     }
 }

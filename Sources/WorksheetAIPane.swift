@@ -754,6 +754,9 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
         guard visible else { return }
         conversation?.draft = input.string
         cardFocus = false
+        // As Windows' Hide clears the notice line with the worksheet action it ends (ScriptAIPane.cs:625,
+        // ScriptAIPane.WorksheetAnalysis.cs:441-445): a refusal shown for a card, question or offer does not outlive it.
+        if offer != nil || distribution != nil || clarification != nil { showNotice("") }
         cancelAnalysis()
         distribution = nil
         width = view.frame.width
@@ -805,8 +808,9 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
         chat.share = share.state == .on
         chat.confirmed = chat.share && confirm.state == .on
         if chat.confirmed { expanded = false }
-        // A clarifying question needs the conversation it came from, which only a shared workbook sends.
-        if !chat.confirmed, clarification?.workbookID == workbookID { clarification = nil; render() }
+        // A clarifying question needs the conversation it came from, which only a shared workbook sends. The notice goes with
+        // it, as Windows' ScopeChanged clears the status line with the worksheet action (ScriptAIPane.cs:274-281).
+        if !chat.confirmed, clarification?.workbookID == workbookID { clarification = nil; showNotice(""); render() }
         updateControls()
     }
 
@@ -893,13 +897,14 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
         if typed { input.string = ""; chat.draft = "" }
         let context = ScriptAIContext(viewer: viewer, script: nil, workbook: shared ? workbook : nil,
                                       usesSessionConsent: false, worksheetAssist: true) { [weak self] in self?.acceptsRequest(token) == true }
-        // The clarifying card is offered only with a shared workbook that holds data: a question-only send carries no
-        // earlier messages, so a one-line answer would reach the provider without the question it answers.
-        let offersClarification = shared && hasData(workbook)
         // The distribution cards are offered in both modes, as on Windows: they are completed on this Mac and send
         // nothing. They need the workbook in front, with data, and not being opened or saved.
         func cardReady() -> Bool { !TutorPolicy.disabled && viewer.active === workbook && hasData(workbook) && !workbook.fileBusy }
         let offersCard = cardReady()
+        // The clarifying card is offered only with a shared workbook that holds data: a question-only send carries no
+        // earlier messages, so a one-line answer would reach the provider without the question it answers. Windows offers it
+        // with the card's tool, only while the grid is active (ScriptAIPane.cs:415-433), where its answers are taken (inFront).
+        let offersClarification = shared && offersCard
         let tools = (shared ? context.tools : []) + (offersCard ? [WorksheetAIDistribution.definition] : [])
             + (offersClarification ? [WorksheetAIClarification.definition] : [])
         let reference = methodReference()
@@ -1071,9 +1076,13 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
     private func render() {
         let latest = latestReply()
         let empty = workbook.map { !hasData($0) } ?? false
-        // An emptied workbook drops its card and offers no methods, as on Windows.
-        if empty, clarification?.workbookID == workbookID { clarification = nil }
-        if empty, distribution?.workbookID == workbookID { distribution = nil }
+        // An emptied workbook drops its card and offers no methods, as on Windows, whose ClearWorksheetAnalysis also clears the
+        // notice line (ScriptAIPane.WorksheetAnalysis.cs:219, :441-445).
+        if empty, clarification?.workbookID == workbookID || distribution?.workbookID == workbookID {
+            if clarification?.workbookID == workbookID { clarification = nil }
+            if distribution?.workbookID == workbookID { distribution = nil }
+            showNotice("")
+        }
         openCode.isHidden = latest.map { ConversationRScript.blocks($0["text"] ?? "").isEmpty } ?? true
         openCode.isEnabled = !isBusy && !TutorPolicy.disabled
         for button in methods.arrangedSubviews { methods.removeArrangedSubview(button); button.removeFromSuperview() }
@@ -1295,7 +1304,7 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
                   shown.card.buttons.contains(where: { $0.choice == choice }) else { return nil }
             return (workbook, shown.card)
         }
-        guard let before = current(), let expected = guidanceFingerprint else { return false }
+        guard let before = current(), let expected = guidanceFingerprint, inFront(before.0) else { return false }
         let live = await selectionFingerprint(before.0)
         guard let (workbook, card) = current(), workbook === before.0 else { return false }
         guard live == expected else {
@@ -1388,7 +1397,7 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
                   let option = pending.card.options.first(where: { $0.id == choice }) else { return nil }
             return (workbook, option)
         }
-        guard let before = current(), let expected = guidanceFingerprint else { return false }
+        guard let before = current(), let expected = guidanceFingerprint, inFront(before.0) else { return false }
         let live = await selectionFingerprint(before.0)
         guard let after = current(), after.0 === before.0, let chat = conversation else { return false }
         let option = after.1
@@ -1405,8 +1414,12 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
         return submit(option.answer, typed: false)
     }
 
+    /// Help me choose a method (Windows' compare "guide"): the workbook is brought forward before the question is sent, as Windows
+    /// activates the grid first (ScriptAIPane.WorksheetAnalysis.cs:323-330), so that the reply can offer the card and the
+    /// clarifying question, which need the workbook in front (submit).
     @objc private func askForGuidance() {
         guard visible, !isBusy, !TutorPolicy.disabled else { return }
+        if let workbook, viewer.active !== workbook { viewer.tabs.selectTabViewItem(workbook.item) }
         submit(Self.guidanceQuestion, typed: false)
     }
 
@@ -1478,7 +1491,14 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
                 reveal(offerPanel)
             } catch {
                 guard !Task.isCancelled else { return }
-                if let origin, guidanceToken == origin.token, distribution?.workbookID == workbook.id { distribution = nil; render() }
+                if let origin, guidanceToken == origin.token, distribution?.workbookID == workbook.id {
+                    // Another document brought in front while the page answered refuses the branch before anything the preparation
+                    // found, as Windows applies its rule before it makes the offer (:331-335): a report brought forward changes the
+                    // report destination, which would otherwise end the card as a change. The card is kept with its token.
+                    guard inFront(workbook) else { return }
+                    distribution = nil
+                    render()
+                }
                 showNotice(error.localizedDescription)
             }
         }
@@ -1555,7 +1575,7 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
     @discardableResult
     func changeSample() async -> Bool {
         guard visible, !isBusy, !TutorPolicy.disabled, let workbook, let origin = offerOrigin, origin.workbookID == workbook.id,
-              let shown = offer, inFront(workbook) else { return false }
+              let shown = offer, continuing != shown.id, inFront(workbook) else { return false }
         let live = await selectionFingerprint(workbook)
         guard visible, !isBusy, !TutorPolicy.disabled, offer === shown, offerOrigin != nil, self.workbook === workbook else { return false }
         guard inFront(workbook) else { return false }
@@ -1581,11 +1601,13 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
     /// Change design (Windows' confirm "change", ScriptAIPane.WorksheetAnalysis.cs:390-392): from the offer of a paired or
     /// unpaired t test that no distribution card made, back to the study-design question, for the live selection and with a new
     /// token, whose fingerprint is read as for the question the assistant offers. It takes the place of the offer, and of any
-    /// clarifying question under it, as Windows shows one card at a time. Returns whether it went back.
+    /// clarifying question under it, as Windows shows one card at a time. Like Change sample choice, it is dropped while the offer's
+    /// Continue waits for the page, as Windows' Continue retires the confirmation before it opens the method (:393-397). Returns
+    /// whether it went back.
     @discardableResult
     func backToDesign() -> Bool {
         guard visible, !isBusy, !TutorPolicy.disabled, let workbook, offerOrigin == nil, let shown = offer, shown.design != nil,
-              inFront(workbook) else { return false }
+              continuing != shown.id, inFront(workbook) else { return false }
         if clarification?.workbookID == workbook.id { clarification = nil }
         distribution = (WorksheetAIDistribution(kind: .choose), workbook.id)
         cancelAnalysis()
@@ -1602,9 +1624,11 @@ final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
     /// brought in front in between refuses it in the same way.
     private func inFront(_ workbook: Document) -> Bool {
         guard viewer.active !== workbook else { return true }
-        // What was clicked stays, so the keyboard focus stays where it is.
+        // What was clicked stays, so the keyboard focus stays where it is. The notice names the workbook by the first line the
+        // pane shows for it, its file name, on one line as Windows' window caption is.
         cardFocus = false
-        showNotice("Activate “" + displayName(for: workbook) + "” to continue this analysis.")
+        let name = displayName(for: workbook).components(separatedBy: "\n")[0]
+        showNotice("Activate “" + name + "” to continue this analysis.")
         return false
     }
 

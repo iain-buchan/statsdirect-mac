@@ -601,7 +601,7 @@ MIRRORS = {
          'Sources/WorksheetAIPane.swift inFront, which answerCard (its Check too), answerClarification, prepareAnalysis(_:from:) '
          "(a card's branch), changeSample, backToDesign and continueAnalysis call, for a choice that waits for the page both "
          'when it is made and once the page has answered (refused with this notice, the card or offer kept); for the general '
-         'choices, chooseLocalMethod (it brings the workbook forward) and askForGuidance', r'''
+         'choices, chooseLocalMethod and askForGuidance (each brings the workbook forward)', r'''
             // The pane stays with its workbook when an analysis brings a report forward.
             // Asking for help or browsing can bring it back. Confirmation still requires it to be active.
             if (main.ActiveMdiChild != grid && action.Kind == "compare" && choice is "browse" or "guide"
@@ -731,7 +731,8 @@ MIRRORS = {
             '''),
         ('ClearWorksheetAnalysis',
          'Sources/WorksheetAIPane.swift cancelAnalysis, and select, documentClosed, hide, newConversation and submit '
-         '(each clears the card and any offer), and continueAnalysis and cancelOffer (each also clears the notice line)', r'''
+         '(each clears the card and any offer), and continueAnalysis, cancelOffer, hide, sharingChanged and render (an '
+         'emptied workbook), which also clear the notice line as they end a card, question or offer', r'''
             private bool ClearWorksheetAnalysis()
             {
                 if (worksheetAction == null) return false;
@@ -752,7 +753,8 @@ MIRRORS = {
             UpdateWorksheetSelection();
             if (pending == null) RefreshWorksheetGuidance();
             '''),
-        ("SendAsync's condition for the worksheet tools", 'Sources/WorksheetAIPane.swift submit (cardReady)', r'''
+        ("SendAsync's condition for the worksheet tools",
+         "Sources/WorksheetAIPane.swift submit (cardReady, which the clarifying question's offer needs too)", r'''
             if (workbookHasData && grid.MdiParent is frmMain main && ReferenceEquals(main.ActiveMdiChild, grid)
                 && !main.InOperation && !main.LearningCalculationRunning)
             {

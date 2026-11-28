@@ -277,8 +277,8 @@ final class WorksheetAIChoiceButton: NSButton {
     /// selection has been read for it.
     private(set) var distribution: (card: WorksheetAIDistribution, workbookID: String)?
     private var offerOrigin: OfferOrigin?
-    /// Set when a choice on the distribution card, Change sample choice or Continue is taken with the keyboard focus on
-    /// it: whatever is drawn in its place (the next card once it has been read, the method offer, the card again, or the
+    /// Set when a choice on the distribution card, Change sample choice, Continue or Cancel is taken with the keyboard focus
+    /// on it: whatever is drawn in its place (the next card once it has been read, the method offer, the card again, or the
     /// general choices) takes the focus on its first button, as Windows' page moves it (Learning/conversation.mjs:112,
     /// :227). Cleared once that is drawn, or when a question is sent.
     private var cardFocus = false
@@ -352,7 +352,7 @@ final class WorksheetAIChoiceButton: NSButton {
         let actions = NSStackView(views: [sendButton, stopButton, replyActivity])
         actions.detachesHiddenViews = true
         proceed.target = self; proceed.action = #selector(continueAnalysis)
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelAnalysis))
+        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelOffer))
         proceed.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-continue")
         offerLabel.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-confirmation")
         // A method chosen on a distribution card also shows the card's check and Windows' advice for the branch, with the
@@ -1363,6 +1363,16 @@ final class WorksheetAIChoiceButton: NSButton {
         offerTask = nil
         offerOrigin = nil
         if offer != nil { offer = nil; render() }
+    }
+
+    /// The offer's Cancel, a Mac control (Windows' confirm card has none). Keyboard focus on the offer as it goes passes to the
+    /// first button of what is drawn in its place, as after Change sample choice or a refused Continue (Windows moves focus
+    /// inside a card that goes the same way, Learning/conversation.mjs:112, :227). Focus elsewhere, where a mouse press leaves
+    /// it, stays there; an offer ended from code (cancelAnalysis) moves no focus.
+    @objc private func cancelOffer() {
+        guard offer != nil else { return }
+        cardFocus = (viewer.window.firstResponder as? NSView)?.isDescendant(of: offerPanel) == true
+        cancelAnalysis()
     }
 
     @objc private func changeSampleChoice() {

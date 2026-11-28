@@ -871,6 +871,11 @@ import WebKit
               !button.isHiddenOrHasHiddenAncestor, button.token == pane.guidanceToken else {
             throw ChatGPTTutor.Failure(message: "The card shows no live \(choice) button")
         }
+        return pressWithFocus(button)
+    }
+
+    /// Any shown button of the pane (the offer's Continue or Cancel) given the keyboard focus and pressed, as above.
+    func pressWithFocus(_ button: NSButton) -> Bool {
         let focused: Bool = viewer.window.makeFirstResponder(button) && viewer.window.firstResponder === button
         button.performClick(nil)
         return focused
@@ -971,7 +976,18 @@ extension WorksheetAIHarness {
             try check(above && !proceed.isHiddenOrHasHiddenAncestor,
                       "Continue appears above the transcript beside the worksheet controls")
         } else { throw ChatGPTTutor.Failure(message: "The visible Continue button was not found") }
+        // Ended from code, as a workbook switch or a new question ends it, an offer passes no keyboard focus on, even from
+        // Continue; nor does Cancel pressed with the mouse while the focus is elsewhere (with the keyboard, see independentCards).
+        let codeFocus: Bool = proceed.map { viewer.window.makeFirstResponder($0) && viewer.window.firstResponder === $0 } ?? false
         pane.cancelAnalysis()
+        try checkFocus(codeFocus, pane.offer == nil && viewer.window.firstResponder !== pane.helpChoose,
+                       "an offer ended from code passes no keyboard focus on to the general choices, even from Continue")
+        pane.prepareAnalysis("TPaired")
+        try await wait("The paired t test was not offered again") { pane.offer != nil }
+        viewer.window.makeFirstResponder(nil)
+        button("Cancel")?.performClick(nil)
+        try check(pane.offer == nil && viewer.window.firstResponder === viewer.window,
+                  "Cancel pressed with the mouse ends the offer and leaves the keyboard focus where it was")
     }
 
     func followsWorkbooks(_ first: Document, _ second: Document) async throws -> Document {
@@ -1747,9 +1763,12 @@ extension WorksheetAIHarness {
         try check(unpairedT.contains("Menu: Analysis › Parametric › Unpaired t")
                   && unpairedT.contains("The unpaired t test compares means. Consider the spread in each group before using an equal-variance result."),
                   "Small or medium offers the unpaired t test with Windows' advice")
-        button("Cancel")?.performClick(nil)
+        // Pressed with the keyboard, Cancel passes the focus to the first of the general choices, which replace the offer and its card.
+        let cancelFocus: Bool = button("Cancel").map(pressWithFocus) ?? false
         try await wait("Cancel did not return to the general choices") { pane.offer == nil && shown("worksheet-ai-help-choose") }
         try check(pane.distribution == nil && card() == nil, "Cancel dismisses the offer and the card it came from")
+        try checkFocus(cancelFocus, viewer.window.firstResponder === pane.helpChoose,
+                       "the keyboard focus on Cancel moves to Help me choose a method, the first of the general choices")
     }
 
     func stagedCards(_ cards: Document) async throws {

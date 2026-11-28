@@ -74,16 +74,23 @@ import Foundation
         slow.cancel()
         do { _ = try await slow.value; fatalError("Stop during a tool result write was ignored") } catch is CancellationError {}
         precondition(slowSent && Date().timeIntervalSince(slowStart) >= 1.2)
-        // A question-only worksheet reply (Windows guidance-only): the tutor's refusals of Windows' worksheet tools take the
-        // reply's text, whatever the reason; other tools, and the learning replies above, keep the tutor's own texts.
+        // A question-only worksheet reply (Windows guidance-only): every failed call, refused by the tutor or failing in its handler,
+        // takes the reply's text for Windows' worksheet tools and Windows' help text for any other tool, so its reason never reaches
+        // the provider; a stopped call is Request stopped. The learning replies above keep the tutor's own texts.
         let cardTool = [["type":"function","name":"statsdirect_choose_worksheet_t_test","description":"Offer the study-design card","inputSchema":["type":"object","properties":[String:Any](),"required":[String](),"additionalProperties":false]]] as [[String:Any]]
-        var cardCalls = 0
-        let masked = try await tutor.converse(context:"",messages:[["role":"user","text":"TOOL_MASKED"]],tools:cardTool + tools,toolHandler: { name,_ in
-            cardCalls += 1; precondition(name == "statsdirect_choose_worksheet_t_test"); return ["state":"awaiting_design"]
+        var cardCalls = 0, readCalls = 0
+        let masked = try await tutor.converse(context:"",messages:[["role":"user","text":"TOOL_MASKED"]],tools:cardTool + tools,toolHandler: { name,args in
+            if name == "statsdirect_read_data" { readCalls += 1; throw ChatGPTTutor.Failure(message:"PRIVATE_SENTINEL_read_failure") }
+            cardCalls += 1; precondition(name == "statsdirect_choose_worksheet_t_test")
+            switch args["mode"] as? String {
+            case "fail": throw ChatGPTTutor.Failure(message:"PRIVATE_SENTINEL_card_failure")
+            case "stop": throw CancellationError()
+            default: return ["state":"awaiting_design"]
+            }
         }, guidanceRefusal:"The analysis proposal could not be staged.")
-        precondition(cardCalls == 1 && masked.text == "Tool returned nine actual rows.")
+        precondition(cardCalls == 3 && readCalls == 1 && masked.text == "Tool returned nine actual rows.")
         print("Dynamic tool round trip, allowlist, thread/turn correlation, duplicate rejection, running-tool cancellation and sent-result reporting passed")
-        print("Question-only worksheet replies refuse Windows' worksheet tools with the reply's text, and other tools and learning replies with the tutor's own")
+        print("Question-only worksheet replies answer every failed call with Windows' guidance-only texts, the worksheet tools' or the help text, and a stopped call with Request stopped.; learning replies keep the tutor's own")
         let limited = Task { try await tutor.converse(context:"",messages:[["role":"user","text":"LIMIT_TEST"]]) }
         do { _ = try await limited.value; fatalError("Usage limit not detected") }
         catch { precondition(error.localizedDescription.contains("allowance") && !error.localizedDescription.contains("SECRET")) }

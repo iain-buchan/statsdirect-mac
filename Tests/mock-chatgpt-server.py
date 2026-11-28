@@ -9,13 +9,16 @@ signed_in = False
 sequence = 0
 tool_pending = {}
 tool_modes = {}
-# The tutor's refusals: its own texts, and the one a question-only worksheet reply gives Windows' worksheet tools.
+# The tutor's refusals: its own texts, and the two a question-only worksheet reply gives every failed call, as Windows' guidance-only
+# replies do (ChatGPTTutor.cs:365-370): one for Windows' worksheet tools and one for any other tool; a stopped call is Request stopped.
 UNAVAILABLE = 'This request is not available in the current learning question.'
 REPEATED = 'Repeated request or tool limit reached. Continue with the results already supplied.'
 MASKED = 'The analysis proposal could not be staged.'
+HELP = 'This help request could not be completed.'
 REFUSALS = {'duplicate': REPEATED, 'foreign': UNAVAILABLE, 'wrongturn': UNAVAILABLE, 'unknown': UNAVAILABLE,
             'masked-duplicate': MASKED, 'masked-wrongturn': MASKED, 'masked-clarify': MASKED, 'masked-propose': MASKED,
-            'masked-read': UNAVAILABLE, 'masked-unknown': UNAVAILABLE}
+            'masked-read': HELP, 'masked-unknown': HELP,
+            'masked-card-error': MASKED, 'masked-read-error': HELP, 'masked-stopped': 'Request stopped.'}
 lock = threading.Lock()
 def send(value):
     raw = json.dumps(value) + '\n'
@@ -175,18 +178,22 @@ for line in sys.stdin:
                 send({'id':tool_id,'method':'item/tool/call','params':{'threadId':'foreign' if kind=='foreign' else thread,'turnId':'wrong' if kind=='wrongturn' else turn,'callId':'same-call' if kind in ['valid','duplicate'] else kind,'tool':'shell' if kind=='unknown' else 'statsdirect_read_data','arguments':{'documentId':'worksheet'},'namespace':None}})
             continue
         if 'TOOL_MASKED' in text:
-            # A question-only worksheet reply: the card's tool once, then calls the tutor refuses before any handler sees them.
-            # Windows' three worksheet tools get the masked text whatever the reason; any other tool keeps the tutor's own.
-            calls = [('masked-valid', turn, 'card-call', 'statsdirect_choose_worksheet_t_test'),
-                     ('masked-duplicate', turn, 'card-call', 'statsdirect_choose_worksheet_t_test'),
-                     ('masked-wrongturn', 'wrong', 'card-other-turn', 'statsdirect_choose_worksheet_t_test'),
-                     ('masked-clarify', turn, 'clarify-call', 'statsdirect_clarify_worksheet_analysis'),
-                     ('masked-propose', turn, 'propose-call', 'statsdirect_propose_worksheet_analysis'),
-                     ('masked-read', 'wrong', 'read-other-turn', 'statsdirect_read_data'),
-                     ('masked-unknown', turn, 'shell-call', 'shell')]
+            # A question-only worksheet reply: the card's tool once, then calls the tutor refuses before any handler sees them, and
+            # calls whose handler fails (with a private reason, or stopped). Whatever the reason, Windows' three worksheet tools get
+            # the masked text and any other tool the help text; a stopped call gets Request stopped.
+            calls = [('masked-valid', turn, 'card-call', 'statsdirect_choose_worksheet_t_test', {}),
+                     ('masked-duplicate', turn, 'card-call', 'statsdirect_choose_worksheet_t_test', {}),
+                     ('masked-wrongturn', 'wrong', 'card-other-turn', 'statsdirect_choose_worksheet_t_test', {}),
+                     ('masked-clarify', turn, 'clarify-call', 'statsdirect_clarify_worksheet_analysis', {}),
+                     ('masked-propose', turn, 'propose-call', 'statsdirect_propose_worksheet_analysis', {}),
+                     ('masked-read', 'wrong', 'read-other-turn', 'statsdirect_read_data', {}),
+                     ('masked-unknown', turn, 'shell-call', 'shell', {}),
+                     ('masked-card-error', turn, 'card-error-call', 'statsdirect_choose_worksheet_t_test', {'mode': 'fail'}),
+                     ('masked-read-error', turn, 'read-error-call', 'statsdirect_read_data', {'mode': 'fail'}),
+                     ('masked-stopped', turn, 'card-stop-call', 'statsdirect_choose_worksheet_t_test', {'mode': 'stop'})]
             for kind, *_ in calls: tool_pending[thread + '-' + kind] = (kind,thread,turn)
-            for kind, call_turn, call_id, tool in calls:
-                send({'id':thread + '-' + kind,'method':'item/tool/call','params':{'threadId':thread,'turnId':call_turn,'callId':call_id,'tool':tool,'arguments':{},'namespace':None}})
+            for kind, call_turn, call_id, tool, arguments in calls:
+                send({'id':thread + '-' + kind,'method':'item/tool/call','params':{'threadId':thread,'turnId':call_turn,'callId':call_id,'tool':tool,'arguments':arguments,'namespace':None}})
             continue
         if 'TOOL_CANCEL' in text:
             send({'id':'cancel-tool','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'cancel-call','tool':'statsdirect_read_data','arguments':{'documentId':'worksheet'}}})

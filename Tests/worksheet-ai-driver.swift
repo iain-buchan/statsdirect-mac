@@ -1997,7 +1997,7 @@ extension WorksheetAIHarness {
         let localReply = await text(pane)
         try check(local.titles == ["Large sample (more than 100 complete pairs)", "Suggested · Small or medium · Approximately normal differences",
                                    "Non-normal differences", "Change design"] && localReply.contains("Decision card offered without workbook data."),
-                  "question only offers exactly the card's tool, masks its refusals, and the card checks whole columns A:B to their last values")
+                  "question only offers exactly the card's tool, answers every refused call with Windows' guidance-only texts (the help text for a tool not offered), and the card checks whole columns A:B to their last values")
         let quietQuestion = dataTraffic()
         try click("large")
         try await feedback("The local check found at most 100 complete pairs. Choose the branch for the distribution of the differences.", "Large sample at 9 pairs gave no feedback")

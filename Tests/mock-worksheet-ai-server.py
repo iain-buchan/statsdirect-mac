@@ -219,6 +219,10 @@ for line in sys.stdin:
             call(thread, "qo-repeat", T_TEST, {"design": "paired"}, slot, call_id="qo-card" + thread)
         elif stage == "qo-repeat":
             refused(result, "The analysis proposal could not be staged.")
+            # A tool that is not one of Windows' worksheet tools, which question only does not offer: Windows' guidance-only help text.
+            call(thread, "qo-read", "statsdirect_read_data", {"documentId": "Q"}, slot)
+        elif stage == "qo-read":
+            refused(result, "This help request could not be completed.")
             finish(thread, "Decision card offered without workbook data.")
         elif stage in ("fixture-paired", "fixture-independent"):
             # The preflight's cases are checked on the Mac; the result is the card's state and message, nothing of the selection.

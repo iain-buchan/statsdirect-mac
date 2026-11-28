@@ -24,15 +24,25 @@ DESIGN = {"state": "awaiting_design",
           "message": "Ask the user to choose “Same people or units” or “Separate groups” in the chat."}
 DISTRIBUTION = {"state": "awaiting_distribution",
                 "message": "The decision card lets the user check their selection locally and choose a branch. Ask them to review the card."}
-# A card's wording stays on the Mac: none of it may reach the provider. Its fixed texts, and the markers of the lines that carry
-# what was computed locally: each check's results, the conflict and advice texts and the recommendations. None of these occurs
-# in the instructions, the Help page sent as reference, the tool descriptions or the replies below ("complete pairs" does).
-CARD_WORDS = ("Local check found", "Suggested branch", "Review the differences", "Shape check ·", "Suggested · ",
-              "Use these as separate samples", "Change sample choice", "is not numeric",
-              "Shapiro–Wilk W =", "Column 1: n =", "Column 2: n =", "Selected columns, if they hold", "The local check found",
-              "This branch assumes", "compares relative ordering", "The signed-rank test concerns",
-              "The large-sample branch recommends", "The Help routes large", "The unpaired t test compares means",
-              "Shapiro–Wilk found", "The shape checks flagged", "The box-plot check flagged")
+# What a card and its offer show stays on the Mac: none of it may reach the provider (the driver's WorksheetAIChecks.cardWords, the
+# same list, which the driver holds every card and card offer it draws to). The card's own fixed texts that occur nowhere else
+# ("Suggested · ", the recommendation's headings, "Use these as separate samples", "Change sample choice"), and markers of every line
+# that carries what was read or computed from the selected cells, or chosen on the card: each line of the check, each of the nine
+# recommendations Windows' SuggestPairedBranch gives, the four conflict texts, the six advice texts, the refusals that describe the
+# cells (not numeric, too large to check, Excel errors, stale formula results) and the offer's label (its "Menu: " line). None
+# occurs in what legitimately reaches a request: the instructions, the Help page sent as reference (raw or as text), the tool
+# descriptions, the method catalogue, or the replies and tool results below ("complete pairs" does, so it is no marker).
+CARD_WORDS = ("Suggested · ", "Suggested branch", "Review the differences", "Use these as separate samples", "Change sample choice",
+              "Selected columns, if they hold",
+              "Local check found", "Shapiro–Wilk W =", "Shape check ·", "Excess kurtosis", "Column 1: n =", "Column 2: n =",
+              "There are too few complete pairs", "All the paired differences are the same",
+              "the shape checks found no substantial departure", "The shape checks flagged", "The box-plot check flagged",
+              "The skewness check flagged", "The normality check could not assess", "Shapiro–Wilk found",
+              "The local check found",
+              "The large-sample branch recommends", "This branch assumes", "The signed-rank test concerns",
+              "The Help routes large", "The unpaired t test compares means", "compares relative ordering",
+              "is not numeric", "too large to check", "The selection contains Excel errors", "before analysing formula cells",
+              "Menu: ")
 SHARED = ("READ_A", "READ_B", "FINISH_A", "STOP_A", "CLOSE_A", "OVERVIEW_A", "CLARIFY_A", "READ_STOP_A", "READ_TEXT_STOP_A",
           "READ_FAIL_A", "READ_BIG_A", "READ_MIX_A", "READ_PLACEHOLDER_A", "HOLD_A", "I want to compare means.",
           "DESIGN_A", "PAIRED_A", "INDEPENDENT_A", "CLARIFY_THEN_CARD_A", "HOLD_CARD_A", "STOP_CARD_A", "AFTER_CARD_A", "NO_CARD_A",

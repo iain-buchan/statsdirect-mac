@@ -8,15 +8,71 @@ import WebKit
         fflush(stdout)
     }
 
-    /// A card's wording, which stays on this Mac (the mock's CARD_WORDS): its fixed texts, and the markers of the lines that carry
-    /// what was computed locally (each check's results, the conflict and advice texts, the recommendations), none of which occurs
-    /// in the instructions, the Help page sent as reference, the tool descriptions or the mock's replies.
-    static let cardWords = ["Local check found", "Suggested branch", "Review the differences", "Shape check ·", "Suggested · ",
-                            "Use these as separate samples", "Change sample choice", "is not numeric",
-                            "Shapiro–Wilk W =", "Column 1: n =", "Column 2: n =", "Selected columns, if they hold", "The local check found",
-                            "This branch assumes", "compares relative ordering", "The signed-rank test concerns",
-                            "The large-sample branch recommends", "The Help routes large", "The unpaired t test compares means",
-                            "Shapiro–Wilk found", "The shape checks flagged", "The box-plot check flagged"]
+    /// What a card and its offer show that must never reach the provider (the mock's CARD_WORDS, the same list). The mock checks every
+    /// question's prompt for them, cardsStayLocal the whole request log and the preflight the log of its cases. They are the card's own
+    /// fixed texts that occur nowhere else ("Suggested · ", the recommendation's headings, "Use these as separate samples", "Change
+    /// sample choice"), and markers of every line that carries what was read or computed from the selected cells, or chosen on the
+    /// card: each line of the check (the count with Shapiro–Wilk, the shape and skewness lines above 100 pairs, each sample's count),
+    /// each of the nine recommendations Windows' SuggestPairedBranch gives, the four conflict texts, the six advice texts, the refusals
+    /// that describe the cells (a cell that is not numeric, a difference too large to check, Excel errors, stale formula results)
+    /// and the offer's label (its "Menu: " line, with the method, sheet, selection and report). requireMarked holds every card and card
+    /// offer the suite draws to this list. None of them occurs in what legitimately reaches a request: the instructions, the Help page
+    /// sent as reference (raw or as text), the tool descriptions, the method catalogue, or the mock's replies and tool results
+    /// ("complete pairs" does, so it is no marker).
+    static let cardWords = ["Suggested · ", "Suggested branch", "Review the differences", "Use these as separate samples", "Change sample choice",
+                            "Selected columns, if they hold",
+                            "Local check found", "Shapiro–Wilk W =", "Shape check ·", "Excess kurtosis", "Column 1: n =", "Column 2: n =",
+                            "There are too few complete pairs", "All the paired differences are the same",
+                            "the shape checks found no substantial departure", "The shape checks flagged", "The box-plot check flagged",
+                            "The skewness check flagged", "The normality check could not assess", "Shapiro–Wilk found",
+                            "The local check found",
+                            "The large-sample branch recommends", "This branch assumes", "The signed-rank test concerns",
+                            "The Help routes large", "The unpaired t test compares means", "compares relative ordering",
+                            "is not numeric", "too large to check", "The selection contains Excel errors", "before analysing formula cells",
+                            "Menu: "]
+
+    /// The lines a card or a card's offer may show without a card word: the questions, the prompts for a size or a distribution not
+    /// yet known, the titles of the choices, and the refusals that name only the selection's shape or a request that could not be
+    /// read. None of them says anything read or computed from the cells, or chosen on the card.
+    static let plainCardLines: Set<String> = [
+        "Were these measurements taken from the same people or units?", "Same people or units", "Separate groups",
+        "How many complete pairs are there?", "How many observations are there in each group?",
+        "How are the within-pair differences distributed?", "How are the observations distributed within each group?",
+        "Look at the shape and any influential points. A large Shapiro–Wilk P value is inconclusive.",
+        "Check selected pairs", "Check two sample columns", "Change design",
+        "Large sample (more than 100 complete pairs)", "Small or medium · Approximately normal differences", "Non-normal differences",
+        "Large samples (more than 100 in each group)", "Small or medium · Approximately normal within groups", "Non-normal distributions within groups",
+        "Select two adjacent, visible columns of matched measurements in one worksheet range.",
+        "Select the two adjacent, visible sample columns in one worksheet range.",
+        "The worksheet could not be read. Try again.", "The measurements to check are not in a recognised form.", "Set design to paired or independent."]
+    /// The cards and the card offers requireMarked has held to cardWords.
+    @MainActor static var markedCards = 0, markedOffers = 0
+
+    /// Holds the card or the card's offer on screen to cardWords: every line it shows that is not one of plainCardLines must hold a
+    /// card word, so that the checks of every request would catch it. The card's paragraphs and the offer's details count line by
+    /// line, as the engine gives them separately (each line of the check, the recommendation under its heading, the advice); the
+    /// offer's label is one text. Fails naming each line without one.
+    @MainActor static func requireMarked(_ pane: WorksheetAIPane, _ what: String) throws {
+        pane.view.window?.contentView?.layoutSubtreeIfNeeded()
+        func tree(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(tree) }
+        let shown: [NSView] = tree(pane.view).filter { !$0.isHiddenOrHasHiddenAncestor }
+        func field(_ id: String) -> NSTextField? { shown.first(where: { $0.identifier?.rawValue == id }) as? NSTextField }
+        var lines: [String] = [], label: [String] = []
+        let box: NSView? = shown.first(where: { $0.identifier?.rawValue == "worksheet-ai-distribution" })
+        if let box { lines += tree(box).compactMap { ($0 as? NSTextField)?.stringValue ?? ($0 as? NSButton)?.title } }
+        if let details = field("worksheet-ai-offer-details") {
+            lines.append(details.stringValue)
+            label = [field("worksheet-ai-confirmation")?.stringValue ?? ""]
+        }
+        let carried: [String] = lines.flatMap { $0.components(separatedBy: "\n") }.filter { !plainCardLines.contains($0) } + label
+        let unmarked: [String] = carried.filter { line in !line.isEmpty && !cardWords.contains(where: line.contains) }
+        guard unmarked.isEmpty else {
+            throw ChatGPTTutor.Failure(message: what + " shows what was read, computed or chosen on this Mac with no card word to catch it in a request: "
+                                       + unmarked.map(\.debugDescription).joined(separator: ", "))
+        }
+        if box != nil { markedCards += 1 }
+        if !label.isEmpty { markedOffers += 1 }
+    }
 
     @MainActor static func wait(_ message: String, until condition: () async -> Bool) async throws {
         for _ in 0..<300 {
@@ -92,6 +148,8 @@ import WebKit
         try await preflight(viewer, h.pane, storage: storage, root: root, report: report)
 
         try await h.policyAndCleanup(first, cards, qz, report, pefrToken: pefr.token)
+        try check(markedCards > 0 && markedOffers > 0, "on each of the \(markedCards) cards and \(markedOffers) card offers drawn, every line that carries "
+                  + "what was read, computed or chosen on this Mac holds a card word")
     }
 
     // Codex's preflight of the distribution cards (Tests/Fixtures/distribution: base R 4.6.1, 26 paired and 5 independent cases)
@@ -153,6 +211,7 @@ import WebKit
             try await wait(message + ": " + label("worksheet-ai-distribution-feedback").debugDescription) {
                 label("worksheet-ai-distribution-feedback") == text
             }
+            try requireMarked(pane, "The card with its feedback (\(pane.selectionLabel.stringValue))")
         }
         let previous = viewer.active, requestsBefore = requestLines().count
         let fixtureFolder = root.appendingPathComponent("Tests/Fixtures/distribution")
@@ -268,6 +327,22 @@ import WebKit
             if p < 0.05 { return ("non-normal", "Shapiro–Wilk found evidence of non-normal differences. Consider Wilcoxon signed-rank if the differences look roughly symmetric and a shift in location answers your question.") }
             return ("normal", "A paired t test answers the question about the mean difference. Shapiro–Wilk found no clear departure from normality, and the shape checks flagged no unusual differences. With this sample, those checks provide limited evidence.")
         }
+        // Every text of Windows' rule holds a card word, whether a case below draws it or not: each recommendation SuggestPairedBranch
+        // can give (by count, variation, warnings and P), and each advice and conflict text.
+        let fixedRuleTexts: [String] = adviceFor.values.flatMap { $0.values } + conflictFor.values.flatMap { $0.values }
+        var ruleTexts: Set<String> = Set(fixedRuleTexts)
+        for n in [2, 50, 101] {
+            for varying in [false, true] {
+                for warnings in 0..<8 {
+                    for p in [nil, 0.01, 0.5] as [Double?] {
+                        ruleTexts.insert(pairedReason(n, varying: varying, outlier: warnings & 1 != 0, skew: warnings & 2 != 0, heavy: warnings & 4 != 0, p: p).reason)
+                    }
+                }
+            }
+        }
+        let unmarkedRule: [String] = ruleTexts.filter { text in !cardWords.contains(where: text.contains) }.sorted()
+        try check(unmarkedRule.isEmpty, "each of the \(ruleTexts.count) recommendation, advice and conflict texts of Windows' rule holds a card word"
+                  + (unmarkedRule.isEmpty ? "" : ": not " + unmarkedRule.map(\.debugDescription).joined(separator: ", ")))
         // The preflight's comparison: both unavailable, or within 2e-10 of R's value relative to it (absolute below 1).
         func agrees(_ actual: Double?, _ wanted: Double?) -> Bool {
             guard let actual, let wanted else { return actual == nil && wanted == nil }
@@ -291,12 +366,16 @@ import WebKit
             try await wait("The selection label did not show " + caption + " for " + fixture.name) { pane.selectionLabel.stringValue == caption }
             return Selected(caption: caption, offer: whole ? "Columns \(a):\(b)" : "\(a)1:\(b)\(bottom)", columns: [left, left + 1])
         }
-        // The card drawn for the live selection: of this kind, read, with the live token and the fingerprint of its reading.
+        // The card drawn for the live selection: of this kind, read, with the live token and the fingerprint of its reading, and
+        // each of its lines that carries data marked (requireMarked).
         func cardFor(_ kind: String, _ what: String) async throws -> Card {
             let live = (try? await book.web.evaluateJavaScript("window.statsDirectGrid.aiSelectionFingerprint()")) as? String
             for _ in 0..<300 {
                 if let drawn = card(), drawn.kind == kind, drawn.token == pane.guidanceToken, live != nil, pane.guidanceFingerprint == live,
-                   pane.distribution?.card.check != nil { return drawn }
+                   pane.distribution?.card.check != nil {
+                    try requireMarked(pane, "The \(kind) card (\(pane.selectionLabel.stringValue))")
+                    return drawn
+                }
                 try await Task.sleep(for: .milliseconds(50))
             }
             throw ChatGPTTutor.Failure(message: what + ": " + (card()?.text.debugDescription ?? "no card") + ", notice " + label("worksheet-ai-notice").debugDescription)
@@ -305,7 +384,10 @@ import WebKit
         func confirmedCard(_ counting: Card, _ what: String) async throws -> Card {
             for _ in 0..<300 {
                 if let drawn = card(), drawn.kind == "independent-interval", drawn.token == pane.guidanceToken, drawn.token != counting.token,
-                   pane.distribution?.card.check?.canCheck == false { return drawn }
+                   pane.distribution?.card.check?.canCheck == false {
+                    try requireMarked(pane, "The confirmed independent card (\(pane.selectionLabel.stringValue))")
+                    return drawn
+                }
                 try await Task.sleep(for: .milliseconds(50))
             }
             throw ChatGPTTutor.Failure(message: "Use these as separate samples did not confirm \(what): " + (card()?.text.debugDescription ?? "no card")
@@ -361,12 +443,14 @@ import WebKit
                         throw ChatGPTTutor.Failure(message: "Choosing \(branch) for \(fixture.name) gave neither an offer nor feedback: "
                                                    + (card()?.text.debugDescription ?? "no card") + ", notice " + label("worksheet-ai-notice").debugDescription)
                     }
+                    try requireMarked(pane, "The card's feedback on \(branch) for \(fixture.name)")
                     refused.append(branch)
                     if shown != parsed.conflict || card()?.token != token { problems.append("\(branch) refused with \(shown.debugDescription), token kept \(card()?.token == token)") }
                     continue
                 }
                 let method = methodFor[fixture.paired]![branch]!
                 let id = Mirror(reflecting: offer).children.first(where: { $0.label == "methodID" })?.value as? String
+                try requireMarked(pane, "The \(branch) offer for \(fixture.name)")
                 offered.append(branch)
                 offers[fixture.name, default: []].append(branch + " " + (id ?? "?"))
                 let destination = viewer.currentReportDestination?.title ?? "New report"
@@ -665,8 +749,7 @@ import WebKit
             if previous.kind == "grid" { try await wait("AI Assist did not return to the workbook open before the fixtures") { pane.workbookID == previous.id } }
         }
         let traffic = requestLines()[requestsBefore...].joined(separator: "\n")
-        try check(!(cardWords + ["too large to check"] + fixtures.flatMap { [$0.name + " first", $0.name + " second"] })
-                    .contains(where: traffic.contains),
+        try check(!(cardWords + fixtures.flatMap { [$0.name + " first", $0.name + " second"] }).contains(where: traffic.contains),
                   "no request carries a fixture's heading or any card's wording")
         try check(mismatches.isEmpty, "every one of the preflight's 26 paired and 5 independent cases agrees with R and Windows through the worksheet UI"
                   + (mismatches.isEmpty ? "" : ": mismatched " + mismatches.joined(separator: ", ")))
@@ -787,11 +870,15 @@ import WebKit
                     choices: buttons.map(\.choice), titles: buttons.map(\.title))
     }
     // Windows WaitForWorksheetEvidence: the card of this kind, drawn with the live token and its selection read, holding
-    // every piece of evidence and none of `absent`. A failure shows the card as it stood.
+    // every piece of evidence and none of `absent`, and each of its lines that carries data marked (requireMarked). A failure
+    // shows the card as it stood.
     @discardableResult func waitCard(_ kind: String, _ evidence: [String], _ message: String, absent: [String] = []) async throws -> Card {
         for _ in 0..<300 {
             if let shown = card(), shown.kind == kind, shown.token == pane.guidanceToken, pane.guidanceFingerprint != nil,
-               evidence.allSatisfy(shown.text.contains), !absent.contains(where: shown.text.contains) { return shown }
+               evidence.allSatisfy(shown.text.contains), !absent.contains(where: shown.text.contains) {
+                try WorksheetAIChecks.requireMarked(pane, "The \(kind) card (\(pane.selectionLabel.stringValue))")
+                return shown
+            }
             try await Task.sleep(for: .milliseconds(50))
         }
         throw ChatGPTTutor.Failure(message: message + ": " + (card()?.text.debugDescription ?? "no card"))
@@ -808,14 +895,19 @@ import WebKit
         try await wait(message + ": " + label("worksheet-ai-distribution-feedback").debugDescription) {
             label("worksheet-ai-distribution-feedback") == text
         }
+        try WorksheetAIChecks.requireMarked(pane, "The card with its feedback (\(pane.selectionLabel.stringValue))")
     }
-    // The offer of a method chosen on a card: its confirmation and the card's check and advice beneath it.
+    // The offer of a method chosen on a card: its confirmation and the card's check and advice beneath it, each line that carries
+    // data marked (requireMarked).
     func offered(_ title: String) async throws -> String {
         var shown = ""
         for _ in 0..<300 {
             if pane.offer?.methodTitle == title {
                 shown = label("worksheet-ai-confirmation") + "\n" + label("worksheet-ai-offer-details")
-                if shown.hasPrefix(title) { return shown }
+                if shown.hasPrefix(title) {
+                    try WorksheetAIChecks.requireMarked(pane, "The \(title) offer (\(pane.selectionLabel.stringValue))")
+                    return shown
+                }
             }
             try await Task.sleep(for: .milliseconds(50))
         }

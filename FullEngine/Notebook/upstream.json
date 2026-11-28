@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/iain-buchan/statsdirect",
-  "commit": "4ffceaeb7c9327a4d8b25bf4dddbf208b748abbe",
+  "commit": "16b65e3d0d397c7659be6aaac99cbd7db347d10b",
   "path": "StatsDirectUI/UI/WebReports/ReportNotebook.cs",
   "sha256": "cc929b92d4f6ebdd63d7ac5cb42f436602a473af9c6c6029a0009d0648dbbdf6"
 }

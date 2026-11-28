@@ -165,12 +165,9 @@ struct WorksheetAIDistribution {
     }
 }
 
-/// An answer button on the clarification or distribution card. It belongs to the card it was drawn for: a selection
-/// change, an edit or a new card retires the token, so a click that arrives late is refused rather than sent.
-final class WorksheetAIChoiceButton: NSButton {
-    var token = ""
-    var choice = ""
-    /// A distribution card's button wraps its title to the width it is given instead of widening the pane.
+/// A button that can wrap its title to the width it is given instead of widening the pane, as the buttons of Windows' page
+/// wrap: a distribution card's choices, and the methods a reply names.
+class WorksheetAIWrappingButton: NSButton {
     var wrapsTitle = false {
         didSet {
             guard wrapsTitle else { return }
@@ -193,6 +190,13 @@ final class WorksheetAIChoiceButton: NSButton {
         super.setFrameSize(newSize)
         if wrapsTitle && resized { invalidateIntrinsicContentSize() }
     }
+}
+
+/// An answer button on the clarification or distribution card. It belongs to the card it was drawn for: a selection
+/// change, an edit or a new card retires the token, so a click that arrives late is refused rather than sent.
+final class WorksheetAIChoiceButton: WorksheetAIWrappingButton {
+    var token = ""
+    var choice = ""
 }
 
 /// The pane's content in its scroll view, flipped so that it starts at the top however much of it the pane shows.
@@ -265,6 +269,7 @@ final class WorksheetAIChoiceButton: NSButton {
     private let offerDetails = NSTextField(wrappingLabelWithString: "")
     private let proceed = NSButton(title: "Continue", target: nil, action: nil)
     private let changeSample = NSButton(title: "Change sample choice", target: nil, action: nil)
+    private let changeDesign = NSButton(title: "Change design", target: nil, action: nil)
     private let offerPanel = NSStackView()
     private let openCode = NSButton(title: "Open in R", target: nil, action: nil)
     private var conversations: [String: Conversation] = [:]
@@ -282,14 +287,20 @@ final class WorksheetAIChoiceButton: NSButton {
     /// selection has been read for it.
     private(set) var distribution: (card: WorksheetAIDistribution, workbookID: String)?
     private var offerOrigin: OfferOrigin?
-    /// Set when a choice on the distribution card, Change sample choice, Continue or Cancel is taken with the keyboard focus
-    /// on it: whatever is drawn in its place (the next card once it has been read, the method offer, the card again, or the
-    /// general choices) takes the focus on its first button, as Windows' page moves it (Learning/conversation.mjs:112,
-    /// :227). Cleared once that is drawn, or when a question is sent.
+    /// Set when a choice on the distribution card, Change sample choice, Change design, Continue or Cancel is taken with the
+    /// keyboard focus on it: whatever is drawn in its place (the next card once it has been read, the method offer, the card
+    /// again, the study-design question, or the general choices) takes the focus on its first button, as Windows' page moves it
+    /// (Learning/conversation.mjs:112, :227). Cleared once that is drawn, when a question is sent, or when the choice is
+    /// refused and what held the focus stays (inFront).
     private var cardFocus = false { didSet { if !cardFocus { offerFocusMovedTo = nil } } }
     /// Where AppKit put the keyboard focus that was on the offer when the pane hid the offer to pass that focus on: the next
     /// control of the pane's key view chain (linkKeyViews), or the window. Focus still there is the card's to pass on.
     private weak var offerFocusMovedTo: NSResponder?
+    /// What the choices below the conversation showed when last drawn, so that a card, question or choices drawn in their place
+    /// is scrolled into view (reveal) and the same card drawn again with a new token is not.
+    private var drawnGuidance = ""
+    /// What a pane too short for its controls scrolls into view once the drawing in hand has been laid out (reveal).
+    private weak var revealTarget: NSView?
     /// The token every answer button of the current card carries.
     private(set) var guidanceToken = UUID().uuidString
     /// The exact selection, sheet and revisions the current token was issued for (worksheetAISelection, as JSON). A click
@@ -365,16 +376,19 @@ final class WorksheetAIChoiceButton: NSButton {
         proceed.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-continue")
         offerLabel.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-confirmation")
         // A method chosen on a distribution card also shows the card's check and Windows' advice for the branch, with the
-        // way back to the card on a row of its own, so a narrow dock is not widened.
+        // way back to the card on a row of its own, so a narrow dock is not widened. A paired or unpaired t test offered
+        // otherwise has Windows' way back to the study-design question there instead (Learning/conversation.mjs:221-222).
         offerDetails.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-offer-details")
         changeSample.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-change-sample")
         changeSample.target = self; changeSample.action = #selector(changeSampleChoice)
+        changeDesign.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-change-design")
+        changeDesign.target = self; changeDesign.action = #selector(changeDesignChoice)
         let offerActions = NSStackView(views: [proceed, cancel])
         offerPanel.orientation = .vertical
         offerPanel.alignment = .leading
         offerPanel.spacing = 4
         offerPanel.detachesHiddenViews = true
-        for part in [offerLabel, offerDetails, offerActions, changeSample] { offerPanel.addArrangedSubview(part) }
+        for part in [offerLabel, offerDetails, offerActions, changeSample, changeDesign] { offerPanel.addArrangedSubview(part) }
         offerLabel.widthAnchor.constraint(equalTo: offerPanel.widthAnchor).isActive = true
         offerDetails.widthAnchor.constraint(equalTo: offerPanel.widthAnchor).isActive = true
         offerPanel.isHidden = true
@@ -1065,10 +1079,13 @@ final class WorksheetAIChoiceButton: NSButton {
             var seen = Set<String>()
             for id in WorksheetAIMarkers.read(reply).ids {
                 guard seen.insert(id).inserted, let method = catalogue.first(where: { $0.id == id }) else { continue }
-                let button = NSButton(title: method.title, target: self, action: #selector(pickMethod(_:)))
+                let button = WorksheetAIWrappingButton(title: method.title, target: self, action: #selector(pickMethod(_:)))
                 button.identifier = NSUserInterfaceItemIdentifier(id)
                 button.setAccessibilityHelp("Review the selection and report destination for this analysis.")
+                // Some titles are wider than the narrowest pane ("Friedman and Cochran (nonparametric two-way ANOVA) tests").
+                button.wrapsTitle = true
                 methods.addArrangedSubview(button)
+                button.widthAnchor.constraint(lessThanOrEqualTo: methods.widthAnchor).isActive = true
                 if methods.arrangedSubviews.count == 4 { break }
             }
         }
@@ -1116,6 +1133,7 @@ final class WorksheetAIChoiceButton: NSButton {
         guard visible, !isBusy, offer == nil, !TutorPolicy.disabled, let workbook else {
             for part in [emptyRow, compareRow, clarifyBox, distributionBox] { part.isHidden = true }
             guidance.isHidden = true
+            drawnGuidance = ""
             if focused != nil, !isBusy { cardFocus = true }
             return
         }
@@ -1135,16 +1153,28 @@ final class WorksheetAIChoiceButton: NSButton {
             question.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-clarification-question")
             clarifyBox.addArrangedSubview(question)
             question.widthAnchor.constraint(equalTo: clarifyBox.widthAnchor).isActive = true
+            var restored = false
             for option in card.options {
                 let button = WorksheetAIChoiceButton(title: option.label, target: self, action: #selector(chooseAnswer(_:)))
                 button.identifier = NSUserInterfaceItemIdentifier("worksheet-ai-choice-" + option.id)
                 button.token = guidanceToken
                 button.choice = option.id
                 clarifyBox.addArrangedSubview(button)
-                if option.id == focused { viewer.window.makeFirstResponder(button) }
+                if option.id == focused { restored = viewer.window.makeFirstResponder(button) }
+            }
+            // Focus on an offer drawn over the question, ended with the keyboard, passes to its first answer, as on Windows.
+            if follows, !restored, let first = clarifyBox.arrangedSubviews.first(where: { $0 is WorksheetAIChoiceButton }) {
+                passCardFocus(to: first)
             }
         }
         guidance.isHidden = [emptyRow, compareRow, clarifyBox, distributionBox].allSatisfy(\.isHidden)
+        // A card, question or set of choices drawn in place of what was shown is scrolled into view in a short pane, as Windows'
+        // conversation follows a card it adds; the same one drawn again, with a new token, a new reading or feedback, is not.
+        let drawn = guidance.isHidden ? "" : empty ? "empty" : card?.question ?? decision?.kind.rawValue ?? "choices"
+        if drawn != drawnGuidance {
+            drawnGuidance = drawn
+            if !drawn.isEmpty { reveal(guidance) }
+        }
         // An interval card not yet read takes the focus when its reading is drawn.
         guard !guidance.isHidden else { if focused != nil { cardFocus = true }; return }
         // Focus that was on a card that has gone moves to the first of the general choices, as on Windows.
@@ -1155,10 +1185,31 @@ final class WorksheetAIChoiceButton: NSButton {
     }
 
     /// Gives the focus that was on a card to `target`, drawn in its place, once the target is in the window: a stack view
-    /// attaches a part shown again only when it next lays out.
+    /// attaches a part shown again only when it next lays out. In a short pane the target is scrolled into view.
     private func passCardFocus(to target: NSView) {
         if target.window == nil { view.layoutSubtreeIfNeeded() }
         viewer.window.makeFirstResponder(target)
+        reveal(target)
+    }
+
+    /// In a pane shorter than its controls (the window at its minimum size), scrolls `part` into view once what is being drawn has
+    /// been laid out, then the button with the keyboard focus if the pane has it: a card, question or offer drawn in place of what was
+    /// shown, and the control the focus passes to. Nothing scrolls in a pane tall enough, or once the part has gone. The newest part
+    /// asked for wins.
+    private func reveal(_ part: NSView) {
+        let scheduled = revealTarget != nil
+        revealTarget = part
+        guard !scheduled else { return }
+        Task { @MainActor [weak self] in
+            guard let self, let part = self.revealTarget else { return }
+            self.revealTarget = nil
+            guard self.visible, part.window === self.viewer.window, !part.isHiddenOrHasHiddenAncestor else { return }
+            self.view.layoutSubtreeIfNeeded()
+            part.scrollToVisible(part.bounds)
+            if let focused = self.viewer.window.firstResponder as? NSButton, focused.isDescendant(of: self.view), !focused.isHiddenOrHasHiddenAncestor {
+                focused.scrollToVisible(focused.bounds)
+            }
+        }
     }
 
     /// Tab and Shift-Tab take the keyboard through the pane in its visual order, as through Help's toolbar (HelpPane
@@ -1230,8 +1281,9 @@ final class WorksheetAIChoiceButton: NSButton {
 
     /// One choice on the distribution card (Windows ChooseWorksheetAction). As for the clarifying question, a token
     /// from an earlier card refuses the click, and so does any difference between the live grid and the selection and
-    /// revisions the card was drawn for: the card is then read and drawn again, and the click is dropped. Returns whether
-    /// the click was taken.
+    /// revisions the card was drawn for: the card is then read and drawn again, and the click is dropped. With another document
+    /// in front of the workbook the click is refused with Windows' notice and the card kept (inFront). Returns whether the click
+    /// was taken.
     @discardableResult
     func answerCard(_ choice: String, token: String) async -> Bool {
         func current() -> (Document, WorksheetAIDistribution)? {
@@ -1248,15 +1300,19 @@ final class WorksheetAIChoiceButton: NSButton {
             renderGuidance()
             return false
         }
+        guard inFront(workbook) else { return false }
+        // As on Windows, a choice the card takes clears the notice line (ScriptAIPane.WorksheetAnalysis.cs:402).
         switch choice {
         case "paired", "independent":
             distribution = (WorksheetAIDistribution(kind: choice == "paired" ? .paired : .independent), workbook.id)
             issueGuidanceToken()
+            showNotice("")
             renderGuidance()
         case "back":
             // The study-design question for the same selection: a new token, and the fingerprint just matched.
             distribution = (WorksheetAIDistribution(kind: .choose), workbook.id)
             guidanceToken = UUID().uuidString
+            showNotice("")
             renderGuidance()
         case "check":
             // Windows' Check: the live selection, confirmed for an independent card as two separate samples. A refusal
@@ -1311,7 +1367,8 @@ final class WorksheetAIChoiceButton: NSButton {
     }
 
     /// Sends the fixed sentence of one answer to the current clarifying question. A token from an earlier card, a
-    /// changed workbook or sharing that has since been turned off refuses the click. So does any difference between the
+    /// changed workbook, another document in front of it (inFront) or sharing that has since been turned off refuses the
+    /// click. So does any difference between the
     /// live grid and the selection and revisions the card was drawn for, as on Windows: the page reports a selection
     /// only once it settles and only when its short caption changes, so a click can arrive before that report or after
     /// a change the caption does not show. A refused card is drawn again with a new token. Returns whether it was sent.
@@ -1332,6 +1389,7 @@ final class WorksheetAIChoiceButton: NSButton {
             renderGuidance()
             return false
         }
+        guard inFront(after.0) else { return false }
         guard chat.share && chat.confirmed else {
             showNotice("Share this workbook again to answer, or type your full question."); return false
         }
@@ -1399,6 +1457,7 @@ final class WorksheetAIChoiceButton: NSButton {
                 offerOrigin = origin
                 offerDetails.isHidden = origin == nil
                 changeSample.isHidden = origin == nil
+                changeDesign.isHidden = origin != nil || prepared.design == nil
                 offerLabel.stringValue = prepared.methodTitle + "\nMenu: " + prepared.menuPath + "\nWorksheet: " + prepared.worksheetName
                     + "\nSelection: " + prepared.selectionLabel + "\nReport: " + prepared.reportTitle
                 showNotice("")
@@ -1406,6 +1465,7 @@ final class WorksheetAIChoiceButton: NSButton {
                 // A branch taken with the keyboard leaves the focus on Continue, the offer's first button, as on Windows.
                 if cardFocus, focusLeftOnCard { passCardFocus(to: proceed) }
                 cardFocus = false
+                reveal(offerPanel)
             } catch {
                 guard !Task.isCancelled else { return }
                 if let origin, guidanceToken == origin.token, distribution?.workbookID == workbook.id { distribution = nil; render() }
@@ -1415,7 +1475,8 @@ final class WorksheetAIChoiceButton: NSButton {
     }
 
     @objc func continueAnalysis() {
-        guard let offer, let workbook, !isBusy, !TutorPolicy.disabled else { return }
+        // With another document in front, Continue is refused and the offer kept, as on Windows (inFront).
+        guard let offer, let workbook, !isBusy, !TutorPolicy.disabled, inFront(workbook) else { return }
         cardFocus = (viewer.window.firstResponder as? NSView)?.isDescendant(of: offerPanel) == true
         // An offer chosen on a distribution card opens only for the reading the card showed.
         let origin = offerOrigin
@@ -1426,7 +1487,9 @@ final class WorksheetAIChoiceButton: NSButton {
                 try await viewer.continueWorksheetAIAnalysis(offer, for: workbook, fingerprint: origin?.fingerprint) {
                     !Task.isCancelled && self.visible && self.workbookID == workbook.id && self.offer?.id == offer.id
                 }
-                // The analysis opened has the focus.
+                // The method opens in a tab in front, which takes the keyboard focus, as Windows' dialog takes it once Continue
+                // has retired the confirmation (ScriptAIPane.WorksheetAnalysis.cs:393-397).
+                if let opened = viewer.active, opened !== workbook { viewer.window.makeFirstResponder(opened.web) }
                 cardFocus = false
                 cancelAnalysis()
             } catch {
@@ -1468,7 +1531,7 @@ final class WorksheetAIChoiceButton: NSButton {
     @discardableResult
     func changeSample() async -> Bool {
         guard visible, !isBusy, !TutorPolicy.disabled, let workbook, let origin = offerOrigin, origin.workbookID == workbook.id,
-              let shown = offer else { return false }
+              let shown = offer, inFront(workbook) else { return false }
         let live = await selectionFingerprint(workbook)
         guard visible, !isBusy, !TutorPolicy.disabled, offer === shown, offerOrigin != nil, self.workbook === workbook else { return false }
         // The card is drawn in the offer's place as the offer goes, so focus on the offer passes to it.
@@ -1481,7 +1544,41 @@ final class WorksheetAIChoiceButton: NSButton {
             guidanceFingerprint = live
         } else { issueGuidanceToken(changed: true) }
         render()
+        showNotice("")
         return true
+    }
+
+    @objc private func changeDesignChoice() {
+        cardFocus = (viewer.window.firstResponder as? NSView)?.isDescendant(of: offerPanel) == true
+        backToDesign()
+    }
+
+    /// Change design (Windows' confirm "change", ScriptAIPane.WorksheetAnalysis.cs:390-392): from the offer of a paired or
+    /// unpaired t test that no distribution card made, back to the study-design question, for the live selection and with a new
+    /// token, whose fingerprint is read as for the question the assistant offers. It takes the place of the offer, and of any
+    /// clarifying question under it, as Windows shows one card at a time. Returns whether it went back.
+    @discardableResult
+    func backToDesign() -> Bool {
+        guard visible, !isBusy, !TutorPolicy.disabled, let workbook, offerOrigin == nil, let shown = offer, shown.design != nil,
+              inFront(workbook) else { return false }
+        if clarification?.workbookID == workbook.id { clarification = nil }
+        distribution = (WorksheetAIDistribution(kind: .choose), workbook.id)
+        cancelAnalysis()
+        issueGuidanceToken()
+        render()
+        showNotice("")
+        return true
+    }
+
+    /// Whether `workbook` is the document in front. Windows refuses a card's choice, and Continue, while another window is in front
+    /// of the card's workbook, keeping the card, with this notice (ScriptAIPane.WorksheetAnalysis.cs:331-335): the pane stays with
+    /// its workbook while an analysis brings its report forward.
+    private func inFront(_ workbook: Document) -> Bool {
+        guard viewer.active !== workbook else { return true }
+        // What was clicked stays, so the keyboard focus stays where it is.
+        cardFocus = false
+        showNotice("Activate “" + displayName(for: workbook) + "” to continue this analysis.")
+        return false
     }
 
     @objc private func openLastCode() {

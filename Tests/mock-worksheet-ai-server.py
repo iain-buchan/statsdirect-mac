@@ -27,8 +27,8 @@ DISTRIBUTION = {"state": "awaiting_distribution",
 # What a card and its offer show stays on the Mac: none of it may reach the provider (the driver's WorksheetAIChecks.cardWords, the
 # same list, which the driver holds every card and card offer it draws to). The card's own fixed texts that occur nowhere else
 # ("Suggested · ", the recommendation's headings, "Use these as separate samples", "Change sample choice"), and markers of every line
-# that carries what was read or computed from the selected cells, or chosen on the card: each line of the check, each of the nine
-# recommendations Windows' SuggestPairedBranch gives, the four conflict texts, the six advice texts, the refusals that describe the
+# that carries what was read or computed from the selected cells, or chosen on the card: each line of the check, each of the 15
+# recommendation texts Windows' SuggestPairedBranch gives (from its nine returns), the four conflict texts, the six advice texts, the refusals that describe the
 # cells (not numeric, too large to check, Excel errors, stale formula results) and the offer's label (its "Menu: " line). None
 # occurs in what legitimately reaches a request: the instructions, the Help page sent as reference (raw or as text), the tool
 # descriptions, the method catalogue, or the replies and tool results below ("complete pairs" does, so it is no marker).
@@ -46,7 +46,7 @@ CARD_WORDS = ("Suggested · ", "Suggested branch", "Review the differences", "Us
 SHARED = ("READ_A", "READ_B", "FINISH_A", "STOP_A", "CLOSE_A", "OVERVIEW_A", "CLARIFY_A", "READ_STOP_A", "READ_TEXT_STOP_A",
           "READ_FAIL_A", "READ_BIG_A", "READ_MIX_A", "READ_PLACEHOLDER_A", "HOLD_A", "I want to compare means.",
           "DESIGN_A", "PAIRED_A", "INDEPENDENT_A", "CLARIFY_THEN_CARD_A", "HOLD_CARD_A", "STOP_CARD_A", "AFTER_CARD_A", "NO_CARD_A",
-          "FIXTURE_PAIRED_A", "FIXTURE_INDEPENDENT_A")
+          "FIXTURE_PAIRED_A", "FIXTURE_INDEPENDENT_A", "LONG_METHODS")
 
 
 def private():
@@ -347,6 +347,10 @@ for line in sys.stdin:
             finish(thread, "Marker reply for the paired design. [[method:TPaired]]\n\n"
                            "- `[[method:BoxWhiskerPlot]]` shows the pairs\n\n"
                            "```r\n# [[method:TPaired]] stays in code\nmean(2:4)\n```\n")
+        elif question == "LONG_METHODS":
+            # Four of the widest method titles, for the pane's narrowest width.
+            finish(thread, "Methods with long titles. [[method:Friedman]] [[method:Chi2byNWithTrend]] [[method:Normality]] "
+                           "[[method:TwoWayNested]]")
         elif question == "DESIGN_A":
             assert T_TEST in threads[thread] and CLARIFY in threads[thread], threads[thread]
             call(thread, "design", T_TEST, {}, "A")

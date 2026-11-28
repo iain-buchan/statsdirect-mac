@@ -30,6 +30,9 @@ struct WorksheetAICardChanged: LocalizedError {
     var reportTitle: String { destination.title }
     /// The click fingerprint of the moment the selection was captured (Grid/ai-selection.mjs worksheetAISelection).
     let fingerprint: String?
+    /// A t test's study design, as Windows gives one to the confirmation of a paired or unpaired t test, whose Change design goes
+    /// back to the study-design question (ScriptAIPane.WorksheetAnalysis.cs:266-276): nil for every other method.
+    var design: String? { methodID == "TPaired" ? "paired" : methodID == "TUnpaired" ? "independent" : nil }
 
     fileprivate let methodID: String
     fileprivate let workbookID: String

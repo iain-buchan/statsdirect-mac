@@ -13,7 +13,7 @@ import WebKit
     /// fixed texts that occur nowhere else ("Suggested · ", the recommendation's headings, "Use these as separate samples", "Change
     /// sample choice"), and markers of every line that carries what was read or computed from the selected cells, or chosen on the
     /// card: each line of the check (the count with Shapiro–Wilk, the shape and skewness lines above 100 pairs, each sample's count),
-    /// each of the nine recommendations Windows' SuggestPairedBranch gives, the four conflict texts, the six advice texts, the refusals
+    /// each of the 15 recommendation texts Windows' SuggestPairedBranch gives (from its nine returns), the four conflict texts, the six advice texts, the refusals
     /// that describe the cells (a cell that is not numeric, a difference too large to check, Excel errors, stale formula results)
     /// and the offer's label (its "Menu: " line, with the method, sheet, selection and report). requireMarked holds every card and card
     /// offer the suite draws to this list. None of them occurs in what legitimately reaches a request: the instructions, the Help page
@@ -142,6 +142,8 @@ import WebKit
         try await h.offersHeldToTheCard(cards)
         try await h.keyboardCards(cards)
         try await h.narrowCards(cards)
+        try await h.shortPane(cards)
+        try await h.designAndActivation(cards, report)
         try await h.cardNeedsWorkbookInFront(cards, report)
         let (qz, pefr) = try await h.questionOnlyCards()
 
@@ -1618,10 +1620,13 @@ extension WorksheetAIHarness {
         let branchFocus: Bool = try pressWithFocus("normal")
         let pairedOffer = try await offered("Paired Student t test")
         let sample: NSButton? = control("worksheet-ai-change-sample", in: pane.view)
+        let designButton: NSButton? = control("worksheet-ai-change-design", in: pane.view)
         try check(pairedOffer.contains("Menu: Analysis › Parametric › Paired t") && pairedOffer.contains("Selection: A1:B13")
                   && pairedOffer.contains("Local check found 12 complete pairs. Shapiro–Wilk W = 0.9669, P = 0.8757.\nThe paired t test addresses the mean difference. This branch assumes approximately normal differences.")
-                  && card() == nil && sample?.title == "Change sample choice" && sample?.isHiddenOrHasHiddenAncestor == false,
-                  "Small or medium offers the paired t test with the card's check and Windows' advice, in place of the card")
+                  && card() == nil && sample?.title == "Change sample choice" && sample?.isHiddenOrHasHiddenAncestor == false
+                  && designButton?.isHiddenOrHasHiddenAncestor == true,
+                  "Small or medium offers the paired t test with the card's check and Windows' advice, in place of the card, with Change sample choice and not "
+                  + "Change design (Learning/conversation.mjs:221-222)")
         let proceed: NSButton? = control("worksheet-ai-continue", in: pane.view)
         try checkFocus(branchFocus, proceed != nil && viewer.window.firstResponder === proceed, "the keyboard focus on a branch moves to Continue, the first button of its offer")
         let sampleFocus: Bool = sample.map { viewer.window.makeFirstResponder($0) && viewer.window.firstResponder === $0 } ?? false
@@ -2493,6 +2498,9 @@ extension WorksheetAIHarness {
         try check(routed, "Space on Continue opens the paired t test for Y1:Z8's two columns with \(named) as its destination, as the mouse path does, and retires the card"
                   + (routed ? "" : " (operation \(run.operationName ?? "none"), destination \(String(describing: run.operationReportDestination)), selection "
                      + String(describing: run.operationSourceSnapshot?["selection"]) + ")"))
+        // Windows' dialog takes the keyboard once Continue has retired its confirmation (ScriptAIPane.WorksheetAnalysis.cs:393-397).
+        try check(viewer.window.firstResponder === run.web, "the paired t test opened with Space on Continue has the keyboard focus, as Windows' dialog takes it, "
+                  + "not the pane's next control: " + focusName(viewer.window.firstResponder))
         viewer.remove(run)
         viewer.tabs.selectTabViewItem(cards.item)
         try await wait("AI Assist did not return to the card workbook after the keyboard's method") { viewer.active === cards && pane.workbookID == cards.id }
@@ -2585,7 +2593,7 @@ extension WorksheetAIHarness {
         for button in views(NSButton.self, in: pane.view) where !button.isHiddenOrHasHiddenAncestor && button.window != nil {
             let name = "[" + button.title + "]"
             seen(button, name)
-            if let choice = button as? WorksheetAIChoiceButton, choice.wrapsTitle {
+            if let choice = button as? WorksheetAIWrappingButton, choice.wrapsTitle {
                 let needed = choice.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: button.bounds.width, height: 10_000)).height ?? .infinity
                 if needed > button.bounds.height + 0.5 { problems.append(name + " shows \(button.bounds.height) of its wrapped title's \(needed)") }
             } else {
@@ -2799,9 +2807,193 @@ extension WorksheetAIHarness {
         pane.send()
         try await wait("The clarifying question did not appear for the narrow checks") { !pane.isBusy && pane.clarification != nil }
         try await measure("clarification", "the clarifying question", "Analysis question")
+        // The methods a reply names, four of the widest titles among them, wider than the narrowest pane: their titles wrap.
+        pane.input.string = "LONG_METHODS"
+        pane.send()
+        let long = ["Friedman and Cochran (nonparametric two-way ANOVA) tests", "Chi-square 2-by-k test with user-defined scores for trend",
+                    "Tests for signs of departure from normal distributions", "Two way hierarchical (nested) analysis of variance"]
+        try await wait("The methods with long titles did not appear for the narrow checks") {
+            !pane.isBusy && long.allSatisfy { title in button(title) != nil }
+        }
+        try await measure("methods", "the methods a reply names, with titles wider than the narrowest pane", "Choose a worksheet method")
         applySize("normal", dock: dock)
-        try check(states.count == 10 && pictures.count >= 30 && abs(pane.view.frame.width - dock) < 0.5 && window.frame.size != window.minSize,
+        try check(states.count == 11 && pictures.count >= 33 && abs(pane.view.frame.width - dock) < 0.5 && window.frame.size != window.minSize,
                   "pictures of the pane in the \(states.count) states, at the suite's size, in the narrowest pane and at the window's minimum size, are in "
                   + ".build/worksheet-ai-narrow (\(pictures.count) files), and the window and the pane are back at the suite's size")
     }
+}
+
+extension WorksheetAIHarness {
+    /// Polls for up to two seconds, for what the pane does once the drawing in hand has been laid out.
+    func settle(_ condition: () -> Bool) async {
+        for _ in 0..<40 {
+            if condition() { return }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
+    /// A pane too short for its controls (the window at its minimum size): with the pane at its top, where the conversation's
+    /// controls are, a card drawn at its foot comes into view without the user scrolling, and so does the control the keyboard
+    /// focus passes to, the offer's Continue at the top of the pane among them (Keyboard navigation on). Windows' conversation
+    /// follows a card it adds; the Mac pane scrolls as a whole only when it is this short.
+    func shortPane(_ cards: Document) async throws {
+        let dock = pane.view.frame.width
+        guard let scroller = pane.view.subviews.first as? NSScrollView, let content = scroller.documentView else {
+            throw ChatGPTTutor.Failure(message: "The pane has no scroll view")
+        }
+        func top() { scroller.contentView.scroll(to: .zero); scroller.reflectScrolledClipView(scroller.contentView) }
+        func inView(_ view: NSView?) -> Bool {
+            guard let view, !view.isHiddenOrHasHiddenAncestor, view.window != nil else { return false }
+            let clip = scroller.contentView
+            return clip.bounds.insetBy(dx: -0.5, dy: -0.5).contains(clip.convert(view.bounds, from: view))
+        }
+        func focused() -> NSButton? { viewer.window.firstResponder as? NSButton }
+        keyboardNavigation(true)
+        defer { keyboardNavigation(false); applySize("normal", dock: dock); top(); viewer.window.makeFirstResponder(pane.input) }
+        applySize("minimum", dock: dock)
+        // The paired card for more than 100 pairs is the tallest: drawn below the conversation, its choices lie below the pane's
+        // foot while the pane is at its top.
+        try await select(cards, "selectCells({x:6,y:0,width:2,height:103})", "Selection: Cards!G1:H103")
+        top()
+        viewer.window.makeFirstResponder(pane.input)
+        pane.input.string = "PAIRED_A"
+        pane.send()
+        let large = try await waitCard("paired-interval", ["Local check found 101 complete pairs"], "The paired card for G1:H103 did not appear in the short pane")
+        guard let box: NSView = control("worksheet-ai-distribution", in: pane.view),
+              let answer = views(WorksheetAIChoiceButton.self, in: box).first(where: { $0.choice == large.choices.first }) else {
+            throw ChatGPTTutor.Failure(message: "The paired card for G1:H103 shows no choice")
+        }
+        let clip = scroller.contentView.bounds.height, whole = content.frame.height
+        let foot = content.convert(answer.bounds, from: answer).maxY
+        await settle { inView(answer) }
+        try check(whole > clip + 50 && foot > clip && inView(answer),
+                  "in a pane \(clip) points tall whose content is \(whole), the paired card drawn at its foot (its first choice to \(foot)) comes into view without "
+                  + "scrolling; the card's choices are \(large.choices)")
+        viewer.window.makeFirstResponder(answer)
+        await space()
+        _ = try await offered("Paired Student t test")
+        let proceed: NSButton? = control("worksheet-ai-continue", in: pane.view)
+        await settle { focused() === proceed && inView(proceed) }
+        try check(focused() === proceed && inView(proceed),
+                  "Space on the card's first choice (\(answer.choice)): the offer at the top of the pane comes into view with the focus on Continue")
+        await tab(); await tab()
+        await space()
+        _ = try await waitCard("paired-interval", ["Local check found 101 complete pairs"], "Space on Change sample choice did not return to the card in the short pane")
+        await settle { focusOnFirstChoice() && inView(focused()) }
+        try check(pane.offer == nil && focusOnFirstChoice() && inView(focused()),
+                  "Space on Change sample choice: the card comes back at the foot of the pane, its first choice in view with the focus")
+        await space()
+        _ = try await offered("Paired Student t test")
+        await tab()
+        await space()
+        try await wait("Cancel did not bring back the general choices in the short pane") { pane.offer == nil && shown("worksheet-ai-help-choose") }
+        await settle { focused() === pane.helpChoose && inView(pane.helpChoose) }
+        try check(focused() === pane.helpChoose && inView(pane.helpChoose),
+                  "Space on Cancel: Help me choose a method, the first of the general choices, has the focus and is in view")
+    }
+
+    /// Windows' Change design on the offer of a paired or unpaired t test that no card made (Learning/conversation.mjs:221-222,
+    /// ScriptAIPane.WorksheetAnalysis.cs:266-276, :390-392), and its rule for a card's choices, Change sample choice, Change design
+    /// and Continue, and a clarifying question's answers, while another document is in front of the card's workbook (:331-335): each
+    /// is refused with Windows' notice, the card, question or offer kept; with the workbook in front again each is taken, and a card's
+    /// choice clears the notice (:402).
+    func designAndActivation(_ cards: Document, _ report: Document) async throws {
+        keyboardNavigation(true)
+        defer { keyboardNavigation(false); viewer.window.makeFirstResponder(pane.input) }
+        func toReport() async throws {
+            viewer.tabs.selectTabViewItem(report.item)
+            try await wait("The report did not come in front of the card workbook") { viewer.active === report && pane.workbookID == cards.id }
+        }
+        func toCards() async throws {
+            viewer.tabs.selectTabViewItem(cards.item)
+            try await wait("The card workbook did not come back in front") { viewer.active === cards && pane.workbookID == cards.id }
+        }
+        func notice() -> String { label("worksheet-ai-notice") }
+        try await select(cards, "selectCells({x:24,y:0,width:2,height:8})", "Selection: Cards!Y1:Z8")
+        let quiet = dataTraffic()
+        let activate = "Activate “" + label("worksheet-ai-workbook") + "” to continue this analysis."
+        pane.prepareAnalysis("TPaired")
+        _ = try await offered("Paired Student t test")
+        let design: NSButton? = control("worksheet-ai-change-design", in: pane.view)
+        let sample: NSButton? = control("worksheet-ai-change-sample", in: pane.view)
+        try check(design?.title == "Change design" && design?.isHiddenOrHasHiddenAncestor == false && sample?.isHiddenOrHasHiddenAncestor == true,
+                  "the paired t test offered without a card has Windows' Change design, not Change sample choice")
+
+        try await toReport()
+        let documents = viewer.documents.count
+        design?.performClick(nil)
+        let refusedDesign = notice()
+        showNoticeCleared()
+        pane.continueAnalysis()
+        try await Task.sleep(for: .milliseconds(300))
+        try check(refusedDesign == activate && notice() == activate && pane.offer?.methodTitle == "Paired Student t test" && card() == nil
+                  && viewer.documents.count == documents && viewer.active === report,
+                  "with a report in front of the workbook, Change design and Continue are each refused with Windows' notice “\(activate)” and the offer is kept")
+        try await toCards()
+        let designFocus: Bool = design.map { pressWithFocus($0) } ?? false
+        let chosen = try await waitCard("choose", [chooseLine], "Change design did not go back to the study-design question")
+        try check(pane.offer == nil && notice().isEmpty && chosen.choices == ["paired", "independent"],
+                  "with the workbook in front, Change design goes back to the study-design question in the offer's place and clears the notice")
+        try checkFocus(designFocus, focusOnFirstChoice(), "the keyboard focus on Change design moves to the study-design question's first answer")
+
+        try await toReport()
+        let token = chosen.token
+        let paired = await pane.answerCard("paired", token: token)
+        try check(!paired && notice() == activate && card()?.kind == "choose" && card()?.token == token,
+                  "with the report in front, Same people or units is refused with Windows' notice and the question is kept with its token")
+        try await toCards()
+        try click("paired")
+        let four = try await waitCard("paired-interval", ["Local check found 4 complete pairs."], "Same people or units did not check Y1:Z8 with the workbook in front")
+        try check(notice().isEmpty, "with the workbook in front, Same people or units is taken and clears the notice")
+
+        try await toReport()
+        let branch = await pane.answerCard("normal", token: four.token)
+        let refusedBranch = notice()
+        try await toCards()
+        try check(!branch && refusedBranch == activate && pane.offer == nil && card()?.token == four.token,
+                  "with the report in front, a branch is refused with Windows' notice, before its offer is prepared, and the card is kept")
+        try click("normal")
+        _ = try await offered("Paired Student t test")
+        try check(notice().isEmpty && design?.isHiddenOrHasHiddenAncestor == true, "the branch's offer clears the notice and has no Change design")
+        try await toReport()
+        let wentBack = await pane.changeSample()
+        try check(!wentBack && notice() == activate && pane.offer != nil, "with the report in front, Change sample choice is refused with Windows' notice and the offer is kept")
+        try await toCards()
+        sample?.performClick(nil)
+        let returned = try await waitCard("paired-interval", ["Local check found 4 complete pairs."], "Change sample choice did not return with the workbook in front")
+        try check(pane.offer == nil && notice().isEmpty, "with the workbook in front, Change sample choice returns to the card and clears the notice")
+        try await toReport()
+        let back = await pane.answerCard("back", token: returned.token)
+        try check(!back && notice() == activate && card()?.kind == "paired-interval", "with the report in front, the card's Change design is refused with Windows' notice")
+        try await toCards()
+        try click("back")
+        _ = try await waitCard("choose", [chooseLine], "The card's Change design did not go back with the workbook in front")
+        try check(notice().isEmpty && dataTraffic() == quiet,
+                  "with the workbook in front, the card's Change design goes back to the study-design question and clears the notice; nothing was sent")
+
+        pane.prepareAnalysis("Wilcoxon")
+        _ = try await offered("Wilcoxon signed ranks test")
+        try check(design?.isHiddenOrHasHiddenAncestor == true && sample?.isHiddenOrHasHiddenAncestor == true,
+                  "a method other than the paired or unpaired t test offered without a card has neither Change design nor Change sample choice")
+        button("Cancel")?.performClick(nil)
+        try await wait("Cancel did not end the Wilcoxon offer") { pane.offer == nil }
+
+        pane.input.string = "CLARIFY_THEN_CARD_A"
+        pane.send()
+        try await wait("The clarifying question did not appear for the activation rule") { !pane.isBusy && pane.clarification != nil }
+        let rows = await assistantRows()
+        guard let box: NSView = control("worksheet-ai-clarification", in: pane.view), let option = views(WorksheetAIChoiceButton.self, in: box).first else {
+            throw ChatGPTTutor.Failure(message: "The clarifying question shows no answer")
+        }
+        try await toReport()
+        let sent = await pane.answerClarification(option.choice, token: option.token)
+        try check(!sent && notice() == activate && pane.clarification != nil && !pane.isBusy,
+                  "with the report in front, an answer to the clarifying question is refused with Windows' notice and the question is kept")
+        try await toCards()
+        let after = await assistantRows()
+        try check(after == rows, "the refused answer sent nothing")
+    }
+
+    /// The notice line emptied by the test, so that the next refusal is seen on its own.
+    func showNoticeCleared() { pane.showNotice("") }
 }

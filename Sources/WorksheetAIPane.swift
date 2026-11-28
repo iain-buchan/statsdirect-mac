@@ -1289,7 +1289,8 @@ final class WorksheetAIChoiceButton: NSButton {
 
     /// Offers a method for the current selection. `origin` is the distribution card the method was chosen on (Windows
     /// ConfirmWorksheetAnalysis with the decision and branch): the offer then also shows the card's check and Windows'
-    /// advice for the branch, with Change sample choice, and takes the card's place; an error preparing it clears the card.
+    /// advice for the branch, with Change sample choice, and takes the card's place; an error preparing it, or a selection
+    /// that changed since the card was read, clears the card.
     private func prepareAnalysis(_ method: String, from origin: OfferOrigin?) {
         guard visible, !isBusy, let workbook, viewer.active === workbook, !TutorPolicy.disabled else {
             showNotice("Select the worksheet you want to analyse."); return
@@ -1302,10 +1303,12 @@ final class WorksheetAIChoiceButton: NSButton {
                 guard !Task.isCancelled, visible, workbookID == workbook.id else { return }
                 if let origin {
                     // The card the branch was chosen on must still be the one shown, and the offer must be for the selection
-                    // it was read for: a change the page has not yet reported is read in the same call as the selection.
+                    // it was read for: a change the page has not yet reported is read in the same call as the selection. A
+                    // changed one clears the card, with the offer's text, for the general choices, as Windows refuses a card's
+                    // target that changed (WorksheetAnalysisProposal.cs:41, ScriptAIPane.WorksheetAnalysis.cs:405-410).
                     guard guidanceToken == origin.token, distribution?.workbookID == workbook.id else { return }
-                    guard prepared.fingerprint == origin.fingerprint else { returnToCard(origin, workbook); return }
                     distribution = nil
+                    guard prepared.fingerprint == origin.fingerprint else { render(); showNotice(WorksheetAICardChanged.message); return }
                     offerDetails.stringValue = ((origin.card.check?.diagnostics ?? []) + [origin.card.check?.advice[origin.branch] ?? ""])
                         .filter { !$0.isEmpty }.joined(separator: "\n")
                 }
@@ -1345,25 +1348,13 @@ final class WorksheetAIChoiceButton: NSButton {
                 cancelAnalysis()
             } catch {
                 guard !Task.isCancelled else { return }
-                if let origin, error is WorksheetAICardChanged { returnToCard(origin, workbook) }
-                else { cancelAnalysis(); showNotice(error.localizedDescription) }
+                // Any refusal ends the offer and the card it came from, a selection that no longer matches the card's reading
+                // (WorksheetAICardChanged) included: the general choices come back with the refusal in the notice line, as on
+                // Windows, whose Continue clears the card before it opens (ScriptAIPane.WorksheetAnalysis.cs:393-398, :405-410).
+                cancelAnalysis()
+                showNotice(error.localizedDescription)
             }
         }
-    }
-
-    /// An offer chosen on a distribution card whose selection, revisions or "First row has column names" have changed
-    /// since the card was read (Windows binds its proposal to the card's selection and version the same way,
-    /// frmSpreadsheetGear.WorksheetAnalysis.cs:27-35): the offer goes with the offer's refusal text, and the card is read
-    /// again for the live selection, as Change sample choice does after a change.
-    private func returnToCard(_ origin: OfferOrigin, _ workbook: Document) {
-        guard visible, workbookID == workbook.id, origin.workbookID == workbook.id else { cancelAnalysis(); return }
-        var card = origin.card
-        card.feedback = nil
-        distribution = (card, workbook.id)
-        cancelAnalysis()
-        issueGuidanceToken(changed: true)
-        render()
-        showNotice(WorksheetAICardChanged.message)
     }
 
     /// Cancel, and every other end of an offer: a method chosen on a distribution card takes the card with it.

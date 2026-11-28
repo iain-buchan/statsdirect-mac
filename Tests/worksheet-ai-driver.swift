@@ -1853,9 +1853,16 @@ extension WorksheetAIHarness {
     }
 
     /// An offer chosen on a card stands on the card's reading (Windows binds its proposal to the card's selection and version,
-    /// frmSpreadsheetGear.WorksheetAnalysis.cs:27-35): a change of "First row has column names" after the branch, or of the
-    /// selection before the offer is prepared, refuses it with the offer's text, reads the card again and opens nothing.
+    /// frmSpreadsheetGear.WorksheetAnalysis.cs:18-35): a change of "First row has column names" after the branch, or of the
+    /// selection before the offer is prepared, refuses it as Windows refuses a target that changed (ScriptAIPane.WorksheetAnalysis.cs
+    /// :393-398 and :405-410): the offer and its card go, the notice gives the offer's text, the general choices come back with
+    /// the keyboard focus that was on the card or the offer, and nothing opens or is sent.
     func offersHeldToTheCard(_ cards: Document) async throws {
+        // What a refusal leaves: no offer and no card, the general choices, and nothing opened.
+        func cleared(_ documents: Int) -> Bool {
+            pane.offer == nil && pane.distribution == nil && card() == nil && shown("worksheet-ai-help-choose")
+                && viewer.documents.count == documents && viewer.active === cards
+        }
         try await select(cards, "selectCells({x:42,y:0,width:2,height:5})", "Selection: Cards!AQ1:AR5")
         pane.input.string = "PAIRED_A"
         pane.send()
@@ -1873,12 +1880,15 @@ extension WorksheetAIHarness {
         try await wait("Continue after the header toggle was not refused: notice \(label("worksheet-ai-notice").debugDescription)") {
             label("worksheet-ai-notice") == WorksheetAICardChanged.message && pane.offer == nil
         }
-        try await waitCard("paired-interval", ["Local check found 5 complete pairs. Shapiro–Wilk W = 0.9609, P = 0.814."], "Continue did not read the card again with row 1")
-        try check(viewer.documents.count == documents && viewer.active === cards && pane.offer == nil && dataTraffic() == quiet,
-                  "Continue after First row has column names was unticked refuses with the offer's text, reads the card again with row 1, opens nothing and sends nothing")
-        try checkFocus(continueFocus, focusOnFirstChoice(), "the keyboard focus on a refused Continue moves to the first choice of the card read again")
+        try check(cleared(documents) && dataTraffic() == quiet,
+                  "Continue after First row has column names was unticked is refused as on Windows: the offer and its card go, the notice gives the offer's text, the general choices come back, and nothing opens or is sent")
+        try checkFocus(continueFocus, viewer.window.firstResponder === pane.helpChoose,
+                       "the keyboard focus on a refused Continue moves to Help me choose a method, the first of the general choices")
         try await grid(cards, checkbox)
-        try await waitCard("paired-interval", [headed], "Ticking the setting did not read the card again")
+        try await wait("The page did not report First row has column names ticked") { cards.aiWorksheet?.headerRow == true }
+        pane.input.string = "PAIRED_A"
+        pane.send()
+        try await waitCard("paired-interval", [headed], "The paired card was not staged again for AQ1:AR5")
 
         // The selection changed between the branch click and the offer's preparation, which the page reports only once it
         // settles: made inside the very page call that captures the selection for the offer, by wrapping it once.
@@ -1890,17 +1900,21 @@ extension WorksheetAIHarness {
             };
             return true;
             """, arguments: [:], in: nil, contentWorld: .page)
-        let raced: [String] = dataTraffic()
+        let raced: [String] = dataTraffic(), opened: Int = viewer.documents.count
         pane.showNotice("")
-        try click("normal")
+        let raceFocus: Bool = try pressWithFocus("normal")
         try await wait("An offer for a selection changed under the card was not refused: notice \(label("worksheet-ai-notice").debugDescription)") {
             label("worksheet-ai-notice") == WorksheetAICardChanged.message
         }
         let moved = try await cards.web.evaluateJavaScript("window.statsDirectTestMoved === true") as? Bool
         try await wait("The page did not report A1:B13") { pane.selectionLabel.stringValue == "Selection: Cards!A1:B13" }
-        try await waitCard("paired-interval", ["Local check found 12 complete pairs. Shapiro–Wilk W = 0.9669, P = 0.8757."], "The card was not read again for A1:B13")
-        try check(moved == true && pane.offer == nil && dataTraffic() == raced,
-                  "an offer whose selection changed between the branch click and its preparation is refused, and the card is read again for the selection as it now stands")
+        try check(moved == true && cleared(opened) && dataTraffic() == raced,
+                  "an offer whose selection changed between the branch click and its preparation is refused as on Windows: the card goes, the notice gives the offer's text, the general choices come back, and nothing opens or is sent")
+        try checkFocus(raceFocus, viewer.window.firstResponder === pane.helpChoose,
+                       "the keyboard focus on a branch whose offer is refused as it is prepared moves to Help me choose a method, the first of the general choices")
+        pane.input.string = "PAIRED_A"
+        pane.send()
+        try await waitCard("paired-interval", ["Local check found 12 complete pairs. Shapiro–Wilk W = 0.9669, P = 0.8757."], "The paired card was not staged for A1:B13")
 
         // An error preparing the offer clears the card, with the error in the notice line, and the focus that was on the branch
         // moves to the first of the general choices.
